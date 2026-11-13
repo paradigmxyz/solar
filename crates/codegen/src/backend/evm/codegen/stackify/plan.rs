@@ -149,6 +149,7 @@ const MAX_RECOMPUTED_OPS: u32 = 4;
 /// says where the journal and the totals stood, so [rewind](Self::rewind) restores exactly the
 /// state a plan from scratch reaches before that block, as long as the blocks before it plan
 /// alike.
+#[derive(Clone)]
 pub(super) struct Progress {
     layouts: IndexVec<BlockId, Option<Layout>>,
     blocks: IndexVec<BlockId, Option<BlockPlan>>,
@@ -208,6 +209,7 @@ impl Progress {
 }
 
 /// How to revert one change to the planner's [`Progress`].
+#[derive(Clone)]
 enum Undo {
     /// The block's layout was chosen.
     Layout(BlockId),
@@ -623,7 +625,18 @@ impl<'a> Planner<'a> {
     ///
     /// The caller rewinds the progress to the first block whose plan the values spilled since
     /// can change. The blocks before it are taken as planned; every other field is new.
-    pub(super) fn plan_from(mut self, progress: &mut Option<Progress>) -> Result<Planned, Fail> {
+    pub(super) fn plan_from(self, progress: &mut Option<Progress>) -> Result<Planned, Fail> {
+        self.resume(progress, false)
+    }
+
+    /// Plans the function like [`plan_from`](Self::plan_from), and leaves in `progress` what
+    /// this attempt decided whether it fails or not, so that a plan under other loop header
+    /// layouts can resume from it.
+    pub(super) fn plan_keeping(self, progress: &mut Option<Progress>) -> Result<Planned, Fail> {
+        self.resume(progress, true)
+    }
+
+    fn resume(mut self, progress: &mut Option<Progress>, keep: bool) -> Result<Planned, Fail> {
         if let Some(progress) = progress.take() {
             self.layouts = progress.layouts;
             self.blocks = progress.blocks;
@@ -646,6 +659,18 @@ impl<'a> Planner<'a> {
                 marks: self.marks,
             });
             return Err(fail);
+        }
+        if keep {
+            *progress = Some(Progress {
+                layouts: self.layouts.clone(),
+                blocks: self.blocks.clone(),
+                natural: self.natural.clone(),
+                pending: self.pending.clone(),
+                cost: self.cost,
+                non_loop_gas: self.non_loop_gas,
+                journal: std::mem::take(&mut self.journal),
+                marks: std::mem::take(&mut self.marks),
+            });
         }
         let plan = FunctionPlan {
             blocks: self.blocks,
@@ -3416,6 +3441,7 @@ impl Uses {
 }
 
 /// An edge into a join, recorded until the join's layout is chosen.
+#[derive(Clone)]
 struct Pending {
     pred: BlockId,
     /// The predecessor's stack on the edge.

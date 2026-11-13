@@ -80,7 +80,10 @@
 //! [`HEADER_EXCHANGED_WORDS`] words exchanged, one pair at a time, and replanned. The header keeps
 //! the exchange of the cheapest plan, if any beats the best, and the next header builds on it.
 //! Each replan costs time in proportion to the function's size, so a function takes at most
-//! [`HEADER_REPLAN_WORK`] divided by its instruction count replans.
+//! [`HEADER_REPLAN_WORK`] divided by its instruction count replans. A header takes its hinted
+//! layout on the first edge planned into it, so a later round resumes from the plan of the round
+//! before, and a replan from the best plan, at the first predecessor of a header whose layout
+//! changed.
 //!
 //! Optimized functions also try keeping their most expensive repeated immediates on the stack,
 //! one at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on top of the ones kept.
@@ -766,6 +769,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut round = 0;
         let mut tried = Vec::new();
         let mut best_hints = FxHashMap::default();
+        // The last plan and the best one with their hints and what they decided, for plans under
+        // other hints to resume from. The best one also keeps the restarts before it: a plan
+        // resumes only from one made with the same spills.
+        let mut last: Option<(FxHashMap<BlockId, Layout>, plan::Progress)> = None;
+        let mut best_progress: Option<(u32, plan::Progress)> = None;
         while let Some(hints) = candidates.pop() {
             round += 1;
             // The same hints give the same plan.
@@ -773,8 +781,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             tried.push(hints.clone());
-            // What the last failed plan under these hints decided before the spills it asked for.
-            let mut progress = None;
+            // What the last plan decided before the first block the new hints can change, and
+            // then what the last failed plan under these hints decided before the spills it asked
+            // for.
+            let mut progress = last.take().map(|(last_hints, mut progress)| {
+                let blocks =
+                    spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
+                progress.rewind(blocks.first_hinted(func, &last_hints, &hints));
+                progress
+            });
             let Planned { plan, mut natural, first_use } = loop {
                 let planner = Planner::new(
                     func,
@@ -807,7 +822,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     )
                     .map(Planner::plan)
                 });
-                let result = planner.plan_from(&mut progress);
+                let result = planner.plan_keeping(&mut progress);
                 #[cfg(debug_assertions)]
                 if let Some(Ok(scratch)) = &scratch {
                     assert!(
@@ -853,6 +868,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
             };
+            let progress = progress.expect("a plan keeps its progress");
             if round == 1 {
                 if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
@@ -866,32 +882,59 @@ impl<'gcx> EvmCodegen<'gcx> {
             if best.as_ref().is_none_or(|best| target.cmp(plan.cost, best.cost).is_lt()) {
                 best = Some(plan);
                 best_hints = hints.clone();
+                best_progress = Some((restarts, progress.clone()));
                 // Lay each loop header out as this plan's latch left it.
                 if natural != hints && round < LAYOUT_ROUNDS {
                     candidates.insert(0, natural);
                 }
             }
+            last = Some((hints, progress));
         }
         let mut best = best.expect("at least one plan");
+        let blocks = &*spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
+        // A replan resumes from the best plan before the first block its hints can change, when no
+        // later round spilled more.
+        let best_progress = best_progress.filter(|&(at, _)| at == restarts).map(|(_, p)| p);
         let replan = |hints: &FxHashMap<BlockId, Layout>| {
-            Planner::new(
-                func,
-                info,
-                func_id,
-                analysis,
-                &target,
-                &spilled,
-                ret_spilled,
-                restarts >= single_spills,
-                hints,
-            )
-            .ok()?
-            .plan()
-            .ok()
+            let new = || {
+                Planner::new(
+                    func,
+                    info,
+                    func_id,
+                    analysis,
+                    &target,
+                    &spilled,
+                    ret_spilled,
+                    restarts >= single_spills,
+                    hints,
+                )
+                .ok()
+            };
+            let mut progress = best_progress.clone().map(|mut progress: plan::Progress| {
+                progress.rewind(blocks.first_hinted(func, &best_hints, hints));
+                progress
+            });
+            #[cfg(debug_assertions)]
+            let scratch = progress.is_some().then(|| new().map(Planner::plan)).flatten();
+            let result = new()?.plan_from(&mut progress);
+            #[cfg(debug_assertions)]
+            if let Some(scratch) = &scratch {
+                assert!(
+                    plan::same_outcome(&result, scratch),
+                    "a resumed stack plan differs from a plan from scratch",
+                );
+            }
+            result.ok()
         };
         if target.optimizes_stack_plans() {
             exchange_header_words(
-                func, analysis, &target, best_hints, &mut tried, &mut best, replan,
+                func,
+                analysis,
+                &target,
+                best_hints.clone(),
+                &mut tried,
+                &mut best,
+                replan,
             );
         }
         let hints = FxHashMap::default();
@@ -1271,6 +1314,30 @@ impl SpillBlocks {
             positions[block] = position;
         }
         Self { inst_blocks: func.inst_block_table(), positions }
+    }
+
+    /// The position in the reverse postorder of the first block whose plan can change when the
+    /// loop header layouts `old` become `new`.
+    ///
+    /// A header takes its hinted layout on the first edge planned into it, and a latch reads the
+    /// hints when it records the layout it would choose, so only the blocks from the first
+    /// predecessor of a header whose hint changed on can plan otherwise.
+    fn first_hinted(
+        &self,
+        func: &Function,
+        old: &FxHashMap<BlockId, Layout>,
+        new: &FxHashMap<BlockId, Layout>,
+    ) -> usize {
+        let changed = old.iter().filter(|&(block, layout)| new.get(block) != Some(layout));
+        let added = new.iter().filter(|&(block, _)| !old.contains_key(block));
+        changed
+            .chain(added)
+            .flat_map(|(&block, _)| {
+                std::iter::once(block).chain(func.blocks[block].predecessors.iter().copied())
+            })
+            .map(|block| self.positions[block])
+            .min()
+            .unwrap_or(self.positions.len())
     }
 
     /// The position in the reverse postorder of the first block whose plan can change when
