@@ -240,6 +240,17 @@ def operation(value, definitions):
             "[" + ",".join("true" if x else "false" for x in value["functions"]) + "]"
         )
         expression = f".abi (.encode {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} {functions})"
+    elif kind == "require_literal":
+        data = ",".join(number(byte, 256) for byte in value["bytes"])
+        expression = f".abi (.require (.literal [{data}]))"
+    elif kind == "require_short":
+        expression = ".abi (.require .short)"
+    elif kind == "require_encode":
+        shapes = ",".join(abi_encode_shape(shape) for shape in value["shapes"])
+        memory_slices = ",".join(
+            "true" if item else "false" for item in value["memory_slices"]
+        )
+        expression = f".abi (.require (.encode {'true' if value['custom'] else 'false'} [{shapes}] [{memory_slices}]))"
     elif kind == "abi_encode_tree":
         shapes = ",".join(abi_encode_shape(shape) for shape in value["shapes"])
         memory_slices = ",".join(

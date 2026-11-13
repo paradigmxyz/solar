@@ -10,7 +10,18 @@ namespace SolarTV
 inductive RevertData where
   | empty
   | panic (code : BitVec 256)
+  | data (bytes : List (BitVec 8))
   deriving DecidableEq
+
+/-- Canonicalize byte payloads so raw panic/empty encodings equal their semantic forms. -/
+def RevertData.fromBytes (bytes : List (BitVec 8)) : RevertData :=
+  if bytes.isEmpty then .empty
+  else if bytes.length == 36 && bytes.take 4 == [0x4e,0x48,0x7b,0x71] then
+    .panic ((bytes.drop 4).foldl (fun word byte => (word <<< 8) ||| byte.setWidth 256) 0)
+  else .data bytes
+
+def errorEmptyData : List (BitVec 8) :=
+  [0x08,0xc3,0x79,0xa0] ++ List.replicate 31 0 ++ [32] ++ List.replicate 32 0
 
 inductive Outcome (α : Type) where
   | returned (value : α)
@@ -79,6 +90,8 @@ def Outcome.code (result : Outcome (BitVec width)) : BitVec 258 :=
   | .returned value => value.setWidth 258
   | .reverted .empty => 1#258 <<< 256
   | .reverted (.panic code) => (2#258 <<< 256) ||| code.setWidth 258
+  -- This projection proposes witnesses; only exact payload equality proves refinement.
+  | .reverted (.data bytes) => (1#258 <<< 256) ||| BitVec.ofNat 258 bytes.length
   | .invalid => 3#258 <<< 256
 
 @[simp] theorem Outcome.code_returned (value : BitVec width) :
@@ -111,6 +124,7 @@ def Outcome.describe (result : Outcome (BitVec width)) : String :=
   | .returned value => toString value.toNat
   | .reverted .empty => "revert(empty)"
   | .reverted (.panic code) => s!"revert Panic({code.toNat})"
+  | .reverted (.data bytes) => s!"revert(data={bytes.map BitVec.toNat})"
   | .invalid => "invalid"
 
 end SolarTV

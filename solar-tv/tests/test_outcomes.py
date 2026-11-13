@@ -101,8 +101,14 @@ class OutcomeTests(unittest.TestCase):
         )
         self.pair(
             "icall require<empty_string>, arg0\nret 7",
+            "jumpi arg0, bb1, bb2\nbb1:\nret 7\nbb2:\nicall require<empty_string>, false\ninvalid",
+            params="arg0: i1",
+        )
+        self.pair(
+            "icall require<empty_string>, arg0\nret 7",
             "jumpi arg0, bb1, bb2\nbb1:\nret 7\nbb2:\nrevert 0, 0",
             params="arg0: i1",
+            status=1,
         )
         self.pair(
             "icall revert_if<empty>, arg0\nret 7",
