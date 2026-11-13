@@ -32,10 +32,24 @@ pub(crate) struct Relaxed {
     /// Array constants the script does not define as a term of others (an assumed state rather
     /// than one computed from it), with their sorts.
     inputs: Vec<(String, Sexp)>,
-    /// Each ground read `(select .. (select a i0) .. ik)` of an input array down to a scalar: the
-    /// array, the index terms and the read itself. Their values follow in the `get-value`, read
-    /// first and index terms after, in order.
-    reads: Vec<(String, Vec<Sexp>, Sexp)>,
+    /// Each ground read `(select .. (select a i0) .. ik)` of an input array down to a scalar.
+    /// Their values follow in the `get-value`, read first and index terms after, in order.
+    reads: Vec<Read>,
+}
+
+/// A read of an input array: the array, the index terms, the read itself, and whether the
+/// original script makes it (rather than only an instance of a quantifier).
+type Read = (String, Vec<Sexp>, Sexp, bool);
+
+/// The candidates [`pins`] makes of a model of the relaxed script, in the order to try them.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Pin {
+    /// Input arrays zero except at the reads of the original script.
+    Ground,
+    /// Input arrays zero except at every read, instances' included.
+    Instances,
+    /// Every constant as the model has it.
+    Model,
 }
 
 /// A relaxed script for `script` (a whole transcript with one query, ending in `check-sat`).
@@ -133,7 +147,8 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<Relaxed> {
             )
         )
     });
-    let rest: Vec<Sexp> = rest.iter().map(|c| instantiate(c, &ints)).collect();
+    let ground_rest = rest;
+    let rest: Vec<Sexp> = ground_rest.iter().map(|c| instantiate(c, &ints)).collect();
 
     // Arrays defined as a term of others, by an assertion `(= a t)`, with the arrays `t` names.
     let arrays: HashMap<&str, &Sexp> = consts
@@ -164,9 +179,15 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<Relaxed> {
     for c in &rest {
         scalar_reads(c, &arrays, &mut seen, &mut all);
     }
-    let mut reads = vec![];
-    let mut seen = HashSet::new();
+    // The reads the original script makes outside quantifiers.
+    let (mut own, mut own_seen) = (vec![], HashSet::new());
+    for c in &ground_rest {
+        scalar_reads(c, &arrays, &mut own_seen, &mut own);
+    }
+    let mut reads: Vec<Read> = vec![];
+    let mut seen = HashMap::new();
     for (a, idx, read) in all {
+        let is_own = own_seen.contains(&read.to_string());
         let mut todo = vec![a];
         let mut visited = HashSet::new();
         while let Some(x) = todo.pop() {
@@ -183,8 +204,15 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<Relaxed> {
                             Sexp::List(vec![Sexp::Atom("select".into()), acc, i.clone()])
                         })
                     };
-                    if seen.insert(r.to_string()) {
-                        reads.push((x, idx.clone(), r));
+                    match seen.get(&r.to_string()) {
+                        Some(&k) => {
+                            let prev: &mut Read = &mut reads[k];
+                            prev.3 |= is_own;
+                        }
+                        None => {
+                            seen.insert(r.to_string(), reads.len());
+                            reads.push((x, idx.clone(), r, is_own));
+                        }
                     }
                 }
                 None => {}
@@ -203,7 +231,7 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<Relaxed> {
     out.push_str("(check-sat)\n(get-model)\n");
     let terms: Vec<String> = reads
         .iter()
-        .flat_map(|(_, idx, read): &(String, Vec<Sexp>, Sexp)| {
+        .flat_map(|(_, idx, read, _): &Read| {
             std::iter::once(read.to_string()).chain(idx.iter().map(ToString::to_string))
         })
         .collect();
@@ -217,16 +245,18 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<Relaxed> {
 /// Assertions that fix the query's state to a model of the relaxed script (its output, from
 /// `sat` on).
 ///
-/// Without `zero`, every live constant gets its value in the model, except values that name
+/// With [`Pin::Model`], every live constant gets its value in the model, except values that name
 /// the solver's own auxiliary functions (`as-array`, `k!0`).
 ///
-/// With `zero`, each scalar constant gets its value, each input array is the zero array (storage
-/// nobody wrote) except at the reads the script makes of it, which keep their values, and
+/// Otherwise each scalar constant gets its value, each input array is the zero array (storage
+/// nobody wrote) except at the reads of it (the original script's, or every one with
+/// [`Pin::Instances`]), which keep their values, and
 /// arrays the script computes from others are left to follow from them. The model picks array
 /// defaults freely, so they often break a quantified invariant that zeros keep, and the solver
 /// settles a quantifier over arrays it is given far more readily than one over arrays it must
 /// build.
-pub(crate) fn pins(output: &str, r: &Relaxed, zero: bool) -> Option<String> {
+pub(crate) fn pins(output: &str, r: &Relaxed, how: Pin) -> Option<String> {
+    let zero = how != Pin::Model;
     let mut it = sexp::parse(output).filter_map(Result::ok);
     let sat = it.find(|e| e.as_atom().is_some())?;
     if sat.as_atom() != Some("sat") {
@@ -263,10 +293,12 @@ pub(crate) fn pins(output: &str, r: &Relaxed, zero: bool) -> Option<String> {
     }
     let mut values = values.into_iter();
     let mut points: HashMap<&str, Vec<(Vec<Sexp>, Sexp)>> = HashMap::new();
-    for (a, idx, _) in &r.reads {
+    for (a, idx, _, own) in &r.reads {
         let leaf = values.next()?;
         let idx: Vec<Sexp> = idx.iter().map(|_| values.next()).collect::<Option<_>>()?;
-        points.entry(a.as_str()).or_default().push((idx, leaf));
+        if *own || how == Pin::Instances {
+            points.entry(a.as_str()).or_default().push((idx, leaf));
+        }
     }
     for (a, sort) in &r.inputs {
         let v = build(sort, points.get(a.as_str()).map_or(&[][..], Vec::as_slice))?;
@@ -277,6 +309,23 @@ pub(crate) fn pins(output: &str, r: &Relaxed, zero: bool) -> Option<String> {
 
 /// An index path into an array and the scalar there.
 type Point = (Vec<Sexp>, Sexp);
+
+/// Assertions that fix every constant of a `get-model` response to its value there, except values
+/// that name the solver's own auxiliary functions.
+pub(crate) fn model_pins(model: &Sexp) -> String {
+    let mut out = String::new();
+    for d in model.as_list().unwrap_or_default() {
+        let Some([_, Sexp::Atom(name), Sexp::List(args), _, value]) = d.as_list() else { continue };
+        if d.head() != Some("define-fun") || !args.is_empty() {
+            continue;
+        }
+        if atoms(value).iter().any(|a| a == "as-array" || a == "lambda" || a.contains('!')) {
+            continue;
+        }
+        out.push_str(&format!("(assert (= |{}| {value}))\n", unquote(name)));
+    }
+    out
+}
 
 /// The array of sort `sort` that is zero except at `points` (index paths with their values);
 /// the first value given for a path wins.
@@ -315,7 +364,8 @@ fn zero_of(sort: &Sexp) -> Option<Sexp> {
     }
 }
 
-/// The reads in `e` of an input array down to a scalar, each once: `(array, indices, read)`.
+/// The reads in `e` of an array down to a scalar, each once: `(array, indices, read)`. Quantified
+/// subterms are skipped: their reads name bound variables.
 fn scalar_reads(
     e: &Sexp,
     inputs: &HashMap<&str, &Sexp>,
@@ -323,6 +373,9 @@ fn scalar_reads(
     out: &mut Vec<(String, Vec<Sexp>, Sexp)>,
 ) {
     let Sexp::List(items) = e else { return };
+    if matches!(e.head(), Some("forall" | "exists")) {
+        return;
+    }
     if let Some((a, idx)) = read_path(e)
         && let Some(sort) = inputs.get(a)
         && depth(sort) == idx.len()
@@ -481,7 +534,7 @@ mod tests {
         let r = relax(script, "").unwrap();
         let model = "sat\n((define-fun x () Int (- 1))\n (define-fun a () (Array Int Int) ((as const (Array Int Int)) 0))\n (define-fun b () (Array Int Int) (_ as-array k!0))\n (define-fun k!0 ((x!0 Int)) Int 0))\n";
         snapbox::assert_data_eq!(
-            pins(model, &r, false).unwrap(),
+            pins(model, &r, Pin::Model).unwrap(),
             snapbox::str![[r#"
 (assert (= |x| (- 1)))
 (assert (= |a| ((as const (Array Int Int)) 0)))
@@ -496,7 +549,7 @@ mod tests {
         let r = relax(script, "").unwrap();
         let out = "sat\n((define-fun k () Int 3)\n (define-fun m () (Array Int (Array Int Int)) ((as const (Array Int (Array Int Int))) ((as const (Array Int Int)) 20))))\n(((select (select m k) 0) 20) (k 3) (0 0) ((select (select m 0) 0) 0) (0 0) (0 0) ((select (select m k) 2) 5) (k 3) (2 2) ((select (select m 0) 3) 0) (0 0) (3 3) ((select (select m 0) k) 0) (0 0) (k 3))\n";
         snapbox::assert_data_eq!(
-            pins(out, &r, true).unwrap(),
+            pins(out, &r, Pin::Instances).unwrap(),
             snapbox::str![[r#"
 (assert (= |k| 3))
 (assert (= m (store (store ((as const (Array Int (Array Int Int))) ((as const (Array Int Int)) 0)) 0 (store (store ((as const (Array Int Int)) 0) 3 0) 0 0)) 3 (store (store ((as const (Array Int Int)) 0) 2 5) 0 20))))

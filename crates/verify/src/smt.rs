@@ -26,6 +26,11 @@ pub(crate) struct Smt {
     pub stats: Stats,
     /// the first error the solver reported for a command (cleared per function)
     error: Option<String>,
+    /// Assertions pinning the constants to the last model the SAT-based core found for a query
+    /// of the current function (see [`Self::quantified_answer`]).
+    last_model: Option<String>,
+    /// The guards whose models have been sought for [`Self::reused_model`].
+    guard_models: std::collections::HashSet<String>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -99,6 +104,8 @@ impl Smt {
             log: if log { Some(String::new()) } else { None },
             stats: Stats::default(),
             error: None,
+            last_model: None,
+            guard_models: Default::default(),
         }
     }
 
@@ -190,6 +197,8 @@ impl Smt {
     /// Forget solver errors seen so far (at the start of a function's scope).
     pub(crate) fn clear_error(&mut self) {
         self.error = None;
+        self.last_model = None;
+        self.guard_models.clear();
     }
 
     pub(crate) fn check(&mut self, guard: &str, goal: &str, cex: &[(String, String)]) -> Res {
@@ -213,7 +222,7 @@ impl Smt {
         }
         let Res::Unknown(why) = r else { return r };
         if self.quantified(guard, goal)
-            && let Some(r) = self.quantified_answer(guard, goal, cex, self.timeout_ms, false)
+            && let Some(r) = self.quantified_answer(guard, goal, cex, self.timeout_ms, true)
         {
             return r;
         }
@@ -335,7 +344,7 @@ impl Smt {
     ///
     /// A z3 sat answer is a model that z3 checked against every quantifier, so a reported
     /// counterexample is never an artefact of the instantiation. `check` runs both attempts
-    /// briefly before the default core, and the first in full after it.
+    /// briefly before the default core, and again in full after it.
     fn quantified_answer(
         &mut self,
         guard: &str,
@@ -348,7 +357,9 @@ impl Smt {
         let t0 = Instant::now();
         let r = match self.euf(&q, "", cex, ms) {
             Some(r) => Some(r),
-            None if candidate => self.pinned_candidate(guard, goal, &q, cex, ms),
+            None if candidate => self
+                .reused_model(guard, &q, cex, ms)
+                .or_else(|| self.pinned_candidate(guard, goal, &q, cex, ms)),
             None => None,
         };
         self.stats.solver_ms += t0.elapsed().as_millis();
@@ -386,7 +397,12 @@ impl Smt {
             &format!("{}{q}(check-sat)\n", self.transcript),
             &format!("{guard} {goal}"),
         )?;
-        let model = self.solve(&format!("{EUF}{}", relaxed.script), ms);
+        // the relaxed script is all but free of quantifiers: the default core's ground
+        // arithmetic is the stronger there
+        let model = self
+            .solve(&relaxed.script, ms)
+            .filter(|m| m.trim_start().starts_with("sat"))
+            .or_else(|| self.solve(&format!("{EUF}{}", relaxed.script), ms));
         if let Some(d) = std::env::var_os("SOLAR_VERIFY_QUANT_DUMP") {
             let n = self.stats.queries;
             let d = std::path::Path::new(&d);
@@ -398,22 +414,85 @@ impl Smt {
             );
         }
         let model = model?;
-        // the candidate with zeroed input arrays first, then as the model has it
-        for zero in [true, false] {
-            let Some(pins) = crate::inst::pins(&model, &relaxed, zero) else { continue };
-            if let Some(sat @ Res::Sat(_)) = self.euf(q, &pins, cex, ms) {
+        // zeroed input arrays first, keeping the reads of the query, then of its instances too,
+        // then the model as it is
+        use crate::inst::Pin;
+        for how in [Pin::Ground, Pin::Instances, Pin::Model] {
+            let Some(pins) = crate::inst::pins(&model, &relaxed, how) else { continue };
+            if let Some(d) = std::env::var_os("SOLAR_VERIFY_QUANT_DUMP") {
+                let n = self.stats.queries;
+                let _ = std::fs::write(std::path::Path::new(&d).join(format!("{n}.pins")), &pins);
+            }
+            if let Some(sat) = self.confirm(q, &pins, cex, ms) {
                 return Some(sat);
             }
         }
         None
     }
 
-    /// The query `q` (its assertions) with `extra` assertions on top, in a fresh z3 with the
-    /// SAT-based core; `None` unless it answers sat (with `cex`'s values) or unsat.
+    /// A counterexample from the last model found for an earlier query of the function, or else
+    /// from a model of the query's guard alone (a state that reaches the check): a broken
+    /// postcondition often fails in every state that reaches it. Kept only if the query holds with
+    /// the constants pinned to that model.
+    fn reused_model(
+        &mut self,
+        guard: &str,
+        q: &str,
+        cex: &[(String, String)],
+        ms: u64,
+    ) -> Option<Res> {
+        if let Some(pins) = self.last_model.clone()
+            && let Some(sat) = self.confirm(q, &pins, cex, ms)
+        {
+            return Some(sat);
+        }
+        if !self.guard_models.insert(guard.to_string()) {
+            return None;
+        }
+        // a model of the guard becomes the last model
+        let g = format!("(assert {guard})\n");
+        if !matches!(self.fresh("", &g, "", &[], ms), Some(Res::Sat(_)))
+            && !matches!(self.euf(&g, "", &[], ms), Some(Res::Sat(_)))
+        {
+            return None;
+        }
+        let pins = self.last_model.clone()?;
+        self.confirm(q, &pins, cex, ms)
+    }
+
+    /// The query `q` with the constants pinned by `pins`, when satisfiable: a counterexample.
+    /// The default core decides most pinned queries at once (an unsat means the pins clash); the
+    /// SAT-based core gets those it leaves unknown.
+    fn confirm(&mut self, q: &str, pins: &str, cex: &[(String, String)], ms: u64) -> Option<Res> {
+        let r = match self.fresh("", q, pins, cex, ms) {
+            Some(r) => r,
+            None => self.euf(q, pins, cex, ms)?,
+        };
+        matches!(r, Res::Sat(_)).then_some(r)
+    }
+
+    /// [`Self::fresh`] with z3's SAT-based core.
     fn euf(&mut self, q: &str, extra: &str, cex: &[(String, String)], ms: u64) -> Option<Res> {
-        let mut script = format!("{EUF}{}{q}{extra}(check-sat)\n", self.transcript);
+        self.fresh(EUF, q, extra, cex, ms)
+    }
+
+    /// The query `q` (its assertions) with `extra` assertions on top, in a fresh z3 with the
+    /// options `opts`; `None` unless it answers sat (with `cex`'s values) or unsat. A model of the
+    /// query alone is kept for [`Self::reused_model`].
+    fn fresh(
+        &mut self,
+        opts: &str,
+        q: &str,
+        extra: &str,
+        cex: &[(String, String)],
+        ms: u64,
+    ) -> Option<Res> {
+        let mut script = format!("{opts}{PP}{}{q}{extra}(check-sat)\n", self.transcript);
         for (_, term) in cex {
             script.push_str(&format!("(get-value ({term}))\n"));
+        }
+        if extra.is_empty() {
+            script.push_str("(get-model)\n");
         }
         let out = self.solve(&script, ms)?;
         let mut responses = sexp::parse(&out).filter_map(Result::ok);
@@ -421,10 +500,16 @@ impl Smt {
             "unsat" => Some(Res::Unsat),
             "sat" => {
                 let mut vals = vec![];
-                for ((name, _), response) in cex.iter().zip(responses) {
+                for (name, _) in cex {
+                    let response = responses.next()?;
                     let Some([pair]) = response.as_list() else { return None };
                     let Some([_, value]) = pair.as_list() else { return None };
                     vals.push((name.clone(), pretty(&value.to_string())));
+                }
+                if extra.is_empty()
+                    && let Some(model) = responses.next()
+                {
+                    self.last_model = Some(crate::inst::model_pins(&model));
                 }
                 Some(Res::Sat(vals))
             }
@@ -498,6 +583,9 @@ impl Smt {
 
 /// How long z3's SAT-based core gets on a quantified query before the default core does.
 const QUICK_MS: u64 = 1000;
+
+/// Models printed without `let`, so that each value is a closed term.
+const PP: &str = "(set-option :pp.min_alias_size 1000000)\n(set-option :pp.max_depth 1000000)\n";
 
 /// The option that switches z3 to its SAT-based core.
 const EUF: &str = "(set-option :sat.euf true)\n";
