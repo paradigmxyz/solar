@@ -80,7 +80,10 @@
 //! [`HEADER_EXCHANGED_WORDS`] words exchanged, one pair at a time, and replanned. The header keeps
 //! the exchange of the cheapest plan, if any beats the best, and the next header builds on it.
 //! Each replan costs time in proportion to the function's size, so a function takes at most
-//! [`HEADER_REPLAN_WORK`] divided by its instruction count replans.
+//! [`HEADER_REPLAN_WORK`] divided by its instruction count replans. A header takes its hinted
+//! layout on the first edge planned into it, so a later round resumes from the plan of the round
+//! before, and a replan from the best plan, at the first predecessor of a header whose layout
+//! changed.
 //!
 //! Optimized functions also try keeping their most expensive repeated immediates on the stack,
 //! one at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on top of the ones kept.
@@ -102,17 +105,20 @@
 //! reach.
 //!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
-//! when defined, reloaded at every use, and planning restarts. After many restarts, every other
-//! value beyond reach at the failure spills with it, in growing batches. When no value can make
-//! room, the return address moves to a slot on entry and is reloaded to return, and a shuffle
-//! that still cannot move a deep word instead pops down to the words already in place and pushes
-//! the rest of its target. A join that no incoming edge can propose a layout for takes its live
-//! words by value. Spill slots use the frame and spill-area placement in `frames`. A write that
-//! may reach the low spill area, such as a copy to a computed address, and a call into a function
-//! that makes one keep the spilled words still needed afterwards, the return address among them,
-//! on the stack across them and store them back after. A value live across such a write is
-//! recomputed at each use instead of spilled when stable arithmetic over calldata, constants and
-//! stable reads can rebuild it.
+//! when defined, reloaded at every use, and planning restarts. A restart keeps the plans of the
+//! blocks before the first one the new spills can change, in the reverse postorder that planning
+//! follows, and plans again from there: the block that defines the value, or the first
+//! predecessor of a phi result's block. After many restarts, every other value beyond reach at
+//! the failure spills with it, in growing batches. When no value can make room, the return
+//! address moves to a slot on entry and is reloaded to return, which plans the function again
+//! from its entry, and a shuffle that still cannot move a deep word instead pops down to the
+//! words already in place and pushes the rest of its target. A join that no incoming edge can
+//! propose a layout for takes its live words by value. Spill slots use the frame and spill-area
+//! placement in `frames`. A write that may reach the low spill area, such as a copy to a computed
+//! address, and a call into a function that makes one keep the spilled words still needed
+//! afterwards, the return address among them, on the stack across them and store them back after. A
+//! value live across such a write is recomputed at each use instead of spilled when stable
+//! arithmetic over calldata, constants and stable reads can rebuild it.
 //!
 //! A function that spills is planned a second time as a copy that computes the cheap values
 //! crossing its crowded stretches again: values that differ by a constant from one live base, and
@@ -194,7 +200,7 @@ impl Want {
 }
 
 /// One emitted operation of a block plan.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Step {
     /// A physical stack operation.
     Stack(StackOp),
@@ -227,7 +233,7 @@ enum Step {
 }
 
 /// The code that reads a word a [`Step::Shared`] push leaves on the stack.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Reader {
     Inst(InstId),
     Terminator(BlockId),
@@ -241,14 +247,14 @@ impl Step {
 }
 
 /// A control-flow edge, optionally through a trampoline that rearranges the stack.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Edge {
     target: BlockId,
     trampoline: Option<Vec<Step>>,
 }
 
 /// How a block leaves.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Exit {
     /// Jumps to a block whose layout the stack already has.
     Jump(BlockId),
@@ -273,7 +279,7 @@ enum Exit {
     Terminal,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct BlockPlan {
     steps: Vec<Step>,
     /// Index of the first step planned for the terminator.
@@ -301,7 +307,7 @@ impl Victim {
 }
 
 /// Why a function could not be planned.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Fail {
     /// A word is beyond reach. Spilling the victim, when given, may make the function
     /// plannable. Once spills come in batches, the failure also lists the other spillable
@@ -756,12 +762,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let mut best: Option<FunctionPlan> = None;
         let mut constants = Vec::new();
+        let mut spill_blocks = None;
         // Candidate loop header layouts: as the preheader leaves its stack, by first use in the
         // loop, and then repeatedly as the best plan's latches leave their stacks.
         let mut candidates = vec![FxHashMap::default()];
         let mut round = 0;
         let mut tried = Vec::new();
         let mut best_hints = FxHashMap::default();
+        // The last plan and the best one with their hints and what they decided, for plans under
+        // other hints to resume from. The best one also keeps the restarts before it: a plan
+        // resumes only from one made with the same spills.
+        let mut last: Option<(FxHashMap<BlockId, Layout>, plan::Progress)> = None;
+        let mut best_progress: Option<(u32, plan::Progress)> = None;
         while let Some(hints) = candidates.pop() {
             round += 1;
             // The same hints give the same plan.
@@ -769,6 +781,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             tried.push(hints.clone());
+            // What the last plan decided before the first block the new hints can change, and
+            // then what the last failed plan under these hints decided before the spills it asked
+            // for.
+            let mut progress = last.take().map(|(last_hints, mut progress)| {
+                let blocks =
+                    spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
+                progress.rewind(blocks.first_hinted(func, &last_hints, &hints));
+                progress
+            });
             let Planned { plan, mut natural, first_use } = loop {
                 let planner = Planner::new(
                     func,
@@ -785,23 +806,60 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if round == 1 && restarts == 0 && target.optimizes_stack_plans() {
                     constants = planner.constants_to_retain();
                 }
-                match planner.plan() {
+                // Debug builds check that a resumed attempt ends as one from scratch does.
+                #[cfg(debug_assertions)]
+                let scratch = progress.is_some().then(|| {
+                    Planner::new(
+                        func,
+                        info,
+                        func_id,
+                        analysis,
+                        &target,
+                        &spilled,
+                        ret_spilled,
+                        restarts >= single_spills,
+                        &hints,
+                    )
+                    .map(Planner::plan)
+                });
+                let result = planner.plan_keeping(&mut progress);
+                #[cfg(debug_assertions)]
+                if let Some(Ok(scratch)) = &scratch {
+                    assert!(
+                        plan::same_outcome(&result, scratch),
+                        "a resumed stack plan differs from a plan from scratch",
+                    );
+                }
+                match result {
                     Ok(planned) => break planned,
                     Err(Fail::Deep(victim, beyond)) => {
                         restarts += 1;
                         match victim {
                             Some(Victim::Value(value)) if !spilled.contains(value) => {
+                                let blocks = spill_blocks
+                                    .get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
                                 spilled.insert(value);
-                                // Each restart replans the whole function; after a few, spill
-                                // a growing batch of the other words beyond reach too.
+                                let mut first = blocks.first_affected(func, value);
+                                // Each restart replans the function from the first block a new
+                                // spill affects; after a few, spill a growing batch of the other
+                                // words beyond reach too.
                                 if restarts > single_spills {
                                     let batch = 1 << (restarts - single_spills).min(6);
                                     for value in beyond.into_iter().take(batch) {
-                                        spilled.insert(value);
+                                        if spilled.insert(value) {
+                                            first = first.min(blocks.first_affected(func, value));
+                                        }
                                     }
                                 }
+                                if let Some(progress) = &mut progress {
+                                    progress.rewind(first);
+                                }
                             }
-                            Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
+                            // The return address leaves the stack of every block.
+                            Some(Victim::Ret) if !ret_spilled => {
+                                ret_spilled = true;
+                                progress = None;
+                            }
                             _ => return Err(Decline(func_id, "stack too deep")),
                         }
                     }
@@ -810,6 +868,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
             };
+            let progress = progress.expect("a plan keeps its progress");
             if round == 1 {
                 if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
@@ -823,32 +882,59 @@ impl<'gcx> EvmCodegen<'gcx> {
             if best.as_ref().is_none_or(|best| target.cmp(plan.cost, best.cost).is_lt()) {
                 best = Some(plan);
                 best_hints = hints.clone();
+                best_progress = Some((restarts, progress.clone()));
                 // Lay each loop header out as this plan's latch left it.
                 if natural != hints && round < LAYOUT_ROUNDS {
                     candidates.insert(0, natural);
                 }
             }
+            last = Some((hints, progress));
         }
         let mut best = best.expect("at least one plan");
+        let blocks = &*spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
+        // A replan resumes from the best plan before the first block its hints can change, when no
+        // later round spilled more.
+        let best_progress = best_progress.filter(|&(at, _)| at == restarts).map(|(_, p)| p);
         let replan = |hints: &FxHashMap<BlockId, Layout>| {
-            Planner::new(
-                func,
-                info,
-                func_id,
-                analysis,
-                &target,
-                &spilled,
-                ret_spilled,
-                restarts >= single_spills,
-                hints,
-            )
-            .ok()?
-            .plan()
-            .ok()
+            let new = || {
+                Planner::new(
+                    func,
+                    info,
+                    func_id,
+                    analysis,
+                    &target,
+                    &spilled,
+                    ret_spilled,
+                    restarts >= single_spills,
+                    hints,
+                )
+                .ok()
+            };
+            let mut progress = best_progress.clone().map(|mut progress: plan::Progress| {
+                progress.rewind(blocks.first_hinted(func, &best_hints, hints));
+                progress
+            });
+            #[cfg(debug_assertions)]
+            let scratch = progress.is_some().then(|| new().map(Planner::plan)).flatten();
+            let result = new()?.plan_from(&mut progress);
+            #[cfg(debug_assertions)]
+            if let Some(scratch) = &scratch {
+                assert!(
+                    plan::same_outcome(&result, scratch),
+                    "a resumed stack plan differs from a plan from scratch",
+                );
+            }
+            result.ok()
         };
         if target.optimizes_stack_plans() {
             exchange_header_words(
-                func, analysis, &target, best_hints, &mut tried, &mut best, replan,
+                func,
+                analysis,
+                &target,
+                best_hints.clone(),
+                &mut tried,
+                &mut best,
+                replan,
             );
         }
         let hints = FxHashMap::default();
@@ -1209,5 +1295,67 @@ fn exchange_header_words(
             }
         }
         hints.insert(header, chosen);
+    }
+}
+
+/// Where the instructions of a function sit in the planning order, for finding the first block
+/// that a newly spilled value affects.
+struct SpillBlocks {
+    /// The block of each placed instruction.
+    inst_blocks: IndexVec<InstId, Option<BlockId>>,
+    /// The position of each block in the reverse postorder, the first for an unreachable block.
+    positions: IndexVec<BlockId, usize>,
+}
+
+impl SpillBlocks {
+    fn new(func: &Function, cfg: &CfgInfo) -> Self {
+        let mut positions = index_vec![0; func.blocks.len()];
+        for (position, &block) in cfg.rpo().iter().enumerate() {
+            positions[block] = position;
+        }
+        Self { inst_blocks: func.inst_block_table(), positions }
+    }
+
+    /// The position in the reverse postorder of the first block whose plan can change when the
+    /// loop header layouts `old` become `new`.
+    ///
+    /// A header takes its hinted layout on the first edge planned into it, and a latch reads the
+    /// hints when it records the layout it would choose, so only the blocks from the first
+    /// predecessor of a header whose hint changed on can plan otherwise.
+    fn first_hinted(
+        &self,
+        func: &Function,
+        old: &FxHashMap<BlockId, Layout>,
+        new: &FxHashMap<BlockId, Layout>,
+    ) -> usize {
+        let changed = old.iter().filter(|&(block, layout)| new.get(block) != Some(layout));
+        let added = new.iter().filter(|&(block, _)| !old.contains_key(block));
+        changed
+            .chain(added)
+            .flat_map(|(&block, _)| {
+                std::iter::once(block).chain(func.blocks[block].predecessors.iter().copied())
+            })
+            .map(|block| self.positions[block])
+            .min()
+            .unwrap_or(self.positions.len())
+    }
+
+    /// The position in the reverse postorder of the first block whose plan can change when
+    /// `value` leaves the stack.
+    ///
+    /// The result of an instruction is stored where it is defined and loaded where it is read,
+    /// and it is live only in blocks its definition dominates, which all come later in the
+    /// order. A phi result is stored on the edges into its block, which the predecessors plan.
+    /// Any other value, such as an argument, is stored on entry.
+    fn first_affected(&self, func: &Function, value: ValueId) -> usize {
+        let Value::Inst(inst) = *func.value(value) else { return 0 };
+        let Some(block) = self.inst_blocks[inst] else { return 0 };
+        let mut first = self.positions[block];
+        if matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+            for &pred in &func.blocks[block].predecessors {
+                first = first.min(self.positions[pred]);
+            }
+        }
+        first
     }
 }

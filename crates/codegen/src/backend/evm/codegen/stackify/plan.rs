@@ -31,7 +31,7 @@ use solar_data_structures::{
 };
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeMap,
+    collections::{BTreeMap, hash_map::Entry},
 };
 
 /// The modeled stack of a block being planned and the steps that produced it.
@@ -140,6 +140,100 @@ const FORK_HEADROOM: usize = 8;
 /// Most opcodes recomputing one value live across a write that may reach the spill area.
 const MAX_RECOMPUTED_OPS: u32 = 4;
 
+/// What planning has decided so far, kept when a plan fails so that the next attempt can resume
+/// from the first block the new spills affect instead of planning the function again.
+///
+/// Blocks are planned in reverse postorder, and every decision that outlives a block is recorded
+/// here: the layouts of its successors, the edges waiting for a join, the block plans, and the
+/// totals. The journal lists how to revert each of them, and a mark at the start of every block
+/// says where the journal and the totals stood, so [rewind](Self::rewind) restores exactly the
+/// state a plan from scratch reaches before that block, as long as the blocks before it plan
+/// alike.
+#[derive(Clone)]
+pub(super) struct Progress {
+    layouts: IndexVec<BlockId, Option<Layout>>,
+    blocks: IndexVec<BlockId, Option<BlockPlan>>,
+    natural: FxHashMap<BlockId, Layout>,
+    pending: FxHashMap<BlockId, Vec<Pending>>,
+    cost: Cost,
+    non_loop_gas: u32,
+    journal: Vec<Undo>,
+    marks: Vec<Mark>,
+}
+
+impl Progress {
+    /// Reverts to the start of the block at position `start` of the reverse postorder, or of the
+    /// block that failed when the plan did not get that far.
+    pub(super) fn rewind(&mut self, start: usize) {
+        let start = start.min(self.marks.len().saturating_sub(1));
+        let Some(&Mark { journal, cost, non_loop_gas, .. }) = self.marks.get(start) else {
+            return;
+        };
+        for undo in self.journal.drain(journal..).rev() {
+            match undo {
+                Undo::Layout(block) => self.layouts[block] = None,
+                Undo::Deferred(join) => {
+                    let Entry::Occupied(mut edges) = self.pending.entry(join) else {
+                        unreachable!("deferred edge without its join")
+                    };
+                    edges.get_mut().pop();
+                    if edges.get().is_empty() {
+                        edges.remove();
+                    }
+                }
+                Undo::Resolved(join, edges) => {
+                    self.pending.insert(join, edges);
+                }
+                Undo::Natural(header) => {
+                    self.natural.remove(&header);
+                }
+                Undo::Steps(block, len) => {
+                    self.blocks[block].as_mut().expect("planned predecessor").steps.truncate(len);
+                }
+                Undo::Trampolines(block, then_trampoline, else_trampoline) => {
+                    let plan = self.blocks[block].as_mut().expect("planned predecessor");
+                    let Exit::Branch { then_edge, else_edge } = &mut plan.exit else {
+                        unreachable!("deferred branch edge from a non-branch block")
+                    };
+                    then_edge.trampoline = then_trampoline;
+                    else_edge.trampoline = else_trampoline;
+                }
+            }
+        }
+        for mark in self.marks.drain(start..) {
+            self.blocks[mark.block] = None;
+        }
+        self.cost = cost;
+        self.non_loop_gas = non_loop_gas;
+    }
+}
+
+/// How to revert one change to the planner's [`Progress`].
+#[derive(Clone)]
+enum Undo {
+    /// The block's layout was chosen.
+    Layout(BlockId),
+    /// An edge into the join was recorded.
+    Deferred(BlockId),
+    /// The join took its recorded edges.
+    Resolved(BlockId, Vec<Pending>),
+    /// The loop header's natural layout was recorded.
+    Natural(BlockId),
+    /// Steps were appended to the block's plan, which had this many.
+    Steps(BlockId, usize),
+    /// The trampolines of the block's branch edges were replaced.
+    Trampolines(BlockId, Option<Vec<Step>>, Option<Vec<Step>>),
+}
+
+/// The start of a block's planning: the block, the journal's length, and the totals.
+#[derive(Clone, Copy)]
+struct Mark {
+    block: BlockId,
+    journal: usize,
+    cost: Cost,
+    non_loop_gas: u32,
+}
+
 /// A planned function together with the layouts its loop latches would choose.
 pub(super) struct Planned {
     pub(super) plan: FunctionPlan,
@@ -235,6 +329,10 @@ pub(super) struct Planner<'a> {
     forced_order: Cell<Option<usize>>,
     cost: Cost,
     non_loop_gas: u32,
+    /// How to revert each change to the state that outlives a block, in order.
+    journal: Vec<Undo>,
+    /// The start of each block planned so far, in reverse postorder.
+    marks: Vec<Mark>,
 }
 
 impl<'a> Planner<'a> {
@@ -513,12 +611,88 @@ impl<'a> Planner<'a> {
             forced_order: Cell::new(None),
             cost: Cost::ZERO,
             non_loop_gas: 0,
+            journal: Vec::new(),
+            marks: Vec::new(),
         })
     }
 
-    pub(super) fn plan(mut self) -> Result<Planned, Fail> {
+    pub(super) fn plan(self) -> Result<Planned, Fail> {
+        self.plan_from(&mut None)
+    }
+
+    /// Plans the function, resuming from `progress` when it holds an earlier attempt, and leaves
+    /// there what this attempt planned when it fails.
+    ///
+    /// The caller rewinds the progress to the first block whose plan the values spilled since
+    /// can change. The blocks before it are taken as planned; every other field is new.
+    pub(super) fn plan_from(self, progress: &mut Option<Progress>) -> Result<Planned, Fail> {
+        self.resume(progress, false)
+    }
+
+    /// Plans the function like [`plan_from`](Self::plan_from), and leaves in `progress` what
+    /// this attempt decided whether it fails or not, so that a plan under other loop header
+    /// layouts can resume from it.
+    pub(super) fn plan_keeping(self, progress: &mut Option<Progress>) -> Result<Planned, Fail> {
+        self.resume(progress, true)
+    }
+
+    fn resume(mut self, progress: &mut Option<Progress>, keep: bool) -> Result<Planned, Fail> {
+        if let Some(progress) = progress.take() {
+            self.layouts = progress.layouts;
+            self.blocks = progress.blocks;
+            self.natural = progress.natural;
+            self.pending = progress.pending;
+            self.cost = progress.cost;
+            self.non_loop_gas = progress.non_loop_gas;
+            self.journal = progress.journal;
+            self.marks = progress.marks;
+        }
+        if let Err(fail) = self.plan_blocks() {
+            *progress = Some(Progress {
+                layouts: self.layouts,
+                blocks: self.blocks,
+                natural: self.natural,
+                pending: self.pending,
+                cost: self.cost,
+                non_loop_gas: self.non_loop_gas,
+                journal: self.journal,
+                marks: self.marks,
+            });
+            return Err(fail);
+        }
+        if keep {
+            *progress = Some(Progress {
+                layouts: self.layouts.clone(),
+                blocks: self.blocks.clone(),
+                natural: self.natural.clone(),
+                pending: self.pending.clone(),
+                cost: self.cost,
+                non_loop_gas: self.non_loop_gas,
+                journal: std::mem::take(&mut self.journal),
+                marks: std::mem::take(&mut self.marks),
+            });
+        }
+        let plan = FunctionPlan {
+            blocks: self.blocks,
+            spilled: self.spilled.clone(),
+            ret_spilled: self.ret_spilled,
+            cost: self.cost,
+            non_loop_gas: self.non_loop_gas,
+            rebuilt: None,
+        };
+        Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
+    }
+
+    /// Plans the blocks after those already marked, in reverse postorder.
+    fn plan_blocks(&mut self) -> Result<(), Fail> {
         let cfg = self.cfg;
-        for &block in cfg.rpo() {
+        for &block in &cfg.rpo()[self.marks.len()..] {
+            self.marks.push(Mark {
+                block,
+                journal: self.journal.len(),
+                cost: self.cost,
+                non_loop_gas: self.non_loop_gas,
+            });
             self.current.set(block);
             self.resolve_join(block)?;
             let layout = match self.layouts[block].clone() {
@@ -541,15 +715,7 @@ impl<'a> Planner<'a> {
             self.charge(&sim, block);
             self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
         }
-        let plan = FunctionPlan {
-            blocks: self.blocks,
-            spilled: self.spilled.clone(),
-            ret_spilled: self.ret_spilled,
-            cost: self.cost,
-            non_loop_gas: self.non_loop_gas,
-            rebuilt: None,
-        };
-        Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
+        Ok(())
     }
 
     /// Returns the repeated immediates worth keeping on the stack, the one that saves the most
@@ -2564,21 +2730,28 @@ impl<'a> Planner<'a> {
             self.record_natural(sim, pred, succ);
             layout
         } else if let Some(hint) = self.hints.get(&succ).filter(|hint| self.hint_fits(succ, hint)) {
-            self.layouts[succ] = Some(hint.clone());
+            self.set_layout(succ, hint.clone());
             hint.clone()
         } else if self.stores_clobber_reads(pred, succ) {
             // Take the adopted layout without its code; the shuffle below reaches it.
             let layout = self.adopt(&mut sim.fork(), pred, succ)?;
-            self.layouts[succ] = Some(layout.clone());
+            self.set_layout(succ, layout.clone());
             layout
         } else {
             let layout = self.adopt(sim, pred, succ)?;
-            self.layouts[succ] = Some(layout);
+            self.set_layout(succ, layout);
             return Ok(());
         };
         let target = self.edge_target(pred, succ, &layout, sim.height());
         self.shuffle_edge(sim, pred, succ, target)?;
         Ok(())
+    }
+
+    /// Chooses the layout of a block that has none.
+    fn set_layout(&mut self, block: BlockId, layout: Layout) {
+        debug_assert!(self.layouts[block].is_none());
+        self.layouts[block] = Some(layout);
+        self.journal.push(Undo::Layout(block));
     }
 
     /// Records, on the first backedge into a loop header, the layout its latch would choose.
@@ -2588,6 +2761,7 @@ impl<'a> Planner<'a> {
             && let Ok(layout) = self.adopt(&mut sim.fork(), pred, succ)
         {
             self.natural.insert(succ, layout);
+            self.journal.push(Undo::Natural(succ));
         }
     }
 
@@ -2617,6 +2791,7 @@ impl<'a> Planner<'a> {
             stack: sim.stack.clone(),
             side,
         });
+        self.journal.push(Undo::Deferred(succ));
         Ok(())
     }
 
@@ -2628,12 +2803,20 @@ impl<'a> Planner<'a> {
     /// beat one the edges reach more cheaply.
     fn resolve_join(&mut self, join: BlockId) -> Result<(), Fail> {
         let Some(pending) = self.pending.remove(&join) else { return Ok(()) };
+        let result = self.complete_edges(join, &pending);
+        self.journal.push(Undo::Resolved(join, pending));
+        result
+    }
+
+    /// Chooses the layout of `join` from its recorded edges, unless it has one, and completes
+    /// each edge.
+    fn complete_edges(&mut self, join: BlockId, pending: &[Pending]) -> Result<(), Fail> {
         if self.layouts[join].is_none() {
             let mut best: Option<(Cost, Layout)> = None;
             let mut candidates = Vec::<Layout>::new();
             // Without any candidate, the first edge that failed to adopt names a word to spill.
             let mut failure = None;
-            for edge in &pending {
+            for edge in pending {
                 if edge.side.is_some() && !self.spilled_phi_inputs(edge.pred, join).is_empty() {
                     continue;
                 }
@@ -2649,14 +2832,14 @@ impl<'a> Planner<'a> {
             }
             self.current.set(join);
             for candidate in candidates {
-                let total = self.incoming_cost(&pending, join, &candidate);
+                let total = self.incoming_cost(pending, join, &candidate);
                 if best.as_ref().is_none_or(|(best, _)| self.target.cmp(total, *best).is_lt()) {
                     best = Some((total, candidate));
                 }
             }
             if let Some((incoming, proposal)) = &best
                 && !self.cfg.cyclic_blocks().contains(join)
-                && let Some(wanted) = self.wanted_beats(&pending, join, *incoming, proposal)
+                && let Some(wanted) = self.wanted_beats(pending, join, *incoming, proposal)
             {
                 best = Some(wanted);
             }
@@ -2666,7 +2849,7 @@ impl<'a> Planner<'a> {
                 // No edge proposes a layout; every edge can still rebuild a canonical one.
                 (None, None) => self.canonical_layout(join),
             };
-            self.layouts[join] = Some(layout);
+            self.set_layout(join, layout);
         }
         let layout = self.layouts[join].clone().unwrap();
         for edge in pending {
@@ -2679,6 +2862,7 @@ impl<'a> Planner<'a> {
                     self.shuffle_edge(&mut sim, edge.pred, join, target)?;
                     self.charge(&sim, edge.pred);
                     let plan = self.blocks[edge.pred].as_mut().expect("planned predecessor");
+                    self.journal.push(Undo::Steps(edge.pred, plan.steps.len()));
                     plan.steps.extend(sim.steps);
                 }
                 Some(then) => {
@@ -2692,6 +2876,11 @@ impl<'a> Planner<'a> {
                     let Exit::Branch { then_edge, else_edge } = &mut plan.exit else {
                         unreachable!("deferred branch edge from a non-branch block")
                     };
+                    self.journal.push(Undo::Trampolines(
+                        edge.pred,
+                        then_edge.trampoline.clone(),
+                        else_edge.trampoline.clone(),
+                    ));
                     // Both arms share one recorded edge when they reach the same join.
                     let both = then_edge.target == join && else_edge.target == join;
                     if then_edge.target == join && (then || both) {
@@ -2981,7 +3170,7 @@ impl<'a> Planner<'a> {
         } else if let Some(mut view) = self.view(sim, pred, succ) {
             let cut = self.floating_cut(succ, &view);
             view.drain(..cut);
-            self.layouts[succ] = Some(view);
+            self.set_layout(succ, view);
             return Ok(Edge { target: succ, trampoline: None });
         }
         let mut trampoline = Sim::new(sim.stack.clone());
@@ -3180,7 +3369,7 @@ impl<'a> Planner<'a> {
                     Some(mut view) => {
                         let cut = self.floating_cut(target, &view);
                         view.drain(..cut);
-                        self.layouts[target] = Some(view);
+                        self.set_layout(target, view);
                         true
                     }
                     None => false,
@@ -3252,6 +3441,7 @@ impl Uses {
 }
 
 /// An edge into a join, recorded until the join's layout is chosen.
+#[derive(Clone)]
 struct Pending {
     pred: BlockId,
     /// The predecessor's stack on the edge.
@@ -3615,4 +3805,21 @@ fn held_blocks(
         }
     }
     held
+}
+
+/// Whether two attempts to plan a function ended alike: with the same plan and loop layouts, or
+/// with the same failure.
+#[cfg(debug_assertions)]
+pub(super) fn same_outcome(a: &Result<Planned, Fail>, b: &Result<Planned, Fail>) -> bool {
+    match (a, b) {
+        (Ok(a), Ok(b)) => {
+            a.plan.blocks == b.plan.blocks
+                && a.plan.cost == b.plan.cost
+                && a.plan.non_loop_gas == b.plan.non_loop_gas
+                && a.natural == b.natural
+                && a.first_use == b.first_use
+        }
+        (Err(a), Err(b)) => a == b,
+        _ => false,
+    }
 }
