@@ -440,3 +440,55 @@ fn structs() {
 fn vox() {
     check("tests/cases/vox.sol")
 }
+
+/// `--emit-lean-spec` writes every form it translates (storage places, packed fields, mappings, dynamic
+/// and packed arrays, struct fields and struct invariants, quantifiers, spec functions plain and
+/// opaque, ghost state, `old`, named returns, `__time` and the call's environment) as a Lean module
+/// over solidity-lean's `SolidCore.Spec`.
+#[test]
+fn emit_lean_spec() {
+    let out = std::env::temp_dir().join(format!("solar-verify-lean-{}.lean", std::process::id()));
+    let run = run_verifier(&[
+        "--emit-lean-spec",
+        out.to_str().unwrap(),
+        "--lean-spec-module",
+        "SolidCore.Spec.Export.Test",
+        "tests/snapshots/lean_export.sol",
+    ]);
+    assert!(run.stderr.is_empty(), "{}", run.stderr);
+    let lean = std::fs::read_to_string(&out).unwrap();
+    assert_data_eq!(tidy(&lean), file!["snapshots/lean_export.lean"]);
+    let _ = std::fs::remove_file(&out);
+}
+
+/// Every construct `--emit-lean-spec` does not translate is an error that names it, and nothing is
+/// written: each file of `snapshots/lean_unsupported` pins the message in its `// expect:` line.
+#[test]
+fn emit_lean_spec_unsupported() {
+    let mut files: Vec<_> = std::fs::read_dir("tests/snapshots/lean_unsupported")
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    files.sort();
+    assert!(!files.is_empty());
+    for f in files {
+        let src = std::fs::read_to_string(&f).unwrap();
+        let expect = src
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("// expect: "))
+            .unwrap_or_else(|| panic!("{}: no expect line", f.display()))
+            .to_string();
+        let out = std::env::temp_dir()
+            .join(format!("solar-verify-lean-unsupported-{}.lean", std::process::id()));
+        let _ = std::fs::remove_file(&out);
+        let o = Command::new(env!("CARGO_BIN_EXE_solar-verify"))
+            .args(["--emit-lean-spec", out.to_str().unwrap(), f.to_str().unwrap()])
+            .env("NO_COLOR", "1")
+            .output()
+            .expect("run solar-verify");
+        let stderr = String::from_utf8_lossy(&o.stderr);
+        assert!(!o.status.success(), "{}: export succeeded", f.display());
+        assert!(stderr.contains(&expect), "{}: expected {expect:?} in\n{stderr}", f.display());
+        assert!(!out.exists(), "{}: a file was written", f.display());
+    }
+}

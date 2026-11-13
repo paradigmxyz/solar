@@ -210,6 +210,20 @@ pointers, the code of other accounts, and triggers on spec quantifiers (`@custom
 broadcast lemmas). Unsupported constructs are reported as errors, never skipped, so a ✔ is never
 produced over code solar-verify did not model.
 
+## Spec export to Lean
+
+`--emit-lean-spec OUT.lean` writes the file's specs as a Lean module over solidity-lean's
+`SolidCore.Spec`, which gives them a meaning over the calls and observables SolidCore and the
+EVM share. Each contract becomes a `ContractSpec` (storage layout resolved to slots, offsets and
+widths; requires, ensures, succeeds-if, old values, ghosts, quantifiers, spec functions, contract
+and struct invariants) and a `Manifest` binding it to the source file's sha256, the compiler
+named by `--lean-spec-compiler` and the runtime bytecode sha256 given by `--lean-spec-bytecode-sha256`.
+`--lean-spec-module` names the module. The export fails closed: a file with front-end errors, ghost
+code that is not erasable, imports, or a construct the Lean side has no meaning for yet (casts,
+computed shifts, `~`, `bytesN` mapping keys, `@custom:check`, assembly, arrays of structs,
+`keccak256` in specs) writes nothing and exits 1. Loop invariants are exported but have no meaning
+on the Lean side yet.
+
 ## Trusted base
 
 - The parser, the encoding in `src/vc.rs` and `src/vc/yul.rs`, and the solvers.

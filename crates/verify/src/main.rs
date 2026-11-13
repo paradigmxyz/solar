@@ -10,6 +10,7 @@ mod sexp;
 mod smt;
 mod sources;
 mod spec;
+mod spec_lean;
 mod speccheck;
 mod ty;
 mod vc;
@@ -45,6 +46,10 @@ struct Cli {
     spec_check: bool,
     spec_check_runs: usize,
     seed: u64,
+    emit_lean: Option<PathBuf>,
+    lean_module: Option<String>,
+    lean_compiler: String,
+    lean_bytecode_sha256: String,
 }
 
 impl Cli {
@@ -81,6 +86,10 @@ fn parse_cli() -> Cli {
         spec_check: false,
         spec_check_runs: 256,
         seed: 0,
+        emit_lean: None,
+        lean_module: None,
+        lean_compiler: String::new(),
+        lean_bytecode_sha256: String::new(),
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -100,6 +109,10 @@ fn parse_cli() -> Cli {
             }
             "--seed" => c.seed = it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
             "--instrument" => c.instrument = it.next().map(PathBuf::from),
+            "--emit-lean-spec" => c.emit_lean = it.next().map(PathBuf::from),
+            "--lean-spec-module" => c.lean_module = it.next(),
+            "--lean-spec-compiler" => c.lean_compiler = it.next().unwrap_or_default(),
+            "--lean-spec-bytecode-sha256" => c.lean_bytecode_sha256 = it.next().unwrap_or_default(),
             "--jobs" | "-j" => c.jobs = it.next().and_then(|x| x.parse().ok()).unwrap_or(1),
             "--mutant-of" => c.mutant_of = it.next().map(PathBuf::from),
             "-h" | "--help" => {
@@ -108,6 +121,9 @@ fn parse_cli() -> Cli {
                      --dry-run  generate every obligation without running a solver (see --dump-smt)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
+                     --emit-lean-spec OUT.lean  write the specs as a Lean module over solidity-lean's SolidCore.Spec\n\
+                     \x20          (with --lean-spec-module NAME, --lean-spec-compiler TEXT,\n\
+                     \x20          --lean-spec-bytecode-sha256 HEX)\n\
                      --spec-check  test the trusted contracts (@custom:trusted bodies, interface\n\
                      \x20          specs, the Math.mulDiv summary) against their code in the file\n\
                      --spec-check-runs N  samples per tested function (default 256); --seed N\n\
@@ -314,6 +330,9 @@ fn main() {
             if let Some(out) = &cli.instrument {
                 instrument(&sess, &program, &loaded.file, out);
                 std::process::exit(if program.errors.is_empty() { 0 } else { 1 });
+            }
+            if let Some(out) = &cli.emit_lean {
+                std::process::exit(emit_lean(&sess, &cli, &program, &loaded.units, &loaded.file, path, out));
             }
             if !child {
                 for (sp, msg) in &program.errors {
@@ -595,4 +614,60 @@ fn instrument(
                 .map(|f| f.checks.len())
                 .sum::<usize>()
     );
+}
+
+/// Write the specs of `file` as a Lean module (see `spec_lean.rs`). Nothing is written when the file
+/// has front-end errors, ghost code that is not erasable, or a spec the export does not translate.
+fn emit_lean(
+    sess: &Session,
+    cli: &Cli,
+    program: &prog::Program<'_>,
+    units: &[&ast::SourceUnit<'_>],
+    source: &solar_parse::interface::source_map::SourceFile,
+    file: &Path,
+    out: &Path,
+) -> i32 {
+    use sha2::Digest;
+    let mut errors = 0;
+    for (sp, msg) in &program.errors {
+        report(sess, msg, *sp, &[]);
+        errors += 1;
+    }
+    errors += report_ghost(sess, program);
+    if errors > 0 {
+        return 1;
+    }
+    // The manifest binds one source file: a spec that reaches into imported files is not bound.
+    let [unit] = units else {
+        sess.dcx.err("cannot export to Lean: the file imports other files").emit();
+        return 1;
+    };
+    let digest: String =
+        sha2::Sha256::digest(source.src.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+    let stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or("Spec");
+    let mut options = vec![];
+    if cli.strict {
+        options.push("--strict".to_string());
+    }
+    let opts = spec_lean::Opts {
+        module: cli.lean_module.clone().unwrap_or_else(|| format!("SolidCore.Spec.Export.{stem}")),
+        source: file.display().to_string(),
+        source_sha256: digest,
+        compiler: cli.lean_compiler.clone(),
+        options,
+        bytecode_sha256: cli.lean_bytecode_sha256.clone(),
+    };
+    match spec_lean::export(program, unit, &opts) {
+        Ok(text) => {
+            if let Err(e) = std::fs::write(out, text) {
+                sess.dcx.err(format!("cannot write {}: {e}", out.display())).emit();
+                return 1;
+            }
+            0
+        }
+        Err((sp, msg)) => {
+            report(sess, &format!("cannot export to Lean: {msg}"), sp, &[]);
+            1
+        }
+    }
 }
