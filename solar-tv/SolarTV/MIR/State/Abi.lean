@@ -1,12 +1,11 @@
-import SolarTV.MIR.State.Allocation
-import SolarTV.Keccak
+import SolarTV.MIR.State.Packed
 
 /-! Direct scalar ABI operations. Static tuple encoding preserves allocation and
 selector/header store order, including dirty padding. Decoding validates the
 signed input length and word canonicality before normalization. Markers are
 admitted only with decoder provenance, checked by the structural importer and
-independently by replay. Packed encodings retain full-word writes and the trailing
-zero word; hashes admit a merged word or whole-word parts. Recursive shapes use the separate AbiDecode and AbiEncode models. Physical
+independently by replay. Packed encodings use the separate Packed model for word
+footprints and padding. Recursive shapes use AbiDecode and AbiEncode. Physical
 call-return buffers remain unsupported, not lowered by the checker or replaced
 with an oracle. -/
 
@@ -86,48 +85,5 @@ def abiDecode (cfg : Config) (frame : Frame) (rule : Option AbiRule)
     let word := readWord (if calldata then cfg.environment.input else memory) base.toNat
     if !abiCanonical rule word then return .reverted .empty else
       return .returned (some (if function then word >>> 64 else word),{frame with memory})
-
-def packedBytes (parts : List PackedInput) (args : List Word) : Except String (List Byte × Bool) := do
-  let mut bytes := []
-  let mut aligned := true
-  for part in parts do
-    match part with
-    | .literal data => bytes := bytes ++ data; aligned := aligned && data.length % 32 == 0
-    | .scalar index size fixed =>
-      if size = 0 || size > 32 then .error "packed scalar width" else
-      let word ← required args[index]? "packed scalar operand"
-      let data := wordBytes word
-      bytes := bytes ++ (if fixed then data.take size else data.drop (32-size))
-      aligned := aligned && size == 32
-    if bytes.length > 65536 then .error "packed bytes exceed 64 KiB" else pure ()
-  return (bytes,aligned)
-
-def abiPacked (frame : Frame) (parts : List PackedInput) (hash : Bool) (args : List Word) : Step := do
-  let (bytes,aligned) ← packedBytes parts args
-  if hash && bytes.length > 32 && !aligned then .error "packed hash requires one merged word or whole-word parts" else
-  let (base,frame) ← if hash then
-      if bytes.length ≤ 64 then pure (0,frame) else do
-        let memory ← expand frame.memory 64 32
-        pure (readWord memory 64,{frame with memory})
-    else do
-      match ← allocate frame (BitVec.ofNat 256 ((bytes.length+63)/32*32)) false false with
-      | .returned (some pointer,frame) =>
-        let memory ← expand frame.memory pointer.toNat 32
-        pure (pointer,{frame with memory := writeBytes memory pointer.toNat (wordBytes (BitVec.ofNat 256 bytes.length))})
-      | _ => .error "packed allocation precondition"
-  let data := base + if hash then 0 else 32
-  let mut memory := frame.memory
-  for index in List.range ((bytes.length+31)/32) do
-    let address := data + BitVec.ofNat 256 (32*index)
-    memory ← expand memory address.toNat 32
-    memory := writeBytes memory address.toNat (wordBytes (readWord bytes (32*index)))
-  if !hash && !aligned then
-    let address := data + BitVec.ofNat 256 bytes.length
-    memory ← expand memory address.toNat 32
-    memory := writeBytes memory address.toNat (wordBytes 0)
-  if hash then
-    memory ← expand memory data.toNat bytes.length
-    return .returned (some (Keccak.hash (readBytes memory data.toNat bytes.length)),{frame with memory})
-  else return .returned (some base,{frame with memory})
 
 end SolarTV.MIR.State

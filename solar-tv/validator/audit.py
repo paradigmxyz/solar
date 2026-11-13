@@ -119,6 +119,7 @@ def record(
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
                     "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded literal/scalar packed encodings; physical multi-return buffers unsupported",
+                    "packed literal/scalar word-store footprints; limit 2048 parts and 64 KiB; reference packed inputs unsupported",
                 ]
             )
             if "mir_layout" in fixture:
