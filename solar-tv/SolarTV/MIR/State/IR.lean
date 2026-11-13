@@ -52,7 +52,7 @@ inductive ContextOp where
   | frameAddress (function : String) (offset : Nat)
   | constructorRange (isEnd : Bool)
   | dataSize (id addend : Nat) (aligned : Bool)
-  | immutableRead (id : Nat)
+  | immutableRead (id width : Nat) (signed : Bool)
   | immutableStore (id : Nat)
   | library (id : Nat)
   | gasSample
