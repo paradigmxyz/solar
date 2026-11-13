@@ -753,8 +753,11 @@ macro "sym_cond" : tactic => `(tactic|
 
 /-- A range side condition by `omega` over the offsets' `toNat`s, as `sym_omega` reads
 words, failing without logging so that `simp` leaves an unproved rewrite undone. -/
-macro "sym_mem_disch_core" : tactic => `(tactic|
-  ((try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.zero_add, BitVec.add_zero] at *)
+macro "sym_mem_disch_core" : tactic => `(tactic| first
+  -- A closed numeral range, as a literal free pointer leaves it: the kernel decides it
+  -- with a smaller proof than omega's.
+  | decide
+  | ((try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.zero_add, BitVec.add_zero] at *)
    <;> (try simp -implicitDefEqProofs only [bitvec_to_nat] at *)
    <;> (try simp only [BitVec.toNat_and, toNat_shr, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod,
      natMask] at *)
