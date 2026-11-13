@@ -22,6 +22,7 @@ struct Context<'a> {
     history: BTreeMap<U256, U256>,
     blobs: Vec<U256>,
     static_permission: bool,
+    debug_reverts: bool,
 }
 
 impl Host for Context<'_> {
@@ -87,6 +88,10 @@ impl Host for Context<'_> {
 
     fn builtin_gas(&mut self) -> Option<U256> {
         self.native.builtin_gas()
+    }
+
+    fn debug_reverts(&self) -> bool {
+        self.debug_reverts
     }
 }
 
@@ -164,6 +169,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             history: history.clone(),
             blobs: blobs.clone(),
             static_permission: input.is_static,
+            debug_reverts: input.debug_reverts,
         };
         let execution = run_state(
             text,

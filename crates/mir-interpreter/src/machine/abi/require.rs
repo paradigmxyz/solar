@@ -15,7 +15,7 @@ fn word(value: &RuntimeValue) -> ControlFlow<Outcome, U256> {
     }
 }
 
-fn literal_error(bytes: &[u8]) -> Vec<u8> {
+pub(in crate::machine) fn literal_error(bytes: &[u8]) -> Vec<u8> {
     let mut data = vec![0x08, 0xc3, 0x79, 0xa0];
     data.extend(U256::from(32).to_be_bytes::<32>());
     data.extend(U256::from(bytes.len()).to_be_bytes::<32>());

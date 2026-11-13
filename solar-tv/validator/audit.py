@@ -115,6 +115,7 @@ def record(
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
                     "precompile builtin child gas is supplied by ordered builtin_gas boundary inputs; missing budgets are unsupported; scratch, returndata and child gas failures are retained",
+                    "compiler-generated check messages follow the fixture's debug_reverts setting; user require payloads are already explicit in MIR",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
                     "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded literal/scalar packed encodings; physical multi-return buffers unsupported",

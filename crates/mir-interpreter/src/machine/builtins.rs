@@ -7,7 +7,7 @@
 use super::{Outcome, Run, limit, panic_data};
 use alloy_primitives::{U256, keccak256};
 use solar_evmir::op;
-use solar_mir::{Builtin, RevertKind, RevertReason};
+use solar_mir::{Builtin, RevertKind};
 use std::ops::ControlFlow;
 
 impl Run<'_, '_, '_> {
@@ -47,9 +47,14 @@ impl Run<'_, '_, '_> {
                 if condition.is_zero() == *is_zero {
                     return ControlFlow::Break(Outcome::Revert(match failure {
                         RevertKind::Panic(code) => panic_data(U256::from(*code as u8)),
-                        RevertKind::Reason(RevertReason::Empty) => Vec::new(),
-                        _ => {
-                            return ControlFlow::Break(Outcome::Unsupported("check revert reason"));
+                        RevertKind::Reason(reason) => {
+                            if self.world.as_ref().is_some_and(|world| world.host.debug_reverts()) {
+                                reason.message().map_or_else(Vec::new, |message| {
+                                    super::abi::literal_error(message.as_bytes())
+                                })
+                            } else {
+                                Vec::new()
+                            }
                         }
                     }));
                 }

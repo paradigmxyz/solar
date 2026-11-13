@@ -82,6 +82,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
             "memory",
             "creation_gas",
             "builtin_gas",
+            "debug_reverts",
             "mir_layout",
         },
         "world",
@@ -116,6 +117,9 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         raise Unsupported("builtin child gas exceeds 30000000")
     if kind != "mir" and builtin_gas:
         raise Unsupported("builtin_gas is an explicit MIR boundary input")
+    debug_reverts = value.get("debug_reverts", False)
+    if type(debug_reverts) is not bool or kind != "mir" and debug_reverts:
+        raise Unsupported("debug_reverts requires a direct MIR boolean setting")
     symbols = {}
 
     def word(value):
@@ -227,6 +231,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         "memory": {"data": memory_data, "size": memory_size},
         "creation_gas": creation_gas,
         "builtin_gas": builtin_gas,
+        "debug_reverts": debug_reverts,
     }
     if "mir_layout" in value:
         if kind != "mir":
@@ -413,6 +418,7 @@ def replay_input(fixture: dict) -> dict:
         "memory",
         "creation_gas",
         "builtin_gas",
+        "debug_reverts",
         "mir_layout",
     }
     return {key: value for key, value in fixture.items() if key in keys}

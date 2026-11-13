@@ -19,6 +19,8 @@ mod decode;
 mod encode;
 mod require;
 
+pub(super) use require::literal_error;
+
 fn scalar_layout(layout: &AbiParamLayout) -> Option<(Option<AbiWordValidator>, bool)> {
     let [ty] = layout.types.as_ref() else {
         return None;
