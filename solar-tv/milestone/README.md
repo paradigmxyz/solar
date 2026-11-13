@@ -209,6 +209,40 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
 ```
 
+- [byte_run](byte_run/byte_run.sol): `contract ByteRun { function head(uint256 x) external pure
+  returns (uint24) { bytes memory b = abi.encodePacked(x); return (uint24(uint8(b[0])) << 16) |
+  (uint24(uint8(b[1])) << 8) | uint24(uint8(b[2])); } }`, 78 bytes, compiled with a
+  `-Zmir-pipeline` ([byte_run/options](byte_run/options)) that runs the required lowerings with
+  `cse`, `egraph` and `cfg-simplify` before `lower-evm-shaped` and then `byte-run-loads` on
+  lowered MIR, and with `-Zcheck-analyses=false`. The buffer sits at the heap floor, so its
+  addresses are numerals. `byte-run-loads` reads `b[2]` out of the word it already read for
+  `b[1]`: `byte 0 (mload (b + 34))` becomes `byte 1 (mload (b + 33))` and the second read goes
+  (`stage0 → mir1`). Then `mir1 → sched → evm1 → … → evm5`, all proved:
+  `SolarTV.Milestone.ByteRun.byte_run_mir_to_evmir`. The pass's stage needs `sym_word` to read
+  `BYTE k` of a loaded word as the byte at the load's address plus `k` (`evm_byte_load`), and
+  `sym_expand` to drop the expansion of the read the pass removed, which ends inside the words the
+  other read made active (`expand_expand_within`); the EVM IR stages need it too, to compute the
+  addresses MIR leaves as sums of numerals and the EVM IR folds (`(Evm.add 32 128).toNat` and
+  `160`).
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/byte_run/byte_run.sol ByteRun
+```
+
+- [call_cleanup](call_cleanup/call_cleanup.sol): `contract CallCleanup { function f(uint256 a)
+  external pure returns (uint256) { return g(uint8(a)); } function g(uint8 x) internal pure
+  returns (uint16) { unchecked { return uint16(x) << 1; } } }`, 45 bytes, with the same kind of
+  `-Zmir-pipeline` ([call_cleanup/options](call_cleanup/options)) ending in `call-cleanup` on
+  lowered MIR. `g`'s only call passes it a word masked to 8 bits, so the mask of `x << 1` to 16
+  bits keeps every bit, and `call-cleanup` drops it (`stage0 → mir1`); the stage proof follows the
+  call, so the fact rests on the caller's mask. Then `mir1 → sched → evm1 → … → evm7`, all proved:
+  `SolarTV.Milestone.CallCleanup.call_cleanup_mir_to_evmir`. `sym_word` reads a left shift as a
+  product (`toNat_shl`) for it.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/call_cleanup/call_cleanup.sol CallCleanup
+```
+
 ## Limits
 
 The scope is the exporter's fragment (anything else is a compile error naming it) and loop-free

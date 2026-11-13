@@ -84,3 +84,21 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# byte_run: the stages of milestone/byte_run/byte_run.sol's ByteRun and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "byte_run"
+srcDir = "milestone"
+roots = ["byte_run.Proofs"]
+globs = ["byte_run.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# call_cleanup: the stages of milestone/call_cleanup/call_cleanup.sol's CallCleanup and their
+# kernel proofs, which milestone/certify.sh writes.
+[[lean_lib]]
+name = "call_cleanup"
+srcDir = "milestone"
+roots = ["call_cleanup.Proofs"]
+globs = ["call_cleanup.+"]
+moreLeanArgs = ["-M", "3000"]

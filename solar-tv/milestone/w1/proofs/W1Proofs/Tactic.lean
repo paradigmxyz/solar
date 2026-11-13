@@ -350,22 +350,15 @@ end effects
 
 /-! Stack positions of `dup` and `swap` as numbers. -/
 
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+open Lean Meta Simp in
+/-- The value of a `Fin` numeral, such as a `dup` or `swap` index (`Fin 256`) or an
+`exchange` operand (`Fin 32`), as the number it is, so that a stack lookup computes. -/
+dsimproc_decl finValLit (Fin.val _) := fun e => do
+  let_expr Fin.val n i := e | return .continue
+  let some n ← Nat.fromExpr? n | return .continue
+  let_expr OfNat.ofNat _ lit _ := i | return .continue
+  let some k := lit.rawNatLit? | return .continue
+  return .done (mkNatLit (k % n))
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -540,6 +533,115 @@ simproc_decl natMask ((_ : Nat) &&& _) := fun e => do
   let proof ← if swapped then mkEqTrans (← mkAppM ``Nat.and_comm #[a, b]) low else pure low
   return .done { expr := rhs, proof? := some proof }
 
+/-! A byte of a loaded word, as passes that share one memory read between neighbouring byte
+reads spell it (`byte-run-loads`): `BYTE k` of the word loaded at `a` is the byte at
+`a + k`, so that `byte 0 (mload (p + 1))` and `byte 1 (mload p)` meet. -/
+
+/-- A fold of bytes into a word, as `Mem.load` folds them, bit by bit: the low `8 * n` bits
+are the `n` bytes, the last lowest, and the bits above them the initial word's. -/
+theorem getLsbD_foldBytes (l : List SolarTV.Memory.Byte) (acc : BitVec 256) (j : Nat) :
+    (l.foldl (fun (acc : BitVec 256) (b : SolarTV.Memory.Byte) => (acc <<< 8) ||| b.setWidth 256)
+      acc).getLsbD j =
+      (decide (j < 256) && if j < 8 * l.length then
+        (l.getD (l.length - 1 - j / 8) 0).getLsbD (j % 8) else acc.getLsbD (j - 8 * l.length)) := by
+  induction l generalizing acc with
+  | nil =>
+    simp only [List.foldl_nil, List.length_nil, Nat.mul_zero, Nat.not_lt_zero, ite_false,
+      Nat.sub_zero]
+    by_cases h : j < 256
+    · simp [h]
+    · simp [h, BitVec.getLsbD_of_ge acc j (by omega)]
+  | cons b t ih =>
+    rw [List.foldl_cons, ih]
+    simp only [List.length_cons]
+    by_cases h256 : j < 256
+    · simp only [h256, decide_true, Bool.true_and]
+      by_cases ht : j < 8 * t.length
+      · have hl : j < 8 * (t.length + 1) := by omega
+        have e : t.length + 1 - 1 - j / 8 = (t.length - 1 - j / 8) + 1 := by omega
+        simp only [ht, hl, ite_true, e, List.getD_cons_succ]
+      · simp only [ht, ite_false, BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft,
+          BitVec.getLsbD_setWidth]
+        by_cases hl : j < 8 * (t.length + 1)
+        · have e : t.length + 1 - 1 - j / 8 = 0 := by omega
+          have hlt : j - 8 * t.length < 8 := by omega
+          have hm : j % 8 = j - 8 * t.length := by omega
+          simp only [hl, ite_true, e, List.getD_cons_zero, hm, hlt, decide_true,
+            Bool.not_true, Bool.and_false, Bool.false_and, Bool.false_or]
+          simp only [show j - 8 * t.length < 256 by omega, decide_true, Bool.true_and]
+        · have hge : ¬ j - 8 * t.length < 8 := by omega
+          have e : j - 8 * t.length - 8 = j - 8 * (t.length + 1) := by omega
+          simp only [hl, ite_false, hge, decide_false, Bool.not_false, Bool.and_true, e,
+            show j - 8 * t.length < 256 by omega, decide_true, Bool.true_and]
+          rw [BitVec.getLsbD_of_ge b _ (by omega)]
+          simp
+    · simp [h256]
+
+/-- Byte i of a loaded word is the byte at the load's address plus i. -/
+theorem byte_load (m : Mem) (a i : Nat) (hi : i < 32) :
+    SolarTV.Memory.byte (m.load a) i = m.bytes (a + i) := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro j hj
+  unfold Mem.load Mem.read SolarTV.Memory.byte
+  rw [BitVec.getLsbD_setWidth, BitVec.getLsbD_ushiftRight, getLsbD_foldBytes]
+  have e1 : (32 - 1 - (8 * (31 - i) + j) / 8) = i := by omega
+  have e2 : (8 * (31 - i) + j) % 8 = j := by omega
+  have h3 : 8 * (31 - i) + j < 256 := by omega
+  simp only [List.length_map, List.length_range, e1, e2, hj, h3, decide_true, Bool.true_and,
+    ite_true, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hi,
+    Option.map_some, Option.getD_some]
+
+/-- BYTE of a loaded word at a position below 32: the byte at that offset from the load. -/
+theorem evm_byte_load (m : Mem) (a : Nat) (k : Word) (h : k.toNat < 32) :
+    Evm.byte k (m.load a) = (m.bytes (a + k.toNat)).setWidth 256 := by
+  rw [← byte_load m a k.toNat h]
+  unfold Evm.byte SolarTV.Memory.byte
+  have hk : k.ult 32 = true := by simp [BitVec.ult, h]
+  have hs : (31 - k) * 8 = BitVec.ofNat 256 (8 * (31 - k.toNat)) := by
+    apply BitVec.eq_of_toNat_eq
+    have h31 : (31 : Word).toNat = 31 := rfl
+    have h8 : (8 : Word).toNat = 8 := rfl
+    simp only [BitVec.toNat_mul, BitVec.toNat_sub, BitVec.toNat_ofNat, h31, h8]
+    omega
+  have hm : (255 : Word) = BitVec.ofNat 256 (2 ^ 8 - 1) := rfl
+  rw [hk, Bool.cond_true, hs, hm]
+  apply BitVec.eq_of_getLsbD_eq
+  intro j hj
+  simp only [BitVec.getLsbD_and, BitVec.getLsbD_setWidth, BitVec.ushiftRight_eq',
+    BitVec.getLsbD_ushiftRight, BitVec.getLsbD_ofNat, Nat.testBit_two_pow_sub_one,
+    BitVec.toNat_ofNat]
+  have hsh : 8 * (31 - k.toNat) % 2 ^ 256 = 8 * (31 - k.toNat) := Nat.mod_eq_of_lt (by omega)
+  rw [hsh]
+  by_cases hj8 : j < 8 <;> simp [hj8, hj]
+
+/-! A memory expansion within one an earlier expansion already reached, as a pass that drops a
+load of a word the expanded memory already covers leaves it out. -/
+
+/-- Expanding memory over a range that ends within the words an expansion already made active
+changes nothing. -/
+theorem expand_expand_within (m : Mem) (a s b t : Nat) (hs : s ≠ 0)
+    (h : (b + t + 31) / 32 ≤ (a + s + 31) / 32) (hw : (a + s + 31) / 32 < 2 ^ 251) :
+    (m.expand a s).expand b t = m.expand a s := by
+  unfold Mem.expand
+  simp only [hs, ite_false]
+  split
+  · rfl
+  · congr 1
+    unfold SolarTV.Memory.grow
+    have hb : (b + t + 31) / 32 < 2 ^ 251 := by omega
+    by_cases h1 : m.words.ult (BitVec.ofNat 251 ((a + s + 31) / 32)) = true
+    · have h2 : (BitVec.ofNat 251 ((a + s + 31) / 32)).ult (BitVec.ofNat 251 ((b + t + 31) / 32))
+          = false := by
+        simp only [BitVec.ult, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw, Nat.mod_eq_of_lt hb]
+        exact decide_eq_false (by omega)
+      simp [h1, h2]
+    · have h1' : m.words.ult (BitVec.ofNat 251 ((a + s + 31) / 32)) = false := by simpa using h1
+      have h2 : m.words.ult (BitVec.ofNat 251 ((b + t + 31) / 32)) = false := by
+        simp only [BitVec.ult, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw, Nat.mod_eq_of_lt hb,
+          decide_eq_false_iff_not, Nat.not_lt] at h1' ⊢
+        omega
+      simp [h1', h2]
+
 /-- Cases that contradict each other: the words' bitwise and modular operations as
 bit-vector ones, a word combined with itself or added to zero as the word it leaves, as
 numbers, low masks as remainders and right shifts as quotients, then `omega`. -/
@@ -560,12 +662,14 @@ scheduler commutes them (`ac_rfl`). -/
 macro "sym_word" : tactic => `(tactic| (
   (try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.xor_self, BitVec.and_self,
     BitVec.or_self, BitVec.zero_add, BitVec.add_zero] at *)
+  -- A byte of a loaded word as the byte at its address, once the addresses are numerals.
+  (try simp (disch := decide) only [evm_byte_load, BitVec.reduceToNat, Nat.reduceAdd] at *)
   -- The rewrites above may close the equation already.
   all_goals first
     | (apply BitVec.eq_of_toNat_eq
        (try simp -implicitDefEqProofs only [bitvec_to_nat] at *)
-       (try simp only [BitVec.toNat_and, toNat_shr, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod,
-         natMask] at *)
+       (try simp only [BitVec.toNat_and, toNat_shr, toNat_shl, BitVec.toNat_ofNat, Nat.reducePow,
+         Nat.reduceMod, natMask] at *)
        omega)
     | ac_rfl))
 
@@ -726,10 +830,7 @@ macro "sym_eval" : tactic => `(tactic|
     apply_staticcall, called, returndataSize, BitVec.reduceToNat,
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
-    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit, finValLit])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
@@ -748,6 +849,18 @@ macro "sym_cond" : tactic => `(tactic|
 /-- Evaluate and decide conditions until neither changes the goal. -/
 macro "sym_norm" : tactic => `(tactic| repeat (first | sym_eval | sym_cond))
 
+/-- Two ends that differ in addresses and memory sizes alone: one program spells an address as
+the sum of numerals its pass left unfolded (`(Evm.add 32 128).toNat`) where the other has the
+numeral (`160`), or expands memory over a word an earlier access already made active, as when a
+pass drops a load. The addresses become numerals, the redundant expansion goes, and the words
+are compared. -/
+macro "sym_expand" : tactic => `(tactic| (
+  simp (disch := decide) only [expand_expand_within, Evm.add, BitVec.reduceAdd,
+    BitVec.reduceToNat, Nat.reduceAdd]
+  all_goals first
+    | with_reducible rfl
+    | sym_agree))
+
 set_option hygiene false in
 /-- Symbolic execution to one result: evaluate, decide what the cases decide, split on the
 next condition, and close each leaf by reflexivity or a contradiction between its cases. A leaf
@@ -763,6 +876,7 @@ macro "sym_exec" : tactic => `(tactic| (
     | (exfalso; sym_comm_contra)
     | sym_select
     | sym_agree
+    | sym_expand
     | fail "sym_exec: the runs end in different results on this path, or the procedure cannot tell"))
 
 end SolarTV.Milestone.W1
