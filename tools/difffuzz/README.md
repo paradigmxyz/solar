@@ -97,7 +97,9 @@ keeps the same legs and kind, and written as JSON and as Solidity. Some are expe
 counted in `summary.json` instead:
 
 - **Gas.** A call that reads gas, or runs out of it on either EVM, may differ in anything:
-  the compilers do not promise gas parity, and the interpreters do not model gas.
+  the compilers do not promise gas parity, and the interpreters do not model gas. Nor do
+  they model the EVM's 1024-word stack, so a call whose bytecode overflows it is compared
+  only between the two compilers.
 - **Documented compiler differences.** Between Solar's and solc's bytecode only, a contract
   with inline assembly (raw bits and memory layout: CODEGEN-001, -009, -010, -012, -025 in
   docs/SOLC_DIVERGENCE.md), one that reads compiled code (`type(C).runtimeCode`) or one with
@@ -130,3 +132,5 @@ These need a look before they are classified, and `cases/` records the ones foun
   The compiler and solc `--via-ir` revert with `Panic(0x12)`: they evaluate the left operand
   first. SolidCore and solc's legacy pipeline revert with `Panic(0x11)`: they evaluate the right
   operand first. Same cause as the case above, for binary operators.
+  An out-of-range index on the right (`int256(1) / int256(0) - s3[2]` on a `int256[2]`) shows
+  the same order: `Panic(0x12)` against SolidCore's `Panic(0x32)`.

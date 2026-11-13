@@ -274,8 +274,10 @@ pub(crate) fn run(cli: &Cli, case: &Case, dir: &Path) -> Outcome {
                 div(&mut out, &format!("solar/{leg}"), "invalid-dump", Some(i), r.clone());
                 continue;
             }
-            // The interpreters do not model gas: an EVM run out of gas is not comparable.
-            if matches!(&oa.status, Status::Halt(r) if r.contains("OutOfGas")) {
+            // The interpreters model neither gas nor the 1024-word stack: an EVM run that
+            // exhausts either is not comparable.
+            if matches!(&oa.status, Status::Halt(r) if r.contains("OutOfGas") || r.contains("StackOverflow"))
+            {
                 continue;
             }
             for d in obs::compare_interp(&oa, &o, &before) {
