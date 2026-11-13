@@ -75,6 +75,11 @@ inductive AbiEncodeShape where
   | array (element : AbiEncodeShape) (length : Option Nat) (location : Nat) (blockCopy : Bool)
   | tuple (fields : List AbiEncodeShape)
 
+inductive RequireOp where
+  | literal (bytes : List Byte)
+  | short
+  | encode (custom : Bool) (shapes : List AbiEncodeShape) (memorySlices : List Bool)
+
 inductive AbiOp where
   | encode (mode : Nat) (hasBase hasSelector : Bool) (functions : List Bool)
   | decode (rule : Option AbiRule) (function calldata : Bool)
@@ -82,6 +87,7 @@ inductive AbiOp where
   | encodeTree (mode : Nat) (hasBase hasSelector : Bool) (shapes : List AbiEncodeShape) (memorySlices : List Bool)
   | validate (rule : AbiRule)
   | packed (parts : List PackedInput) (hash : Bool)
+  | require (op : RequireOp)
 
 structure FunctionPlacement where
   heapFloor : Option EvmRules.Word := none
@@ -247,5 +253,6 @@ def enter (predecessor : Option Nat) (phis : List Phi) (frame : Frame) : Except 
 def failureData : RevertData → List Byte
   | .empty => []
   | .panic code => [0x4e,0x48,0x7b,0x71] ++ wordBytes code
+  | .data bytes => bytes
 
 end SolarTV.MIR.State

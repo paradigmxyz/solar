@@ -17,6 +17,7 @@ use std::ops::ControlFlow;
 
 mod decode;
 mod encode;
+mod require;
 
 fn scalar_layout(layout: &AbiParamLayout) -> Option<(Option<AbiWordValidator>, bool)> {
     let [ty] = layout.types.as_ref() else {

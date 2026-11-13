@@ -74,8 +74,8 @@ use solar_evmir::op;
 use solar_mir::{
     AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, Function, FunctionId, InstId,
-    InstKind, MirType, Module, RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value,
-    ValueId, memory::EvmMemoryLayout,
+    InstKind, MirType, Module, RevertKind, RevertReason, Semantics, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -1230,6 +1230,12 @@ impl<'a> Run<'_, 'a, '_> {
                 self.frame().caller_inst = Some(inst);
                 return ControlFlow::Continue(());
             }
+            Semantics::Call(Callee::Builtin(Builtin::Require(kind)), args)
+                if self.semantic.is_some() =>
+            {
+                self.semantic_require(body, kind, args)?;
+                return ControlFlow::Continue(());
+            }
             Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
                 let words = frame.read_all(args)?;
                 let &[condition] = words.as_slice() else {
@@ -1240,10 +1246,6 @@ impl<'a> Run<'_, 'a, '_> {
                         Some(*failure)
                     }
                     Builtin::Check { .. } => None,
-                    Builtin::Require(RequireKind::EmptyString) if condition.is_zero() => {
-                        Some(RevertKind::Reason(RevertReason::Empty))
-                    }
-                    Builtin::Require(RequireKind::EmptyString) => None,
                     _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
                 };
                 if let Some(failure) = failure {
