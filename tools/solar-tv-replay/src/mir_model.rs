@@ -388,13 +388,14 @@ fn export_operation(
                 json!({"kind":"array_element_slot","stride":stride,"args":operands(module,body,&[slot,index])?})
             }
             Semantics::DataCopy(data, dest, count) => {
-                let bytes = module
-                    .data
-                    .get(data.id)
-                    .filter(|d| d.library_relocations.is_empty())
-                    .and_then(|d| d.bytes.known())
-                    .ok_or("datacopy of unlinked data")?;
-                json!({"kind":"data_copy","bytes":bytes.as_ref(),"offset":data.offset,"args":operands(module,body,&[dest,count])?})
+                let entry = module.data.get(data.id).ok_or("unknown MIR data")?;
+                let bytes = entry.bytes.known().map(|bytes| bytes.as_ref());
+                let relocations = entry
+                    .library_relocations
+                    .iter()
+                    .map(|r| json!([r.offset, r.library.index()]))
+                    .collect::<Vec<_>>();
+                json!({"kind":"data_copy","id":data.id.index(),"bytes":bytes,"relocations":relocations,"offset":data.offset,"args":operands(module,body,&[dest,count])?})
             }
 
             Semantics::ValidateStorageBytes(header) => {

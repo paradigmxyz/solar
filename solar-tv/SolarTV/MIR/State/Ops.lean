@@ -1,7 +1,7 @@
 import SolarTV.MIR.State.StorageArrays
 import SolarTV.MIR.State.Aggregates
 import SolarTV.MIR.State.Frames
-import SolarTV.MIR.State.Layout
+import SolarTV.MIR.State.Links
 import SolarTV.MIR.State.Abi
 import SolarTV.MIR.State.AbiRequire
 import SolarTV.MIR.State.PackedRefs
@@ -93,6 +93,7 @@ def contextOperation (cfg : Config) (frame : Frame) (opcode : Nat) (args : List 
     let code ← required cfg.layout.code "missing explicit MIR code image"
     value frame (BitVec.ofNat 256 code.length)
   | 0x39,[destination,offset,count] => do
+    if count == 0 then return .returned (none,frame)
     let code ← required cfg.layout.code "missing explicit MIR code image"
     let memory ← expand frame.memory destination.toNat count.toNat
     effect {frame with memory := writeBytes memory destination.toNat (readBytes code offset.toNat count.toNat)}
@@ -143,10 +144,8 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .object (.bytes (.literal bytes)),[slot] => storeStorageBytes cfg frame slot 0 (some bytes)
   | .object (.bytes .clear),[slot,first,last] => clearStorageWords cfg frame slot first last
   | .object (.array element variants),[slot] => loadStorageArray cfg frame slot element variants
-  | .dataCopy bytes offset,[destination,count] =>
-    if offset + count.toNat > bytes.length then .error "datacopy past its data" else
-    let memory ← expand frame.memory destination.toNat count.toNat
-    effect {frame with memory := writeBytes memory destination.toNat (readBytes bytes offset count.toNat)}
+  | .dataCopy id bytes relocations offset,[destination,count] =>
+    copyData cfg frame id bytes relocations offset destination count
   | .slot .mapping,[key,slot] =>
     let (word,next) ← fixedSlot frame [key,slot]
     value next word
