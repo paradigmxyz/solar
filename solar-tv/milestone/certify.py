@@ -173,7 +173,9 @@ def main():
 
     # Both orientations of each assumption, so that the case split's test of the selector in
     # either order rewrites to false and the path of an excluded function ends there.
-    prune = "".join(f"  have hsel{i}s := Ne.symm hsel{i}\n" for i in range(len(excluded)))
+    prune = "".join(
+        f"  have hsel{i}s := Ne.symm hsel{i}\n" for i in range(len(excluded))
+    )
 
     def write(path, text):
         path.write_text(text)
