@@ -87,7 +87,7 @@ def sem(stage):
 def axioms_check(namespace, name, axioms=AXIOMS):
     return (
         f"/-- info: '{namespace}.{name}' depends on axioms: {axioms} -/\n"
-        f"#guard_msgs in\n#print axioms {name}\n"
+        f"#guard_msgs (whitespace := lax) in\n#print axioms {name}\n"
     )
 
 

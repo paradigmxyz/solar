@@ -42,7 +42,8 @@
 #   first pure operation as another one (xor as and, add as sub, lt as gt, ...);
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
 #   words in reverse order, and the first further result a call binds left unbound, when
-#   present.
+#   present; in a program that loops, in the first block on a cycle of the final EVM IR, its
+#   first add as sub and its first conditional jump's test inverted.
 #
 # LEAN_MEMORY caps each Lean process (MB, default 3000). CERTIFY_WRAP, when set, is a command
 # prefix every Lean process runs under (such as a job slot limiter).
@@ -63,6 +64,8 @@ gen="$examples/$mod"
 proofs="$examples/$name/Proofs"
 last="$(python3 -c 'import json, sys; s = [s for s in json.load(open(sys.argv[1]))["stages"] if s["kind"] != "bytecode"]; print(s[-1]["file"][:-5])' "$gen/manifest.json")"
 last_mir="$(python3 -c 'import json, sys; s = [s for s in json.load(open(sys.argv[1]))["stages"] if s["kind"] == "mir"]; print(s[-1]["file"][:-5])' "$gen/manifest.json")"
+# cutpoints.py finds the blocks of a loop in the final EVM IR.
+milestone="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../solar-tv/milestone" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 failures=0
@@ -162,7 +165,7 @@ EOF
 # on longer bytecode, the kernel rejects its proof.
 walk_false='(Tactic .decide. proved that the proposition walk bytecode offset 0 items = some stream is false|'
 walk_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(walk bytecode offset 0 items = some stream\) = true)'
-mismatch='sym_exec: the runs end in different results on this path'
+mismatch='sym_exec: the runs end in different results on this path|sym_seg: the segments end differently on this path'
 
 edit bytecode-control "$gen/Bytecode.lean" <<<'pass'
 check bytecode-control Bytecode "$proofs/Assembly.lean" pass
@@ -577,6 +580,34 @@ EOF
             < "$tmp/$output-$kind.py"
     done
 done
+
+# In a program that loops: in the first block on a cycle of the final EVM IR (a loop's block),
+# its first add as sub, and its first conditional jump's test inverted (the loop exits where it
+# went on, or goes on where it exited). The cut-point proof must fail by its mismatch.
+cat > "$tmp/loop.py" <<EOF
+import re, sys
+sys.path.insert(0, "$milestone")
+import cutpoints
+blocks = cutpoints.parse_evm(s)
+succ, _, _ = cutpoints.evm_cfg(blocks)
+loop = sorted(cutpoints.on_cycle(succ))
+if not loop: sys.exit(3)
+def in_loop(old, new):
+    for n in loop:
+        ident = blocks[n][0]
+        m = re.search(r"^\s*-- bb%d\s*$" % ident, s, re.M)
+        nxt = re.compile(r"^\s*-- bb\d+\s*$", re.M).search(s, m.end())
+        end = nxt.start() if nxt else len(s)
+        i = s.find(old, m.end(), end)
+        if i >= 0:
+            print(f"  bb{ident}: {old} as {new}")
+            return s[:i] + new + s[i + len(old):]
+    sys.exit(3)
+EOF
+{ cat "$tmp/loop.py"; echo 's = in_loop(".op (.stack .add)", ".op (.stack .sub)")'; } > "$tmp/loop-add.py"
+try "$last-loop-add-sub" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/loop-add.py"
+{ cat "$tmp/loop.py"; echo 's = in_loop(".jumpi ", ".op (.stack .iszero),\n     .jumpi ")'; } > "$tmp/loop-exit.py"
+try "$last-loop-exit" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/loop-exit.py"
 
 # Only a program that returns several words from an internal call has these cases.
 if grep -q '\.leave \[[^]]*,' "$gen/$last_mir.lean"; then
