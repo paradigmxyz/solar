@@ -20,7 +20,7 @@ It writes `milestone/NAME/`: `NAME.sol` (the source the manifest records), `opti
 | `NAME.Proofs.Runs.Stage0` | `stage0_ends` | the first lowered MIR ends on every call, within its block count |
 | `NAME.Proofs.Runs.<Stage>` | `<stage>_run` | each pair of consecutive stages ends in the same result on every call (`sym_exec`) |
 | `NAME.Proofs.Stages` | `stage_<stage>`, `NAME_mir_to_evmir` | each a `Stage` of the fuel-free semantics for `anyCall` (any calldata, call value and storage), and their composition from the first lowered MIR to the final EVM IR, for every oracle |
-| `NAME.Proofs.Assembly` | `walk_eq`, `decodes` | the bytecode's linear decoding is the final EVM IR's instructions, each jumped-to block at the next `JUMPDEST`, a transfer to the next block falling through |
+| `NAME.Proofs.Assembly` | `walk_eq`, `decodes` | the bytecode's linear decoding is the final EVM IR's instructions, each jumped-to block at the next `JUMPDEST`, a transfer to the next block falling through, and each jump table in the encoding its pick shows: a packed word of one-byte offsets, or entry stubs after the last block, one stride apart |
 
 [certify.py](certify.py) writes them from the manifest: fuels are block counts (a loop-free run
 visits each block at most once), times the square of one more than the call sites when the program
@@ -32,18 +32,19 @@ Run axioms are pinned with `#axioms_within` ([W1Proofs/Axioms.lean](w1/proofs/W1
 only `propext`, `Classical.choice` and `Quot.sound`), the stages' and the composition's with
 `#print axioms`, both under `#guard_msgs`, and certify.sh audits every theorem's axioms again.
 [negative.sh](negative.sh) then edits the artifacts where they have the code (the bytecode's first
-`ADD`, else `LT` or `EQ`; the final EVM IR's first `add`, the key its first `sstore` pushes plus
-one, its call value check, its overflow check, its first log, the signature topic and the data
-offset of its first log, its first `keccak256`, the key and the mapping slot the first
-`keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
-first `mul`, its first range test of a narrow product, the kind of its first external call and
-the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
+`ADD`, else `LT` or `EQ`, and the first two entries of its first packed jump table; the final EVM
+IR's first `add`, the key its first `sstore` pushes plus one, its call value check, its overflow
+check, its first log, the signature topic and the data offset of its first log, its first
+`keccak256`, the key and the mapping slot the first `keccak256` hashes (every key moved by one,
+zero or not, and the mapping's slot plus one), its first `mul`, its first range test of a narrow
+product, the kind of its first external call and the check of that call's success, and the first
+two entries of its first jump table; the scheduled EVM IR's first `add`; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
 its first constant plus one; the last MIR stage's first return of several words in reverse order
-and the first further result a call binds left unbound) and requires each generated proof to
-fail with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a rerun
-must regenerate it byte for byte (up to the compiler's build commit in the manifest).
+and the first further result a call binds left unbound) and requires each generated proof to fail
+with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a rerun must
+regenerate it byte for byte (up to the compiler's build commit in the manifest).
 
 w1's proofs ([w1/proofs/W1Proofs](w1/proofs/W1Proofs)) are certify.py's output too, with their
 exact axiom sets pinned; [w1/check.sh](w1/check.sh) checks that they regenerate unchanged.
@@ -209,12 +210,32 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
 ```
 
+- [switch](switch/switch.sol): `Switch.select(uint256)` stores one of eight values by an assembly
+  `switch` on the key, compiled to a jump table: the code masks the key to its bucket (`and 7`) and
+  jumps through a packed word of eight one-byte offsets (`PUSH1 24; ADD; PUSH8; SWAP1; BYTE;
+  JUMP`), each target checking the key before its store; 167 bytes of runtime bytecode. Stages
+  `stage0 → sched → evm1 → … → evm8` (`stack-schedule`, `cfg-simplify-early`, `block-layout`,
+  `share-reverts`, `terminal-dedup`, `cfg-simplify-early`, `inline-returns`, `cfg-simplify`,
+  `loop-layout`) and `evm8 → bytecode`, all proved on every call:
+  `SolarTV.Milestone.Switch.switch_mir_to_evmir`. MIR's `switch` tests the key against each case;
+  where no case fixes the key, `sym_exec` splits the table's lookup into one test of the index per
+  entry (`split_table`, `W1Proofs.Tactic.table_lookup`). Its negative tests also swap the first
+  two entries of the table, in the final EVM IR and in the bytecode.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/switch/switch.sol Switch
+```
+
 ## Limits
 
 The scope is the exporter's fragment (anything else is a compile error naming it) and loop-free
 programs. The stage from the final EVM IR to the bytecode under EthLib's semantics is proved per
 contract in solidity-lean; here the walk only shows the decoding. The caller is the oracle's, any
 160-bit address, so a contract that reads `msg.sender`, such as bank, is proved for every caller.
-Hashes are an oracle function of the hashed bytes and the proofs hold for every oracle, KECCAK256 among them, but say nothing about collisions. Two milestone
-directories whose contracts share a name export the same `SolarTV.Export.<Contract>` namespace and
-cannot be imported together.
+Hashes are an oracle function of the hashed bytes and the proofs hold for every oracle, KECCAK256
+among them, but say nothing about collisions. Of jump tables, the assembly walk spells the packed
+one-byte table and the stride table, the encodings `-Ogas` builds; a table relative to a base or
+packed wider than a byte (the size objective, `-Zpack-wide-jump-tables`) makes certify.py stop with
+an error naming the jump tables it cannot spell, and the walk refuses it. Two milestone directories
+whose contracts share a name export the same `SolarTV.Export.<Contract>` namespace and cannot be
+imported together.

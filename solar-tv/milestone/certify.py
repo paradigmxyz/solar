@@ -216,21 +216,50 @@ def main():
     bytecode_text = (args.gen / "Bytecode.lean").read_text()
     hexcode = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bytecode_text).group(1)
     code = bytes.fromhex(hexcode)
-    dests, pc = [], 0
+    dests, ops, pc = [], [], 0
     while pc < len(code):
         op = code[pc]
+        width = op - 0x5f if 0x60 <= op <= 0x7f else 0
         if op == 0x5b:
             dests.append(pc)
-        pc += 1 + (op - 0x5f if 0x60 <= op <= 0x7f else 0)
+        ops.append((op, int.from_bytes(code[pc + 1:pc + 1 + width], "big")))
+        pc += 1 + width
     last_text = (args.gen / f"{last['module']}.lean").read_text()
-    # Every block a static jump targets or whose label is pushed (a call's return) has a
-    # JUMPDEST.
-    targets = sorted({int(t) for t in re.findall(r"\.(?:jumpi?|pushLabel) (\d+)", last_text)})
-    if len(targets) != len(dests):
-        raise SystemExit(f"error: {len(targets)} jump targets but {len(dests)} JUMPDESTs")
+    # Every block a static jump targets, whose label is pushed (a call's return) or that a jump
+    # table lists has a JUMPDEST.
+    tables = [[int(t) for t in m.split(",")]
+              for m in re.findall(r"\.jumpTable \[([\d, ]+)\]", last_text)]
+    targets = sorted({int(t) for t in re.findall(r"\.(?:jumpi?|pushLabel) (\d+)", last_text)}
+                     | {t for table in tables for t in table})
+    # Each jump table's encoding, in layout order, from its pick in the bytecode: a packed word
+    # of one-byte offsets (PUSHn table; SWAP1; BYTE; JUMP) or a stride table (PUSH1 stride; MUL;
+    # PUSH entry; ADD; JUMP), whose entry stubs follow the last block, each at a JUMPDEST, the
+    # first named by a label past every block's. These are claims the walk checks.
+    is_push = lambda op: 0x60 <= op <= 0x7f
+    spellings, stubs, fresh = [], [], blocks(last_text)
+    for i in range(len(ops)):
+        window = [op for op, _ in ops[i:i + 5]]
+        if is_push(window[0]) and window[1:4] == [0x90, 0x1a, 0x56]:
+            spellings.append(".packed")
+        elif (window[0] == 0x60 and ops[i][1] > 3 and len(window) == 5 and is_push(window[2])
+              and [window[1], window[3], window[4]] == [0x02, 0x01, 0x56]):
+            spellings.append(f"(.stride {ops[i][1] - 3})")
+            stubs.append(fresh)
+            fresh += 1
+    if len(spellings) != len(tables):
+        raise SystemExit(f"error: {len(tables)} jump tables but {len(spellings)} picks in an "
+                         "encoding the assembly check spells (packed bytes or a stride table)")
+    labelled = list(targets)
+    stride_tables = iter(t for t, s in zip(tables, spellings) if s != ".packed")
+    for label in stubs:
+        labelled += [label] + [None] * (len(next(stride_tables)) - 1)
+    if len(labelled) != len(dests):
+        raise SystemExit(f"error: {len(labelled)} jump targets but {len(dests)} JUMPDESTs")
     offset = "0"
-    for t, d in reversed(list(zip(targets, dests))):
+    for t, d in reversed([(t, d) for t, d in zip(labelled, dests) if t is not None]):
         offset = f"if label = {t} then {d:#x} else {offset}"
+    items_of = (f"itemsWith [{', '.join(spellings)}] {last['def']}" if tables
+                else f"itemsOf {last['def']}")
     asm = header(["W1Proofs.Items", f"{gm}.{last['module']}", f"{gm}.Bytecode"],
                  f"The final EVM IR of `{contract}` against its bytecode, by the assembly "
                  "checker's walk: the bytecode decodes, linearly from offset 0, to exactly the "
@@ -239,8 +268,8 @@ def main():
     # The decisions evaluate the items and the walk recursively, item by item.
     asm += "set_option maxRecDepth 100000\n\n"
     asm += (f"/-- The items of the final EVM IR. -/\n"
-            f"def items : List Item := (itemsOf {last['def']}).getD []\n\n"
-            f"theorem items_eq : itemsOf {last['def']} = some items := by decide\n\n"
+            f"def items : List Item := ({items_of}).getD []\n\n"
+            f"theorem items_eq : {items_of} = some items := by decide\n\n"
             f"/-- The layout: each jumped-to block at the bytecode's next `JUMPDEST`. The walk "
             f"checks it. -/\n"
             f"def offset (label : Nat) : Nat := {offset}\n\n"

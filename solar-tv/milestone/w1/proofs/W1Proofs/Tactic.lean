@@ -350,22 +350,22 @@ end effects
 
 /-! Stack positions of `dup` and `swap` as numbers. -/
 
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+theorem fin_val_0 : ((0 : Fin 256) : Nat) = 0 := rfl
+theorem fin_val_1 : ((1 : Fin 256) : Nat) = 1 := rfl
+theorem fin_val_2 : ((2 : Fin 256) : Nat) = 2 := rfl
+theorem fin_val_3 : ((3 : Fin 256) : Nat) = 3 := rfl
+theorem fin_val_4 : ((4 : Fin 256) : Nat) = 4 := rfl
+theorem fin_val_5 : ((5 : Fin 256) : Nat) = 5 := rfl
+theorem fin_val_6 : ((6 : Fin 256) : Nat) = 6 := rfl
+theorem fin_val_7 : ((7 : Fin 256) : Nat) = 7 := rfl
+theorem fin_val_8 : ((8 : Fin 256) : Nat) = 8 := rfl
+theorem fin_val_9 : ((9 : Fin 256) : Nat) = 9 := rfl
+theorem fin_val_10 : ((10 : Fin 256) : Nat) = 10 := rfl
+theorem fin_val_11 : ((11 : Fin 256) : Nat) = 11 := rfl
+theorem fin_val_12 : ((12 : Fin 256) : Nat) = 12 := rfl
+theorem fin_val_13 : ((13 : Fin 256) : Nat) = 13 := rfl
+theorem fin_val_14 : ((14 : Fin 256) : Nat) = 14 := rfl
+theorem fin_val_15 : ((15 : Fin 256) : Nat) = 15 := rfl
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -478,6 +478,31 @@ dsimproc_decl foldShr (Evm.shr _ _) := fun e => do
   let some v ← wordLit? v | return .continue
   return .done (← mkNumeral (mkConst ``EvmRules.Word) (if s < 256 then v >>> s else 0))
 
+open Lean Meta Simp in
+/-- See `foldNot`: a sum, difference or AND of numerals, as a jump table's index is
+once a case fixes the word it is computed from. -/
+dsimproc_decl foldAdd (Evm.add _ _) := fun e => do
+  let_expr Evm.add a b := e | return .continue
+  let some a ← wordLit? a | return .continue
+  let some b ← wordLit? b | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) ((a + b) % 2 ^ 256))
+
+open Lean Meta Simp in
+/-- See `foldAdd`. -/
+dsimproc_decl foldSub (Evm.sub _ _) := fun e => do
+  let_expr Evm.sub a b := e | return .continue
+  let some a ← wordLit? a | return .continue
+  let some b ← wordLit? b | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) ((a + 2 ^ 256 - b) % 2 ^ 256))
+
+open Lean Meta Simp in
+/-- See `foldAdd`. -/
+dsimproc_decl foldAnd (Evm.and _ _) := fun e => do
+  let_expr Evm.and a b := e | return .continue
+  let some a ← wordLit? a | return .continue
+  let some b ← wordLit? b | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) (a &&& b))
+
 open Lean Elab Tactic Meta in
 /-- Case-split on the first `if` of the goal whose condition is closed, as `hc`, with `hcs` its
 symmetric form when it is an equation or its negation, so that either program's orientation
@@ -519,6 +544,57 @@ elab "split_cond" : tactic => withMainContext do
   setGoals [no]
   evalTactic neg
   setGoals (yes' ++ (← getGoals) ++ rest)
+
+/-! Jump tables. A table's lookup at an index the code does not fix becomes a chain of tests of
+the index, one per entry, which `split_cond` splits like any branch. -/
+
+/-- A jump table's entry at word index `i`, from entry `k`, as a chain of tests of the index. -/
+def tableEntry (i : Word) : Nat → List Nat → Option Nat
+  | _, [] => none
+  | k, x :: xs => if i = BitVec.ofNat 256 k then some x else tableEntry i (k + 1) xs
+
+theorem tableEntry_eq (i : Word) : ∀ (xs : List Nat) (k : Nat), k + xs.length ≤ 2 ^ 256 →
+    tableEntry i k xs = if k ≤ i.toNat then xs[i.toNat - k]? else none
+  | [], k, _ => by simp [tableEntry]
+  | x :: xs, k, h => by
+    simp only [List.length_cons] at h
+    have hk : k < 2 ^ 256 := by omega
+    have ih := tableEntry_eq i xs (k + 1) (by omega)
+    unfold tableEntry
+    by_cases e : i = BitVec.ofNat 256 k
+    · have hi : i.toNat = k := by rw [e, BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt hk
+      rw [if_pos e, if_pos (by omega), hi, Nat.sub_self, List.getElem?_cons_zero]
+    · have hi : i.toNat ≠ k := fun h' => e (by
+        apply BitVec.eq_of_toNat_eq
+        rw [h', BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk])
+      rw [if_neg e, ih]
+      by_cases h1 : k + 1 ≤ i.toNat
+      · rw [if_pos h1, if_pos (by omega),
+          show i.toNat - k = (i.toNat - (k + 1)) + 1 by omega, List.getElem?_cons_succ]
+      · rw [if_neg h1, if_neg (by omega)]
+
+/-- A table lookup at a word index is the chain of tests of `tableEntry`. -/
+theorem table_lookup (xs : List Nat) (i : Word) (h : xs.length ≤ 2 ^ 256) :
+    xs[i.toNat]? = tableEntry i 0 xs := by
+  rw [tableEntry_eq i xs 0 (by omega)]
+  simp
+
+open Lean Elab Tactic Meta in
+/-- Rewrite the first lookup of a jump table the code spells out at an index it does not fix,
+`xs[i.toNat]?`, to the chain of tests of `tableEntry` (`table_lookup`, its side condition
+decided by the kernel). It fails when there is none. -/
+elab "split_table" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  let some e := target.find? fun e =>
+      e.isAppOfArity ``GetElem?.getElem? 7 && (e.getArg! 6).isAppOfArity ``BitVec.toNat 2 &&
+        !(e.getArg! 5).hasFVar && !(e.getArg! 5).hasMVar && !(e.getArg! 5).hasLooseBVars &&
+        (e.getArg! 6).hasFVar && !(e.getArg! 6).hasLooseBVars && !(e.getArg! 6).hasMVar
+    | throwError "split_table: no table lookup at an open index in the goal"
+  unless ← isDefEq (← inferType (e.getArg! 5)) (← mkAppM ``List #[mkConst ``Nat]) do
+    throwError "split_table: the lookup is in no list of block numbers"
+  let xs ← Term.exprToSyntax (e.getArg! 5)
+  let i ← Term.exprToSyntax ((e.getArg! 6).getArg! 1)
+  evalTactic (← `(tactic| simp only [table_lookup $xs $i (by decide)]))
 
 open Lean Meta Simp in
 /-- A low mask of a natural number as its remainder, `a &&& (2^k - 1)` as `a % 2^k`, for a
@@ -707,7 +783,7 @@ dsimproc_decl evmNotLit (Evm.not _) := fun e => do
 /-- The definitional evaluation of both layers. -/
 macro "sym_eval" : tactic => `(tactic|
   dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
-    foldNot, foldShl, foldShr,
+    foldNot, foldShl, foldShr, foldAdd, foldSub, foldAnd, tableEntry,
     MIR.Lowered.Module.run, MIR.Lowered.moduleBlock, MIR.Lowered.segment,
     MIR.Lowered.splitCall, MIR.Lowered.bindResult, MIR.Lowered.bindResults,
     MIR.Lowered.bindExtras, MIR.Lowered.publishResults, MIR.Lowered.publishWords, MIR.Lowered.bindPhis,
@@ -727,9 +803,9 @@ macro "sym_eval" : tactic => `(tactic|
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
     Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    fin_val_0, fin_val_1, fin_val_2, fin_val_3, fin_val_4, fin_val_5,
+    fin_val_6, fin_val_7, fin_val_8, fin_val_9, fin_val_10, fin_val_11,
+    fin_val_12, fin_val_13, fin_val_14, fin_val_15])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
@@ -755,7 +831,7 @@ it cannot close fails with its goal, the two ends on that path. -/
 macro "sym_exec" : tactic => `(tactic| (
   obtain ⟨cd, hcd⟩ : ∃ cd, cd = calldataWord call := ⟨_, rfl⟩
   sym_norm
-  repeat' (split_cond <;> sym_norm)
+  repeat' ((first | split_cond | split_table) <;> sym_norm)
   all_goals first
     | with_reducible rfl
     | (exfalso; bv_omega)

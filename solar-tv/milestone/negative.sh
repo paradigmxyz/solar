@@ -12,7 +12,8 @@
 # on unedited copies, which must pass. The edits are found in the artifacts, not written per
 # contract:
 #
-# - bytecode: the first ADD opcode (else LT, else EQ) of the linear decoding as another opcode;
+# - bytecode: the first ADD opcode (else LT, else EQ) of the linear decoding as another opcode,
+#   and the first two entries of its first packed jump table swapped, when present;
 # - final EVM IR: its first add as sub, the key N its first sstore pushes as N + 1, and its call
 #   value check dropped (the call goes on instead of reverting), its jump to the Panic(0x11) block
 #   of the overflow check dropped, its first log dropped, the signature topic of its first log
@@ -20,8 +21,8 @@
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
 #   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
 #   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), each when
-#   present;
+#   of call and the check of that call's success dropped (a failed call goes on), and its first
+#   jump table's first two entries swapped, each when present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -178,6 +179,27 @@ hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
 s = s.replace(hex_old, hex_old[:2 * offset] + "%02x" % new + hex_old[2 * offset + 2:])
 EOF
 
+# The first packed jump table's first two entries swapped in the bytecode (the PUSH of one-byte
+# offsets before SWAP1; BYTE; JUMP).
+try bytecode-jump-table "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" <<'EOF'
+import re
+body = re.search(r"def bytecode : List Nat :=\n  \[(.*?)\]", s, re.S)
+code = [int(b, 16) for b in re.findall(r"0x[0-9a-f]+", body.group(1))]
+ops, pc = [], 0
+while pc < len(code):
+    ops.append(pc)
+    pc += 1 + (code[pc] - 0x5f if 0x60 <= code[pc] <= 0x7f else 0)
+offset = next((a for a, b in zip(ops, ops[1:]) if 0x61 <= code[a] <= 0x7f
+               and code[b:b + 3] == [0x90, 0x1a, 0x56] and code[a + 1] != code[a + 2]), None)
+if offset is None: sys.exit(3)
+print(f"  packed table at offset {offset}: entries 0x{code[offset + 1]:02x}, 0x{code[offset + 2]:02x} swapped")
+code[offset + 1], code[offset + 2] = code[offset + 2], code[offset + 1]
+rows = [", ".join("0x%02x" % b for b in code[i:i + 16]) for i in range(0, len(code), 16)]
+s = s[:body.start(1)] + ",\n   ".join(rows) + s[body.end(1):]
+hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
+s = s.replace(hex_old, "".join("%02x" % b for b in code) + hex_old[2 * len(code):])
+EOF
+
 edit "$last-control" "$gen/$last.lean" <<<'pass'
 check "$last-control" "$last" "$proofs/Runs/$last.lean" pass
 
@@ -328,6 +350,17 @@ print(f"old, new = {m.group(0)!r}, {new!r}" if m else "sys.exit(3)")
 print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-call-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/call-check.py"
+
+# The first jump table's first two entries swapped: the index that numbers the first target
+# jumps to the second, and the other way round.
+cat > "$tmp/table.py" <<'EOF'
+import re
+m = re.search(r"\.jumpTable \[(\d+), (\d+)", s)
+if m is None or m.group(1) == m.group(2): sys.exit(3)
+print(f"  jump table entries {m.group(1)}, {m.group(2)} swapped")
+s = s[:m.start()] + f".jumpTable [{m.group(2)}, {m.group(1)}" + s[m.end():]
+EOF
+try "$last-jump-table" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/table.py"
 
 try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" < "$tmp/add-sub.py"
 

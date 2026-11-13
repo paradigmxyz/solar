@@ -8,7 +8,11 @@ bytes in lockstep with the program: `Walk` is that walk, with the checker's cond
 constructors. Each item decodes, at the offset the walk reached, to the instruction it is at the
 layout (`Item.expected`): an opcode to its byte, a constant push to a PUSH of the constant, so its
 width suffices, a label push to a PUSH of the label's offset, and a label to a `JUMPDEST` at the
-label's offset; and the walk ends exactly at the end of the code.
+label's offset; and the walk ends exactly at the end of the code. Jump tables
+(`indexed_jump.rs`) add two items: a packed table, a PUSH of a word of one-byte label offsets
+that `BYTE` picks from, each offset below 256 so that its byte is the offset, and the entry
+stubs of a stride table, each a `JUMPDEST` at the table's offset plus its index times the
+stride (`Item.placed`).
 
 From the walk, `walk_decodes` proves that linear decoding of the bytes from offset 0 is exactly the
 program's instructions at their offsets, `jump_targets` that every pushed label is the offset of a
@@ -17,8 +21,7 @@ stage for any bytecode semantics that runs the code's linear decoding, against t
 run at the layout the walk found. No axioms.
 
 Outside this model, as in the checker's limits: program data, immutable and library placeholders
-and packed label tables, which the checker checks byte for byte against the artifact's records,
-and the data flow of the deployment code's copy of the runtime code. The bytecode semantics
+which the checker checks byte for byte against the artifact's records, and the data flow of the deployment code's copy of the runtime code. The bytecode semantics
 running the linear decoding is a hypothesis: legacy EVM code runs instruction by instruction from
 offset 0 and jumps only to a `JUMPDEST` that starts an instruction, which is what the decoding
 lists. -/
@@ -70,6 +73,12 @@ inductive Item where
   | push (value : Nat)
   | pushLabel (label : Nat)
   | label (label : Nat)
+  /-- A push of a word of one-byte label offsets, the first label's in the word's highest byte
+  of the push: a packed jump table, which `BYTE` picks an entry of. -/
+  | pushTable (labels : List Nat)
+  /-- Entry `index` of a stride table whose first entry is label `table`: a `JUMPDEST`
+  `index` strides past the table's offset. -/
+  | entry (table index stride : Nat)
   deriving DecidableEq, Repr
 
 /-- The instruction an item is at a layout that puts each label at `offset`. -/
@@ -78,16 +87,27 @@ def Item.expected (offset : Nat → Nat) : Item → Instr
   | .push value => .push value
   | .pushLabel l => .push (offset l)
   | .label _ => .op JUMPDEST
+  | .pushTable labels => .push (bigEndian (labels.map offset))
+  | .entry _ _ _ => .op JUMPDEST
+
+/-- Whether an item is placed where the layout says at `pc`: a label at its offset, a packed
+table's every offset in one byte, so that the word's bytes are the offsets, and a stride table's
+entry its index of strides past the table's offset. -/
+def Item.placed (offset : Nat → Nat) (pc : Nat) : Item → Bool
+  | .label l => offset l == pc
+  | .pushTable labels => labels.all (offset · < 256)
+  | .entry table index stride => offset table + index * stride == pc
+  | _ => true
 
 /-- The checker's walk: decoding `code` from `pc` in lockstep with `items` gives each item's
-instruction at the layout `offset`, with each label defined where its `JUMPDEST` is, and ends at
-the end of the code. `stream` is the program's instructions at the offsets the walk reached. -/
+instruction at the layout `offset`, with each item placed as the layout says (`Item.placed`),
+and ends at the end of the code. `stream` is the program's instructions at the offsets the walk reached. -/
 inductive Walk (code : List Nat) (offset : Nat → Nat) :
     Nat → List Item → List (Nat × Instr) → Prop
   | nil : Walk code offset code.length [] []
   | cons {pc next : Nat} {item : Item} {items : List Item} {stream : List (Nat × Instr)} :
       decode code pc = some (item.expected offset, next) →
-      (∀ label, item = .label label → offset label = pc) →
+      item.placed offset pc = true →
       Walk code offset next items stream →
       Walk code offset pc (item :: items) ((pc, item.expected offset) :: stream)
 
@@ -155,7 +175,24 @@ theorem walk_label {code : List Nat} {offset : Nat → Nat} {pc : Nat} {items : 
   | @cons pc next item items stream _ labels _ ih =>
     rcases List.mem_cons.1 defined with here | later
     · subst here
-      rw [labels label rfl]
+      simp only [Item.placed, beq_iff_eq] at labels
+      rw [labels]
+      simp [Item.expected]
+    · exact List.mem_cons_of_mem _ (ih later)
+
+/-- A stride table's entry, its index of strides past the table's offset, holds a `JUMPDEST`
+that starts an instruction. -/
+theorem walk_entry {code : List Nat} {offset : Nat → Nat} {pc : Nat} {items : List Item}
+    {stream : List (Nat × Instr)} (w : Walk code offset pc items stream) {table index stride : Nat}
+    (defined : Item.entry table index stride ∈ items) :
+    (offset table + index * stride, Instr.op JUMPDEST) ∈ stream := by
+  induction w with
+  | nil => simp at defined
+  | @cons pc next item items stream _ placed _ ih =>
+    rcases List.mem_cons.1 defined with here | later
+    · subst here
+      simp only [Item.placed, beq_iff_eq] at placed
+      rw [placed]
       simp [Item.expected]
     · exact List.mem_cons_of_mem _ (ih later)
 
@@ -191,10 +228,7 @@ def example_code : List Nat := [0x60, 3, 0x56, 0x5b, 0x00]
 theorem example_walk :
     Walk example_code (fun _ => 3) 0 example_items
       [(0, .push 3), (2, .op 0x56), (3, .op 0x5b), (4, .op 0x00)] :=
-  .cons (by rfl) (by intro _ h; cases h)
-    (.cons (by rfl) (by intro _ h; cases h)
-      (.cons (by rfl) (by intro _ _; rfl)
-        (.cons (by rfl) (by intro _ h; cases h) .nil)))
+  .cons (by rfl) rfl (.cons (by rfl) rfl (.cons (by rfl) rfl (.cons (by rfl) rfl .nil)))
 
 /-- Off by one, the label push misses the label: no walk exists, as the checker reports. -/
 theorem example_fault (stream : List (Nat × Instr)) :

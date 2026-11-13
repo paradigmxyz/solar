@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# switch: the stages of milestone/switch/switch.sol's Switch and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "switch"
+srcDir = "milestone"
+roots = ["switch.Proofs"]
+globs = ["switch.+"]
+moreLeanArgs = ["-M", "3000"]
