@@ -499,6 +499,17 @@ record = {
     "assembly": assembly,
     "vc": spec,
     "end_to_end": (f"proved ({e2e_kind}): " + ", ".join(e2e)) if e2e else "not proved",
+    # The owner's acceptance statuses, each reported apart; the strongest status needs all of
+    # equivalence, termination, spec and resources. The stage proofs are one-directional (every
+    # result of the later stage is matched by the earlier one's, or a failure that changes
+    # nothing), and nothing here proves termination or gas bounds yet.
+    "statuses": {
+        "equivalence": "not proved: stage refinement only (" + mir + "; assembly " + assembly.split(":")[0] + ")",
+        "termination": "not proved",
+        "spec": ("proved (" + e2e_kind + "): " + ", ".join(e2e)) if e2e else "not proved",
+        "resources": "not proved",
+        "assumptions": "see hypotheses and assembly_hypotheses",
+    },
     "end_to_end_statement": stmts,
     "hypotheses": {t: premises(s) if s else None for t, s in stmts.items()},
     "refused": [
@@ -526,9 +537,11 @@ if [[ ${#e2e_thms[@]} -gt 0 ]]; then echo "end_to_end: proved ($e2e_kind): ${e2e
 if [[ ${#caveats[@]} -gt 0 ]]; then
     echo "caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
 fi
-# CERTIFIED only for an end-to-end theorem; a run without one reports what it checked.
+echo "statuses: equivalence not proved (refinement only), termination not proved, resources not proved, spec $( [[ ${#e2e_thms[@]} -gt 0 ]] && echo proved || echo 'not proved')"
+# CERTIFIED needs equivalence, termination, spec and resources together, which no run proves
+# yet; a run reports what it checked instead.
 if [[ ${#e2e_thms[@]} -gt 0 ]]; then
-    echo "CERTIFIED $name ($contract): end to end by ${e2e_thms[*]}; bytecode $plain"
+    echo "CHECKED $name ($contract), spec of the bytecode by ${e2e_thms[*]}; not certified: equivalence, termination and resources not proved; bytecode $plain"
 else
     echo "CHECKED $name ($contract), not end to end: $final (first lowered MIR to final EVM IR), assembly ${assembly_status%%:*}; bytecode $plain"
 fi

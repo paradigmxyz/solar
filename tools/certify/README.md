@@ -63,8 +63,9 @@ Every successful run reports, and writes to its record (`Certified/NAME/record.j
   its full statement (`end_to_end_statement`) and its binders and premises (`hypotheses`).
 - `refused`, `vacuous` (not checked yet) and `caveats`.
 
-Only a run with an end-to-end theorem prints `CERTIFIED`; one without prints `CHECKED ..., not
-end to end`.
+A run prints `CERTIFIED` only when equivalence, termination, the spec and resources are all
+proved, which no run does yet; the record's `statuses` reports each of them apart, and the run prints
+`CHECKED ...` with what it proved.
 
 [regenerated.sh](regenerated.sh) is a regression check, run as its own CI step and not part of
 certification: when solidity-lean commits `Certified/NAME`, the files a run regenerated must be
