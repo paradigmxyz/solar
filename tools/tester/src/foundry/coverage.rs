@@ -130,8 +130,7 @@ struct DebugReport {
     /// Anchors whose item is not listed, or whose source ID names different files in different
     /// builds.
     unresolved_anchors: usize,
-    /// Lines that start like a listed item but do not parse, which means the report format
-    /// changed.
+    /// Item and anchor lines that do not parse, which means the report format changed.
     unparsed_items: usize,
 }
 
@@ -197,13 +196,22 @@ fn parse_debug_report(stdout: &str) -> DebugReport {
         if line.starts_with("Anchors for ") {
             in_anchors = true;
         } else if in_anchors {
-            if let Some(caps) = anchor_regex().captures(line)
-                && let Some(item) = parse_item(caps.get(1).unwrap().as_str())
-            {
-                anchors.push((item.source_id, item.kind, item.bytes));
+            if !line.starts_with("- ") {
+                continue;
             }
-        } else if let Some(item) = line.strip_prefix("- ").and_then(parse_item) {
-            let Some(file) = file else { continue };
+            let item = anchor_regex()
+                .captures(line)
+                .and_then(|caps| parse_item(caps.get(1).unwrap().as_str()));
+            match item {
+                Some(item) => anchors.push((item.source_id, item.kind, item.bytes)),
+                None => report.unparsed_items += 1,
+            }
+        } else if let Some(text) = line.strip_prefix("- ") {
+            // Items before the first file header have no file.
+            let (Some(file), Some(item)) = (file, parse_item(text)) else {
+                report.unparsed_items += 1;
+                continue;
+            };
             files_by_location
                 .entry((item.source_id, item.kind.clone(), item.bytes))
                 .or_default()
@@ -216,11 +224,6 @@ fn parse_debug_report(stdout: &str) -> DebugReport {
                 data.lines = item.lines;
             }
             data.hits += item.hits;
-        } else if ["- Line ", "- Statement ", "- Branch ", "- Function "]
-            .iter()
-            .any(|prefix| line.starts_with(prefix))
-        {
-            report.unparsed_items += 1;
         } else if let Some(header) = line.strip_suffix(':')
             && !line.starts_with(['-', ' '])
         {
@@ -696,6 +699,7 @@ Anchors for Contract "A" (solc 0.8.38, source ID 1):
         }
         // The last anchor names a source ID that no listed item has.
         assert_eq!(report.unresolved_anchors, 1);
+        assert_eq!(report.unparsed_items, 0);
         assert_eq!(report.totals(), Totals { items: 5, anchored: 3, hit: 4 });
     }
 
@@ -717,5 +721,21 @@ Anchors for Contract "A" (solc 0.8.38, source ID 1):
         // The function is missing (unanchored and unhit), the branch lost its anchor, the
         // statement is never hit, and B's statement has another count.
         assert_eq!(other.diff_from(&reference), Diff { unanchored: 2, unhit: 2, mismatched: 1 });
+    }
+
+    #[test]
+    fn counts_lines_it_cannot_parse() {
+        let report = parse_debug_report(
+            r#"src/A.sol:
+- Revert (location: (source ID: 1, lines: 1..2, bytes: 3..4), hits: 1) -> ""
+- Line (location: (source ID: 1, lines: 1..2, bytes: 3..4), hits: 1) -> ""
+
+Anchors for Contract "A" (solc 0.8.38, source ID 1):
+- runtime IC 5 -> Item 0: Revert (location: (source ID: 1, lines: 1..2, bytes: 3..4), hits: 1)
+- runtime IC 6 -> Item 1: Line (location: (source ID: 1, lines: 1..2, bytes: 3..4), hits: 1)
+"#,
+        );
+        assert_eq!(report.unparsed_items, 2);
+        assert_eq!(report.totals(), Totals { items: 1, anchored: 1, hit: 1 });
     }
 }
