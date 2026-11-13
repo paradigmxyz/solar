@@ -10,7 +10,7 @@ namespace SolarTV.Milestone.Mulx
 
 open Machine SolarTV.Export.Main SolarTV.Milestone.W1
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 8000000 in
 theorem mir2_run (o : Oracle) (call : Call) :
     MIR.Lowered.Module.run o mir1 call 15 = MIR.Lowered.Module.run o mir2 call 15 := by
   sym_exec

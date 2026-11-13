@@ -129,6 +129,38 @@ jobs:
           SOLAR: ${{ github.workspace }}/target/debug/solar
           SOLAR_TV: ${{ github.workspace }}/solar-tv/solar-tv
 
+  solar-tv-milestones:
+    name: certified milestone proofs
+    runs-on: depot-ubuntu-latest-8
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/solar-lean/*.tar.zst
+            scripts/evm-rules/lean/.lake
+            solar-tv/.lake
+          key: solar-tv-milestones-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('solar-tv/**/*.lean', 'solar-tv/lean-toolchain', 'solar-tv/lakefile.toml', 'solar-tv/lake-manifest.json', 'scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lean-toolchain', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json') }}
+      - name: Install Lean
+        run: bash .github/scripts/install_lean.sh
+      # The default target is the semantics alone. Every milestone's stages and kernel proofs are
+      # libraries of their own, which pin their axioms with #guard_msgs: build them all, so that a
+      # change to the semantics or the tactic that breaks a certified contract fails here.
+      - name: Build every milestone's proofs
+        working-directory: solar-tv
+        run: |
+          mapfile -t libs < <(sed -n '/^\[\[lean_lib\]\]$/{n;s/^name = "\(.*\)"$/\1/p}' lakefile.toml)
+          echo "libraries: ${libs[*]}"
+          [[ ${#libs[@]} -gt 2 ]] || { echo "no milestone libraries found" >&2; exit 1; }
+          lake build -KleanMemory=4500 "${libs[@]}"
+
   test:
     if: github.event_name != 'schedule'
     name: test ${{ matrix.os }} ${{ matrix.rust }}${{ matrix.features && format(' ({0})', matrix.features) || '' }}
@@ -606,6 +638,7 @@ jobs:
     needs:
       - evm-rules
       - solar-tv
+      - solar-tv-milestones
       - test
       - python
       - feature-checks
