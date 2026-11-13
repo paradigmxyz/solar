@@ -1,0 +1,31 @@
+[profile.default]
+solc = "0.8.28"
+evm_version = "cancun"
+src = "src"
+test = "test"
+out = "out"
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 200
+bytecode_hash = "none"
+remappings = [
+    "forge-std/=lib/seaport/lib/forge-std/src/",
+    "seaport-types/=lib/seaport/lib/seaport-types/",
+    "seaport-core/=lib/seaport/lib/seaport-core/",
+    "@rari-capital/solmate/=lib/seaport/lib/solmate/",
+    "solady/=lib/seaport/lib/solady/",
+]
+fs_permissions = [
+    { access = "read", path = "./lib/seaport/optimized-out" },
+    { access = "read", path = "./lib/seaport/reference-out" },
+    { access = "read-write", path = "./equiv" },
+]
+
+[fuzz]
+runs = 2000
+seed = "0x5ea9047"
+
+[invariant]
+runs = 256
+depth = 32
+fail_on_revert = false
