@@ -362,6 +362,11 @@ fn asm() {
 }
 
 #[test]
+fn boolkeys() {
+    check("tests/cases/boolkeys.sol")
+}
+
+#[test]
 fn broadcast() {
     check("tests/cases/broadcast.sol")
 }

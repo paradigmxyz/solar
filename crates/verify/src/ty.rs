@@ -30,7 +30,8 @@ impl Ty {
     pub(crate) fn sort(&self) -> String {
         match self {
             Self::Bool => "Bool".into(),
-            Self::Map(_, v) => format!("(Array Int {})", v.sort()),
+            // A key keeps its own sort: a `bool` key is a `Bool` term.
+            Self::Map(k, v) => format!("(Array {} {})", k.sort(), v.sort()),
             Self::Arr(e, _) => format!("(Array Int {})", e.sort()),
             Self::Struct(n) => format!("|S.{n}|"),
             _ => "Int".into(),
