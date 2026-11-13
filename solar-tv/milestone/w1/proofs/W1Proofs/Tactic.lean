@@ -705,6 +705,14 @@ dsimproc_decl evmNotLit (Evm.not _) := fun e => do
   let some n := lit.rawNatLit? | return .continue
   return .done (← mkNumeral ty (~~~(BitVec.ofNat 256 n)).toNat)
 
+open Lean Meta Simp in
+/-- The value of a `Fin` literal as a numeral, as `dup` and `swap` index the stack with a
+`Fin 256` the exporter writes as a literal. Definitional: `Fin.val` of a literal reduces to it. -/
+dsimproc_decl finValLit (Fin.val _) := fun e => do
+  let_expr Fin.val _ a := e | return .continue
+  let some ⟨_, v⟩ ← getFinValue? a | return .continue
+  return .done (mkNatLit v.val)
+
 /-- The definitional evaluation of both layers. -/
 macro "sym_eval" : tactic => `(tactic|
   dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
@@ -727,10 +735,7 @@ macro "sym_eval" : tactic => `(tactic|
     apply_staticcall, called, returndataSize, BitVec.reduceToNat,
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
-    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit, finValLit])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
@@ -770,6 +775,7 @@ macro "sym_mem" : tactic => `(tactic| first
       Mem.read_storeByte_disjoint, Mem.load_storeByte_disjoint, Mem.read_write_disjoint,
       Mem.load_write_of_disjoint, Mem.read_write_same, Mem.read_write_inside,
       Mem.read_copy_inside, Mem.read_store_within, Mem.read_write_within,
+      Mem.read_store_inside, Mem.read_store_tail, Mem.read_store_front, Mem.drop_of_eq_zero,
       Mem.read_of_eq_zero, Mem.read_write_at, List.append_nil, List.nil_append, List.append_assoc]
   | simp only [Mem.read_split, Nat.reduceLT, Nat.reduceLeDiff, Nat.reduceSub, Nat.reduceAdd])
 

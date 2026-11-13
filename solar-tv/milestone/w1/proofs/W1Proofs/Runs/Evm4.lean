@@ -15,7 +15,7 @@ theorem evm4_run (o : Oracle) (call : Call) :
     EVM.Program.run o evm3 call 5 = EVM.Program.run o evm4 call 3 := by
   sym_exec
 
-/-- info: 'SolarTV.Milestone.W1.evm4_run' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'SolarTV.Milestone.W1.evm4_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms evm4_run
 

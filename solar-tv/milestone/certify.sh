@@ -9,6 +9,8 @@
 # SOLAR_OPTIONS default to -Ogas --evm-version osaka and are kept in NAME/options. --loops N
 # (kept in NAME/loops) claims that a run's loops make at most N iterations in all, for a contract
 # whose loops run a fixed number of times; the first stage's end proof checks it.
+# CERTIFY_HEARTBEATS (kept in NAME/heartbeats) sets each run proof's maxHeartbeats, for stages whose
+# symbolic runs need more than the default 2000000.
 #
 # 1. Copies FILE to NAME/NAME.sol (the source the manifest records), builds solar (unless
 #    CERTIFY_SKIP_BUILD=1; SOLAR picks the binary), checks that its version names the
@@ -67,6 +69,11 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+if [[ -n "${CERTIFY_HEARTBEATS:-}" ]]; then
+    [[ "$CERTIFY_HEARTBEATS" =~ ^[0-9]+$ ]] || die "CERTIFY_HEARTBEATS=$CERTIFY_HEARTBEATS is not a number"
+    echo "$CERTIFY_HEARTBEATS" > "$dir/heartbeats"
+fi
+heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
 
 echo "== 1. compile $source:$contract (${options[*]}) and export its stages"
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -121,7 +128,7 @@ echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops")"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 

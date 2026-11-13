@@ -76,7 +76,8 @@ python3 solar-tv/milestone/certify.py "$gen/Main" --gen-module gen.Main \
  "sched_run": "[propext, Classical.choice, Quot.sound]",
  "evm1_run": "[propext, Classical.choice, Quot.sound]",
  "evm2_run": "[propext, Classical.choice, Quot.sound]",
- "evm3_run": "[propext, Quot.sound]", "evm4_run": "[propext, Quot.sound]"}
+ "evm3_run": "[propext, Classical.choice, Quot.sound]",
+ "evm4_run": "[propext, Classical.choice, Quot.sound]"}
 EOF
 )" > /dev/null
 if ! git diff --quiet HEAD -- solar-tv/milestone/w1/proofs; then

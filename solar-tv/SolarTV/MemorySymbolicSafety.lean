@@ -16,6 +16,8 @@ macro "mem_simp" : tactic => `(tactic| repeat (first
       load_store_disjoint, read_storeByte_disjoint, load_storeByte_disjoint, read_write_disjoint,
       load_write_of_disjoint, read_write_same, read_write_inside, read_copy_inside, load_expand,
       read_store_within, read_write_within, read_of_eq_zero, read_write_at, List.append_nil, List.nil_append,
+      read_store_inside, read_store_tail, read_store_front, List.drop_zero, Nat.add_assoc,
+      Nat.add_sub_cancel_left, Nat.add_sub_add_left, Nat.sub_self, Nat.reduceAdd, Nat.reduceSub,
       List.append_assoc]
   | simp only [read_split, Nat.reduceLT, Nat.reduceLeDiff, Nat.reduceSub, Nat.reduceAdd]))
 
@@ -125,6 +127,47 @@ example (m : Mem) (p : Nat) (v : Word) : True := by
     have : (m.store (p + 16) v).read p 32 = m.read p 16 ++ wordBytes v := by mem_simp
   trivial
 
+/-! Packed encodings: words stored at offsets that are not multiples of 32, overlapping each
+other, and hashed over a range that ends or starts inside a word. -/
+
+/-- `keccak256(abi.encodePacked(token0, token1))`, the pair salt: each address stored
+left-aligned (shifted up 96 bits), the second 20 bytes after the first, hashed over 40 bytes. -/
+theorem packed_addresses_read (m : Mem) (p : Nat) (a b : Word) :
+    ((m.store (p + 32) a).store (p + 52) b).read (p + 32) 40 =
+      (wordBytes a).take 20 ++ (wordBytes b).take 20 := by
+  mem_simp
+
+/-- `abi.encodePacked("\x19\x01", domain, structHash)`: two bytes stored as the top of a word,
+then two words at an offset two bytes later, hashed over 66 bytes. -/
+theorem packed_digest_read (m : Mem) (p : Nat) (pre domain struct : Word) :
+    (((m.store (p + 32) pre).store (p + 34) domain).store (p + 66) struct).read (p + 32) 66 =
+      (wordBytes pre).take 2 ++ wordBytes domain ++ wordBytes struct := by
+  mem_simp
+
+/-- `abi.encodeWithSelector(SELECTOR, to, value)` as the call's input: the selector as the top
+four bytes of a word at `p + 32`, the arguments at `p + 36` and `p + 68`, read as 68 bytes. -/
+theorem selector_call_read (m : Mem) (p : Nat) (sel to value : Word) :
+    (((m.store (p + 32) sel).store (p + 36) to).store (p + 68) value).read (p + 32) 68 =
+      (wordBytes sel).take 4 ++ wordBytes to ++ wordBytes value := by
+  mem_simp
+
+set_option maxRecDepth 8192 in
+/-- Wrong order: the second packed address is not first. -/
+theorem packed_wrong_order : ¬ ∀ (m : Mem) (p : Nat) (a b : Word),
+    ((m.store (p + 32) a).store (p + 52) b).read (p + 32) 40 =
+      (wordBytes b).take 20 ++ (wordBytes a).take 20 := by
+  intro h
+  have := congrArg (·[0]?) (h initial 0 0 (1 <<< 248))
+  revert this
+  decide
+
+/-- Wrong width: an address packed as 32 bytes is not 20. -/
+theorem packed_wrong_width : ¬ ∀ (m : Mem) (p : Nat) (a b : Word),
+    ((m.store (p + 32) a).store (p + 52) b).read (p + 32) 40 = wordBytes a ++ (wordBytes b).take 20 := by
+  intro h
+  have := congrArg List.length (h initial 0 0 0)
+  simp at this
+
 end SolarTV.Machine.Mem
 
 /-- info: 'SolarTV.Machine.Mem.encode3_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -181,3 +224,20 @@ end SolarTV.Machine.Mem
 #guard_msgs in #print axioms SolarTV.Machine.Mem.read_store_within
 /-- info: 'SolarTV.Machine.Mem.read_write_within' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms SolarTV.Machine.Mem.read_write_within
+
+/-- info: 'SolarTV.Machine.Mem.packed_addresses_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.packed_addresses_read
+/-- info: 'SolarTV.Machine.Mem.packed_digest_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.packed_digest_read
+/-- info: 'SolarTV.Machine.Mem.selector_call_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.selector_call_read
+/-- info: 'SolarTV.Machine.Mem.packed_wrong_order' depends on axioms: [propext] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.packed_wrong_order
+/-- info: 'SolarTV.Machine.Mem.packed_wrong_width' depends on axioms: [propext] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.packed_wrong_width
+/-- info: 'SolarTV.Machine.Mem.read_store_inside' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.read_store_inside
+/-- info: 'SolarTV.Machine.Mem.read_store_tail' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.read_store_tail
+/-- info: 'SolarTV.Machine.Mem.read_store_front' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.read_store_front

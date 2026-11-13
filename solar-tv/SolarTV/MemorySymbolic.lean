@@ -261,4 +261,51 @@ theorem read_write_within (m : Mem) (offset size : Nat) (source : Nat → Memory
     read_write_disjoint m offset size source (offset + size) _ (Or.inr (Nat.le_refl _)),
     List.append_assoc]
 
+/-- A range inside one stored word: the word's bytes from the range's start, as many as it
+reads, as a hash over packed addresses (`abi.encodePacked`) reads a stored word's top bytes. -/
+theorem read_store_inside (m : Mem) (offset : Nat) (value : Word) (address count : Nat)
+    (lo : offset ≤ address) (hi : address + count ≤ offset + 32) :
+    (m.store offset value).read address count = ((wordBytes value).drop (address - offset)).take count := by
+  apply List.ext_getElem
+  · simp; omega
+  · intro i h1 h2
+    simp only [read, List.getElem_map, List.getElem_range, bytes_store, List.getElem_take,
+      List.getElem_drop, wordBytes]
+    have c : offset ≤ address + i ∧ address + i < offset + 32 := by simp at h1; omega
+    have e : address + i - offset = address - offset + i := by omega
+    simp [c, e]
+
+/-- A range whose end a stored word crosses: the bytes before the word, then the word's first
+bytes up to the range's end. -/
+theorem read_store_tail (m : Mem) (offset : Nat) (value : Word) (address count : Nat)
+    (lo : address ≤ offset) (mid : offset ≤ address + count) (hi : address + count ≤ offset + 32) :
+    (m.store offset value).read address count =
+      m.read address (offset - address) ++ (wordBytes value).take (address + count - offset) := by
+  have hk : count = (offset - address) + (address + count - offset) := by omega
+  have ho : address + (offset - address) = offset := by omega
+  conv => lhs; rw [hk, read_append, ho]
+  rw [read_store_disjoint m offset value address (offset - address) (Or.inl (by omega)),
+    read_store_inside m offset value offset _ (Nat.le_refl _) (by omega)]
+  simp
+
+/-- A range whose start a stored word crosses: the word's last bytes from the range's start,
+then the bytes after the word. -/
+theorem read_store_front (m : Mem) (offset : Nat) (value : Word) (address count : Nat)
+    (lo : offset ≤ address) (mid : address ≤ offset + 32) (hi : offset + 32 ≤ address + count) :
+    (m.store offset value).read address count =
+      (wordBytes value).drop (address - offset) ++
+        m.read (offset + 32) (address + count - (offset + 32)) := by
+  have hk : count = (offset + 32 - address) + (address + count - (offset + 32)) := by omega
+  have ho : address + (offset + 32 - address) = offset + 32 := by omega
+  conv => lhs; rw [hk, read_append, ho]
+  rw [read_store_inside m offset value address _ lo (by omega),
+    read_store_disjoint m offset value (offset + 32) _ (Or.inr (Nat.le_refl _))]
+  congr 1
+  apply List.take_of_length_le
+  simp; omega
+
+/-- Dropping a length `omega` proves zero. -/
+theorem drop_of_eq_zero (l : List Memory.Byte) (n : Nat) (h : n = 0) : l.drop n = l := by
+  subst h; rfl
+
 end SolarTV.Machine.Mem
