@@ -888,7 +888,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut items = SmallVec::new();
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
+                parse_natspec(self.token.span, symbol, kind, self.in_yul, &mut items);
                 let natspec = if items.is_empty() {
                     BoxSlice::default()
                 } else {
@@ -1203,7 +1203,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 // Our implementation:
 // - Each `///` line is a separate doc comment (not merged by lexer). Because of that, each line
 //   without tags becomes an individual `@notice` item.
-// - Defers validation to lowering phase.
+// - Defers validation, including of unknown tags, to lowering phase.
 // - Follows Solc's Yul behavior: silently ignores unknown tags in Yul context https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151
 
 /// Parses NatSpec items from a single doc comment and appends them to `items`.
@@ -1212,7 +1212,6 @@ fn parse_natspec(
     comment_symbol: Symbol,
     comment_kind: ast::CommentKind,
     in_yul: bool,
-    dcx: &DiagCtxt,
     items: &mut SmallVec<[ast::NatSpecItem; 6]>,
 ) {
     let content = comment_symbol.as_str();
@@ -1220,7 +1219,17 @@ fn parse_natspec(
 
     // Early-exit if no tag is found.
     if memchr::memchr(b'@', bytes).is_none() {
-        if content.trim().is_empty() {
+        // Like solc, ignore one leading `*` on each line of a block comment after the first, so a
+        // comment made only of this decoration documents nothing.
+        let is_blank = content.lines().enumerate().all(|(index, line)| {
+            let line = line.trim_ascii_start();
+            let line = match comment_kind {
+                ast::CommentKind::Block if index > 0 => line.strip_prefix('*').unwrap_or(line),
+                _ => line,
+            };
+            line.trim_ascii().is_empty()
+        });
+        if is_blank {
             return;
         }
 
@@ -1256,16 +1265,6 @@ fn parse_natspec(
                 content_end: content_end as u32,
             });
         }
-    }
-
-    #[cold]
-    #[inline(never)]
-    fn invalid_tag(dcx: &DiagCtxt, tag: &str, span: Span) {
-        dcx.emit_warn_code(
-            span,
-            error_code!(6546),
-            format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"),
-        );
     }
 
     // Check if '@' is located at the logical start of the line.
@@ -1340,17 +1339,19 @@ fn parse_natspec(
                 }
                 "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
-                    if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                    // A bare `@custom` is a custom tag without a name, as in solc.
+                    let custom_tag =
+                        if tag == "custom" { Some("") } else { tag.strip_prefix("custom:") };
+                    if let Some(custom_tag) = custom_tag {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
                         ast::NatSpecKind::Custom { name: ident }
                     } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
                         let ident = Ident::new(Symbol::intern(tag), comment_span);
                         ast::NatSpecKind::Internal { tag: ident }
+                    } else if !in_yul {
+                        let ident = Ident::new(Symbol::intern(tag), comment_span);
+                        ast::NatSpecKind::Unknown { tag: ident }
                     } else {
-                        // Emit error for invalid solidity tags, but ignore in Yul.
-                        if !in_yul {
-                            invalid_tag(dcx, tag, comment_span);
-                        }
                         line_start = line_end + 1;
                         prev_line_end = line_end;
                         continue;

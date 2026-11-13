@@ -1,0 +1,44 @@
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │     /// @param x
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │      * @param x
+   │         ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │     /** @param x */
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[3881]: tag `@param` references non-existent parameter ''
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │     /// @param 5 Names start with a letter, so this documents an empty name.
+   ╰╴         ━━━━━
+
+warning[3335]: tag `@param` does not contain a parameter name
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │ /// @param
+   ╰╴     ━━━━━
+
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │     /// @param x
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+

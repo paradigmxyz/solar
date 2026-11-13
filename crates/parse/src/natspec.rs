@@ -17,16 +17,21 @@ pub fn split_once_ws(content: &str, start: usize, end: usize) -> (&str, usize) {
 /// Splits a string slice at the end of its leading identifier.
 ///
 /// Returns the identifier prefix and the position of the first following non-blank char; the
-/// prefix is empty when the content does not start with an identifier character. This mirrors
-/// solc, which parses documented parameter names as identifier prefixes, so `@param -` documents
-/// an unnamed parameter.
+/// prefix is empty when the content does not start with an identifier start character. This
+/// mirrors solc, which parses documented parameter names as identifier prefixes, so `@param -`
+/// and `@param 5` document a parameter with an empty name.
 #[inline]
 pub fn split_once_ident(content: &str, start: usize, end: usize) -> (&str, usize) {
     let bytes = content.as_bytes();
-    let ident_len = bytes[start..end]
-        .iter()
-        .position(|&b| !crate::lexer::is_id_continue_byte(b))
-        .unwrap_or(end - start);
+    let ident_len = if bytes[start..end].first().is_some_and(|&b| crate::lexer::is_id_start_byte(b))
+    {
+        bytes[start..end]
+            .iter()
+            .position(|&b| !crate::lexer::is_id_continue_byte(b))
+            .unwrap_or(end - start)
+    } else {
+        0
+    };
     let ident_end = start + ident_len;
     let rest = &bytes[ident_end..end];
     (&content[start..ident_end], ident_end + (rest.len() - rest.trim_ascii_start().len()))

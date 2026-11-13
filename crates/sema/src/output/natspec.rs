@@ -276,7 +276,8 @@ fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
             | hir::NatSpecKind::Notice
             | hir::NatSpecKind::Return { .. }
             | hir::NatSpecKind::Inheritdoc { .. }
-            | hir::NatSpecKind::Internal { .. } => {}
+            | hir::NatSpecKind::Internal { .. }
+            | hir::NatSpecKind::Unknown { .. } => {}
         }
     }
     documentation

@@ -1,0 +1,24 @@
+warning[2968]: invalid character in tag `@custom:my_tag`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_name_shapes.sol:LL:CC
+   │
+LL │     /// @custom:my_tag Underscores are not allowed.
+   │          ━━━━━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+
+warning[2968]: invalid character in tag `@custom:v2`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_name_shapes.sol:LL:CC
+   │
+LL │     /// @custom:v2 Digits are not allowed.
+   │          ━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+
+warning[2968]: invalid character in tag `@custom:-tag`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_name_shapes.sol:LL:CC
+   │
+LL │     /// @custom:-tag The name must start with a letter.
+   │          ━━━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+

@@ -1,4 +1,8 @@
-use crate::{builtins::Builtin, hir, natspec::report_misplaced_solar_tags};
+use crate::{
+    builtins::Builtin,
+    hir,
+    natspec::{report_misplaced_solar_tags, solc_doc_comments},
+};
 use alloy_primitives::U256;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -1114,6 +1118,16 @@ impl<'gcx> ResolveContext<'gcx> {
             matches!(item.kind, ast::NatSpecKind::Internal { tag } if tag.name == sym::solidity)
                 && item.content().split_whitespace().any(|word| word == "memory-safe-assembly")
         });
+        let solc_docs = solc_doc_comments(self.sess.source_map(), docs);
+        for item in solc_docs.iter().flat_map(|doc| doc.natspec.iter()) {
+            if let ast::NatSpecKind::Unknown { tag } = item.kind {
+                self.dcx().emit_warn_code(
+                    item.span,
+                    error_code!(6269),
+                    format!("unexpected NatSpec tag `@{}` in inline assembly", tag.name),
+                );
+            }
+        }
         let mut has_flag = false;
         for flag in assembly.flags.iter() {
             let span = flag.span;

@@ -1,0 +1,40 @@
+warning[6546]: tag `@a&b` not valid for contracts
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │ /// @a&b test
+   │      ━━━
+   │
+   ╰ help: custom tags must use the format `@custom:name`
+
+warning[2968]: invalid character in tag `@custom:x^y`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom:x^y test2
+   │          ━━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+
+warning[6564]: tag `@custom:` does not contain a name
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom:
+   │          ━━━━━━━
+   │
+   ╰ help: name the tag, as in `@custom:mytag`
+
+warning[2968]: invalid character in tag `@custom:abcDEF`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom:abcDEF
+   │          ━━━━━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+
+warning[6564]: tag `@custom:` does not contain a name
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom
+   │          ━━━━━━
+   │
+   ╰ help: name the tag, as in `@custom:mytag`
+

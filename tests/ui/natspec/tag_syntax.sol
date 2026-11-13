@@ -68,14 +68,12 @@ contract InternalTags {
     }
 }
 
-// Invalid tags (should emit warnings)
+// Unknown tags parse; semantic analysis reports them.
 /// @invalid This is not a valid tag
-//~^ WARN: invalid natspec tag '@invalid'
 contract InvalidTag1 {}
 
 // Invalid custom tag format
 /// @customwrong Should use colon format
-//~^ WARN: invalid natspec tag '@customwrong', custom tags must use format '@custom:name'
 contract InvalidCustom {}
 
 // Yul context - should silently ignore unknown tags
