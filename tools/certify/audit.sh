@@ -47,11 +47,15 @@ case "${1:-}" in
         status=0
         (cd "$lean_dir" && "${wrap[@]}" lake env lean -M "${LEAN_MEMORY:-3000}" "$file") > "$out" 2>&1 || status=$?
         if [[ $status -ne 0 ]]; then cat "$out" >&2; die "the axiom audit does not check"; fi
-        grep -E "depends on axioms|does not depend on any axioms" "$out" || true
-        bad="$(grep "depends on axioms" "$out" | sed -E 's/.*depends on axioms: \[(.*)\]/\1/' |
+        # Lean wraps a long report over several lines: join each continuation line (indented) to
+        # the line before it.
+        joined="$out.joined"
+        awk 'NR > 1 && /^[[:space:]]/ { sub(/^[[:space:]]+/, " "); printf "%s", $0; next } { if (NR > 1) print ""; printf "%s", $0 } END { print "" }' "$out" > "$joined"
+        grep -E "depends on axioms|does not depend on any axioms" "$joined" || true
+        bad="$(grep "depends on axioms" "$joined" | sed -E 's/.*depends on axioms: \[(.*)\]/\1/' |
             tr ',' '\n' | tr -d ' ' | grep -v -x -E 'propext|Classical\.choice|Quot\.sound' | sort -u || true)"
         [[ -z "$bad" ]] || die "axioms beyond propext, Classical.choice and Quot.sound: $(echo $bad)"
-        [[ "$(grep -c -E "depends on axioms|does not depend on any axioms" "$out")" -eq ${#thms[@]} ]] ||
+        [[ "$(grep -c -E "depends on axioms|does not depend on any axioms" "$joined")" -eq ${#thms[@]} ]] ||
             die "a theorem is missing from the axiom audit"
         ;;
     *) die "usage: audit.sh scan PATH... | audit.sh axioms LEAN_DIR OUT MODULE... -- THEOREM..." ;;
