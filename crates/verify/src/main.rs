@@ -402,7 +402,7 @@ fn main() {
                     } else {
                         "failed"
                     };
-                    statuses.insert(name.clone(), status.into());
+                    statuses.insert(name, status.into());
                     if cli.json {
                         let esc = |x: &str| x.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ");
                         let mut msgs: Vec<String> = vec![];

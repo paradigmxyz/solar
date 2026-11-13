@@ -1,8 +1,8 @@
 //! Export of the verification conditions to Lean (`--emit-lean DIR`), format version 1.
 //!
-//! Every [`Smt`] records, while `--emit-lean` is on, the commands it keeps on the solver's
+//! Every [`Smt`](crate::smt::Smt) records, while `--emit-lean` is on, the commands it keeps on the solver's
 //! assertion stack and every query it asks: the guard and goal, what the query is for
-//! ([`Role`]) and how it was answered. At the end of a run [`write`] translates each recorded
+//! ([`Role`]) and how it was answered. At the end of a run [`write()`] translates each recorded
 //! script into a Lean term of the deep embedding in `lean/SolarVerify/Smt.lean`, one module per
 //! verified function or broadcast lemma, and writes `manifest.json`, which binds them to the
 //! sources, the compiler, the options and the exact SMT-LIB of each query. See
@@ -54,7 +54,7 @@ pub(crate) fn recorder() -> Option<Box<Recorder>> {
     })
 }
 
-/// Keeps a dropped solver's recording for [`write`].
+/// Keeps a dropped solver's recording for [`write()`].
 pub(crate) fn finish(mut r: Box<Recorder>) {
     r.close();
     if !r.queries.is_empty() {
