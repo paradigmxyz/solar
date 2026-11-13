@@ -95,7 +95,7 @@ class MirFrameTests(unittest.TestCase):
         )
         self.pair(source, source.replace("v0, 4", "v0, 5"), status=1)
 
-    def test_internal_placement_and_invalid_slot_forms_stay_unsupported(self):
+    def test_missing_placements_and_invalid_slots_stay_inconclusive(self):
         for body in (
             "v0 = frame_load internal_frame, word, 0\nret v0",
             "frame_store internal_frame, word, 0, 7\nret 0",
@@ -107,7 +107,7 @@ class MirFrameTests(unittest.TestCase):
                 self.assertIn(
                     "missing MIR function placement"
                     if "internal_frame" in body
-                    else "backend placement",
+                    else "multi-return frame slot requires a word at offset zero",
                     result.stderr,
                 )
 
