@@ -499,9 +499,10 @@ def main():
 
     # The final EVM IR against the bytecode.
     bytecode_text = (args.gen / "Bytecode.lean").read_text()
-    hexcode = re.search(
-        r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bytecode_text
-    ).group(1)
+    found = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bytecode_text)
+    if found is None:
+        raise SystemExit("error: Bytecode.lean defines no bytecodeHex")
+    hexcode = found.group(1)
     code = bytes.fromhex(hexcode)
     dests, ops, pc = [], [], 0
     while pc < len(code):
