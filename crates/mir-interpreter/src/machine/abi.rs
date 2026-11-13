@@ -4,8 +4,8 @@
 //! Packed literals/scalars retain full-word stores and the trailing zero word;
 //! hash windows admit one merged word or whole-word parts. Scalar decoders check
 //! the signed tuple length and canonical encodings before returning a value.
-//! Validation markers require a decoder-established obligation. Reference and
-//! multi-result layouts remain unsupported rather than delegating to lowering.
+//! Validation markers require a decoder-established obligation. Recursive shapes
+//! use the encode/decode submodules without delegating to compiler lowering.
 
 use super::{Outcome, Run, RuntimeValue, calldata_word, limit};
 use alloy_primitives::U256;
@@ -14,6 +14,9 @@ use solar_mir::{
     AllocationSemantics, Function, PackedPart, PtrLocation, Semantics, Value, ValueId, ValueLayout,
 };
 use std::ops::ControlFlow;
+
+mod decode;
+mod encode;
 
 fn scalar_layout(layout: &AbiParamLayout) -> Option<(Option<AbiWordValidator>, bool)> {
     let [ty] = layout.types.as_ref() else {
@@ -126,13 +129,7 @@ impl Run<'_, '_, '_> {
         let Some((validator, function)) = rule else {
             return ControlFlow::Continue(None);
         };
-        let word = match location {
-            PtrLocation::Memory => limit(self.memory.load(base))?,
-            PtrLocation::Calldata => {
-                calldata_word(self.transaction.as_ref().expect("state calldata").calldata, base)
-            }
-            _ => return ControlFlow::Break(Outcome::Unsupported("ABI decode location")),
-        };
+        let word = self.abi_read_source(location, base)?;
         if !canonical(word, validator) {
             return ControlFlow::Break(Outcome::Revert(Vec::new()));
         }

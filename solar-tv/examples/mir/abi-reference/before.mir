@@ -1,0 +1,9 @@
+@module State
+fn @f() -> i256 {
+bb0:
+v0 = inttoptr i256 128 to ptr<memory>
+v2 = abi_encode [memory_bytes], object, args v0
+v3 = ptradd v2, 32
+v4 = mload v3
+ret v4
+}

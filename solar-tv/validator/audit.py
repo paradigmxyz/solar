@@ -116,7 +116,7 @@ def record(
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
-                    "static scalar ABI tuples, scalar decoders and bounded literal/scalar packed encodings; recursive ABI layouts and physical multi-return buffers unsupported",
+                    "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded literal/scalar packed encodings; physical multi-return buffers unsupported",
                 ]
             )
             if "mir_layout" in fixture:

@@ -240,9 +240,20 @@ def operation(value, definitions):
             "[" + ",".join("true" if x else "false" for x in value["functions"]) + "]"
         )
         expression = f".abi (.encode {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} {functions})"
+    elif kind == "abi_encode_tree":
+        shapes = ",".join(abi_encode_shape(shape) for shape in value["shapes"])
+        memory_slices = ",".join(
+            "true" if value else "false" for value in value["memory_slices"]
+        )
+        expression = f".abi (.encodeTree {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} [{shapes}] [{memory_slices}])"
     elif kind == "abi_decode":
         rule = value["rule"]
         expression = f".abi (.decode ({'none' if rule is None else 'some (' + abi_rule(rule) + ')'}) {'true' if rule is not None and rule['function'] else 'false'} {'true' if value['calldata'] else 'false'})"
+    elif kind == "abi_decode_tree":
+        shapes = ",".join(abi_decode_shape(shape) for shape in value["shapes"])
+        expression = (
+            f".abi (.decodeTree [{shapes}] {'true' if value['calldata'] else 'false'})"
+        )
     elif kind == "validate_abi":
         expression = f".abi (.validate ({abi_rule(value['rule'])}))"
     elif kind == "packed":
@@ -575,3 +586,47 @@ def abi_rule(rule):
     if kind == "enumeration":
         return ".enumeration " + number(rule["bits"], 2**64)
     raise Unsupported("unknown ABI word validator")
+
+
+def abi_decode_shape(shape):
+    kind = shape["kind"]
+    if kind == "scalar":
+        rule = shape["rule"]
+        return f".scalar ({abi_rule(rule)}) {'true' if rule['function'] else 'false'} {width(shape['width'])}"
+    if kind == "bytes":
+        return ".bytes"
+    if kind == "array":
+        length = (
+            "none"
+            if shape["length"] is None
+            else f"some {number(shape['length'], 2**64)}"
+        )
+        return f".array ({abi_decode_shape(shape['element'])}) ({length})"
+    if kind == "tuple":
+        return (
+            ".tuple ["
+            + ",".join(abi_decode_shape(field) for field in shape["fields"])
+            + "]"
+        )
+    raise Unsupported("invalid recursive ABI shape")
+
+
+def abi_encode_shape(shape):
+    kind = shape["kind"]
+    if kind == "word":
+        return f".word ({abi_rule(shape['rule'])})"
+    if kind == "function":
+        return ".function"
+    if kind == "bytes":
+        return f".bytes {number(shape['location'], 4)}"
+    if kind == "array":
+        length = shape["length"]
+        count = "none" if length is None else f"some {number(length, 2**64)}"
+        return f".array ({abi_encode_shape(shape['element'])}) ({count}) {number(shape['location'], 4)} {'true' if shape['block_copy'] else 'false'}"
+    if kind == "tuple":
+        return (
+            ".tuple ["
+            + ",".join(abi_encode_shape(field) for field in shape["fields"])
+            + "]"
+        )
+    raise Unsupported("unknown ABI encoder shape")

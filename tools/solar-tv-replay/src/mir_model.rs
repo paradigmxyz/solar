@@ -474,9 +474,6 @@ fn export_operation(
                 json!({"kind":"layout","query":query,"id":id.index(),"args":operands(module,body,&args)?})
             }
             Semantics::AbiEncode(mode, base, selector, args, layout) => {
-                if layout.types.iter().any(|t| !matches!(t, AbiType::Word(_) | AbiType::Function)) {
-                    return Err("ABI encoding requires a static scalar tuple".into());
-                }
                 let mut values = Vec::new();
                 values.extend(base);
                 values.extend(selector);
@@ -486,10 +483,54 @@ fn export_operation(
                     AbiEncodeMode::Bytes => 1,
                     AbiEncodeMode::Scratch => 2,
                 };
-                json!({"kind":"abi_encode","mode":mode,"base":base.is_some(),"selector":selector.is_some(),"functions":layout.types.iter().map(|t|json!(matches!(t,AbiType::Function))).collect::<Vec<_>>(),"args":operands(module,body,&values)?})
+                if layout.types.iter().all(|t| matches!(t, AbiType::Word(_) | AbiType::Function)) {
+                    json!({"kind":"abi_encode","mode":mode,"base":base.is_some(),"selector":selector.is_some(),"functions":layout.types.iter().map(|t|json!(matches!(t,AbiType::Function))).collect::<Vec<_>>(),"args":operands(module,body,&values)?})
+                } else {
+                    let mut nodes = 0;
+                    let shapes = layout
+                        .types
+                        .iter()
+                        .zip(args)
+                        .map(|(ty, value)| {
+                            let location = body.value_slice_location(*value);
+                            let ty = if let Some(location) = location {
+                                ty.clone().at_location(location)
+                            } else {
+                                ty.clone()
+                            };
+                            abi_encode_shape(&ty, 0, &mut nodes)
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    let memory_slices = layout
+                        .types
+                        .iter()
+                        .zip(args)
+                        .map(|(ty, value)| {
+                            json!(
+                                body.value_slice_location(*value)
+                                    == Some(solar_mir::PtrLocation::Memory)
+                                    && matches!(ty, AbiType::FixedArray { .. } | AbiType::Tuple(_))
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    json!({"kind":"abi_encode_tree","memory_slices":memory_slices,"mode":mode,"base":base.is_some(),"selector":selector.is_some(),"shapes":shapes,"args":operands(module,body,&values)?})
+                }
             }
             Semantics::AbiDecode(data, layout) => {
-                json!({"kind":"abi_decode","rule":abi_rule(layout)?,"calldata":body.value_slice_location(data)==Some(solar_mir::PtrLocation::Calldata),"args":operands(module,body,&[data])?})
+                let calldata =
+                    body.value_slice_location(data) == Some(solar_mir::PtrLocation::Calldata);
+                if layout.types.len() <= 1 && layout.types.iter().all(AbiParamType::is_scalar_word)
+                {
+                    json!({"kind":"abi_decode","rule":abi_rule(layout)?,"calldata":calldata,"args":operands(module,body,&[data])?})
+                } else {
+                    let mut nodes = 0;
+                    let shapes = layout
+                        .types
+                        .iter()
+                        .map(|ty| abi_decode_shape(ty, 0, &mut nodes))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    json!({"kind":"abi_decode_tree","shapes":shapes,"calldata":calldata,"args":operands(module,body,&[data])?})
+                }
             }
             Semantics::ValidateAbi(value) => {
                 let Value::Inst(origin) = *body.value(value) else {
@@ -640,7 +681,66 @@ fn abi_rule(layout: &solar_mir::AbiParamLayout) -> Result<Json, String> {
     if !ty.is_scalar_word() {
         return Err("ABI decoding requires a scalar layout".into());
     }
-    let (name, bits) = match ty.word_validator() {
+    let mut rule = abi_validator(ty.word_validator());
+    rule["function"] = json!(matches!(ty, AbiParamType::Scalar(ValueLayout::Function)));
+    Ok(rule)
+}
+
+/// Reflects the declared ABI tree; no offsets, bounds proofs or decoder IR are exported.
+fn abi_decode_shape(ty: &AbiParamType, depth: usize, nodes: &mut usize) -> Result<Json, String> {
+    *nodes += 1;
+    if depth > 32 || *nodes > 256 {
+        return Err("ABI layout limit: depth 32, nodes 256".into());
+    }
+    Ok(match ty {
+        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {
+            let scalar = solar_mir::AbiParamLayout::new(vec![ty.clone()]);
+            json!({"kind":"scalar","rule":abi_rule(&scalar)?,"width":ty.mir_type().integer_bits().unwrap_or(256)})
+        }
+        AbiParamType::Bytes => json!({"kind":"bytes"}),
+        AbiParamType::DynamicArray(element) => {
+            json!({"kind":"array","length":null,"element":abi_decode_shape(element,depth+1,nodes)?})
+        }
+        AbiParamType::FixedArray { element, len } => {
+            json!({"kind":"array","length":len,"element":abi_decode_shape(element,depth+1,nodes)?})
+        }
+        AbiParamType::Tuple(fields) => {
+            json!({"kind":"tuple","fields":fields.iter().map(|ty|abi_decode_shape(ty,depth+1,nodes)).collect::<Result<Vec<_>,_>>()?})
+        }
+    })
+}
+
+/// Reflects recursive encoder layouts without importing the lowering implementation.
+fn abi_encode_shape(ty: &AbiType, depth: usize, nodes: &mut usize) -> Result<Json, String> {
+    *nodes += 1;
+    if depth > 32 || *nodes > 256 {
+        return Err("ABI layout limit: depth 32, nodes 256".into());
+    }
+    let location = |location| match location {
+        solar_mir::PtrLocation::Memory => Ok(0),
+        solar_mir::PtrLocation::Calldata => Ok(1),
+        solar_mir::PtrLocation::Returndata => Ok(2),
+        solar_mir::PtrLocation::Storage => Ok(3),
+        _ => Err("ABI encoding address space".to_string()),
+    };
+    Ok(match ty {
+        AbiType::Word(validator) => json!({"kind":"word","rule":abi_validator(*validator)}),
+        AbiType::Function => json!({"kind":"function"}),
+        AbiType::Bytes(place) => json!({"kind":"bytes","location":location(*place)?}),
+        AbiType::DynamicArray { element, location: place } => {
+            json!({"kind":"array","length":null,"location":location(*place)?,"block_copy":false,"element":abi_encode_shape(element,depth+1,nodes)?})
+        }
+        AbiType::FixedArray { element, len, block_copy } => {
+            json!({"kind":"array","length":len,"location":0,"block_copy":block_copy,"element":abi_encode_shape(element,depth+1,nodes)?})
+        }
+        AbiType::Tuple(fields) => {
+            json!({"kind":"tuple","fields":fields.iter().map(|ty|abi_encode_shape(ty,depth+1,nodes)).collect::<Result<Vec<_>,_>>()?})
+        }
+    })
+}
+
+fn abi_validator(validator: Option<AbiWordValidator>) -> Json {
+    let (kind, bits) = match validator {
         None => ("any", 0),
         Some(AbiWordValidator::Unsigned(n)) => ("uint", u64::from(n)),
         Some(AbiWordValidator::LeftAligned(n)) => ("left", u64::from(n)),
@@ -648,7 +748,5 @@ fn abi_rule(layout: &solar_mir::AbiParamLayout) -> Result<Json, String> {
         Some(AbiWordValidator::Bool) => ("boolean", 0),
         Some(AbiWordValidator::EnumRange(n)) => ("enumeration", n),
     };
-    Ok(
-        json!({"kind":name,"bits":bits,"function":matches!(ty,AbiParamType::Scalar(ValueLayout::Function))}),
-    )
+    json!({"kind":kind,"bits":bits,"function":false})
 }
