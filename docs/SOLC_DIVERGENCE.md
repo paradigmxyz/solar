@@ -1111,6 +1111,5 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: only assembly or a storage layout collision can store such a
   value, and both compilers still revert; checking at the load keeps one check
   per load instead of one per use.
-- Coverage: `tests/ui/codegen/run-call/storage/forged_enum_check_order.sol`;
-  `tools/difffuzz/forge/test/SeaportDiff.t.sol` (`test_storedEnumCheckOrder`),
+- Coverage: `tests/ui/codegen/run-call/storage/forged_enum_check_order.sol`,
   found by `forge equivalence`.

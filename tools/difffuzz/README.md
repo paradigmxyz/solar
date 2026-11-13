@@ -100,23 +100,25 @@ custom legs above remain only for SolidCore and the MIR and EVM IR interpreters.
   case, from arbitrary storage and every calldata, beside the random calls. A distinguishing input
   is replayed from the state the calls left; one that agrees there is counted as unreached and
   kept under `forge-unreached/`. So far those have all been dirty padding (CODEGEN-025).
-- `forge/` is a Foundry project over Seaport, pinned at the external suite's revision.
-  `bash forge/setup.sh [solar]` builds its optimized (assembly) and reference (high-level)
-  implementations with solc and with the compiler, and `forge test` runs fuzz tests (views,
-  order hashing, raw calldata, counters, signed ETH-for-ERC721 orders seeded with
-  `basic.spec.ts`'s amounts as fixtures, getters over arbitrary stored words) and an invariant
-  test that applies random fills, cancellations and counter bumps to all four builds in lockstep.
-  Same-source builds must agree byte for byte; the two implementations must agree on success and
-  return data. `bash forge/equivalence.sh` checks each implementation's two builds with `forge
-  equivalence` entry point by entry point and writes `code/equivalence.jsonl`.
+- `forge/` is a Foundry project over Uniswap v2-core (Pair, ERC20, Factory, Math, UQ112x112).
+  `bash forge/setup.sh [solar] [port]` builds it with solc and with the compiler, from the
+  vendored ^0.8 port when one is given and otherwise from v2-core at a pinned commit with
+  `uniswap-v2-port.patch`, which makes the changes listed below. `forge test` deploys a factory,
+  pair and tokens from each build and runs fuzz tests (mint and burn, swaps around the K bound,
+  the protocol fee, permits with good and bad nonces, raw calldata, and v2-core's own swap
+  vector, with its amounts as fixtures) and an invariant test that applies random mints, burns,
+  swaps, syncs, skims, donations, permits and waits to both builds in lockstep. Every step must
+  have the same success, return data and logs, and leave the same reserves, balances, price
+  accumulators and `kLast`. `bash forge/equivalence.sh` checks each contract's two builds with
+  `forge equivalence` entry point by entry point; calls into the tokens are abstracted
+  (`--promise-no-reent`), so re-entry is left to the fuzz tests.
 
-On the four builds, every fuzz test passes 1,000 runs and the invariant test 64 runs of 32 calls.
-`forge equivalence` proves the two builds of each implementation equivalent on `name()`,
-`information()`, `getOrderStatus`, `getOrderHash` and `cancel`. It is incomplete on
-`incrementCounter` (symbolic `BLOCKHASH`), on `getCounter` and `getContractOffererNonce` (a
-counterexample that does not replay concretely; `testFuzz_storedWords` finds no difference there),
-and on the optimized `fulfillBasicOrder`. On the reference `fulfillBasicOrder` it found CODEGEN-029:
-an enum read from forged storage is checked at the load, where solc checks it at the use.
+Changes from v2-core 0.5.16 in the port: `pragma solidity ^0.8.0`; constructors lose `public`;
+`uint(-1)` and `uint112(-1)` become `type(...).max`; the chain ID is read with `block.chainid`
+instead of assembly; the timestamp difference and the price accumulators, whose overflow is
+intended, are wrapped in `unchecked`; `UniswapV2Pair` and `UniswapV2ERC20` no longer inherit
+their interfaces, and `UniswapV2Factory` no longer redeclares `PairCreated`, which 0.8 rejects as
+duplicate declarations. SafeMath stays, now checked twice.
 
 ## Divergences
 
