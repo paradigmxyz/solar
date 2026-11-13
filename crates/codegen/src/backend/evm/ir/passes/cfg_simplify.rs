@@ -50,12 +50,15 @@
 //!
 //! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
 //! function exit moves to an unconditional transfer that skips it, never to a conditional one,
-//! which also executes when that edge is not taken. Its function entry goes to its destination
-//! label, the callee's first instruction, never onto a jump of the callers, and only while the
-//! thunk is the label's only entry: another edge into the label, such as a loop's back edge,
-//! would run the entry more than once per call. After an unconditional edge the entry stays on
-//! the label; after a conditional edge, later passes drop it when the label becomes shared, falls
-//! through or acquires opaque address uses.
+//! which also executes when that edge is not taken. A jump that ends a function, such as a tail
+//! call, hands its origin to that transfer with the exit, so the call keeps its location. Only the
+//! first thunk of a chain does, and a call to a function that only tail-calls takes the inner
+//! call's origin. Its
+//! function entry goes to its destination label, the callee's first instruction, never onto a jump
+//! of the callers, and only while the thunk is the label's only entry: another edge into the label,
+//! such as a loop's back edge, would run the entry more than once per call. After an unconditional
+//! edge the entry stays on the label; after a conditional edge, later passes drop it when the label
+//! becomes shared, falls through or acquires opaque address uses.
 
 use super::{
     EvmPass,
@@ -440,6 +443,19 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
     changed
 }
 
+/// Moves the function exit of a bypassed thunk's jump onto an unconditional transfer, with the
+/// origin of that jump, as the transfer now ends the function in its place: a tail call keeps the
+/// location of the call it makes, not that of the branch that led to it.
+fn take_thunk_exit(metadata: &mut Metadata, exit: &Metadata) {
+    if metadata.function_exit().is_none()
+        && exit.function_exit().is_some()
+        && exit.has_source_spans()
+    {
+        metadata.preserve_debug_loc(exit);
+    }
+    metadata.move_function_events(exit);
+}
+
 fn redirect_jump_thunks(
     module: &mut Module,
     thread_shared_jumps: bool,
@@ -488,6 +504,7 @@ fn redirect_jump_thunks(
             thunk.entered = thunk.entered.or(terminator.metadata.function_invoke());
             if let Some(exit) = terminator.metadata.function_exit() {
                 thunk.exit.set_function_exit(exit);
+                thunk.exit.preserve_debug_loc(&terminator.metadata);
             }
         }
         true
@@ -538,14 +555,16 @@ fn redirect_jump_thunks(
                     // thunk's jump takes its origins with it, as a removed branch does in LLVM's
                     // `MergeBlockIntoPredecessor`
                     // (llvm/lib/Transforms/Utils/BasicBlockUtils.cpp#L346-L371 at llvm-project
-                    // e98b16a2710b).
+                    // e98b16a2710b), unless it ends the function: `MergeBlockIntoPredecessor` keeps
+                    // the successor's terminator, so the transfer that takes the exit takes the
+                    // jump's origin.
                     // NOTE: The thunk's entry never moves onto an incoming jump: the callee starts
                     // at its first instruction, which the chain's destination label holds, as the
                     // ethdebug format places `invoke` on the callee's entry `JUMPDEST`. Without an
                     // exclusive destination label the entry is unknown: another edge into the
                     // label, such as a loop's back edge, would run it more than once per call.
                     if !conditional {
-                        block.instructions[at].metadata.move_function_events(&thunk.exit);
+                        take_thunk_exit(&mut block.instructions[at].metadata, &thunk.exit);
                     }
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
@@ -574,7 +593,7 @@ fn redirect_jump_thunks(
                     // A bypassed thunk's exit moves only onto an unconditional transfer; see the
                     // NOTE above.
                     if !conditional {
-                        term.metadata.move_function_events(&thunk.exit);
+                        take_thunk_exit(&mut term.metadata, &thunk.exit);
                     }
                 }
                 let resolved = resolve(*target);

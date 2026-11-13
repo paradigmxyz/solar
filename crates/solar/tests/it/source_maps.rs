@@ -24,6 +24,7 @@ fn compile_with(mode: &str, outputs: &str, flags: &[&str]) -> Value {
             "src/Decode.sol",
             "src/StaticBytes.sol",
             "src/Probe.sol",
+            "src/TailCalls.sol",
             "--allow=2264",
             "-O",
             mode,
@@ -339,6 +340,69 @@ fn tail_call_entry_label_maps_to_definition() {
             && in_statement(entries[index], 0, start, end)
             && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
     }));
+}
+
+#[test]
+fn tail_calls_keep_the_call_location() {
+    let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/TailCalls.sol")).unwrap();
+    let function = |header: &str| {
+        let start = source.find(header).unwrap();
+        start..start + source[start..].find("\n    }").unwrap() + "\n    }".len()
+    };
+    let transfer = function("function _transfer(");
+    let update_call =
+        source[transfer.clone()].find("_update(from, to, value)").unwrap() + transfer.start;
+    let forward = function("function _forward(");
+    let mix_call = source[forward.clone()].find("_mix(a, b)").unwrap() + forward.start;
+    let mix = function("function _mix(");
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+        let name = "src/TailCalls.sol:TailCalls";
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+        }
+        let id = debug["sourceList"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|s| s == "src/TailCalls.sol")
+            .unwrap();
+        let contract = &debug["contracts"][name];
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+        let call_jumps = |call: usize, len: usize| {
+            instructions
+                .iter()
+                .enumerate()
+                .filter(|(index, inst)| {
+                    inst["operation"]["mnemonic"] == "JUMP"
+                        && entries[*index][2] == id as i64
+                        && entries[*index][0] == call as i64
+                        && entries[*index][1] == len as i64
+                })
+                .count()
+        };
+        // The condition before the call must not keep the tail jump.
+        assert_eq!(
+            call_jumps(update_call, "_update(from, to, value)".len()),
+            1,
+            "{mode}: `_update(from, to, value)` tail jump"
+        );
+        // Layout falls `_forward` through into `_mix` at `-Osize`, leaving no jump to map.
+        if mode != "size" {
+            assert_eq!(call_jumps(mix_call, "_mix(a, b)".len()), 1, "{mode}: `_mix(a, b)`");
+        }
+        // A function that starts with an assembly block still enters under its definition.
+        assert!(
+            instructions.iter().enumerate().any(|(index, inst)| {
+                inst["operation"]["mnemonic"] == "JUMPDEST"
+                    && in_statement(entries[index], id, mix.start, mix.end)
+                    && entries[index][0] == mix.start as i64
+            }),
+            "{mode}: `_mix` entry"
+        );
+    }
 }
 
 #[test]
