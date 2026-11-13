@@ -16,9 +16,9 @@
 //! except for a solc leg that hits solc's stack-too-deep limit, which is skipped.
 
 use super::{
-    ForgeCompiler, SOLAR_BINARY, TestConfig, combine_skips, discover_projects, forge_available,
-    forge_version, foundry_root, foundry_solc, prebuild_profiles, report_dir, report_file_name,
-    select_solar_binary, set_forge_compiler, workspace_root,
+    ForgeCompiler, SOLAR_BINARY, TestConfig, combine_skips, discover_projects, external,
+    forge_available, forge_version, foundry_root, foundry_solc, prebuild_profiles, report_dir,
+    report_file_name, select_solar_binary, set_forge_compiler, workspace_root,
 };
 use regex::Regex;
 use std::{
@@ -127,9 +127,12 @@ struct ItemData {
 #[derive(Debug, Default)]
 struct DebugReport {
     items: BTreeMap<ItemKey, ItemData>,
-    /// Anchors whose item has no single source file, because the item's source ID names
-    /// different files in different builds.
+    /// Anchors whose item is not listed, or whose source ID names different files in different
+    /// builds.
     unresolved_anchors: usize,
+    /// Lines that start like a listed item but do not parse, which means the report format
+    /// changed.
+    unparsed_items: usize,
 }
 
 struct ParsedItem {
@@ -213,6 +216,11 @@ fn parse_debug_report(stdout: &str) -> DebugReport {
                 data.lines = item.lines;
             }
             data.hits += item.hits;
+        } else if ["- Line ", "- Statement ", "- Branch ", "- Function "]
+            .iter()
+            .any(|prefix| line.starts_with(prefix))
+        {
+            report.unparsed_items += 1;
         } else if let Some(header) = line.strip_suffix(':')
             && !line.starts_with(['-', ' '])
         {
@@ -418,13 +426,20 @@ fn run_leg(config: &TestConfig, leg: &'static Leg) -> LegRun {
             tail.join("\n")
         )));
     }
+    if report.items.is_empty() && report.unparsed_items > 0 {
+        return finish(Outcome::Failed(format!(
+            "forge coverage printed {} item lines that did not parse; the debug report format \
+             may have changed",
+            report.unparsed_items
+        )));
+    }
     let tests_failed = !output.status.success();
     if tests_failed {
         eprintln!("[{label}] forge coverage exited with {}; using its report", output.status);
     }
     if report.unresolved_anchors > 0 {
         eprintln!(
-            "[{label}] {} anchors name a source ID that maps to several files",
+            "[{label}] {} anchors name no listed item or a source ID that maps to several files",
             report.unresolved_anchors
         );
     }
@@ -483,7 +498,8 @@ fn print_summary(config: &TestConfig, runs: &[LegRun]) {
                 let diff = report.diff_from(baseline);
                 println!("{:>23} {:>6} {:>10}", diff.unanchored, diff.unhit, diff.mismatched);
             }
-            _ => println!(),
+            Some(_) => println!(),
+            None => println!("{:>23}", format!("no {BASELINE} report")),
         }
     }
 
@@ -609,8 +625,8 @@ pub fn run_coverage_suite(solar: &Path) {
     let mut configs = discover_projects(&foundry_root());
     match (&selected, include_external) {
         (Some(_), _) if !configs.is_empty() => {}
-        (Some(name), _) => configs = super::external::coverage_projects(Some(name)),
-        (None, true) => configs.extend(super::external::coverage_projects(None)),
+        (Some(name), _) => configs = external::coverage_projects(Some(name)),
+        (None, true) => configs.extend(external::coverage_projects(None)),
         (None, false) => {}
     }
     assert!(!configs.is_empty(), "no Foundry projects to measure");

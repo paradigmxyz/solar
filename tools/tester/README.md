@@ -220,15 +220,15 @@ fixes, skips, and prebuild profiles of `foundry-external`, and
 
 Each project runs `forge coverage --report debug` in seven legs:
 
-| Leg               | Compiler | Settings                          |
-| ----------------- | -------- | --------------------------------- |
-| `solc-legacy`     | solc     | forge's default: optimizer off    |
-| `solc-legacy-opt` | solc     | optimizer on, runs 200            |
-| `solc-ir-min`     | solc     | `--ir-minimum`                    |
+| Leg               | Compiler | Settings                           |
+| ----------------- | -------- | ---------------------------------- |
+| `solc-legacy`     | solc     | forge's default: optimizer off     |
+| `solc-legacy-opt` | solc     | optimizer on, runs 200             |
+| `solc-ir-min`     | solc     | `--ir-minimum`                     |
 | `solc-ir-opt`     | solc     | `viaIR` and optimizer on, runs 200 |
-| `solar-none`      | compiler | optimizer off                     |
-| `solar-gas`       | compiler | optimizer on, runs 200            |
-| `solar-size`      | compiler | optimizer on, runs 1              |
+| `solar-none`      | compiler | optimizer off                      |
+| `solar-gas`       | compiler | optimizer on, runs 200             |
+| `solar-size`      | compiler | optimizer on, runs 1               |
 
 Forge disables the optimizer and `viaIR` for coverage. The optimized legs run
 `forge coverage --keep-optimizer` and set `FOUNDRY_OPTIMIZER`,
@@ -252,8 +252,12 @@ counts. Each compiler leg also prints the same counts against its solc peers:
 `solc-legacy-opt` and `solc-ir-opt`.
 
 Coverage differences never fail the run. A leg fails the run only when forge
-produces no report for it; a leg whose tests fail still counts, with status
-`tests-failed`.
+fails without a report, or prints items the runner cannot parse; a leg whose
+tests fail still counts, with status `tests-failed`. A solc leg that hits solc's
+stack-too-deep limit is `skipped`, as are the solc legs of `stack-deep`. The
+mode ignores `SOLAR_FOUNDRY_OPTIMIZATION`, and a project must not set
+`ir_minimum` or `keep_optimizer` in its `[coverage]` config, because forge reads
+those as always on.
 
 The runner writes one `coverage-<project>.json` per project to
 `SOLAR_FOUNDRY_REPORT_DIR`, or `target/foundry-coverage` by default. It holds
