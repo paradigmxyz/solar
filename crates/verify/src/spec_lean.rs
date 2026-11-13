@@ -675,7 +675,7 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "import SolidCore.Spec.Contract\n\n/-!\nSpecs of `{}`, exported by solar-verify {} with `--emit-lean-spec`.\nGenerated: do not edit.\n-/\n\nnamespace {}\n\nopen SolidCore.Spec\n",
+        "import Verify.Spec.Contract\n\n/-!\nSpecs of `{}`, exported by solar-verify {} with `--emit-lean-spec`.\nGenerated: do not edit.\n-/\n\nnamespace {}\n\nopen SolidCore.Spec\n",
         opts.source,
         env!("CARGO_PKG_VERSION"),
         opts.module

@@ -64,4 +64,14 @@ come back unknown ("incomplete quantifiers") instead of with a counterexample, e
 `transfer` that credits `value + 1`. Without the quantified invariant, that mutant fails with a
 counterexample in under a second. Counterexamples under quantified invariants are a solar-verify gap.
 
+`spec_mutants.py --ground` re-verifies a mutant whose answers are unknown with each contract
+invariant quantified over addresses replaced, for the verified function, by its instances at
+`address(0)`, `msg.sender` and the function's address parameters, assumed as requires and checked
+as ensures (`--ground-cap` bounds the instances). Those invariants constrain each mapping entry on
+its own, and setting the entries a counterexample does not read to zero meets them, so a
+counterexample there is one of the original specs. Its kills are reported with `(ground)`. On
+UniswapV2ERC20 and UniswapV2Factory with `--per-fn 12 --timeout 8000`, 17 specs are killed, 12 of
+them only through grounding (all of ERC20's `transfer`, `transferFrom` and `permit` value specs
+and the zero-address invariants); the frame conditions and `createPair`'s specs stay unkilled.
+
 These are solver results; none is kernel-checked in Lean yet.

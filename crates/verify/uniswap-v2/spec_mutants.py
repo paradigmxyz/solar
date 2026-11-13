@@ -16,6 +16,7 @@ no mutant kills.
 
 import argparse
 import concurrent.futures as cf
+import itertools
 import json
 import os
 import pathlib
@@ -62,6 +63,108 @@ def apply(src, m):
     return src[:at] + m["rep"] + src[at + len(m["orig"]) :]
 
 
+QUANT_INV = re.compile(r"^(\s*)/// @custom:invariant forall (.+?) :: (.*)$")
+FUNC = re.compile(r"^\s*function (\w+)\s*\(([^)]*)\)")
+
+
+def address_params(sig):
+    """The names of a function's address parameters."""
+    out = []
+    for p in sig.split(","):
+        words = p.split()
+        if words and words[0] in ("address", "address payable") and len(words) >= 2:
+            out.append(words[-1])
+    return out
+
+
+def instances(binders, body, candidates, cap):
+    """The body with every binder replaced by each candidate, as one conjunction."""
+    names = [b.split()[-1] for b in binders]
+    combos = list(itertools.product(candidates, repeat=len(names)))
+    if len(combos) > cap:
+        return None
+    parts = []
+    for combo in combos:
+        t = body
+        for n, c in zip(names, combo, strict=True):
+            t = re.sub(rf"\b{re.escape(n)}\b", f"({c})", t)
+        parts.append(f"({t})")
+    return " && ".join(parts)
+
+
+def ground(src, fn_name, cap):
+    """The source with each contract invariant quantified over addresses instantiated, for the
+    function fn_name, at address(0), msg.sender and its address parameters: the instances become
+    its requires and ensures, and the quantified invariants go. Returns None when there is
+    nothing to ground or too many instances."""
+    lines = src.split("\n")
+    quants, keep = [], []
+    for line in lines:
+        m = QUANT_INV.match(line)
+        if m and all(b.strip().startswith("address ") for b in m.group(2).split(",")):
+            quants.append((m.group(2).split(","), m.group(3)))
+        else:
+            keep.append(line)
+    if not quants:
+        return None
+    out = []
+    done = False
+    for line in keep:
+        m = FUNC.match(line)
+        if m and m.group(1) == fn_name and not done:
+            cands = ["address(0)", "msg.sender", *address_params(m.group(2))]
+            indent = re.match(r"^(\s*)", line).group(1)
+            for binders, body in quants:
+                conj = instances(binders, body, cands, cap)
+                if conj is None:
+                    return None
+                out.append(f"{indent}/// @custom:requires {conj}")
+                out.append(f"{indent}/// @custom:ensures {conj}")
+            done = True
+        out.append(line)
+    return "\n".join(out) if done else None
+
+
+def instance_of(spec, msg):
+    """Whether msg quotes an instance of the quantified invariant spec."""
+    m = re.match(r"invariant forall (.+?) :: (.*)$", spec)
+    if not m:
+        return False
+    names = [b.split()[-1] for b in m.group(1).split(",")]
+    pat = re.escape(m.group(2))
+    for n in names:
+        pat = re.sub(rf"\b{re.escape(n)}\b", r"\\(.+?\\)", pat)
+    return re.search(pat, msg) is not None
+
+
+def verify(args, work, target_file, fn):
+    """Kills (file, line, message) and whether an answer was unknown."""
+    cmd = [
+        args.verifier,
+        "--json",
+        "--timeout",
+        str(args.timeout),
+        "--only",
+        fn,
+        target_file,
+    ]
+    res = subprocess.run(cmd, cwd=work, capture_output=True, text=True, check=False)
+    if res.returncode == 2:
+        return None, False
+    kills, unknown = [], False
+    line = next((x for x in res.stdout.splitlines() if x.startswith("JSON ")), None)
+    for row in json.loads(line[5:]) if line else []:
+        for msg in row.get("msgs", []):
+            mm = MSG.match(msg)
+            if not mm:
+                continue
+            if "solver returned" in msg:
+                unknown = True
+                continue
+            kills.append((target_file, int(mm.group(1)), mm.group(2)))
+    return kills, unknown
+
+
 def run_one(args, i, f, m, targets):
     with tempfile.TemporaryDirectory() as d:
         work = pathlib.Path(d) / "t"
@@ -102,6 +205,24 @@ def run_one(args, i, f, m, targets):
                         unknown = True
                         continue
                     kills.append((target_file, int(mm.group(1)), mm.group(2)))
+        if not kills and unknown and args.ground:
+            gkills, gunknown = [], False
+            for target_file, fn in targets:
+                gpath = work / target_file
+                original = gpath.read_text()
+                grounded = ground(original, fn.split(".")[-1], args.ground_cap)
+                if grounded is None:
+                    gunknown = True
+                    continue
+                gpath.write_text(grounded)
+                k, u = verify(args, work, target_file, fn)
+                gpath.write_text(original)
+                if k is None:
+                    continue
+                gkills += [(tf, ln, msg, "ground") for tf, ln, msg in k]
+                gunknown |= u
+            if gkills:
+                return i, "killed-ground", gkills
         state = "killed" if kills else ("undecided" if unknown else "survived")
         return i, state, kills
 
@@ -128,6 +249,13 @@ def main():
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--timeout", type=int, default=30000)
     ap.add_argument("--json", type=pathlib.Path)
+    ap.add_argument(
+        "--ground",
+        action="store_true",
+        help="re-verify a mutant whose answers are unknown with the address-quantified "
+        "invariants instantiated (see ground)",
+    )
+    ap.add_argument("--ground-cap", type=int, default=64)
     args = ap.parse_args()
     args.tree = args.tree.resolve()
     also = {}
@@ -158,16 +286,22 @@ def main():
             )
     killed_by = {k: [] for k in specs}
     for (_, m, _), (_, kills) in zip(plan, results, strict=True):
-        for tf, line, msg in kills:
+        for kill in kills:
+            tf, line, msg = kill[:3]
+            grounded = len(kill) > 3
             # A message names its spec by line, in whichever file declares it (an
             # inherited spec lives in another file), and quotes its text.
             hits = [k for k, t in specs.items() if t.split(" ", 1)[1] in msg]
+            if grounded and not hits:
+                # An instance of a quantified invariant, checked as an ensures.
+                hits = [k for k, t in specs.items() if instance_of(t, msg)]
             exact = [k for k in hits if k == (tf, line)] or [
                 k for k in hits if k[1] == line
             ]
             for k in exact or hits:
-                if describe(m) not in killed_by[k]:
-                    killed_by[k].append(describe(m))
+                d = describe(m) + (" (ground)" if grounded else "")
+                if d not in killed_by[k]:
+                    killed_by[k].append(d)
     report = [
         {"file": f, "line": line, "spec": text, "killed_by": killed_by[(f, line)]}
         for (f, line), text in sorted(specs.items())

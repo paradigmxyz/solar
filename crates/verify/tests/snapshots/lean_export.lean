@@ -1,4 +1,4 @@
-import SolidCore.Spec.Contract
+import Verify.Spec.Contract
 
 /-!
 Specs of `tests/snapshots/lean_export.sol`, exported by solar-verify 0.3.0 with `--emit-lean-spec`.

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 contract C {
     address owner;
-    // expect: call not exported
-    /// @custom:ensures owner != address(0)
+    // expect: conversion of a non-literal not exported
+    /// @custom:ensures uint160(owner) != 0
     function f() external {}
 }
