@@ -1011,7 +1011,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   its allocations, and its frames would cover it. An entry that runs code
   writing memory at an address computed from calldata, as Seaport lays out a
   basic order's hashes and event data, also keeps them above `0x2080`, unless it
-  places none of them. Other entries keep their memory low unless they share
+  places none of them. An address that a call passes to a parameter, or that a
+  callee returns, counts as computed from calldata when some call or return
+  gives it calldata, but a function's second and later results, which travel in
+  memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
   initial pointer.
 
@@ -1033,10 +1036,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   place, so it keeps the code it had before these rules: it trusts the type of a
   memory reference, a word loaded from a memory object, and a call result as
   heap pointers, and raises only constants and calldata words stored into the
-  free memory pointer slot. Such a block cannot store a low address into an
-  object's field without breaking its promise. An unmarked block that writes no
-  memory (no `mstore`, `mstore8`, copy, or call, and no assignment to a memory
-  reference) breaks no promise either, so it does not count.
+  free memory pointer slot, also when a call passes or returns them, and an
+  external function's integer parameters count as calldata words. Such a
+  block cannot store a low address into an object's field without breaking its
+  promise. An unmarked block that writes no memory (no `mstore`, `mstore8`,
+  copy, or call, and no assignment to a memory reference) breaks no promise
+  either, so it does not count.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
