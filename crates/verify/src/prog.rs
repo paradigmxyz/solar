@@ -137,6 +137,9 @@ pub(crate) struct Program<'a> {
     pub quants: Vec<QInfo>,
     /// statement span -> (tag, spec) for `@custom:invariant|decreases|assert|ghost`
     pub stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    /// Loop span -> inferred candidate `invariant` and `decreases` specs, for loops with no
+    /// `@custom:invariant` (see `crate::infer`). Each spec's span is the loop's.
+    pub inferred: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
     /// `@custom:assert` / `@custom:assume` comments after the last statement of a block (Solar
     /// attaches them to nothing), keyed by the block's span: they run when the block ends.
     pub block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
@@ -200,6 +203,7 @@ struct Builder<'s, 'a> {
     decl_stmts: FxHashSet<Span>,
     contract_names: Vec<String>,
     stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    inferred: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
     block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
     const_sizes: FxHashMap<String, u64>,
     /// Spans of the doc comments some statement carries.
@@ -367,6 +371,129 @@ impl<'s, 'a> Builder<'s, 'a> {
         rest
     }
 
+    /// A candidate spec built by inference: like [`Self::parse_spec`], but one that does not parse
+    /// is dropped silently, since the user never wrote it.
+    fn parse_candidate(&mut self, text: &str, span: Span) -> Option<Spec<'a>> {
+        let pre = preprocess(text, &mut self.quants).ok()?;
+        self.nspec += 1;
+        let mut p = Parser::from_source_code(
+            self.sess,
+            self.arena,
+            FileName::Custom(format!("spec#{}", self.nspec)),
+            pre,
+        )
+        .ok()?;
+        match p.parse_expr() {
+            Ok(e) if p.token.kind == solar_parse::token::TokenKind::Eof => {
+                Some(Spec { expr: e, text: text.to_string(), span })
+            }
+            Ok(_) => None,
+            Err(d) => {
+                d.cancel();
+                None
+            }
+        }
+    }
+
+    /// Candidate invariants (see `crate::infer`) for every loop of `body` that has no
+    /// `@custom:invariant`.
+    fn infer_loops(
+        &mut self,
+        body: &'a ast::Block<'a>,
+        requires: &[Spec<'a>],
+        ensures: &[Spec<'a>],
+    ) {
+        let mut loops = vec![];
+        for st in body.stmts.iter() {
+            crate::walk::all_stmts(st, &mut |x| {
+                if matches!(x.kind, StmtKind::For { .. } | StmtKind::While(..)) {
+                    loops.push(x);
+                }
+            });
+        }
+        let req: Vec<&str> = requires.iter().map(|s| s.text.as_str()).collect();
+        let ens: Vec<&str> = ensures.iter().map(|s| s.text.as_str()).collect();
+        for l in loops {
+            let specs = self.stmt_specs.get(&l.span);
+            if specs.is_some_and(|v| v.iter().any(|(t, _)| t == "invariant")) {
+                continue;
+            }
+            let user_dec = specs.is_some_and(|v| v.iter().any(|(t, _)| t == "decreases"));
+            let shape = self.loop_shape(l);
+            let mut v = vec![];
+            for (tag, text) in crate::infer::candidates(shape.as_ref(), &req, &ens) {
+                if tag == "decreases" && user_dec {
+                    continue;
+                }
+                if let Some(sp) = self.parse_candidate(&text, l.span) {
+                    v.push((tag.to_string(), sp));
+                }
+            }
+            if !v.is_empty() {
+                self.inferred.insert(l.span, v);
+            }
+        }
+    }
+
+    /// The counter, bound and step of a loop whose guard compares a variable with a bound.
+    fn loop_shape(&self, l: &'a Stmt<'a>) -> Option<crate::infer::Shape> {
+        use crate::infer::{Cmp, Shape};
+        use ast::{BinOpKind, ExprKind, UnOpKind};
+        let (init, cond, next) = match &l.kind {
+            StmtKind::For { init, cond, next, .. } => {
+                (init.as_deref(), cond.as_deref()?, next.as_deref())
+            }
+            StmtKind::While(c, _) => (None, &**c, None),
+            _ => return None,
+        };
+        let snip = |e: &Expr<'_>| self.sess.source_map().span_to_snippet(e.span).ok();
+        let ident = |e: &Expr<'_>| match &e.peel_parens().kind {
+            ExprKind::Ident(i) => Some(i.as_str().to_string()),
+            _ => None,
+        };
+        let ExprKind::Binary(a, op, b) = &cond.peel_parens().kind else { return None };
+        let (counter, bound, cmp) = match op.kind {
+            BinOpKind::Lt => (ident(a)?, snip(b)?, Cmp::Lt),
+            BinOpKind::Le => (ident(a)?, snip(b)?, Cmp::Le),
+            BinOpKind::Gt => (ident(b)?, snip(a)?, Cmp::Lt),
+            BinOpKind::Ge => (ident(b)?, snip(a)?, Cmp::Le),
+            BinOpKind::Ne => match ident(a) {
+                Some(i) => (i, snip(b)?, Cmp::Ne),
+                None => (ident(b)?, snip(a)?, Cmp::Ne),
+            },
+            _ => return None,
+        };
+        let lower = init.and_then(|s| match &s.kind {
+            StmtKind::DeclSingle(d) if d.name.is_some_and(|n| n.as_str() == counter) => {
+                d.initializer.as_deref().and_then(snip)
+            }
+            StmtKind::Expr(e) => match &e.peel_parens().kind {
+                ExprKind::Assign(l, None, r) if ident(l).as_deref() == Some(counter.as_str()) => {
+                    snip(r)
+                }
+                _ => None,
+            },
+            _ => None,
+        });
+        let is_one = |e: &Expr<'_>| snip(e).is_some_and(|t| t.trim() == "1");
+        let step_up = next.is_some_and(|n| match &n.peel_parens().kind {
+            ExprKind::Unary(u, x) => {
+                matches!(u.kind, UnOpKind::PostInc | UnOpKind::PreInc)
+                    && ident(x).as_deref() == Some(counter.as_str())
+            }
+            ExprKind::Assign(l, Some(o), r) => {
+                o.kind == BinOpKind::Add && ident(l).as_deref() == Some(counter.as_str()) && is_one(r)
+            }
+            ExprKind::Assign(l, None, r) => {
+                ident(l).as_deref() == Some(counter.as_str())
+                    && matches!(&r.peel_parens().kind, ExprKind::Binary(x, o, y)
+                        if o.kind == BinOpKind::Add && ident(x).as_deref() == Some(counter.as_str()) && is_one(y))
+            }
+            _ => false,
+        });
+        Some(Shape { counter, bound, cmp, lower, step_up })
+    }
+
     fn walk_stmt_docs(&mut self, s: &'a Stmt<'a>) {
         for d in s.docs.iter() {
             self.seen_docs.push(d.span);
@@ -484,6 +611,7 @@ impl<'s, 'a> Builder<'s, 'a> {
                 self.walk_stmt_docs(s);
             }
             orphans = self.attach_tails(b);
+            self.infer_loops(b, &requires, &ensures);
             use ast::StateMutability::*;
             if (is_spec || matches!(f.header.state_mutability(), Pure | View))
                 && let [s] = &b.stmts[..]
@@ -568,6 +696,7 @@ pub(crate) fn build<'a>(
         decl_stmts: Default::default(),
         contract_names: vec![],
         stmt_specs: FxHashMap::default(),
+        inferred: FxHashMap::default(),
         block_tail: FxHashMap::default(),
         const_sizes: FxHashMap::default(),
         seen_docs: vec![],
@@ -1018,6 +1147,7 @@ pub(crate) fn build<'a>(
         contracts,
         quants: b.quants,
         stmt_specs: b.stmt_specs,
+        inferred: b.inferred,
         block_tail: b.block_tail,
         enums: b.enums,
         enum_variants: b.enum_variants,

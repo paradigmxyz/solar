@@ -89,7 +89,7 @@ NatSpec tag names are lowercase letters and `-`.
 | contract | `@custom:lock-stable P` | every entry point callable under the lock keeps `P` |
 | struct | `@custom:invariant P` | holds of every value of the struct stored, constructed or read from storage |
 | interface | `@custom:requires` / `ensures` | the contract of an external call: callers prove the requires, the callee's ensures are trusted |
-| statement | `@custom:invariant e` | loop invariant |
+| statement | `@custom:invariant e` | loop invariant; inferred when a loop has none (see Loop invariant inference) |
 | statement | `@custom:decreases e` | termination measure: stays `>= 0` and strictly decreases each iteration |
 | statement | `@custom:assert e` | proved here, then assumed |
 | statement | `@custom:assume e` | assumed without proof |
@@ -113,6 +113,34 @@ plus:
   types.
 - `__time`: the latest `block.timestamp` the contract has seen.
 - Calls to spec functions.
+
+## Loop invariant inference
+
+A loop with no `@custom:invariant` gets one inferred, after Houdini (Flanagan and Leino,
+FME 2001). The candidates come from what the program already states:
+
+- the counter's range, from the initializer and the guard (`for (uint256 i = 1; i < n; i++)` gives
+  `1 <= i` and `i <= n`);
+- each postcondition with the guard's bound replaced by the counter
+  (`forall uint256 j :: j < xs.length ==> P` gives `forall uint256 j :: j < i ==> P`): what holds of
+  the whole range at exit holds of the part seen so far;
+- the function's preconditions and postconditions as written;
+- the guard's distance (`n - i`) as the `@custom:decreases` measure, unless the loop has one.
+
+Each round verifies the function with the remaining candidates assumed at the loop head and
+drops every candidate that is not established on entry or not preserved by the body (or, for
+the measure, not decreased), until none is dropped: what is left is the greatest inductive
+subset. A final run checks the survivors with the ordinary loop obligations, so inference adds
+nothing to the trusted base; the inferred clauses are printed as notes. When the survivors do not
+prove the function's specs, verification fails at the spec that does not follow, with a
+counterexample. A measure that does not survive leaves the loop proved for partial correctness
+only, as a loop without `@custom:decreases` is. Inference needs the solver: `--dry-run` assumes every
+candidate.
+
+Inference reads loops whose guard compares a variable with a bound (`<`, `<=`, `!=`, or their
+mirror images) and whose step adds one. A loop whose invariant the specs do not suggest (a
+relation no spec states, a decreasing counter, a Yul `for or a do-while loop) still needs
+`@custom:invariant`, which turns inference off for that loop.
 
 ## Ghost code
 

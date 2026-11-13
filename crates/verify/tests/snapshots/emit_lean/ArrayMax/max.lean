@@ -30,22 +30,26 @@ def script0 : Script where
     ⟨"|g@19|", [], .bool⟩,
     ⟨"|g@20|", [], .bool⟩,
     ⟨"|m@21|", [], .int⟩,
-    ⟨"|i@24|", [], .int⟩,
-    ⟨"|m@25|", [], .int⟩,
-    ⟨"|g@26|", [], .bool⟩,
-    ⟨"|g@28|", [], .bool⟩,
-    ⟨"|g@30|", [], .bool⟩,
-    ⟨"|g@31|", [], .bool⟩,
+    ⟨"|i@30|", [], .int⟩,
+    ⟨"|m@31|", [], .int⟩,
     ⟨"|g@32|", [], .bool⟩,
     ⟨"|g@33|", [], .bool⟩,
-    ⟨"|g@34|", [], .bool⟩,
-    ⟨"|m@35|", [], .int⟩,
-    ⟨"|g@36|", [], .bool⟩,
+    ⟨"|g@35|", [], .bool⟩,
     ⟨"|g@37|", [], .bool⟩,
-    ⟨"|m@38|", [], .int⟩,
-    ⟨"|arith@39|", [], .int⟩,
-    ⟨"|g@40|", [], .bool⟩,
-    ⟨"|g@43|", [], .bool⟩
+    ⟨"|g@39|", [], .bool⟩,
+    ⟨"|g@41|", [], .bool⟩,
+    ⟨"|g@42|", [], .bool⟩,
+    ⟨"|g@43|", [], .bool⟩,
+    ⟨"|g@44|", [], .bool⟩,
+    ⟨"|g@45|", [], .bool⟩,
+    ⟨"|g@46|", [], .bool⟩,
+    ⟨"|m@47|", [], .int⟩,
+    ⟨"|g@48|", [], .bool⟩,
+    ⟨"|g@49|", [], .bool⟩,
+    ⟨"|m@50|", [], .int⟩,
+    ⟨"|arith@51|", [], .int⟩,
+    ⟨"|g@52|", [], .bool⟩,
+    ⟨"|g@57|", [], .bool⟩
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
@@ -71,92 +75,152 @@ def script0 : Script where
     .app .eq [.fn 20 [], .app .select [.fn 16 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 21 []], .app .le [.fn 21 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
     .app .and [.app .le [.int 0, .fn 22 []], .app .le [.fn 22 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
-    .app .eq [.fn 23 [], .app .and [.fn 19 [], .app .and [.app .le [.int 1, .fn 21 []], .app .le [.fn 21 [], .fn 17 []]]]],
-    .app .eq [.fn 24 [], .app .and [.fn 23 [], .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 21 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 22 []]]])]],
-    .app .eq [.fn 25 [], .app .and [.fn 24 [], .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 21 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 22 []]]])]],
-    .app .eq [.fn 26 [], .app .and [.fn 25 [], .app .lt [.fn 21 [], .fn 17 []]]],
-    .app .eq [.fn 27 [], .app .and [.fn 26 [], .app .and [.app .le [.int 0, .fn 21 []], .app .lt [.fn 21 [], .fn 17 []]]]],
+    .app .eq [.fn 23 [], .app .and [.fn 19 [], .app .le [.int 1, .fn 21 []]]],
+    .app .eq [.fn 24 [], .app .and [.fn 23 [], .app .le [.fn 21 [], .fn 17 []]]],
+    .app .eq [.fn 25 [], .app .and [.fn 24 [], .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 21 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 22 []]]])]],
+    .app .eq [.fn 26 [], .app .and [.fn 25 [], .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 21 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 22 []]]])]],
+    .app .eq [.fn 27 [], .app .and [.fn 26 [], .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 22 []]]])]],
+    .app .eq [.fn 28 [], .app .and [.fn 27 [], .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 22 []]]])]],
+    .app .eq [.fn 29 [], .app .and [.fn 28 [], .app .gt [.fn 17 [], .int 0]]],
+    .app .eq [.fn 30 [], .app .and [.fn 29 [], .app .lt [.fn 21 [], .fn 17 []]]],
+    .app .eq [.fn 31 [], .app .and [.fn 30 [], .app .and [.app .le [.int 0, .fn 21 []], .app .lt [.fn 21 [], .fn 17 []]]]],
     .app .and [.app .le [.int 0, .app .select [.fn 16 [], .fn 21 []]], .app .le [.app .select [.fn 16 [], .fn 21 []], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
-    .app .eq [.fn 28 [], .app .and [.fn 27 [], .app .gt [.app .select [.fn 16 [], .fn 21 []], .fn 22 []]]],
-    .app .eq [.fn 29 [], .app .and [.fn 28 [], .app .and [.app .le [.int 0, .fn 21 []], .app .lt [.fn 21 [], .fn 17 []]]]],
+    .app .eq [.fn 32 [], .app .and [.fn 31 [], .app .gt [.app .select [.fn 16 [], .fn 21 []], .fn 22 []]]],
+    .app .eq [.fn 33 [], .app .and [.fn 32 [], .app .and [.app .le [.int 0, .fn 21 []], .app .lt [.fn 21 [], .fn 17 []]]]],
     .app .and [.app .le [.int 0, .app .select [.fn 16 [], .fn 21 []]], .app .le [.app .select [.fn 16 [], .fn 21 []], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
-    .app .eq [.fn 30 [], .app .select [.fn 16 [], .fn 21 []]],
-    .app .eq [.fn 31 [], .app .and [.fn 27 [], .app .not [.app .gt [.app .select [.fn 16 [], .fn 21 []], .fn 22 []]]]],
-    .app .eq [.fn 32 [], .app .or [.fn 29 [], .fn 31 []]],
-    .app .eq [.fn 33 [], .app .ite [.fn 29 [], .fn 30 [], .fn 22 []]],
-    .app .eq [.fn 34 [], .app .add [.fn 21 [], .int 1]],
-    .app .eq [.fn 35 [], .app .and [.fn 32 [], .app .and [.app .le [.int 0, .fn 34 []], .app .le [.fn 34 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]]],
-    .app .eq [.fn 36 [], .app .and [.fn 25 [], .app .not [.app .lt [.fn 21 [], .fn 17 []]]]]
+    .app .eq [.fn 34 [], .app .select [.fn 16 [], .fn 21 []]],
+    .app .eq [.fn 35 [], .app .and [.fn 31 [], .app .not [.app .gt [.app .select [.fn 16 [], .fn 21 []], .fn 22 []]]]],
+    .app .eq [.fn 36 [], .app .or [.fn 33 [], .fn 35 []]],
+    .app .eq [.fn 37 [], .app .ite [.fn 33 [], .fn 34 [], .fn 22 []]],
+    .app .eq [.fn 38 [], .app .add [.fn 21 [], .int 1]],
+    .app .eq [.fn 39 [], .app .and [.fn 36 [], .app .and [.app .le [.int 0, .fn 38 []], .app .le [.fn 38 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]]],
+    .app .eq [.fn 40 [], .app .and [.fn 29 [], .app .not [.app .lt [.fn 21 [], .fn 17 []]]]]
   ]
 
-/-- ArrayMax.max#0: loop invariant not satisfied on entry: `1 <= i && i <= xs.length` (not-run). -/
+/-- ArrayMax.max#0: loop invariant not satisfied on entry: `1 <= i` (not-run). -/
 def ob0 : Obligation where
   script := script0
   upto := 21
   guard := .fn 19 []
-  goal := .app .and [.app .le [.int 1, .int 1], .app .le [.int 1, .fn 17 []]]
+  goal := .app .le [.int 1, .int 1]
 
-/-- ArrayMax.max#1: loop invariant not satisfied on entry: `forall uint256 j :: j < i ==> xs[j] <= m` (not-run). -/
+/-- ArrayMax.max#1: loop invariant not satisfied on entry: `i <= xs.length` (not-run). -/
 def ob1 : Obligation where
+  script := script0
+  upto := 21
+  guard := .fn 19 []
+  goal := .app .le [.int 1, .fn 17 []]
+
+/-- ArrayMax.max#2: loop invariant not satisfied on entry: `forall uint256 j :: j < i ==> xs[j] <= m` (not-run). -/
+def ob2 : Obligation where
   script := script0
   upto := 21
   guard := .fn 19 []
   goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .int 1], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
-/-- ArrayMax.max#2: loop invariant not satisfied on entry: `exists uint256 j :: j < i && xs[j] == m` (not-run). -/
-def ob2 : Obligation where
+/-- ArrayMax.max#3: loop invariant not satisfied on entry: `exists uint256 j :: j < i && xs[j] == m` (not-run). -/
+def ob3 : Obligation where
   script := script0
   upto := 21
   guard := .fn 19 []
   goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .int 1], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
-/-- ArrayMax.max#3: loop invariant not preserved by the loop body: `1 <= i && i <= xs.length` (not-run). -/
-def ob3 : Obligation where
-  script := script0
-  upto := 38
-  guard := .fn 35 []
-  goal := .app .and [.app .le [.int 1, .fn 34 []], .app .le [.fn 34 [], .fn 17 []]]
-
-/-- ArrayMax.max#4: loop invariant not preserved by the loop body: `forall uint256 j :: j < i ==> xs[j] <= m` (not-run). -/
+/-- ArrayMax.max#4: loop invariant not satisfied on entry: `forall uint256 j :: j < xs.length ==> xs[j] <= m` (not-run). -/
 def ob4 : Obligation where
   script := script0
-  upto := 38
-  guard := .fn 35 []
-  goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 34 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 33 []]]])
+  upto := 21
+  guard := .fn 19 []
+  goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
-/-- ArrayMax.max#5: loop invariant not preserved by the loop body: `exists uint256 j :: j < i && xs[j] == m` (not-run). -/
+/-- ArrayMax.max#5: loop invariant not satisfied on entry: `exists uint256 j :: j < xs.length && xs[j] == m` (not-run). -/
 def ob5 : Obligation where
   script := script0
-  upto := 38
-  guard := .fn 35 []
-  goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 34 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 33 []]]])
+  upto := 21
+  guard := .fn 19 []
+  goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
-/-- ArrayMax.max#6: loop does not terminate: decreases clause not decreased: `xs.length - i` (not-run). -/
+/-- ArrayMax.max#6: loop invariant not satisfied on entry: `xs.length > 0` (not-run). -/
 def ob6 : Obligation where
   script := script0
-  upto := 38
-  guard := .fn 35 []
-  goal := .app .and [.app .le [.int 0, .app .sub [.fn 17 [], .fn 21 []]], .app .lt [.app .sub [.fn 17 [], .fn 34 []], .app .sub [.fn 17 [], .fn 21 []]]]
+  upto := 21
+  guard := .fn 19 []
+  goal := .app .gt [.fn 17 [], .int 0]
 
-/-- ArrayMax.max#7: a query only a warning reads (not-run). -/
+/-- ArrayMax.max#7: loop invariant not preserved by the loop body: `1 <= i` (not-run). -/
 def ob7 : Obligation where
   script := script0
-  upto := 39
-  guard := .fn 36 []
-  goal := .bool false
+  upto := 42
+  guard := .fn 39 []
+  goal := .app .le [.int 1, .fn 38 []]
 
-/-- ArrayMax.max#8: postcondition not satisfied: `forall uint256 j :: j < xs.length ==> xs[j] <= m` (not-run). -/
+/-- ArrayMax.max#8: loop invariant not preserved by the loop body: `i <= xs.length` (not-run). -/
 def ob8 : Obligation where
   script := script0
-  upto := 39
-  guard := .fn 36 []
-  goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 22 []]]])
+  upto := 42
+  guard := .fn 39 []
+  goal := .app .le [.fn 38 [], .fn 17 []]
 
-/-- ArrayMax.max#9: postcondition not satisfied: `exists uint256 j :: j < xs.length && xs[j] == m` (not-run). -/
+/-- ArrayMax.max#9: loop invariant not preserved by the loop body: `forall uint256 j :: j < i ==> xs[j] <= m` (not-run). -/
 def ob9 : Obligation where
   script := script0
-  upto := 39
-  guard := .fn 36 []
+  upto := 42
+  guard := .fn 39 []
+  goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 38 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 37 []]]])
+
+/-- ArrayMax.max#10: loop invariant not preserved by the loop body: `exists uint256 j :: j < i && xs[j] == m` (not-run). -/
+def ob10 : Obligation where
+  script := script0
+  upto := 42
+  guard := .fn 39 []
+  goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 38 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 37 []]]])
+
+/-- ArrayMax.max#11: loop invariant not preserved by the loop body: `forall uint256 j :: j < xs.length ==> xs[j] <= m` (not-run). -/
+def ob11 : Obligation where
+  script := script0
+  upto := 42
+  guard := .fn 39 []
+  goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 37 []]]])
+
+/-- ArrayMax.max#12: loop invariant not preserved by the loop body: `exists uint256 j :: j < xs.length && xs[j] == m` (not-run). -/
+def ob12 : Obligation where
+  script := script0
+  upto := 42
+  guard := .fn 39 []
+  goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 37 []]]])
+
+/-- ArrayMax.max#13: loop invariant not preserved by the loop body: `xs.length > 0` (not-run). -/
+def ob13 : Obligation where
+  script := script0
+  upto := 42
+  guard := .fn 39 []
+  goal := .app .gt [.fn 17 [], .int 0]
+
+/-- ArrayMax.max#14: loop does not terminate: decreases clause not decreased: `(xs.length) - i` (not-run). -/
+def ob14 : Obligation where
+  script := script0
+  upto := 42
+  guard := .fn 39 []
+  goal := .app .and [.app .le [.int 0, .app .sub [.fn 17 [], .fn 21 []]], .app .lt [.app .sub [.fn 17 [], .fn 38 []], .app .sub [.fn 17 [], .fn 21 []]]]
+
+/-- ArrayMax.max#15: a query only a warning reads (not-run). -/
+def ob15 : Obligation where
+  script := script0
+  upto := 43
+  guard := .fn 40 []
+  goal := .bool false
+
+/-- ArrayMax.max#16: postcondition not satisfied: `forall uint256 j :: j < xs.length ==> xs[j] <= m` (not-run). -/
+def ob16 : Obligation where
+  script := script0
+  upto := 43
+  guard := .fn 40 []
+  goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 22 []]]])
+
+/-- ArrayMax.max#17: postcondition not satisfied: `exists uint256 j :: j < xs.length && xs[j] == m` (not-run). -/
+def ob17 : Obligation where
+  script := script0
+  upto := 43
+  guard := .fn 40 []
   goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 22 []]]])
 
 end SolarVerifyVc.ArrayMax.max

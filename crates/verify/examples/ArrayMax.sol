@@ -7,10 +7,6 @@ library ArrayMax {
     /// @custom:ensures exists uint256 j :: j < xs.length && xs[j] == m
     function max(uint256[] memory xs) internal pure returns (uint256 m) {
         m = xs[0];
-        /// @custom:invariant 1 <= i && i <= xs.length
-        /// @custom:invariant forall uint256 j :: j < i ==> xs[j] <= m
-        /// @custom:invariant exists uint256 j :: j < i && xs[j] == m
-        /// @custom:decreases xs.length - i
         for (uint256 i = 1; i < xs.length; i++) {
             if (xs[i] > m) {
                 m = xs[i];
@@ -21,5 +17,16 @@ library ArrayMax {
     /// @custom:ensures r <= n
     function clamp(uint256 x, uint256 n) internal pure returns (uint256 r) {
         r = x > n ? n : x;
+    }
+}
+
+/// ArrayMax.max behind an external entry point, so that the loop is in the runtime bytecode
+/// (an internal library function compiles to none).
+contract ArrayMaxEntry {
+    /// @custom:ensures forall uint256 j :: j < xs.length ==> xs[j] <= result
+    /// @custom:ensures exists uint256 j :: j < xs.length && xs[j] == result
+    function max(uint256[] calldata xs) external pure returns (uint256) {
+        require(xs.length > 0);
+        return ArrayMax.max(xs);
     }
 }

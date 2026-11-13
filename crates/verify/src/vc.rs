@@ -134,6 +134,14 @@ pub(crate) struct Vc<'p, 'a> {
     /// Broadcast lemmas proved before this VC (see `crate::broadcast::prove_all`): only those
     /// are assumed.
     pub(crate) proved: FxHashMap<FnKey, bool>,
+    /// Inferred loop-invariant candidates (loop span, text) that an earlier Houdini round
+    /// refuted: left out of this run (see `crate::infer`).
+    pub(crate) infer_dropped: FxHashSet<(Span, String)>,
+    /// Inferred candidates this run refuted without a failing obligation (they do not evaluate at
+    /// the loop head, such as one naming a variable declared in the body).
+    pub(crate) infer_reject: Vec<(Span, String)>,
+    /// Inferred candidates this run assumed: (loop span, tag, text).
+    pub(crate) infer_used: Vec<(Span, String, String)>,
     /// Broadcast lemmas asserted for the whole VC of the function being verified.
     broadcast_on: FxHashSet<FnKey>,
     /// The function being verified, whose proof no broadcast it rests on may assume.
@@ -222,6 +230,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             ret_alias: None,
             ret_alias_out: None,
             proved: FxHashMap::default(),
+            infer_dropped: FxHashSet::default(),
+            infer_reject: vec![],
+            infer_used: vec![],
             broadcast_on: FxHashSet::default(),
             cur_key: None,
         }
@@ -2226,8 +2237,28 @@ impl<'p, 'a> Vc<'p, 'a> {
         next: Option<&'a Expr<'a>>,
         body: &'a Stmt<'a>,
     ) -> R<()> {
-        let invs = self.stmt_specs(s, "invariant");
-        let decs = self.stmt_specs(s, "decreases");
+        let mut invs = self.stmt_specs(s, "invariant");
+        let mut decs = self.stmt_specs(s, "decreases");
+        if let Some(cands) = self.prog.inferred.get(&s.span) {
+            for (tag, sp) in cands {
+                let key = (s.span, sp.text.clone());
+                if self.infer_dropped.contains(&key) {
+                    continue;
+                }
+                // A candidate that does not evaluate here (out of scope at the head) is refuted.
+                let saved = (self.guard.clone(), self.checks);
+                if self.eval_spec(sp.expr).is_err() {
+                    (self.guard, self.checks) = saved;
+                    self.infer_reject.push(key);
+                    continue;
+                }
+                let used = (s.span, tag.clone(), sp.text.clone());
+                if !self.infer_used.contains(&used) {
+                    self.infer_used.push(used);
+                }
+                if tag == "decreases" { decs.push(sp) } else { invs.push(sp) }
+            }
+        }
         for inv in &invs {
             let v = self.eval_spec(inv.expr)?;
             self.check(&v.t, "loop invariant not satisfied on entry", inv.span, Some(inv));

@@ -46,13 +46,19 @@ while IFS=$'\t' read -r name status; do
   bad=$((bad + 1))
 done < <(jq -r '.units[] | select(.status == "not-exported" or .status == "unsupported") | [.name, .status] | @tsv' "$manifest")
 
-while IFS=$'\t' read -r module; do
+# Every list is read whole before any lean runs: Lean's runtime changes the pipe a
+# 'while read ... done < <(...)' loop reads from (it inherits the descriptor), and the loop then
+# ends early, which skipped every module after the first and still reported success.
+mapfile -t modules < <(jq -r '.units[] | select(.module != null) | .module' "$manifest" | sort -u)
+for module in "${modules[@]}"; do
   mod=${module%.lean}
   modname=${mod//\//.}
   mkdir -p "$build/$(dirname "$mod")"
   (cd "$dir" && LEAN_PATH="$lib:$build" lean -R "$dir" -o "$build/$mod.olean" "$dir/$module" >/dev/null) \
     || fail "could not compile the exported module $module"
-  while IFS=$'\t' read -r id lean role answer; do
+  mapfile -t obligations < <(jq -r --arg m "$module" '.units[] | select(.module == $m) | .obligations[] | select(.required) | [.id, .lean, .role, .answer] | @tsv' "$manifest")
+  for row in "${obligations[@]}"; do
+    IFS=$'\t' read -r id lean role answer <<<"$row"
     probe="$out/$(echo "$id" | tr -c 'A-Za-z0-9_\n' '_').lean"
     {
       echo "import SolarVerify"
@@ -86,8 +92,15 @@ while IFS=$'\t' read -r module; do
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$role" "$answer" "$status" "$secs" "${axioms:-none}" >>"$results"
     if [[ $status == proved ]]; then pass=$((pass + 1)); else bad=$((bad + 1)); fi
     echo "$status  $id  (${secs}s)" >&2
-  done < <(jq -r --arg m "$module" '.units[] | select(.module == $m) | .obligations[] | select(.required) | [.id, .lean, .role, .answer] | @tsv' "$manifest")
-done < <(jq -r '.units[] | select(.module != null) | .module' "$manifest" | sort -u)
+  done
+done
+
+# Every required obligation the manifest lists must have a row: one that was skipped is a failure.
+want=$(jq '[.units[] | select(.module != null) | .obligations[] | select(.required)] | length' "$manifest")
+if [[ $((pass + bad)) -lt $want ]]; then
+  echo "error: $want required obligations in the manifest, $((pass + bad)) checked" >&2
+  bad=$((want - pass))
+fi
 
 echo "discharge: $pass required obligations proved, $bad not ($results)" >&2
 [[ $bad -eq 0 ]]

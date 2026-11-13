@@ -2,6 +2,7 @@
 mod broadcast;
 mod bvlower;
 mod ghost;
+mod infer;
 mod interval;
 mod lean;
 mod mutate;
@@ -293,6 +294,51 @@ fn run_parallel(cli: &Cli) -> ! {
     std::process::exit(if err_n == 0 { 0 } else { 1 });
 }
 
+/// Houdini (see `infer`): verifies `f` with its loops' inferred candidate invariants, drops every
+/// candidate whose own obligation fails (on entry, preserved, or decreasing), and repeats until
+/// none fails. Returns the candidates to leave out. The rounds run without `--emit-lean`
+/// recording; the caller's final run checks the survivors with the ordinary loop obligations.
+fn houdini<'a>(
+    program: &prog::Program<'a>,
+    c: &prog::Contract<'a>,
+    f: &prog::Func<'a>,
+    opts: &vc::Opts,
+    proved: &solar_parse::interface::data_structures::map::FxHashMap<ghost::FnKey, bool>,
+    timeout: u64,
+    dry: bool,
+) -> FxHashSet<(Span, String)> {
+    let mut dropped = Default::default();
+    let Some(body) = &f.item.body else { return dropped };
+    let inside = |sp: &Span| body.span.lo() <= sp.lo() && sp.hi() <= body.span.hi();
+    if dry || !program.inferred.keys().any(inside) {
+        return dropped;
+    }
+    let rec = lean::pause();
+    loop {
+        let Ok(smt) = smt::Smt::new(timeout, false) else { break };
+        let mut v = vc::Vc::new(program, c, smt, opts);
+        v.proved = proved.clone();
+        v.infer_dropped = std::mem::take(&mut dropped);
+        let rep = v.verify_fn(f);
+        dropped = std::mem::take(&mut v.infer_dropped);
+        let mut refuted = std::mem::take(&mut v.infer_reject);
+        for fl in &rep.fails {
+            if let Some((t, sp)) = &fl.spec
+                && program.inferred.get(sp).is_some_and(|cs| cs.iter().any(|(_, s)| &s.text == t))
+            {
+                refuted.push((*sp, t.clone()));
+            }
+        }
+        refuted.retain(|k| !dropped.contains(k));
+        if refuted.is_empty() || rep.unsupported.is_some() {
+            break;
+        }
+        dropped.extend(refuted);
+    }
+    lean::resume(rec);
+    dropped
+}
+
 fn main() {
     let mut args = std::env::args().skip(1).peekable();
     if args.peek().is_some_and(|a| a == "mutate") {
@@ -379,7 +425,13 @@ fn main() {
                     if v.inlined_only(f) {
                         continue;
                     }
+                    v.infer_dropped = houdini(&program, c, f, &opts, &proved, cli.timeout, cli.dry_run);
                     let mut rep = v.verify_fn(f);
+                    let mut used = std::mem::take(&mut v.infer_used);
+                    used.sort_by_key(|(sp, ..)| sp.lo());
+                    for (sp, tag, text) in used {
+                        rep.warnings.push(format!("note: inferred loop {tag} (loop at line {}): {text}", line(&sess, sp)));
+                    }
                     if c.lock.is_some() && f.is_entry() && !f.is_static() && f.name != "constructor" && rep.unsupported.is_none() {
                         let lr = v.verify_lock(f);
                         rep.checks += lr.checks;

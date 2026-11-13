@@ -1,7 +1,9 @@
 $ solar-verify examples/ArrayMax.sol
-✔ ArrayMax.max (9 obligations)
+✔ ArrayMax.max (15 obligations)
 ✔ ArrayMax.clamp (1 obligations)
-verification results:: 2 verified, 0 errors
+✔ ArrayMaxEntry.max (3 obligations)
+✔ ArrayMaxEntry.constructor (0 obligations)
+verification results:: 4 verified, 0 errors
 
 $ solar-verify examples/Bugs.sol
 ✘ Bugs.countTo (1 of 6 obligations failed)

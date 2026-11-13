@@ -42,6 +42,17 @@ pub(crate) fn start() {
     RECORDING.with(|r| r.set(true));
 }
 
+/// Turns recording off for the solvers this thread starts until [`resume()`]; returns whether
+/// it was on.
+pub(crate) fn pause() -> bool {
+    RECORDING.with(|r| r.replace(false))
+}
+
+/// Restores recording as [`pause()`] found it.
+pub(crate) fn resume(on: bool) {
+    RECORDING.with(|r| r.set(on));
+}
+
 /// Names the unit (a function or lemma) whose solver starts next.
 pub(crate) fn set_unit(name: impl Into<String>) {
     UNIT.with(|u| *u.borrow_mut() = name.into());
