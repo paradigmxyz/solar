@@ -1,0 +1,12 @@
+@module State
+fn @f() -> i256 {
+bb0:
+  mstore 256, 2
+  mstore 288, 17
+  mstore 320, 999
+  mstore 352, 19
+  v0 = inttoptr i256 256 to ptr<memory>
+  v1 = abi_encode_packed (array<word> memoryarray<2> v0)
+  v2 = ptrtoint ptr<memory> v1 to i256
+  ret v2
+}

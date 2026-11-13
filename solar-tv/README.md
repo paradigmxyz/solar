@@ -493,13 +493,26 @@ solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,broken}.
   --function=f --world solar-tv/examples/mir/precompile-builtins/world.json
 ```
 
-Packed encodings accept literals, scalars and byte references, retaining each unaligned word
-store and selecting scratch from the whole write footprint. They are bounded
+Packed encodings accept literals, scalars and byte references, retaining each
+unaligned word store and selecting scratch from the whole write footprint. They are bounded
 to 2,048 parts and 64 KiB of data. Memory objects and slices, calldata slices and
 storage bytes keep ordered header reads, overlapping copies and dirty word tails.
-Hashes may borrow and restore a memory object's header. Packed array inputs and
-physical call-return buffers remain unsupported. `validate_abi` needs decoder provenance or canonical
-raw-word evidence; absent evidence is inconclusive, not a fabricated runtime guard.
+Hashes may borrow and restore a memory object's header. Packed arrays retain
+padded and cleaned leaves, declared memory strides, nested memory rows and
+wordwise calldata reads when ranges wrap. Array work is capped at 2,048 nodes.
+Physical call-return buffers remain unsupported. `validate_abi` needs decoder
+provenance or canonical raw-word evidence; absent evidence is inconclusive, not
+a fabricated runtime guard.
+
+The packed-array example uses a two-word memory stride. Its broken rewrite
+copies the gap between elements instead of the second element:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/packed-arrays/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/packed-arrays/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/packed-arrays/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/packed-arrays/world.json
+```
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/abi-scalar/before.mir \
