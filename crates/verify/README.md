@@ -45,6 +45,8 @@ Flags:
 - `--json`: also print one JSON row per function.
 - `--dump-smt FILE`: write the SMT-LIB sent to the solver.
 - `--dry-run`: generate every obligation without running a solver (with `--dump-smt`).
+- `--emit-lean DIR`: write every query as a Lean term with a manifest that binds it to the run
+  (see [docs/VERIFY_LEAN.md](../../docs/VERIFY_LEAN.md)).
 - `--instrument OUT.sol`: write the file with every `@custom:check` as a `require`. A check in an
   imported file is an error, since the verification assumed it.
 - `--spec-check`: test the trusted base against its code in the file instead of verifying (see

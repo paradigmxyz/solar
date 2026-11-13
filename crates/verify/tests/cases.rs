@@ -440,3 +440,192 @@ fn structs() {
 fn vox() {
     check("tests/cases/vox.sol")
 }
+
+/// A scratch directory for one test's output, empty.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("solar-verify-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
+}
+
+/// `--emit-lean` without a solver: the module of a function is stable (format version 1), and
+/// the manifest binds it to the source and names the spec clause each obligation discharges.
+#[test]
+fn emit_lean() {
+    let dir = scratch("emit-lean");
+    let out = dir.to_str().unwrap();
+    // Without a solver every obligation is unknown, so the run fails; the export does not.
+    let run = run_verifier(&["--dry-run", "--emit-lean", out, "examples/Counter.sol"]);
+    assert!(!run.stderr.contains("--emit-lean"), "{}", run.stderr);
+    let module = std::fs::read_to_string(dir.join("Counter/increment.lean")).unwrap();
+    assert_data_eq!(module, file!["snapshots/emit_lean/Counter/increment.lean"]);
+    let manifest = read_manifest(&dir);
+    assert_eq!(manifest["format"], "solar-verify-lean");
+    assert_eq!(manifest["version"], 1);
+    assert_eq!(manifest["errors"], serde_json::json!([]));
+    assert_eq!(
+        specs(&manifest, "Counter.increment"),
+        [
+            ("postcondition not satisfied", "count == old(count) + 1"),
+            ("contract invariant not preserved", "count <= limit"),
+        ]
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `--emit-lean` on the other examples: mappings (Token), a reentrancy lock and `assert`
+/// (Vault), and a loop with an invariant and a `decreases` clause over an array (ArrayMax), one
+/// run per file.
+#[test]
+fn emit_lean_examples() {
+    let dir = scratch("emit-lean-examples");
+    for example in ["Token", "Vault", "ArrayMax"] {
+        let src = format!("examples/{example}.sol");
+        let out = dir.join(example);
+        let run = run_verifier(&["--dry-run", "--emit-lean", out.to_str().unwrap(), &src]);
+        assert!(!run.stderr.contains("--emit-lean"), "{}", run.stderr);
+        assert_eq!(read_manifest(&out)["errors"], serde_json::json!([]), "{example}");
+    }
+    let read = |m: &str| std::fs::read_to_string(dir.join(m)).unwrap();
+    assert_data_eq!(
+        read("Token/Token/transfer.lean"),
+        file!["snapshots/emit_lean/Token/transfer.lean"]
+    );
+    assert_data_eq!(
+        read("Vault/Vault/withdraw.lean"),
+        file!["snapshots/emit_lean/Vault/withdraw.lean"]
+    );
+    assert_data_eq!(
+        read("ArrayMax/ArrayMax/max.lean"),
+        file!["snapshots/emit_lean/ArrayMax/max.lean"]
+    );
+    let manifests: Vec<_> =
+        ["Token", "Vault", "ArrayMax"].iter().map(|e| read_manifest(&dir.join(e))).collect();
+    let units: Vec<_> = manifests
+        .iter()
+        .flat_map(|m| m["units"].as_array().unwrap())
+        .map(|u| u["name"].as_str().unwrap())
+        .collect();
+    for name in [
+        "Token.constructor",
+        "Token.mint",
+        "Token.transfer",
+        "Token.burn",
+        "Vault.constructor",
+        "Vault.deposit",
+        "Vault.withdraw",
+        "ArrayMax.max",
+        "ArrayMax.clamp",
+    ] {
+        assert!(units.contains(&name), "{name} missing from {units:?}");
+    }
+    let kinds: Vec<_> = specs(&manifests[2], "ArrayMax.max").into_iter().map(|(k, _)| k).collect();
+    for kind in [
+        "loop invariant not satisfied on entry",
+        "loop invariant not preserved by the loop body",
+        "loop does not terminate: decreases clause not decreased",
+        "postcondition not satisfied",
+    ] {
+        assert!(kinds.contains(&kind), "ArrayMax.max: no {kind:?} in {kinds:?}");
+    }
+    let kinds: Vec<_> =
+        specs(&manifests[1], "Vault.withdraw").into_iter().map(|(k, _)| k).collect();
+    assert!(kinds.contains(&"assertion failed"), "{kinds:?}");
+    assert!(
+        kinds.iter().any(|k| k.contains("reentrancy guard `locked`")),
+        "Vault.withdraw: no lock obligation in {kinds:?}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn read_manifest(dir: &std::path::Path) -> serde_json::Value {
+    serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap()
+}
+
+/// The kind and spec text of a unit's obligations, in order.
+fn specs<'a>(manifest: &'a serde_json::Value, unit: &str) -> Vec<(&'a str, &'a str)> {
+    manifest["units"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|u| u["name"] == unit)
+        .unwrap_or_else(|| panic!("no unit {unit}"))["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["role"] == "obligation")
+        .map(|o| (o["kind"].as_str().unwrap(), o["spec"]["text"].as_str().unwrap_or("")))
+        .collect()
+}
+
+/// The exported terms agree with the SMT-LIB solar-verify sends: on random models, z3 and the
+/// Lean kernel evaluate them alike (`lean/roundtrip.py`). Needs z3 and Lean (`lake`); skipped
+/// without Lean unless `SOLAR_VERIFY_REQUIRE_LEAN=1`.
+#[test]
+fn emit_lean_round_trip() {
+    if z3_missing() {
+        return;
+    }
+    let lake = Command::new("lake")
+        .arg("--version")
+        .current_dir("lean")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !lake {
+        assert!(
+            std::env::var_os("SOLAR_VERIFY_REQUIRE_LEAN").is_none(),
+            "lake not found and SOLAR_VERIFY_REQUIRE_LEAN is set"
+        );
+        eprintln!("skipping: lake (Lean) not found");
+        return;
+    }
+    let build = Command::new("lake").arg("build").current_dir("lean").output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stdout));
+    for example in ["Counter", "Token", "Vault", "ArrayMax"] {
+        let dir = scratch(&format!("round-trip-{example}"));
+        let out = dir.to_str().unwrap();
+        let src = format!("examples/{example}.sol");
+        let run = run_verifier(&["--timeout", TIMEOUT, "--emit-lean", out, &src]);
+        assert_eq!(run.code, Some(0), "{}\n{}", run.stdout, run.stderr);
+        let rt = Command::new("python3")
+            .args(["roundtrip.py", out])
+            .current_dir("lean")
+            .output()
+            .expect("run python3");
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rt.stdout),
+            String::from_utf8_lossy(&rt.stderr)
+        );
+        assert!(rt.status.success(), "{example}:\n{text}");
+        assert!(text.contains(" 0 failures"), "{example}:\n{text}");
+        // Every exported module elaborates against the library.
+        for unit in std::fs::read_dir(&dir).unwrap() {
+            let unit = unit.unwrap().path();
+            if !unit.is_dir() {
+                continue;
+            }
+            for module in std::fs::read_dir(&unit).unwrap() {
+                let module = module.unwrap().path();
+                if module.extension().is_none_or(|e| e != "lean") {
+                    continue;
+                }
+                let lean = Command::new("lake")
+                    .args(["env", "lean"])
+                    .arg(&module)
+                    .env("LEAN_NUM_THREADS", "1")
+                    .current_dir("lean")
+                    .output()
+                    .unwrap();
+                assert!(
+                    lean.status.success(),
+                    "{}:\n{}{}",
+                    module.display(),
+                    String::from_utf8_lossy(&lean.stdout),
+                    String::from_utf8_lossy(&lean.stderr)
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

@@ -24,7 +24,7 @@ a failed proof, never by a timeout.
 
 | Example | spec (Z3) | VCs in Lean | source stage | backend stages | assembly stage | composed |
 | --- | --- | --- | --- | --- | --- | --- |
-| Counter | ✔ all 4 functions | open | blocked (B1, G5) | **certified** except `bump` (G1) | blocked (B1) | open |
+| Counter | ✔ all 4 functions | ✔ solar-verify's 14 VCs kernel-checked (not yet Loom, G6) | blocked (B1, G5) | **certified** except `bump`'s two MIR stages (G1) | blocked (B1) | open |
 | Token | ✔ all 4 functions | open | open | not run yet | blocked (B1) | open |
 | Vault | ✔ all 3 functions | open | open | ✘ exporter rejects it (G3) | open | open |
 | ArrayMax | ✔ both functions | open | open | not run yet; loop (G1) | open | open |
@@ -51,11 +51,35 @@ the getters `count()` and `limit()` and every call that matches no selector. Fou
       [propext, Classical.choice, Quot.sound]
     walk_eq, decodes: [propext, Quot.sound]
 
+EVM IR stages through cut points, for every call including `bump`:
+`SolarTV.Milestone.VerifyCounter.evmir_stages_all` in
+[Proofs/Loops.lean](../solar-tv/milestone/verify_counter/Proofs/Loops.lean),
+
+    Stage (evmirSem o) (evmirSem o) sched evm11 anyCall
+
+chains the eleven EVM IR passes, each proved by `stage_of_certified` from a simulation whose
+cut points are the loop headers ([cutstages.py](../solar-tv/milestone/cutstages.py) writes one
+module per stage from [cutpoints.py](../solar-tv/milestone/cutpoints.py)). Axioms: `[propext,
+Classical.choice, Quot.sound]`. Still scoped to `scope`: `stage0 → mir1` (`lower-assumes`,
+which changes only `bump`) and `mir1 → sched` (stack scheduling), since cut points do not yet
+relate a MIR loop header's values to the scheduled stack (G1).
+
+VCs in Lean: `solar-verify --emit-lean` writes each of Counter's obligations as a Lean goal over
+SolarVerify's embedding and [discharge.sh](../crates/verify/lean/discharge.sh) proves them in the
+kernel: all 14 required obligations (constructor 2, `increment` 2, `bump` 7, `max` 3), axioms
+`[propext, Classical.choice, Quot.sound]`. This is solar-verify's VC generator, not SolidCore's
+Loom one, so column 2 is not yet the bridge G6 asks for.
+
 Build:
 
     CARGO_TARGET_DIR=... LEAN_NUM_THREADS=1 LEAN_MEMORY=3000 \
       solar-tv/milestone/certify.sh crates/verify/examples/Counter.sol Counter \
       --name verify_counter --exclude 'bump(uint256)'
+    (cd solar-tv && python3 milestone/cutstages.py milestone/verify_counter/gen/Counter \
+      --gen-module verify_counter.gen.Counter --proof-dir milestone/verify_counter/Proofs \
+      --proof-module verify_counter.Proofs --namespace SolarTV.Milestone.VerifyCounter &&
+      lake build verify_counter.Proofs.Loops -KleanMemory=3000)
+    LEAN_MEMORY=3000 solar-tv/milestone/negative.sh verify_counter Counter
     solar-tv/milestone/verify-chain/negatives.sh Counter
 
 Negatives, every one failing by a mismatch:
@@ -65,7 +89,11 @@ Negatives, every one failing by a mismatch:
   sstore's key plus one, the call value check dropped and the overflow check dropped; in the
   scheduled EVM IR the first add as sub (each: `sym_exec: the runs end in different results on
   this path`). `lower-assumes` (`stage0 → mir1`) changes only `bump`, so it has no edit inside
-  the scope: only its control runs.
+  the scope: only its control runs. Through cut points, the last `push 1` of the loop's step
+  block in `evm11` (`bump`'s `i++`) as `push 2` fails `stage_evm11_all` (`sym_seg: the segments
+  end differently on this path`).
+- VCs in Lean (stage 2 of verify-chain/negatives.sh): the control discharges all 14 obligations;
+  each of the ten mutants below leaves one to three obligations whose `omega` proof fails.
 - spec ([verify-chain/negatives.sh](../solar-tv/milestone/verify-chain/negatives.sh), mutants in
   [verify-chain/Counter/mutants.py](../solar-tv/milestone/verify-chain/Counter/mutants.py)): five code mutants (`count += 2`, the
   loop to `i <= n`, `bump`'s `require` dropped, `max` returning `a`, the constructor storing
@@ -86,7 +114,9 @@ Each gap names the stage and the construct, and how the stage fails on it.
   `ArrayMax.max`, `Bugs.countTo`). The run proofs are symbolic runs at a fuel of the block
   count, so a path that loops runs out of fuel: `sym_exec` leaves the path open and the
   `#axioms_within` guard reports `sorryAx`; certify.sh stops. Fails closed. Covering them needs
-  a run proof by a simulation at loop heads instead of one bounded run. Until then
+  a run proof by a simulation at loop heads instead of one bounded run: done for the EVM IR to
+  EVM IR stages (cutpoints.py, Counter's `evmir_stages_all`); open for MIR to MIR and MIR to
+  EVM IR, which need the exporter to relate a header's values on both sides. Until then
   `--exclude SIG` leaves such a function out of the theorems' scope, which the theorems state.
 - **G2** (backend stages, deployment). The stages are about the runtime code; the constructor
   and its initcode are not certified. The theorems hold from any storage, so they hold from
@@ -99,7 +129,9 @@ Each gap names the stage and the construct, and how the stage fails on it.
 - **G5** (source stage, constructors that write storage: `Counter`'s constructor). The generic
   source stage requires that the constructor leave no storage. Not yet run against these
   examples.
-- **G6** (spec): solar-verify's VCs are discharged by SMT; nothing in Lean checks them yet.
+- **G6** (spec to VCs in Lean): solar-verify's own VCs are kernel-checked for Counter, but over
+  SolarVerify's embedding, not SolidCore's Loom `wp`; nothing yet shows the two generators ask
+  the same of the source, so the spec does not yet meet the source stage in one theorem.
 - **B1** (solidity-lean `ck5/token-stage`, built here; `ck5/certified-translation` has the
   same pin and `decode_swap`): `Solar/Assemble.lean` does not build against the solar-tv it pins
   (`2144dccb`), whose `dup` and `swap` positions are `Fin 256` (lines 803 and 809 expect

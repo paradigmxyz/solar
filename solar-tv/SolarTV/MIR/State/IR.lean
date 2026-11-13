@@ -26,6 +26,17 @@ inductive MemoryOp where
   | load | store | storeByte | copy | hash | size | zero
   | calldataLoad | calldataSize | calldataCopy | returnDataSize | returnDataCopy
 
+/-- The predicate of a fact a pass relied on (`assume`), on the operands' words: `ult` and `ule`
+compare them unsigned. -/
+inductive Fact where
+  | eq | ne | ult | ule
+
+def Fact.holds : Fact → Word → Word → Bool
+  | .eq, a, b => a == b
+  | .ne, a, b => a != b
+  | .ult, a, b => a.ult b
+  | .ule, a, b => a.ule b
+
 inductive Operation where
   | binary (op : MIR.Op) (width : Nat)
   | comparison (op : MIR.Comparison) (width : Nat)
@@ -49,6 +60,10 @@ inductive Operation where
   | insertValue (ty : ValueType) (index : Nat)
   | extractValue (ty : ValueType) (index : Nat)
   | makeSlice (location : Nat)
+  /-- A fact a pass relied on. Where it fails the program is undefined, as for LLVM's `assume`:
+  a source run that reaches it has no outcome a target must keep, and a target run that
+  reaches it where the source is defined does not refine the source. -/
+  | assume (fact : Fact)
 
 structure Instruction where
   result : Option Nat
@@ -123,6 +138,9 @@ inductive Completion where
   | success (data : List Byte)
   | reverted (data : List Byte)
   | invalid
+  /-- A failed `assume`: undefined behaviour, not a program outcome. -/
+  | undefined
+  deriving DecidableEq
 
 structure Result where
   completion : Completion

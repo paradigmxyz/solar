@@ -1,0 +1,5 @@
+name = "solar_verify"
+defaultTargets = ["SolarVerify"]
+
+[[lean_lib]]
+name = "SolarVerify"

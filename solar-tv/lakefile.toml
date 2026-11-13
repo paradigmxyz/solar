@@ -93,3 +93,12 @@ srcDir = "milestone"
 roots = ["verify_counter.Proofs"]
 globs = ["verify_counter.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# loops: the stages of milestone/loops/loops.sol's Loops and their kernel proofs through cut
+# points, which milestone/certify.sh writes.
+[[lean_lib]]
+name = "loops"
+srcDir = "milestone"
+roots = ["loops.Proofs"]
+globs = ["loops.+"]
+moreLeanArgs = ["-M", "3000"]

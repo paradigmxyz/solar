@@ -4749,6 +4749,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-traits",
  "serde_json",
+ "sha2 0.11.1",
  "snapbox",
  "solar-cli",
  "solar-parse",

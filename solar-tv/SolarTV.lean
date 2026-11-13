@@ -16,6 +16,8 @@ import SolarTV.Stages.Entries
 
 import SolarTV.Agreement.Encoder
 import SolarTV.Composition
+import SolarTV.CutPoint
+import SolarTV.CutPointExamples
 import SolarTV.MIR.Validation.AddZero
 
 import SolarTV.State.StorageSafety
@@ -34,6 +36,26 @@ import SolarTV.MIR.State.Normalize
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
+/-- info: 'SolarTV.CutPoint.Sim.ends' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.CutPoint.Sim.ends
+
+/-- info: 'SolarTV.CutPoint.Sim.diverges_iff' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.CutPoint.Sim.diverges_iff
+
+/-- info: 'SolarTV.CutPoint.LayerSim.certified' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.CutPoint.LayerSim.certified
+
+/-- info: 'SolarTV.CutPoint.LayerSim.certified_back' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.CutPoint.LayerSim.certified_back
+
+/-- info: 'SolarTV.CutPoint.seg_ne_fuel' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.CutPoint.seg_ne_fuel
+
 /-- info: 'SolarTV.MIR.simplify_switch' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.simplify_switch

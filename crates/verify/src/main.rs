@@ -3,6 +3,7 @@ mod broadcast;
 mod bvlower;
 mod ghost;
 mod interval;
+mod lean;
 mod mutate;
 mod operator;
 mod prog;
@@ -33,6 +34,7 @@ struct Cli {
     strict: bool,
     timeout: u64,
     dump_smt: Option<PathBuf>,
+    emit_lean: Option<PathBuf>,
     only: Option<String>,
     json: bool,
     jobs: usize,
@@ -71,6 +73,7 @@ fn parse_cli() -> Cli {
         strict: false,
         timeout: 10_000,
         dump_smt: None,
+        emit_lean: None,
         only: None,
         json: false,
         instrument: None,
@@ -91,6 +94,7 @@ fn parse_cli() -> Cli {
             "--strict" => c.strict = true,
             "--timeout" => c.timeout = it.next().and_then(|x| x.parse().ok()).unwrap_or(10_000),
             "--dump-smt" => c.dump_smt = it.next().map(PathBuf::from),
+            "--emit-lean" => c.emit_lean = it.next().map(PathBuf::from),
             "--only" => c.only = it.next(),
             "--json" => c.json = true,
             "--dry-run" => c.dry_run = true,
@@ -106,6 +110,8 @@ fn parse_cli() -> Cli {
                 println!(
                     "usage: solar-verify [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] [IMPORT OPTIONS] FILE.sol...\n\n\
                      --dry-run  generate every obligation without running a solver (see --dump-smt)\n\
+                     --emit-lean DIR  write every query as a Lean term, with DIR/manifest.json\n\
+                     \x20          (see docs/VERIFY_LEAN.md)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
                      --spec-check  test the trusted contracts (@custom:trusted bodies, interface\n\
@@ -296,7 +302,12 @@ fn main() {
     if cli.spec_check {
         spec_check(&cli);
     }
-    if cli.jobs > 1 && cli.only.is_none() && cli.dump_smt.is_none() && cli.instrument.is_none() {
+    if cli.jobs > 1
+        && cli.only.is_none()
+        && cli.dump_smt.is_none()
+        && cli.emit_lean.is_none()
+        && cli.instrument.is_none()
+    {
         run_parallel(&cli);
     }
     let child = std::env::var_os("SOLAR_VERIFY_CHILD").is_some();
@@ -305,6 +316,14 @@ fn main() {
     let mut total_err = 0;
     let mut smt_log = String::new();
     let mut json_rows: Vec<String> = vec![];
+    let mut statuses = lean::Statuses::new();
+    if let Some(dir) = &cli.emit_lean {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("error: cannot create {}: {e}", dir.display());
+            std::process::exit(2);
+        }
+        lean::start();
+    }
     let ok = sess.enter_sequential(|| -> Result<(), ()> {
         let arena = ast::Arena::new();
         let loader = cli.loader(&sess, &arena);
@@ -349,6 +368,7 @@ fn main() {
                         continue;
                     }
                     let t0 = std::time::Instant::now();
+                    lean::set_unit(name.clone());
                     let smt = if cli.dry_run {
                         smt::Smt::dry(cli.dump_smt.is_some())
                     } else {
@@ -371,17 +391,20 @@ fn main() {
                     if let Some(l) = v.smt.log.take() {
                         smt_log.push_str(&l);
                     }
+                    // Dropping the solver keeps its recording for --emit-lean.
+                    drop(v);
+                    let status = if rep.unsupported.is_some() {
+                        "unsupported"
+                    } else if rep.fails.is_empty() {
+                        "verified"
+                    } else if rep.fails.iter().all(|f| f.note.is_some()) {
+                        "unknown"
+                    } else {
+                        "failed"
+                    };
+                    statuses.insert(name, status.into());
                     if cli.json {
                         let esc = |x: &str| x.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ");
-                        let status = if rep.unsupported.is_some() {
-                            "unsupported"
-                        } else if rep.fails.is_empty() {
-                            "verified"
-                        } else if rep.fails.iter().all(|f| f.note.is_some()) {
-                            "unknown"
-                        } else {
-                            "failed"
-                        };
                         let mut msgs: Vec<String> = vec![];
                         if let Some((sp, m)) = &rep.unsupported {
                             msgs.push(format!("{}:{}", line(&sess, *sp), m));
@@ -449,6 +472,24 @@ fn main() {
     });
     if let Some(p) = &cli.dump_smt {
         let _ = std::fs::write(p, smt_log);
+    }
+    if let Some(dir) = &cli.emit_lean {
+        let run = lean::Run {
+            arguments: std::env::args().skip(1).collect(),
+            options: serde_json::json!({
+                "strict": cli.strict,
+                "timeout_ms": cli.timeout,
+                "only": cli.only,
+                "dry_run": cli.dry_run,
+            }),
+            statuses: &statuses,
+            solvers: lean::solver_versions(cli.dry_run),
+        };
+        let errors = sess.enter_sequential(|| lean::write(&sess, dir, run));
+        for e in &errors {
+            eprintln!("error: --emit-lean: {e}");
+        }
+        total_err += errors.len();
     }
     if cli.json {
         println!(

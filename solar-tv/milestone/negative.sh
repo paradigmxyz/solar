@@ -37,7 +37,9 @@
 #   no mutants of what the proofs cover;
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
 #   words in reverse order, and the first further result a call binds left unbound, when
-#   present.
+#   present;
+# - a program proved through cut points (Proofs/Loops): the last push 1 of the final EVM IR's
+#   first block that jumps back to a loop header as push 2.
 #
 # LEAN_MEMORY caps each Lean process (MB, default 4500).
 set -euo pipefail
@@ -469,6 +471,40 @@ EOF
             < "$tmp/$output-$kind.py"
     done
 done
+
+# A program that loops, proved through cut points (cutstages.py writes Proofs/Loops): in the
+# final EVM IR, the last `push 1` of a block that jumps back to a cut point (a loop's step, such
+# as `i++`) as `push 2`. The cut-point proof of the last stage must fail by mismatch, its control
+# must pass.
+if [[ -f "$proofs/Loops/$last.lean" ]]; then
+seg_mismatch='sym_seg: the segments end differently on this path'
+edit "$last-loop-control" "$gen/$last.lean" <<<'pass'
+check "$last-loop-control" "$last" "$proofs/Loops/$last.lean" pass
+try "$last-loop-step" "$gen/$last.lean" "$last" "$proofs/Loops/$last.lean" "$seg_mismatch" <<EOF
+import re
+sys.path.insert(0, "$here")
+import cutpoints
+blocks = cutpoints.parse_evm(s)
+succ, _, _ = cutpoints.evm_cfg(blocks)
+cycle = cutpoints.cyclic_component(succ, set())
+if not cycle: sys.exit(3)
+hit = None
+for i in cycle:
+    ident, ins = blocks[i]
+    if ins and ins[-1] == f".jump {cycle[0]}":
+        pushes = [k for k, x in enumerate(ins) if x == ".op (.stack (.push 1))"]
+        if pushes:
+            hit = (ident, pushes[-1], len([x for x in ins[: pushes[-1]] if x == ".op (.stack (.push 1))"]))
+            break
+if hit is None: sys.exit(3)
+ident, _, n = hit
+head, body = s.split(f"-- bb{ident}\n", 1)
+parts = body.split(".op (.stack (.push 1))")
+body = ".op (.stack (.push 1))".join(parts[: n + 1]) + ".op (.stack (.push 2))" + ".op (.stack (.push 1))".join(parts[n + 1 :])
+print(f"  bb{ident}: its last push 1 as push 2")
+s = head + f"-- bb{ident}\n" + body
+EOF
+fi
 
 # Only a program that returns several words from an internal call has these cases.
 if grep -q '\.leave \[[^]]*,' "$gen/$last_mir.lean"; then

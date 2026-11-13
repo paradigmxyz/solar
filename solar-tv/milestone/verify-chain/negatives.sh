@@ -7,9 +7,13 @@
 # 1. spec: each mutant verify-chain/EXAMPLE/mutants.py writes (the source with one edit
 #    to its code or to its specs) must fail solar-verify with a counterexample: exit status 1, a
 #    "counterexample" note, and no obligation left undecided. The unedited source must verify.
-# 2. mutate: solar-verify mutate runs on the unedited source; its summary is printed for the
+# 2. kernel VCs: solar-verify --emit-lean exports the unedited source's obligations and
+#    crates/verify/lean/discharge.sh must prove every required one in the Lean kernel, with no
+#    axiom beyond propext, Classical.choice and Quot.sound. Each mutant's export must then fail
+#    the discharge by a failed proof of an obligation, never by a timeout.
+# 3. mutate: solar-verify mutate runs on the unedited source; its summary is printed for the
 #    status table, not failed on.
-# 3. binding: the manifest of solar-tv/milestone/verify_EXAMPLE must bind its source, stages and
+# 4. binding: the manifest of solar-tv/milestone/verify_EXAMPLE must bind its source, stages and
 #    bytecode by SHA-256, and a manifest swapped for another milestone's, a source with one byte
 #    changed, a stage with one byte changed and a bytecode pin with one byte changed must each
 #    fail that check.
@@ -48,10 +52,37 @@ for mutant in "$tmp"/mutants/*.sol; do
     fi
 done
 
-echo "== 2. solar-verify mutate"
+echo "== 2. kernel VCs of $source"
+discharge="crates/verify/lean/discharge.sh"
+if "$verify" --emit-lean "$tmp/vc-control" "$source" > /dev/null 2>&1 &&
+    "$discharge" "$tmp/vc-control" 600 > "$tmp/vc-control.out" 2>&1; then
+    echo "ok control: $(tail -n 1 "$tmp/vc-control.out")"
+else
+    tail -n 5 "$tmp/vc-control.out"
+    fail "the unedited $example's obligations are not all proved in the kernel"
+fi
+for mutant in "$tmp"/mutants/*.sol; do
+    case="$(basename "$mutant" .sol)"
+    "$verify" --emit-lean "$tmp/vc-$case" "$mutant" > /dev/null 2>&1 || true
+    status=0
+    "$discharge" "$tmp/vc-$case" 600 > "$tmp/vc-$case.out" 2>&1 || status=$?
+    results="$tmp/vc-$case/discharge/results.tsv"
+    if [[ $status -eq 0 ]]; then
+        fail "$case: every obligation is proved in the kernel"
+    elif grep -q 'timeout' "$results" 2> /dev/null; then
+        fail "$case: an obligation timed out instead of failing"
+    elif ! grep -q $'	failed: ' "$results" 2> /dev/null; then
+        tail -n 3 "$tmp/vc-$case.out"
+        fail "$case: the discharge failed for another reason"
+    else
+        echo "ok $case: $(grep -c $'	failed: ' "$results") obligation(s) not proved, e.g. $(grep -m1 $'	failed: ' "$results" | cut -f1)"
+    fi
+done
+
+echo "== 3. solar-verify mutate"
 "$verify" mutate --jobs 1 "$source" 2>&1 | grep -E '^(killed|survived|equivalent|undecided|stillborn|mutation results)' || true
 
-echo "== 3. binding of solar-tv/milestone/$name"
+echo "== 4. binding of solar-tv/milestone/$name"
 gen="$(ls -d solar-tv/milestone/$name/gen/*/)"
 bind() {
     python3 - "$1" "$2" "$3" <<'EOF'

@@ -1,6 +1,6 @@
 # Operation coverage
 
-The compiler schemas define the scope: 107 MIR operation families and 154 EVM
+The compiler schemas define the scope: 108 MIR operation families and 154 EVM
 opcode entries, across 15 forks. `solar-tv-replay --catalog` reflects those
 schemas, including stack effects, availability and gas. Tests compare every entry
 with [operations.json](operations.json), so new operations cannot go unnoticed.
@@ -10,7 +10,7 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Checked within the supported fragment | 32 | 103 |
 | Some forms checked | 14 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 28 | 0 |
+| Direct typed MIR state execution | 29 | 0 |
 | Missing | 33 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
@@ -30,6 +30,11 @@ SIGNEXTEND, BYTE and CLZ. Exponentiation uses squaring, with a kernel proof that
 it equals ordinary bit-vector power for every exponent. MIR uses native bit
 vectors from i1 through i256, signed comparisons, casts, select and checked
 arithmetic, including division, remainder and powers with exact panic codes.
+
+MIR's `assume` facts execute: one that fails makes the run undefined, as LLVM's
+`assume` does. A source run that is undefined constrains no completed target run,
+and a target run that fails a fact where the source is defined is a mismatch, in
+the Lean model and the independent replay alike.
 
 Memory supports word/byte reads and writes, overlapping MCOPY, Keccak-256,
 expansion and terminal byte payloads within the existing 256-byte projection.

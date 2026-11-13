@@ -56,6 +56,7 @@
     "mstore": "partial_family",
     "mstore8": "partial_family",
     "memory_zero": "direct_state",
+    "assume": "direct_state",
     "msize": "partial_family",
     "fmp": "direct_state",
     "heap_floor": "missing",
