@@ -337,8 +337,11 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation, indirect calls and physical multi-return buffers
-remain unsupported. Recursive ABI helpers and explicit placement windows are
+invented. Deferred allocation and physical multi-return buffers remain
+unsupported. Function-pointer dispatchers are ordinary MIR bodies and use the
+same internal-call semantics. The function-pointers Solidity example checks a
+real inlining pair for both choices and replays an incorrect callee change.
+Recursive ABI helpers and explicit placement windows are
 supported below. Backend memory records remain unsupported.
 
 ```sh

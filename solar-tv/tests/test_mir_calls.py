@@ -1,7 +1,9 @@
 """Internal calls and allocation checked directly, without backend layout or protocols."""
 
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 import test_mir_state as state
 from test_cli import ROOT, SOLAR
@@ -13,6 +15,38 @@ def program(body, helpers="", signature="fn @f() -> i256"):
 
 class MirCallsTests(unittest.TestCase):
     pair = state.MirStateTests.pair
+
+    def test_compiled_function_pointer_dispatch(self):
+        source = ROOT / "examples/solidity/function-pointers.sol"
+        before = subprocess.check_output(
+            [
+                SOLAR,
+                source,
+                "-Onone",
+                "-Zmir-pipeline=none",
+                "-Zdump=mir",
+                "--allow=2264",
+            ],
+            text=True,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "dispatch.mir"
+            path.write_text(before)
+            after = subprocess.check_output(
+                [
+                    SOLAR,
+                    path,
+                    "-Ogas",
+                    "-Zmir-pipeline=inline,cfg-simplify",
+                    "-Zvalidate-ir=true",
+                ],
+                text=True,
+            )
+        self.assertNotEqual(before.splitlines()[1:], after.splitlines()[1:])
+        self.pair(before, after)
+        broken = before.replace("sub arg0, 1", "sub arg0, 2")
+        self.assertNotEqual(before, broken)
+        self.pair(before, broken, status=1)
 
     def test_real_pass_pairs_and_broken_calls_and_aliases(self):
         for example, transform, expected in (
