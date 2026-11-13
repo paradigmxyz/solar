@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# scratch: the stages of milestone/scratch/scratch.sol's Scratch and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "scratch"
+srcDir = "milestone"
+roots = ["scratch.Proofs"]
+globs = ["scratch.+"]
+moreLeanArgs = ["-M", "3000"]

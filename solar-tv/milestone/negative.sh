@@ -34,8 +34,9 @@
 #   which never runs, the first test or subtraction it added with its operands swapped), and the
 #   first pure operation as another one (xor as and, add as sub, lt as gt, ...);
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
-#   words in reverse order, and the first further result a call binds left unbound, when
-#   present.
+#   words in reverse order, the first further result a call binds left unbound, and the
+#   first call that publishes its further results to its callee's return buffer left
+#   unpublished, when present.
 #
 # LEAN_MEMORY caps each Lean process (MB, default 4500).
 set -euo pipefail
@@ -477,6 +478,15 @@ import re
 m = re.search(r"(\.call \S+(?: \S+)? \d+ \[[^\[\]]*\] \[[^\[\]]*)some \d+", s)
 if not m: sys.exit(3)
 s = s[:m.end(1)] + "none" + s[m.end():]
+EOF
+
+# The first call that publishes its further results to its callee's return buffer left
+# unpublished: a later read through the buffer's pointer at 0x20 reads other words.
+try "$last_mir-unpublished-results" "$gen/$last_mir.lean" "$last_mir" "$proofs/Runs/Sched.lean" "$mismatch" <<'EOF'
+import re
+m = re.search(r"(\.call \S+(?: \S+)? \d+ \[[^\[\]]*\] \[[^\[\]]*\]) \(some \d+\)", s)
+if not m: sys.exit(3)
+s = s[:m.end(1)] + s[m.end():]
 EOF
 fi
 

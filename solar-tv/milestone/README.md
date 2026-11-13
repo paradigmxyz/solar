@@ -40,8 +40,9 @@ first `mul`, its first range test of a narrow product, the kind of its first ext
 the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
-its first constant plus one; the last MIR stage's first return of several words in reverse order
-and the first further result a call binds left unbound) and requires each generated proof to
+its first constant plus one; the last MIR stage's first return of several words in reverse order,
+the first further result a call binds left unbound and the first results a call publishes to its
+callee's return buffer left unpublished) and requires each generated proof to
 fail with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a rerun
 must regenerate it byte for byte (up to the compiler's build commit in the manifest).
 
@@ -207,6 +208,25 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [scratch](scratch/scratch.sol): `add(uint256)` returns the new total an internal function
+  `split` stores and that function's second result, which it reads with inline assembly through
+  the multi-return buffer's pointer at `0x20` only after a storage write, and `addTwice(uint256)`
+  calls `split` twice, the second time on the first call's second result; 153 bytes of runtime
+  bytecode, with `-Zcheck-analyses=false` ([scratch/options](scratch/options)). Stack scheduling
+  cannot bind `add`'s read to the word `split` leaves on the stack, so codegen publishes the
+  second result to `split`'s return area at `0xc0` and the area's address to the scratch word
+  `0x20` (`swap1; push 0xc0; mstore; push 0xa0; push 0x20; mstore`), which the MIR stage's call
+  does too (`publishResults`), while `addTwice` binds both results on the stack. Stages `stage0
+  → sched → evm1 → … → evm6` (`stack-schedule`, `cfg-simplify-early`, `block-layout`,
+  `terminal-dedup`, `cfg-simplify-early`, `block-layout`, `stack-reschedule`) and `evm6 →
+  bytecode`, all proved: `SolarTV.Milestone.Scratch.scratch_mir_to_evmir`. Its negative tests
+  also leave the published result unpublished, so that the read through `0x20` finds other
+  words.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/scratch/scratch.sol Scratch
 ```
 
 ## Limits
