@@ -117,7 +117,7 @@ inductive Operation where
   | notEqual | select
   | checked (op : MIR.CheckedOp) (width : Nat) (signed : Bool)
   | checkedPower (width : Nat) (signed : Bool)
-  | check (zero : Bool) (panic : Option Word)
+  | check (zero : Bool) (panic : Option Word) (message : Option (List Byte))
   | memory (op : MemoryOp)
   | storage (transient write : Bool)
   | context (op : ContextOp)
@@ -190,6 +190,7 @@ structure Config where
   creationGas : List Nat := []
   layout : Layout := {}
   builtinGas : List Nat := []
+  debugReverts : Bool := false
 
 structure Frame where
   world : Journal
