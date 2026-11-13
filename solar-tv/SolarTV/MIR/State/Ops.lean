@@ -167,9 +167,13 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .select,[c,a,b] => value frame (if c = 0 then b else a)
   | .checked op width signed,[a,b] => checkedResult frame (MIR.checked op signed (wordBits width a) (wordBits width b))
   | .checkedPower width signed,[a,b] => checkedResult frame (MIR.checkedPower signed (wordBits width a) b.toNat)
-  | .check zero panic,[condition] =>
+  | .check zero panic message,[condition] =>
     if (condition == 0) == zero then
-      return .reverted (match panic with | none => .empty | some code => .panic code)
+      return .reverted (match panic with
+        | some code => .panic code
+        | none => if cfg.debugReverts then
+            message.map (fun bytes => RevertData.fromBytes (requireLiteral bytes)) |>.getD .empty
+          else .empty)
     else effect frame
   | .memory op,args => memoryOperation cfg frame op args
   | .storage transient write,args => storageOperation cfg frame transient write args

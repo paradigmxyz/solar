@@ -459,6 +459,9 @@ Require builtins preserve exact revert bytes, including short and long strings,
 dynamic messages and recursive custom-error arguments. `require(false, "")`
 returns `Error(string)` with an empty string, not an empty revert. Passing checks
 evaluate their arguments but do not read the referenced payload objects.
+Set `debug_reverts: true` in the fixture to model compiler-generated check
+messages from `--revert-strings=debug`. The default checks revert with empty
+data; explicit user payloads retain the bytes encoded in MIR in either mode.
 
 Checked `addmod` and `mulmod` panic on a zero modulus; their nonzero cases use
 full-width modular arithmetic. ERC-7201 namespace hashing retains the input

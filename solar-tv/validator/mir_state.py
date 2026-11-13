@@ -418,7 +418,14 @@ def operation(value, definitions):
             if value["panic"] is None
             else f"(some {number(value['panic'], 256)})"
         )
-        expression = f".check {'true' if value['zero'] else 'false'} {panic}"
+        message = (
+            "none"
+            if value["message"] is None
+            else "(some ["
+            + ",".join(number(byte, 256) for byte in value["message"])
+            + "])"
+        )
+        expression = f".check {'true' if value['zero'] else 'false'} {panic} {message}"
     else:
         raise Unsupported("unknown MIR model operation")
     return "none", expression, args
@@ -556,7 +563,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         solar, version, fixture, timeout, replay, root_is_mir=True
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
-    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']}⟩\n"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']},{'true' if fixture['debug_reverts'] else 'false'}⟩\n"
     boundary_inputs = []
     for index, ty in enumerate(params):
         for path, leaf in leaf_paths(ty):

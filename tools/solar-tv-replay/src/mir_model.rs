@@ -12,8 +12,8 @@ use solar_mir::{
     AbiEncodeMode, AbiParamType, AbiType, AbiWordValidator, AllocationFailure,
     AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee, FrameMode,
     FrameSlotKind, Function, MemoryObjectKind, MirType, Module, PackedPart, RequireKind,
-    RevertKind, RevertReason, Semantics, Terminator, Value, ValueId, ValueLayout,
-    analysis::CallGraphInfo, memory::EvmMemoryLayout,
+    RevertKind, Semantics, Terminator, Value, ValueId, ValueLayout, analysis::CallGraphInfo,
+    memory::EvmMemoryLayout,
 };
 use std::io::{self, Read};
 
@@ -285,14 +285,6 @@ fn operand(module: &Module, body: &Function, id: ValueId) -> Result<Json, String
         Value::Undef(_) => json!({"kind":"undefined","type":ty}),
         Value::Error(_) => return Err("MIR error value".into()),
     })
-}
-
-fn failure_code(failure: RevertKind) -> Result<Option<u8>, String> {
-    match failure {
-        RevertKind::Panic(code) => Ok(Some(code as u8)),
-        RevertKind::Reason(RevertReason::Empty) => Ok(None),
-        _ => Err("unmodeled MIR check payload".into()),
-    }
 }
 
 fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<Json, String> {
@@ -607,7 +599,11 @@ fn export_operation(
                 json!({"kind":"checked","operation":format!("{op:?}"),"signed":signed,"bits":bits,"args":operands(module, body,&[a,b])?})
             }
             Semantics::Call(Callee::Builtin(Builtin::Check { is_zero, failure }), args) => {
-                json!({"kind":"check","zero":is_zero,"panic":failure_code(*failure)?,"args":operands(module, body,args)?})
+                let (panic, message) = match *failure {
+                    RevertKind::Panic(code) => (Some(code as u8), None),
+                    RevertKind::Reason(reason) => (None, reason.message().map(str::as_bytes)),
+                };
+                json!({"kind":"check","zero":is_zero,"panic":panic,"message":message,"args":operands(module, body,args)?})
             }
             Semantics::Call(
                 Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),

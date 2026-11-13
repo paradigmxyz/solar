@@ -262,6 +262,11 @@ pub trait Host {
     fn builtin_gas(&mut self) -> Option<U256> {
         None
     }
+
+    /// Whether compiler-generated checks retain their diagnostic strings.
+    fn debug_reverts(&self) -> bool {
+        false
+    }
 }
 
 /// Explicit inputs for layout-dependent MIR operations.
