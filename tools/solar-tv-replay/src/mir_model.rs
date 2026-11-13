@@ -468,9 +468,9 @@ fn export_operation(
                 json!({"kind":"layout","query":"library","id":id.index(),"args":[]})
             }
             Semantics::ImmutableRead(id) | Semantics::ImmutableStore(id, _) => {
-                if !matches!(module.immutable_type(id),ValueLayout::UInt(size) if size.bits()==256)
-                {
-                    return Err("non-word immutable representation".into());
+                let layout = module.immutable_type(id);
+                if layout.immutable_encoding().is_none() {
+                    return Err("non-scalar immutable representation".into());
                 }
                 let (query, args) =
                     if let Some(Semantics::ImmutableStore(_, value)) = kind.semantics() {
@@ -478,7 +478,7 @@ fn export_operation(
                     } else {
                         ("immutable_read", vec![])
                     };
-                json!({"kind":"layout","query":query,"id":id.index(),"args":operands(module,body,&args)?})
+                json!({"kind":"layout","query":query,"id":id.index(),"width":layout.mir_type().integer_bits().expect("scalar immutable"),"signed":matches!(layout,ValueLayout::Int(_)),"args":operands(module,body,&args)?})
             }
             Semantics::AbiEncode(mode, base, selector, args, layout) => {
                 let mut values = Vec::new();

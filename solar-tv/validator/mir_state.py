@@ -234,7 +234,12 @@ def operation(value, definitions):
                 "immutable_store": "immutableStore",
                 "library": "library",
             }[query]
-            expression = f".context (.{tag} {number(value['id'])})"
+            tail = (
+                f" {number(value['width'], 257)} {'true' if value['signed'] else 'false'}"
+                if query == "immutable_read"
+                else ""
+            )
+            expression = f".context (.{tag} {number(value['id'])}{tail})"
         else:
             raise Unsupported("unknown MIR layout query")
     elif kind == "abi_encode":

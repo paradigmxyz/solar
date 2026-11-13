@@ -601,9 +601,16 @@ Missing entries are inconclusive, and `frame_base` cannot accompany a nonempty
 allocation or initialization is introduced. Constructor ranges reference existing
 initial memory. `datasize` reads a deferred entry's linked extent, retaining
 addends and alignment; the MIR verifier rejects this operation on literal data.
-`codesize`/`codecopy` use the supplied image and zero-pad out-of-range reads. Immutable words alias staging slots, or use `immutable_values` for read-only
-runtime relocations. Library relocations retain 160-bit addresses. Numeric keys
-are module-local IDs, and declaration tables must agree across the pair.
+`codesize`/`codecopy` use the supplied image and zero-pad out-of-range reads.
+Scalar immutables alias staging slots, or use `immutable_values` for read-only
+runtime relocations. Staging words retain the declared SSA carrier: narrow
+integers, booleans and addresses must have zero high bits. Signed runtime values
+may also be sign-extended; typed reads project them to the instruction's carrier,
+while raw `i256` reads retain the relocation word. Fixed-byte and function values
+keep all 256 bits, including dirty fixed-byte padding visible through assembly.
+Non-canonical context words are inconclusive. Library relocations retain 160-bit
+addresses. Numeric keys are module-local IDs, and declaration tables must agree
+across the pair.
 
 Missing inputs stay unsupported. A proof is conditional on these placements and
 code bytes; it does not verify backend layout, root reentry or runtime-image

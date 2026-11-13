@@ -926,8 +926,9 @@ impl<'a> Run<'_, 'a, '_> {
                 }
                 Semantics::ImmutableRead(id) => {
                     let word = self.semantic_immutable(id, None)?;
+                    let bits = instruction.result_ty.and_then(MirType::integer_bits).unwrap_or(256);
                     self.frame().values[instruction.result().expect("immutable read")] =
-                        Some(RuntimeValue::Word(word));
+                        Some(RuntimeValue::Word(word & (U256::MAX >> (256 - bits))));
                     return ControlFlow::Continue(());
                 }
                 Semantics::ImmutableStore(id, value) => {
