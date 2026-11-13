@@ -631,7 +631,12 @@ the routed contract to its dispatcher, and `to_bytecode` chains it.
 `Assembly.lean` models `-Zvalidate-assembly`'s walk and proves, without
 axioms, that the walk makes linear decoding of the bytecode the program's
 instructions at their offsets, every pushed label a `JUMPDEST`, and assembly
-to bytecode a stage for a bytecode semantics that runs its decoding.
+to bytecode a stage for a bytecode semantics that runs its decoding. An immutable is
+a value fixed at deployment, which the deployment code writes over each of its
+`PUSH<N>` placeholders; `Link.lean` proves that the walk of the bytecode as the
+compiler emits it, zeros at the placeholders, makes linear decoding of the bytecode
+linked with any values of the immutables the same instructions, each placeholder
+pushing its value, so the walk binds every bytecode a deployment runs.
 
 ## Agreement with the pass validation encoder
 

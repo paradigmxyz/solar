@@ -176,7 +176,9 @@ fn emit_lean_manifests(
         let immutables = artifact
             .immutable_references
             .iter()
-            .map(|reference| (reference.start, usize::from(reference.type_size.bytes())))
+            .map(|reference| {
+                (reference.id, reference.start, usize::from(reference.type_size.bytes()))
+            })
             .collect::<Vec<_>>();
         solar_codegen::lean_stages::write_manifest(
             gcx,
