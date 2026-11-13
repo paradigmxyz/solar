@@ -2,13 +2,16 @@
 # Certifies one contract's backend: compiles it, exports its stages, writes their kernel proofs
 # and checks them, with nothing written by hand for the contract.
 #
-#   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]
+#   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--heartbeats N]
+#       [-- SOLAR_OPTIONS...]
 #
 # NAME (default: FILE's base name, lowercase letters, digits and underscores) is the directory
 # solar-tv/milestone/NAME, the Lean library NAME and the namespace SolarTV.Milestone.<Name>.
 # SOLAR_OPTIONS default to -Ogas --evm-version osaka and are kept in NAME/options. --loops N
 # (kept in NAME/loops) claims that a run's loops make at most N iterations in all, for a contract
-# whose loops run a fixed number of times; the first stage's end proof checks it.
+# whose loops run a fixed number of times; the first stage's end proof checks it. --heartbeats N
+# (kept in NAME/heartbeats) raises each run proof's maxHeartbeats from 2000000, for a contract
+# whose stages take the procedure longer.
 #
 # 1. Copies FILE to NAME/NAME.sol (the source the manifest records), builds solar (unless
 #    CERTIFY_SKIP_BUILD=1; SOLAR picks the binary), checks that its version names the
@@ -34,17 +37,19 @@ export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}" CARGO_BUILD_JOBS="${CARGO_BUILD
 memory="${LEAN_MEMORY:-4500}"
 
 die() { echo "error: $*" >&2; exit 1; }
-[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]"
+[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--heartbeats N] [-- SOLAR_OPTIONS...]"
 file="$(realpath "$1")"
 contract=$2
 shift 2
 name="$(basename "$file" .sol | tr 'A-Z-' 'a-z_')"
 options=()
 loops=
+heartbeats=
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name) name=$2; shift 2 ;;
         --loops) loops=$2; shift 2 ;;
+        --heartbeats) heartbeats=$2; shift 2 ;;
         --) shift; options=("$@"); break ;;
         *) die "unknown argument $1" ;;
     esac
@@ -67,6 +72,11 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+if [[ -n "$heartbeats" ]]; then
+    [[ "$heartbeats" =~ ^[1-9][0-9]*$ ]] || die "--heartbeats $heartbeats is not a positive number"
+    if [[ "$heartbeats" -eq 2000000 ]]; then rm -f "$dir/heartbeats"; else echo "$heartbeats" > "$dir/heartbeats"; fi
+fi
+heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
 
 echo "== 1. compile $source:$contract (${options[*]}) and export its stages"
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -121,7 +131,7 @@ echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops")"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 

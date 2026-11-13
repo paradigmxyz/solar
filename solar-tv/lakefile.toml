@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# packed: the stages of milestone/packed/packed.sol's Packed and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "packed"
+srcDir = "milestone"
+roots = ["packed.Proofs"]
+globs = ["packed.+"]
+moreLeanArgs = ["-M", "3000"]

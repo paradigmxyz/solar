@@ -18,10 +18,11 @@
 #   of the overflow check dropped, its first log dropped, the signature topic of its first log
 #   plus one, the data offset of its first log at the next word, its first keccak256 (a mapping
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
-#   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
-#   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), each when
-#   present;
+#   mapping slot it reads plus one, a packed field of a mapping's value read and written one
+#   byte off and its mask read and written one byte narrower, its first mul as add, and its
+#   first range test of a narrow product (`push 2^k - 1; dup n; gt`) as `push 0`, its first
+#   external call as another kind of call and the check of that call's success dropped (a
+#   failed call goes on), each when present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -288,6 +289,64 @@ print(f"  mapping slot {m.group(1)} as {slot + 1}")
 s = s[:m.start(1)] + str(slot + 1) + s[m.end(1):]
 EOF
 try "$last-mapping-slot" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/mapping-slot.py"
+
+# A packed field of a mapping's value at the wrong place: in the first block that hashes a
+# mapping slot and of the kind the case names (one that stores, or one that only reads), the
+# first field placed or read at bit N > 0 (`push N; shl` written after the hash, `push N; shr` read
+# after its first sload, a shift that is no part of a mask) at bit N - 8, and the first mask of
+# the low 256 - K bits after that block's first sload (`push K; shl; push K; shr`) one byte
+# narrower.
+cat > "$tmp/field.py" <<'EOF'
+import re
+head, sep, body = s.partition("blocks := [")
+if not sep: sys.exit(3)
+parts = re.split(r"(\n    -- bb\d+\n)", body)
+num = r"(\d+|0x[0-9a-f]+)"
+pair = re.compile(r"\.op \(\.stack \(\.push %s\)\),\n\s*\.op \(\.stack \.shl\),\n"
+                  r"\s*\.op \(\.stack \(\.push \1\)\),\n\s*\.op \(\.stack \.shr\)," % num)
+shift = re.compile(r"\.op \(\.stack \(\.push %s\)\),\n\s*\.op \(\.stack \.(shl|shr)\)," % num)
+def edit(text):
+    # In the first block of the kind the case names that computes a mapping slot (a keccak256),
+    # the first match after the hash (after its first sload for a read), with its new text.
+    k = text.find(".effect .keccak256 2,")
+    if k < 0: return None
+    writes = ".effect .sstore 2," in text[k:]
+    if writes != (kind.endswith("write")): return None
+    start = k
+    if not writes or kind.startswith("mask"):
+        start = text.find(".effect .sload 1,", k)
+        if start < 0: return None
+    masks = [(m.start(), m.end()) for m in pair.finditer(text, start)]
+    if kind.startswith("mask"):
+        for m in pair.finditer(text, start):
+            width = int(m.group(1), 0)
+            if 0 < width and width + 8 < 256 and width % 8 == 0:
+                new = str(width + 8)
+                text = re.sub(r"\(\.push %s\)" % re.escape(m.group(1)), "(.push %s)" % new, m.group(0))
+                return m.start(), m.end(), text, f"mask of the low {256 - width} bits as {256 - width - 8}"
+        return None
+    want = "shr" if kind == "offset-read" else "shl"
+    for m in shift.finditer(text, start):
+        if m.group(2) != want or any(a <= m.start() < b for a, b in masks): continue
+        offset = int(m.group(1), 0)
+        if 8 <= offset < 256 and offset % 8 == 0:
+            return m.start(1), m.end(1), str(offset - 8), f"field at bit {offset} as {offset - 8}"
+    return None
+for i in range(2, len(parts), 2):
+    hit = edit(parts[i])
+    if hit is None: continue
+    a, b, new, what = hit
+    print(f"  {kind}: {what}")
+    parts[i] = parts[i][:a] + new + parts[i][b:]
+    break
+else:
+    sys.exit(3)
+s = head + sep + "".join(parts)
+EOF
+for kind in offset-read offset-write mask-read mask-write; do
+    { echo "kind = '$kind'"; cat "$tmp/field.py"; } > "$tmp/field-$kind.py"
+    try "$last-field-$kind" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/field-$kind.py"
+done
 
 # The first multiplication as an addition.
 replace_first '".op (.stack .mul)"' '".op (.stack .add)"' > "$tmp/mul-add.py"

@@ -35,15 +35,17 @@ only `propext`, `Classical.choice` and `Quot.sound`), the stages' and the compos
 `ADD`, else `LT` or `EQ`; the final EVM IR's first `add`, the key its first `sstore` pushes plus
 one, its call value check, its overflow check, its first log, the signature topic and the data
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
-`keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
-first `mul`, its first range test of a narrow product, the kind of its first external call and
-the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
-output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
-branch sent to the branch's other target, else the first calldata it reads at the next word, else
-its first constant plus one; the last MIR stage's first return of several words in reverse order
-and the first further result a call binds left unbound) and requires each generated proof to
-fail with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a rerun
-must regenerate it byte for byte (up to the compiler's build commit in the manifest).
+`keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), a
+packed field of a mapping's value read and written one byte off and its mask read and written one
+byte narrower, its first `mul`, its first range test of a narrow product, the kind of its first
+external call and the check of that call's success; the scheduled EVM IR's first `add`; in each
+lowered MIR pass's output, the first branch it wrote taken the other way, else the first jump
+it wrote in place of a branch sent to the branch's other target, else the first calldata it
+reads at the next word, else its first constant plus one; the last MIR stage's first return of
+several words in reverse order and the first further result a call binds left unbound) and
+requires each generated proof to fail with its mismatch, with unedited controls passing. Once
+`milestone/NAME` is committed, a rerun must regenerate it byte for byte (up to the compiler's
+build commit in the manifest).
 
 w1's proofs ([w1/proofs/W1Proofs](w1/proofs/W1Proofs)) are certify.py's output too, with their
 exact axiom sets pinned; [w1/check.sh](w1/check.sh) checks that they regenerate unchanged.
@@ -207,6 +209,28 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [packed](packed/packed.sol): `contract Packed { struct Entry { uint128 a; uint128 b; bool c; }
+  mapping(address => Entry) entries; ... }`, 229 bytes of runtime bytecode, with
+  `-Zcheck-analyses=false` ([packed/options](packed/options)). `set(address,uint128,uint128,bool)`
+  writes the entry's first slot as `b << 128 | a` and `c` to the next, `setB(address,uint128)` writes
+  `b` alone, keeping `a` with the mask of the slot's low 128 bits, and `get(address)` reads `b` as
+  the slot shifted down by 128, `a` as its low 128 bits and `c` as the next slot's low byte tested
+  for nonzero. Stages `stage0 → mir1 → mir2 → mir3 → sched → evm1 → … → evm7` (`place-reads`,
+  `spell-width-tests`, `evm-inst-schedule`, `stack-schedule`, `cfg-simplify-early`,
+  `compact-pushes`, `block-layout`, `terminal-dedup`, `cfg-simplify-early`, `terminal-layout`,
+  `late-word`) and `evm7 → bytecode`, all proved for every key, calldata, value, storage and
+  oracle: `SolarTV.Milestone.Packed.packed_mir_to_evmir`. `compact-pushes` spells the mask
+  `2^128 - 1` as `shr(128, not(0))`, which `foldNot` and `foldShr` compute back, and `late-word`
+  spells `and(x, 2^128 - 1)` as `shr(128, shl(128, x))`, which `shiftPairMask` rewrites back to
+  the mask (`shr_shl_low`); stack scheduling tests `c` as `lt(0, x)` where MIR has `ne(x, 0)`,
+  which `sym_select` reads as one test (`ne_zero_lt`). Its run proofs take `--heartbeats 8000000`.
+  Its negative tests read and write `b` one byte off (at bit 120) and read and write a field
+  through a mask one byte narrower (the low 120 bits), each failing with the mismatch.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/packed/packed.sol Packed --heartbeats 8000000
 ```
 
 ## Limits

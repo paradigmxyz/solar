@@ -183,6 +183,20 @@ theorem add_sub_word (a b : Word) : Evm.add b (Evm.sub a b) = a := by
 theorem add_word_zero (a : Word) : Evm.add a 0 = a := BitVec.add_zero a
 theorem add_zero_word (a : Word) : Evm.add 0 a = a := BitVec.zero_add a
 
+/-- A word tested for nonzero, as MIR's `ne x 0` reads a `bool` and stack scheduling spells it
+`lt(0, x)`. -/
+theorem ne_zero_lt (a : Word) : Evm.ne a 0 = Evm.lt 0 a := by
+  unfold Evm.ne Evm.lt
+  by_cases h : a = 0
+  · subst h; rfl
+  · have h1 : (a == 0) = false := by simpa using h
+    have h2 : (0 : Word).ult a = true := by
+      rw [BitVec.ult_iff_lt]; bv_omega
+    rw [h1, h2]; rfl
+
+theorem zero_ne_lt (a : Word) : Evm.ne 0 a = Evm.lt 0 a := by
+  rw [← ne_zero_lt]; unfold Evm.ne; rw [BEq.comm]
+
 /-! Commutative operations, which a pass may write either way round: the `word*Comm`
 simprocs below rewrite with them towards one order of their operands, the same for both
 programs. -/
@@ -348,24 +362,12 @@ theorem apply_calldataload {cd : Word → Word} (hcd : cd = calldataWord call) (
 
 end effects
 
-/-! Stack positions of `dup` and `swap` as numbers. -/
-
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+open Lean Meta Simp in
+/-- The stack position of a `dup` or `swap`, a numeral of `Fin n` for any `n`, as the number it is. -/
+dsimproc_decl finLitVal (Fin.val _) := fun e => do
+  let_expr Fin.val _ x := e | return .continue
+  let some ⟨_, v⟩ ← getFinValue? x | return .continue
+  return .done (mkNatLit v.val)
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -478,6 +480,44 @@ dsimproc_decl foldShr (Evm.shr _ _) := fun e => do
   let some v ← wordLit? v | return .continue
   return .done (← mkNumeral (mkConst ``EvmRules.Word) (if s < 256 then v >>> s else 0))
 
+/-- A low mask spelled as a shift pair: `shr k (shl k x)` keeps the low `256 - k` bits of `x`. -/
+theorem shr_shl_low (x : Word) (k : Nat) (hk : k < 256) :
+    Evm.shr (BitVec.ofNat 256 k) (Evm.shl (BitVec.ofNat 256 k) x) =
+      Evm.and x (BitVec.ofNat 256 (2 ^ (256 - k) - 1)) := by
+  have hk' : (BitVec.ofNat 256 k).toNat = k := by
+    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (Nat.lt_trans hk (by decide))
+  have hu : (BitVec.ofNat 256 k).ult 256 = true := by
+    rw [BitVec.ult, hk']; simp; omega
+  unfold Evm.shr Evm.shl Evm.and
+  rw [hu, Bool.cond_true, Bool.cond_true]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.ushiftRight_eq', BitVec.shiftLeft_eq', hk', BitVec.toNat_ushiftRight,
+    BitVec.toNat_shiftLeft, BitVec.toNat_and, BitVec.toNat_ofNat,
+    Nat.mod_eq_of_lt (a := 2 ^ (256 - k) - 1)
+      (Nat.lt_of_lt_of_le (Nat.sub_lt (Nat.two_pow_pos _) Nat.one_pos)
+        (Nat.pow_le_pow_right (by decide) (by omega))),
+    Nat.and_two_pow_sub_one_eq_mod, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow,
+    show (2 : Nat) ^ 256 = 2 ^ k * 2 ^ (256 - k) by rw [← Nat.pow_add]; congr 1; omega,
+    Nat.mul_comm (BitVec.toNat x), Nat.mul_mod_mul_left,
+    Nat.mul_div_cancel_left _ (Nat.two_pow_pos k)]
+
+open Lean Meta Simp in
+/-- `shr k (shl k x)` for a numeral `k` below 256 as `x` masked to its low `256 - k` bits, as
+`late-word` spells the mask of a packed field (`and(x, 2^128 - 1)` as `shr(128, shl(128, x))`),
+so that both programs leave the same word. -/
+simproc_decl shiftPairMask (Evm.shr _ (Evm.shl _ _)) := fun e => do
+  let_expr Evm.shr s inner := e | return .continue
+  let_expr Evm.shl s' x := inner | return .continue
+  let some k ← wordLit? s | return .continue
+  let some k' ← wordLit? s' | return .continue
+  unless k == k' && k < 256 do return .continue
+  let mask ← mkNumeral (mkConst ``EvmRules.Word) (2 ^ (256 - k) - 1)
+  let rhs ← mkAppM ``Evm.and #[x, mask]
+  let hk ← mkDecideProof (← mkLt (mkNatLit k) (mkNatLit 256))
+  -- The kernel checks the numerals against `BitVec.ofNat` by evaluation.
+  let proof ← mkExpectedTypeHint (mkApp3 (mkConst ``shr_shl_low) x (mkNatLit k) hk) (← mkEq e rhs)
+  return .done { expr := rhs, proof? := some proof }
+
 open Lean Elab Tactic Meta in
 /-- Case-split on the first `if` of the goal whose condition is closed, as `hc`, with `hcs` its
 symmetric form when it is an equation or its negation, so that either program's orientation
@@ -582,8 +622,14 @@ partial def agree (a b : Expr) : TacticM Expr := do
   if ty.isAppOfArity ``BitVec 1 then
     let m ← mkFreshExprSyntheticOpaqueMVar (← mkEq a b)
     -- Without error recovery, so that a pair it cannot prove fails rather than closes with an
-    -- error's `sorry`.
-    let rest ← Tactic.run m.mvarId! (withoutRecover (evalTactic (← `(tactic| sym_word))))
+    -- error's `sorry`. A pair whose words differ can send `sym_word`'s rewriting past the
+    -- recursion limit (a field stored at another bit, `shl 120 b` against `shl 128 b`), a
+    -- runtime exception that `first` does not catch: it fails the pair too, so that the leaf
+    -- reports its mismatch.
+    let rest ← tryCatchRuntimeEx
+      (Tactic.run m.mvarId! (withoutRecover (evalTactic (← `(tactic| sym_word)))))
+      fun _ => throwError "sym_agree: cannot prove the words equal:{indentExpr a}
+and{indentExpr b}"
     let proof ← instantiateMVars m
     unless rest.isEmpty && !proof.hasSorry do
       throwError "sym_agree: cannot prove the words equal:{indentExpr a}\nand{indentExpr b}"
@@ -610,13 +656,13 @@ elab "sym_agree" : tactic => withMainContext do
 
 /-- Two ends that differ in a select's arithmetic or in the order of a commutative operation's
 operands, as stack scheduling may compute them: the tests the cases decide as their words, the
-arithmetic on zero and one as the arm it picks, and the operands of additions, products and
-bitwise operations in one order. -/
+arithmetic on zero and one as the arm it picks, a test for nonzero as `lt(0, x)`, and the
+operands of additions, products and bitwise operations in one order. -/
 macro "sym_select" : tactic => `(tactic| (
   (try simp (disch := first | assumption | (apply Classical.not_not.mp; assumption))
     only [lt_of_case, lt_of_not_case, gt_of_case, gt_of_not_case, eq_of_case, eq_of_not_case,
       iszero_of_case, iszero_of_not_case, mul_word_one, mul_one_word, mul_word_zero,
-      mul_zero_word, add_sub_word, add_word_zero, add_zero_word])
+      mul_zero_word, add_sub_word, add_word_zero, add_zero_word, ne_zero_lt, zero_ne_lt])
   (try simp only [Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor, BitVec.add_comm, BitVec.mul_comm,
     BitVec.and_comm, BitVec.or_comm, BitVec.xor_comm])
   all_goals first
@@ -727,9 +773,7 @@ macro "sym_eval" : tactic => `(tactic|
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
     Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    finLitVal])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
@@ -738,7 +782,7 @@ macro "sym_cond" : tactic => `(tactic|
     Mem.expand_store, Mem.load_store_same,
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
-    wordAddComm, wordMulComm, wordAndComm, wordOrComm, wordXorComm, and_mask,
+    wordAddComm, wordMulComm, wordAndComm, wordOrComm, wordXorComm, shiftPairMask, and_mask,
     mask_and, caller_le_mask, shr160_eq_zero, zero_eq_shr160, and_self, and_true, true_and, and_false, false_and,
     ite_true, ite_false,
     not_false_eq_true, not_true_eq_false, Classical.not_not, ↓reduceIte, Nat.reduceGT, Nat.reduceLT,
