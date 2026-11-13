@@ -362,6 +362,18 @@ across 128 functions, each reserving at most 64 KiB.
 These are explicit inputs to a placement window. They do not certify that the
 backend selects those placements, and do not import its captured memory records.
 
+MIR `mcopy` is a logical overlap-safe copy on every supported fork. Pre-Cancun
+targets lower it to loops; scheduled EVM `MCOPY` still requires Cancun. Partial
+copy tails retain exact memory expansion as well as bytes. The example compares
+real `lower-mcopy` output and replays the old source-overread counterexample:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/mcopy/{before,after}.mir \
+  --function=f --evm-version=shanghai --world solar-tv/examples/mir/mcopy/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/mcopy/{before,broken}.mir \
+  --function=f --evm-version=shanghai --world solar-tv/examples/mir/mcopy/world.json
+```
+
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
   --function=f --world solar-tv/examples/mir/internal-calls/world.json

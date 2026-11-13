@@ -198,7 +198,9 @@ def operation(value, definitions):
             expression = f".log {name[-1]}"
         else:
             raise Unsupported(f"unmodeled direct MIR opcode `{name}`")
-        return f"some {opcode}", expression, args
+        # MIR copies survive until lower-mcopy on pre-Cancun targets. They are
+        # logical memmoves, unlike scheduled EVM MCOPY's fork-gated opcode.
+        return ("none" if name == "mcopy" else f"some {opcode}"), expression, args
     if kind in {"word", "ne", "select", "pointer_add"}:
         expression = {
             "word": ".word",

@@ -10,7 +10,7 @@
 //! The loop is expanded at every site, or built once per loop shape (direction
 //! and whole-word length) as an internal function `mcopy_words(dest, src, len)`
 //! that eligible runtime sites call. A site may call the helper of a more
-//! general shape, whose loop checks the direction at runtime or merges a partial
+//! general shape, whose loop checks the direction at runtime or copies a partial
 //! word, so copies of different shapes can share one loop. The pass prices every
 //! set of helpers and keeps the cheapest under the objective: bytes first in size
 //! mode, and in gas mode the lifetime cost of the call protocol's and the more
@@ -26,16 +26,18 @@
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Constant lengths of at most one word also copy
-//! forward because they read the source before their only store. Otherwise provenance
+//! forward because they snapshot the source before any store. Otherwise provenance
 //! picks the direction at compile time: backward when the destination starts
 //! above the source in the same base, forward when both complete ranges fit
 //! disjoint allocations.
 //! Allocation origins alone do not prove disjointness. Unknown relationships keep a
-//! runtime direction check. A masked partial-word merge ensures that the
-//! lowering changes exactly `len` bytes; a length that is provably a multiple
-//! of 32, such as a word array's `len << 5`, copies whole words and needs no
-//! merge. A constant one-byte tail uses `MSTORE8` instead of reading and masking
-//! the destination word.
+//! runtime direction check. A partial tail snapshots its bytes before any tail
+//! write, then stores them with `MSTORE8`. The snapshot ends at the source range,
+//! clamped at memory's first word, so neither reads nor writes expand memory past
+//! the copy's rounded endpoints. An unaligned word read or masked destination
+//! store can otherwise change `MSIZE`. A length provably divisible by 32, such
+//! as a word array's `len << 5`, needs no tail. Constant one-byte tails use one
+//! aligned source load and one `MSTORE8`.
 //!
 //! At `-O none` the pass skips the memory-summary and alias analyses and takes the
 //! conservative answers: a runtime direction check for every copy that is not
@@ -55,6 +57,7 @@ use crate::{
     },
     target::{Cost, Target},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
@@ -216,7 +219,7 @@ fn copy_helper(shape: CopyShape) -> Function {
 /// expand at every site.
 ///
 /// A site may call the helper of a more general shape: the runtime direction check covers both
-/// directions, and the partial-word merge covers whole-word lengths. Every set of helpers is
+/// directions, and the partial-tail loop covers whole-word lengths. Every set of helpers is
 /// priced with each site calling the covering helper that adds the least estimated gas over its
 /// own loop, and the cheapest set under the objective wins. The loops run in every alternative,
 /// so a helper costs its call protocol and its bytes once, and a more general loop costs the
@@ -592,8 +595,8 @@ fn emit_reverse_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continua
         builder.jump(reverse_head);
 
         builder.switch_to_block(partial_block);
-        emit_partial_copy(builder, dest, src, len, full, reverse_head);
-        vec![(partial_check, full), (partial_block, full)]
+        let partial_end = emit_partial_copy(builder, dest, src, len, full, reverse_head);
+        vec![(partial_check, full), (partial_end, full)]
     } else {
         // jump reverse_head
         let entry = builder.current_block();
@@ -640,7 +643,9 @@ fn emit_dynamic_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continua
     emit_reverse_copy(builder, copy, continuation);
 }
 
-/// Emits an exact copy of the final partial word.
+/// Snapshots the final partial word, then writes only its live bytes. Source
+/// reads end at the copied range (or the first memory word), so neither source
+/// nor destination grows memory beyond the copy's rounded endpoints.
 fn emit_partial_copy(
     builder: &mut FunctionBuilder<'_>,
     dest: ValueId,
@@ -648,46 +653,67 @@ fn emit_partial_copy(
     len: ValueId,
     partial_offset: ValueId,
     continuation: BlockId,
-) {
+) -> BlockId {
     if builder
         .func()
         .value_u256(len)
         .is_some_and(|len| len.wrapping_to::<u64>() % EvmMemoryLayout::WORD_SIZE == 1)
     {
-        // word = mload(src + partial_offset)
-        // mstore8(dest + partial_offset, byte(0, word))
+        // source = src + partial_offset
+        // word = mload(source & ~31)
+        // value = byte(source & 31, word)
+        // mstore8(dest + partial_offset, value)
         // jump continuation
         let src_tail_ptr = builder.add(src, partial_offset);
-        let word = builder.load(src_tail_ptr, PtrLocation::Memory);
-        let zero = builder.imm(0);
-        let byte = builder.byte(zero, word);
+        let aligned_mask = builder.imm(!U256::from(31));
+        let source = builder.and(src_tail_ptr, aligned_mask);
+        let word = builder.load(source, PtrLocation::Memory);
+        let thirty_one = builder.imm(31);
+        let offset = builder.and(src_tail_ptr, thirty_one);
+        let byte = builder.byte(offset, word);
         let dest_tail_ptr = builder.add(dest, partial_offset);
         builder.store8(dest_tail_ptr, byte);
+        let end = builder.current_block();
         builder.jump(continuation);
-        return;
+        return end;
     }
 
     // partial = len & 31
-    // shift = (32 - (len & 31)) << 3
-    // source = mload(src + partial_offset)
-    // destination = mload(dest + partial_offset)
-    // changed_top = ((source ^ destination) >> shift) << shift
-    // mstore(dest + partial_offset, destination ^ changed_top)
-    // jump continuation
-    let word_size = builder.imm(32);
+    // gap = 32 - partial
+    // source = src + partial_offset
+    // base = source < gap ? 0 : source - gap
+    // shift = (gap - (source - base)) << 3
+    // snapshot = mload(base) >> shift
     let thirty_one = builder.imm(31);
     let partial = builder.and(len, thirty_one);
+    let word_size = builder.imm(32);
     let gap = builder.sub(word_size, partial);
+    let source = builder.add(src, partial_offset);
+    let small = builder.lt(source, gap);
+    let zero = builder.imm(0);
+    let before = builder.sub(source, gap);
+    let base = builder.select(small, zero, before);
+    let offset = builder.sub(source, base);
+    let missing = builder.sub(gap, offset);
     let three = builder.imm(3);
-    let shift = builder.shl(gap, three);
-    let src_tail_ptr = builder.add(src, partial_offset);
-    let src_word = builder.load(src_tail_ptr, PtrLocation::Memory);
-    let dest_tail_ptr = builder.add(dest, partial_offset);
-    let dest_word = builder.load(dest_tail_ptr, PtrLocation::Memory);
-    let changed = builder.xor(src_word, dest_word);
-    let changed_shifted = builder.shr(changed, shift);
-    let changed_top = builder.shl(changed_shifted, shift);
-    let merged = builder.xor(dest_word, changed_top);
-    builder.store(dest_tail_ptr, merged);
+    let shift = builder.shl(missing, three);
+    let word = builder.load(base, PtrLocation::Memory);
+    let snapshot = builder.shr(word, shift);
+    let destination = builder.add(dest, partial_offset);
+
+    // for index in 0..partial {
+    //     value = byte(gap + index, snapshot)
+    //     mstore8(destination + index, value)
+    // }
+    // jump continuation
+    let loop_ = builder.begin_counted_loop(partial);
+    let index = loop_.index();
+    let byte_index = builder.add(gap, index);
+    let byte = builder.byte(byte_index, snapshot);
+    let address = builder.add(destination, index);
+    builder.store8(address, byte);
+    builder.finish_counted_loop(loop_);
+    let end = builder.current_block();
     builder.jump(continuation);
+    end
 }

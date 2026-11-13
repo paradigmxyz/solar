@@ -1377,7 +1377,9 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(opcode) = op::from_mnemonic(name) else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
-        if self.lacks(opcode) {
+        // MIR memory copies are logical memmoves. `lower-mcopy` expands them on
+        // pre-Cancun targets; only scheduled EVM MCOPY has opcode availability.
+        if opcode != op::MCOPY && self.lacks(opcode) {
             return ControlFlow::Break(Outcome::Invalid);
         }
         if MEMORY_OPCODES.contains(&opcode) {

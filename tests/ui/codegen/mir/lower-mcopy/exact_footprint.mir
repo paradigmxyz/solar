@@ -1,0 +1,31 @@
+//@ revisions: none gas size
+//@ compile-flags: --evm-version shanghai -Zmir-pipeline=lower-mcopy,lower-evm-shaped
+//@[none] compile-flags: -Onone
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ normalize-stdout-test: "(?s)^.*$" -> ""
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 191, 0, 1 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 190, 0, 2 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 175, 0, 17 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 161, 0, 31 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 0, 190, 2 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 0, 175, 17 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 0, 161, 31 => 192
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 191, 0, 2 => 224
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 0, 191, 2 => 224
+//@ run-call: footprint(uint256,uint256,uint256)(uint256) 0, 0, 0 => 192
+// Copying the last bytes of an active word must not expand the next one.
+// Both source and destination expansion count; empty copies touch neither.
+@module ExactCopyFootprint
+
+fn @entry() [entry] {
+  bb0:
+    mstore 160, 17
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = calldataload 68
+    mcopy v1, v0, v2
+    v3 = msize
+    mstore 0, v3
+    returndata 0, 32
+}
