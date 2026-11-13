@@ -3,6 +3,7 @@ mod broadcast;
 mod bvlower;
 mod ghost;
 mod interval;
+mod lean;
 mod mutate;
 mod operator;
 mod prog;
@@ -33,6 +34,8 @@ struct Cli {
     strict: bool,
     timeout: u64,
     dump_smt: Option<PathBuf>,
+    dump_lean: Option<PathBuf>,
+    lean_namespace: Option<String>,
     only: Option<String>,
     json: bool,
     jobs: usize,
@@ -71,6 +74,8 @@ fn parse_cli() -> Cli {
         strict: false,
         timeout: 10_000,
         dump_smt: None,
+        dump_lean: None,
+        lean_namespace: None,
         only: None,
         json: false,
         instrument: None,
@@ -91,6 +96,8 @@ fn parse_cli() -> Cli {
             "--strict" => c.strict = true,
             "--timeout" => c.timeout = it.next().and_then(|x| x.parse().ok()).unwrap_or(10_000),
             "--dump-smt" => c.dump_smt = it.next().map(PathBuf::from),
+            "--dump-lean" => c.dump_lean = it.next().map(PathBuf::from),
+            "--lean-namespace" => c.lean_namespace = it.next(),
             "--only" => c.only = it.next(),
             "--json" => c.json = true,
             "--dry-run" => c.dry_run = true,
@@ -106,6 +113,8 @@ fn parse_cli() -> Cli {
                 println!(
                     "usage: solar-verify [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] [IMPORT OPTIONS] FILE.sol...\n\n\
                      --dry-run  generate every obligation without running a solver (see --dump-smt)\n\
+                     --dump-lean FILE  write the SMT-LIB sent to the solver as a Lean module for\n\
+                     \x20          solidity-lean's SolidCore.Verify.VC checks (--lean-namespace NS)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
                      --spec-check  test the trusted contracts (@custom:trusted bodies, interface\n\
@@ -296,7 +305,12 @@ fn main() {
     if cli.spec_check {
         spec_check(&cli);
     }
-    if cli.jobs > 1 && cli.only.is_none() && cli.dump_smt.is_none() && cli.instrument.is_none() {
+    if cli.jobs > 1
+        && cli.only.is_none()
+        && cli.dump_smt.is_none()
+        && cli.dump_lean.is_none()
+        && cli.instrument.is_none()
+    {
         run_parallel(&cli);
     }
     let child = std::env::var_os("SOLAR_VERIFY_CHILD").is_some();
@@ -350,9 +364,9 @@ fn main() {
                     }
                     let t0 = std::time::Instant::now();
                     let smt = if cli.dry_run {
-                        smt::Smt::dry(cli.dump_smt.is_some())
+                        smt::Smt::dry(cli.dump_smt.is_some() || cli.dump_lean.is_some())
                     } else {
-                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLAR_VERIFY_Z3)")
+                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some() || cli.dump_lean.is_some()).expect("could not start z3 (set SOLAR_VERIFY_Z3)")
                     };
                     let mut v = vc::Vc::new(&program, c, smt, &opts);
                     v.proved = proved.clone();
@@ -448,7 +462,22 @@ fn main() {
         Ok(())
     });
     if let Some(p) = &cli.dump_smt {
-        let _ = std::fs::write(p, smt_log);
+        let _ = std::fs::write(p, &smt_log);
+    }
+    if let Some(p) = &cli.dump_lean {
+        let ns = cli.lean_namespace.as_deref().unwrap_or("SolidCore.Verify.VC.Export");
+        match lean::module(&smt_log, ns) {
+            Ok(m) => {
+                if let Err(e) = std::fs::write(p, m) {
+                    eprintln!("error: could not write {}: {e}", p.display());
+                    std::process::exit(2);
+                }
+            }
+            Err(e) => {
+                eprintln!("error: --dump-lean: {e}");
+                std::process::exit(2);
+            }
+        }
     }
     if cli.json {
         println!(
