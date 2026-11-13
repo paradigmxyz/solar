@@ -199,11 +199,24 @@ impl Smt {
             self.raw("(pop 1)\n");
             return Res::Unknown("unknown (--dry-run)".into());
         }
+        // Under quantified assumptions, z3's SAT-based core first, briefly: it settles most such
+        // queries at once, where the default core may spend the whole timeout instantiating.
+        let quick = self.timeout_ms.min(QUICK_MS);
+        if self.quantified(guard, goal)
+            && let Some(r) = self.quantified_answer(guard, goal, cex, quick, true)
+        {
+            return r;
+        }
         let r = self.check_z3(guard, goal, cex);
         if let Some(e) = &self.error {
             return Res::Unknown(format!("internal solver error: {e}"));
         }
         let Res::Unknown(why) = r else { return r };
+        if self.quantified(guard, goal)
+            && let Some(r) = self.quantified_answer(guard, goal, cex, self.timeout_ms, false)
+        {
+            return r;
+        }
         match self.race(guard, goal) {
             Some((true, who)) => {
                 *self.stats.wins.entry(who).or_default() += 1;
@@ -310,6 +323,115 @@ impl Smt {
         answer
     }
 
+    /// An answer for a query z3's default core left unknown under quantified assumptions, such as
+    /// a contract invariant over every address. Two attempts, each in a fresh z3 with its newer
+    /// SAT-based core (`sat.euf`), whose model-based quantifier instantiation completes array
+    /// models the default core keeps refining forever:
+    ///
+    /// 1. The query as it is; its answer, sat or unsat, stands.
+    /// 2. A candidate model of the query with each quantifier cut down to its ground instances (see
+    ///    [`crate::inst`]), kept only if the original query is satisfiable with every constant
+    ///    pinned to the candidate's value.
+    ///
+    /// A z3 sat answer is a model that z3 checked against every quantifier, so a reported
+    /// counterexample is never an artefact of the instantiation. `check` runs both attempts
+    /// briefly before the default core, and the first in full after it.
+    fn quantified_answer(
+        &mut self,
+        guard: &str,
+        goal: &str,
+        cex: &[(String, String)],
+        ms: u64,
+        candidate: bool,
+    ) -> Option<Res> {
+        let q = format!("(assert {guard})\n(assert (not {goal}))\n");
+        let t0 = Instant::now();
+        let r = match self.euf(&q, "", cex, ms) {
+            Some(r) => Some(r),
+            None if candidate => self.pinned_candidate(guard, goal, &q, cex, ms),
+            None => None,
+        };
+        self.stats.solver_ms += t0.elapsed().as_millis();
+        if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
+            let what = match &r {
+                Some(Res::Sat(_)) => "sat",
+                Some(Res::Unsat) => "unsat",
+                _ => "unknown",
+            };
+            eprintln!("quantified: {what} after {} ms", t0.elapsed().as_millis());
+        }
+        if r.is_some() {
+            *self.stats.wins.entry("z3(euf)".into()).or_default() += 1;
+        }
+        r
+    }
+
+    /// Whether the query or the assertions before it quantify (and the attempts are on).
+    fn quantified(&self, guard: &str, goal: &str) -> bool {
+        let q = |s: &str| s.contains("(forall") || s.contains("(exists");
+        std::env::var("SOLAR_VERIFY_QUANT").as_deref() != Ok("off")
+            && (q(&self.transcript) || q(guard) || q(goal))
+    }
+
+    /// The second attempt of [`Self::quantified_answer`]: a ground candidate, confirmed.
+    fn pinned_candidate(
+        &mut self,
+        guard: &str,
+        goal: &str,
+        q: &str,
+        cex: &[(String, String)],
+        ms: u64,
+    ) -> Option<Res> {
+        let (relaxed, live) = crate::inst::relax(
+            &format!("{}{q}(check-sat)\n", self.transcript),
+            &format!("{guard} {goal}"),
+        )?;
+        let model = self.solve(&format!("{EUF}{relaxed}"), ms)?;
+        let pins = crate::inst::pins(&model, &live)?;
+        match self.euf(q, &pins, cex, ms)? {
+            sat @ Res::Sat(_) => Some(sat),
+            _ => None,
+        }
+    }
+
+    /// The query `q` (its assertions) with `extra` assertions on top, in a fresh z3 with the
+    /// SAT-based core; `None` unless it answers sat (with `cex`'s values) or unsat.
+    fn euf(&mut self, q: &str, extra: &str, cex: &[(String, String)], ms: u64) -> Option<Res> {
+        let mut script = format!("{EUF}{}{q}{extra}(check-sat)\n", self.transcript);
+        for (_, term) in cex {
+            script.push_str(&format!("(get-value ({term}))\n"));
+        }
+        let out = self.solve(&script, ms)?;
+        let mut responses = sexp::parse(&out).filter_map(Result::ok);
+        match responses.next()?.as_atom()? {
+            "unsat" => Some(Res::Unsat),
+            "sat" => {
+                let mut vals = vec![];
+                for ((name, _), response) in cex.iter().zip(responses) {
+                    let Some([pair]) = response.as_list() else { return None };
+                    let Some([_, value]) = pair.as_list() else { return None };
+                    vals.push((name.clone(), pretty(&value.to_string())));
+                }
+                Some(Res::Sat(vals))
+            }
+            _ => None,
+        }
+    }
+
+    /// What a fresh z3 prints for `script`, or `None` when it reports an error.
+    fn solve(&mut self, script: &str, ms: u64) -> Option<String> {
+        self.stats.queries += 1;
+        let z3 = std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into());
+        let t = ms;
+        let args = ["-in".into(), "-smt2".into(), format!("-t:{t}")];
+        let never = std::sync::atomic::AtomicBool::new(false);
+        let out = run_solver_text(&z3, &args, script, t + 2000, &never)?;
+        if out.contains("(error") {
+            return None;
+        }
+        Some(out)
+    }
+
     fn check_z3(&mut self, guard: &str, goal: &str, cex: &[(String, String)]) -> Res {
         self.stats.queries += 1;
         let t0 = Instant::now();
@@ -360,6 +482,12 @@ impl Smt {
     }
 }
 
+/// How long z3's SAT-based core gets on a quantified query before the default core does.
+const QUICK_MS: u64 = 1000;
+
+/// The option that switches z3 to its SAT-based core.
+const EUF: &str = "(set-option :sat.euf true)\n";
+
 fn pretty(v: &str) -> String {
     let v = v.trim();
     if let Some(n) = v.strip_prefix("(- ").and_then(|x| x.strip_suffix(')')) {
@@ -376,6 +504,28 @@ fn run_solver(
     timeout_ms: u64,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Option<bool> {
+    let text = run_solver_text(bin, args, script, timeout_ms, cancel)?;
+    let last = text
+        .lines()
+        .rev()
+        .find(|l| matches!(l.trim(), "sat" | "unsat" | "unknown"))?
+        .trim()
+        .to_string();
+    match last.as_str() {
+        "unsat" => Some(true),
+        "sat" => Some(false),
+        _ => None,
+    }
+}
+
+/// Run one solver on a script and return everything it printed.
+fn run_solver_text(
+    bin: &str,
+    args: &[String],
+    script: &str,
+    timeout_ms: u64,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Option<String> {
     let mut child = Command::new(bin)
         .args(args)
         .stdin(Stdio::piped())
@@ -416,15 +566,5 @@ fn run_solver(
     {
         eprintln!("{bin}: {e}");
     }
-    let last = text
-        .lines()
-        .rev()
-        .find(|l| matches!(l.trim(), "sat" | "unsat" | "unknown"))?
-        .trim()
-        .to_string();
-    match last.as_str() {
-        "unsat" => Some(true),
-        "sat" => Some(false),
-        _ => None,
-    }
+    Some(text)
 }

@@ -3292,6 +3292,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let o = if op == And { "and" } else { "or" };
                 Ok(Self::val(Ty::Bool, format!("({o} {} {})", lv.t, rv.t)))
             }
+            Eq | Ne if let Some(v) = self.mul_fits(op, l, r, e.span)? => Ok(v),
             Eq | Ne | Lt | Le | Gt | Ge => {
                 let a = self.eval(l)?;
                 let b = self.eval(r)?;
@@ -3311,6 +3312,63 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.arith(op, a, b, e.span)
             }
         }
+    }
+
+    /// ds-math's overflow test for an unchecked product, `(z = x * y) / y == x` (or `!=`),
+    /// as the comparison it decides: `x * y` fits the type. For `y != 0` the two agree: a
+    /// product that fits survives the wrap, and one that wraps is smaller than `x * y`, so its
+    /// quotient by `y` is smaller than `x`. The division by zero is still checked, and the
+    /// assignment still happens. This keeps a division by a variable out of the query, which
+    /// integer solvers decide slowly. `x` and `y` must be variables other than `z`, so
+    /// reading them again gives the operands of the product.
+    fn mul_fits(
+        &mut self,
+        op: BinOpKind,
+        l: &'a Expr<'a>,
+        r: &'a Expr<'a>,
+        span: Span,
+    ) -> R<Option<Val>> {
+        if self.spec || !self.unchecked {
+            return Ok(None);
+        }
+        let ExprKind::Binary(q, div, d) = &l.peel_parens().kind else { return Ok(None) };
+        if div.kind != BinOpKind::Div {
+            return Ok(None);
+        }
+        let (z, prod) = match &q.peel_parens().kind {
+            ExprKind::Assign(z, None, prod) => (Some(z.peel_parens()), prod.peel_parens()),
+            _ => (None, q.peel_parens()),
+        };
+        let ExprKind::Binary(x, mul, y) = &prod.kind else { return Ok(None) };
+        let name = |e: &Expr<'_>| match &e.peel_parens().kind {
+            ExprKind::Ident(i) => Some(i.as_str().to_string()),
+            _ => None,
+        };
+        let (Some(xn), Some(yn), Some(dn), Some(rn)) = (name(x), name(y), name(d), name(r)) else {
+            return Ok(None);
+        };
+        let zn = z.map(name);
+        if mul.kind != BinOpKind::Mul
+            || dn != yn
+            || rn != xn
+            || zn
+                .as_ref()
+                .is_some_and(|z| z.is_none() || *z == Some(xn.clone()) || *z == Some(yn.clone()))
+        {
+            return Ok(None);
+        }
+        let xv = self.eval(x)?;
+        let yv = self.eval(y)?;
+        let Some((lo, hi)) = xv.ty.bounds() else { return Ok(None) };
+        if lo != BigInt::from(0) || xv.ty != yv.ty {
+            return Ok(None);
+        }
+        self.eval(q)?;
+        self.panic_unless(&format!("(not (= {} 0))", yv.t), "possible division by zero", span);
+        // x * y <= max
+        let fits = format!("(<= (* {} {}) {})", xv.t, yv.t, num(&hi));
+        let t = if op == BinOpKind::Eq { fits } else { format!("(not {fits})") };
+        Ok(Some(Self::val(Ty::Bool, t)))
     }
 
     /// Range handling for an arithmetic result: math in specs, wrap in `unchecked`, panic

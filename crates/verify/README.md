@@ -27,7 +27,11 @@ error: contract invariant must hold before an external call (reentrancy)
 
 Install Z3 (any version from 4.8) on `PATH`, or point `SOLAR_VERIFY_Z3` at it. When cvc5 and Bitwuzla
 are on `PATH` (or named by `SOLAR_VERIFY_CVC5` and `SOLAR_VERIFY_BITWUZLA`; `off` disables either), they
-race Z3 on the queries it gives up on.
+race Z3 on the queries it gives up on. A query under quantified assumptions, such as an invariant
+over every address, first goes briefly to Z3's SAT-based core (`sat.euf`), which completes the array
+models Z3's default core keeps refining, and to a search that holds each quantifier only at the
+query's ground terms; a model that search finds counts only once Z3 confirms the original query with
+every constant pinned to it. `SOLAR_VERIFY_QUANT=off` disables both.
 
 ```sh
 cargo build -p solar-verify --release

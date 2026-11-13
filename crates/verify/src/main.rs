@@ -2,6 +2,7 @@
 mod broadcast;
 mod bvlower;
 mod ghost;
+mod inst;
 mod interval;
 mod mutate;
 mod operator;

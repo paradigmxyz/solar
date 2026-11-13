@@ -377,6 +377,11 @@ fn created() {
 }
 
 #[test]
+fn dsmath() {
+    check("tests/cases/dsmath.sol")
+}
+
+#[test]
 fn eth() {
     check("tests/cases/eth.sol")
 }
@@ -414,6 +419,11 @@ fn liveness() {
 #[test]
 fn lockinternal() {
     check("tests/cases/lockinternal.sol")
+}
+
+#[test]
+fn quantified() {
+    check("tests/cases/quantified.sol")
 }
 
 #[test]
