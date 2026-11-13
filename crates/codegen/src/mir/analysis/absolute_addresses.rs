@@ -3,17 +3,17 @@
 //! Each word gets the set of origins it may have: computed from constants alone, from constants
 //! and calldata, or from anything else, such as the heap or a loaded word. The sets follow the
 //! values through the whole module, so a function's parameters hold what its callers pass and a
-//! call's result holds what the callee returns. A set keeps every origin some execution can give
-//! the word, so a parameter that one caller feeds calldata and another feeds a heap pointer
-//! still reports calldata.
+//! call's result holds what the callee returns. The integer parameters of an external entry hold
+//! calldata words. A set keeps every origin some execution can give the word, so a parameter that
+//! one caller feeds calldata and another feeds a heap pointer still reports calldata.
 //!
 //! The analysis only sees values that move through registers. A word the module stores to memory
 //! and loads again is `Other`, and so is a function's second and later results once lowering moves
 //! them into a buffer. Before that, a struct holds the union of its fields.
 
 use crate::mir::{
-    ArgIdx, Callee, Function, FunctionId, InstKind, Module, PtrLocation, Terminator, Value,
-    ValueId,
+    ArgIdx, Callee, Function, FunctionId, InstKind, MirType, Module, PtrLocation, Terminator,
+    Value, ValueId,
     analysis::{direct_callees, is_floor_clamp},
 };
 use solar_data_structures::{
@@ -99,21 +99,30 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
             }
         }
     }
-    // Nothing in the module passes the parameters of a function it does not call, or of one that
-    // the outside calls too.
+    // The parameters of a function nothing in the module calls, or that the outside calls too, hold
+    // what the outside passes. For an external entry that is the decoded calldata, so its integer
+    // parameters are calldata words and anything else is unknown.
     let outside = module.root_functions();
+    let entries = module.external_entries();
     let mut state = State {
         inputs: module.functions.iter().map(initial_inputs).collect(),
         args: module
             .functions
             .iter_enumerated()
             .map(|(func_id, func)| {
-                let input = if outside.contains(func_id) || !called[func_id] {
-                    AddressInputs::OTHER
-                } else {
-                    AddressInputs::NONE
-                };
-                index_vec![input; func.arg_indices().count()]
+                func.arg_indices()
+                    .map(|index| {
+                        if !outside.contains(func_id) && called[func_id] {
+                            AddressInputs::NONE
+                        } else if entries.contains(func_id)
+                            && matches!(func.arg_ty(index), MirType::Int(_))
+                        {
+                            AddressInputs::CALLDATA
+                        } else {
+                            AddressInputs::OTHER
+                        }
+                    })
+                    .collect()
             })
             .collect(),
         returns: index_vec![AddressInputs::NONE; module.functions.len()],

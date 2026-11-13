@@ -1,0 +1,32 @@
+; === ROOT/tests/ui/codegen/mir/heap-floor/heap_floor_memory_safe_params.sol:HeapFloorMemorySafeParams ===
+@module HeapFloorMemorySafeParams
+; function direct(uint256 p) external pure returns (bool above) [selector 0x9bbc59f9]
+fn @direct(arg0: i256) -> i256 [selector=0x9bbc59f9, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    mstore 64, arg0 !metadata(memory=scratch)
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = gt v1, 127
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+; function viaHelper(uint256 p) external pure returns (bool above) [selector 0x2a5e7950]
+fn @viaHelper(arg0: i256) -> i256 [selector=0x2a5e7950, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    icall @setPointer, arg0
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = gt v1, 127
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+; function setPointer(uint256 p) internal pure
+fn @setPointer(arg0: i256) [pure] {
+  bb0:
+    mstore 64, arg0 !metadata(memory=scratch)
+    ret
+}
