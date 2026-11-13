@@ -25,6 +25,23 @@ nothing is asked and every answer is `not-run`. `--emit-lean` turns off `--jobs`
 whose recording cannot be translated is an error (the run exits 1) and its manifest entry says
 why: the export fails closed and never drops an assertion it cannot write.
 
+## Coverage
+
+Every example under `crates/verify/examples` exports without errors, and the tests pin what
+each exercises:
+
+| Example | Units | Obligations | What it exercises |
+| --- | --- | --- | --- |
+| Counter | 4 | 18 | state variables, `old`, a contract invariant |
+| Token | 4 | 17 | mappings (arrays of the embedding), a ghost sum, constructor invariants |
+| Vault | 3 | 20 | a reentrancy lock, `assert`, external calls |
+| ArrayMax | 2 | 12 | a loop: invariant on entry and preserved, `decreases`, array reads |
+
+Counts are queries with Z3 4.13 and include split cases, side queries and advisory checks; the
+manifest's `role` tells them apart. Export one source file per run: a run over several files
+can report spurious ghost-erasure errors in the later ones, which affects verification as a
+whole, not only the export.
+
 ## Layout
 
 ```text
@@ -150,8 +167,10 @@ conditions can be checked against Loom's. The intended bridge is, per function, 
 the required obligations' `Valid` imply Loom's `wp` of the function's model under its spec;
 the manifest's declared symbol names (such as `|count@17|` for a state variable's value at
 entry) and spec clauses are what map the SMT constants onto the model's storage and arguments.
-Until that bridge exists a certified theorem about deployed bytecode rests on the Loom side
-alone and trusts nothing exported here.
+That check lives in paradigmxyz/solidity-lean (paradigmxyz/solidity-lean#158), on top of the
+Loom port to Lean 4.35 there and SolidCore's spec semantics (paradigmxyz/solidity-lean#157).
+Until it exists a certified theorem about deployed bytecode rests on the Loom side alone and
+trusts nothing exported here.
 
 Proofs of exported obligations meant for certified theorems keep to the same rules as the
 refinement proofs: no `sorry`, `native_decide`, `bv_decide` or `ofReduceBool`, and no SMT
@@ -166,5 +185,11 @@ symbols, has Z3 simplify each sampled term of the query under it, and checks in 
 (`decide +kernel` on `Term.evalBool` with an interpretation from
 [`SolarVerify/Model.lean`](../crates/verify/lean/SolarVerify/Model.lean)) that the exported term
 has the same value. Terms Z3 does not reduce to a literal are skipped. A flipped expectation
-must fail by a mismatch the kernel computes. The `emit_lean_round_trip` test runs it on the
-examples when z3 and Lean are installed.
+must fail by a mismatch the kernel computes. The `emit_lean_round_trip` test runs it on
+Counter, Token, Vault and ArrayMax when z3 and Lean are installed, and elaborates every module
+it exported with `lake env lean`. Terms under a quantifier or comparing arrays are counted as
+`classical` and skipped, since their value is not computable (15 of about 630 terms on these
+examples). `emit_lean` and `emit_lean_examples` need neither: they snapshot
+`Counter/increment`, `Token/transfer`, `Vault/withdraw` and `ArrayMax/max` from a
+`--dry-run` export, and check that the manifest names every function and the spec clause or
+loop obligation each query discharges.
