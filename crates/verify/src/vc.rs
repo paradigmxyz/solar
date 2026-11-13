@@ -470,6 +470,65 @@ impl<'p, 'a> Vc<'p, 'a> {
         if self.deploys_quietly(cn) {
             self.known_code.push((addr.to_string(), cn.to_string()));
         }
+        // A creation succeeds only at an address without code, and every address in
+        // `__created` holds code for good: a new contract lands outside it, and joins it when C's
+        // code can never remove itself. `addr` is 0 where the creation failed.
+        let key = if self.env.contains_key("__created") { "__created" } else { "@host.__created" };
+        let Some(set) = self.env.get(key).cloned() else { return };
+        self.assume(&format!("(or (= {addr} 0) (not (select {} {addr})))", set.t));
+        if self.keeps_code(cn) {
+            let t = format!("(ite (= {addr} 0) {s} (store {s} {addr} true))", s = set.t);
+            self.bind(key, set.ty.clone(), Var { ty: set.ty, t, len: None });
+        }
+    }
+
+    /// Whether contract `cn`'s code can never remove itself or run other code in its place: no
+    /// `selfdestruct`, `delegatecall` or `callcode` in it, its bases, or any library or free
+    /// function (which it may run by delegatecall).
+    fn keeps_code(&self, cn: &str) -> bool {
+        let Some(c) = self.prog.contract(cn) else { return false };
+        let libs = self
+            .prog
+            .contracts
+            .iter()
+            .filter(|k| k.kind == ast::ContractKind::Library)
+            .flat_map(|k| k.funcs.iter().chain(&k.overridden).map(|f| f.item));
+        let items: Vec<&'a ast::ItemFunction<'a>> = c
+            .funcs
+            .iter()
+            .chain(&c.overridden)
+            .map(|f| f.item)
+            .chain(c.modifiers.values().copied())
+            .chain(c.base_ctors.iter().map(|(_, f)| *f))
+            .chain(libs)
+            .collect();
+        let mut bad = false;
+        for item in items {
+            for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
+                walk::all_stmts(s, &mut |s| {
+                    if let StmtKind::Assembly(a) = &s.kind {
+                        bad |= yul::asm_destroys(&a.block);
+                    }
+                    walk::stmt_exprs(s, &mut |e| {
+                        walk::sub_exprs(e, &mut |x| {
+                            if let ExprKind::Call(callee, _) = &x.kind {
+                                bad |= match &callee.peel_parens().kind {
+                                    ExprKind::Ident(i) => i.as_str() == "selfdestruct",
+                                    ExprKind::Member(_, m) => {
+                                        matches!(m.as_str(), "delegatecall" | "callcode")
+                                    }
+                                    ExprKind::CallOptions(c, _) => {
+                                        matches!(&c.kind, ExprKind::Member(_, m) if matches!(m.as_str(), "delegatecall" | "callcode"))
+                                    }
+                                    _ => false,
+                                };
+                            }
+                        })
+                    });
+                });
+            }
+        }
+        !bad
     }
 
     /// The function a high-level call of `m` with `argc` arguments on `target` runs, when
@@ -1329,6 +1388,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.ret_alias = None;
         self.cur.clear();
         let this = self.decl("this", &Ty::Addr);
+        // no contract runs at the zero address: nothing can be deployed there
+        self.smt.send(&format!(
+            "(assert (not (= {this} 0)))
+"
+        ));
         self.env.insert(
             "this".into(),
             Var { ty: Ty::Contract(self.c.name.clone()), t: this, len: None },
@@ -2162,6 +2226,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
                 match &callee.kind {
                     ExprKind::New(t) => {
+                        out.insert("__created".into());
                         // contract creation runs outside code
                         if matches!(t.kind, ast::TypeKind::Custom(_)) && !self.lock_modset.get() {
                             *all = true;
@@ -3811,10 +3876,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                             // now holds new code
                             self.bump_code_epoch();
                             let r = self.fresh_var("created", &ty);
+                            // `new` reverts where the creation fails
+                            self.assume(&format!("(not (= {} 0))", r.t));
                             self.created(&r.t, &cn);
                             return Ok(vec![r]);
                         }
-                        self.external_call(vec![ty], false, e.span)
+                        let r = self.external_call(vec![ty], false, e.span)?;
+                        self.assume(&format!("(not (= {} 0))", r[0].t));
+                        if self.contract_named(&cn).is_some() {
+                            self.created(&r[0].t, &cn);
+                        }
+                        Ok(r)
                     }
                     _ => Err((e.span, "unsupported `new`".into())),
                 }
@@ -4111,6 +4183,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                         // a contract this VC created whose code here runs nothing outside
                         let quiet = !st && self.quiet_target(&bv.t, m, target);
                         let mut out = self.external_call(rets, st || quiet, e.span)?;
+                        // A high-level call to an address without code reverts (the callee is
+                        // checked for code, or its return data comes back short), and the zero
+                        // address holds none: on return the target is not 0.
+                        self.assume(&format!("(not (= {} 0))", bv.t));
                         if st && target.is_some() {
                             let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
                             self.deterministic_view(cn, m, &tv, &avals, &mut out);

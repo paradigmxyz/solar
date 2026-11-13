@@ -732,12 +732,19 @@ pub(crate) fn build<'a>(
             base_args: FxHashMap::default(),
         };
         let mut has_asm = false;
+        // whether the contract's code creates contracts (`new C`; assembly may too)
+        let mut creates = false;
         for cn in &lin {
             for sub in items[cn].1.body.iter() {
                 if let ItemKind::Function(f) = &sub.kind {
                     for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
                         crate::walk::all_stmts(st, &mut |x| {
-                            has_asm |= matches!(x.kind, StmtKind::Assembly(_))
+                            has_asm |= matches!(x.kind, StmtKind::Assembly(_));
+                            crate::walk::stmt_exprs(x, &mut |e| {
+                                crate::walk::sub_exprs(e, &mut |e| {
+                                    creates |= matches!(e.kind, ast::ExprKind::New(_))
+                                })
+                            });
                         });
                     }
                 }
@@ -944,6 +951,20 @@ pub(crate) fn build<'a>(
                 ghost_decl: None,
                 transient: false,
             });
+            if creates || has_asm || lib_asm {
+                // the addresses this contract deployed with code that can never be removed
+                // (see `Vc::created`): each holds code, so no later creation lands there
+                con.state.push(StateVar {
+                    name: "__created".into(),
+                    ty: Ty::Map(Box::new(Ty::Addr), Box::new(Ty::Bool)),
+                    init: None,
+                    constant: false,
+                    immutable: false,
+                    ghost: true,
+                    ghost_decl: None,
+                    transient: false,
+                });
+            }
             if con.kind == ContractKind::Contract
                 && !con.funcs.iter().any(|f| f.name == "constructor")
             {

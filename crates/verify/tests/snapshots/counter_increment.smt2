@@ -2,6 +2,7 @@
 ; ===== Counter.increment
 (declare-const |this@1| Int)
 (assert (and (<= 0 |this@1|) (<= |this@1| 1461501637330902918203684832716283019655932542975)))
+(assert (not (= |this@1| 0)))
 (declare-const |msg.sender@2| Int)
 (assert (and (<= 0 |msg.sender@2|) (<= |msg.sender@2| 1461501637330902918203684832716283019655932542975)))
 (assert (not (= |msg.sender@2| 0)))

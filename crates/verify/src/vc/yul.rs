@@ -2109,8 +2109,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                 }
                 let r = self.decl("created", &Ty::Addr);
-                if let Some(cn) = known {
-                    self.created(&r, &cn);
+                match known {
+                    Some(cn) => self.created(&r, &cn),
+                    None => {
+                        // unknown code: it lands at a codeless address all the same
+                        let key = if self.env.contains_key("__created") {
+                            "__created"
+                        } else {
+                            "@host.__created"
+                        };
+                        if let Some(set) = self.env.get(key).cloned() {
+                            self.assume(&format!("(or (= {r} 0) (not (select {} {r})))", set.t));
+                        }
+                    }
                 }
                 one(r)
             }
@@ -2284,15 +2295,19 @@ pub(super) fn asm_effects(
                 "sstore" => {
                     out.insert("__raw".into());
                 }
+                "create" | "create2" => {
+                    out.insert("__created".into());
+                    if !lock {
+                        *all = true
+                    }
+                }
                 "tstore" => {
                     out.insert("__traw".into());
                 }
                 // under a held reentrancy lock a call or creation reaches only the entry points
                 // still open, whose writes the caller adds (modset_under_lock)
-                "call" | "create" | "create2" if lock => {}
-                "call" | "callcode" | "delegatecall" | "create" | "create2" | "selfdestruct" => {
-                    *all = true
-                }
+                "call" if lock => {}
+                "call" | "callcode" | "delegatecall" | "selfdestruct" => *all = true,
                 _ => {}
             }
             for a in c.arguments.iter() {
@@ -2407,4 +2422,37 @@ pub(super) fn slot_taken(prog: &Program<'_>) -> BTreeSet<String> {
         }
     }
     out
+}
+
+/// Whether an assembly block may remove its contract's code or run other code in its place
+/// (`selfdestruct`, `delegatecall`, `callcode`).
+pub(super) fn asm_destroys(b: &yul::Block<'_>) -> bool {
+    fn ex(e: &yul::Expr<'_>) -> bool {
+        match &e.kind {
+            yul::ExprKind::Call(c) => {
+                matches!(c.name.as_str(), "selfdestruct" | "delegatecall" | "callcode")
+                    || c.arguments.iter().any(ex)
+            }
+            _ => false,
+        }
+    }
+    b.stmts.iter().any(|s| {
+        use yul::StmtKind as K;
+        match &s.kind {
+            K::Block(b) => asm_destroys(b),
+            K::AssignSingle(_, e) | K::AssignMulti(_, e) | K::Expr(e) | K::VarDecl(_, Some(e)) => {
+                ex(e)
+            }
+            K::If(c, b) => ex(c) || asm_destroys(b),
+            K::Switch(sw) => ex(&sw.selector) || sw.cases.iter().any(|c| asm_destroys(&c.body)),
+            K::For(f) => {
+                asm_destroys(&f.init)
+                    || ex(&f.cond)
+                    || asm_destroys(&f.step)
+                    || asm_destroys(&f.body)
+            }
+            K::FunctionDef(f) => asm_destroys(&f.body),
+            _ => false,
+        }
+    })
 }

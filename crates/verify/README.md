@@ -193,7 +193,17 @@ or none where the creation failed: when that code (the constructors and state in
 called function with its modifiers and every function it calls) makes no external call, creation
 or call through a pointer, neither the creation nor the call can reenter, so neither havocs. The
 target must be proved to be that address, the called function must match by name and parameter
-types, and any other external call in between forgets what the created addresses hold. Under a `@custom:reentrancy-guard` lock, only what the entry
+types, and any other external call in between forgets what the created addresses hold.
+
+A high-level call returns only from an address with code (the compiler checks for code, or the
+return data comes back short), so after it the target is not 0; `msg.sender` and `this` are not 0
+either. A contract that creates contracts has the ghost `__created` (`mapping(address => bool)`):
+the addresses it deployed with a contract of the program whose code can never remove itself (no
+`selfdestruct`, `delegatecall` or `callcode` in it, its bases or any library). A creation
+(`new`, `create`, `create2`) returns 0 or an address outside `__created`, since it succeeds only
+where there is no code, and adds it when its code is permanent; `new` never returns 0. Specs read
+it, so an invariant such as `getPair[a][b] != address(0) ==> __created[getPair[a][b]]` makes a
+new pair differ from every pair stored. Under a `@custom:reentrancy-guard` lock, only what the entry
 points that stay callable under the lock can write is havocked. View and pure calls and
 `.transfer` havoc nothing.
 
@@ -248,6 +258,9 @@ produced over code solar-verify did not model.
   (see Testing assumptions).
 - Other contracts reach this contract's storage only through its public functions: no
   `delegatecall` into it.
+- No code is ever deployed at the zero address, and code a contract cannot remove itself stays
+  (EIP-6780: `selfdestruct` removes code only in the transaction that created it, and then only
+  from code that runs it).
 - `keccak256` is injective and its results lie in `[2^128, 2^256)`, so they never collide with
   small constant slots.
 - Raw storage slots that assembly reaches are disjoint from the declared state variables, and

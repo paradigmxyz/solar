@@ -108,3 +108,72 @@ contract Factory {
         allPairs.push(pair);
     }
 }
+
+/// Deploys pairs and keeps one per unordered pair of tokens: the new pair differs from every
+/// pair stored, since each stored one holds code that cannot go away.
+/// @custom:invariant forall address x, address y :: getPair[x][y] == getPair[y][x]
+/// @custom:invariant forall address x, address y :: getPair[x][y] != address(0) ==> __created[getPair[x][y]]
+contract Registry {
+    mapping(address => mapping(address => address)) public getPair;
+
+    /// @custom:ensures pair != address(0)
+    /// @custom:ensures forall address x, address y :: old(getPair[x][y]) != pair
+    function ok_fresh(address a, address b) external returns (address pair) {
+        require(a != b && getPair[a][b] == address(0));
+        bytes memory bytecode = type(Pair).creationCode;
+        bytes32 salt = keccak256(abi.encodePacked(a, b));
+        assembly {
+            pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
+        }
+        IPair(pair).initialize(a, b);
+        getPair[a][b] = pair;
+        getPair[b][a] = pair;
+    }
+
+    /// @custom:ensures forall address x, address y :: old(getPair[x][y]) != pair
+    function ok_fresh_new(address a, address b) external returns (address pair) {
+        require(a != b && getPair[a][b] == address(0));
+        pair = address(new Pair());
+        getPair[a][b] = pair;
+        getPair[b][a] = pair;
+    }
+}
+
+contract Mortal {
+    function kill() external {
+        selfdestruct(payable(msg.sender));
+    }
+}
+
+contract This {
+    function ok_this_nonzero() external view {
+        assert(address(this) != address(0));
+    }
+
+    function ok_sender_nonzero() external view {
+        assert(msg.sender != address(0));
+    }
+}
+
+/// What creation alone establishes, without invariants.
+contract Scratch {
+    /// Without a call to it, a failed creation leaves 0.
+    /// @custom:ensures pair != address(0)
+    function bad_unchecked() external returns (address pair) {
+        bytes memory bytecode = type(Pair).creationCode;
+        assembly {
+            pair := create2(0, add(bytecode, 32), mload(bytecode), 0)
+        }
+    }
+
+    /// @custom:ensures pair != address(0) && __created[pair]
+    function ok_immortal() external returns (address pair) {
+        pair = address(new Pair());
+    }
+
+    /// A contract whose code can remove itself does not join `__created`.
+    /// @custom:ensures __created[pair]
+    function bad_mortal() external returns (address pair) {
+        pair = address(new Mortal());
+    }
+}
