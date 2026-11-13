@@ -51,7 +51,9 @@
 //! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
 //! function exit moves to an unconditional transfer that skips it, never to a conditional one,
 //! which also executes when that edge is not taken. A jump that ends a function, such as a tail
-//! call, hands its origin to that transfer with the exit, so the call keeps its location. Its
+//! call, hands its origin to that transfer with the exit, so the call keeps its location. Only the
+//! first thunk of a chain does, and a call to a function that only tail-calls takes the inner
+//! call's origin. Its
 //! function entry goes to its destination label, the callee's first instruction, never onto a jump
 //! of the callers, and only while the thunk is the label's only entry: another edge into the label,
 //! such as a loop's back edge, would run the entry more than once per call. After an unconditional
@@ -445,7 +447,10 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 /// origin of that jump, as the transfer now ends the function in its place: a tail call keeps the
 /// location of the call it makes, not that of the branch that led to it.
 fn take_thunk_exit(metadata: &mut Metadata, exit: &Metadata) {
-    if metadata.function_exit().is_none() && exit.function_exit().is_some() {
+    if metadata.function_exit().is_none()
+        && exit.function_exit().is_some()
+        && exit.has_source_spans()
+    {
         metadata.preserve_debug_loc(exit);
     }
     metadata.move_function_events(exit);
