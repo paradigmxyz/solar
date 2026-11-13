@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# arr: the stages of milestone/arr/arr.sol's Arr and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "arr"
+srcDir = "milestone"
+roots = ["arr.Proofs"]
+globs = ["arr.+"]
+moreLeanArgs = ["-M", "3000"]

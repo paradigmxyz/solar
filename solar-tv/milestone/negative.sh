@@ -15,7 +15,9 @@
 # - bytecode: the first ADD opcode (else LT, else EQ) of the linear decoding as another opcode;
 # - final EVM IR: its first add as sub, the key N its first sstore pushes as N + 1, and its call
 #   value check dropped (the call goes on instead of reverting), its jump to the Panic(0x11) block
-#   of the overflow check dropped, its first log dropped, the signature topic of its first log
+#   of the overflow check dropped, its jump to the Panic(0x32) block of an array's bounds check
+#   dropped, the data slot of its first storage array (the folded hash of the array's slot,
+#   added to the index) plus one, its first log dropped, the signature topic of its first log
 #   plus one, the data offset of its first log at the next word, its first keccak256 (a mapping
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
 #   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
@@ -217,6 +219,40 @@ print(f"old, new = {m.group(0)!r}, '.op (.stack .pop),'" if m else "sys.exit(3)"
 print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-overflow-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/overflow.py"
+
+# The bounds check of an array index dropped: the jump to the Panic(0x32) block (the block that
+# stores 50 and the selector 0x4e487b71, or pushes 50 and jumps to the block that stores the
+# selector) pops its condition instead, so an index past the length reads past the array.
+python3 - "$gen/$last.lean" > "$tmp/bounds.py" <<'EOF'
+import re, sys
+text = open(sys.argv[1]).read()
+blocks = re.split(r"\n    -- bb\d+\n", text.split("blocks := [", 1)[1])[1:]
+def panics(b): return "(.push 0x4e487b71)" in b
+def bounds(b):
+    if "(.push 50)" not in b: return False
+    if panics(b): return True
+    jump = re.fullmatch(r"\s*\[\.op \(\.stack \(\.push 50\)\),\s*\.jump (\d+)\],?\s*", b)
+    return jump is not None and int(jump.group(1)) < len(blocks) and panics(blocks[int(jump.group(1))])
+panic = next((i for i, b in enumerate(blocks) if bounds(b)), None)
+m = re.search(r"\.jumpi %d," % panic, text) if panic is not None else None
+print(f"old, new = {m.group(0)!r}, '.op (.stack .pop),'" if m else "sys.exit(3)")
+print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
+EOF
+try "$last-no-bounds-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/bounds.py"
+
+# The data slot of the first storage array moved: the hash of its slot, a word the compiler
+# folds and the code adds to the index (a push of a word above 2^160 before an add), N, as
+# N + 1 wherever the code pushes it, so every element reads and writes the next slot.
+cat > "$tmp/array-slot.py" <<'EOF'
+import re
+m = next((m for m in re.finditer(r"\(\.push (0x[0-9a-f]+)\)\),\n\s*\.op \(\.stack \.add\),", s)
+          if int(m.group(1), 16) >= 2 ** 160), None)
+if m is None: sys.exit(3)
+new = "0x%064x" % ((int(m.group(1), 16) + 1) % 2 ** 256)
+print(f"  array data slot {m.group(1)} as {new}, {s.count(f'(.push {m.group(1)})')} pushes")
+s = s.replace(f"(.push {m.group(1)})", f"(.push {new})")
+EOF
+try "$last-array-slot" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/array-slot.py"
 
 # The first log dropped: its operands popped instead, so the run logs nothing there.
 python3 - "$gen/$last.lean" > "$tmp/log.py" <<'EOF'

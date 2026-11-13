@@ -33,7 +33,8 @@ only `propext`, `Classical.choice` and `Quot.sound`), the stages' and the compos
 `#print axioms`, both under `#guard_msgs`, and certify.sh audits every theorem's axioms again.
 [negative.sh](negative.sh) then edits the artifacts where they have the code (the bytecode's first
 `ADD`, else `LT` or `EQ`; the final EVM IR's first `add`, the key its first `sstore` pushes plus
-one, its call value check, its overflow check, its first log, the signature topic and the data
+one, its call value check, its overflow check, its bounds check of an array index, its first
+storage array's data slot plus one, its first log, the signature topic and the data
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
 `keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
 first `mul`, its first range test of a narrow product, the kind of its first external call and
@@ -207,6 +208,26 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [arr](arr/arr.sol): `contract Arr { uint256[] xs; function push(uint256 v) external { xs.push(v); }
+  function length() external view returns (uint256) { return xs.length; } function at(uint256 i)
+  external view returns (uint256) { return xs[i]; } }`, 198 bytes of runtime bytecode, three
+  selectors. The length is slot 0 and the elements start at `keccak256(0)`, a word the compiler
+  folds before the first lowered MIR, so every stage adds the index to the same constant. `push`
+  reverts with `Panic(0x41)` when the length does not fit in 64 bits (`spell-width-tests` spells
+  that test as a shift by 64) and stores the element and the new length; `at` reverts with
+  `Panic(0x32)` unless the index is below the length, sharing the panic's tail with `push`. Stages
+  `stage0 → mir1 → … → mir4 → sched → evm1 → … → evm8` (`place-reads`, `dce`, `spell-width-tests`,
+  `evm-inst-schedule`, `stack-schedule`, then `cfg-simplify-early` to `terminal-layout`) and
+  `evm8 → bytecode`, all proved on every call (any call value, calldata and storage):
+  `SolarTV.Milestone.Arr.arr_mir_to_evmir`. Its negative tests drop the bounds check, so that an index
+  past the length reads past the array, and move the data slot to the next word wherever the code
+  pushes it. That the slot is `keccak256(0)` is the folding's, before the stages, so the proofs take
+  it as the stages' constant.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/arr/arr.sol Arr
 ```
 
 ## Limits

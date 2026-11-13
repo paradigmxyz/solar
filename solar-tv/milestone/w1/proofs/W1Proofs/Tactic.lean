@@ -348,24 +348,13 @@ theorem apply_calldataload {cd : Word → Word} (hcd : cd = calldataWord call) (
 
 end effects
 
-/-! Stack positions of `dup` and `swap` as numbers. -/
-
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+open Lean Meta Simp in
+/-- The stack position of a `dup` or `swap`, a numeral `Fin 256` (the EVM IR's operations
+take any depth), as the number it is. -/
+dsimproc_decl finVal (Fin.val _) := fun e => do
+  let_expr Fin.val _ i := e | return .continue
+  let some ⟨_, v⟩ ← getFinValue? i | return .continue
+  return .done (mkNatLit v.val)
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -556,7 +545,10 @@ macro "sym_omega" : tactic => `(tactic| (
 /-- Two words equal under the cases: with a word combined with itself or added to zero as the
 word it leaves, as numbers, with low masks as remainders and right shifts as quotients, by
 `omega`; else equal up to the order of the operands of AND, OR, XOR and ADD, as the stack
-scheduler commutes them (`ac_rfl`). -/
+scheduler commutes them (`ac_rfl` at reducible transparency: at default transparency its
+`rfl` unfolds two different 256-bit literals, such as a storage array's data slot and that
+slot plus one, past the maximum recursion depth, an error `first` does not catch, so that
+the procedure stopped there instead of reporting the mismatch). -/
 macro "sym_word" : tactic => `(tactic| (
   (try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.xor_self, BitVec.and_self,
     BitVec.or_self, BitVec.zero_add, BitVec.add_zero] at *)
@@ -567,7 +559,7 @@ macro "sym_word" : tactic => `(tactic| (
        (try simp only [BitVec.toNat_and, toNat_shr, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod,
          natMask] at *)
        omega)
-    | ac_rfl))
+    | with_reducible ac_rfl))
 
 open Lean Meta Elab Tactic in
 /-- A proof that two ends are equal where they differ only in words: a parallel walk of both
@@ -726,10 +718,7 @@ macro "sym_eval" : tactic => `(tactic|
     apply_staticcall, called, returndataSize, BitVec.reduceToNat,
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
-    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit, finVal])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
