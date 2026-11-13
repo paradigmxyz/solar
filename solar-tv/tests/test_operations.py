@@ -359,32 +359,40 @@ class OperationTests(unittest.TestCase):
             "log",
             "calldatasize",
             "timestamp",
-        ):
-            self.assertEqual(inventory["mir"][name], "direct_state")
-        for name in (
-            "icall",
-            "alloc",
-            "datacopy",
-            "frame_load",
-            "frame_store",
-            "address_call",
-            "validate_abi",
             "abi_encode_packed",
+            "mload",
+            "mstore",
+            "mstore8",
+            "msize",
             "heap_floor",
+            "alloc",
             "abi_encode",
             "abi_decode",
+            "mcopy",
             "internal_frame_addr",
             "constructor_args_base",
             "constructor_args_end",
+            "datacopy",
             "datasize",
             "codesize",
             "codecopy",
             "storeimmutable",
             "loadimmutable",
             "library_address",
+            "keccak256",
+        ):
+            self.assertEqual(inventory["mir"][name], "direct_state")
+        for name in (
+            "icall",
+            "frame_load",
+            "frame_store",
+            "address_call",
+            "validate_abi",
             "gas",
         ):
             self.assertEqual(inventory["mir"][name], "partial_family")
+        for name in ("keccak256", "mload", "mstore", "mstore8", "msize", "mcopy"):
+            self.assertEqual(inventory["evmir"][name], "world_entry")
         self.assertNotIn("missing", inventory["mir"].values())
         active = {
             str(address)

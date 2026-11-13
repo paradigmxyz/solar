@@ -8,9 +8,9 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 33 | 6 |
-| Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 42 | 0 |
+| Some forms checked | 12 | 0 |
+| Explicit-world entry execution | 0 | 51 |
+| Direct typed MIR state execution | 63 | 0 |
 | Missing | 0 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
@@ -31,8 +31,11 @@ it equals ordinary bit-vector power for every exponent. MIR uses native bit
 vectors from i1 through i256, signed comparisons, casts, select and checked
 arithmetic, including division, remainder and powers with exact panic codes.
 
-Memory supports word/byte reads and writes, overlapping MCOPY, Keccak-256,
-expansion and terminal byte payloads within the existing 256-byte projection.
+Local memory windows support word/byte reads and writes, overlapping MCOPY,
+Keccak-256, expansion and terminal byte payloads within a 256-byte projection.
+Explicit-world entries use ordinary byte memory with a 64 KiB model limit;
+they are not restricted to that local projection. MIR copies are logical
+memmoves, including before Cancun; EVM MCOPY remains fork-gated.
 Keccak has an executable permutation and original Keccak padding; it has no
 uninterpreted hash oracle or collision axiom. Kernel-checked vectors include
 empty input, `abc`, and both sides of the 136-byte absorption boundary.
@@ -121,9 +124,16 @@ work beyond 2048 elements is unsupported. Kernel proofs cover real builtin expan
 tests also cover full packed words and mixed nested byte-string arrays. These
 larger replay cases are not counted as Lean proofs.
 External scratch frame slots use their convention-defined base of 128 and alias
-ordinary memory, including across internal calls. Slices store pointer then length;
-the multi-return word is the buffer-pointer slot at 32. An explicitly placed, selected activation can use internal frame addresses; arbitrary
-internal-call placements and non-word multi-return slots remain unsupported.
+ordinary memory, including across internal calls. Slices store pointer then
+length; the multi-return word is the buffer-pointer slot at 32. Internal frames
+use explicit per-function live-activation bases, including recursion and tail
+replacement. Physical scalar multi-return buffers have explicit per-function
+placements and retain the caller's return owner through tail calls. Logical
+outer boundaries compare all return components. Physical aggregate buffers and
+non-word multi-return frame slots remain unsupported.
+Deferred allocations use explicit static-address or FMP-backed site bindings;
+extents must match the IR and initialization touches the actual bytes. No
+captured backend memory records are imported as semantic evidence.
 Typed address calls support memory objects and slices with explicit gas for CALL,
 STATICCALL and DELEGATECALL. Object headers are read before the message; slices
 need no header or allocation. Returndata objects copy exactly the live buffer,
@@ -131,25 +141,53 @@ without clearing reserved padding or consuming the buffer. Implicit gas still
 requires caller pricing and is unsupported.
 External balance/code reads preserve address truncation and access warmth;
 code introspection sees original delegation designators, not their targets.
-Constant `datacopy` accepts only ranges inside known, relocation-free data, with
-a 64 KiB total exported-data budget. Neighboring physical data and unlinked contracts are not guessed.
+Constant `datacopy` executes known bytes and patches library addresses. Deferred
+entries require an explicit code image and linked extent; the verifier's exact
+`datasize` rule remains in force. Known entries must agree with supplied image
+bytes after patching. `codecopy` handles neighboring bytes and zero padding.
+The total exported-data budget is 64 KiB; missing link inputs are not guessed.
 Explicit MIR window contexts supply code images, linked extents, function heap/frame
-placements, constructor ranges, library addresses and word immutable relocations.
-Constructor immutable slots alias ordinary memory; runtime relocations are read-only.
+placements, constructor ranges, library addresses and scalar immutable relocations.
+Constructor immutable slots alias ordinary memory and use the declared SSA
+carrier. Runtime relocations are read-only; signed values may be sign-extended,
+typed reads keep their low carrier bits, and raw reads retain the full word.
+Fixed-byte padding is retained. Invalid context representations are unsupported.
 These are declared boundary inputs, not a proof that the backend chose them. A
 missing binding, conflicting relocation or changed declaration table is unsupported.
 GAS admits only a single-opcode sampling window with an explicit pre-op budget and
 its own fork-specific charge; general MIR caller gas remains unsupported.
-Static scalar/function ABI tuples preserve allocation, header and selector store
-order in object, slice and scratch modes. Empty or single-scalar decoders preserve
-signed length checks, canonicality, enum rejection and function-word normalization.
+Recursive ABI tuples, dynamic/fixed arrays, bytes and function words preserve
+allocation, header and selector store order in object, slice and scratch modes.
+Decoders preserve signed length checks, canonicality, enum rejection and
+function-word normalization. Reference inputs retain their declared memory,
+calldata or storage semantics. Nested layouts have depth/node/work limits;
+malformed input reverts, while exceeding a model budget is unsupported.
 Validation markers require decoder provenance or canonical raw function-word
 evidence; unproven evidence is unsupported, never turned into a new guard.
-Packed encodings admit literals and scalar words, retaining trailing zero stores;
-hashes admit a merged word or whole-word parts. Real conversion-pass pairs are
+Packed encodings admit literals, scalar words, byte references and word arrays,
+including fixed/nested layouts with explicit strides. Object headers and slice
+lengths are resolved before allocation, payload copies preserve aliasing and
+cleanup order, and hash borrowing retains its header restoration. Trailing
+stores and partial-word footprints remain observable. Real conversion-pass pairs are
 kernel-checked and independently replayed from the original MIR on both sides.
-Recursive ABI/reference layouts, indirect calls, physical multi-return buffers,
-root runtime reentry and general backend layout correspondence remain unsupported.
+Lowered function-pointer dispatchers are ordinary MIR functions; a real
+dispatcher inlining pair and wrong-callee counterexample exercise that path.
+Root runtime reentry and general backend layout correspondence remain unsupported.
+
+## Partially admitted MIR families
+
+These twelve inventory entries still have restrictions beyond the common
+work/memory limits. Their existing executable forms are tested; the restrictions
+are not erased by the zero `Missing` count.
+
+| Families | Admitted boundary | Remaining restriction | Regression coverage |
+| --- | --- | --- | --- |
+| `address_call`, `call`, `callcode`, `staticcall`, `delegatecall` | Explicit requested child gas and real fixture children | No general caller pricing or implicit-gas forwarding; caller gas must avoid clipping | [Address calls](tests/test_mir_address_calls.py), [messages](tests/test_mir_messages.py) |
+| `create`, `create2` | Explicit ordered child budgets, initcode execution and journal rollback | Budgets are inputs, not a derivation from caller work | [Messages and creation](tests/test_mir_messages.py) |
+| `icall` | Direct/dispatcher calls, typed products, scalar return buffers and builtin recipes | Physical aggregate return buffers and general call-site pricing | [Calls](tests/test_mir_calls.py), [return buffers](tests/test_mir_return_buffers.py), [builtins](tests/test_mir_builtins.py) |
+| `frame_load`, `frame_store` | Scratch, explicit recursive internal frames and the word return-buffer slot | Non-word multi-return frame slots | [Frames](tests/test_mir_frames.py), [activations](tests/test_mir_activations.py) |
+| `validate_abi` | Decoder or canonical raw function-word evidence | Other provenance is unsupported; no synthetic runtime guard is inserted | [ABI](tests/test_mir_abi.py) |
+| `gas` | One-opcode window with an explicit pre-op budget | General MIR caller gas | [Layout windows](tests/test_mir_layout.py) |
 
 The world fixture is an explicit assumption. Declared symbolic slots, typed MIR
 arguments and EVM entry stack words are universally quantified. Only EVM entries
@@ -167,8 +205,9 @@ for admitted forks, limits, observables and gas policies.
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
-4. Generalize MIR frames, backend allocation layouts, storage layouts and ABI helpers
-   against independent semantics, rather than assuming their lowering is correct.
+4. Prove importer/interpreter correspondence and connect explicit placement
+   assumptions to actual backend layout decisions. Direct MIR semantics and
+   independent replay do not by themselves prove those decisions correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.
 
