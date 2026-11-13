@@ -1,0 +1,6 @@
+error: assembly validation failed: the push at 1 holds 62, not Label(15) at 61
+
+error: assembly validation failed: the push at 1 holds 14, not Label(1) at 13
+
+error: aborting due to 2 previous errors
+

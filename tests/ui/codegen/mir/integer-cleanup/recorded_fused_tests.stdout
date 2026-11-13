@@ -1,0 +1,27 @@
+- ; === ROOT/tests/ui/codegen/mir/integer-cleanup/recorded_fused_tests.mir (before integer-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/integer-cleanup/recorded_fused_tests.mir (after integer-cleanup) ===
+  @module RecordedFusedTests
+  fn @bounded_and(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, 2
+      jumpi v0, bb1, bb3
+    bb1:                                            ; preds = bb0
+      v1 = lt arg1, 2
+      jumpi v1, bb2, bb3
+    bb3 [cold]:                                     ; preds = bb0, bb1
+      revert 0, 0
+    bb2:                                            ; preds = bb1
+      v2 = ne arg0, 0
+      v3 = ne arg1, 0
+-     v4 = and v2, v3
++     v6 = and arg0, arg1
++     v4 = ne v6, 0
+      v5 = zext i1 v4 to i256
+-     mstore 128, v5
++     mstore 128, v6
++     assume ule check_elim, arg0, 1
++     assume ule check_elim, arg1, 1
++     assume eq check_elim, v5, v6
+      returndata 128, 32
+  }
+  

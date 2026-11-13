@@ -1,0 +1,78 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+//@ run-call: f(uint256,uint256)(uint256) 1, 5 => 5
+//@ run-call-fail: f(uint256,uint256)(uint256) 1, 7 => 0xed572b27000000000000000000000000000000000000011500000001000000000000000100000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000007
+//@ run-call: f(uint256,uint256)(uint256) 2, 5 => 5
+//@ run-call-fail: f(uint256,uint256)(uint256) 2, 7 => 0xed572b27000000000000000000000000000000000000011600000002000000000000000100000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000007
+//@ run-call: f(uint256,uint256)(uint256) 3, 255 => 255
+//@ run-call-fail: f(uint256,uint256)(uint256) 3, 256 => 0xed572b270000000000000000000000000000000000000417000000030000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000ff
+//@ run-call: f(uint256,uint256)(uint256) 4, 7 => 7
+//@ run-call-fail: f(uint256,uint256)(uint256) 4, 30 => 0xed572b27000000000000000000000000000000000000010200000004000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000
+// The records `byte-loops`, `loop-version`, `lower-integers` and late check elimination make
+// become run-time checks like any other fact. Each function below holds a record of the shape
+// its pass makes, made false by its second argument: fact words `0x115...`, `0x116...` and
+// `0x417...` name `eq` (1) or `ule` (4) and `byte-loops` (21), `loop-version` (22) and
+// `lower-integers` (23), and `0x102...` a reduced condition's dropped operand in `check-elim` (2).
+@module PassFactsTrap
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 4
+    switch v0, default bb5, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4]
+  bb1:
+    tail_call @byte_loops
+  bb2:
+    tail_call @loop_version
+  bb3:
+    tail_call @lower_integers
+  bb4:
+    tail_call @check_elim
+  bb5:
+    revert 0, 0
+}
+
+// A length taken from before a byte loop, and the length word where its replacement starts, after
+// a store that changed it.
+fn @byte_loops() {
+  bb0:
+    v0 = calldataload 36
+    mstore 0, 5
+    v1 = mload 0
+    mstore 0, v0
+    v2 = mload 0
+    assume eq byte_loops, v1, v2
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A word a versioning test read, and the same word where the loop's copy exits, after a store
+// the test failed to keep off it.
+fn @loop_version() {
+  bb0:
+    v0 = calldataload 36
+    mstore 0, 5
+    v1 = mload 0
+    mstore 0, v0
+    v2 = mload 0
+    assume eq loop_version, v1, v2
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A word that stands for a `uint8`, with high bits its producer failed to keep clear.
+fn @lower_integers() {
+  bb0:
+    v0 = calldataload 36
+    assume ule lower_integers, v0, 255
+    mstore 0, v0
+    returndata 0, 32
+}
+
+// The operand a reduced branch condition dropped, decided false, with a value that makes it true.
+fn @check_elim() {
+  bb0:
+    v0 = calldataload 36
+    v1 = gt v0, 20
+    assume eq check_elim, v1, false
+    mstore 0, v0
+    returndata 0, 32
+}

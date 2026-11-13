@@ -1,0 +1,21 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes -Zprove-analyses=- --emit=bin-runtime
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// A switch edge into a block that a case and the default both target is taken
+// when that case matches or when no case does.
+@module ProveSwitch
+@phase lowered
+// CHECK-LABEL: ; query: ProveSwitch-f0-bb1-v0-sccp-0.smt2
+// CHECK: (assert (or false (= v0 #x{{0+}}) (and true (not (= v0 #x{{0+}})) (not (= v0 #x{{0+}}1)))))
+// CHECK-NEXT: (assert (not (= v0 #x{{0+}})))
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    switch v0, default bb1, [0 => bb1, 1 => bb2]
+  bb1:
+    assume eq sccp, v0, 0
+    mstore 0, v0
+    returndata 0, 32
+  bb2:
+    revert 0, 0
+}

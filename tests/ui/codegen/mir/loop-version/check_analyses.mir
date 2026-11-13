@@ -1,0 +1,48 @@
+//@ revisions: off on
+//@[off] compile-flags: -Ogas -Zmir-pipeline=loop-version
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Ogas -Zmir-pipeline=loop-version -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module LoopVersionRecords
+
+// The copy of the loop reads the words its test read on the back edge in place of its loads. With
+// `-Zcheck-analyses`, every block of the copy that can exit it reads each word again and records
+// it equal to the test's value, so a store the test's arithmetic failed to keep off a word fails
+// the check. Without the flag the pass adds nothing.
+// CHECK-LABEL: {{^[ +].*}}fn @shift{{[( ]}}
+// CHECK: + [[B:v[0-9]+]] = mload arg1
+// ON: + [[REREAD:v[0-9]+]] = mload arg1
+// ON-NEXT: + assume eq loop_version, [[B]], [[REREAD]]
+// OFF-NOT: assume
+fn @shift(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: i256) -> ptr<memory> {
+  bb0:
+    v18 = shl arg3, 5
+    v19 = ptradd arg1, v18
+    v20 = ptradd v19, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb3: v29]
+    v6 = mload arg0
+    v7 = lt v5, v6
+    jumpi v7, bb3, bb2
+  bb2:
+    ret arg2
+  bb3:
+    v11 = shl v5, 5
+    v12 = ptradd arg0, v11
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = mload arg1
+    v16 = lt arg3, v15
+    icall panic_if_zero<0x32>, v16
+    v21 = mload v20
+    v22 = checked_add uint256, v14, v21
+    v23 = mload arg2
+    v24 = lt v5, v23
+    icall panic_if_zero<0x32>, v24
+    v27 = ptradd arg2, v11
+    v28 = ptradd v27, 32
+    mstore v28, v22
+    v29 = add v5, 1
+    jump bb1
+}

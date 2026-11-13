@@ -1,0 +1,36 @@
+//@ compile-flags: -Zmir-pipeline=egraph -Zvalidate-passes=- --emit=bin-runtime
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The query that solar-tv/SolarTV/MIR/Validation/AddZero.lean states and lifts to a stage:
+// `egraph` drops the addition of zero, so the storage both versions write at `stop` is the
+// same. Changing it needs the Lean statement updated too.
+@module LiftEgraph
+@phase lowered
+// CHECK-LABEL: ; query: LiftEgraph-egraph-f0-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: egraph preserves #0 entry
+// CHECK: (declare-fun input_calldataload_1 ((_ BitVec 256)) (_ BitVec 256))
+// CHECK-NEXT: (declare-const mem0 (Array (_ BitVec 256) (_ BitVec 8)))
+// CHECK-NEXT: (declare-const sto0 (Array (_ BitVec 256) (_ BitVec 256)))
+// CHECK-NEXT: (declare-const tra0 (Array (_ BitVec 256) (_ BitVec 256)))
+// CHECK-NEXT: (declare-const t0 (_ BitVec 256))
+// CHECK-NEXT: (declare-const t1 (_ BitVec 256))
+// CHECK-NEXT: (declare-const t2 (_ BitVec 256))
+// CHECK-NEXT: (declare-const s3 (Array (_ BitVec 256) (_ BitVec 256)))
+// CHECK-NEXT: (declare-const t4 (_ BitVec 256))
+// CHECK-NEXT: (declare-const s5 (Array (_ BitVec 256) (_ BitVec 256)))
+// CHECK-NEXT: (assert (= t0 (input_calldataload_1 #x{{0+}})))
+// CHECK-NEXT: (assert (= t1 (bvadd #x{{0+}} t0)))
+// CHECK-NEXT: (assert (= t2 (ite (bvuge t1 #x{{0+}}100) #x{{0+}} (bvshl #x{{0+}}1 t1))))
+// CHECK-NEXT: (assert (= s3 (store sto0 #x{{0+}} t2)))
+// CHECK-NEXT: (assert (= t4 (ite (bvuge t0 #x{{0+}}100) #x{{0+}} (bvshl #x{{0+}}1 t0))))
+// CHECK-NEXT: (assert (= s5 (store sto0 #x{{0+}} t4)))
+// CHECK-NEXT: (assert (not (= s3 s5)))
+// CHECK-NEXT: (check-sat)
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = add v0, 0
+    v2 = shl 1, v1
+    sstore 0, v2
+    stop
+}

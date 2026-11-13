@@ -1,0 +1,102 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+//@ run-call: f(uint256,uint256)(uint256) 1, 5 => 5
+//@ run-call-fail: f(uint256,uint256)(uint256) 1, 7 => 0xed572b27000000000000000000000000000000000000011000000001000000000000000100000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000007
+//@ run-call: f(uint256,uint256)(uint256) 2, 0 => 0
+//@ run-call-fail: f(uint256,uint256)(uint256) 2, 7 => 0xed572b27000000000000000000000000000000000000011100000002000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007
+//@ run-call: f(uint256,uint256)(uint256) 3, 0 => 0
+//@ run-call-fail: f(uint256,uint256)(uint256) 3, 7 => 0xed572b27000000000000000000000000000000000000011200000003000000000000000100000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: f(uint256,uint256)(uint256) 4, 0 => 0
+//@ run-call-fail: f(uint256,uint256)(uint256) 4, 1 => 0xed572b2700000000000000000000000000000000000001130000000400000001ffffffff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+//@ run-call: f(uint256,uint256)(uint256) 5, 42 => 42
+//@ run-call-fail: f(uint256,uint256)(uint256) 5, 7 => 0xed572b2700000000000000000000000000000000000001140000000500000000000000010000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000002a
+// The records of memory, storage and control facts become run-time checks like any other fact.
+// Each function below holds a record a pass would make, made false by its second argument:
+// fact words `0x110...` to `0x114...` name `eq` (1) and `licm` (16), `storage-promotion` (17),
+// `lower-alloc` (18), `noreturn-calls` (19) and `readonly-eval` (20). A record that execution never gets past, which
+// `noreturn-calls` makes after a call that cannot return, is `0 == 1` and fails wherever it runs;
+// its left operand is a constant, so the fact word's value field is all ones.
+@module MemoryFactsTrap
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 4
+    switch v0, default bb5, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb6]
+  bb1:
+    tail_call @licm
+  bb2:
+    tail_call @storage_promotion
+  bb3:
+    tail_call @lower_alloc
+  bb4:
+    tail_call @noreturn_calls
+  bb5:
+    revert 0, 0
+  bb6:
+    tail_call @readonly_eval
+}
+
+// A hoisted read and its re-read at the loop's exit, with a write between them that the alias
+// analysis missed.
+fn @licm() {
+  bb0:
+    v0 = calldataload 36
+    mstore 0, 5
+    v1 = mload 0
+    mstore 0, v0
+    v2 = mload 0
+    assume eq licm, v1, v2
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A promoted slot read before the loop and again at its exit, with a write the promotion missed.
+fn @storage_promotion() {
+  bb0:
+    v0 = calldataload 36
+    v1 = sload 0
+    sstore 0, v0
+    v2 = sload 0
+    assume eq storage_promotion, v1, v2
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A word of a dropped zero fill that something wrote.
+fn @lower_alloc() {
+  bb0:
+    v0 = calldataload 36
+    mstore 128, v0
+    v1 = mload 128
+    assume eq lower_alloc, v1, 0
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// The point after a call found unable to return, reached after all.
+fn @noreturn_calls() {
+  bb0:
+    v0 = calldataload 36
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    assume eq noreturn_calls, 0, 1
+    invalid
+  bb2:
+    mstore 0, v0
+    returndata 0, 32
+}
+
+// A call folded to 42 whose result differs.
+fn @readonly_eval() {
+  bb0:
+    v0 = calldataload 36
+    v1 = icall @identity, v0
+    assume eq readonly_eval, v1, 42
+    mstore 0, v1
+    returndata 0, 32
+}
+
+fn @identity(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}

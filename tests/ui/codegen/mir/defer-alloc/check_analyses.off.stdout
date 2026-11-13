@@ -1,0 +1,39 @@
+- ; === ROOT/tests/ui/codegen/mir/defer-alloc/check_analyses.mir (before defer-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/defer-alloc/check_analyses.mir (after defer-alloc) ===
+  @module DeferAllocCheckAnalyses
+  ; selector 0x01020304
+  fn @deferred() -> i256 [selector=0x01020304] {
+    bb0:
+      v0 = calldataload 4
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:                                            ; preds = bb0
+      ret 0
+    bb1:                                            ; preds = bb0
+-     v2 = alloc 32
++     v2 = alloc 32 !metadata(deferred_alloc)
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 7
+      v4 = mload v3
+      ret v4
+  }
+  
+- ; === ROOT/tests/ui/codegen/mir/defer-alloc/check_analyses.mir (before defer-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/defer-alloc/check_analyses.mir (after defer-alloc) ===
+  @module DeferAllocCheckAnalyses
+  ; selector 0x01020304
+  fn @deferred() -> i256 [selector=0x01020304] {
+    bb0:
+      v0 = calldataload 4
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:                                            ; preds = bb0
+      ret 0
+    bb1:                                            ; preds = bb0
+      v2 = alloc 32 !metadata(deferred_alloc)
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 7
+      v4 = mload v3
+      ret v4
+  }
+  

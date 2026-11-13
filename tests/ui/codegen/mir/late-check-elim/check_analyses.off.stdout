@@ -1,0 +1,34 @@
+- ; === ROOT/tests/ui/codegen/mir/late-check-elim/check_analyses.mir (before late-check-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/late-check-elim/check_analyses.mir (after late-check-elim) ===
+  @module LateCheckElimRecords
+  fn @reduced(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = lt arg0, 10
+      jumpi v0, bb1, bb3
+    bb1:                                            ; preds = bb0
+      v1 = gt arg0, 20
+      v2 = or v1, arg1
+-     jumpi v2, bb2, bb3
++     jumpi arg1, bb2, bb3
+    bb3:                                            ; preds = bb0, bb1
+      ret 0
+    bb2:                                            ; preds = bb1
+      ret 1
+  }
+  
+  fn @folded(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 10
+-     jumpi v0, bb1, bb3
++     jumpi v0, bb1, bb2
++   bb2:                                            ; preds = bb0
++     ret 0
+    bb1:                                            ; preds = bb0
+      v1 = lt arg0, 20
+-     jumpi v1, bb2, bb3
+-   bb3:                                            ; preds = bb0, bb1
+-     ret 0
+-   bb2:                                            ; preds = bb1
+      ret 1
+  }
+  

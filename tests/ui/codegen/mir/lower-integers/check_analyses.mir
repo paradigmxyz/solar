@@ -1,0 +1,33 @@
+//@ revisions: off on
+//@[off] compile-flags: -Zmir-pipeline=lower-integers
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Zmir-pipeline=lower-integers -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module LowerIntegersRecords
+
+// The pass widens narrow integers to words and trusts their high bits zero where it does not
+// clean them. With `-Zcheck-analyses` it records each such width: a narrow argument on entry, a
+// narrow call result where it is defined, and a narrow argument a call passes. Results the pass
+// cleans itself, such as the `add` below, need no record. Without the flag it adds nothing.
+// CHECK-LABEL: {{^[ +].*}}fn @callee{{[( ]}}
+// ON: + assume ule lower_integers, arg0, 255
+// OFF-NOT: assume
+fn @callee(arg0: i8) -> i8 {
+  bb0:
+    v0 = add arg0, arg0
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
+// CHECK: + [[CLEAN:v[0-9]+]] = and arg0, 255
+// CHECK: [[RESULT:v[0-9]+]] = icall @callee, [[CLEAN]]
+// ON: + assume ule lower_integers, [[CLEAN]], 255
+// ON-NEXT: + assume ule lower_integers, [[RESULT]], 255
+// OFF-NOT: assume
+fn @caller(arg0: i256) -> i256 {
+  bb0:
+    v1 = trunc i256 arg0 to i8
+    v2 = icall @callee, v1
+    v3 = zext i8 v2 to i256
+    ret v3
+}

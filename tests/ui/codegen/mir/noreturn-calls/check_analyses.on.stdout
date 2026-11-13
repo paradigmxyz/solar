@@ -1,0 +1,32 @@
+- ; === ROOT/tests/ui/codegen/mir/noreturn-calls/check_analyses.mir (before noreturn-calls) ===
++ ; === ROOT/tests/ui/codegen/mir/noreturn-calls/check_analyses.mir (after noreturn-calls) ===
+  @module NoreturnCallsCheckAnalyses
+  fn @fail() [cold] {
+    bb0 [cold]:
+      revert 0, 0
+  }
+  
+  fn @guarded(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb2, bb1
+    bb1 [cold]:                                     ; preds = bb0
+      icall @fail
+-     jump bb2
+-   bb2:                                            ; preds = bb0, bb1
++     assume eq noreturn_calls, 0, 1
++     invalid
++   bb2:                                            ; preds = bb0
+      ret arg0
+  }
+  
+- fn @failing_check(arg0: i256) -> i256 {
+-   bb0:
++ fn @failing_check(arg0: i256) -> i256 [cold] {
++   bb0 [cold]:
+      icall panic_if_zero<0x1>, false
+-     ret arg0
++     assume eq noreturn_calls, 0, 1
++     invalid
+  }
+  

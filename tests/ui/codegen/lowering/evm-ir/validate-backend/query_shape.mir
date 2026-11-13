@@ -1,0 +1,45 @@
+//@ compile-flags: -Zvalidate-backend=- --emit=bin-runtime
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// One query per MIR block asks whether the EVM IR scheduled for the block can end differently from
+// the block, from a start where the stack holds the block's values where the schedule says. Both
+// sides compute the calldata words and their sum as one term each. For the entry block, the
+// MIR edge and the EVM path to different successors differ, and the matched edges agree, so only
+// the guards of the mismatched pairs are left: Z3 answers unsat. The successor block starts with
+// the words the layout names, computes the difference from them and returns it.
+@module ValidateBackend
+@phase lowered
+// CHECK-LABEL: ; query: ValidateBackend-stack_schedule_f0-b0-{{[0-9a-f]+}}.smt2
+// CHECK: ; block: BlockId(0)
+// CHECK: ; pass: stack-schedule
+// CHECK: ; claim: stack-schedule lowers #0 entry BlockId(0)
+// CHECK: (set-logic QF_AUFBV)
+// CHECK: (assert (= [[A:t[0-9]+]] (input_calldataload_1 #x{{0+}})))
+// CHECK: (assert (= [[B:t[0-9]+]] (input_calldataload_1 #x{{0+}}20)))
+// CHECK: (assert (= {{t[0-9]+}} (bvadd [[A]] [[B]])))
+// CHECK: (assert (or (and {{.*}}) (and {{.*}})))
+// CHECK-NEXT: (check-sat)
+// CHECK-LABEL: ; query: ValidateBackend-stack_schedule_f0-b1-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: stack-schedule lowers #0 entry BlockId(1)
+// CHECK: (assert (= [[A1:t[0-9]+]] (input_calldataload_1 #x{{0+}})))
+// CHECK: (assert (= [[B1:t[0-9]+]] (input_calldataload_1 #x{{0+}}20)))
+// CHECK: (assert (= {{t[0-9]+}} (bvsub [[B1]] [[A1]])))
+// CHECK: (assert false)
+// CHECK-NEXT: (check-sat)
+// CHECK-LABEL: ; query: ValidateBackend-stack_schedule_f0-b2-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: stack-schedule lowers #0 entry BlockId(2)
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = add v0, v1
+    v3 = lt v0, v1
+    jumpi v3, bb1, bb2
+  bb1:
+    v4 = sub v1, v0
+    mstore 0, v4
+    returndata 0, 32
+  bb2:
+    mstore 0, v2
+    returndata 0, 32
+}

@@ -1,0 +1,29 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+//@ run-call: below(uint256)(uint256) 3 => 0
+//@ run-call-fail: below(uint256)(uint256) 0x1234 => 0xed572b2700000000000000000000000000000000000003080000000100000000000000010000000000000000000000000000000000000000000000000000000000000034000000000000000000000000000000000000000000000000000000000000000a
+// A width the e-graph wrongly read from a definition is caught at run time: here a
+// false `v1 < 10` for `v1 = v0 & 0xff`, whose fold of `v1 / 10` to zero is wrong,
+// reverts with `AnalysisFactViolated(fact, 0x34, 10)`, whose fact word names the
+// predicate (`ult`, 3), the pass (`egraph`, 8), function 1, block 0 and `v1`.
+@module EgraphTrap
+@phase lowered
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb2, [0x8de62f33 => bb1]
+  bb1:
+    tail_call @below
+  bb2:
+    revert 0, 0
+}
+
+fn @below() {
+  bb0:
+    v0 = calldataload 4
+    v1 = and v0, 0xff
+    assume ult egraph, v1, 10
+    mstore 0, 0
+    returndata 0, 32
+}

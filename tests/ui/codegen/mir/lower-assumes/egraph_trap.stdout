@@ -1,0 +1,40 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-assumes/egraph_trap.mir (before lower-assumes) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-assumes/egraph_trap.mir (after lower-assumes) ===
+  @module EgraphTrap
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb2, [0x8de62f33 => bb1]
+    bb1:                                            ; preds = bb0
+      tail_call @below
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @below() {
+    bb0:
+      v0 = calldataload 4
+      v1 = and v0, 255
+-     assume ult egraph, v1, 10
+      mstore 0, 0
++     v2 = lt v1, 10
++     v3 = eq v2, false
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v4 = phi [bb2: 0x308000000010000000000000001]
++     v5 = phi [bb2: v1]
++     v6 = phi [bb2: 10]
++     mstore 32, v4 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch)
++     mstore 96, v6 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
