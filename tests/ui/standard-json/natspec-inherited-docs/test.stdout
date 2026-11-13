@@ -1,0 +1,48 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f()": {
+              "notice": "Does f."
+            },
+            "g(uint256)": {
+              "notice": "Does g."
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "g(uint256)": {
+              "params": {
+                "a": "The a."
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "D": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      }
+    }
+  }
+}

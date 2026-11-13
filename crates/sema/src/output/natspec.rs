@@ -83,16 +83,16 @@ impl DocumentationItem {
 impl<'gcx> Gcx<'gcx> {
     pub(crate) fn build_dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
-        let contract_doc = dev_doc_item(self, contract.doc);
+        let contract_doc = dev_doc_item(self, contract_id.into());
         let mut documentation = Documentation::new(DocumentationKind::Dev);
         documentation.author = contract_doc.author;
         documentation.details = contract_doc.details;
         documentation.title =
-            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Title));
+            natspec_text(self, contract_id.into(), |kind| matches!(kind, hir::NatSpecKind::Title));
         documentation.custom = contract_doc.custom;
 
         if let Some(constructor) = contract.ctor {
-            let documentation_item = dev_doc_item(self, self.hir.function(constructor).doc);
+            let documentation_item = dev_doc_item(self, constructor.into());
             if !documentation_item.is_empty() {
                 documentation.methods.insert("constructor".into(), documentation_item);
             }
@@ -105,8 +105,8 @@ impl<'gcx> Gcx<'gcx> {
                 continue;
             }
 
-            let mut documentation_item = dev_doc_item(self, function.doc);
-            documentation_item.returns = return_docs(self, function.doc, function.returns);
+            let mut documentation_item = dev_doc_item(self, function_id.into());
+            documentation_item.returns = return_docs(self, function_id.into(), function.returns);
             if !documentation_item.is_empty() {
                 documentation.methods.insert(
                     self.item_signature(function_id.into()).to_string(),
@@ -117,9 +117,10 @@ impl<'gcx> Gcx<'gcx> {
 
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
-            let mut documentation_item = dev_doc_item(self, variable.doc);
+            let mut documentation_item = dev_doc_item(self, variable_id.into());
             let return_text = self
-                .natspec_doc_comments(variable.doc)
+                .natspec_resolution(variable_id.into())
+                .items()
                 .iter()
                 .copied()
                 .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
@@ -130,7 +131,7 @@ impl<'gcx> Gcx<'gcx> {
             }
             if let Some(getter) = variable.getter {
                 documentation_item.returns =
-                    return_docs(self, variable.doc, self.hir.function(getter).returns);
+                    return_docs(self, variable_id.into(), self.hir.function(getter).returns);
             }
             if !documentation_item.is_empty() {
                 documentation
@@ -143,19 +144,17 @@ impl<'gcx> Gcx<'gcx> {
         for item in self.hir.contract_item_ids(contract_id) {
             match item {
                 hir::ItemId::Event(event_id) => {
-                    let event = self.hir.event(event_id);
                     let signature = self.item_signature(event_id.into()).to_string();
                     if !event_signatures.insert(signature.clone()) {
                         continue;
                     }
-                    let documentation_item = dev_doc_item(self, event.doc);
+                    let documentation_item = dev_doc_item(self, event_id.into());
                     if !documentation_item.is_empty() {
                         documentation.events.insert(signature, documentation_item);
                     }
                 }
                 hir::ItemId::Error(error_id) => {
-                    let error = self.hir.error(error_id);
-                    let documentation_item = dev_doc_item(self, error.doc);
+                    let documentation_item = dev_doc_item(self, error_id.into());
                     if !documentation_item.is_empty() {
                         documentation
                             .errors
@@ -175,10 +174,10 @@ impl<'gcx> Gcx<'gcx> {
         let contract = self.hir.contract(contract_id);
         let mut documentation = Documentation::new(DocumentationKind::User);
         documentation.notice =
-            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Notice));
+            natspec_text(self, contract_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice));
 
         if let Some(constructor) = contract.ctor
-            && let Some(notice) = natspec_text(self, self.hir.function(constructor).doc, |kind| {
+            && let Some(notice) = natspec_text(self, constructor.into(), |kind| {
                 matches!(kind, hir::NatSpecKind::Notice)
             })
         {
@@ -191,9 +190,9 @@ impl<'gcx> Gcx<'gcx> {
         for interface_function in self.interface_functions(contract_id) {
             let function_id = interface_function.id;
             let function = self.hir.function(function_id);
-            let doc = function.gettee.map_or(function.doc, |gettee| self.hir.variable(gettee).doc);
+            let item = function.gettee.map_or(function_id.into(), hir::ItemId::Variable);
             if let Some(notice) =
-                natspec_text(self, doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
+                natspec_text(self, item, |kind| matches!(kind, hir::NatSpecKind::Notice))
             {
                 documentation.methods.insert(
                     self.item_signature(function_id.into()).to_string(),
@@ -206,12 +205,11 @@ impl<'gcx> Gcx<'gcx> {
         for item in self.hir.contract_item_ids(contract_id) {
             match item {
                 hir::ItemId::Event(event_id) => {
-                    let event = self.hir.event(event_id);
                     let signature = self.item_signature(event_id.into()).to_string();
                     if !event_signatures.insert(signature.clone()) {
                         continue;
                     }
-                    if let Some(notice) = natspec_text(self, event.doc, |kind| {
+                    if let Some(notice) = natspec_text(self, event_id.into(), |kind| {
                         matches!(kind, hir::NatSpecKind::Notice)
                     }) {
                         documentation.events.insert(
@@ -221,8 +219,7 @@ impl<'gcx> Gcx<'gcx> {
                     }
                 }
                 hir::ItemId::Error(error_id) => {
-                    let error = self.hir.error(error_id);
-                    if let Some(notice) = natspec_text(self, error.doc, |kind| {
+                    if let Some(notice) = natspec_text(self, error_id.into(), |kind| {
                         matches!(kind, hir::NatSpecKind::Notice)
                     }) {
                         documentation
@@ -242,11 +239,12 @@ impl<'gcx> Gcx<'gcx> {
 
 fn natspec_text(
     gcx: Gcx<'_>,
-    doc_id: hir::DocId,
+    item_id: hir::ItemId,
     mut matches: impl FnMut(hir::NatSpecKind) -> bool,
 ) -> Option<String> {
     let text = gcx
-        .natspec_doc_comments(doc_id)
+        .natspec_resolution(item_id)
+        .items()
         .iter()
         .copied()
         .filter(|item| matches(item.kind))
@@ -255,9 +253,9 @@ fn natspec_text(
     (!text.is_empty()).then_some(text)
 }
 
-fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
+fn dev_doc_item(gcx: Gcx<'_>, item_id: hir::ItemId) -> DocumentationItem {
     let mut documentation = DocumentationItem::default();
-    for item in gcx.natspec_doc_comments(doc_id).iter().copied() {
+    for item in gcx.natspec_resolution(item_id).items().iter().copied() {
         let content = item.content();
         match item.kind {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
@@ -288,10 +286,11 @@ fn append_doc(target: &mut Option<String>, content: &str) {
 
 fn return_docs(
     gcx: Gcx<'_>,
-    doc_id: hir::DocId,
+    item_id: hir::ItemId,
     returns: &[hir::VariableId],
 ) -> FxIndexMap<String, String> {
-    gcx.natspec_doc_comments(doc_id)
+    gcx.natspec_resolution(item_id)
+        .items()
         .iter()
         .copied()
         .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))

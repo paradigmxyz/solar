@@ -1,0 +1,29 @@
+// CHECK-LABEL: "C": {
+// CHECK: "f()": {
+// CHECK: "notice": "Does f."
+// CHECK: "g(uint256)": {
+// CHECK: "notice": "Does g."
+// CHECK: "devdoc": {
+// CHECK: "a": "The a."
+//
+// CHECK-LABEL: "D": {
+// CHECK-NOT: "f()"
+// CHECK-NOT: "g(uint256)"
+// CHECK: "devdoc": {
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "C": [
+          "userdoc",
+          "devdoc"
+        ],
+        "D": [
+          "userdoc",
+          "devdoc"
+        ]
+      }
+    }
+  }
+}
