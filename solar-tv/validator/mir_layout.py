@@ -19,6 +19,7 @@ def read(value, memory):
             "immutable_values",
             "libraries",
             "gas_before",
+            "allocations",
         },
         "mir_layout",
     )
@@ -31,6 +32,7 @@ def read(value, memory):
         "immutable_values": {},
         "libraries": {},
         "gas_before": None,
+        "allocations": {},
     }
     if value.get("code") is not None:
         result["code"] = _bytes(value["code"])
@@ -107,6 +109,46 @@ def read(value, memory):
         if gas > 30000000:
             raise Unsupported("MIR gas window exceeds 30000000")
         result["gas_before"] = gas
+    allocations = value.get("allocations", {})
+    if not isinstance(allocations, dict) or len(allocations) > 128:
+        raise Unsupported("MIR allocation placement limit")
+    count = 0
+    for function, sites in allocations.items():
+        if (
+            not isinstance(function, str)
+            or len(function) > 256
+            or not function.isascii()
+            or any(ord(c) < 32 or ord(c) == 127 for c in function)
+            or not isinstance(sites, dict)
+        ):
+            raise Unsupported("invalid MIR allocation placement key")
+        result["allocations"][function] = {}
+        for site, placement in sites.items():
+            count += 1
+            if count > 4096:
+                raise Unsupported("MIR allocation placement limit")
+            if (
+                not isinstance(site, str)
+                or not site.isascii()
+                or not site.isdecimal()
+                or int(site) >= 4096
+                or str(int(site)) != site
+            ):
+                raise Unsupported("invalid MIR allocation placement key")
+            _keys(placement, {"kind", "size", "address"}, "allocation placement")
+            kind = placement.get("kind")
+            size = int(_number(placement.get("size"), 64))
+            if size > 65536 or kind not in {"static", "heap"}:
+                raise Unsupported("invalid deferred allocation placement")
+            item = {"kind": kind, "size": size}
+            if kind == "static":
+                address = int(_number(placement.get("address"), 64))
+                if address < 128 or address % 32 or address + size >= 2**64:
+                    raise Unsupported("invalid deferred allocation placement")
+                item["address"] = address
+            elif "address" in placement:
+                raise Unsupported("heap allocation placement cannot set an address")
+            result["allocations"][function][site] = item
     pointer = int.from_bytes(bytes(memory["data"][64:96]).ljust(32, b"\0"), "big")
     if any(
         fields["heap_floor"] is not None and fields["heap_floor"] > pointer
@@ -146,6 +188,23 @@ def expression(layout):
     values = table("immutable_values", literal)
     libraries = table("libraries", literal)
     gas = option(layout["gas_before"])
-    return (
-        f"⟨{code},{functions},{constructor},{data},{slots},{values},{libraries},{gas}⟩"
+    allocations = (
+        "["
+        + ",".join(
+            f"({json.dumps(function)},["
+            + ",".join(
+                f"({site},"
+                + (
+                    f".fixed ({literal(str(item['address']))}) {item['size']}"
+                    if item["kind"] == "static"
+                    else f".heap {item['size']}"
+                )
+                + ")"
+                for site, item in sites.items()
+            )
+            + "])"
+            for function, sites in layout["allocations"].items()
+        )
+        + "]"
     )
+    return f"⟨{code},{functions},{constructor},{data},{slots},{values},{libraries},{gas},{allocations}⟩"

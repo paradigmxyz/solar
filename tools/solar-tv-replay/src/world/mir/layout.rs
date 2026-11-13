@@ -19,6 +19,14 @@ pub(super) struct Layout {
     immutable_values: BTreeMap<usize, String>,
     libraries: BTreeMap<usize, String>,
     gas_before: Option<u64>,
+    allocations: BTreeMap<String, BTreeMap<usize, Allocation>>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum Allocation {
+    Static { address: u64, size: u64 },
+    Heap { size: u64 },
 }
 
 #[derive(Clone, Default, Deserialize)]
@@ -50,6 +58,15 @@ impl Layout {
                 }
             }
         }
+        if let Some(allocations) = value.get("allocations").and_then(serde_json::Value::as_object) {
+            for sites in allocations.values().filter_map(serde_json::Value::as_object) {
+                for key in sites.keys() {
+                    if key.parse::<usize>().ok().is_none_or(|n| n.to_string() != *key) {
+                        return Err("invalid MIR allocation placement key".into());
+                    }
+                }
+            }
+        }
         let layout: Self = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
         if layout.code.as_ref().is_some_and(|c| c.len() > 65536)
             || layout.functions.len() > 128
@@ -59,6 +76,35 @@ impl Layout {
             || layout.immutable_values.len() > 128
         {
             return Err("MIR layout input limit".into());
+        }
+        if layout.allocations.len() > 128
+            || layout.allocations.values().map(BTreeMap::len).sum::<usize>() > 4096
+        {
+            return Err("MIR allocation placement limit".into());
+        }
+        for (name, sites) in &layout.allocations {
+            if name.len() > 256
+                || !name.is_ascii()
+                || name.chars().any(char::is_control)
+                || sites.keys().any(|&site| site >= 4096)
+            {
+                return Err("invalid MIR allocation placement key".into());
+            }
+            for placement in sites.values() {
+                let (address, size) = match *placement {
+                    Allocation::Static { address, size } => (Some(address), size),
+                    Allocation::Heap { size } => (None, size),
+                };
+                if size > 65536
+                    || address.is_some_and(|address| {
+                        address < 128
+                            || !address.is_multiple_of(32)
+                            || address.checked_add(size).is_none()
+                    })
+                {
+                    return Err("invalid deferred allocation placement".into());
+                }
+            }
         }
         for (name, function) in &layout.functions {
             if name.len() > 256 || !name.is_ascii() || name.chars().any(char::is_control) {
@@ -125,6 +171,19 @@ impl Layout {
             PlacementRead::FrameBase(name) => U256::from(self.functions.get(name)?.frame_base?),
             PlacementRead::ReturnBuffer(name) => {
                 U256::from(self.functions.get(name)?.return_buffer?)
+            }
+            PlacementRead::AllocationAddress(name, site) => {
+                match self.allocations.get(name)?.get(&site)? {
+                    Allocation::Static { address, .. } => U256::from(*address),
+                    Allocation::Heap { .. } => return None,
+                }
+            }
+            PlacementRead::AllocationSize(name, site) => {
+                match self.allocations.get(name)?.get(&site)? {
+                    Allocation::Static { size, .. } | Allocation::Heap { size } => {
+                        U256::from(*size)
+                    }
+                }
             }
             PlacementRead::ConstructorBase => U256::from(self.constructor.as_ref()?.offset),
             PlacementRead::ConstructorEnd => {

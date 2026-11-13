@@ -278,6 +278,10 @@ pub enum PlacementRead<'a> {
     FrameBase(&'a str),
     /// The explicitly selected memory-return convention's buffer.
     ReturnBuffer(&'a str),
+    /// A deferred allocation's fixed address, absent for an FMP-backed placement.
+    AllocationAddress(&'a str, usize),
+    /// Its explicitly selected extent, for either placement kind.
+    AllocationSize(&'a str, usize),
     /// Copied constructor argument range start.
     ConstructorBase,
     /// Copied constructor argument range end.
@@ -1300,7 +1304,11 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Allocate(size, semantics) if self.semantic.is_some() => {
                 let size = frame.read(size)?;
-                self.semantic_allocate(size, semantics)?
+                if instruction.metadata.deferred_alloc() {
+                    self.semantic_deferred_allocate(body, inst, size, semantics)?
+                } else {
+                    self.semantic_allocate(size, semantics)?
+                }
             }
             Semantics::MemoryZero(offset, size) if self.semantic.is_some() => {
                 let (offset, size) = (frame.read(offset)?, frame.read(size)?);

@@ -295,11 +295,6 @@ fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<
     let mut instructions = Vec::new();
     for &id in &block.instructions {
         let inst = body.inst(id);
-        if inst.metadata.deferred_alloc() {
-            return Err(
-                "deferred allocation requires backend placement, not direct MIR semantics".into()
-            );
-        }
         let result = inst.result().map(|v| v.index());
         let ty = inst
             .result()
@@ -313,7 +308,19 @@ fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<
             phis.push(json!({"result": result, "type": ty, "incoming": incoming}));
             continue;
         }
-        let operation = export_operation(module, body, &inst.kind)?;
+        let mut operation = export_operation(module, body, &inst.kind)?;
+        if inst.metadata.deferred_alloc() {
+            if !matches!(inst.kind.semantics(), Some(Semantics::Allocate(..))) {
+                return Err("deferred placement marker requires an allocation".into());
+            }
+            operation["kind"] = json!("deferred_allocate");
+            operation["function"] = json!(body.name.to_string());
+            operation["site"] = json!(
+                body.instructions()
+                    .position(|candidate| candidate == id)
+                    .ok_or("inactive allocation site")?
+            );
+        }
         instructions.push(json!({"result":result,"type":ty,"operation":operation}));
     }
     let term = match block.terminator.as_ref().ok_or("missing MIR terminator")? {

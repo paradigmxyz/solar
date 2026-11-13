@@ -134,6 +134,7 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .word,[a] => value frame a
   | .freePointer,[] => freePointer frame
   | .allocate zeroed checked,[size] => allocate frame size zeroed checked
+  | .deferredAllocate function site zeroed checked,[size] => deferredAllocate cfg frame function site size zeroed checked
   | .insertValue ..,_ | .extractValue ..,_ | .makeSlice ..,_ => .error "aggregate operation needs typed operands"
   | .object (.bytes .validate),[header] =>
     match bytesHeader header with | .ok _ => effect frame | .error data => return .reverted data

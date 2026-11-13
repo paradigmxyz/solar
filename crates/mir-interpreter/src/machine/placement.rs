@@ -7,7 +7,10 @@
 
 use super::{Outcome, PlacementRead, Run, limit};
 use alloy_primitives::U256;
-use solar_mir::{Function, ImmutableId, InstId, Terminator, ValueLayout};
+use solar_mir::{
+    AllocationInitialization, AllocationSemantics, Function, ImmutableId, InstId, Terminator,
+    ValueLayout,
+};
 use std::ops::ControlFlow;
 
 impl Run<'_, '_, '_> {
@@ -20,6 +23,43 @@ impl Run<'_, '_, '_> {
             },
             ControlFlow::Continue,
         )
+    }
+
+    /// Resolve a deferred site from explicit input, not the backend's captured records.
+    pub(super) fn semantic_deferred_allocate(
+        &mut self,
+        body: &Function,
+        inst: InstId,
+        size: U256,
+        semantics: AllocationSemantics,
+    ) -> ControlFlow<Outcome, U256> {
+        let site =
+            body.instructions().position(|candidate| candidate == inst).expect("active allocation");
+        let name = body.name.to_string();
+        let extent = self.placement(PlacementRead::AllocationSize(&name, site))?;
+        if extent != size {
+            return ControlFlow::Break(Outcome::Unsupported(
+                "deferred allocation extent disagrees with placement",
+            ));
+        }
+        let fixed = self
+            .world
+            .as_mut()
+            .and_then(|world| world.host.placement(PlacementRead::AllocationAddress(&name, site)));
+        if let Some(address) = fixed {
+            if address.checked_add(size).is_none_or(|end| end > U256::from(u64::MAX)) {
+                return ControlFlow::Break(Outcome::Unsupported(
+                    "invalid deferred allocation placement",
+                ));
+            }
+            if semantics.initialization == AllocationInitialization::Zeroed {
+                self.burn_words(size)?;
+                limit(self.memory.zero(address, size))?;
+            }
+            ControlFlow::Continue(address)
+        } else {
+            self.semantic_allocate(size, semantics)
+        }
     }
 
     pub(super) fn semantic_immutable(
