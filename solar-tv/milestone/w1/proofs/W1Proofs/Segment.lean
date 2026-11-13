@@ -22,7 +22,7 @@ invariant: the relations are the exporter's, and Lean only checks that they are 
 
 namespace SolarTV.Milestone.W1
 
-open SolarTV.CutPoint Machine
+open SolarTV.CutPoint Machine EvmRules
 
 theorem agree_of_eq {a b : Halt × State} (h : a = b) : Agree a b := h ▸ Agree.refl a
 
@@ -91,6 +91,22 @@ dsimproc_decl iteNatLit (ite _ _ _) := fun e => do
   let some n ← Nat.fromExpr? y | return .continue
   return .done (if m == n then a else b)
 
+/-- A word is nonzero exactly when zero is below it: the scheduler may test either way. -/
+theorem lt_zero_word (x : Word) : Evm.lt 0 x = Evm.ne x 0 := by
+  unfold Evm.lt Evm.ne
+  by_cases h : x = 0
+  · subst h; decide
+  · have : (0 : Word).ult x = true := by
+      simp only [BitVec.ult_iff_lt]; bv_omega
+    simp only [Bool.cond_eq_ite] at *
+    rw [if_pos this, if_neg (by simpa using h)]
+
+/-- A cut test of a block a branch picks, as the test of each block: so that the procedure splits
+on the branch's condition, not on the test. -/
+theorem ite_beq_nat (c : Prop) [Decidable c] (a b n : Nat) :
+    ((if c then a else b) == n) = (if c then (a == n) else (b == n)) := by
+  split <;> rfl
+
 /-- Unfold a segment's step and its cut test. -/
 syntax "seg_eval" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
 macro_rules
@@ -99,7 +115,8 @@ macro_rules
 
 syntax "seg_norm" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
 macro_rules
-  | `(tactic| seg_norm [$ids,*]) => `(tactic| repeat (first | sym_eval | seg_eval [$ids,*] | sym_cond))
+  | `(tactic| seg_norm [$ids,*]) => `(tactic|
+      repeat (first | sym_eval | seg_eval [$ids,*] | simp only [ite_beq_nat] | sym_cond))
 
 /-- The equation of two words, configurations or results, by evaluation and `sym_exec`'s leaf
 procedures. -/
@@ -145,6 +162,7 @@ macro_rules
       all_goals first
         | exact True.intro
         | (apply agree_of_eq; seg_eq)
+        | (simp only [lt_zero_word]; apply agree_of_eq; seg_eq)
         | seg_cut [$ms,*]
         | (exfalso; bv_omega)
         | (exfalso; sym_omega)

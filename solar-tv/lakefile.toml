@@ -93,3 +93,12 @@ srcDir = "milestone"
 roots = ["loops.Proofs"]
 globs = ["loops.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# sqrt: Uniswap v2 Math.sqrt behind an entry point, and its stages through cut points, which
+# milestone/cutpoints.py writes.
+[[lean_lib]]
+name = "sqrt"
+srcDir = "milestone"
+roots = ["sqrt.Proofs"]
+globs = ["sqrt.+"]
+moreLeanArgs = ["-M", "3000"]

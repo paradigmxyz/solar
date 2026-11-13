@@ -218,3 +218,38 @@ contract in solidity-lean; here the walk only shows the decoding. The caller is 
 Hashes are an oracle function of the hashed bytes and the proofs hold for every oracle, KECCAK256 among them, but say nothing about collisions. Two milestone
 directories whose contracts share a name export the same `SolarTV.Export.<Contract>` namespace and
 cannot be imported together.
+
+## Loops: cut points
+
+[certify-loops.sh](certify-loops.sh) certifies a contract whose backend loops, where the
+symbolic runs above cannot end. For each pair of consecutive stages,
+[cutpoints.py](cutpoints.py) picks cut points that cut every cycle of both programs and the
+relation between their configurations there, from what the compiler kept across the pass, and
+writes the obligation of `SolarTV.CutPoint`: from every related pair, the two loop-free segments
+end alike. `sym_seg` ([W1Proofs/Segment.lean](w1/proofs/W1Proofs/Segment.lean)) proves each one
+by symbolic execution from configurations of variables, and `LayerSim` lifts them to the stage
+in both directions, for any number of iterations. No relation is written by hand:
+
+- MIR to MIR: the loop headers by block number, the same state, every value live into the header
+  the same word, and each phi's input from one predecessor the other's from its own.
+- MIR to the scheduled EVM IR: the header's scheduled block and the stack the scheduler recorded
+  there (`Schedule.json`, which `-Zemit-lean-stages` writes from the scheduler's own map), each
+  value's word and a phi's word as its input from the predecessor.
+- EVM IR to EVM IR: blocks of the same number that both programs loop through, the same words at
+  the same height, and the same state.
+
+A pair the procedure cannot relate fails closed with the pass and the reason, such as a loop in
+a function that an internal call enters. A wrong relation fails a segment by mismatch, and so
+does running out of a segment's fuel, which matches nothing.
+
+- [sqrt](sqrt/sqrt.sol): Uniswap v2's `Math.sqrt` (the Babylonian loop) behind an external
+  entry point, 176 bytes at `-Ogas`. Stages `stage0 → mir1 → sched → evm1 → … → evm12`
+  (`lower-assumes`, `stack-schedule`, then `cfg-simplify-early` to `cfg-simplify`, among
+  them `copy-loop-blocks`), all proved on every call and oracle however many times the loop
+  runs: `SolarTV.Milestone.Sqrt.sqrt_mir_to_evmir`, and each stage backwards (`<stage>_back`).
+  [cutpoint-negative.sh](cutpoint-negative.sh) checks that halving by four instead of two in the
+  loop body, and inverting its exit test, each fail the last stage by mismatch.
+
+```sh
+SOLAR=target/debug/solar solar-tv/milestone/certify-loops.sh sqrt SqrtEntry
+```
