@@ -1,0 +1,634 @@
+{
+  "arguments": [
+    "--emit-lean",
+    "vc-exports/Counter",
+    "crates/verify/examples/Counter.sol"
+  ],
+  "compiler": "0.8.38+commit.7f4e94e0.solar.0.3.0-dev",
+  "errors": [],
+  "format": "solar-verify-lean",
+  "lean": {
+    "library": "SolarVerify",
+    "smt_sha256": "2c92f3bcd927369da89250662bd5a6174d3c06d0c3c38f5021509fe8810036e3",
+    "toolchain": "leanprover/lean4:v4.35.0",
+    "vc_sha256": "7275fa354f077a4826dd9fe56124cbffee2337d7a21975b477534fc5f45d7cfe"
+  },
+  "options": {
+    "dry_run": false,
+    "only": null,
+    "strict": false,
+    "timeout_ms": 10000
+  },
+  "solvers": {
+    "bitwuzla": null,
+    "cvc5": "This is cvc5 version 1.3.1 [git ea1b484 on branch HEAD]",
+    "z3": "Z3 version 4.13.4 - 64 bit"
+  },
+  "sources": [
+    {
+      "path": "/home/hand/wt-inferred/crates/verify/examples/Counter.sol",
+      "sha256": "f1c87a334b8db31fc8f80541febeaf8617318d20b685634f44e26c74146ad326"
+    }
+  ],
+  "units": [
+    {
+      "module": "Counter/constructor.lean",
+      "name": "Counter.constructor",
+      "namespace": "SolarVerifyVc.Counter.constructor",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 19,
+          "commands": 39,
+          "goal": "false",
+          "guard": "|g@20|",
+          "id": "Counter.constructor#0",
+          "lean": "SolarVerifyVc.Counter.constructor.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "dfd89c3f27f5fab533513383b68bafc47e9350f6e8299c691d2d36c4a1ccc865",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 19,
+          "commands": 39,
+          "goal": "(and (= |_limit@19| |_limit@19|) (= 0 0))",
+          "guard": "|g@20|",
+          "id": "Counter.constructor#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Counter.constructor.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 9
+          },
+          "smt_sha256": "e35bb6984cd9ac65dc87139e59fc674a56c5a3b73bc19bef3e0d669db1786bd5",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 9,
+            "text": "limit == _limit && count == 0"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 19,
+          "commands": 39,
+          "goal": "(<= 0 |_limit@19|)",
+          "guard": "|g@20|",
+          "id": "Counter.constructor#2",
+          "kind": "contract invariant not established by constructor",
+          "lean": "SolarVerifyVc.Counter.constructor.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 10
+          },
+          "smt_sha256": "16f3d15c7c302bd0ec2614423ed17c0c1146f7837ad3501a2e224452ad6df42a",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 4,
+            "text": "count <= limit"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 39,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|__balance@17|",
+            "|__code_epoch@18|",
+            "|_limit@19|",
+            "|g@20|"
+          ],
+          "lean": "SolarVerifyVc.Counter.constructor.script0",
+          "smt": "Counter/constructor.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Counter/increment.lean",
+      "name": "Counter.increment",
+      "namespace": "SolarVerifyVc.Counter.increment",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 24,
+          "commands": 49,
+          "goal": "false",
+          "guard": "|g@25|",
+          "id": "Counter.increment#0",
+          "lean": "SolarVerifyVc.Counter.increment.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "db9bd08af3ada841c9162e24071c05e3ffe22aa5c47c2364b88d011281e1fc51",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 24,
+          "commands": 49,
+          "goal": "(= |arith@24| (+ |count@17| 1))",
+          "guard": "|g@25|",
+          "id": "Counter.increment#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Counter.increment.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 15
+          },
+          "smt_sha256": "e69fa8969da938c143dcf9ab5c85afe5a424570c037b9891c33fcb829f0327ad",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 15,
+            "text": "count == old(count) + 1"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 24,
+          "commands": 49,
+          "goal": "(<= |arith@24| |limit@18|)",
+          "guard": "|g@25|",
+          "id": "Counter.increment#2",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Counter.increment.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 16
+          },
+          "smt_sha256": "9dbd8322fafbc07e582e3be125319c392fdf487db9039d21958ba7306cf060dd",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 4,
+            "text": "count <= limit"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 49,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|count@17|",
+            "|limit@18|",
+            "|__balance@19|",
+            "|__code_epoch@20|",
+            "|g@21|",
+            "|g@22|",
+            "|g@23|",
+            "|arith@24|",
+            "|g@25|"
+          ],
+          "lean": "SolarVerifyVc.Counter.increment.script0",
+          "smt": "Counter/increment.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Counter/bump.lean",
+      "name": "Counter.bump",
+      "namespace": "SolarVerifyVc.Counter.bump",
+      "obligations": [
+        {
+          "answer": "unsat",
+          "asserts": 25,
+          "commands": 51,
+          "goal": "(<= 0 |n@21|)",
+          "guard": "|g@26|",
+          "id": "Counter.bump#0",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.Counter.bump.ob0",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 23
+          },
+          "smt_sha256": "d4d9802a9c35064f4800fe60c0a3c9a2211344dda7e01fa4992c4c7de8aa935b",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 23,
+            "text": "i <= n"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 25,
+          "commands": 51,
+          "goal": "(= |count@17| (+ |count@17| 0))",
+          "guard": "|g@26|",
+          "id": "Counter.bump#1",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.Counter.bump.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 24
+          },
+          "smt_sha256": "cf7aefa7db718528349c6e3e90800aa7f05c859ead5c864221caf3490c999eec",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 24,
+            "text": "count == old(count) + i"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 69,
+          "goal": "(<= |arith@34| |n@21|)",
+          "guard": "|g@35|",
+          "id": "Counter.bump#2",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.Counter.bump.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 23
+          },
+          "smt_sha256": "7e1b1179c11e99de7f003ebcd333fda89282ec0ed9ce277c66d8853cb73e7da8",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 23,
+            "text": "i <= n"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 69,
+          "goal": "(= |arith@32| (+ |count@17| |arith@34|))",
+          "guard": "|g@35|",
+          "id": "Counter.bump#3",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.Counter.bump.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 24
+          },
+          "smt_sha256": "ccd034d110ae38c6cc50e2dc1c9b213ebb76caadc333f21699c5363dccbff614",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 24,
+            "text": "count == old(count) + i"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 69,
+          "goal": "(and (<= 0 (- |n@21| |i@28|)) (< (- |n@21| |arith@34|) (- |n@21| |i@28|)))",
+          "guard": "|g@35|",
+          "id": "Counter.bump#4",
+          "kind": "loop does not terminate: decreases clause not decreased",
+          "lean": "SolarVerifyVc.Counter.bump.ob4",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 25
+          },
+          "smt_sha256": "7a6d90953c8a56ba655e2369ed8dc3a8bbceaaae0b170ae926932c26ac53cc9a",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 25,
+            "text": "n - i"
+          }
+        },
+        {
+          "answer": "sat",
+          "asserts": 35,
+          "commands": 71,
+          "goal": "false",
+          "guard": "|g@36|",
+          "id": "Counter.bump#5",
+          "lean": "SolarVerifyVc.Counter.bump.ob5",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "8429fe7b900e46d0264d6581b08086753656506ed684414323cf35c0162693f1",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 35,
+          "commands": 71,
+          "goal": "(= |count@27| (+ |count@17| |n@21|))",
+          "guard": "|g@36|",
+          "id": "Counter.bump#6",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Counter.bump.ob6",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 20
+          },
+          "smt_sha256": "a2fb7e21b99497d1e663fb4fb5446b13319b6b6a8215104f53580575c43be051",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 20,
+            "text": "count == old(count) + n"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 35,
+          "commands": 71,
+          "goal": "(<= |count@27| |limit@18|)",
+          "guard": "|g@36|",
+          "id": "Counter.bump#7",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Counter.bump.ob7",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 21
+          },
+          "smt_sha256": "ece35f6176a8700ce2fbb29f3eb5fe8e6d941d242bfd13dcfa413796b0ab0965",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 4,
+            "text": "count <= limit"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 71,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|count@17|",
+            "|limit@18|",
+            "|__balance@19|",
+            "|__code_epoch@20|",
+            "|n@21|",
+            "|g@22|",
+            "|g@23|",
+            "|arith@24|",
+            "|g@25|",
+            "|g@26|",
+            "|count@27|",
+            "|i@28|",
+            "|g@29|",
+            "|g@30|",
+            "|g@31|",
+            "|arith@32|",
+            "|g@33|",
+            "|arith@34|",
+            "|g@35|",
+            "|g@36|"
+          ],
+          "lean": "SolarVerifyVc.Counter.bump.script0",
+          "smt": "Counter/bump.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Counter/max.lean",
+      "name": "Counter.max",
+      "namespace": "SolarVerifyVc.Counter.max",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 27,
+          "commands": 55,
+          "goal": "false",
+          "guard": "|g@27|",
+          "id": "Counter.max#0",
+          "lean": "SolarVerifyVc.Counter.max.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "e09eeabf002a08c30512a82263013fea9656611d4797b8415455f5aa6a5024be",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 27,
+          "commands": 55,
+          "goal": "(= |__ret0@28| (ite (>= |a@21| |b@22|) |a@21| |b@22|))",
+          "guard": "|g@27|",
+          "id": "Counter.max#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Counter.max.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 31
+          },
+          "smt_sha256": "0904e2d42bce58f6f1ea165c366548c9f408eb01f34cdbb3f8a33759272dc45a",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 31,
+            "text": "result == (a >= b ? a : b)"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 27,
+          "commands": 55,
+          "goal": "(and (>= |__ret0@28| |a@21|) (>= |__ret0@28| |b@22|))",
+          "guard": "|g@27|",
+          "id": "Counter.max#2",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Counter.max.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 32
+          },
+          "smt_sha256": "41a5af9bb6dad1224262bdfbb48c1e108da62404b5323c817cd9bad9e61111ee",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 32,
+            "text": "result >= a && result >= b"
+          }
+        },
+        {
+          "answer": "settled",
+          "asserts": 27,
+          "commands": 55,
+          "goal": "(<= |count@17| |limit@18|)",
+          "guard": "|g@27|",
+          "id": "Counter.max#3",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Counter.max.ob3",
+          "reason": "assumed at entry, over unchanged state",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 33
+          },
+          "smt_sha256": "64b966616da36695f70e4874b78cd87c15c2f95c47df6af33d9b491261c6fe7a",
+          "solver": null,
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Counter.sol",
+            "line": 4,
+            "text": "count <= limit"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 55,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|count@17|",
+            "|limit@18|",
+            "|__balance@19|",
+            "|__code_epoch@20|",
+            "|a@21|",
+            "|b@22|",
+            "|g@23|",
+            "|g@24|",
+            "|g@25|",
+            "|g@26|",
+            "|g@27|",
+            "|__ret0@28|"
+          ],
+          "lean": "SolarVerifyVc.Counter.max.script0",
+          "smt": "Counter/max.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    }
+  ],
+  "version": 1
+}

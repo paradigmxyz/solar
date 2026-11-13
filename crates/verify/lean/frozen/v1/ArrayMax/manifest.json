@@ -1,0 +1,760 @@
+{
+  "arguments": [
+    "--emit-lean",
+    "vc-exports/ArrayMax",
+    "crates/verify/examples/ArrayMax.sol"
+  ],
+  "compiler": "0.8.38+commit.7f4e94e0.solar.0.3.0-dev",
+  "errors": [],
+  "format": "solar-verify-lean",
+  "lean": {
+    "library": "SolarVerify",
+    "smt_sha256": "2c92f3bcd927369da89250662bd5a6174d3c06d0c3c38f5021509fe8810036e3",
+    "toolchain": "leanprover/lean4:v4.35.0",
+    "vc_sha256": "7275fa354f077a4826dd9fe56124cbffee2337d7a21975b477534fc5f45d7cfe"
+  },
+  "options": {
+    "dry_run": false,
+    "only": null,
+    "strict": false,
+    "timeout_ms": 10000
+  },
+  "solvers": {
+    "bitwuzla": null,
+    "cvc5": "This is cvc5 version 1.3.1 [git ea1b484 on branch HEAD]",
+    "z3": "Z3 version 4.13.4 - 64 bit"
+  },
+  "sources": [
+    {
+      "path": "/home/hand/wt-inferred/crates/verify/examples/ArrayMax.sol",
+      "sha256": "904535ac694498a9823f530ca158ee0c762fd1adcc56f3e7b73ca0e457e61f4a"
+    }
+  ],
+  "units": [
+    {
+      "module": "ArrayMax/max.lean",
+      "name": "ArrayMax.max",
+      "namespace": "SolarVerifyVc.ArrayMax.max",
+      "obligations": [
+        {
+          "answer": "unsat",
+          "asserts": 21,
+          "commands": 42,
+          "goal": "(<= 1 1)",
+          "guard": "|g@20|",
+          "id": "ArrayMax.max#0",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob0",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "5295b5100b304c78178c05e0648edf7b8c5c65328262f7ee8a78c53d8182ee89",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "1 <= i"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 21,
+          "commands": 42,
+          "goal": "(<= 1 |xs.length@18|)",
+          "guard": "|g@20|",
+          "id": "ArrayMax.max#1",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "347c5f72952324b53f4727ba7bf3fb662d77ca67db931b9655ec59d710bb22c4",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "i <= xs.length"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 21,
+          "commands": 42,
+          "goal": "(forall ((|j!25| Int)) (=> (and (and (<= 0 |j!25|) (<= |j!25| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (=> (< |j!25| 1) (<= (select |xs@17| |j!25|) |m@21|))))",
+          "guard": "|g@20|",
+          "id": "ArrayMax.max#2",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "f980a79aecb59738706917debadad336afdd06f91c4b5507757b75995f9fd2b9",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "forall uint256 j :: j < i ==> xs[j] <= m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 21,
+          "commands": 42,
+          "goal": "(exists ((|j!26| Int)) (and (and (and (<= 0 |j!26|) (<= |j!26| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (and (< |j!26| 1) (= (select |xs@17| |j!26|) |m@21|))))",
+          "guard": "|g@20|",
+          "id": "ArrayMax.max#3",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "5dbc71e2ea2e9f356ecb6b576ba70861bf6170313124b302aec223cc7503b697",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "exists uint256 j :: j < i && xs[j] == m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 21,
+          "commands": 42,
+          "goal": "(exists ((|j!27| Int)) (and (and (and (<= 0 |j!27|) (<= |j!27| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (and (< |j!27| |xs.length@18|) (= (select |xs@17| |j!27|) |m@21|))))",
+          "guard": "|g@20|",
+          "id": "ArrayMax.max#4",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob4",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "55ecfb69494a22d6e58ad91840bcbb0897fdf19bb2ad70583faf832f8056b227",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "exists uint256 j :: j < xs.length && xs[j] == m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 21,
+          "commands": 42,
+          "goal": "(> |xs.length@18| 0)",
+          "guard": "|g@20|",
+          "id": "ArrayMax.max#5",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob5",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "4dfac29473863b79f8e4b029a64e650a5062964c2a069706eaa080479282ff0e",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "xs.length > 0"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(<= 1 |arith@47|)",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#6",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob6",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "b515578b67f66dd4eaa1bc5a770b54e58b64ce5a77460f54f931a02729f6ab19",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "1 <= i"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(<= |arith@47| |xs.length@18|)",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#7",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob7",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "bf57c3c10ee62b1215acc86c6d35917fafe7b6d43f4e08e00d0e103e9d2af6ca",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "i <= xs.length"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(forall ((|j!49| Int)) (=> (and (and (<= 0 |j!49|) (<= |j!49| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (=> (< |j!49| |arith@47|) (<= (select |xs@17| |j!49|) |m@46|))))",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#8",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob8",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "f25bff351a6ea08f2bcc9d638abb5bf7189a4968ac5e2a62576f42f2639ffd05",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "forall uint256 j :: j < i ==> xs[j] <= m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(exists ((|j!50| Int)) (and (and (and (<= 0 |j!50|) (<= |j!50| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (and (< |j!50| |arith@47|) (= (select |xs@17| |j!50|) |m@46|))))",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#9",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob9",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "b0fa429989bc9d610ac25c80224ea993b198f49fa116f7ddefde114a96eb7a01",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "exists uint256 j :: j < i && xs[j] == m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(exists ((|j!51| Int)) (and (and (and (<= 0 |j!51|) (<= |j!51| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (and (< |j!51| |xs.length@18|) (= (select |xs@17| |j!51|) |m@46|))))",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#10",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob10",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "dba88be31a4526edfb6ef423e6b08ecef7db4ca61f4b6abfcfc62407e049d851",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "exists uint256 j :: j < xs.length && xs[j] == m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(> |xs.length@18| 0)",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#11",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob11",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "934a80355bad5cc493fce7387db616006574e4727549114faa462f45b85f57c4",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "xs.length > 0"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 80,
+          "goal": "(and (<= 0 (- |xs.length@18| |i@28|)) (< (- |xs.length@18| |arith@47|) (- |xs.length@18| |i@28|)))",
+          "guard": "|g@48|",
+          "id": "ArrayMax.max#12",
+          "kind": "loop does not terminate: decreases clause not decreased",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob12",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10
+          },
+          "smt_sha256": "ab98ca88f80753c5ac3991a7b6b4189cc5fe5b02ee4d7203111d9ec183c0ded7",
+          "solver": "z3",
+          "spec": {
+            "column": 9,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 10,
+            "text": "(xs.length) - i"
+          }
+        },
+        {
+          "answer": "sat",
+          "asserts": 42,
+          "commands": 82,
+          "goal": "false",
+          "guard": "|g@52|",
+          "id": "ArrayMax.max#13",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob13",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "f92d705bb601763d2dfb970f85c5c278b5c349e4bbe00aa2d4fa9b125314817d",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 42,
+          "commands": 82,
+          "goal": "(forall ((|j!53| Int)) (=> (and (and (<= 0 |j!53|) (<= |j!53| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (=> (< |j!53| |xs.length@18|) (<= (select |xs@17| |j!53|) |m@29|))))",
+          "guard": "|g@52|",
+          "id": "ArrayMax.max#14",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob14",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 6
+          },
+          "smt_sha256": "9eb45f23e4334f8efc8813e249422b90ce287a408a64ac239401e574fc219fd8",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 6,
+            "text": "forall uint256 j :: j < xs.length ==> xs[j] <= m"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 42,
+          "commands": 82,
+          "goal": "(exists ((|j!54| Int)) (and (and (and (<= 0 |j!54|) (<= |j!54| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (and (< |j!54| |xs.length@18|) (= (select |xs@17| |j!54|) |m@29|))))",
+          "guard": "|g@52|",
+          "id": "ArrayMax.max#15",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.ArrayMax.max.ob15",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 7
+          },
+          "smt_sha256": "e0e3e9b245cc79d0a181a12470b923c5f05bfbe4af657301137ae1344b42b2d4",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 7,
+            "text": "exists uint256 j :: j < xs.length && xs[j] == m"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 82,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|xs@17|",
+            "|xs.length@18|",
+            "|g@19|",
+            "|g@20|",
+            "|m@21|",
+            "|i@28|",
+            "|m@29|",
+            "|g@30|",
+            "|g@31|",
+            "|g@33|",
+            "|g@35|",
+            "|g@37|",
+            "|g@38|",
+            "|g@39|",
+            "|g@40|",
+            "|g@41|",
+            "|g@42|",
+            "|m@43|",
+            "|g@44|",
+            "|g@45|",
+            "|m@46|",
+            "|arith@47|",
+            "|g@48|",
+            "|g@52|"
+          ],
+          "lean": "SolarVerifyVc.ArrayMax.max.script0",
+          "smt": "ArrayMax/max.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "ArrayMax/clamp.lean",
+      "name": "ArrayMax.clamp",
+      "namespace": "SolarVerifyVc.ArrayMax.clamp",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 22,
+          "commands": 44,
+          "goal": "false",
+          "guard": "|g@21|",
+          "id": "ArrayMax.clamp#0",
+          "lean": "SolarVerifyVc.ArrayMax.clamp.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "c669e10e759850f1b0ed3843c8440755652c2b706652835d7415a7dfef329df3",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 22,
+          "commands": 44,
+          "goal": "(<= |r@22| |n@18|)",
+          "guard": "|g@21|",
+          "id": "ArrayMax.clamp#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.ArrayMax.clamp.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 17
+          },
+          "smt_sha256": "ae925b0907b4ef1737b19d4fc649c22775148b4351b0413901526e9c10bd82a7",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 17,
+            "text": "r <= n"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 44,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|x@17|",
+            "|n@18|",
+            "|g@19|",
+            "|g@20|",
+            "|g@21|",
+            "|r@22|"
+          ],
+          "lean": "SolarVerifyVc.ArrayMax.clamp.script0",
+          "smt": "ArrayMax/clamp.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "ArrayMaxEntry/max.lean",
+      "name": "ArrayMaxEntry.max",
+      "namespace": "SolarVerifyVc.ArrayMaxEntry.max",
+      "obligations": [
+        {
+          "answer": "unsat",
+          "asserts": 20,
+          "commands": 42,
+          "goal": "(> |xs.length@20| 0)",
+          "guard": "|g@22|",
+          "id": "ArrayMaxEntry.max#0",
+          "kind": "precondition of `max` not satisfied",
+          "lean": "SolarVerifyVc.ArrayMaxEntry.max.ob0",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 16,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 30
+          },
+          "smt_sha256": "250434d86bc1b5c4e45f2e3538f7c1e5123fa49df127e0943ff25a45ebd9e13f",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 5,
+            "text": "xs.length > 0"
+          }
+        },
+        {
+          "answer": "sat",
+          "asserts": 23,
+          "commands": 48,
+          "goal": "false",
+          "guard": "|g@27|",
+          "id": "ArrayMaxEntry.max#1",
+          "lean": "SolarVerifyVc.ArrayMaxEntry.max.ob1",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "6a103618ebb3edca8d5011cb95b77f711994fef7c719df636741f80fa7f2e54e",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 23,
+          "commands": 48,
+          "goal": "(forall ((|j!28| Int)) (=> (and (and (<= 0 |j!28|) (<= |j!28| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (=> (< |j!28| |xs.length@20|) (<= (select |xs@19| |j!28|) |m@23|))))",
+          "guard": "|g@27|",
+          "id": "ArrayMaxEntry.max#2",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.ArrayMaxEntry.max.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 26
+          },
+          "smt_sha256": "d1712d8397bf64d098f81b53f58d74d79369f8df7c7e83f1df197cf66c13530b",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 26,
+            "text": "forall uint256 j :: j < xs.length ==> xs[j] <= result"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 23,
+          "commands": 48,
+          "goal": "(exists ((|j!29| Int)) (and (and (and (<= 0 |j!29|) (<= |j!29| 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (and (< |j!29| |xs.length@20|) (= (select |xs@19| |j!29|) |m@23|))))",
+          "guard": "|g@27|",
+          "id": "ArrayMaxEntry.max#3",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.ArrayMaxEntry.max.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 27
+          },
+          "smt_sha256": "48dc434e3f17562a86578ff2efe8db9146ebef7af86cb3190c125e5c4e88f5e4",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/ArrayMax.sol",
+            "line": 27,
+            "text": "exists uint256 j :: j < xs.length && xs[j] == result"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 48,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|__balance@17|",
+            "|__code_epoch@18|",
+            "|xs@19|",
+            "|xs.length@20|",
+            "|g@21|",
+            "|g@22|",
+            "|m@23|",
+            "|g@25|",
+            "|g@27|"
+          ],
+          "lean": "SolarVerifyVc.ArrayMaxEntry.max.script0",
+          "smt": "ArrayMaxEntry/max.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "ArrayMaxEntry/constructor.lean",
+      "name": "ArrayMaxEntry.constructor",
+      "namespace": "SolarVerifyVc.ArrayMaxEntry.constructor",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 18,
+          "commands": 37,
+          "goal": "false",
+          "guard": "|g@19|",
+          "id": "ArrayMaxEntry.constructor#0",
+          "lean": "SolarVerifyVc.ArrayMaxEntry.constructor.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "47045d9c3bc9bc2bb3756918d7c08545edc1433497ba6f34db2b2e3a5ba0fa43",
+          "solver": "z3"
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 37,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|__balance@17|",
+            "|__code_epoch@18|",
+            "|g@19|"
+          ],
+          "lean": "SolarVerifyVc.ArrayMaxEntry.constructor.script0",
+          "smt": "ArrayMaxEntry/constructor.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    }
+  ],
+  "version": 1
+}

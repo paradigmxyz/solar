@@ -1,0 +1,616 @@
+{
+  "arguments": [
+    "--emit-lean",
+    "vc-exports/Token",
+    "crates/verify/examples/Token.sol"
+  ],
+  "compiler": "0.8.38+commit.7f4e94e0.solar.0.3.0-dev",
+  "errors": [],
+  "format": "solar-verify-lean",
+  "lean": {
+    "library": "SolarVerify",
+    "smt_sha256": "2c92f3bcd927369da89250662bd5a6174d3c06d0c3c38f5021509fe8810036e3",
+    "toolchain": "leanprover/lean4:v4.35.0",
+    "vc_sha256": "7275fa354f077a4826dd9fe56124cbffee2337d7a21975b477534fc5f45d7cfe"
+  },
+  "options": {
+    "dry_run": false,
+    "only": null,
+    "strict": false,
+    "timeout_ms": 10000
+  },
+  "solvers": {
+    "bitwuzla": null,
+    "cvc5": "This is cvc5 version 1.3.1 [git ea1b484 on branch HEAD]",
+    "z3": "Z3 version 4.13.4 - 64 bit"
+  },
+  "sources": [
+    {
+      "path": "/home/hand/wt-inferred/crates/verify/examples/Token.sol",
+      "sha256": "45b62aa1152c4ec09e76735ac7257a06bf3e4be0f435fdacdc174f41e8c8e75c"
+    }
+  ],
+  "units": [
+    {
+      "module": "Token/constructor.lean",
+      "name": "Token.constructor",
+      "namespace": "SolarVerifyVc.Token.constructor",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 18,
+          "commands": 37,
+          "goal": "false",
+          "guard": "|g@19|",
+          "id": "Token.constructor#0",
+          "lean": "SolarVerifyVc.Token.constructor.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "47045d9c3bc9bc2bb3756918d7c08545edc1433497ba6f34db2b2e3a5ba0fa43",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 18,
+          "commands": 37,
+          "goal": "(= |msg.sender@2| |msg.sender@2|)",
+          "guard": "|g@19|",
+          "id": "Token.constructor#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.constructor.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 18
+          },
+          "smt_sha256": "893a6b36e34fb218ad9a54c7aae5b6d013e5cd4b7cd7f57ef77d0c5370542c2b",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 18,
+            "text": "owner == msg.sender"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 18,
+          "commands": 37,
+          "goal": "(= 0 0)",
+          "guard": "|g@19|",
+          "id": "Token.constructor#2",
+          "kind": "contract invariant not established by constructor",
+          "lean": "SolarVerifyVc.Token.constructor.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 19
+          },
+          "smt_sha256": "4704da76b2284740461867635ca40dc3c0a2d201cffa6c703b1655b4ae4ebf5f",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 7,
+            "text": "totalSupply == sumBalances"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 37,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|__balance@17|",
+            "|__code_epoch@18|",
+            "|g@19|"
+          ],
+          "lean": "SolarVerifyVc.Token.constructor.script0",
+          "smt": "Token/constructor.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Token/mint.lean",
+      "name": "Token.mint",
+      "namespace": "SolarVerifyVc.Token.mint",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 32,
+          "commands": 65,
+          "goal": "false",
+          "guard": "|g@32|",
+          "id": "Token.mint#0",
+          "lean": "SolarVerifyVc.Token.mint.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "3459da9f645cb8e8693114edb32db0235e23794550a4e21d2b06bdf92b0bf521",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 67,
+          "goal": "(= (select |balanceOf@33| |to@23|) (+ (select |balanceOf@18| |to@23|) |amount@24|))",
+          "guard": "|g@32|",
+          "id": "Token.mint#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.mint.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 23
+          },
+          "smt_sha256": "e6987a392087b17c542e124b75877c87f97d3cca8c8614def5ea8441a45f2333",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 23,
+            "text": "balanceOf[to] == old(balanceOf[to]) + amount"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 67,
+          "goal": "(= |arith@28| (+ |totalSupply@19| |amount@24|))",
+          "guard": "|g@32|",
+          "id": "Token.mint#2",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.mint.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 24
+          },
+          "smt_sha256": "49f674bef833ed55813798c6d1749927c462e1b221c6c27f65ecf9cada59a58b",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 24,
+            "text": "totalSupply == old(totalSupply) + amount"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 67,
+          "goal": "(forall ((|a!34| Int)) (=> (and (and (<= 0 |a!34|) (<= |a!34| 1461501637330902918203684832716283019655932542975))) (=> (not (= |a!34| |to@23|)) (= (select |balanceOf@33| |a!34|) (select |balanceOf@18| |a!34|)))))",
+          "guard": "|g@32|",
+          "id": "Token.mint#3",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.mint.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 25
+          },
+          "smt_sha256": "9debc9bd17f9b6e5bfabfd9e87bfa601ffcf458701533d83014081b586fa69ce",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 25,
+            "text": "forall address a :: a != to ==> balanceOf[a] == old(balanceOf[a])"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 34,
+          "commands": 67,
+          "goal": "(= |arith@28| |sumBalances@30|)",
+          "guard": "|g@32|",
+          "id": "Token.mint#4",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Token.mint.ob4",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 26
+          },
+          "smt_sha256": "8d6ace15682a95d1b812fb1c778c14499e3a425ca045a56be5b44195cb4e7d02",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 7,
+            "text": "totalSupply == sumBalances"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 67,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|sumBalances@17|",
+            "|balanceOf@18|",
+            "|totalSupply@19|",
+            "|owner@20|",
+            "|__balance@21|",
+            "|__code_epoch@22|",
+            "|to@23|",
+            "|amount@24|",
+            "|g@25|",
+            "|g@26|",
+            "|g@27|",
+            "|arith@28|",
+            "|g@29|",
+            "|sumBalances@30|",
+            "|arith@31|",
+            "|g@32|",
+            "|balanceOf@33|"
+          ],
+          "lean": "SolarVerifyVc.Token.mint.script0",
+          "smt": "Token/mint.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Token/transfer.lean",
+      "name": "Token.transfer",
+      "namespace": "SolarVerifyVc.Token.transfer",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 34,
+          "commands": 68,
+          "goal": "false",
+          "guard": "|g@33|",
+          "id": "Token.transfer#0",
+          "lean": "SolarVerifyVc.Token.transfer.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "6cdbdad527f485dc905f886d18842e645ab1874b9e6a8dc0a30a709d8f193d1a",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 36,
+          "commands": 70,
+          "goal": "(=> (not (= |msg.sender@2| |to@23|)) (= (select |balanceOf@34| |msg.sender@2|) (- (select |balanceOf@18| |msg.sender@2|) |amount@24|)))",
+          "guard": "|g@33|",
+          "id": "Token.transfer#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.transfer.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 32
+          },
+          "smt_sha256": "285ae7d67cdac84997a3841e8378abf8d2776b67aed2636dc1dc048d53be4de7",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 32,
+            "text": "msg.sender != to ==> balanceOf[msg.sender] == old(balanceOf[msg.sender]) - amount"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 38,
+          "commands": 72,
+          "goal": "(=> (not (= |msg.sender@2| |to@23|)) (= (select |balanceOf@34| |to@23|) (+ (select |balanceOf@18| |to@23|) |amount@24|)))",
+          "guard": "|g@33|",
+          "id": "Token.transfer#2",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.transfer.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 33
+          },
+          "smt_sha256": "c64553393bd300aff9369b32bd02ebfc2b0d1c31b6b79ee28e0d94e1610402a5",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 33,
+            "text": "msg.sender != to ==> balanceOf[to] == old(balanceOf[to]) + amount"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 38,
+          "commands": 72,
+          "goal": "(forall ((|a!35| Int)) (=> (and (and (<= 0 |a!35|) (<= |a!35| 1461501637330902918203684832716283019655932542975))) (=> (and (not (= |a!35| |msg.sender@2|)) (not (= |a!35| |to@23|))) (= (select |balanceOf@34| |a!35|) (select |balanceOf@18| |a!35|)))))",
+          "guard": "|g@33|",
+          "id": "Token.transfer#3",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.transfer.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 34
+          },
+          "smt_sha256": "257f419a5ff2fefde59ef1277d79a5e497ed67b74b037be219bdc639593ea14a",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 34,
+            "text": "forall address a :: a != msg.sender && a != to ==> balanceOf[a] == old(balanceOf[a])"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 38,
+          "commands": 72,
+          "goal": "(= |totalSupply@19| |totalSupply@19|)",
+          "guard": "|g@33|",
+          "id": "Token.transfer#4",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.transfer.ob4",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 35
+          },
+          "smt_sha256": "5a1d5d511f048eb01cfebb6207b42f2a5cc6bc991a8b57e01301a3f3063dda1e",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 35,
+            "text": "totalSupply == old(totalSupply)"
+          }
+        },
+        {
+          "answer": "settled",
+          "asserts": 38,
+          "commands": 72,
+          "goal": "(= |totalSupply@19| |sumBalances@17|)",
+          "guard": "|g@33|",
+          "id": "Token.transfer#5",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Token.transfer.ob5",
+          "reason": "assumed at entry, over unchanged state",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 36
+          },
+          "smt_sha256": "1cd5985f97ff7a3982f891d6ef67423069385e3ca056beb80eeed3aac07a2ade",
+          "solver": null,
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 7,
+            "text": "totalSupply == sumBalances"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 72,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|sumBalances@17|",
+            "|balanceOf@18|",
+            "|totalSupply@19|",
+            "|owner@20|",
+            "|__balance@21|",
+            "|__code_epoch@22|",
+            "|to@23|",
+            "|amount@24|",
+            "|g@25|",
+            "|g@26|",
+            "|bal@27|",
+            "|g@28|",
+            "|arith@29|",
+            "|g@30|",
+            "|balanceOf@31|",
+            "|arith@32|",
+            "|g@33|",
+            "|balanceOf@34|"
+          ],
+          "lean": "SolarVerifyVc.Token.transfer.script0",
+          "smt": "Token/transfer.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Token/burn.lean",
+      "name": "Token.burn",
+      "namespace": "SolarVerifyVc.Token.burn",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 30,
+          "commands": 61,
+          "goal": "false",
+          "guard": "|g@31|",
+          "id": "Token.burn#0",
+          "lean": "SolarVerifyVc.Token.burn.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "3073ea6427a7dfd6ff4572b6cada017f46fec96d611aa315604cf2d32e038cea",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 32,
+          "commands": 63,
+          "goal": "(= (select |balanceOf@28| |msg.sender@2|) (- (select |balanceOf@18| |msg.sender@2|) |amount@23|))",
+          "guard": "|g@31|",
+          "id": "Token.burn#1",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Token.burn.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 44
+          },
+          "smt_sha256": "7e0856f7be64a7f2c6da1a4298f547d5faea3d7a04a5b997deec130dc607f1b9",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 44,
+            "text": "balanceOf[msg.sender] == old(balanceOf[msg.sender]) - amount"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 32,
+          "commands": 63,
+          "goal": "(= |arith@30| |sumBalances@29|)",
+          "guard": "|g@31|",
+          "id": "Token.burn#2",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Token.burn.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 45
+          },
+          "smt_sha256": "593bf0d333a241a68e9fe795cf38f9023e98dbefcd335b970b8ac1473556e3ef",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Token.sol",
+            "line": 7,
+            "text": "totalSupply == sumBalances"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 63,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|sumBalances@17|",
+            "|balanceOf@18|",
+            "|totalSupply@19|",
+            "|owner@20|",
+            "|__balance@21|",
+            "|__code_epoch@22|",
+            "|amount@23|",
+            "|g@24|",
+            "|g@25|",
+            "|arith@26|",
+            "|g@27|",
+            "|balanceOf@28|",
+            "|sumBalances@29|",
+            "|arith@30|",
+            "|g@31|"
+          ],
+          "lean": "SolarVerifyVc.Token.burn.script0",
+          "smt": "Token/burn.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    }
+  ],
+  "version": 1
+}

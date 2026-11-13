@@ -1,0 +1,716 @@
+{
+  "arguments": [
+    "--emit-lean",
+    "vc-exports/Vault",
+    "crates/verify/examples/Vault.sol"
+  ],
+  "compiler": "0.8.38+commit.7f4e94e0.solar.0.3.0-dev",
+  "errors": [],
+  "format": "solar-verify-lean",
+  "lean": {
+    "library": "SolarVerify",
+    "smt_sha256": "2c92f3bcd927369da89250662bd5a6174d3c06d0c3c38f5021509fe8810036e3",
+    "toolchain": "leanprover/lean4:v4.35.0",
+    "vc_sha256": "7275fa354f077a4826dd9fe56124cbffee2337d7a21975b477534fc5f45d7cfe"
+  },
+  "options": {
+    "dry_run": false,
+    "only": null,
+    "strict": false,
+    "timeout_ms": 10000
+  },
+  "solvers": {
+    "bitwuzla": null,
+    "cvc5": "This is cvc5 version 1.3.1 [git ea1b484 on branch HEAD]",
+    "z3": "Z3 version 4.13.4 - 64 bit"
+  },
+  "sources": [
+    {
+      "path": "/home/hand/wt-inferred/crates/verify/examples/Vault.sol",
+      "sha256": "0e2017a2679b3fc98aa539d29ce350f9776dd0d14a0085aed88d9b26a9921526"
+    }
+  ],
+  "units": [
+    {
+      "module": "Vault/constructor.lean",
+      "name": "Vault.constructor",
+      "namespace": "SolarVerifyVc.Vault.constructor",
+      "obligations": [
+        {
+          "answer": "sat",
+          "asserts": 20,
+          "commands": 41,
+          "goal": "false",
+          "guard": "|g@21|",
+          "id": "Vault.constructor#0",
+          "lean": "SolarVerifyVc.Vault.constructor.ob0",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "be9fed92fdf387b9caa157050c55e1204e8292bab32c407b116b85ec1d83eb85",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 20,
+          "commands": 41,
+          "goal": "(= 0 0)",
+          "guard": "|g@21|",
+          "id": "Vault.constructor#1",
+          "kind": "contract invariant not established by constructor",
+          "lean": "SolarVerifyVc.Vault.constructor.ob1",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 29
+          },
+          "smt_sha256": "cf9fc5408ee75df3d38cb1ed2d9d5da6a295560630661aa6e182a4ce3ef25911",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 12,
+            "text": "totalShares == sumShares"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 20,
+          "commands": 41,
+          "goal": "(<= 0 0)",
+          "guard": "|g@21|",
+          "id": "Vault.constructor#2",
+          "kind": "contract invariant not established by constructor",
+          "lean": "SolarVerifyVc.Vault.constructor.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 29
+          },
+          "smt_sha256": "f6f3a0446b0723589b121ca64f30214516787a05675926cd3863d1188000cd08",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 13,
+            "text": "totalShares <= totalAssets"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 41,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|asset@17|",
+            "|__balance@18|",
+            "|__code_epoch@19|",
+            "|_asset@20|",
+            "|g@21|"
+          ],
+          "lean": "SolarVerifyVc.Vault.constructor.script0",
+          "smt": "Vault/constructor.script0.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Vault/deposit.lean",
+      "name": "Vault.deposit",
+      "namespace": "SolarVerifyVc.Vault.deposit",
+      "obligations": [
+        {
+          "answer": "unsat",
+          "asserts": 27,
+          "commands": 57,
+          "goal": "true",
+          "guard": "|g@29|",
+          "id": "Vault.deposit#0",
+          "lean": "SolarVerifyVc.Vault.deposit.ob0",
+          "required": true,
+          "role": "side",
+          "script": 0,
+          "smt_sha256": "1bb13ffa737fca394f363c54a28e6230cbb4cfd769d2e2597c6707db6751f5e9",
+          "solver": "z3"
+        },
+        {
+          "answer": "sat",
+          "asserts": 38,
+          "commands": 80,
+          "goal": "false",
+          "guard": "|g@41|",
+          "id": "Vault.deposit#1",
+          "lean": "SolarVerifyVc.Vault.deposit.ob1",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "298965751598e4d2a186c287e1401a935a5127ccea2ef00d9a5c7039e7082cf5",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 40,
+          "commands": 82,
+          "goal": "(= (select |shares@42| |msg.sender@2|) (+ (select |shares@21| |msg.sender@2|) |amount@25|))",
+          "guard": "|g@41|",
+          "id": "Vault.deposit#2",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Vault.deposit.ob2",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 33
+          },
+          "smt_sha256": "43c09697a2aba1cf1ac56b6328745301a9db8423ecb22680ebdbc7fa2583a9dc",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 33,
+            "text": "shares[msg.sender] == old(shares[msg.sender]) + amount"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 40,
+          "commands": 82,
+          "goal": "(not false)",
+          "guard": "|g@41|",
+          "id": "Vault.deposit#3",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Vault.deposit.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 34
+          },
+          "smt_sha256": "502e56422a7eb88762cb36aaf99ff065e45e3c9f3c8aa94f4c9caf06ffe86fb7",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 34,
+            "text": "!locked"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 40,
+          "commands": 82,
+          "goal": "(= |arith@37| |sumShares@39|)",
+          "guard": "|g@41|",
+          "id": "Vault.deposit#4",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Vault.deposit.ob4",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 35
+          },
+          "smt_sha256": "d240866e7adba02c2d167d110e95694e9e8d4fbae70f3161f60bd3fb907e7621",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 12,
+            "text": "totalShares == sumShares"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 40,
+          "commands": 82,
+          "goal": "(<= |arith@37| |arith@35|)",
+          "guard": "|g@41|",
+          "id": "Vault.deposit#5",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Vault.deposit.ob5",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 35
+          },
+          "smt_sha256": "31d1668788e1beb06c7486ae834e50bba336d7f221b3510a921101d0d75ccef5",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 13,
+            "text": "totalShares <= totalAssets"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 25,
+          "commands": 53,
+          "goal": "true",
+          "guard": "|g@69|",
+          "id": "Vault.deposit#6",
+          "lean": "SolarVerifyVc.Vault.deposit.ob6",
+          "required": true,
+          "role": "side",
+          "script": 1,
+          "smt_sha256": "96336f40e2b3e9767e82579f08cbdff75976151a531f72d566b25e72124c3c2a",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 36,
+          "commands": 76,
+          "goal": "false",
+          "guard": "|g@81|",
+          "id": "Vault.deposit#7",
+          "kind": "entry point does not revert while reentrancy guard `locked` is held",
+          "lean": "SolarVerifyVc.Vault.deposit.ob7",
+          "required": true,
+          "role": "obligation",
+          "script": 1,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 35
+          },
+          "smt_sha256": "97b1ef4bdf747896c6021c3e7822679cfe8502b8db97a1eb8770ec12d32aa602",
+          "solver": "z3",
+          "spec": null
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 82,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|sumShares@17|",
+            "|asset@18|",
+            "|totalShares@19|",
+            "|totalAssets@20|",
+            "|shares@21|",
+            "|locked@22|",
+            "|__balance@23|",
+            "|__code_epoch@24|",
+            "|amount@25|",
+            "|g@26|",
+            "|g@27|",
+            "|g@28|",
+            "|g@29|",
+            "|__code_epoch@30|",
+            "|__balance@31|",
+            "|g@32|",
+            "|ext_ret@33|",
+            "|g@34|",
+            "|arith@35|",
+            "|g@36|",
+            "|arith@37|",
+            "|g@38|",
+            "|sumShares@39|",
+            "|arith@40|",
+            "|g@41|",
+            "|shares@42|"
+          ],
+          "lean": "SolarVerifyVc.Vault.deposit.script0",
+          "smt": "Vault/deposit.script0.smt2"
+        },
+        {
+          "commands": 76,
+          "decls": [
+            "|this@43|",
+            "|msg.sender@44|",
+            "|msg.value@45|",
+            "|block.timestamp@46|",
+            "|block.number@47|",
+            "|block.chainid@48|",
+            "|tx.origin@49|",
+            "|tx.gasprice@50|",
+            "|msg.sig@51|",
+            "|msg.data@52|",
+            "|block.basefee@53|",
+            "|block.blobbasefee@54|",
+            "|block.coinbase@55|",
+            "|block.prevrandao@56|",
+            "|block.difficulty@57|",
+            "|block.gaslimit@58|",
+            "|sumShares@59|",
+            "|asset@60|",
+            "|totalShares@61|",
+            "|totalAssets@62|",
+            "|shares@63|",
+            "|locked@64|",
+            "|__balance@65|",
+            "|__code_epoch@66|",
+            "|amount@67|",
+            "|g@68|",
+            "|g@69|",
+            "|__code_epoch@70|",
+            "|__balance@71|",
+            "|g@72|",
+            "|ext_ret@73|",
+            "|g@74|",
+            "|arith@75|",
+            "|g@76|",
+            "|arith@77|",
+            "|g@78|",
+            "|sumShares@79|",
+            "|arith@80|",
+            "|g@81|",
+            "|shares@82|"
+          ],
+          "lean": "SolarVerifyVc.Vault.deposit.script1",
+          "smt": "Vault/deposit.script1.smt2"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "module": "Vault/withdraw.lean",
+      "name": "Vault.withdraw",
+      "namespace": "SolarVerifyVc.Vault.withdraw",
+      "obligations": [
+        {
+          "answer": "unsat",
+          "asserts": 37,
+          "commands": 75,
+          "goal": "(and (= |arith@35| |sumShares@34|) (<= |arith@35| |arith@37|))",
+          "guard": "|g@38|",
+          "id": "Vault.withdraw#0",
+          "kind": "assertion failed",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob0",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 52
+          },
+          "smt_sha256": "1252b739085b0777efae91e71682c72aea3adcc162f5f042167c7ca2f10b17a7",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 52,
+            "text": "totalShares == sumShares && totalShares <= totalAssets"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 39,
+          "commands": 79,
+          "goal": "true",
+          "guard": "|g@39|",
+          "id": "Vault.withdraw#1",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob1",
+          "required": true,
+          "role": "side",
+          "script": 0,
+          "smt_sha256": "d701c0d47a6853af394b695af44112daf8fe8eacdf48bfbb521c3d0cf529264c",
+          "solver": "z3"
+        },
+        {
+          "answer": "sat",
+          "asserts": 41,
+          "commands": 85,
+          "goal": "false",
+          "guard": "|g@44|",
+          "id": "Vault.withdraw#2",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob2",
+          "required": false,
+          "role": "advisory",
+          "script": 0,
+          "smt_sha256": "8c305b6846feade818b296c08020d0df18f059f6d7b87febd2fa6c372a9d60f7",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 85,
+          "goal": "(not false)",
+          "guard": "|g@44|",
+          "id": "Vault.withdraw#3",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob3",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 10,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 45
+          },
+          "smt_sha256": "5bbdce5d21562334b7321c071b7bdeee3531c6d507d3732b79f18781e81610fe",
+          "solver": "z3",
+          "spec": {
+            "column": 10,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 45,
+            "text": "!locked"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 85,
+          "goal": "(= |arith@35| |sumShares@34|)",
+          "guard": "|g@44|",
+          "id": "Vault.withdraw#4",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob4",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 46
+          },
+          "smt_sha256": "bb349cd02022a8e7e21c04526b093b282ad13f4c280cc72689154a8bdfda81e6",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 12,
+            "text": "totalShares == sumShares"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 41,
+          "commands": 85,
+          "goal": "(<= |arith@35| |arith@37|)",
+          "guard": "|g@44|",
+          "id": "Vault.withdraw#5",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob5",
+          "required": true,
+          "role": "obligation",
+          "script": 0,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 46
+          },
+          "smt_sha256": "db9c8d9b57a1c9be630a4a120d997b956b17a3b36e17b626230fb95922fa714a",
+          "solver": "z3",
+          "spec": {
+            "column": 6,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 13,
+            "text": "totalShares <= totalAssets"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 35,
+          "commands": 71,
+          "goal": "(and (= |arith@77| |sumShares@76|) (<= |arith@77| |arith@79|))",
+          "guard": "|g@80|",
+          "id": "Vault.withdraw#6",
+          "kind": "assertion failed",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob6",
+          "required": true,
+          "role": "obligation",
+          "script": 1,
+          "site": {
+            "column": 14,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 52
+          },
+          "smt_sha256": "9a76d82676eeca0203f21ca31646bc50d18b6a2cb5048151957e039a57974d48",
+          "solver": "z3",
+          "spec": {
+            "column": 14,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 52,
+            "text": "totalShares == sumShares && totalShares <= totalAssets"
+          }
+        },
+        {
+          "answer": "unsat",
+          "asserts": 37,
+          "commands": 75,
+          "goal": "true",
+          "guard": "|g@81|",
+          "id": "Vault.withdraw#7",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob7",
+          "required": true,
+          "role": "side",
+          "script": 1,
+          "smt_sha256": "9fc0c8a347d0b5e7e0d4a61a94ff5518a3c81ca9f410bc8a019859df55d311e3",
+          "solver": "z3"
+        },
+        {
+          "answer": "unsat",
+          "asserts": 39,
+          "commands": 81,
+          "goal": "false",
+          "guard": "|g@86|",
+          "id": "Vault.withdraw#8",
+          "kind": "entry point does not revert while reentrancy guard `locked` is held",
+          "lean": "SolarVerifyVc.Vault.withdraw.ob8",
+          "required": true,
+          "role": "obligation",
+          "script": 1,
+          "site": {
+            "column": 5,
+            "file": "crates/verify/examples/Vault.sol",
+            "line": 46
+          },
+          "smt_sha256": "b45831738ad0a31289afbaf330f5e0f6f7f55eec0759397684871a31b4e3f869",
+          "solver": "z3",
+          "spec": null
+        }
+      ],
+      "scripts": [
+        {
+          "commands": 85,
+          "decls": [
+            "|this@1|",
+            "|msg.sender@2|",
+            "|msg.value@3|",
+            "|block.timestamp@4|",
+            "|block.number@5|",
+            "|block.chainid@6|",
+            "|tx.origin@7|",
+            "|tx.gasprice@8|",
+            "|msg.sig@9|",
+            "|msg.data@10|",
+            "|block.basefee@11|",
+            "|block.blobbasefee@12|",
+            "|block.coinbase@13|",
+            "|block.prevrandao@14|",
+            "|block.difficulty@15|",
+            "|block.gaslimit@16|",
+            "|sumShares@17|",
+            "|asset@18|",
+            "|totalShares@19|",
+            "|totalAssets@20|",
+            "|shares@21|",
+            "|locked@22|",
+            "|__balance@23|",
+            "|__code_epoch@24|",
+            "|amount@25|",
+            "|g@26|",
+            "|g@27|",
+            "|g@28|",
+            "|g@29|",
+            "|g@30|",
+            "|arith@31|",
+            "|g@32|",
+            "|shares@33|",
+            "|sumShares@34|",
+            "|arith@35|",
+            "|g@36|",
+            "|arith@37|",
+            "|g@38|",
+            "|g@39|",
+            "|__code_epoch@40|",
+            "|__balance@41|",
+            "|g@42|",
+            "|ext_ret@43|",
+            "|g@44|"
+          ],
+          "lean": "SolarVerifyVc.Vault.withdraw.script0",
+          "smt": "Vault/withdraw.script0.smt2"
+        },
+        {
+          "commands": 81,
+          "decls": [
+            "|this@45|",
+            "|msg.sender@46|",
+            "|msg.value@47|",
+            "|block.timestamp@48|",
+            "|block.number@49|",
+            "|block.chainid@50|",
+            "|tx.origin@51|",
+            "|tx.gasprice@52|",
+            "|msg.sig@53|",
+            "|msg.data@54|",
+            "|block.basefee@55|",
+            "|block.blobbasefee@56|",
+            "|block.coinbase@57|",
+            "|block.prevrandao@58|",
+            "|block.difficulty@59|",
+            "|block.gaslimit@60|",
+            "|sumShares@61|",
+            "|asset@62|",
+            "|totalShares@63|",
+            "|totalAssets@64|",
+            "|shares@65|",
+            "|locked@66|",
+            "|__balance@67|",
+            "|__code_epoch@68|",
+            "|amount@69|",
+            "|g@70|",
+            "|g@71|",
+            "|g@72|",
+            "|arith@73|",
+            "|g@74|",
+            "|shares@75|",
+            "|sumShares@76|",
+            "|arith@77|",
+            "|g@78|",
+            "|arith@79|",
+            "|g@80|",
+            "|g@81|",
+            "|__code_epoch@82|",
+            "|__balance@83|",
+            "|g@84|",
+            "|ext_ret@85|",
+            "|g@86|"
+          ],
+          "lean": "SolarVerifyVc.Vault.withdraw.script1",
+          "smt": "Vault/withdraw.script1.smt2"
+        }
+      ],
+      "status": "verified"
+    }
+  ],
+  "version": 1
+}
