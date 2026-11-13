@@ -437,12 +437,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.set_terminator_origin(func, block);
-        let edge_origins = match plan.exit {
-            Exit::Jump(_) => self.edge_assignment_origins(func, block, terminator),
-            _ => Vec::new(),
-        };
-        for (index, step) in terminator.iter().enumerate() {
-            if let Some(&Some(origin)) = edge_origins.get(index) {
+        let mut assignments = self.edge_assignments(func, block, &plan.exit);
+        for step in terminator {
+            let origin = match *step {
+                Step::Materialize(value) => assignments
+                    .iter()
+                    .position(|&(stored, _)| stored == value)
+                    .map(|index| assignments.remove(index).1),
+                _ => None,
+            };
+            if let Some(origin) = origin {
                 let terminator_origin = self.asm.debug_origin();
                 self.set_origins(origin);
                 self.emit_stackified_step(func_id, func, step, cold);
@@ -660,49 +664,28 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Picks, for each of the `steps` that `block` runs before it jumps on, the source context of
-    /// the assignment whose value the step copies, if any.
+    /// Returns the assignments, as the value each stored and its source context, whose constants
+    /// the code of the edge out of `block` may push, or none when `exit` is not a jump.
     ///
-    /// NOTE: The steps are the code of an edge that leaves `block` unconditionally, so they run
-    /// exactly once per execution of `block`. The assignments in
-    /// [`InstructionMetadata::edge_assignments`] ran in `block`, so the copy of the value of one
-    /// runs exactly when the assignment does and may carry its span, as a copy carries the
-    /// location of the instruction it replaces. An edge out of a block that branches keeps the
-    /// origin of its terminator: its code runs on one arm only. The planner does not record which
-    /// phi a step serves, so each push of a constant takes the assignment of the value it pushes,
-    /// and each other copy takes the next assignment in order. That pairing is arbitrary where
-    /// several copies look alike, but every step of the edge runs when the assignments do, and
-    /// each assignment keeps one instruction.
-    fn edge_assignment_origins<'f>(
+    /// NOTE: A jump is an edge that leaves `block` unconditionally, so its code runs exactly once
+    /// per execution of `block`. The assignments in [`InstructionMetadata::edge_assignments`]
+    /// ran in `block`, so the push of the value of one runs exactly when the assignment does and
+    /// may carry its span, as a copy carries the location of the instruction it replaces. An edge
+    /// out of a block that branches keeps the origin of its terminator: its code runs on one arm
+    /// only. Only a push of a constant is matched, by its value: the planner does not record
+    /// which phi a `DUP` or a reload serves, so a copy of a variable keeps the origin of the
+    /// terminator rather than take the span of an arbitrary assignment.
+    fn edge_assignments<'f>(
         &self,
         func: &'f Function,
         block: BlockId,
-        steps: &[Step],
-    ) -> Vec<Option<&'f InstructionMetadata>> {
-        let metadata = &func.blocks[block].terminator_metadata;
-        if !self.capture_debug_info || metadata.edge_assignments().is_empty() {
+        exit: &Exit,
+    ) -> Vec<(ValueId, &'f InstructionMetadata)> {
+        if !self.capture_debug_info || !matches!(exit, Exit::Jump(_)) {
             return Vec::new();
         }
-        let mut assignments = (metadata.edge_assignments().iter())
-            .map(|assignment| (assignment.value, &assignment.origin))
-            .collect::<Vec<_>>();
-        let mut picked = vec![None; steps.len()];
-        for (pick, step) in picked.iter_mut().zip(steps) {
-            if let &Step::Materialize(value) = step
-                && let Some(index) = assignments.iter().position(|&(stored, _)| stored == value)
-            {
-                *pick = Some(assignments.remove(index).1);
-            }
-        }
-        for (pick, step) in picked.iter_mut().zip(steps) {
-            if pick.is_none()
-                && !assignments.is_empty()
-                && matches!(step, Step::Stack(StackOp::Dup(_)) | Step::Reload(_))
-            {
-                *pick = Some(assignments.remove(0).1);
-            }
-        }
-        picked
+        let assignments = func.blocks[block].terminator_metadata.edge_assignments();
+        assignments.iter().map(|assignment| (assignment.value, &assignment.origin)).collect()
     }
 
     /// Attributes the push of a retained constant to `origins`, the combined origin of its readers

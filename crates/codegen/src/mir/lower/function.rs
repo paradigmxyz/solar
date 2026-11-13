@@ -17,7 +17,7 @@ use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
@@ -220,7 +220,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
     /// The last assignment to each local in each block, as its value and source context, for the
-    /// phis that merge the local ([`Self::annotate_phi`]).
+    /// phis that merge the local ([`Self::record_edge_assignment`]).
     assignments: FxHashMap<(VariableId, BlockId), (ValueId, InstructionMetadata)>,
     /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
     /// range check.

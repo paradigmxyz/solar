@@ -1025,7 +1025,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
-            self.annotate_phi(id, phi);
+            self.record_edge_assignment(id, state.block, value);
             if self.unchecked_calldata_slices.contains(&value) {
                 self.unchecked_calldata_slices.insert(phi);
             }
@@ -1195,42 +1195,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value
     }
 
-    /// Merges the local `id`; see [`Self::annotate_phi`].
+    /// Merges the local `id`, recording the assignments behind the incoming values.
     fn merge_local_phi(&mut self, id: VariableId, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let phi = self.merge_value_phi(incoming);
-        self.annotate_phi(id, phi);
-        phi
+        for &(block, value) in &incoming {
+            self.record_edge_assignment(id, block, value);
+        }
+        self.merge_value_phi(incoming)
     }
 
-    /// Binds the local `id` to `value` and records the assignment.
+    /// Binds the local `id` to `value` and records the assignment in the current block.
     pub(super) fn assign_local(&mut self, id: VariableId, value: ValueId) {
         self.values.insert(id, value);
-        self.note_assignment(id, value);
-    }
-
-    /// Records that the statement being lowered stored `value` in the local `id`, in the current
-    /// block.
-    pub(super) fn note_assignment(&mut self, id: VariableId, value: ValueId) {
         let block = self.builder.current_block();
-        self.assignments.insert((id, block), (value, self.builder.debug_context()));
+        let origin = self.builder.debug_context();
+        if origin.source_span().is_some() {
+            self.assignments.insert((id, block), (value, origin));
+        }
     }
 
-    /// Records, on the jump that ends each incoming block of `phi`, which merges the local `id`,
-    /// the assignment that stored the incoming value there: the last one to `id` in that block, if
-    /// it stored that value.
+    /// Records, on the jump that ends `block`, the assignment that stored `value` in the local
+    /// `id`, when `value` is the last one stored in `block`: a phi takes it from there.
     ///
     /// NOTE: The scheduler can then give the copy of a phi operand the span of its assignment: the
     /// assignment runs in the block before the jump, so a copy on the unconditional edge runs
     /// exactly when it does.
-    pub(super) fn annotate_phi(&mut self, id: VariableId, phi: ValueId) {
-        let Value::Inst(inst) = *self.builder.func().value(phi) else { return };
-        let InstKind::Phi(incoming) = &self.builder.func().inst(inst).kind else { return };
-        for (block, value) in incoming.clone() {
-            if let Some((assigned, origin)) = self.assignments.get(&(id, block))
-                && *assigned == value
-            {
-                self.builder.add_edge_assignment(block, value, origin.clone());
-            }
+    pub(super) fn record_edge_assignment(
+        &mut self,
+        id: VariableId,
+        block: BlockId,
+        value: ValueId,
+    ) {
+        if let Some((assigned, origin)) = self.assignments.get(&(id, block))
+            && *assigned == value
+        {
+            self.builder.add_edge_assignment(block, value, origin.clone());
         }
     }
 

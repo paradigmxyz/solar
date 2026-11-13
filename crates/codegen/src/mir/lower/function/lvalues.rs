@@ -347,12 +347,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.unchecked_calldata_slices.insert(value);
             }
         }
-        if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
-            entry.insert(value);
-            self.note_assignment(id, value);
-            return Some(());
-        }
-        if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
+        if self.values.contains_key(&id)
+            || self.default_bindings.contains(&id)
+            || self.deferred_bindings.contains(&id)
+        {
             self.assign_local(id, value);
             return Some(());
         }

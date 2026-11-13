@@ -1900,7 +1900,7 @@ impl<'a> InlineCloner<'a> {
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
             // cloned_block: cloned_terminator !metadata(callee block)
             self.caller.blocks[caller_block].terminator = Some(term);
-            let mut metadata = block.terminator_metadata.clone();
+            let mut metadata = block.terminator_metadata.without_operand_facts();
             self.adopt_call_loc(&mut metadata);
             self.caller.blocks[caller_block].terminator_metadata = metadata;
         }

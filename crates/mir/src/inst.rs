@@ -65,8 +65,8 @@ impl InstructionMetadata {
     ///
     /// Each ran in the block before the jump, so code that the jump alone runs, such as the copy
     /// of a phi operand, runs only after them, and the block runs it once per assignment. Merging
-    /// the jump with another keeps the assignments both have, and the other ways to copy metadata
-    /// drop them, as they drop everything but the source context.
+    /// the jump with another drops them, as do the other ways to copy metadata that keep only the
+    /// source context.
     #[must_use]
     pub fn edge_assignments(&self) -> &[EdgeAssignment] {
         self.edge_assignments.as_deref().map_or(&[], |assignments| assignments.0.as_slice())
@@ -115,13 +115,11 @@ impl InstructionMetadata {
     /// input does.
     pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
         let mut display = self.displays_source_span();
-        let mut assignments = self.edge_assignments.take();
         self.debug_loc.merge(others.into_iter().map(|other| {
             display |= other.displays_source_span();
-            keep_common_assignments(&mut assignments, other);
             &other.debug_loc
         }));
-        self.edge_assignments = assignments.filter(|assignments| !assignments.0.is_empty());
+        self.edge_assignments = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -129,13 +127,11 @@ impl InstructionMetadata {
     /// any input does.
     pub fn combine_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
         let mut display = self.displays_source_span();
-        let mut assignments = self.edge_assignments.take();
         self.debug_loc.combine(others.into_iter().map(|other| {
             display |= other.displays_source_span();
-            keep_common_assignments(&mut assignments, other);
             &other.debug_loc
         }));
-        self.edge_assignments = assignments.filter(|assignments| !assignments.0.is_empty());
+        self.edge_assignments = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -342,16 +338,6 @@ pub struct EdgeAssignment {
 /// The assignments of a jump, boxed on instructions that have any, so others pay one word.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 struct EdgeAssignments(Vec<EdgeAssignment>);
-
-/// Keeps the assignments of `assignments` that `other` has too.
-fn keep_common_assignments(
-    assignments: &mut Option<Box<EdgeAssignments>>,
-    other: &InstructionMetadata,
-) {
-    if let Some(kept) = assignments {
-        kept.0.retain(|assignment| other.edge_assignments().contains(assignment));
-    }
-}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 struct MetadataFlags(u16);
@@ -1190,30 +1176,18 @@ mod tests {
     use solar_interface::BytePos;
 
     #[test]
-    fn merging_jumps_keeps_the_common_edge_assignments() {
-        let origin = |lo| {
-            let mut origin = InstructionMetadata::EMPTY;
-            origin.set_source_span(Some(Span::new(BytePos(lo), BytePos(lo + 1))));
-            origin
-        };
-        let value = ValueId::from_usize(0);
-        let mut first = InstructionMetadata::EMPTY;
-        first.add_edge_assignment(value, origin(1));
-        first.add_edge_assignment(value, origin(2));
-        let mut second = InstructionMetadata::EMPTY;
-        second.add_edge_assignment(value, origin(2));
-        second.add_edge_assignment(value, origin(3));
+    fn merging_jumps_drops_the_edge_assignments() {
+        let mut origin = InstructionMetadata::EMPTY;
+        origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        let mut jump = InstructionMetadata::EMPTY;
+        jump.add_edge_assignment(ValueId::from_usize(0), origin);
+        assert_eq!(jump.edge_assignments().len(), 1);
+        assert!(jump.debug_context().edge_assignments().is_empty());
 
-        let mut merged = first.clone();
-        merged.merge_debug_locs([&second]);
-        assert_eq!(merged.edge_assignments(), [EdgeAssignment { value, origin: origin(2) }]);
-
-        let mut combined = first.clone();
-        combined.combine_debug_locs([&second]);
-        assert_eq!(combined.edge_assignments(), merged.edge_assignments());
-
-        first.merge_debug_locs([&InstructionMetadata::EMPTY]);
-        assert!(first.edge_assignments().is_empty());
-        assert!(first.debug_context().edge_assignments().is_empty());
+        let mut combined = jump.clone();
+        combined.combine_debug_locs([&jump]);
+        assert!(combined.edge_assignments().is_empty());
+        jump.merge_debug_locs([]);
+        assert!(jump.edge_assignments().is_empty());
     }
 }
