@@ -32,7 +32,10 @@
 #   the same block (an instruction it added or moved), the first two-input phi it added with its
 #   inputs swapped (in live code: when every such phi is on the failure path of a lowered fact,
 #   which never runs, the first test or subtraction it added with its operands swapped), and the
-#   first pure operation as another one (xor as and, add as sub, lt as gt, ...);
+#   first pure operation as another one (xor as and, add as sub, lt as gt, ...); and for a pass
+#   that removes code, the operand a call it rewrote dropped passed in place of the first one it
+#   kept, else, in a block it removed an instruction from, the first instruction it kept there
+#   removed too;
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
 #   words in reverse order, and the first further result a call binds left unbound, when
 #   present.
@@ -344,7 +347,7 @@ for pair in "${passes[@]}"; do
     read -r input output <<<"$pair"
     edit "$output-control" "$gen/$output.lean" <<<'pass'
     check "$output-control" "$output" "$proofs/Runs/$output.lean" pass
-    for kind in wrote cast phi op; do
+    for kind in wrote cast phi op drop; do
         python3 - "$gen/$input.lean" "$kind" > "$tmp/$output-$kind.py" <<'EOF'
 import sys
 print(f"input = open({sys.argv[1]!r}).read()")
@@ -440,12 +443,63 @@ def first():
             for m in re.finditer(pattern, after[j]):
                 text = new(j, m)
                 if text is not None: return j, m, text
-hit = first()
-if hit is None: sys.exit(3)
-j, m, text = hit
-print(f"  line {j + 1}: {m.group(0)} as {text}")
-after[j] = after[j][:m.start()] + text + after[j][m.end():]
-s = "".join(after)
+def lists(lines):
+    """Each block's instructions, one a line, with the range of lines of its list."""
+    out, fn, bb, start, depth = {}, None, None, None, 0
+    for j, line in enumerate(lines):
+        t = line.strip()
+        if t.startswith("-- @"): fn, bb = t, None
+        elif re.fullmatch(r"-- bb\d+", t): bb, start = t, None
+        elif bb is not None and (fn, bb) not in out and start is None and t.startswith("["):
+            start, depth = j, 0
+        if start is not None:
+            depth += t.count("[") - t.count("]")
+            if depth <= 0:
+                items = [l.strip() for l in lines[start:j + 1]]
+                items[0] = items[0][1:]
+                items[-1] = items[-1][:-2]
+                out[(fn, bb)] = (start, j, [i.rstrip(",") for i in items if i not in ("", "]")])
+                start = None
+    return out
+def relist(lines, start, end, items):
+    pad = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
+    if not items: return lines[:start] + [pad + "[],\n"] + lines[end + 1:]
+    body = [pad + ("[" if k == 0 else " ") + item + ("]," if k == len(items) - 1 else ",") + "\n"
+            for k, item in enumerate(items)]
+    return lines[:start] + body + lines[end + 1:]
+def dropped():
+    """A pass that removes code, taken at its word on the wrong code: the operand a call it
+    rewrote dropped passed in place of the first one it kept, else, in a block it removed an
+    instruction from, the first instruction it kept there removed too."""
+    old, new = lists(before), lists(after)
+    call = r"\.call (\(some \d+\)|none) (\d+) \[(.*)\]$"
+    for key, (start, end, items) in new.items():
+        if key not in old or len(old[key][2]) != len(items): continue
+        for k, (a, b) in enumerate(zip(old[key][2], items)):
+            ma, mb = re.match(call, a), re.match(call, b)
+            if not (ma and mb) or ma.group(1, 2) != mb.group(1, 2) or not mb.group(3): continue
+            kept = mb.group(3).split(", ")
+            gone = [x for x in ma.group(3).split(", ") if x not in kept]
+            if not gone: continue
+            text = b[:mb.start(3)] + ", ".join([gone[0]] + kept[1:]) + b[mb.end(3):]
+            items = items[:k] + [text] + items[k + 1:]
+            return f"{key[0][3:]} {key[1][3:]}: {b} as {text}", relist(after, start, end, items)
+    for key, (start, end, items) in new.items():
+        if key in old and len(old[key][2]) > len(items) >= 1:
+            return f"{key[0][3:]} {key[1][3:]}: {items[0]} removed", relist(after, start, end, items[1:])
+if kind == "drop":
+    hit = dropped()
+    if hit is None: sys.exit(3)
+    note, after = hit
+    print(f"  {note}")
+    s = "".join(after)
+else:
+    hit = first()
+    if hit is None: sys.exit(3)
+    j, m, text = hit
+    print(f"  line {j + 1}: {m.group(0)} as {text}")
+    after[j] = after[j][:m.start()] + text + after[j][m.end():]
+    s = "".join(after)
 ''')
 EOF
         label=$output-wrote

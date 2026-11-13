@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# dead: the stages of milestone/dead/dead.sol's Dead and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "dead"
+srcDir = "milestone"
+roots = ["dead.Proofs"]
+globs = ["dead.+"]
+moreLeanArgs = ["-M", "3000"]

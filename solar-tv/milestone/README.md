@@ -40,10 +40,12 @@ first `mul`, its first range test of a narrow product, the kind of its first ext
 the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
-its first constant plus one; the last MIR stage's first return of several words in reverse order
-and the first further result a call binds left unbound) and requires each generated proof to
-fail with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a rerun
-must regenerate it byte for byte (up to the compiler's build commit in the manifest).
+its first constant plus one, and for a pass that removes code, the operand a call it rewrote
+dropped passed in place of the first one it kept, else the first instruction it kept in a block
+it removed one from removed too; the last MIR stage's first return of several words in reverse
+order and the first further result a call binds left unbound) and requires each generated proof
+to fail with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a
+rerun must regenerate it byte for byte (up to the compiler's build commit in the manifest).
 
 w1's proofs ([w1/proofs/W1Proofs](w1/proofs/W1Proofs)) are certify.py's output too, with their
 exact axiom sets pinned; [w1/check.sh](w1/check.sh) checks that they regenerate unchanged.
@@ -111,6 +113,21 @@ LEAN_MEMORY=3000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/mil
   and its phi input (`mir1 → mir2`), and `cfg-simplify` merges the blocks of the jump chain left and
   the phi with one input (`mir2 → mir3`); `dce` finds nothing left. Then
   `mir3 → sched → evm1 → … → evm4`, all proved: `SolarTV.Milestone.Folds.folds_mir_to_evmir`.
+
+- [dead](dead/dead.sol): `contract Dead { function f(uint256 x, uint256 y) external pure returns
+  (uint256) { return mix(x, y); } function mix(uint256 a, uint256 b) internal pure returns
+  (uint256) { return step(a, a ^ b); } function step(uint256 a, uint256) internal pure returns
+  (uint256) { return a + 1; } }`, 71 bytes, with a `-Zmir-pipeline` ([dead/options](dead/options))
+  that runs only the required lowerings to lowered MIR and then `dead-arg-elim` and `dce`, so the
+  internal calls stay. `dead-arg-elim` drops `step`'s unused second parameter and the operand
+  `mix` passes it (`stage0 → mir1`), and `dce` removes the `xor` that computed that operand
+  (`mir1 → mir2`). Then `mir2 → sched → evm1 → … → evm6` and `evm6 → bytecode`, all proved:
+  `SolarTV.Milestone.Dead.dead_mir_to_evmir`. Its negative tests have `mix` pass the dropped
+  `a ^ b` in place of `a`, and remove the call `dce` kept beside the `xor`.
+
+```sh
+LEAN_MEMORY=3000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/dead/dead.sol Dead
+```
 
 - [bank](bank/bank.sol): a `mapping(address => uint256)` of balances and a total, credited by
   an internal function that `deposit(uint256)` (for `msg.sender`, emitting the indexed
