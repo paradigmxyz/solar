@@ -337,8 +337,9 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation and physical multi-return buffers remain
-unsupported. Function-pointer dispatchers are ordinary MIR bodies and use the
+invented. Deferred allocation still needs a placement model. Physical multi-return
+calls use explicit return-buffer placements, described below. Function-pointer
+dispatchers are ordinary MIR bodies and use the
 same internal-call semantics. The function-pointers Solidity example checks a
 real inlining pair for both choices and replays an incorrect callee change.
 Recursive ABI helpers and explicit placement windows are
@@ -380,9 +381,22 @@ To compare type-lowering passes, the selected function boundary exposes scalar
 leaves in declaration order. Both interpreters rebuild the original parameter
 tree independently and flatten its returned leaves. A pointer may be represented
 by its address word after lowering; two explicitly different pointer address
-spaces are rejected. This boundary relation assigns no physical ABI, padding,
-frame addresses or return buffers. Lowered internal calls requiring a physical
-multi-return buffer remain unsupported.
+spaces are rejected. This boundary relation assigns no implicit physical ABI,
+padding or frame addresses. A selected outer function exposes its return
+components logically. Nested lowered calls with several components require an
+explicit `mir_layout.functions.<callee>.return_buffer` placement. They publish
+later components at `buffer + 32*k` and the buffer address at `0x20`, including
+when the call result is unused. Tail calls keep the original callee's buffer.
+This checks the supplied memory-return convention; it does not infer or certify
+the backend's placement or stack-return decisions. Missing placements and
+non-scalar physical components remain inconclusive.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/return-buffers/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/return-buffers/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/return-buffers/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/return-buffers/world.json
+```
 
 Types are limited to depth 32 and 256 nodes, with a whole-model budget of 65,536
 exported type nodes checked before expansion. A boundary admits at most 32 input
@@ -500,7 +514,7 @@ storage bytes keep ordered header reads, overlapping copies and dirty word tails
 Hashes may borrow and restore a memory object's header. Packed arrays retain
 padded and cleaned leaves, declared memory strides, nested memory rows and
 wordwise calldata reads when ranges wrap. Array work is capped at 2,048 nodes.
-Physical call-return buffers remain unsupported. `validate_abi` needs decoder
+Physical call-return buffers need the explicit convention above. `validate_abi` needs decoder
 provenance or canonical raw-word evidence; absent evidence is inconclusive, not
 a fabricated runtime guard.
 

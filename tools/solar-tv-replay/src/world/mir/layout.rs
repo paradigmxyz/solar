@@ -26,6 +26,7 @@ pub(super) struct Layout {
 struct Function {
     heap_floor: Option<u64>,
     frame_base: Option<u64>,
+    return_buffer: Option<u64>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -63,7 +64,10 @@ impl Layout {
             if name.len() > 256 || !name.is_ascii() || name.chars().any(char::is_control) {
                 return Err("invalid MIR placement function name".into());
             }
-            for address in [function.heap_floor, function.frame_base].into_iter().flatten() {
+            for address in [function.heap_floor, function.frame_base, function.return_buffer]
+                .into_iter()
+                .flatten()
+            {
                 if address < 128 || !address.is_multiple_of(32) {
                     return Err("MIR placements must be aligned and at least 128".into());
                 }
@@ -119,6 +123,9 @@ impl Layout {
         Some(match query {
             PlacementRead::HeapFloor(name) => U256::from(self.functions.get(name)?.heap_floor?),
             PlacementRead::FrameBase(name) => U256::from(self.functions.get(name)?.frame_base?),
+            PlacementRead::ReturnBuffer(name) => {
+                U256::from(self.functions.get(name)?.return_buffer?)
+            }
             PlacementRead::ConstructorBase => U256::from(self.constructor.as_ref()?.offset),
             PlacementRead::ConstructorEnd => {
                 let r = self.constructor.as_ref()?;

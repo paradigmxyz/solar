@@ -62,8 +62,14 @@ def read(value, memory):
                     or any(ord(c) < 32 or ord(c) == 127 for c in key)
                 ):
                     raise Unsupported("invalid MIR placement function name")
-                _keys(item, {"heap_floor", "frame_base"}, "MIR function placement")
-                fields = {name: None for name in ("heap_floor", "frame_base")}
+                _keys(
+                    item,
+                    {"heap_floor", "frame_base", "return_buffer"},
+                    "MIR function placement",
+                )
+                fields = {
+                    name: None for name in ("heap_floor", "frame_base", "return_buffer")
+                }
                 for name, address in item.items():
                     address = int(_number(address, 64))
                     if address < 128 or address % 32:
@@ -127,7 +133,7 @@ def expression(layout):
     functions = (
         "["
         + ",".join(
-            f"({json.dumps(name)},⟨{option(value['heap_floor'], lambda x: literal(str(x)))},{option(value['frame_base'], lambda x: literal(str(x)))}⟩)"
+            f"({json.dumps(name)},⟨{option(value['heap_floor'], lambda x: literal(str(x)))},{option(value['frame_base'], lambda x: literal(str(x)))},{option(value['return_buffer'], lambda x: literal(str(x)))}⟩)"
             for name, value in layout["functions"].items()
         )
         + "]"
