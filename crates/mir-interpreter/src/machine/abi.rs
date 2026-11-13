@@ -1,22 +1,23 @@
 //! Direct scalar ABI semantics, independent of encoder/decoder expansion.
 //!
 //! Static word/function tuples retain allocation, selector and header ordering.
-//! Packed literals/scalars retain full-word stores and the trailing zero word;
-//! hash windows admit one merged word or whole-word parts. Scalar decoders check
+//! Packed literals/scalars retain their individual word stores and trailing zero
+//! word through the packed submodule. Scalar decoders check
 //! the signed tuple length and canonical encodings before returning a value.
 //! Validation markers require a decoder-established obligation. Recursive shapes
 //! use the encode/decode submodules without delegating to compiler lowering.
 
-use super::{Outcome, Run, RuntimeValue, calldata_word, limit};
+use super::{Outcome, Run, RuntimeValue, limit};
 use alloy_primitives::U256;
 use solar_mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamType, AbiType, AbiWordValidator,
-    AllocationSemantics, Function, PackedPart, PtrLocation, Semantics, Value, ValueId, ValueLayout,
+    AllocationSemantics, Function, PtrLocation, Semantics, Value, ValueId, ValueLayout,
 };
 use std::ops::ControlFlow;
 
 mod decode;
 mod encode;
+mod packed;
 mod require;
 
 pub(super) use require::literal_error;
@@ -173,76 +174,5 @@ impl Run<'_, '_, '_> {
             return ControlFlow::Break(Outcome::Unsupported("invalid decoder ABI evidence"));
         }
         ControlFlow::Continue(())
-    }
-
-    pub(super) fn semantic_packed(
-        &mut self,
-        parts: &[PackedPart],
-        values: &[U256],
-        hash: bool,
-    ) -> ControlFlow<Outcome, U256> {
-        let mut bytes = Vec::new();
-        let mut values = values.iter();
-        let mut aligned = true;
-        for part in parts {
-            match part {
-                PackedPart::Literal(data) => {
-                    aligned &= data.len().is_multiple_of(32);
-                    bytes.extend_from_slice(data);
-                }
-                PackedPart::Scalar { ty, .. } => {
-                    let Some(size) = ty.type_size() else {
-                        return ControlFlow::Break(Outcome::Unsupported("packed scalar layout"));
-                    };
-                    let size = usize::from(size.bytes());
-                    aligned &= size == 32;
-                    let word = values.next().expect("packed scalar operand").to_be_bytes::<32>();
-                    bytes.extend_from_slice(if matches!(ty, ValueLayout::FixedBytes(_)) {
-                        &word[..size]
-                    } else {
-                        &word[32 - size..]
-                    });
-                }
-                _ => return ControlFlow::Break(Outcome::Unsupported("packed reference layout")),
-            }
-            if bytes.len() > 65536 {
-                return ControlFlow::Break(Outcome::Unsupported("packed bytes exceed 64 KiB"));
-            }
-        }
-        if hash && bytes.len() > 32 && !aligned {
-            return ControlFlow::Break(Outcome::Unsupported(
-                "packed hash requires one merged word or whole-word parts",
-            ));
-        }
-        let length = U256::from(bytes.len());
-        let base = if hash {
-            if bytes.len() <= 64 { U256::ZERO } else { limit(self.memory.load(U256::from(64)))? }
-        } else {
-            let object = self.semantic_allocate(
-                (length + U256::from(63)) & !U256::from(31),
-                AllocationSemantics::INTERNAL,
-            )?;
-            limit(self.memory.store(object, length))?;
-            object
-        };
-        let data = base.wrapping_add(if hash { U256::ZERO } else { U256::from(32) });
-        self.burn_words(length)?;
-        for (index, chunk) in bytes.chunks(32).enumerate() {
-            limit(self.memory.store(
-                data.wrapping_add(U256::from(index * 32)),
-                calldata_word(chunk, U256::ZERO),
-            ))?;
-        }
-        if !hash && !aligned {
-            limit(self.memory.store(data.wrapping_add(length), U256::ZERO))?;
-        }
-        if hash {
-            let bytes = limit(self.memory.read(data, length))?;
-            ControlFlow::Continue(U256::from_be_slice(
-                alloy_primitives::keccak256(bytes).as_slice(),
-            ))
-        } else {
-            ControlFlow::Continue(base)
-        }
     }
 }

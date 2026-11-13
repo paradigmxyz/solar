@@ -543,22 +543,22 @@ fn export_operation(
                 }
             }
             Semantics::Packed(parts, hash) => {
+                if parts.len() > 2048 {
+                    return Err("packed part limit of 2048".into());
+                }
                 let mut values = Vec::new();
                 let mut shapes = Vec::new();
                 let mut total = 0;
-                let mut aligned = true;
                 for part in parts {
                     match part {
                         PackedPart::Literal(bytes) => {
                             total += bytes.len();
-                            aligned &= bytes.len().is_multiple_of(32);
                             shapes.push(json!({"kind":"literal","bytes":bytes.as_ref()}));
                         }
                         PackedPart::Scalar { value, ty } => {
                             let size =
                                 usize::from(ty.type_size().ok_or("packed scalar layout")?.bytes());
                             total += size;
-                            aligned &= size == 32;
                             shapes.push(json!({"kind":"scalar","index":values.len(),"size":size,"fixed":matches!(ty,ValueLayout::FixedBytes(_))}));
                             values.push(*value);
                         }
@@ -567,9 +567,6 @@ fn export_operation(
                     if total > 65536 {
                         return Err("packed bytes exceed 64 KiB".into());
                     }
-                }
-                if hash && total > 32 && !aligned {
-                    return Err("packed hash requires one merged word or whole-word parts".into());
                 }
                 json!({"kind":"packed","parts":shapes,"hash":hash,"args":operands(module,body,&values)?})
             }
