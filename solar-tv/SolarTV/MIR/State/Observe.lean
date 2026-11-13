@@ -21,6 +21,7 @@ structure Observation where
   returnData : List Byte
   warmAddresses : List Address
   warmSlots : List (Address × Word)
+  boundaryBudgets : Option (Nat × Nat)
   deriving DecidableEq
 
 def observe (result : Result) : Observation :=
@@ -37,7 +38,8 @@ def observe (result : Result) : Observation :=
   ⟨status,values,data,memory,ordered (fun a b => a.address.ule b.address) accounts,result.world.logs,
     if keepTransient then result.returnData else [],
     if keepTransient then ordered (fun a b => a.ule b) result.world.warmAddresses.eraseDups else [],
-    if keepTransient then ordered (fun a b => if a.1 == b.1 then a.2.ule b.2 else a.1.ule b.1) result.world.warmSlots.eraseDups else []⟩
+    if keepTransient then ordered (fun a b => if a.1 == b.1 then a.2.ule b.2 else a.1.ule b.1) result.world.warmSlots.eraseDups else [],
+    if keepTransient then some (result.creationIndex,result.builtinIndex) else none⟩
 
 def equivalent (before after : Run) : Prop :=
   match before,after with | .ok a,.ok b => observe a = observe b | _,_ => False
@@ -58,6 +60,8 @@ def describe (result : Run) : String :=
   | .ok result =>
     let o := observe result
     (Lean.Json.mkObj [
+      ("boundary_budgets",o.boundaryBudgets.map (fun (creation,builtin) =>
+        Lean.Json.arr #[Lean.toJson creation,Lean.toJson builtin]) |>.getD .null),
       ("returndata",bytesJson o.returnData),
       ("warm_addresses",.arr (o.warmAddresses.map (fun a => .str (toString a.toNat))).toArray),
       ("warm_slots",.arr (o.warmSlots.map (fun (a,k) => Lean.Json.arr #[.str (toString a.toNat),wordJson k])).toArray),

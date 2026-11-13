@@ -39,6 +39,8 @@ inductive MessageOp where
   | raw (opcode : Nat)
   | address (opcode : Nat) (hasValue : Bool)
   | transfer (revertOnFailure : Bool)
+  | hash (ripemd : Bool)
+  | recover
 
 inductive StorageObjectOp where
   | bytes (op : StorageBytesOp)
@@ -187,6 +189,7 @@ structure Config where
   externalConfig : Option EVM.State.Config := none
   creationGas : List Nat := []
   layout : Layout := {}
+  builtinGas : List Nat := []
 
 structure Frame where
   world : Journal
@@ -195,6 +198,7 @@ structure Frame where
   locals : List (Nat × Value) := []
   returnData : List Byte := []
   creationIndex : Nat := 0
+  builtinIndex : Nat := 0
 
 /-- A caller continuation owns its SSA snapshot, not a private copy of execution memory. -/
 structure Continuation where
@@ -215,6 +219,7 @@ structure Result where
   memory : List Byte
   returnData : List Byte := []
   creationIndex : Nat := 0
+  builtinIndex : Nat := 0
 
 abbrev Run := Except String Result
 abbrev Step := Except String (Outcome (Option Word × Frame))

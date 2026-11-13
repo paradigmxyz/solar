@@ -62,7 +62,7 @@ def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
   | _,_ => .error "unmodeled MIR external message or operand count"
 
 /-- Reading an object's header precedes the message; a slice needs no memory read. -/
-def messageArguments (frame : Frame) (op : MessageOp) (operands : List Operand) :
+def messageArguments (cfg : Config) (frame : Frame) (op : MessageOp) (operands : List Operand) :
     Except String (Nat × List Word × Frame) := do
   match op,operands with
   | .raw opcode,_ => return (opcode,← operands.mapM (read frame),frame)
@@ -71,6 +71,34 @@ def messageArguments (frame : Frame) (op : MessageOp) (operands : List Operand) 
     let amount ← read frame amount
     let gas := if amount == 0 then 2300 else 0
     return (0xf1,[gas,address,amount,0,0,0,0],frame)
+  | .hash ripemd,[input] =>
+    let input ← readValue frame input
+    let (offset,length,frame) ← match input with
+      | .scalar object => do
+        let memory ← expand frame.memory object.word.toNat 32
+        pure (object.word+32,readWord memory object.word.toNat,{frame with memory})
+      | .aggregate [pointer,length] => pure (← pointer.word,← length.word,frame)
+      | _ => .error "hash input representation"
+    let gas ← required cfg.builtinGas[frame.builtinIndex]? "missing MIR builtin gas budget"
+    let opcode := if cfg.available.contains 0xfa then 0xfa else 0xf1
+    let args := [BitVec.ofNat 256 gas,if ripemd then 3 else 2] ++
+      (if opcode = 0xf1 then [0] else []) ++ [offset,length,0,32]
+    return (opcode,args,{frame with builtinIndex := frame.builtinIndex+1})
+  | .recover,[hash,v,r,s] =>
+    let words ← [hash,v,r,s].mapM (read frame)
+    let memory ← expand frame.memory 64 32
+    let input := readWord memory 64
+    let mut memory := memory
+    for (word,index) in words.zipIdx do
+      let address := input+BitVec.ofNat 256 (32*index)
+      memory ← expand memory address.toNat 32
+      memory := writeBytes memory address.toNat (wordBytes word)
+    memory ← expand memory 0 32
+    memory := writeBytes memory 0 (wordBytes 0)
+    let gas ← required cfg.builtinGas[frame.builtinIndex]? "missing MIR builtin gas budget"
+    let opcode := if cfg.available.contains 0xfa then 0xfa else 0xf1
+    let args := [BitVec.ofNat 256 gas,1] ++ (if opcode = 0xf1 then [0] else []) ++ [input,128,0,32]
+    return (opcode,args,{frame with memory,builtinIndex := frame.builtinIndex+1})
   | .address opcode hasValue,address :: input :: gas :: rest =>
     if rest.length != (if hasValue then 1 else 0) ||
         (opcode != 0xf1 && hasValue) then .error "MIR address-call operand count" else

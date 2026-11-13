@@ -1,0 +1,7 @@
+@module BuiltinHashes
+fn @f() -> i256 {
+bb0:
+    v0 = inttoptr i256 128 to ptr<memory>
+    v1 = icall ripemd160<>, v0
+    ret v1
+}

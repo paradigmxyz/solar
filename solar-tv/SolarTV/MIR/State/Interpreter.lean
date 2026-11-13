@@ -13,7 +13,7 @@ namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
 
 def finish (completion : Completion) (frame : Frame) : Result :=
-  ⟨completion,frame.world,frame.memory,frame.returnData,frame.creationIndex⟩
+  ⟨completion,frame.world,frame.memory,frame.returnData,frame.creationIndex,frame.builtinIndex⟩
 
 def function (functions : Functions) (id : Nat) : Except String Function :=
   required ((functions.find? (·.1 == id)).map Prod.snd) "unknown MIR function"
@@ -73,14 +73,23 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
     match inst.operation with
     | .external op =>
       if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then stop .invalid frame else
-      let (opcode,args,frame) ← messageArguments frame op inst.operands
+      let (opcode,args,frame) ← messageArguments cfg frame op inst.operands
       let (effect,work) ← external fuel cfg frame opcode args
       match effect with
       | .returned (value,parent) =>
-        if (match op with | .transfer true => true | _ => false) && value == some 0 then
+        if (match op with | .transfer true | .hash _ | .recover => true | _ => false) && value == some 0 then
           stop (.reverted parent.returnData) parent
         else
-          let value := match op with | .transfer true => none | _ => value
+          let (value,parent) ← match op with
+            | .transfer true => pure (none,parent)
+            | .hash ripemd => do
+              let memory ← expand parent.memory 0 32
+              let digest := readWord memory 0
+              pure (some (if ripemd then digest <<< 96 else digest),{parent with memory})
+            | .recover => do
+              let memory ← expand parent.memory 0 32
+              pure (some (readWord memory 0),{parent with memory})
+            | _ => pure (value,parent)
           match ← assign parent inst.result inst.ty value with
           | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
           | _ => .error "MIR message result assignment failed"
@@ -128,7 +137,8 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
           world := frame.world
           memory := frame.memory
           returnData := frame.returnData
-          creationIndex := frame.creationIndex}
+          creationIndex := frame.creationIndex
+          builtinIndex := frame.builtinIndex}
         if caller.result.isNone then next caller.cursor rest parent else
           let [value] := values | .error "physical multi-return protocol is not modeled"
           match ← assignValue parent caller.result caller.ty value with

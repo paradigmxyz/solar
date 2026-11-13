@@ -470,6 +470,23 @@ MIR `selfdestruct` applies fork-specific account lifetime and balance effects,
 including Cancun's preservation of existing accounts, and rejects static writes.
 Amsterdam's changed destruction semantics remain unsupported in this path.
 
+SHA-256, RIPEMD-160 and address recovery also run as direct MIR builtins.
+Provide an ordered `builtin_gas` list in the world fixture, with the child gas
+budget at each executed precompile call. Like `creation_gas`, this is an explicit
+boundary input because semantic MIR has no physical caller gas price. Budgets
+are shared across internal calls; missing budgets make the check inconclusive.
+Consumption of creation and builtin budgets remains observable at internal
+returns, so a rewrite cannot silently shift a caller's later budget sequence.
+Both successful and out-of-gas calls run the actual precompile in Lean and in
+independent replay, preserving scratch writes and volatile returndata.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/precompile-builtins/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/precompile-builtins/world.json
+```
+
 Packed encodings accept literals and scalars; packed hashes require at most one
 merged word or whole-word parts. Reference packed inputs and physical call-return
 buffers remain unsupported. `validate_abi` needs decoder provenance or canonical

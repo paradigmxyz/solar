@@ -84,6 +84,7 @@ mod builtins;
 mod frames;
 mod messages;
 mod placement;
+mod precompiles;
 mod storage;
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
@@ -254,6 +255,12 @@ pub trait Host {
     ) -> Result<(), &'static str> {
         let _ = (beneficiary, pending);
         Err("selfdestruct is not modeled by this host")
+    }
+
+    /// Returns the next explicit child budget for an implicit-gas builtin call.
+    /// MIR does not determine the caller's physical gas consumption.
+    fn builtin_gas(&mut self) -> Option<U256> {
+        None
     }
 }
 
@@ -1246,6 +1253,15 @@ impl<'a> Run<'_, 'a, '_> {
             {
                 self.semantic_require(body, kind, args)?;
                 return ControlFlow::Continue(());
+            }
+            Semantics::Call(
+                Callee::Builtin(
+                    builtin @ (Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover),
+                ),
+                args,
+            ) if self.semantic.is_some() => {
+                let args = frame.read_values(args)?;
+                self.semantic_precompile(builtin, args.as_raw_slice())?
             }
             Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
                 let words = frame.read_all(args)?;
