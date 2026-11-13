@@ -1,0 +1,4 @@
+//@ filecheck:
+// CHECK: "message": "source `solar:core/Bits.sol` is reserved for a compiler module"
+// CHECK-NOT: "contracts"
+{"language":"Solidity","sources":{"solar:core/Bits.sol":{"content":"library Bits {}"}},"settings":{"outputSelection":{"*":{"*":["abi"]}}}}

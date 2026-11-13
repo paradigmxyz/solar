@@ -38,6 +38,7 @@ mod parse;
 pub use parse::{ParsingContext, Source, Sources};
 
 pub mod builtins;
+pub mod core;
 pub mod eval;
 
 pub mod output;

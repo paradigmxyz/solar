@@ -111,6 +111,14 @@ jobs:
             if gh run download "$run_id" --name debugify-results --dir "$download_dir" 2>/dev/null &&
               [[ -f "$download_dir/summary.json" ]]; then
               cp "$download_dir/summary.json" target/debugify/baseline/summary.json
+              if ! jq -e 'has("by_test_pass")' "$download_dir/summary.json" >/dev/null; then
+                if gh run download "$run_id" --name debugify-audits \
+                    --dir "$download_dir/audits" 2>/dev/null; then
+                  echo "audits=$download_dir/audits" >> "$GITHUB_OUTPUT"
+                else
+                  echo "::warning::Raw baseline audits unavailable; per-pass comparisons may be unavailable"
+                fi
+              fi
               echo "found=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -130,6 +138,7 @@ jobs:
         id: report
         env:
           BASE_FOUND: ${{ steps.baseline.outputs.found }}
+          BASE_AUDITS: ${{ steps.baseline.outputs.audits }}
           BASE_REF: ${{ steps.baseline.outputs.ref }}
           BASE_SHA: ${{ steps.baseline.outputs.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -138,6 +147,9 @@ jobs:
           args=(target/debugify/origins --output target/debugify)
           if [[ "$BASE_FOUND" == "true" ]]; then
             args+=(--baseline target/debugify/baseline/summary.json --base-ref "$BASE_REF")
+            if [[ -n "$BASE_AUDITS" ]]; then
+              args+=(--baseline-audits "$BASE_AUDITS")
+            fi
           fi
           python3 scripts/debugify_report.py "${args[@]}"
           cat target/debugify/report.md >> "$GITHUB_STEP_SUMMARY"

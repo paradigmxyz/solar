@@ -838,6 +838,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
         values.extend(arguments);
+        if let Some(intrinsic) = self.core_intrinsic(function_id) {
+            let mut operands = Vec::with_capacity(values.len());
+            for (&value, &parameter) in values.iter().zip(function.parameters) {
+                let ty = self.cx.gcx.type_of_item(parameter.into());
+                operands.push(self.binding_word(value, parameter).clean(self, ty));
+            }
+            let result = self.lower_guarded_core_intrinsic(intrinsic, function_id, &operands)?;
+            return if function.returns.is_empty() {
+                Some(CallResult::Void)
+            } else {
+                Some(CallResult::Value(result))
+            };
+        }
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };

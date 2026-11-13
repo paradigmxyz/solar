@@ -1,0 +1,10 @@
+error: unknown compiler module `solar:core/Missing.sol`
+   ╭▸ ROOT/tests/ui/resolve/core/unknown.sol:LL:CC
+   │
+LL │ import "solar:core/Missing.sol";
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: available compiler modules: solar:core/Bytes.sol, solar:core/Arrays.sol, solar:core/Revert.sol, solar:core/Hash.sol, solar:core/Create.sol, solar:core/Calls.sol, solar:core/Bits.sol, solar:core/Math.sol, solar:core/Cast.sol, solar:core/Precompiles.sol, solar:core/CalldataBytes.sol, solar:core/Slots.sol
+
+error: aborting due to 1 previous error
+

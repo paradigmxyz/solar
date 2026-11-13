@@ -108,6 +108,7 @@ def summarize(root: Path) -> dict:
     passes = defaultdict(row)
     opcodes = defaultdict(Counter)
     tests = defaultdict(row)
+    test_passes = defaultdict(Counter)
     files = sorted(root.rglob("*.jsonl"))
     if not files:
         raise ValueError(f"no debugify audits found in {root}")
@@ -128,6 +129,10 @@ def summarize(root: Path) -> dict:
                 counts["losses"] += bool(unexplained)
                 counts["lost_origins"] += unexplained
                 counts["intentional_lost_origins"] += intentional
+            if unexplained:
+                counts = test_passes[(test, *key)]
+                counts["losses"] += 1
+                counts["lost_origins"] += unexplained
     return {
         "version": 1,
         "invocations": len(files),
@@ -159,6 +164,11 @@ def summarize(root: Path) -> dict:
                 key=lambda item: (-item[1]["gaps"], -item[1]["lost_origins"], item[0]),
             )
         ],
+        # Zero-loss rows are implicit, so this index stays small even for long pipelines.
+        "by_test_pass": [
+            {"test": test, "ir": ir, "pass": name, **counts}
+            for (test, ir, name), counts in sorted(test_passes.items())
+        ],
     }
 
 
@@ -171,7 +181,7 @@ def has_gap_data(summary: dict) -> bool:
     return "gaps" in summary
 
 
-def load_baseline(path: Path) -> dict:
+def load_baseline(path: Path, audits: Path | None = None) -> dict:
     try:
         baseline = json.loads(path.read_text())
         if baseline["version"] != 1:
@@ -189,9 +199,77 @@ def load_baseline(path: Path) -> dict:
                 check_intentional_count(item)
                 for key in (*rows, "losses", "lost_origins", *gap_keys):
                     item[key]
+        check_test_pass_counts(baseline)
+        if audits is not None:
+            rebuilt = summarize(audits)
+            for key in (
+                "invocations",
+                "audited_tests",
+                "pass_runs",
+                "losses",
+                "lost_origins",
+                "intentional_lost_origins",
+                *gap_keys,
+            ):
+                if key in baseline and baseline[key] != rebuilt[key]:
+                    raise ValueError(f"raw baseline audits disagree on {key}")
+            for field, key in (("by_test", by_test), ("by_pass", by_pass)):
+                expected = {key(item): item for item in baseline[field]}
+                actual = {key(item): item for item in rebuilt[field]}
+                if expected.keys() != actual.keys() or any(
+                    old[metric] != actual[name][metric]
+                    for name, old in expected.items()
+                    for metric in row()
+                    if metric in old
+                ):
+                    raise ValueError(f"raw baseline audits disagree on {field}")
+            baseline = rebuilt
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"{path}: invalid baseline summary: {error!r}") from error
     return baseline
+
+
+def check_test_pass_counts(summary: dict) -> None:
+    """The optional sparse index must account for every unexplained loss exactly once."""
+    if "by_test_pass" not in summary:
+        return
+    if not isinstance(summary["by_test_pass"], list):
+        raise ValueError("invalid by_test_pass index")
+    tests = defaultdict(Counter)
+    passes = defaultdict(Counter)
+    seen = set()
+    for item in summary["by_test_pass"]:
+        if not isinstance(item, dict) or any(
+            not isinstance(item.get(field), str) or not item[field]
+            for field in ("test", "ir", "pass")
+        ):
+            raise ValueError("invalid per-test pass identity")
+        key = (item["test"], item["ir"], item["pass"])
+        if item["ir"] not in ("MIR", "EVM IR") or key in seen:
+            raise ValueError("invalid or duplicate per-test pass identity")
+        seen.add(key)
+        for metric in ("losses", "lost_origins"):
+            count = item.get(metric)
+            if type(count) is not int or count <= 0:
+                raise ValueError(f"invalid per-test pass {metric}")
+            tests[item["test"]][metric] += count
+            passes[(item["ir"], item["pass"])][metric] += count
+        if item["losses"] > item["lost_origins"]:
+            raise ValueError("more loss runs than lost origins")
+    for field, key, counts in (
+        ("by_test", by_test, tests),
+        ("by_pass", by_pass, passes),
+    ):
+        expected = {
+            key(item): {metric: item[metric] for metric in ("losses", "lost_origins")}
+            for item in summary[field]
+            if item["losses"] or item["lost_origins"]
+        }
+        if counts != expected:
+            raise ValueError(f"per-test pass index disagrees with {field}")
+    for metric in ("losses", "lost_origins"):
+        if sum(item[metric] for item in tests.values()) != summary[metric]:
+            raise ValueError(f"per-test pass index disagrees with {metric}")
 
 
 def check_intentional_count(counts: dict) -> None:
@@ -219,7 +297,11 @@ def change(base: int, head: int) -> str:
 
 
 def compare(
-    rows: list[dict], baseline: list[dict], key, metric: str
+    rows: list[dict],
+    baseline: list[dict],
+    key,
+    metric: str,
+    secondary: str | None = None,
 ) -> list[tuple[dict, dict, dict]]:
     """Pair rows by key, ordering by the size of the change in `metric`."""
     empty = {"losses": 0, "lost_origins": 0, "gaps": 0, "gap_runs": 0}
@@ -233,6 +315,10 @@ def compare(
         )
         for name in sorted(before.keys() | after.keys())
         if after.get(name, empty)[metric] != before.get(name, empty)[metric]
+        or (
+            secondary is not None
+            and after.get(name, empty)[secondary] != before.get(name, empty)[secondary]
+        )
     ]
     return sorted(changed, key=lambda item: -abs(item[0][metric] - item[1][metric]))
 
@@ -245,11 +331,40 @@ def by_test(row: dict) -> str:
     return row["test"]
 
 
+def passes_for_tests(summary: dict, selected: set[str]) -> list[dict] | None:
+    """Older summaries can compare the full test set, but cannot split it by pass."""
+    if not selected:
+        return []
+    if "by_test_pass" not in summary:
+        tests = {item["test"] for item in summary["by_test"]}
+        return (
+            [
+                item
+                for item in summary["by_pass"]
+                if item["losses"] or item["lost_origins"]
+            ]
+            if selected == tests
+            else None
+        )
+    passes = defaultdict(Counter)
+    for item in summary["by_test_pass"]:
+        if item["test"] in selected:
+            counts = passes[by_pass(item)]
+            counts["losses"] += item["losses"]
+            counts["lost_origins"] += item["lost_origins"]
+    return [
+        {"ir": ir, "pass": name, **counts}
+        for (ir, name), counts in sorted(passes.items())
+    ]
+
+
 def has_changes(summary: dict, baseline: dict) -> bool:
     """Whether to comment: gaps changed, or there is no gap baseline yet, or lost origins changed."""
     lost = compare(
-        summary["by_pass"], baseline["by_pass"], by_pass, "lost_origins"
-    ) or compare(summary["by_test"], baseline["by_test"], by_test, "lost_origins")
+        summary["by_pass"], baseline["by_pass"], by_pass, "lost_origins", "losses"
+    ) or compare(
+        summary["by_test"], baseline["by_test"], by_test, "lost_origins", "losses"
+    )
     if not has_gap_data(baseline):
         return True
     return bool(
@@ -264,6 +379,16 @@ def opcodes(row: dict) -> str:
 
 
 def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") -> str:
+    head_tests = {item["test"]: item for item in summary["by_test"]}
+    base_tests = (
+        {item["test"]: item for item in baseline["by_test"]} if baseline else {}
+    )
+    shared = head_tests.keys() & base_tests.keys()
+    added = [head_tests[name] for name in sorted(head_tests.keys() - base_tests.keys())]
+    removed = [
+        base_tests[name] for name in sorted(base_tests.keys() - head_tests.keys())
+    ]
+    different_tests = baseline is not None and bool(added or removed)
     gap_baseline = baseline if baseline and has_gap_data(baseline) else None
     if gap_baseline:
         intro = (
@@ -308,16 +433,35 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
                 if gap_baseline
                 else f"| {label} | {summary[key]:,} |"
             )
+        label = (
+            "lost origins (all tests)"
+            if different_tests
+            else "lost origins (information)"
+        )
+        comparison = (
+            "test sets differ"
+            if different_tests
+            else delta(baseline["lost_origins"], summary["lost_origins"])
+        )
         lost = (
-            f"| lost origins (information) | {baseline['lost_origins']:,} | "
+            f"| {label} | {baseline['lost_origins']:,} | "
             f"{summary['lost_origins']:,} | "
-            f"{delta(baseline['lost_origins'], summary['lost_origins'])} |"
+            f"{comparison} |"
         )
         if not gap_baseline:
             lost = (
-                f"| lost origins (information) | {summary['lost_origins']:,} "
+                f"| {label} | {summary['lost_origins']:,} "
                 f"(base {baseline['lost_origins']:,}, "
-                f"{delta(baseline['lost_origins'], summary['lost_origins'])}) |"
+                f"{comparison}) |"
+            )
+        if different_tests:
+            before = sum(base_tests[name]["lost_origins"] for name in shared)
+            after = sum(head_tests[name]["lost_origins"] for name in shared)
+            comparison = delta(before, after) if shared else "no shared tests"
+            overview.append(
+                f"| lost origins (shared tests) | {before:,} | {after:,} | {comparison} |"
+                if gap_baseline
+                else f"| lost origins (shared tests) | {after:,} (base {before:,}, {comparison}) |"
             )
     else:
         overview.extend(
@@ -340,10 +484,24 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
         (
             f"Audited {summary['audited_tests']:,} test/revision pairs, "
             f"{summary['invocations']:,} compiler invocations and "
-            f"{summary['pass_runs']:,} pass runs; lower is better."
+            f"{summary['pass_runs']:,} pass runs."
         ),
         "",
     ]
+    if different_tests:
+        lines.extend(
+            [
+                (
+                    f"The shared-test comparison covers {len(shared):,} test/revision pairs. "
+                    f"Added tests: {len(added):,} "
+                    f"({sum(item['lost_origins'] for item in added):,} lost origins). "
+                    f"Removed tests: {len(removed):,} "
+                    f"({sum(item['lost_origins'] for item in removed):,} lost origins). "
+                    "Lost-origin pass deltas use shared tests only; gap counts include all tests."
+                ),
+                "",
+            ]
+        )
     if intentional := summary.get("intentional_lost_origins", 0):
         lines.extend(
             [
@@ -423,16 +581,34 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
         ]
     )
     if baseline:
-        passes = compare(
-            summary["by_pass"], baseline["by_pass"], by_pass, "lost_origins"
+        shared_head = passes_for_tests(summary, shared)
+        shared_base = passes_for_tests(baseline, shared)
+        passes = (
+            compare(shared_head, shared_base, by_pass, "lost_origins", "losses")
+            if shared_head is not None and shared_base is not None
+            else None
         )
         tests = compare(
-            summary["by_test"], baseline["by_test"], by_test, "lost_origins"
+            [head_tests[name] for name in sorted(shared)],
+            [base_tests[name] for name in sorted(shared)],
+            by_test,
+            "lost_origins",
+            "losses",
         )
+        if passes is None:
+            lines.extend(
+                [
+                    (
+                        "Shared-test per-pass comparison unavailable: an audit summary lacks "
+                        "per-test pass counts. Rebuild missing summaries from their raw audits."
+                    ),
+                    "",
+                ]
+            )
         if passes:
             lines.extend(
                 [
-                    f"Changed passes vs `{base_ref}`:",
+                    f"Changed passes vs `{base_ref}` (shared tests only):",
                     "",
                     "| Layer | Pass | Runs with losses | Lost origins |",
                     "| --- | --- | ---: | ---: |",
@@ -448,7 +624,7 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
         if tests:
             lines.extend(
                 [
-                    f"Changed tests vs `{base_ref}`:",
+                    f"Changed shared tests vs `{base_ref}`:",
                     "",
                     "| Test / revision | Runs with losses | Lost origins |",
                     "| --- | ---: | ---: |",
@@ -461,10 +637,65 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
                     f"{change(base['lost_origins'], head['lost_origins'])} |"
                 )
             lines.append("")
-        if not passes and not tests:
+        if passes is not None and not passes and not tests and not different_tests:
             lines.extend(
                 [f"No pass or test changed its lost origins vs `{base_ref}`.", ""]
             )
+        elif not tests and shared:
+            if passes is not None and not passes:
+                lines.extend(
+                    [f"No shared pass changed its lost origins vs `{base_ref}`.", ""]
+                )
+            lines.extend(
+                [f"No shared test changed its lost origins vs `{base_ref}`.", ""]
+            )
+        elif not shared:
+            lines.extend(["No shared test/revision pairs to compare.", ""])
+        for label, items, audit in (
+            ("Added tests", added, summary),
+            ("Removed tests", removed, baseline),
+        ):
+            if not items:
+                continue
+            cohort_passes = passes_for_tests(audit, {item["test"] for item in items})
+            if cohort_passes is None:
+                lines.extend(
+                    [f"{label} per-pass totals unavailable in this older summary.", ""]
+                )
+            elif cohort_passes:
+                lines.extend(
+                    [
+                        f"{label} pass totals (no same-test comparison):",
+                        "",
+                        "| Layer | Pass | Runs with losses | Lost origins |",
+                        "| --- | --- | ---: | ---: |",
+                    ]
+                )
+                for item in sorted(
+                    cohort_passes,
+                    key=lambda r: (-r["lost_origins"], r["ir"], r["pass"]),
+                )[:25]:
+                    if item["lost_origins"]:
+                        lines.append(
+                            f"| {cell(item['ir'])} | {cell(item['pass'])} | "
+                            f"{item['losses']:,} | {item['lost_origins']:,} |"
+                        )
+                lines.append("")
+            lines.extend(
+                [
+                    f"{label} (no same-test comparison):",
+                    "",
+                    "| Test / revision | Runs with losses | Lost origins |",
+                    "| --- | ---: | ---: |",
+                ]
+            )
+            for item in sorted(items, key=lambda r: (-r["lost_origins"], r["test"]))[
+                :25
+            ]:
+                lines.append(
+                    f"| {cell(item['test'])} | {item['losses']:,} | {item['lost_origins']:,} |"
+                )
+            lines.append("")
     lines.extend(
         [
             "Passes with the most lost origins:",
@@ -519,11 +750,22 @@ def main() -> None:
     parser.add_argument(
         "--baseline", type=Path, help="summary.json from the base commit"
     )
+    parser.add_argument(
+        "--baseline-audits",
+        type=Path,
+        help="rebuild an older baseline from its exact raw audits and verify its totals",
+    )
     parser.add_argument("--base-ref", default="", help="label for the base commit")
     args = parser.parse_args()
     try:
         summary = summarize(args.input)
-        baseline = load_baseline(args.baseline) if args.baseline else None
+        if args.baseline_audits and not args.baseline:
+            raise ValueError("--baseline-audits requires --baseline")
+        baseline = (
+            load_baseline(args.baseline, args.baseline_audits)
+            if args.baseline
+            else None
+        )
         args.output.mkdir(parents=True, exist_ok=True)
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         report = markdown(summary, baseline, args.base_ref)

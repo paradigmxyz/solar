@@ -1,0 +1,22 @@
+{
+  "sources": {
+    "solar:core/Bits.sol": {
+      "id": 0
+    },
+    "Test.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "solar:core/Bits.sol": {
+      "Bits": {
+        "abi": []
+      }
+    },
+    "Test.sol": {
+      "Test": {
+        "abi": []
+      }
+    }
+  }
+}

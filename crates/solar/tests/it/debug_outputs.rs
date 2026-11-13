@@ -553,3 +553,44 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
         }
     }
 }
+
+#[test]
+fn core_source_names_match_across_artifacts() {
+    let output = compile_json(&[
+        "core_sources.sol",
+        "-Ogas",
+        "--emit=abi,bin,srcmap,ethdebug,ethdebug-runtime",
+    ]);
+    let names = output["contracts"].as_object().unwrap().keys().cloned().collect::<Vec<_>>();
+    snapbox::assert_data_eq!(
+        serde_json::to_string_pretty(&names).unwrap(),
+        snapbox::str![[r#"
+[
+  "core_sources.sol:C",
+  "solar:core/Bits.sol:Bits"
+]
+"#]]
+    );
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"core_sources.sol": {"content": include_str!("../../../../tests/ui/cli/auxiliary/core_sources.sol")}},
+        "settings": {"outputSelection": {"*": {"*": ["abi", "ethdebug.resources"]}}}
+    });
+    let mut standard = Vec::new();
+    solar::cli::standard_json::compile_standard_json(
+        &input.to_string(),
+        CompileOpts::default(),
+        None,
+        &mut standard,
+    )
+    .unwrap();
+    let standard: Value = serde_json::from_slice(&standard).unwrap();
+    let paths = output["sourceList"].as_array().unwrap();
+    assert_eq!(paths.len(), 2);
+    for (id, path) in paths.iter().enumerate() {
+        assert_eq!(output["ethdebug"]["compilation"]["sources"][id]["path"], *path);
+        assert_eq!(standard["ethdebug"]["resources"]["compilation"]["sources"][id]["path"], *path);
+        assert_eq!(standard["sources"][path.as_str().unwrap()]["id"], id);
+    }
+    assert!(paths.iter().any(|path| path == "solar:core/Bits.sol"));
+}
