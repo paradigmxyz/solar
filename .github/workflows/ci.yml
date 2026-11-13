@@ -134,6 +134,7 @@ jobs:
     runs-on: depot-ubuntu-latest-8
     timeout-minutes: 90
     permissions:
+      id-token: write
       contents: read
     steps:
       - name: Secure runner
