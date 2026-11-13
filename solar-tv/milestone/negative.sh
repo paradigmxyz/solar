@@ -20,8 +20,10 @@
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
 #   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
 #   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), each when
-#   present;
+#   of call and the check of that call's success dropped (a failed call goes on), and the offset
+#   word of the first dynamic value it returns from memory (the last 32 it stores through an
+#   address on the stack before its first return) as 64 and that value's length word (the first
+#   other constant stored that way before it) plus one, each when present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -329,6 +331,39 @@ print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-call-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/call-check.py"
 
+# The head of the first dynamic value the code returns from memory: the offset word, the 32 the
+# code stores through an address on the stack last before its first return, as 64, so the
+# value's offset points past its length word.
+cat > "$tmp/return-offset.py" <<'EOF'
+import re
+r = s.find(".ret")
+if r < 0: sys.exit(3)
+m = None
+for m in re.finditer(r"\(\.push (32)\)\),\n\s*\.op \(\.stack \(\.dup \d+\)\),\n\s*\.op \.store,", s[:r]): pass
+if m is None: sys.exit(3)
+print("  returned offset word 32 as 64")
+s = s[:m.start(1)] + "64" + s[m.end(1):]
+EOF
+try "$last-return-offset" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/return-offset.py"
+
+# The length word of that value: the first other constant the code stores through an address on
+# the stack before that offset word, N, as N + 1, so the value claims one more element.
+cat > "$tmp/return-length.py" <<'EOF'
+import re
+r = s.find(".ret")
+if r < 0: sys.exit(3)
+pattern = r"\(\.push (0x[0-9a-f]+|\d+)\)\),\n\s*\.op \(\.stack \(\.dup \d+\)\),\n\s*\.op \.store,"
+stores = list(re.finditer(pattern, s[:r]))
+heads = [m for m in stores if m.group(1) == "32"]
+if not heads: sys.exit(3)
+m = next((m for m in stores if m.start() < heads[-1].start() and m.group(1) != "32"), None)
+if m is None: sys.exit(3)
+length = int(m.group(1), 0)
+print(f"  returned length {m.group(1)} as {length + 1}")
+s = s[:m.start(1)] + str(length + 1) + s[m.end(1):]
+EOF
+try "$last-return-length" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/return-length.py"
+
 try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" < "$tmp/add-sub.py"
 
 # Each lowered MIR pass that changes code, against its input: the first branch it wrote taken
@@ -363,7 +398,11 @@ def folded(j, m):
             yes, no = b.group(1), b.group(2)
             if yes != no and m.group(1) in (yes, no): return f".jump {no if m.group(1) == yes else yes}"
 def read(j, m): return f".calldataload [.const {int(m.group(1), 0) + 32}]"
-def const(j, m): return f".const {int(m.group(1), 0) + 1}"
+def const(j, m):
+    # A shift amount as zero, as one more can shift a bounded word out either way.
+    if re.search(r"\.(?:shl|shr|sar) \[$", after[j][:m.start()]) and int(m.group(1), 0):
+        return ".const 0"
+    return f".const {int(m.group(1), 0) + 1}"
 rules = [(r"\.branch (\([^()]*\)) (\d+) (\d+)", branch),
          (r"\.jump (\d+)", folded),
          (r"\.calldataload \[\.const (0x[0-9a-f]+|\d+)\]", read),

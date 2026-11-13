@@ -106,6 +106,32 @@ theorem load_write_of_disjoint (m : Mem) (offset size address : Nat) (source : N
   have : ¬(offset ≤ address + i ∧ address + i < offset + size) := by omega
   simp only [this, if_false]
 
+/-- A store is a write of the value's bytes. -/
+theorem store_eq_write (m : Mem) (offset : Nat) (value : Word) :
+    m.store offset value = m.write offset 32 (Memory.byte value) := rfl
+
+/-- A load reads none of the bytes a store outside its word writes. -/
+theorem load_store_of_disjoint (m : Mem) (offset address : Nat) (value : Word)
+    (disjoint : address + 32 ≤ offset ∨ offset + 32 ≤ address) :
+    (m.store offset value).load address = m.load address := by
+  rw [store_eq_write]
+  exact load_write_of_disjoint m offset 32 address _ disjoint
+
+/-- Memory a call starts with reads as zero everywhere. -/
+theorem load_initial (address : Nat) : initial.load address = 0 := by
+  unfold load read initial
+  generalize List.range 32 = l
+  suffices h : ∀ acc : Word, acc = 0 →
+      (l.map (fun _ => (0 : Memory.Byte))).foldl
+        (fun (acc : Word) (b : Memory.Byte) => (acc <<< 8) ||| b.setWidth 256) acc = 0 from
+    h 0 rfl
+  induction l with
+  | nil => intro acc h; exact h
+  | cons _ l ih =>
+    intro acc h
+    subst h
+    exact ih _ (by simp)
+
 /-- One more byte of a word, from the top: the word shifted right by one byte less. -/
 private theorem step_bytes (v : BitVec 256) (n : Nat) (h : n < 32) :
     ((v >>> (8 * (32 - n))) <<< 8) ||| (SolarTV.Memory.byte v n).setWidth 256 =
@@ -240,6 +266,8 @@ structure State where
 /-- The state a call starts in: zeroed memory, the call's storage, no events. -/
 def State.initial (call : Call) : State :=
   ⟨Mem.initial, fun slot => BitVec.ofNat 256 (slotValue call.storage slot.toNat), fun _ => 0, []⟩
+
+theorem State.initial_memory (call : Call) : (State.initial call).memory = Mem.initial := rfl
 
 /-- What the frame cannot see, as functions of the world (`Encoder`'s `env_`, `result`
 and the state after a call event). The size of the return data is the environment read

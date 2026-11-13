@@ -19,15 +19,19 @@ first program's end, by symbolic execution over a symbolic call and oracle:
   `split_cond` case-splits on the first one left, rewriting both programs with the case.
 - A leaf closes by reflexivity when both ends agree, and by `bv_omega` when its cases
   contradict each other, as when the programs test one condition in different words.
-- Shifts and `NOT` of numerals fold to numerals, as passes respell constants, and the tests
-  the compiler spells an address check with (the word above the 160-bit mask, its high bits
-  shifted out, the word equal to its masked self) rewrite to one proposition, so that each
+- Shifts, `NOT` and the binary word operations of numerals fold to numerals, as passes respell
+  constants and an allocation's bounds checks compute on the constant free memory pointer, and
+  the tests the compiler spells an address check with (the word above the 160-bit mask, its high
+  bits shifted out, the word equal to its masked self) rewrite to one proposition, so that each
   program's spelling meets the other's.
+- A load at a constant address reads the word a store there wrote, reads past a store to
+  another word, and reads zero from the memory a call starts with, so that the checks that
+  fresh memory is zero are decided.
 
-Nothing here calls `bv_decide` or `native_decide`, and `decide` only runs on closed terms inside
-`dsimp`'s evaluation, so the proofs rest on the kernel and the standard axioms. A program that
-loops, reads a value the code does not pin, or whose stage is false leaves a goal: the
-procedure fails closed. -/
+Nothing here calls `bv_decide` or `native_decide`, and `decide` only runs on closed terms,
+inside `dsimp`'s evaluation and in `BitVec.reduceEq` on two numerals, so the proofs rest on the
+kernel and the standard axioms. A program that loops, reads a value the code does not pin, or
+whose stage is false leaves a goal: the procedure fails closed. -/
 
 namespace SolarTV.Milestone.W1
 
@@ -350,22 +354,22 @@ end effects
 
 /-! Stack positions of `dup` and `swap` as numbers. -/
 
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+theorem fin_val_0 : ((0 : Fin 256) : Nat) = 0 := rfl
+theorem fin_val_1 : ((1 : Fin 256) : Nat) = 1 := rfl
+theorem fin_val_2 : ((2 : Fin 256) : Nat) = 2 := rfl
+theorem fin_val_3 : ((3 : Fin 256) : Nat) = 3 := rfl
+theorem fin_val_4 : ((4 : Fin 256) : Nat) = 4 := rfl
+theorem fin_val_5 : ((5 : Fin 256) : Nat) = 5 := rfl
+theorem fin_val_6 : ((6 : Fin 256) : Nat) = 6 := rfl
+theorem fin_val_7 : ((7 : Fin 256) : Nat) = 7 := rfl
+theorem fin_val_8 : ((8 : Fin 256) : Nat) = 8 := rfl
+theorem fin_val_9 : ((9 : Fin 256) : Nat) = 9 := rfl
+theorem fin_val_10 : ((10 : Fin 256) : Nat) = 10 := rfl
+theorem fin_val_11 : ((11 : Fin 256) : Nat) = 11 := rfl
+theorem fin_val_12 : ((12 : Fin 256) : Nat) = 12 := rfl
+theorem fin_val_13 : ((13 : Fin 256) : Nat) = 13 := rfl
+theorem fin_val_14 : ((14 : Fin 256) : Nat) = 14 := rfl
+theorem fin_val_15 : ((15 : Fin 256) : Nat) = 15 := rfl
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -477,6 +481,27 @@ dsimproc_decl foldShr (Evm.shr _ _) := fun e => do
   let some s ← wordLit? s | return .continue
   let some v ← wordLit? v | return .continue
   return .done (← mkNumeral (mkConst ``EvmRules.Word) (if s < 256 then v >>> s else 0))
+
+open Lean Meta Simp in
+/-- A binary word operation of two numerals as the numeral it computes, as the bounds checks of
+a memory allocation compute on the constant free memory pointer (the end of an allocation, its
+test against the pointer's 64-bit range), so that a test the constants decide is decided. The
+kernel checks the value by evaluation. -/
+def foldWord2 (op : Name) (f : Nat → Nat → Nat) (e : Expr) : SimpM DStep := do
+  unless e.isAppOfArity op 2 do return .continue
+  let some a ← wordLit? (e.getArg! 0) | return .continue
+  let some b ← wordLit? (e.getArg! 1) | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) (f a b % 2 ^ 256))
+
+dsimproc_decl foldAdd (Evm.add _ _) := foldWord2 ``Evm.add (· + ·)
+dsimproc_decl foldSub (Evm.sub _ _) := foldWord2 ``Evm.sub (fun a b => a + 2 ^ 256 - b)
+dsimproc_decl foldMul (Evm.mul _ _) := foldWord2 ``Evm.mul (· * ·)
+dsimproc_decl foldAnd (Evm.and _ _) := foldWord2 ``Evm.and (· &&& ·)
+dsimproc_decl foldOr (Evm.or _ _) := foldWord2 ``Evm.or (· ||| ·)
+dsimproc_decl foldXor (Evm.xor _ _) := foldWord2 ``Evm.xor (· ^^^ ·)
+dsimproc_decl foldLt (Evm.lt _ _) := foldWord2 ``Evm.lt (fun a b => if a < b then 1 else 0)
+dsimproc_decl foldGt (Evm.gt _ _) := foldWord2 ``Evm.gt (fun a b => if a > b then 1 else 0)
+dsimproc_decl foldEq (Evm.eq _ _) := foldWord2 ``Evm.eq (fun a b => if a = b then 1 else 0)
 
 open Lean Elab Tactic Meta in
 /-- Case-split on the first `if` of the goal whose condition is closed, as `hc`, with `hcs` its
@@ -707,7 +732,8 @@ dsimproc_decl evmNotLit (Evm.not _) := fun e => do
 /-- The definitional evaluation of both layers. -/
 macro "sym_eval" : tactic => `(tactic|
   dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
-    foldNot, foldShl, foldShr,
+    foldNot, foldShl, foldShr, foldAdd, foldSub, foldMul, foldAnd, foldOr, foldXor, foldLt, foldGt,
+    foldEq,
     MIR.Lowered.Module.run, MIR.Lowered.moduleBlock, MIR.Lowered.segment,
     MIR.Lowered.splitCall, MIR.Lowered.bindResult, MIR.Lowered.bindResults,
     MIR.Lowered.bindExtras, MIR.Lowered.publishResults, MIR.Lowered.publishWords, MIR.Lowered.bindPhis,
@@ -727,15 +753,16 @@ macro "sym_eval" : tactic => `(tactic|
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
     Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    fin_val_0, fin_val_1, fin_val_2, fin_val_3, fin_val_4, fin_val_5,
+    fin_val_6, fin_val_7, fin_val_8, fin_val_9, fin_val_10, fin_val_11,
+    fin_val_12, fin_val_13, fin_val_14, fin_val_15])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
 macro "sym_cond" : tactic => `(tactic|
   simp only [*, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint,
-    Mem.expand_store, Mem.load_store_same,
+    Mem.expand_store, Mem.load_store_same, Mem.load_store_of_disjoint, Mem.load_initial,
+    State.initial_memory, BitVec.reduceEq,
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
     wordAddComm, wordMulComm, wordAndComm, wordOrComm, wordXorComm, and_mask,

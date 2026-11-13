@@ -37,7 +37,8 @@ one, its call value check, its overflow check, its first log, the signature topi
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
 `keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
 first `mul`, its first range test of a narrow product, the kind of its first external call and
-the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
+the check of that call's success, the offset word and the length word of the first dynamic value it
+returns from memory; the scheduled EVM IR's first `add`; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
 its first constant plus one; the last MIR stage's first return of several words in reverse order
@@ -207,6 +208,25 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [dynarr](dynarr/dynarr.sol): `contract DynArr { function pair(uint256 x) external pure returns
+  (uint256[] memory a) { a = new uint256[](2); a[0] = x; a[1] = x ^ 7; } }`, 177 bytes of runtime
+  bytecode: a dynamic array built in memory and returned ABI-encoded. The array is allocated at
+  `0xa0`, right after the head word, so the code returns the 128 bytes at `0x80` in place: the
+  offset word `0x20`, the length `2` and the two elements. The allocation's `0x41` panic tests
+  compute on the constant free memory pointer, and `lower-assumes` turns the facts that the pointer
+  is the heap start and that the fresh words read zero into branches to a revert (`mir3 → mir4`),
+  which the stage proofs show are never taken: `sym_exec` folds word operations on numerals and
+  reads a load at a constant address past the stores to other words, down to the zero memory a
+  call starts with. Stages `stage0 → mir1 → … → mir5 → sched → evm1 → … → evm10` (`place-reads`,
+  `dce`, `spell-width-tests`, `lower-assumes`, `evm-inst-schedule`, `stack-schedule`, then
+  `peephole-early` to `cfg-simplify-early`) and `evm10 → bytecode`, all proved:
+  `SolarTV.Milestone.Dynarr.dynarr_mir_to_evmir`. Its negative tests also store the offset word as
+  `0x40` and the length as `3`.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/dynarr/dynarr.sol DynArr
 ```
 
 ## Limits

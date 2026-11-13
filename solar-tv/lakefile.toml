@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# dynarr: the stages of milestone/dynarr/dynarr.sol's DynArr and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "dynarr"
+srcDir = "milestone"
+roots = ["dynarr.Proofs"]
+globs = ["dynarr.+"]
+moreLeanArgs = ["-M", "3000"]
