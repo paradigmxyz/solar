@@ -49,7 +49,7 @@ fn lists(c: &mut Contract) -> Vec<*mut Vec<Stmt>> {
     }
     let mut out = vec![];
     walk(&mut c.ctor, &mut out);
-    for f in c.helpers.iter_mut().chain(c.funcs.iter_mut()) {
+    for f in c.helpers.iter_mut().chain(c.procs.iter_mut()).chain(c.funcs.iter_mut()) {
         walk(&mut f.body, &mut out);
     }
     out
@@ -171,13 +171,15 @@ fn reduce_ast(cli: &Cli, mut best: Case, d: &Divergence, tries: &mut usize) -> C
             i += 1;
         }
     }
-    // Helpers, state variables, events and errors.
-    for what in 0..4 {
+    // Helpers, procedures, state variables, events and errors.
+    for what in 0..5 {
         let mut i = 0;
         loop {
             let mut c = best.clone();
             let k = c.contract.as_mut().unwrap();
-            let len = [k.helpers.len(), k.state.len(), k.events.len(), k.errors.len()][what];
+            let len =
+                [k.helpers.len(), k.state.len(), k.events.len(), k.errors.len(), k.procs.len()]
+                    [what];
             if i >= len {
                 break;
             }
@@ -188,6 +190,7 @@ fn reduce_ast(cli: &Cli, mut best: Case, d: &Divergence, tries: &mut usize) -> C
                 // Events and errors are named by index: only the last can go.
                 2 if last => drop(k.events.remove(i)),
                 3 if last => drop(k.errors.remove(i)),
+                4 => drop(k.procs.remove(i)),
                 _ => {
                     i += 1;
                     continue;

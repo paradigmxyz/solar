@@ -168,7 +168,7 @@ pub(crate) fn campaign(cli: &Cli) {
     }
     for it in 0..cli.iters {
         let (file, src, name, abi) = rng.pick(&targets).clone();
-        let mut mutant = src.clone();
+        let mut mutant = src;
         for _ in 0..rng.below(3) {
             if let Some(m) = mutate(&mutant, &mut rng) {
                 mutant = m;

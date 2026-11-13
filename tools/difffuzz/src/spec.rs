@@ -351,13 +351,37 @@ fn annotate(c: &Contract, specs: &[Spec]) -> Contract {
     let mut c = c.clone();
     c.invariants = specs.iter().filter(|s| s.func.is_none()).map(Spec::sol).collect();
     for f in &mut c.funcs {
-        f.specs = specs
-            .iter()
-            .filter(|s| s.func.as_ref() == Some(&f.name))
-            .map(|s| format!("ensures {}", s.sol()))
-            .collect();
+        // Runtime checks stay: the verifier assumes them and `--instrument` enforces them.
+        f.specs.retain(|s| s.starts_with("check "));
+        f.specs.extend(
+            specs
+                .iter()
+                .filter(|s| s.func.as_ref() == Some(&f.name))
+                .map(|s| format!("ensures {}", s.sol())),
+        );
     }
     c
+}
+
+/// Adds a `@custom:check` bound on an integer parameter to some functions.
+fn add_checks(c: &mut Contract, rng: &mut Rng) -> usize {
+    let mut n = 0;
+    for f in &mut c.funcs {
+        let ints: Vec<_> = f.params.iter().filter(|(t, _)| t.is_int()).cloned().collect();
+        if ints.is_empty() || !rng.chance(50) {
+            continue;
+        }
+        let (t, p) = rng.pick(&ints).clone();
+        let bound = *rng.pick(&[1, 3, 10, 100, 1000]);
+        let check = if matches!(t, Ty::I(_)) && rng.chance(50) {
+            format!("check {p} >= -{bound}")
+        } else {
+            format!("check {p} <= {bound}")
+        };
+        f.specs.push(check);
+        n += 1;
+    }
+    n
 }
 
 #[derive(Debug, Default)]
@@ -426,6 +450,8 @@ struct SpecStats {
     proved_ensures: u64,
     proved_invariants: u64,
     checked_calls: u64,
+    /// Cases whose bytecode is the `--instrument` output, with `@custom:check` claims.
+    instrumented_cases: u64,
     spec_evaluations: u64,
     violations: u64,
     gave_up: BTreeMap<String, u64>,
@@ -502,7 +528,7 @@ fn for_specs(c: &mut Contract) {
             v.public = true;
         }
     }
-    for f in c.funcs.iter_mut().chain(c.helpers.iter_mut()) {
+    for f in c.funcs.iter_mut().chain(c.helpers.iter_mut()).chain(c.procs.iter_mut()) {
         strip(&mut f.body);
     }
 }
@@ -516,6 +542,8 @@ pub(crate) fn campaign(cli: &Cli) {
         stats.cases += 1;
         let (mut c, calls) = grammar::generate(seed, &cfg);
         for_specs(&mut c);
+        let mut crng = Rng::new(seed ^ 0xc4ec);
+        let checks = add_checks(&mut c, &mut crng);
         if scalars(&c).is_empty() {
             *stats.gave_up.entry("no integer scalars".into()).or_default() += 1;
             continue;
@@ -548,6 +576,23 @@ pub(crate) fn campaign(cli: &Cli) {
         let annotated = annotate(&c, &proved);
         std::fs::write(&file, annotated.sol()).unwrap();
         // The bytecode the specs are checked against: Solar's for the annotated file, and solc's.
+        // With checks, the file that deploys is the instrumented one, which enforces them.
+        let mut subject = file.clone();
+        if checks > 0 {
+            let inst = dir.join("Instrumented.sol");
+            let mut cmd = Command::new(cli.verify.as_ref().unwrap());
+            cmd.arg("--instrument").arg(&inst).arg(&file);
+            if let Err(e) = compile::run(cmd, Duration::from_secs(120)) {
+                *stats
+                    .gave_up
+                    .entry(format!("instrument: {}", e.chars().take(60).collect::<String>()))
+                    .or_default() += 1;
+                continue;
+            }
+            stats.instrumented_cases += 1;
+            subject = inst;
+        }
+        let file = subject;
         let mut arts = vec![];
         match cli.tools.solar(&file, "C") {
             Ok(a) => arts.push(("solar", a)),
@@ -578,10 +623,10 @@ pub(crate) fn campaign(cli: &Cli) {
                         accepted: None,
                     };
                     let case = Case {
-                        contract: Some(annotated.clone()),
+                        contract: Some(annotated),
                         source: None,
                         name: "C".into(),
-                        calls: seq.clone(),
+                        calls: seq,
                         divergence: Some(d.clone()),
                     };
                     let out = cli.out.join("violations");

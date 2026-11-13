@@ -50,7 +50,8 @@ widths and signedness, `bool`, `address`, scalars, nested mappings, fixed and dy
 arrays and packed structs in storage, events with indexed fields, custom errors with
 arguments, `require` with and without messages, `assert`, checked and `unchecked`
 arithmetic, shifts, exponentiation, explicit conversions, ternaries, bounded `for` loops,
-`push`, `pop`, `delete`, and internal pure helpers. Literals in code are mostly small, call
+`push`, `pop`, `delete`, `break` and `continue`, `keccak256(abi.encode(..))`, internal pure
+helpers, and internal procedures that read and write storage. Literals in code are mostly small, call
 arguments mostly boundary values. Programs are kept as a typed tree, so reduction rewrites
 the tree and every candidate still type-checks: it drops calls, functions, state variables,
 statements, and replaces expressions with literals of their type or with one of their
@@ -86,6 +87,8 @@ every successful call over math integers, as the verifier reads it. A violation 
 soundness bug of the verifier or of the compiler and is saved under `violations/`. Contracts
 for this mode have no `assert` (always an obligation) and public scalars (read through their
 getters). The verifier's internal errors are saved under `verify-internal/`.
+Half the functions with an integer parameter also get a `@custom:check` bound on it, which
+the verifier assumes: their cases run on the `--instrument` output, which enforces it.
 
 ## Divergences
 

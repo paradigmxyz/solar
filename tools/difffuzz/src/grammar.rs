@@ -221,6 +221,8 @@ pub(crate) enum Expr {
     Sender,
     Max(Ty),
     Min(Ty),
+    /// `uint256(keccak256(abi.encode(..)))`.
+    Hash(Vec<Self>),
 }
 
 impl Expr {
@@ -231,7 +233,7 @@ impl Expr {
             Self::Tern(_, _, _, t) | Self::Call(_, _, t) => *t,
             Self::Cmp(..) | Self::Not(_) | Self::AndAnd(..) | Self::OrOr(..) => Ty::Bool,
             Self::Cast(t, _) | Self::Max(t) | Self::Min(t) => *t,
-            Self::Len(_) => Ty::U(256),
+            Self::Len(_) | Self::Hash(_) => Ty::U(256),
             Self::Sender => Ty::Addr,
         }
     }
@@ -255,6 +257,10 @@ impl Expr {
             }
             Self::Len(a) => format!("{a}.length"),
             Self::Sender => "msg.sender".into(),
+            Self::Hash(args) => {
+                let args: Vec<_> = args.iter().map(Self::sol).collect();
+                format!("uint256(keccak256(abi.encode({})))", args.join(", "))
+            }
             Self::Max(t) => format!("type({}).max", t.sol()),
             Self::Min(t) => format!("type({}).min", t.sol()),
         }
@@ -268,7 +274,7 @@ impl Expr {
             }
             Self::Neg(a, _) | Self::BitNot(a, _) | Self::Not(a) | Self::Cast(_, a) => vec![a],
             Self::Tern(c, a, b, _) => vec![c, a, b],
-            Self::Call(_, args, _) => args.iter().collect(),
+            Self::Call(_, args, _) | Self::Hash(args) => args.iter().collect(),
             Self::Read(p, _) => p.exprs(),
             _ => vec![],
         }
@@ -282,7 +288,7 @@ impl Expr {
             }
             Self::Neg(a, _) | Self::BitNot(a, _) | Self::Not(a) | Self::Cast(_, a) => vec![a],
             Self::Tern(c, a, b, _) => vec![c, a, b],
-            Self::Call(_, args, _) => args.iter_mut().collect(),
+            Self::Call(_, args, _) | Self::Hash(args) => args.iter_mut().collect(),
             Self::Read(p, _) => p.exprs_mut(),
             _ => vec![],
         }
@@ -360,6 +366,10 @@ pub(crate) enum Stmt {
     Return(Vec<Expr>),
     Push(String, Expr),
     Pop(String),
+    /// A call of an internal procedure.
+    Call(String, Vec<Expr>),
+    Break,
+    Continue,
     Delete(Place),
     Unchecked(Vec<Self>),
     Assert(Expr),
@@ -388,7 +398,9 @@ impl Stmt {
             }
             Self::Delete(p) => p.exprs_mut(),
             Self::If(c, _, _) => vec![c],
-            Self::Revert(_, es) | Self::Emit(_, es) | Self::Return(es) => es.iter_mut().collect(),
+            Self::Revert(_, es) | Self::Emit(_, es) | Self::Return(es) | Self::Call(_, es) => {
+                es.iter_mut().collect()
+            }
             _ => vec![],
         }
     }
@@ -433,6 +445,9 @@ pub(crate) struct Contract {
     pub(crate) errors: Vec<Vec<Ty>>,
     pub(crate) ctor: Vec<Stmt>,
     pub(crate) helpers: Vec<Function>,
+    /// Internal functions that may read and write storage, called as statements.
+    #[serde(default)]
+    pub(crate) procs: Vec<Function>,
     pub(crate) funcs: Vec<Function>,
     pub(crate) invariants: Vec<String>,
 }
@@ -447,8 +462,11 @@ pub(crate) struct Call {
 impl Function {
     fn reads_storage(&self, c: &Contract) -> bool {
         let mut any = false;
-        visit_exprs(&self.body, &mut |e| any |= e.reads_storage(c));
+        visit_exprs(&self.body, &mut |e| any |= e.reads_storage(c) || e.reads_env());
         any || writes(&self.body, c)
+            || called(&self.body)
+                .iter()
+                .any(|f| c.procs.iter().any(|p| &p.name == f && p.reads_storage(c)))
     }
 
     /// Solidity's mutability for the body: `pure`, `view`, or nonpayable.
@@ -465,10 +483,28 @@ impl Function {
     }
 }
 
+/// The procedures `body` calls.
+fn called(body: &[Stmt]) -> Vec<String> {
+    let mut out = vec![];
+    for s in body {
+        match s {
+            Stmt::Call(f, _) => out.push(f.clone()),
+            Stmt::If(_, a, b) => {
+                out.extend(called(a));
+                out.extend(called(b));
+            }
+            Stmt::For(_, _, b) | Stmt::Unchecked(b) => out.extend(called(b)),
+            _ => {}
+        }
+    }
+    out
+}
+
 fn writes(body: &[Stmt], c: &Contract) -> bool {
     body.iter().any(|s| match s {
         Stmt::Assign(p, _, _) | Stmt::Delete(p) => p.is_storage(c),
         Stmt::Emit(..) | Stmt::Push(..) | Stmt::Pop(_) => true,
+        Stmt::Call(f, _) => c.procs.iter().any(|p| &p.name == f && writes(&p.body, c)),
         Stmt::If(_, a, b) => writes(a, c) || writes(b, c),
         Stmt::For(_, _, b) | Stmt::Unchecked(b) => writes(b, c),
         _ => false,
@@ -499,10 +535,10 @@ pub(crate) fn visit_exprs(body: &[Stmt], f: &mut dyn FnMut(&Expr)) {
                 visit_exprs(b, f);
             }
             Stmt::For(_, _, b) | Stmt::Unchecked(b) => visit_exprs(b, f),
-            Stmt::Revert(_, es) | Stmt::Emit(_, es) | Stmt::Return(es) => {
+            Stmt::Revert(_, es) | Stmt::Emit(_, es) | Stmt::Return(es) | Stmt::Call(_, es) => {
                 es.iter().for_each(|e| expr(e, f))
             }
-            Stmt::Pop(_) => {}
+            Stmt::Pop(_) | Stmt::Break | Stmt::Continue => {}
         }
     }
 }
@@ -558,7 +594,7 @@ impl Contract {
         out.push_str("\n    constructor() {\n");
         block(&mut out, &self.ctor, 2);
         out.push_str("    }\n");
-        for f in self.helpers.iter().chain(&self.funcs) {
+        for f in self.helpers.iter().chain(&self.procs).chain(&self.funcs) {
             out.push('\n');
             for s in &f.specs {
                 writeln!(out, "    /// @custom:{s}").unwrap();
@@ -645,6 +681,12 @@ fn block(out: &mut String, body: &[Stmt], depth: usize) {
                 writeln!(out, "{pad}}}").unwrap();
             }
             Stmt::Assert(c) => writeln!(out, "{pad}assert({});", c.sol()).unwrap(),
+            Stmt::Call(f, es) => {
+                let es: Vec<_> = es.iter().map(Expr::sol).collect();
+                writeln!(out, "{pad}{f}({});", es.join(", ")).unwrap()
+            }
+            Stmt::Break => writeln!(out, "{pad}break;").unwrap(),
+            Stmt::Continue => writeln!(out, "{pad}continue;").unwrap(),
         }
     }
 }
@@ -686,6 +728,10 @@ struct Gen<'a> {
     helper: Option<usize>,
     /// Generating a storage key or index: keys read no further storage.
     in_key: bool,
+    /// Enclosing loops, for `break` and `continue`.
+    loops: usize,
+    /// Generating a procedure, which calls no procedure.
+    in_proc: bool,
 }
 
 /// Generates a contract and a call sequence from `seed`.
@@ -702,6 +748,7 @@ pub(crate) fn generate(seed: u64, cfg: &Config) -> (Contract, Vec<Call>) {
                 errors: vec![],
                 ctor: vec![],
                 helpers: vec![],
+                procs: vec![],
                 funcs: vec![],
                 invariants: vec![],
             },
@@ -710,6 +757,8 @@ pub(crate) fn generate(seed: u64, cfg: &Config) -> (Contract, Vec<Call>) {
             in_unchecked: false,
             helper: None,
             in_key: false,
+            loops: 0,
+            in_proc: false,
         };
         g.state();
         for _ in 0..1 + g.rng.below(2) {
@@ -725,6 +774,9 @@ pub(crate) fn generate(seed: u64, cfg: &Config) -> (Contract, Vec<Call>) {
         g.ctor();
         for i in 0..g.rng.below(3) {
             g.helper_fn(i);
+        }
+        for i in 0..g.rng.below(3) {
+            g.proc_fn(i);
         }
         let nf = 1 + g.rng.below(cfg.max_funcs);
         for i in 0..nf {
@@ -870,6 +922,24 @@ impl Gen<'_> {
         });
     }
 
+    fn proc_fn(&mut self, index: usize) {
+        let params = self.params(2);
+        self.locals =
+            params.iter().map(|(t, n)| Local { name: n.clone(), ty: *t, mutable: true }).collect();
+        self.in_proc = true;
+        let n = 1 + self.rng.below(self.cfg.max_stmts / 2 + 1);
+        let body = self.stmts(n, 1, &[]);
+        self.in_proc = false;
+        self.c.procs.push(Function {
+            name: format!("p{index}"),
+            params,
+            returns: vec![],
+            body,
+            specs: vec![],
+            helper: true,
+        });
+    }
+
     fn function(&mut self, index: usize) {
         let params = self.params(3);
         let returns: Vec<Ty> = (0..self.rng.below(3)).map(|_| self.value_ty()).collect();
@@ -898,7 +968,8 @@ impl Gen<'_> {
         let mut out = vec![];
         for _ in 0..n {
             if let Some(s) = self.stmt(depth, returns) {
-                let terminal = matches!(s, Stmt::Return(_) | Stmt::Revert(..));
+                let terminal =
+                    matches!(s, Stmt::Return(_) | Stmt::Revert(..) | Stmt::Break | Stmt::Continue);
                 out.push(s);
                 if terminal {
                     break;
@@ -1028,7 +1099,9 @@ impl Gen<'_> {
                 let i = self.name("i");
                 self.locals.push(Local { name: i.clone(), ty: Ty::U(256), mutable: false });
                 let n = 1 + self.rng.below(3);
+                self.loops += 1;
                 let body = self.stmts(n, depth + 1, returns);
+                self.loops -= 1;
                 self.locals.retain(|l| l.name != i);
                 Stmt::For(i, 1 + self.rng.below(4) as u8, body)
             }
@@ -1080,6 +1153,20 @@ impl Gen<'_> {
                 Stmt::Unchecked(body)
             }
             18 => Stmt::Assert(self.expr(Ty::Bool, 2)),
+            19 if self.loops > 0 && self.rng.chance(50) => {
+                if self.rng.chance(50) {
+                    Stmt::Break
+                } else {
+                    Stmt::Continue
+                }
+            }
+            19 if !helper && !self.in_proc && !self.c.procs.is_empty() => {
+                let (name, params) = {
+                    let p = self.rng.pick(&self.c.procs);
+                    (p.name.clone(), p.params.clone())
+                };
+                Stmt::Call(name, params.iter().map(|(t, _)| self.expr(*t, 2)).collect())
+            }
             _ => return None,
         })
     }
@@ -1210,6 +1297,16 @@ impl Gen<'_> {
                     let a = self.expr(ty, d);
                     let b = self.expr(ty, d);
                     Expr::Tern(Box::new(c), Box::new(a), Box::new(b), ty)
+                }
+                15 if ty == Ty::U(256) && self.rng.chance(40) => {
+                    let n = 1 + self.rng.below(2);
+                    let args = (0..n)
+                        .map(|_| {
+                            let t = self.value_ty();
+                            self.expr(t, d)
+                        })
+                        .collect();
+                    Expr::Hash(args)
                 }
                 14 => {
                     let limit = self.helper.unwrap_or(self.c.helpers.len());
