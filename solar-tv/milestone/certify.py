@@ -20,7 +20,6 @@ them.
 """
 
 import argparse
-import itertools
 import json
 import pathlib
 import re
@@ -30,7 +29,7 @@ AXIOMS = "[propext, Classical.choice, Quot.sound]"
 
 def blocks(text):
     """The number of blocks of an exported program: one "-- bbN" comment each."""
-    return len(re.findall(r"^\s*-- bb\d+$", text, re.MULTILINE))
+    return len(re.findall(r"^\s*-- bb\d+$", text, re.M))
 
 
 def calls(text):
@@ -178,7 +177,7 @@ def main():
     )
 
     # Each pair of consecutive stages ends in the same result.
-    pairs = list(itertools.pairwise(stages))
+    pairs = list(zip(stages, stages[1:]))
     for a, b in pairs:
         name = f"{b['def']}_run"
         what = (
@@ -303,8 +302,10 @@ def main():
     offset = "0"
     for t, d in reversed(list(zip(targets, dests))):
         offset = f"if label = {t} then {d:#x} else {offset}"
+    immutables = manifest.get("immutables", [])
     asm = header(
-        ["W1Proofs.Items", f"{gm}.{last['module']}", f"{gm}.Bytecode"],
+        ["W1Proofs.Items", f"{gm}.{last['module']}", f"{gm}.Bytecode"]
+        + ([f"{gm}.Manifest", "SolarTV.Stages.Link"] if immutables else []),
         f"The final EVM IR of `{contract}` against its bytecode, by the assembly "
         "checker's walk: the bytecode decodes, linearly from offset 0, to exactly the "
         "program's instructions, each jumped-to block at its `JUMPDEST`.",
@@ -334,8 +335,33 @@ def main():
         + axioms_check(ns, "walk_eq", "[propext, Quot.sound]")
         + "\n"
         + axioms_check(ns, "decodes", "[propext, Quot.sound]")
-        + f"\nend {ns}\n"
     )
+    if immutables:
+        # The bytecode a deployment runs is this one linked at the immutables' placeholders.
+        asm += (
+            "\n/-- The placeholders of the final EVM IR's immutables in the bytecode: each one's "
+            "immutable, the offset\nof its bytes and their count. -/\n"
+            "def placeholders : List Placeholder := placeholdersOf stream items\n\n"
+            "/-- They are the ones the manifest lists. -/\n"
+            "theorem placeholders_eq :\n"
+            "    placeholders.map (fun p => (p.id, p.start, p.bytes)) = Manifest.immutables := by\n"
+            "  decide +kernel\n\n"
+            "/-- Each placeholder is a push of its width. -/\n"
+            "theorem placed_eq : placed bytecode stream items = true := by decide +kernel\n\n"
+            "/-- Every bytecode a deployment runs, the bytecode linked with any values of the "
+            "immutables, decodes to\nthe final EVM IR's instructions, each placeholder pushing "
+            "its immutable's value. -/\n"
+            "theorem decodes_linked (values : Nat → Nat) :\n"
+            "    decodeFrom (link bytecode placeholders values) (bytecode.length + 1) 0 =\n"
+            "      linkedStream values stream items :=\n"
+            "  SolarTV.Assembly.decodes_linked checked placed_eq values\n\n"
+            "theorem linked_items (values : Nat → Nat) :\n"
+            "    (linkedStream values stream items).map Prod.snd =\n"
+            "      items.map (Item.linked offset values) :=\n"
+            "  linked_instructions checked values\n\n"
+            + axioms_check(ns, "decodes_linked")
+        )
+    asm += f"\nend {ns}\n"
     write(out / "Assembly.lean", asm)
     root = out.parent / f"{out.name}.lean"
     write(

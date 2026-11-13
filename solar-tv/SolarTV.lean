@@ -12,6 +12,7 @@ import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
 import SolarTV.Stages.Assembly
+import SolarTV.Stages.Link
 import SolarTV.Stages.Entries
 
 import SolarTV.Agreement.Encoder

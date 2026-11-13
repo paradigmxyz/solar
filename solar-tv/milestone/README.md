@@ -21,6 +21,7 @@ It writes `milestone/NAME/`: `NAME.sol` (the source the manifest records), `opti
 | `NAME.Proofs.Runs.<Stage>` | `<stage>_run` | each pair of consecutive stages ends in the same result on every call (`sym_exec`) |
 | `NAME.Proofs.Stages` | `stage_<stage>`, `NAME_mir_to_evmir` | each a `Stage` of the fuel-free semantics for `anyCall` (any calldata, call value and storage), and their composition from the first lowered MIR to the final EVM IR, for every oracle |
 | `NAME.Proofs.Assembly` | `walk_eq`, `decodes` | the bytecode's linear decoding is the final EVM IR's instructions, each jumped-to block at the next `JUMPDEST`, a transfer to the next block falling through |
+| `NAME.Proofs.Assembly` | `placeholders_eq`, `decodes_linked` | for a contract that reads immutables: the walk's placeholders are the manifest's, and the bytecode linked with any values of the immutables decodes to the same instructions, each placeholder pushing its immutable's value |
 
 [certify.py](certify.py) writes them from the manifest: fuels are block counts (a loop-free run
 visits each block at most once), times the square of one more than the call sites when the program
@@ -37,7 +38,10 @@ one, its call value check, its overflow check, its first log, the signature topi
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
 `keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
 first `mul`, its first range test of a narrow product, the kind of its first external call and
-the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
+the check of that call's success, its first immutable placeholder reading another immutable; the
+scheduled EVM IR's first `add` and its first placeholder narrower than a word read as a whole
+word; the bytecode's first placeholder linked before the walk and the manifest listing it a
+byte later; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
 its first constant plus one; the last MIR stage's first return of several words in reverse order
@@ -194,6 +198,24 @@ LEAN_MEMORY=3000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/reader/reader.sol Reader
+```
+
+- [owned](owned/owned.sol): `contract Owned { address immutable owner; uint256 immutable fee;
+  ... function quote(uint256 amount) external view returns (uint256) { if (msg.sender == owner)
+  return amount; return amount + fee; } }`, 217 bytes of runtime bytecode with two immutable
+  placeholders, which the manifest lists: `owner`'s `PUSH20` at byte 30 and `fee`'s `PUSH32` at
+  byte 78. An immutable is a value fixed at deployment (an oracle read of its number in the empty
+  world), of which a `PUSH<N>` placeholder pushes the low `N` bytes; `lower-assumes` turns the
+  fact that `owner` fits an address into a branch to a revert, which `immutable20_le_mask` shows
+  is never taken. Stages `stage0 → mir1 → sched → evm1 → … → evm10` (`lower-assumes`,
+  `stack-schedule`, then `cfg-simplify-early` to `stack-reschedule`) and `evm10 → bytecode`, all
+  proved: `SolarTV.Milestone.Owned.owned_mir_to_evmir`, and `decodes_linked` for the bytecode a
+  deployment runs, linked with any values of `owner` and `fee`. Its negatives also read the other
+  immutable, read `owner`'s placeholder as a whole word, link a byte of the placeholder before the
+  walk, and move the manifest's placeholder.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/owned/owned.sol Owned
 ```
 
 - [pair](pair/pair.sol): `split(uint256)` returns two words, the new total it stores and its

@@ -417,6 +417,11 @@ fn rewrites() {
 }
 
 #[test]
+fn shared_names() {
+    check("tests/cases/shared_names.sol")
+}
+
+#[test]
 fn speclang() {
     check("tests/cases/speclang.sol")
 }

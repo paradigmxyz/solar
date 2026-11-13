@@ -16,8 +16,12 @@ program's instructions at their offsets, `jump_targets` that every pushed label 
 stage for any bytecode semantics that runs the code's linear decoding, against the assembly program
 run at the layout the walk found. No axioms.
 
-Outside this model, as in the checker's limits: program data, immutable and library placeholders
-and packed label tables, which the checker checks byte for byte against the artifact's records,
+An immutable's placeholder is an item of its own, a push of zeros of its width, which the
+deployment code links with the immutable's value: `SolarTV.Stages.Link` shows that linear
+decoding of the linked code is the walk's instructions with each placeholder pushing its value.
+
+Outside this model, as in the checker's limits: program data, library placeholders and packed
+label tables, which the checker checks byte for byte against the artifact's records,
 and the data flow of the deployment code's copy of the runtime code. The bytecode semantics
 running the linear decoding is a hypothesis: legacy EVM code runs instruction by instruction from
 offset 0 and jumps only to a `JUMPDEST` that starts an instruction, which is what the decoding
@@ -64,12 +68,14 @@ def decodeFrom (code : List Nat) : Nat → Nat → List (Nat × Instr)
     | none => []
 
 /-- An instruction of the assembly program: an opcode, a push of a constant or of a label's
-offset, or a label's definition. -/
+offset, a label's definition, or the `PUSH<bytes>` placeholder of immutable `id`, zeros until a
+deployment links it. -/
 inductive Item where
   | op (byte : Nat)
   | push (value : Nat)
   | pushLabel (label : Nat)
   | label (label : Nat)
+  | immutable (id bytes : Nat)
   deriving DecidableEq, Repr
 
 /-- The instruction an item is at a layout that puts each label at `offset`. -/
@@ -78,6 +84,7 @@ def Item.expected (offset : Nat → Nat) : Item → Instr
   | .push value => .push value
   | .pushLabel l => .push (offset l)
   | .label _ => .op JUMPDEST
+  | .immutable _ _ => .push 0
 
 /-- The checker's walk: decoding `code` from `pc` in lockstep with `items` gives each item's
 instruction at the layout `offset`, with each label defined where its `JUMPDEST` is, and ends at

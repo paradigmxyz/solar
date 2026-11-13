@@ -129,7 +129,7 @@ impl<'s, 'a> Loader<'s, 'a> {
 
     /// Reports names that two files define: resolving names globally would pick one of them.
     fn check_unique_names(&self, units: &[&'a SourceUnit<'a>]) -> Result<(), ()> {
-        let mut defined: FxHashMap<String, (usize, Span)> = FxHashMap::default();
+        let mut defined: FxHashMap<String, (usize, Span, Span)> = FxHashMap::default();
         let mut ok = true;
         for (index, unit) in units.iter().enumerate() {
             // File-level names, and the types contracts declare, which are looked up by bare name
@@ -158,6 +158,20 @@ impl<'s, 'a> Loader<'s, 'a> {
                     continue;
                 }
                 match defined.entry(name.as_str().to_string()) {
+                    // Identical constants (same text, such as a constant two files of a
+                    // library both declare) mean the same thing wherever they resolve.
+                    std::collections::hash_map::Entry::Occupied(first)
+                        if first.get().0 != index
+                            && matches!(item.kind, ItemKind::Variable(_))
+                            && self
+                                .sess
+                                .source_map()
+                                .span_to_snippet(item.span)
+                                .ok()
+                                .is_some_and(|a| {
+                                    self.sess.source_map().span_to_snippet(first.get().2).ok()
+                                        == Some(a)
+                                }) => {}
                     std::collections::hash_map::Entry::Occupied(first)
                         if first.get().0 != index =>
                     {
@@ -172,7 +186,7 @@ impl<'s, 'a> Loader<'s, 'a> {
                     }
                     std::collections::hash_map::Entry::Occupied(_) => {}
                     std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert((index, name.span));
+                        entry.insert((index, name.span, item.span));
                     }
                 }
             }

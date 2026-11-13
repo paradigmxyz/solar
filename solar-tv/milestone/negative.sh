@@ -33,6 +33,10 @@
 #   inputs swapped (in live code: when every such phi is on the failure path of a lowered fact,
 #   which never runs, the first test or subtraction it added with its operands swapped), and the
 #   first pure operation as another one (xor as and, add as sub, lt as gt, ...);
+# - immutables, when the program reads one: the final EVM IR's first placeholder reading another
+#   immutable, the scheduled EVM IR's first placeholder narrower than a word read as a whole
+#   word, the bytecode's first placeholder linked before the walk (a byte not zero), and the
+#   manifest listing that placeholder a byte later;
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
 #   words in reverse order, and the first further result a call binds left unbound, when
 #   present.
@@ -153,6 +157,9 @@ EOF
 walk_false='(Tactic .decide. proved that the proposition walk bytecode offset 0 items = some stream is false|'
 walk_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(walk bytecode offset 0 items = some stream\) = true)'
 mismatch='sym_exec: the runs end in different results on this path'
+# decide +kernel evaluates the placeholders the walk finds against the manifest's to false.
+placeholders_false='(Tactic .decide. proved that the proposition List.map .* placeholders = Manifest.immutables is false|'
+placeholders_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(List.map .* placeholders = Manifest.immutables\) = true)'
 
 edit bytecode-control "$gen/Bytecode.lean" <<<'pass'
 check bytecode-control Bytecode "$proofs/Assembly.lean" pass
@@ -477,6 +484,55 @@ import re
 m = re.search(r"(\.call \S+(?: \S+)? \d+ \[[^\[\]]*\] \[[^\[\]]*)some \d+", s)
 if not m: sys.exit(3)
 s = s[:m.end(1)] + "none" + s[m.end():]
+EOF
+fi
+
+# Only a program that reads an immutable has these cases: the final EVM IR's first placeholder
+# reading another immutable, the scheduled EVM IR's first placeholder narrower than a word read
+# as a whole word (the bytes above it the deployment never wrote), the bytecode's first
+# placeholder linked before the walk (a byte of it not zero), and the manifest listing that
+# placeholder a byte later than the walk finds it.
+if grep -q '(\.immutable ' "$gen/$last.lean"; then
+try "$last-immutable-id" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" <<'EOF'
+import re
+m = re.search(r"\(\.immutable (\d+) ", s)
+if m is None: sys.exit(3)
+print(f"  immutable {m.group(1)} as {int(m.group(1)) + 1}")
+s = s[:m.start(1)] + str(int(m.group(1)) + 1) + s[m.end(1):]
+EOF
+
+try sched-immutable-width "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" <<'EOF'
+import re
+m = next((m for m in re.finditer(r"\(\.immutable \d+ (\d+) \.word\)", s) if int(m.group(1)) < 32), None)
+if m is None: sys.exit(3)
+print(f"  a {m.group(1)}-byte placeholder read as 32 bytes")
+s = s[:m.start(1)] + "32" + s[m.end(1):]
+EOF
+
+try bytecode-linked "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" <<'EOF'
+import json, os, re
+manifest = json.load(open(os.path.join(os.path.dirname(sys.argv[1]), "manifest.json")))
+if not manifest.get("immutables"): sys.exit(3)
+offset = manifest["immutables"][0]["start"] + manifest["immutables"][0]["bytes"] - 1
+body = re.search(r"def bytecode : List Nat :=\n  \[(.*?)\]", s, re.S)
+code = [int(b, 16) for b in re.findall(r"0x[0-9a-f]+", body.group(1))]
+print(f"  bytecode offset {offset}, the placeholder's last byte, as 0x01")
+code[offset] = 1
+rows = [", ".join("0x%02x" % b for b in code[i:i + 16]) for i in range(0, len(code), 16)]
+s = s[:body.start(1)] + ",\n   ".join(rows) + s[body.end(1):]
+hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
+s = s.replace(hex_old, hex_old[:2 * offset] + "01" + hex_old[2 * offset + 2:])
+EOF
+
+edit manifest-control "$gen/Manifest.lean" <<<'pass'
+check manifest-control Manifest "$proofs/Assembly.lean" pass
+
+try manifest-placeholder "$gen/Manifest.lean" Manifest "$proofs/Assembly.lean" "$placeholders_false" <<'EOF'
+import re
+m = re.search(r"def immutables : List \(Nat × Nat × Nat\) :=\n  \[\((\d+), (\d+), (\d+)\)", s)
+if m is None: sys.exit(3)
+print(f"  placeholder of immutable {m.group(1)} at byte {m.group(2)} listed at {int(m.group(2)) + 1}")
+s = s[:m.start(2)] + str(int(m.group(2)) + 1) + s[m.end(2):]
 EOF
 fi
 

@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# owned: the stages of milestone/owned/owned.sol's Owned and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "owned"
+srcDir = "milestone"
+roots = ["owned.Proofs"]
+globs = ["owned.+"]
+moreLeanArgs = ["-M", "3000"]

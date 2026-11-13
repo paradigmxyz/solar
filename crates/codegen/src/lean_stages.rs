@@ -46,10 +46,15 @@
 //! the bytecode the stages are checked against is the code before it. `CREATE` and `CREATE2` take
 //! the new address from the oracle.
 //!
-//! An immutable is the word the deployment code writes over its placeholder, which MIR's
-//! `loadimmutable` and EVM IR's placeholder push both read. Only a `PUSH32` placeholder holds the
-//! whole word: a narrower one, which the deployment code fills with the low bytes, is an error.
-//! The manifest lists where each placeholder is in the runtime bytecode, 32 zero bytes there.
+//! An immutable is a value fixed at deployment: the deployment code writes it over each of its
+//! placeholders, a `PUSH<N>` of zeros, before the runtime code runs. EVM IR's placeholder push
+//! reads the word of those `N` bytes, `.immutable id N .word`, the low `N` bytes of the
+//! immutable's deployment word in the semantics. MIR's `loadimmutable` reads the same placeholder
+//! and decodes it as codegen does after the push: as it is (a full word or a zero-extended
+//! value), sign-extended from its top byte (`.signExtend`), or shifted to the left of the word
+//! (`.shiftLeft`, fixed bytes). The manifest lists each placeholder: its immutable, the offset of
+//! its bytes in the runtime bytecode and their count, all zero there; the bytecode a deployment
+//! runs is the manifest's linked at them.
 //!
 //! The words the backend places in memory without MIR showing them are written into the MIR
 //! stages once codegen fixes them (`backend_words`), as the MIR interpreter reads them from
@@ -77,8 +82,9 @@ use solar_evmir::{
 use solar_interface::{Result, diagnostics::ErrorGuaranteed};
 use solar_mir::{
     AllocationPlacement, AllocationSemantics, AssumePredicate, BlockId, Callee, DataRef, DataSize,
-    Function, FunctionId, Immediate, InstId, InstKind, MirPhase, MirType, Module, PtrLocation,
-    Semantics, Terminator, Value, ValueId,
+    Function, FunctionId, Immediate, ImmutableEncoding, ImmutableId, InstId, InstKind, MirPhase,
+    MirType, Module, PtrLocation, Semantics, Terminator, Value, ValueId,
+    immutable::immutable_push_type_size,
 };
 use solar_sema::Gcx;
 use std::{
@@ -126,7 +132,8 @@ pub(crate) fn mir_pass(gcx: Gcx<'_>, pass: &str, before: MirPhase, module: &Modu
     if module.phase() != MirPhase::Lowered {
         return Ok(());
     }
-    let body = mir_module(module).map_err(|message| {
+    let shifts = gcx.sess.opts.evm_version.has_bitwise_shifting();
+    let body = mir_module(module, shifts).map_err(|message| {
         error(gcx, format_args!("after MIR pass `{pass}` on `{contract}`: {message}"))
     })?;
     if before != MirPhase::Lowered {
@@ -576,8 +583,34 @@ fn word(value: &U256) -> String {
     if *value < U256::from(0x10000) { value.to_string() } else { format!("{value:#x}") }
 }
 
-/// The Lean term of lowered MIR `module`.
-fn mir_module(module: &Module) -> Result<String, String> {
+/// The width of immutable `id`'s placeholder and how `loadimmutable` decodes the word it pushes,
+/// as codegen loads it (`emit_load_immutable`): a full word or a zero-extended value as it is, a
+/// narrower signed one sign-extended from its top byte, and narrower fixed bytes shifted to the
+/// left of the word.
+fn immutable_read(module: &Module, id: ImmutableId, shifts: bool) -> Result<String, String> {
+    let encoding = module
+        .immutable_type(id)
+        .immutable_encoding()
+        .ok_or_else(|| format!("immutable {} has no word encoding", id.index()))?;
+    let bytes = immutable_push_type_size(encoding, module.optimization, shifts).bytes();
+    if !(1..=32).contains(&bytes) {
+        return Err(format!("an immutable placeholder of {bytes} bytes has no Lean semantics"));
+    }
+    let read = match encoding {
+        // push N-1; signextend
+        ImmutableEncoding::Signed(_) if bytes < 32 => format!("(.signExtend {})", bytes - 1),
+        // push 8 * (32 - N); shl
+        ImmutableEncoding::LeftAligned(_) if bytes < 32 => {
+            format!("(.shiftLeft {})", (32 - u32::from(bytes)) * 8)
+        }
+        _ => ".word".to_string(),
+    };
+    Ok(format!("{bytes} {read}"))
+}
+
+/// The Lean term of lowered MIR `module`, compiled for an EVM version with bitwise shifts when
+/// `shifts` is set.
+fn mir_module(module: &Module, shifts: bool) -> Result<String, String> {
     let entry = module.dispatch_entry().ok_or("the module has no runtime entry")?;
     if !module.function(entry).params.is_empty() {
         return Err(format!("the runtime entry `@{}` has parameters", module.function(entry).name));
@@ -593,7 +626,7 @@ fn mir_module(module: &Module) -> Result<String, String> {
             ));
             continue;
         }
-        let text = mir_function(module, id, func)
+        let text = mir_function(module, id, func, shifts)
             .map_err(|message| format!("in `@{}`: {message}", func.name))?;
         functions.push(format!("    -- @{}\n{text}", func.name));
     }
@@ -604,7 +637,12 @@ fn mir_module(module: &Module) -> Result<String, String> {
     ))
 }
 
-fn mir_function(module: &Module, id: FunctionId, func: &Function) -> Result<String, String> {
+fn mir_function(
+    module: &Module,
+    id: FunctionId,
+    func: &Function,
+    shifts: bool,
+) -> Result<String, String> {
     let fn_id = id;
     let params = mir_params(func).into_iter().flatten().map(|v| v.to_string()).collect::<Vec<_>>();
     let (projections, elided) = multi_returns(module, func)?;
@@ -642,8 +680,13 @@ fn mir_function(module: &Module, id: FunctionId, func: &Function) -> Result<Stri
             if let InstKind::LoadImmutable(immutable) = *kind {
                 let dst = mir_result(instruction.result_ty, result, true, true)
                     .map_err(|m| at(format!("`loadimmutable`: {m}")))?;
-                // v = loadimmutable N: the word the deployment code writes for it
-                insts.push(format!(".effect (some {dst}) (.immutable {}) []", immutable.index()));
+                let read = immutable_read(module, immutable, shifts)
+                    .map_err(|m| at(format!("`loadimmutable`: {m}")))?;
+                // v = loadimmutable N: its placeholder's word, decoded as codegen decodes it
+                insts.push(format!(
+                    ".effect (some {dst}) (.immutable {} {read}) []",
+                    immutable.index()
+                ));
                 continue;
             }
             if let InstKind::DataSize(size) = *kind {
@@ -1116,13 +1159,16 @@ fn evm_program(program: &ir::Module) -> Result<String, String> {
             if let Some(value) = &inst.value {
                 if let Some(immutable) = inst.immutable_push() {
                     let bytes = inst.immutable_type_size().map_or(0, |size| size.bytes());
-                    if bytes != 32 {
+                    if !(1..=32).contains(&bytes) {
                         return Err(at(format!(
                             "an immutable placeholder of {bytes} bytes has no Lean semantics"
                         )));
                     }
-                    // push32 placeholder: the word the deployment code writes there
-                    instrs.push(format!(".effect (.immutable {}) 0", immutable.index()));
+                    // pushN placeholder: the N bytes the deployment code writes there
+                    instrs.push(format!(
+                        ".effect (.immutable {} {bytes} .word) 0",
+                        immutable.index()
+                    ));
                     continue;
                 }
                 match value {
@@ -1352,14 +1398,15 @@ impl Listed {
 
 /// Writes `Bytecode.lean`, `Manifest.lean` and `manifest.json` for a contract whose stages this
 /// compilation wrote, once its runtime code is assembled. Does nothing for a contract without
-/// stages, such as one without code. `linked` says that the runtime code has no library or
-/// immutable placeholders.
+/// stages, such as one without code. `libraries` says that the runtime code has library
+/// placeholders, and `immutables` lists its immutable placeholders: the immutable, the offset of
+/// the placeholder's bytes and their count.
 pub fn write_manifest(
     gcx: Gcx<'_>,
     contract: &str,
     runtime: &[u8],
     libraries: bool,
-    immutables: &[(usize, usize)],
+    immutables: &[(usize, usize, usize)],
     data: &[(usize, usize, usize)],
     info: &ManifestInfo<'_>,
 ) -> Result {
@@ -1376,22 +1423,35 @@ pub fn write_manifest(
             ),
         ));
     }
-    // NOTE: the deployment code writes each immutable over its placeholder, the 32 zero bytes of
-    // a `PUSH32`, which the stages read as the immutable's word; the manifest lists where.
+    // NOTE: the deployment code writes each immutable over its placeholders, the zero bytes of
+    // a `PUSH<N>`, which the stages read as the low `N` bytes of the immutable's word; the
+    // manifest lists where, and the runtime code a deployment runs is this one linked there.
     let mut immutables = immutables.to_vec();
-    immutables.sort_unstable();
+    immutables.sort_unstable_by_key(|&(id, start, bytes)| (start, id, bytes));
     immutables.dedup();
-    for &(start, bytes) in &immutables {
+    for &(_, start, bytes) in &immutables {
         let window = start.checked_sub(1).and_then(|push| runtime.get(push..start + bytes));
-        if bytes != 32 || !window.is_some_and(|w| w[0] == 0x7f && w[1..].iter().all(|&b| b == 0)) {
+        let push = 0x5f + bytes;
+        if !(1..=32).contains(&bytes)
+            || !window.is_some_and(|w| usize::from(w[0]) == push && w[1..].iter().all(|&b| b == 0))
+        {
             return Err(error(
                 gcx,
                 format_args!(
                     "the immutable placeholder at byte {start} of `{contract}` is no \
-                     `PUSH32` of zeros"
+                     `PUSH{bytes}` of zeros"
                 ),
             ));
         }
+    }
+    if let Some(pair) = immutables.windows(2).find(|pair| pair[0].1 + pair[0].2 > pair[1].1) {
+        return Err(error(
+            gcx,
+            format_args!(
+                "the immutable placeholders at bytes {} and {} of `{contract}` overlap",
+                pair[0].1, pair[1].1
+            ),
+        ));
     }
     let code_end = program_data(gcx, &dir, contract, runtime.len(), data)?;
     let ns = namespace(contract);
@@ -1522,12 +1582,15 @@ pub fn write_manifest(
     let _ = writeln!(lean, "def bytecodeHex : String :=\n  {}\n", lean_string(&hex));
     let _ = writeln!(lean, "def bytecodeSha256 : String := {}\n", lean_string(&sha256(runtime)));
     if !immutables.is_empty() {
-        let listed =
-            immutables.iter().map(|(start, bytes)| format!("({start}, {bytes})")).collect();
+        let listed = immutables
+            .iter()
+            .map(|(id, start, bytes)| format!("({id}, {start}, {bytes})"))
+            .collect();
         let _ = writeln!(
             lean,
-            "/-- The immutable placeholders: the offset of each one's bytes and their count. -/\n\
-             def immutables : List (Nat × Nat) :=\n  {}\n",
+            "/-- The immutable placeholders, which a deployment links the bytecode at: each one's\n\
+             immutable, the offset of its bytes and their count. -/\n\
+             def immutables : List (Nat × Nat × Nat) :=\n  {}\n",
             list(listed)
         );
     }
@@ -1565,7 +1628,7 @@ pub fn write_manifest(
     if !immutables.is_empty() {
         json["immutables"] = immutables
             .iter()
-            .map(|&(start, bytes)| serde_json::json!({ "start": start, "bytes": bytes }))
+            .map(|&(id, start, bytes)| serde_json::json!({ "id": id, "start": start, "bytes": bytes }))
             .collect();
     }
     let mut text = serde_json::to_string_pretty(&json).expect("the manifest serializes");
