@@ -13,7 +13,7 @@ It writes `milestone/NAME/`: `NAME.sol` (the source the manifest records), `opti
 (default `-Ogas --evm-version osaka`), `bytecode.hex` (the pin, checked on every later run),
 `gen/Contract/` (the exported stages and manifest) and `Proofs/`, the Lean library `NAME`
 (added to [lakefile.toml](../lakefile.toml), each module built with `lean -M $LEAN_MEMORY`
-(default 4500), one at a time), namespace `SolarTV.Milestone.<Name>`:
+(default 3000), one at a time), namespace `SolarTV.Milestone.<Name>`:
 
 | Module | Theorems | What |
 | --- | --- | --- |

@@ -348,24 +348,102 @@ theorem apply_calldataload {cd : Word → Word} (hcd : cd = calldataWord call) (
 
 end effects
 
+/-! EVM IR word operations, one equation each, by `rfl`. `sym_eval` rewrites a step with these
+instead of unfolding `EVM.step`, whose match over every operation it would otherwise reduce on
+every step of every path. `EVM.step` itself is unchanged, and an operation without an equation
+here (`exchange`, or a stack too short for its operands) leaves the step unevaluated, so the
+procedure fails rather than guesses. -/
+
+section steps
+
+variable (ctx : EVM.Context)
+
+@[defeq] theorem step_add (a b : Word) (rest : List Word) :
+    EVM.step ctx .add (a :: b :: rest) = some (Evm.add a b :: rest) := rfl
+@[defeq] theorem step_mul (a b : Word) (rest : List Word) :
+    EVM.step ctx .mul (a :: b :: rest) = some (Evm.mul a b :: rest) := rfl
+@[defeq] theorem step_and (a b : Word) (rest : List Word) :
+    EVM.step ctx .and (a :: b :: rest) = some (Evm.and a b :: rest) := rfl
+@[defeq] theorem step_or (a b : Word) (rest : List Word) :
+    EVM.step ctx .or (a :: b :: rest) = some (Evm.or a b :: rest) := rfl
+@[defeq] theorem step_xor (a b : Word) (rest : List Word) :
+    EVM.step ctx .xor (a :: b :: rest) = some (Evm.xor a b :: rest) := rfl
+@[defeq] theorem step_div (a b : Word) (rest : List Word) :
+    EVM.step ctx .div (a :: b :: rest) = some (Evm.div a b :: rest) := rfl
+@[defeq] theorem step_sdiv (a b : Word) (rest : List Word) :
+    EVM.step ctx .sdiv (a :: b :: rest) = some (Evm.sdiv a b :: rest) := rfl
+@[defeq] theorem step_mod (a b : Word) (rest : List Word) :
+    EVM.step ctx .mod (a :: b :: rest) = some (Evm.mod a b :: rest) := rfl
+@[defeq] theorem step_smod (a b : Word) (rest : List Word) :
+    EVM.step ctx .smod (a :: b :: rest) = some (Evm.smod a b :: rest) := rfl
+@[defeq] theorem step_signextend (a b : Word) (rest : List Word) :
+    EVM.step ctx .signextend (a :: b :: rest) = some (Evm.signextend a b :: rest) := rfl
+@[defeq] theorem step_byte (a b : Word) (rest : List Word) :
+    EVM.step ctx .byte (a :: b :: rest) = some (Evm.byte a b :: rest) := rfl
+@[defeq] theorem step_shl (a b : Word) (rest : List Word) :
+    EVM.step ctx .shl (a :: b :: rest) = some (Evm.shl a b :: rest) := rfl
+@[defeq] theorem step_shr (a b : Word) (rest : List Word) :
+    EVM.step ctx .shr (a :: b :: rest) = some (Evm.shr a b :: rest) := rfl
+@[defeq] theorem step_sar (a b : Word) (rest : List Word) :
+    EVM.step ctx .sar (a :: b :: rest) = some (Evm.sar a b :: rest) := rfl
+@[defeq] theorem step_lt (a b : Word) (rest : List Word) :
+    EVM.step ctx .lt (a :: b :: rest) = some (Evm.lt a b :: rest) := rfl
+@[defeq] theorem step_gt (a b : Word) (rest : List Word) :
+    EVM.step ctx .gt (a :: b :: rest) = some (Evm.gt a b :: rest) := rfl
+@[defeq] theorem step_slt (a b : Word) (rest : List Word) :
+    EVM.step ctx .slt (a :: b :: rest) = some (Evm.slt a b :: rest) := rfl
+@[defeq] theorem step_sgt (a b : Word) (rest : List Word) :
+    EVM.step ctx .sgt (a :: b :: rest) = some (Evm.sgt a b :: rest) := rfl
+@[defeq] theorem step_eq (a b : Word) (rest : List Word) :
+    EVM.step ctx .eq (a :: b :: rest) = some (Evm.eq a b :: rest) := rfl
+@[defeq] theorem step_sub (a b : Word) (rest : List Word) :
+    EVM.step ctx .sub (a :: b :: rest) = some (Evm.sub a b :: rest) := rfl
+@[defeq] theorem step_exp (a b : Word) (rest : List Word) :
+    EVM.step ctx .exp (a :: b :: rest) = some (Word.power a b.toNat :: rest) := rfl
+@[defeq] theorem step_addmod (a b n : Word) (rest : List Word) :
+    EVM.step ctx .addmod (a :: b :: n :: rest) = some (Evm.addmod a b n :: rest) := rfl
+@[defeq] theorem step_mulmod (a b n : Word) (rest : List Word) :
+    EVM.step ctx .mulmod (a :: b :: n :: rest) = some (Evm.mulmod a b n :: rest) := rfl
+@[defeq] theorem step_not (a : Word) (rest : List Word) :
+    EVM.step ctx .not (a :: rest) = some (Evm.not a :: rest) := rfl
+@[defeq] theorem step_clz (a : Word) (rest : List Word) :
+    EVM.step ctx .clz (a :: rest) = some (Evm.clz a :: rest) := rfl
+@[defeq] theorem step_iszero (a : Word) (rest : List Word) :
+    EVM.step ctx .iszero (a :: rest) = some (Evm.iszero a :: rest) := rfl
+@[defeq] theorem step_pop (a : Word) (rest : List Word) :
+    EVM.step ctx .pop (a :: rest) = some rest := rfl
+@[defeq] theorem step_dup (index : Fin 256) (stack : List Word) :
+    EVM.step ctx (.dup index) stack = (stack[index.val]?).map (fun value => value :: stack) := rfl
+@[defeq] theorem step_swap (index : Fin 256) (a : Word) (rest : List Word) :
+    EVM.step ctx (.swap index) (a :: rest) =
+      (rest[index.val]?).map (fun value => value :: rest.set index.val a) := rfl
+@[defeq] theorem step_calldatasize (rest : List Word) :
+    EVM.step ctx .calldatasize rest = some (ctx.calldataSize :: rest) := rfl
+@[defeq] theorem step_returndatasize (rest : List Word) :
+    EVM.step ctx .returndatasize rest = some (ctx.returndataSize :: rest) := rfl
+@[defeq] theorem step_push (value : Word) (rest : List Word) :
+    EVM.step ctx (.push value) rest = some (value :: rest) := rfl
+
+end steps
+
 /-! Stack positions of `dup` and `swap` as numbers. -/
 
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+theorem fin256_val_0 : ((0 : Fin 256) : Nat) = 0 := rfl
+theorem fin256_val_1 : ((1 : Fin 256) : Nat) = 1 := rfl
+theorem fin256_val_2 : ((2 : Fin 256) : Nat) = 2 := rfl
+theorem fin256_val_3 : ((3 : Fin 256) : Nat) = 3 := rfl
+theorem fin256_val_4 : ((4 : Fin 256) : Nat) = 4 := rfl
+theorem fin256_val_5 : ((5 : Fin 256) : Nat) = 5 := rfl
+theorem fin256_val_6 : ((6 : Fin 256) : Nat) = 6 := rfl
+theorem fin256_val_7 : ((7 : Fin 256) : Nat) = 7 := rfl
+theorem fin256_val_8 : ((8 : Fin 256) : Nat) = 8 := rfl
+theorem fin256_val_9 : ((9 : Fin 256) : Nat) = 9 := rfl
+theorem fin256_val_10 : ((10 : Fin 256) : Nat) = 10 := rfl
+theorem fin256_val_11 : ((11 : Fin 256) : Nat) = 11 := rfl
+theorem fin256_val_12 : ((12 : Fin 256) : Nat) = 12 := rfl
+theorem fin256_val_13 : ((13 : Fin 256) : Nat) = 13 := rfl
+theorem fin256_val_14 : ((14 : Fin 256) : Nat) = 14 := rfl
+theorem fin256_val_15 : ((15 : Fin 256) : Nat) = 15 := rfl
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -716,7 +794,11 @@ macro "sym_eval" : tactic => `(tactic|
     MIR.Lowered.lowBits, MIR.Lowered.selectWord, MIR.Lowered.Function.start,
     MIR.Lowered.Module.startState, List.find?_cons, List.find?_nil, Nat.reduceBEq,
     EVM.Program.run, EVM.Program.block, EVM.Program.exec, EVM.Program.stepOp,
-    EVM.Program.output, EVM.Program.context, EVM.stepChecked, EVM.step, apply_mload,
+    EVM.Program.output, EVM.Program.context, EVM.stepChecked,
+    step_add, step_mul, step_and, step_or, step_xor, step_div, step_sdiv, step_mod, step_smod,
+    step_signextend, step_byte, step_shl, step_shr, step_sar, step_lt, step_gt, step_slt, step_sgt,
+    step_eq, step_sub, step_exp, step_addmod, step_mulmod, step_not, step_clz, step_iszero,
+    step_pop, step_dup, step_swap, step_calldatasize, step_returndatasize, step_push, apply_mload,
     apply_mstore, apply_mstore8, apply_msize, apply_sload, apply_sstore, apply_tload,
     apply_tstore, apply_calldatasize, apply_callvalue, apply_caller, apply_address,
     apply_returndatasize, apply_keccak256, apply_log0, apply_log1, apply_log2, apply_log3,
@@ -727,9 +809,9 @@ macro "sym_eval" : tactic => `(tactic|
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
     Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    fin256_val_0, fin256_val_1, fin256_val_2, fin256_val_3, fin256_val_4, fin256_val_5,
+    fin256_val_6, fin256_val_7, fin256_val_8, fin256_val_9, fin256_val_10, fin256_val_11,
+    fin256_val_12, fin256_val_13, fin256_val_14, fin256_val_15])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/

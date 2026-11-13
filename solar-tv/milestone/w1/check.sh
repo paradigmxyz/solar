@@ -16,7 +16,7 @@
 #    mismatch.
 #
 # CARGO_TARGET_DIR, CARGO_BUILD_JOBS (default 2), W1_SKIP_BUILD and SOLAR apply to gen.sh;
-# LEAN_NUM_THREADS defaults to 2 and LEAN_MEMORY (MB, default 4500) caps the negative tests'
+# LEAN_NUM_THREADS defaults to 2 and LEAN_MEMORY (MB, default 3000) caps the negative tests'
 # Lean processes, as the W1Proofs library's lakefile entry caps its build's.
 set -euo pipefail
 
@@ -92,7 +92,7 @@ import W1Proofs
 #print axioms SolarTV.Milestone.W1.walk_eq
 #print axioms SolarTV.Milestone.W1.decodes
 EOF
-(cd solar-tv && lake env lean -M "${LEAN_MEMORY:-4500}" .lake/w1-axioms.lean)
+(cd solar-tv && lake env lean -M "${LEAN_MEMORY:-3000}" .lake/w1-axioms.lean)
 
 echo "== 4. negative tests"
 solar-tv/milestone/w1/proofs/negative.sh

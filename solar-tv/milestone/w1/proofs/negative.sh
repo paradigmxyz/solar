@@ -8,14 +8,14 @@
 # mismatch: the assembly walk evaluating to false, or sym_exec reaching a path where the two runs
 # end differently. Control cases run the same harness on unedited copies, which must pass, so a
 # failure is the edit's and not the harness's. Run from anywhere after
-# `lake build W1Proofs` in solar-tv; LEAN_MEMORY caps each Lean process (MB, default 4500).
+# `lake build W1Proofs` in solar-tv; LEAN_MEMORY caps each Lean process (MB, default 3000).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 tv="$(cd "$here/../../.." && pwd)"
 cd "$tv"
 export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}"
-memory="${LEAN_MEMORY:-4500}"
+memory="${LEAN_MEMORY:-3000}"
 lean_path="$(lake env printenv LEAN_PATH)"
 gen=milestone/w1/gen/Main
 proofs=milestone/w1/proofs/W1Proofs

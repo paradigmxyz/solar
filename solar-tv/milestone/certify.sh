@@ -19,7 +19,7 @@
 #    runs end in the same result on every call, the Stages composition from the first lowered
 #    MIR to the final EVM IR, and the assembly walk of the bytecode against the final EVM IR.
 # 3. Adds the library to lakefile.toml when missing, its Lean processes capped at LEAN_MEMORY
-#    MB (default 4500), builds it one module at a time, and audits the axioms of every
+#    MB (default 3000), builds it one module at a time, and audits the axioms of every
 #    theorem: only propext, Classical.choice and Quot.sound.
 # 4. negative.sh NAME CONTRACT: a bytecode mutation and edited stage artifacts fail with a
 #    mismatch.
@@ -31,7 +31,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 tv="$root/solar-tv"
 export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
-memory="${LEAN_MEMORY:-4500}"
+memory="${LEAN_MEMORY:-3000}"
 
 die() { echo "error: $*" >&2; exit 1; }
 [[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]"

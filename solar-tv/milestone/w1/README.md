@@ -83,7 +83,7 @@ tests:
 CARGO_TARGET_DIR=... solar-tv/milestone/w1/check.sh
 ```
 
-Lean library `W1Proofs` (source directory `proofs`, each module built with `lean -M 4500`),
+Lean library `W1Proofs` (source directory `proofs`, each module built with `lean -M 3000`),
 namespace `SolarTV.Milestone.W1`:
 
 | Module | Theorems | What |

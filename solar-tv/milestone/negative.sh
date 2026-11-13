@@ -37,7 +37,7 @@
 #   words in reverse order, and the first further result a call binds left unbound, when
 #   present.
 #
-# LEAN_MEMORY caps each Lean process (MB, default 4500).
+# LEAN_MEMORY caps each Lean process (MB, default 3000).
 set -euo pipefail
 
 [[ $# -eq 2 ]] || { echo "usage: negative.sh NAME CONTRACT" >&2; exit 1; }
@@ -46,7 +46,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 tv="$(cd "$here/.." && pwd)"
 cd "$tv"
 export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}"
-memory="${LEAN_MEMORY:-4500}"
+memory="${LEAN_MEMORY:-3000}"
 lean_path="$(lake env printenv LEAN_PATH)"
 mod="$name/gen/$contract"
 gen="milestone/$mod"
