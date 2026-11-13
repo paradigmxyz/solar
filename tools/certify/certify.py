@@ -39,6 +39,36 @@ def blocks(text):
     return len(re.findall(r"^\s*-- bb\d+$", text, re.MULTILINE))
 
 
+def jump_targets(text):
+    """The blocks an exported program's static jumps and pushed labels target, leaving out a
+    block's final transfer to the block after it, which falls through (`blockItems`): a final
+    `jump next`, and of a final `jumpi yes, jump no` the one of the two that follows."""
+    parts = re.split(r"^\s*-- bb\d+$", text, flags=re.MULTILINE)[1:]
+    jump = re.compile(r"\.(jumpi|jump|pushLabel) (\d+)")
+    final = re.compile(r"\.jumpi (\d+),\s*\.jump (\d+)\]|\.jump (\d+)\]")
+    targets = set()
+    for index, part in enumerate(parts):
+        nxt = index + 1 if index + 1 < len(parts) else None
+        tail = final.search(part)
+        end = tail.start() if tail else len(part)
+        targets |= {int(m.group(2)) for m in jump.finditer(part[:end])}
+        if tail is None:
+            continue
+        if tail.group(3) is not None:
+            if int(tail.group(3)) != nxt:
+                targets.add(int(tail.group(3)))
+        else:
+            yes, no = int(tail.group(1)), int(tail.group(2))
+            if no != nxt:
+                # ISZERO; push no; JUMPI, or both jumps.
+                targets.add(no)
+                if yes != nxt:
+                    targets.add(yes)
+            else:
+                targets.add(yes)
+    return targets
+
+
 def calls(text):
     """The internal call sites of an exported program: a MIR call or a pushed return label."""
     return len(re.findall(r"\.call |\.pushLabel ", text))
@@ -504,6 +534,11 @@ def main():
         raise SystemExit("error: Bytecode.lean defines no bytecodeHex")
     hexcode = found.group(1)
     code = bytes.fromhex(hexcode)
+    # The program data after the code (a created contract's code) is no instruction: the walk
+    # decodes `bytecode`, which ends where `dataStart` says the data begins.
+    data_start = re.search(r"def dataStart : Nat := (\d+)", bytecode_text)
+    if data_start is not None:
+        code = code[: int(data_start.group(1))]
     dests, ops, pc = [], [], 0
     while pc < len(code):
         op = code[pc]
@@ -514,15 +549,13 @@ def main():
         pc += 1 + width
     last_text = (args.gen / f"{last['module']}.lean").read_text()
     # Every block a static jump targets, whose label is pushed (a call's return) or that a jump
-    # table lists has a JUMPDEST.
+    # table lists has a JUMPDEST, as `W1Proofs.Items.itemsWith` spells it: a block's final
+    # transfer to the block after it falls through, with no label.
     tables = [
         [int(t) for t in m.split(",")]
         for m in re.findall(r"\.jumpTable \[([\d, ]+)\]", last_text)
     ]
-    targets = sorted(
-        {int(t) for t in re.findall(r"\.(?:jumpi?|pushLabel) (\d+)", last_text)}
-        | {t for table in tables for t in table}
-    )
+    targets = sorted(jump_targets(last_text) | {t for table in tables for t in table})
     # Each jump table's encoding, in layout order, from its pick in the bytecode: a packed word
     # of one-byte offsets (PUSHn table; SWAP1; BYTE; JUMP) or a stride table (PUSH1 stride; MUL;
     # PUSH entry; ADD; JUMP), whose entry stubs follow the last block, each at a JUMPDEST, the
