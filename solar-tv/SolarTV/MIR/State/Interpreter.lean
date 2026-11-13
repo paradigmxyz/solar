@@ -82,6 +82,11 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
         | _ => .error "MIR message result assignment failed"
       | .reverted data => stop (.reverted (failureData data)) frame
       | .invalid => stop .invalid frame
+    | .assume fact =>
+      let [lhs,rhs] := inst.operands | .error "MIR assume operand count"
+      let lhs ← read frame lhs
+      let rhs ← read frame rhs
+      if fact.holds lhs rhs then next (advance cursor) stack frame else stop .undefined frame
     | .call callee =>
       let args ← inst.operands.mapM (readValue frame)
       let target ← function functions callee
@@ -183,7 +188,7 @@ def execute (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat) (f
   let initial ← start functions entry frame.arguments frame
   let result ← run fuel cfg functions ⟨{function := entry},[],initial⟩
   match result.completion with
-  | .reverted _ | .invalid => return {result with world := frame.world}
+  | .reverted _ | .invalid | .undefined => return {result with world := frame.world}
   | .returned values =>
     if cfg.entry then
       if values.isEmpty then return {result with completion := .success [],world := EVM.State.finalize result.world}

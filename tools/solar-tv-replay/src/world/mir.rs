@@ -159,6 +159,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             StateOutcome::Success(data) => ("success", Vec::new(), data, None, false),
             StateOutcome::Revert(data) => ("revert", Vec::new(), data, None, false),
             StateOutcome::Invalid => ("exception", Vec::new(), Vec::new(), None, false),
+            StateOutcome::Undefined => ("undefined", Vec::new(), Vec::new(), None, false),
             StateOutcome::Unsupported(reason) => return Err(reason),
         };
         host.native.flush(PendingChanges {

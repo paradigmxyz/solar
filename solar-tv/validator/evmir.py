@@ -12,6 +12,7 @@ from . import memory as mem
 from . import operations as vocabulary
 from .common import Program, Unsupported, lines, literal
 
+
 def translate(
     text: str,
     *,

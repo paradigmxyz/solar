@@ -208,6 +208,11 @@ def operation(value, definitions):
         if location is None:
             raise Unsupported("unmodeled MIR slice location")
         expression = f".makeSlice {location}"
+    elif kind == "assume":
+        # A fact a pass relied on: undefined where it fails, never a no-op.
+        if value.get("predicate") not in {"eq", "ne", "ult", "ule"}:
+            raise Unsupported("unknown MIR assume predicate")
+        expression = f".assume .{value['predicate']}"
     elif kind == "call":
         expression = f".call {number(value['function'])}"
     elif kind == "allocate":

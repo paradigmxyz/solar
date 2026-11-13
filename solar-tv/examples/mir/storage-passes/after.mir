@@ -3,7 +3,10 @@
 fn @f(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 0 !metadata(storage=slot(0))
     v2 = add v0, v0
     sstore 1, v2 !metadata(storage=slot(1))
+    assume eq cse, v0, v0
+    assume eq cse, v1, v0
     ret v2
 }
