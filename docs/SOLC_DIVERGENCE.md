@@ -809,15 +809,17 @@ Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
 
 ### TYPECK-027: NatSpec errors are warnings
 
-Status: intentional.
+Status: intentional; parity debt for the errors `solar` does not report.
 
 Difference: `solc` rejects invalid NatSpec with errors: 3881 for a `@param`
 tag that names no parameter, 2604 and 5856 for `@return` tags, 6546 for a tag
 the item does not allow, and 4682, 5142 and 9397 for `@inheritdoc`. `solar`
-reports each as a warning with the same code, so a build that `solc` fails
-only warns. Only the `@custom:solar-` tags of TYPECK-022 are errors.
+reports each as a warning with the same code. It does not report 3335 or 9942
+for a `@param` tag without a name or description, nor 6564 or 2968 for a
+malformed `@custom:` name. Of the tag checks, only the `@custom:solar-` tags
+of TYPECK-022 are errors.
 
-Rationale: a documentation mistake should not break a build
+Rationale: a documentation mistake should not fail a build
 ([#1281](https://github.com/paradigmxyz/solar/pull/1281)).
 
 Coverage: `tests/ui/natspec/tag_sema.sol` and
