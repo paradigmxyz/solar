@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A false forwarding fact: a byte stored through another pointer can land in
+// the word the read reads, which the query tracks as its own symbol.
+// counterexample: opaque
+@module MemorySplitByte
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = heap_floor
+    v1 = calldataload 0
+    mstore v0, 7
+    mstore8 v1, 1
+    v3 = mload v0
+    assume eq cse, v3, 7
+    mstore 0, v3
+    returndata 0, 32
+}

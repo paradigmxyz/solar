@@ -15,14 +15,33 @@
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
 //! - leave loop-variant mapping/array slots in storage
+//!
+//! With `-Zcheck-analyses`, the pass records what it relied on where it relied on it, for
+//! `lower-assumes` to test:
+//! - each promoted slot reads in storage, at the end of every block the loop can exit from, what it
+//!   read at the end of the preheader, `assume eq storage_promotion, before, after`: nothing but
+//!   the rewritten accesses touched it in the loop. The re-read runs on every iteration that
+//!   reaches an exit test, which makes the record a loop invariant the prover can use, and every
+//!   exit, clean or rolled back, leaves from such a block before any flush;
+//! - each access the pass rewrote to a temporary because its alias names a promoted slot addresses
+//!   that slot's word, `assume eq` between the two slot words, where they are different values;
+//! - each other storage read the pass checked addresses a word apart from every promoted slot, and
+//!   the promoted slots are pairwise apart, `assume ne` between the slot words.
+//!
+//! The temporary's address, an absolute word of the entry's local region that nothing else is live
+//! in (see `allocate_temp_addr`), is a layout invariant rather than an analysis answer with a value
+//! to compare, and is not recorded.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
-    Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    AssumePredicate, BlockId, Callee, EffectKind, FactSource, Function, Immediate, InstId,
+    InstKind, Instruction, MirType, Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
-    transform::utils::redirect_successor_predecessors,
+    transform::{
+        lower_assumes::{record_fact, should_check_analyses},
+        utils::redirect_successor_predecessors,
+    },
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -41,10 +60,11 @@ impl MirPass for StorageScalarPromotion {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         run_function_pass(module, analyses, |func, analyses| {
             // The pass currently introduces absolute low-memory temporaries, so it
             // only handles externally callable runtime entries.
@@ -56,7 +76,7 @@ impl MirPass for StorageScalarPromotion {
             if func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage) {
                 analyses.note_unreported_edit();
             }
-            promote_loops(func)
+            promote_loops(func, record)
         })
     }
 }
@@ -73,8 +93,9 @@ struct Candidate {
     needs_initial_load: bool,
 }
 
-/// Promotes loops until none qualifies; returns whether any was promoted.
-fn promote_loops(func: &mut Function) -> bool {
+/// Promotes loops until none qualifies, recording the facts each promotion relies on with
+/// `record`; returns whether any was promoted.
+fn promote_loops(func: &mut Function, record: bool) -> bool {
     let mut changed = false;
 
     // Promoting a loop can split its exit blocks and relocate the final
@@ -93,7 +114,16 @@ fn promote_loops(func: &mut Function) -> bool {
         else {
             return changed;
         };
+        let facts =
+            if record { slot_facts(func, loop_data, preheader, &candidates) } else { Vec::new() };
         promote(func, loop_data, preheader, &candidates);
+        if record {
+            record_unchanged_slots(func, loop_data, preheader, &candidates);
+        }
+        for (block, predicate, lhs, rhs) in facts {
+            // assume eq|ne storage_promotion, slot, promoted slot
+            record_fact(func, block, FactSource::StoragePromotion, predicate, lhs, rhs);
+        }
         changed = true;
     }
 }
@@ -528,6 +558,8 @@ fn insert_conditional_final_store(
     redirect_successor_predecessors(func, exit, continuation);
 }
 
+// NOTE: `defer-alloc` takes its guard words here too, in external entries only, after
+// `lower-abi`; each is read and written once, in the block it guards.
 // NOTE: The temporary is an absolute address in the entry's local region, and `lower-abi`
 // copies it into `f.body` when the entry has internal callers. It still cannot overwrite a
 // live word there:
@@ -541,11 +573,115 @@ fn insert_conditional_final_store(
 // - No inliner after this pass takes a callee with a frame: all check `internal_frame_size` or need
 //   a single block, which a promoted loop never is. So the address never moves into a caller whose
 //   frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
-fn allocate_temp_addr(func: &mut Function) -> ValueId {
+pub(super) fn allocate_temp_addr(func: &mut Function) -> ValueId {
     let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
     let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
     func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
     func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
+}
+
+/// The slot relations promotion relies on, read before it rewrites the accesses: each access it
+/// will rewrite addresses its promoted slot, each other storage read it checked addresses none,
+/// and the promoted slots are pairwise apart. Each is `(block, predicate, slot, promoted slot)`.
+fn slot_facts(
+    func: &Function,
+    loop_data: &Loop,
+    preheader: BlockId,
+    candidates: &[Candidate],
+) -> Vec<(BlockId, AssumePredicate, ValueId, ValueId)> {
+    let mut facts = Vec::new();
+    for (index, first) in candidates.iter().enumerate() {
+        for second in &candidates[index + 1..] {
+            facts.push((preheader, AssumePredicate::Ne, first.slot_value, second.slot_value));
+        }
+    }
+    // The preheader's accesses from the first seeding store on, which `preheader_tail_is_safe`
+    // checked, and every access of the blocks the rewrite covers.
+    let first_init = candidates
+        .iter()
+        .filter_map(|candidate| candidate.init_store)
+        .filter_map(|inst| func.blocks[preheader].instructions.iter().position(|&id| id == inst))
+        .min();
+    let preheader_tail = first_init
+        .map(|first| &func.blocks[preheader].instructions[first..])
+        .unwrap_or_default()
+        .iter()
+        .map(|&inst| (preheader, inst));
+    let blocks = promotion_block_ids(func, loop_data);
+    let body = blocks
+        .iter()
+        .flat_map(|&block| func.blocks[block].instructions.iter().map(move |&inst| (block, inst)));
+    for (block, inst) in preheader_tail.chain(body) {
+        let (InstKind::Load(slot, PtrLocation::Storage)
+        | InstKind::Store(slot, _, PtrLocation::Storage)) = func.inst(inst).kind
+        else {
+            continue;
+        };
+        let alias = func.storage_alias(inst, slot);
+        if let Some(candidate) = candidates.iter().find(|candidate| candidate.slot == alias) {
+            if slot != candidate.slot_value {
+                facts.push((block, AssumePredicate::Eq, slot, candidate.slot_value));
+            }
+        } else {
+            facts.extend(
+                candidates
+                    .iter()
+                    .map(|candidate| (block, AssumePredicate::Ne, slot, candidate.slot_value)),
+            );
+        }
+    }
+    // Two constant slots are decided without any analysis.
+    facts.retain(|&(_, _, lhs, rhs)| {
+        func.value_u256(lhs).is_none() || func.value_u256(rhs).is_none()
+    });
+    facts
+}
+
+/// Records, at the end of every block a promoted loop can exit from, that each promoted slot still
+/// holds in storage what it held at the end of the preheader: the loop's accesses to it all went
+/// to its temporary, and nothing else wrote it. The slot is read again on every iteration that
+/// reaches such a block, so the record is an invariant of the loop, and every exit leaves from
+/// one, ahead of its flush.
+fn record_unchanged_slots(
+    func: &mut Function,
+    loop_data: &Loop,
+    preheader: BlockId,
+    candidates: &[Candidate],
+) {
+    // preheader: before = sload slot
+    let before = candidates
+        .iter()
+        .map(|candidate| {
+            let (inst, before) = alloc_load(func, candidate.slot_value, PtrLocation::Storage);
+            func.blocks[preheader].instructions.push(inst);
+            before
+        })
+        .collect::<Vec<_>>();
+    let exiting = loop_data
+        .blocks
+        .iter()
+        .filter(|&block| {
+            func.blocks[block].terminator.as_ref().is_some_and(|terminator| {
+                terminator.successors().iter().any(|&succ| !loop_data.blocks.contains(succ))
+            })
+        })
+        .collect::<Vec<_>>();
+    for block in exiting {
+        for (candidate, &before) in candidates.iter().zip(&before) {
+            // exiting: after = sload slot
+            let (inst, after) = alloc_load(func, candidate.slot_value, PtrLocation::Storage);
+            func.blocks[block].instructions.push(inst);
+            // assume eq storage_promotion, before, after
+            record_fact(
+                func,
+                block,
+                FactSource::StoragePromotion,
+                AssumePredicate::Eq,
+                before,
+                after,
+            );
+        }
+    }
 }
 
 fn value_defined_in_loop(

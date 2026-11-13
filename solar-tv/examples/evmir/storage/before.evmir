@@ -1,0 +1,9 @@
+@module Storage
+bb0:
+  push 1
+  push 0
+  sstore
+  push 7
+  push 0
+  sstore
+  stop

@@ -1,0 +1,16 @@
+@module TypedBranch
+; Removing a forwarder must preserve the i1 branch and the i160 phi values.
+fn @pick(arg0: i1, arg1: i160) -> i160 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    v0 = add arg1, i160 1
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: v0]
+    v2 = zext i160 v1 to i256
+    v3 = trunc i256 v2 to i160
+    ret v3
+}

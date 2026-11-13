@@ -1,0 +1,12 @@
+; === solar-tv/examples/mir/internal-calls/before.mir (after inline) ===
+@module Calls
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    jump bb2
+  bb2:                                            ; preds = bb0
+    v1 = add arg0, 1
+    jump bb1
+  bb1:                                            ; preds = bb2
+    v2 = phi [bb2: v1]
+    ret v2
+}

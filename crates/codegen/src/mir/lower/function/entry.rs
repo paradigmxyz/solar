@@ -283,6 +283,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
         if returns.is_empty() {
+            self.record_spec_ensures(&[]);
             // ret
             self.builder.ret([]);
         } else {
@@ -297,6 +298,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.binding_word(value, id);
                 values.push(self.bind_word(id, value, self.cx.gcx.hir.variable(id).span)?);
             }
+            self.record_spec_ensures(&values);
             self.builder.ret(values);
         }
         Some(())

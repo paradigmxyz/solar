@@ -104,17 +104,22 @@
 //!   stepping beside the update replaces it, which equals it wherever it is read
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
+//!
+//! With `-Zcheck-analyses`, a loop bound proven on entry instead of clamped records
+//! `assume ule indvar_simplify, bound, limit` for `lower-assumes` to test.
 
 use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer, utils::terminator_debug_context};
 use crate::{
     mir::{
-        ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
-        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+        ArithmeticKind, AssumePredicate, BlockId, CheckedOp, FactSource, Function, FunctionBuilder,
+        Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module, Terminator, Value,
+        ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
             ScalarEvolution, integers::unsigned_bounds,
         },
         pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        transform::lower_assumes::{record_fact, should_check_analyses},
         utils as mir_utils,
     },
     target::Target,
@@ -137,10 +142,11 @@ impl MirPass for IndVarSimplify {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if !func.blocks.is_empty() && !analyses.cfg(id, func).cyclic_blocks().is_empty() {
@@ -153,8 +159,9 @@ impl MirPass for IndVarSimplify {
             &selected,
             |func, analyses| {
                 let insts = func.num_insts();
-                let changed = IndVarSimplifier::new(Rc::clone(analyses.alias()))
-                    .run(func, Rc::clone(analyses.cfg()));
+                let mut simplifier = IndVarSimplifier::new(Rc::clone(analyses.alias()));
+                simplifier.record = record;
+                let changed = simplifier.run(func, Rc::clone(analyses.cfg()));
                 // NOTE: A pointer phi that fails to materialize leaves the instructions it
                 // already inserted in place without reporting a change.
                 if !changed && func.num_insts() != insts {
@@ -185,6 +192,9 @@ struct IndVarSimplifier {
     read_by_non_address: DenseBitSet<ValueId>,
     /// Values already counted or visited by one scan.
     seen: DenseBitSet<ValueId>,
+    /// Whether a bound proven on entry instead of clamped records the fact for
+    /// `lower-assumes`.
+    record: bool,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -275,6 +285,7 @@ impl IndVarSimplifier {
             in_loop: DenseBitSet::new_empty(0),
             read_by_non_address: DenseBitSet::new_empty(0),
             seen: DenseBitSet::new_empty(0),
+            record: false,
         }
     }
 
@@ -1318,7 +1329,14 @@ impl IndVarSimplifier {
         }
         let exact = U256::MAX >> scale.trailing_zeros();
         let mut clamped = bound;
-        if exact != U256::MAX && !bounded_on_entry(func, cfg, block, bound, exact) {
+        let proven = exact != U256::MAX && bounded_on_entry(func, cfg, block, bound, exact);
+        if proven && self.record {
+            // assume ule indvar_simplify, bound, exact
+            let exact = func.alloc_value(Value::Immediate(Immediate::I256(exact)));
+            let ule = AssumePredicate::Ule;
+            record_fact(func, block, FactSource::IndvarSimplify, ule, bound, exact);
+        }
+        if exact != U256::MAX && !proven {
             // above = gt bound, 2^65; bound = select above, 2^65, bound
             let limit = func.alloc_value(Value::Immediate(Immediate::I256(limit)));
             let above = append_setup_inst(func, block, InstKind::Gt(bound, limit), MirType::I1);

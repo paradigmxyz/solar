@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A store a wrong alias answer took for another word writes the word a kept load reads, so the
+// value SROA replaced the load with is not proved: the load reads what the second store wrote.
+@module SroaClobber
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    mstore 256, v0
+    mstore 256, v1
+    v2 = mload 256
+    assume eq sroa, v2, v0
+    mstore 0, v2
+    returndata 0, 32
+}

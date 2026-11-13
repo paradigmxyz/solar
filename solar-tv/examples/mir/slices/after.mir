@@ -1,0 +1,19 @@
+; === solar-tv/examples/mir/slices/before.mir (after lower-slices) ===
+@module Slices
+fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<calldata>
+    v2 = ptradd v0, arg2
+    v3 = sub arg1, arg2
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v5 = icall @sum, v7, v3
+    ret v5
+}
+
+fn @sum(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<calldata>
+    v2 = ptrtoint ptr<calldata> v0 to i256
+    v3 = add v2, arg1
+    ret v3
+}

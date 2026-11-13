@@ -1,8 +1,8 @@
 //! Per-function planning: block layouts, operand preparation, shuffles, and spills.
 
 use super::{
-    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Reader,
-    Slot, Step, Victim, Want, argument_values, icall, materialized_at_use,
+    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands,
+    PlannedLayouts, Reader, Slot, Step, Victim, Want, argument_values, icall, materialized_at_use,
     shuffle::{self, Move},
 };
 use crate::{
@@ -295,25 +295,14 @@ impl<'a> Planner<'a> {
                 if arity <= 1 {
                     continue;
                 }
-                let Some(Projection { elided, extras, tracked }) =
+                // The protocol's pointer and addresses have no readers beyond the elided
+                // instructions.
+                let Some(Projection { elided, extras, .. }) =
                     call_projection(func, block_id, idx, arity)
+                        .filter(|projection| !projection.escapes(func, &use_counts))
                 else {
                     return Err("multi-word call result through memory");
                 };
-                // The protocol's pointer and addresses have no readers beyond the elided
-                // instructions.
-                let protocol_reads = elided
-                    .iter()
-                    .map(|&inst| {
-                        let operands = func.inst(inst).kind.operands();
-                        operands.iter().filter(|op| tracked.contains(op)).count() as u32
-                    })
-                    .sum::<u32>();
-                let escapes =
-                    tracked.iter().map(|&value| use_counts[value]).sum::<u32>() != protocol_reads;
-                if escapes {
-                    return Err("multi-word call result through memory");
-                }
                 for &inst in &elided {
                     skipped.insert(inst);
                 }
@@ -541,6 +530,15 @@ impl<'a> Planner<'a> {
             self.charge(&sim, block);
             self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
         }
+        let layouts = self.info.records_layouts.then(|| {
+            let mut entries = self.layouts.clone();
+            entries[BlockId::ENTRY].get_or_insert_with(|| self.entry_layout());
+            PlannedLayouts {
+                entries,
+                floating: self.floating.clone(),
+                clobbers: self.saved.keys().copied().collect(),
+            }
+        });
         let plan = FunctionPlan {
             blocks: self.blocks,
             spilled: self.spilled.clone(),
@@ -548,6 +546,7 @@ impl<'a> Planner<'a> {
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
+            layouts,
         };
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
@@ -3323,13 +3322,29 @@ fn ordered_layout(
 }
 
 /// The multi-return protocol after one call.
-pub(super) struct Projection {
+pub(crate) struct Projection {
     /// Protocol instructions to elide.
-    pub(super) elided: Vec<InstId>,
+    pub(crate) elided: Vec<InstId>,
     /// The value reading each extra result, if any.
-    pub(super) extras: SmallVec<[Option<ValueId>; 4]>,
+    pub(crate) extras: SmallVec<[Option<ValueId>; 4]>,
     /// The pointer and address values, which must have no other consumers.
     tracked: FxHashSet<ValueId>,
+}
+
+impl Projection {
+    /// Whether the protocol's pointer or addresses have readers beyond the elided instructions,
+    /// given the number of uses of every value of `func`.
+    pub(crate) fn escapes(&self, func: &Function, use_counts: &IndexVec<ValueId, u32>) -> bool {
+        let protocol_reads = self
+            .elided
+            .iter()
+            .map(|&inst| {
+                let operands = func.inst(inst).kind.operands();
+                operands.iter().filter(|op| self.tracked.contains(op)).count() as u32
+            })
+            .sum::<u32>();
+        self.tracked.iter().map(|&value| use_counts[value]).sum::<u32>() != protocol_reads
+    }
 }
 
 /// Binds the extra results of a multi-word call to the words it returns on the stack.
@@ -3338,7 +3353,7 @@ pub(super) struct Projection {
 /// with only pure instructions between, and one offset load per used result follows it with
 /// only read-only instructions between. The buffer is reachable only through the pointer read,
 /// whose other uses reject the projection.
-pub(super) fn call_projection(
+pub(crate) fn call_projection(
     func: &Function,
     block: BlockId,
     call_idx: usize,

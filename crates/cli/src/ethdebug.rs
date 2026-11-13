@@ -219,6 +219,10 @@ pub(crate) fn make_ethdebug_compilation(
             gcx.sess.opts.unstable.tune, gcx.sess.opts.unstable.pack_wide_jump_tables,
         ),
     );
+    // Appended only when enabled, which keeps the identities of unchecked builds unchanged.
+    if solar_codegen::mir::should_check_analyses(gcx.sess) {
+        append_length_prefixed(&mut identity, "check-analyses");
+    }
     append_length_prefixed(&mut identity, &version);
     append_length_prefixed(&mut identity, &sources.len().to_string());
     for source in &sources {

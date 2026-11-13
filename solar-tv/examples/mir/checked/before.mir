@@ -1,0 +1,13 @@
+@module Checked
+; Only the check below arg0 < 100 is redundant. The other check must stay.
+fn @bump(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = checked_add uint256, arg0, 1
+    ret v1
+  bb2:
+    v2 = checked_add uint256, arg0, 1
+    ret v2
+}

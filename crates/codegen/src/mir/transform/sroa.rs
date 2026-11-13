@@ -13,13 +13,21 @@
 //! stays in place. Full-width pointer casts retain the same object identity;
 //! escapes, narrowing casts, dynamic indices and partial/unknown accesses reject promotion.
 //! Run before memory-object lowering, while `ptradd` keeps object offsets explicit.
+//!
+//! With `-Zcheck-analyses`, the object's stores, zero fills and address derivations stay, and each
+//! promoted load stays as the evidence of `assume eq sroa, load, value` (see frame promotion's
+//! module docs): a write through a pointer the escape or alias analysis missed changes the word
+//! the kept load reads. A later run never promotes a load only records read.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstKind, Module, PtrLocation, Value, ValueId,
     analysis::{AliasAnalysis, CfgInfo, Location, LocationSize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
-    transform::frame_promotion::{SlotAccessInfo, promote_object_slots},
+    transform::{
+        frame_promotion::{SlotAccessInfo, is_evidence, promote_object_slots},
+        lower_assumes::{NonRecordReads, should_check_analyses},
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -34,17 +42,20 @@ impl MirPass for Sroa {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         run_function_pass_with_alias(module, analyses, |func, analyses| {
-            promote_allocs(func, analyses.alias())
+            promote_allocs(func, analyses.alias(), record)
         })
     }
 }
 
-fn promote_allocs(func: &mut Function, alias: &AliasAnalysis) -> bool {
+/// Promotes every eligible allocation of `func`. With `record`, the accesses stay and each
+/// replaced load is recorded equal to its replacement.
+fn promote_allocs(func: &mut Function, alias: &AliasAnalysis, record: bool) -> bool {
     let allocs = func
         .instructions()
         .filter_map(|inst_id| {
@@ -60,9 +71,10 @@ fn promote_allocs(func: &mut Function, alias: &AliasAnalysis) -> bool {
 
     // Promotion adds phis but no blocks, so one block order serves every allocation.
     let order = CfgInfo::new(func).rpo().to_vec();
+    let evidence = record.then(|| NonRecordReads::new(func));
     let mut changed = false;
     for (object, size) in allocs {
-        if try_promote(func, alias, &order, object, size).unwrap_or(false) {
+        if try_promote(func, alias, &order, object, size, evidence.as_ref()).unwrap_or(false) {
             alias.clear_cached_addresses();
             changed = true;
         }
@@ -77,6 +89,7 @@ fn try_promote(
     order: &[BlockId],
     object: ValueId,
     zero_size: u64,
+    evidence: Option<&NonRecordReads>,
 ) -> Option<bool> {
     if alias.value_escapes(func, object) {
         return None;
@@ -192,6 +205,9 @@ fn try_promote(
                 (&InstKind::Store(_, value, PtrLocation::Memory), Some(index)) => {
                     slots[index].note_store(block, inst, value);
                 }
+                // A load only records read is an earlier record's evidence, which the kept stores
+                // still define.
+                (InstKind::Load(..), Some(_)) if is_evidence(func, evidence, inst) => {}
                 (InstKind::Load(..), Some(index)) => slots[index].note_load(block, inst),
                 (&InstKind::MemoryZero(base, _), _) if addresses.contains_key(&base) => {
                     zeros.insert(inst);
@@ -203,13 +219,22 @@ fn try_promote(
             }
         }
     }
-    if !promote_object_slots(func, &slots) {
+    let record = evidence.is_some();
+    if record && slots.iter().all(SlotAccessInfo::has_no_loads) {
         return Some(false);
     }
-    // preserving_cast object; ptradd object, offset; memory_zero object, size
-    // => SSA field values
-    for block in &mut func.blocks {
-        block.instructions.retain(|inst| !address_insts.contains(inst) && !zeros.contains(inst));
+    if !promote_object_slots(func, &slots, record) {
+        return Some(false);
+    }
+    // The object's memory stays the shadow of its fields when recording.
+    if !record {
+        // preserving_cast object; ptradd object, offset; memory_zero object, size
+        // => SSA field values
+        for block in &mut func.blocks {
+            block
+                .instructions
+                .retain(|inst| !address_insts.contains(inst) && !zeros.contains(inst));
+        }
     }
     Some(true)
 }

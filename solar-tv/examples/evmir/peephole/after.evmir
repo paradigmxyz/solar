@@ -1,0 +1,11 @@
+; === solar-tv/examples/evmir/peephole/before.evmir (after peephole) ===
+@module Branch
+bb0:
+  calldatasize
+  returndatasize
+  sub
+  push bb1
+  jumpi
+  stop
+bb1:
+  stop

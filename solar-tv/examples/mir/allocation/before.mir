@@ -1,0 +1,11 @@
+@module Allocations
+fn @f(arg0: i256) -> i256 {
+bb0:
+ mstore 64, 128
+ v0 = alloc zeroed checked 32 !metadata(preserves_fmp)
+ mstore v0, arg0
+ v1 = alloc zeroed checked 32 !metadata(preserves_fmp)
+ mstore v1, 7
+ v2 = mload v0
+ ret v2
+}

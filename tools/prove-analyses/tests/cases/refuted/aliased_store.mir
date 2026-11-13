@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A false forwarding fact: the store between the two reads may write the
+// word they read, when the two calldata offsets are equal.
+@module AliasedStore
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = sload v0
+    sstore v1, 7
+    v3 = sload v0
+    assume eq cse, v3, v2
+    mstore 0, v3
+    returndata 0, 32
+}

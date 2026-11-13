@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A record that execution never reaches its block is false wherever it runs, so the queries never
+// assume it: the false fact after it keeps its counterexample instead of a vacuous proof.
+@module NoreturnVacuous
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = lt v0, 10
+    jumpi v1, bb1, bb2
+  bb1:
+    assume eq noreturn_calls, 0, 1
+    assume ult sccp, v0, 5
+    invalid
+  bb2:
+    stop
+}

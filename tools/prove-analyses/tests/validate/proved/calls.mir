@@ -1,0 +1,47 @@
+//@ compile-flags: -Zmir-pipeline=storage-dse
+// Storage DSE across internal calls, proved by running the callees' bodies: a store before a call
+// that returns without reading storage is dead, one before a call that may stop stays, since
+// stopping commits it, and a store before a tail call to a function that always reverts is dead.
+@module ValidateCalls
+@phase lowered
+fn @before_returning_call() [entry] {
+  bb0:
+    sstore 0, 1
+    icall @returning
+    sstore 0, 2
+    stop
+}
+
+fn @before_halting_call(arg0: i1) {
+  bb0:
+    sstore 0, 1
+    icall @maybe_stop, arg0
+    sstore 0, 2
+    sstore 0, 3
+    ret
+}
+
+fn @before_reverting_tail_call() {
+  bb0:
+    sstore 0, 1
+    tail_call @reverting
+}
+
+fn @returning() {
+  bb0:
+    ret
+}
+
+fn @maybe_stop(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    ret
+}
+
+fn @reverting() {
+  bb0:
+    revert 0, 0
+}

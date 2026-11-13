@@ -22,6 +22,7 @@ solar-data-structures.workspace = true
 solar-evmir.workspace = true
 solar-interface.workspace = true
 solar-mir.workspace = true
+solar-parse.workspace = true
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
@@ -30,12 +31,14 @@ derive_more.workspace = true
 either.workspace = true
 memchr.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
-tempfile.workspace = true
+solar-smt.workspace = true
 
 [build-dependencies]
 cranelift-isle.workspace = true
@@ -47,5 +50,6 @@ nightly = [
     "solar-evmir/nightly",
     "solar-interface/nightly",
     "solar-mir/nightly",
+    "solar-parse/nightly",
     "solar-sema/nightly",
 ]

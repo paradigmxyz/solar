@@ -22,6 +22,8 @@
 (type ImmutableId (primitive ImmutableId))
 (type LibraryId (primitive LibraryId))
 (type LogTopics (primitive LogTopics))
+(type AssumePredicate (primitive AssumePredicate))
+(type FactSource (primitive FactSource))
 
 (type Op extern (enum
   (InsertValue (ty MirType) (aggregate Value) (index u32) (value Value))
@@ -131,4 +133,5 @@
   (Phi (incoming Unit))
   (Select (cond Value) (true_val Value) (false_val Value))
   (SignExtend (byte Value) (value Value))
+  (Assume (predicate AssumePredicate) (source FactSource) (lhs Value) (rhs Value))
 ))

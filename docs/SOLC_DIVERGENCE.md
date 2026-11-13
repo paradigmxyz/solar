@@ -1238,3 +1238,21 @@ reported.
 
 Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
 `tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.
+
+### CODEGEN-030: An enum read from storage is checked where it is loaded
+
+- ID: CODEGEN-030
+- Status: intentional
+- Difference: when a storage slot holds an out-of-range enum value, `solar`
+  reverts with `Panic(0x21)` as soon as it loads the value. `solc`, legacy
+  and via-IR, checks the value where it is first used, so a function that
+  reverts between the load and the use reverts with that later error instead.
+  Seaport 1.6's reference implementation shows it: from a forged
+  `_BasicOrderToOrderType` entry, `fulfillBasicOrder` reverts with
+  `Panic(0x21)` instead of `InvalidMsgValue(0)`.
+- Rationale: only assembly or a storage layout collision can store such a
+  value, and both compilers still revert; checking at the load keeps one check
+  per load instead of one per use.
+- Coverage: `tests/ui/codegen/run-call/storage/forged_enum_check_order.sol`;
+  `tools/difffuzz/forge/test/SeaportDiff.t.sol` (`test_storedEnumCheckOrder`),
+  found by `forge equivalence`.

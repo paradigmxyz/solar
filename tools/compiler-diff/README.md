@@ -196,6 +196,12 @@ compiler-diff --dir /tmp/compiler-fuzz fuzz \
   --compiler 'solar=/absolute/path/to/solar --standard-json -Zvalidate-ir=true'
 ```
 
+Add `-Zcheck-analyses=true` to the Solar command to compile run-time checks of
+the facts its optimizations relied on into the code, as debug builds do by
+default, so a false fact reverts with
+`AnalysisFactViolated(uint256,uint256,uint256)` and shows up as a runtime
+difference. Change `--tag` with it.
+
 Defaults are `--grammar fuzz/fandango/solidity-source.fan`,
 `--contract FandangoSource`, `--seed 1`, `--count 16`, and `--rounds 1`. Other
 grammars must be self-contained and emit Solidity sources; the campaign

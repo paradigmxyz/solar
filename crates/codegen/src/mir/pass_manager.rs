@@ -173,9 +173,10 @@ pub(crate) fn run_passes_inner(
         if enabled {
             let origins =
                 crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::mir(module));
-            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let key = pass.cache_key();
             let cached = key.is_some_and(|key| unchanged.contains(&key));
+            let tv = crate::solar_tv::MirSnapshot::capture(gcx, cached, module);
+            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = if cached {
                 false
             } else {
@@ -188,6 +189,16 @@ pub(crate) fn run_passes_inner(
                         .map(|objective| pass.runs_on(objective)),
                     module.functions.len(),
                 );
+                // Translation validation compares each function the pass changes with its
+                // version before it.
+                let validated = gcx
+                    .sess
+                    .opts
+                    .unstable
+                    .validate_passes
+                    .as_ref()
+                    .map(|dir| (dir, module.clone()));
+                let phase = module.phase();
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = module.take_lowered_check();
@@ -197,6 +208,28 @@ pub(crate) fn run_passes_inner(
                     lowered_checked && !pass_changed && !analyses.unreported_edit,
                 );
                 analyses.finish_pass(pass_changed);
+                if let Err(error) = crate::lean_stages::mir_pass(gcx, pass_name, phase, module) {
+                    return (changed | pass_changed, Some(error));
+                }
+                if pass_changed
+                    && let Some((dir, before)) = validated
+                    && let Err(error) = crate::mir::transform::validate_passes::write_queries(
+                        pass_name,
+                        &before,
+                        module,
+                        dir,
+                        gcx.sess.opts.unstable.validate_passes_fault.as_deref(),
+                    )
+                {
+                    let error = gcx
+                        .dcx()
+                        .err(format!(
+                            "cannot write the pass validation queries to `{}`: {error}",
+                            dir.display()
+                        ))
+                        .emit();
+                    return (changed | pass_changed, Some(error));
+                }
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
                     // delete with their last other use.
@@ -226,6 +259,11 @@ pub(crate) fn run_passes_inner(
             changed |= pass_changed;
             if analyses.error.is_some() {
                 return (changed, analyses.error);
+            }
+            if let Some(tv) = tv
+                && let Err(error) = tv.check(gcx, pass_name, module)
+            {
+                return (changed, Some(error));
             }
             if let Some(origins) = origins
                 && let Err(error) = origins.check(

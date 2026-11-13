@@ -812,7 +812,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // A heap floor is the highest initial pointer of the entries that run its function before
         // control passes to another entry; one that no entry runs never executes.
         for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
-            if self.capture_mir {
+            if self.records_heap_words() {
                 self.heap_floor_sites.insert(func_id, id);
             }
             let floor = free_memory_floors
@@ -1503,7 +1503,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             codegen.asm.emit_op(op::MSTORE);
         });
         self.runtime_free_memory_consts.insert(entry, id);
-        if self.capture_mir {
+        if self.records_heap_words() {
             self.entry_heap_sites.insert(entry, id);
         }
     }

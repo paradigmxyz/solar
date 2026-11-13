@@ -46,7 +46,7 @@ pub mod hir;
 pub use hir::Hir;
 
 pub mod ty;
-pub use natspec::{InlineTag, SolarTags};
+pub use natspec::{InlineTag, SolarTags, solar_tag_content};
 pub use ty::{Gcx, NatSpecView, Ty};
 
 mod typeck;

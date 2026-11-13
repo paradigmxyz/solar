@@ -10,7 +10,7 @@
 use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, SourceOrigins,
-        ir, op, op::WORD_BYTES,
+        ir, op, op::WORD_BYTES, validate_assembly,
     },
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
@@ -68,6 +68,11 @@ pub(crate) struct AssembledCode {
     pub library_relocations: Vec<LibraryRelocation>,
     /// Contracts' trailing runtime data, including embedded program data.
     pub trailers: Vec<Trailer>,
+    /// The program data in the bytecode: each one's ID, offset and length.
+    pub data: Vec<(ir::DataId, usize, usize)>,
+    /// With `-Zemit-lean-stages`, where each data entry of the EVM IR before linking is in the
+    /// bytecode: its Lean stage key, offset and length.
+    pub data_places: Vec<(String, usize, usize)>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -99,6 +104,9 @@ impl ArtifactKind {
 pub(in crate::backend) struct PreparedAssembly {
     pub(in crate::backend) program: AssemblyProgram,
     pub(in crate::backend) evm_ir: Option<ir::Module>,
+    /// With `-Zemit-lean-stages`, each data entry before linking: its key, the entry and offset it
+    /// is at in `program`, and its length.
+    pub(in crate::backend) data_keys: Vec<(String, ir::DataRef, usize)>,
 }
 
 /// Relocating assembler for finalized EVM IR.
@@ -310,6 +318,15 @@ impl<'gcx> Assembler<'gcx> {
         *self.immutable_pushes.get(index)
     }
 
+    /// The immutable and the width of the placeholder `index` names.
+    pub(in crate::backend) fn immutable_placeholder(
+        &self,
+        index: ImmutablePushId,
+    ) -> (ImmutableId, TypeSize) {
+        let push = self.immutable_push(index);
+        (push.id, push.type_size)
+    }
+
     /// Links embedded contract bytecode into the optimized program, then lowers and
     /// assembles it and clears the assembler.
     pub(in crate::backend) fn assemble_linked(
@@ -328,7 +345,7 @@ impl<'gcx> Assembler<'gcx> {
 
     #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
     fn assemble_owned(&mut self, prepared: PreparedAssembly) -> AssembledCode {
-        let PreparedAssembly { program, evm_ir } = prepared;
+        let PreparedAssembly { program, evm_ir, data_keys } = prepared;
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
@@ -349,13 +366,30 @@ impl<'gcx> Assembler<'gcx> {
                 &FxHashMap::default(),
             );
             result.evm_ir = evm_ir;
+            result.data_places = data_places(&result.data, data_keys);
+            self.validate(&program, &result);
             return result;
         }
 
         let (label_offsets, data_offsets, push_widths) = self.resolve_offsets(&program);
         let mut result = self.emit_bytecode(&program, label_offsets, data_offsets, &push_widths);
         result.evm_ir = evm_ir;
+        result.data_places = data_places(&result.data, data_keys);
+        self.validate(&program, &result);
         result
+    }
+
+    /// With `-Zvalidate-assembly`, checks the bytecode against the program it was solved from:
+    /// see `validate_assembly`.
+    fn validate(&self, program: &AssemblyProgram, result: &AssembledCode) {
+        let opts = &self.gcx.sess.opts.unstable;
+        if !opts.validate_assembly {
+            return;
+        }
+        let fault = opts.validate_assembly_fault.as_deref();
+        if let Err(error) = validate_assembly::check(self, program, result, fault) {
+            self.gcx.dcx().err(format!("assembly validation failed: {error}")).emit();
+        }
     }
 
     /// Resolves all ordinary label pushes against the complete assembly
@@ -560,10 +594,11 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST, origins);
                 }
-                AsmInstKind::Data(data) => {
-                    let data = &program.data[data];
+                AsmInstKind::Data(id) => {
+                    let data = &program.data[id];
                     let base = out.bytecode.len();
                     let bytes = data.bytes.linked();
+                    out.data.push((id, base, bytes.len()));
                     out.library_relocations.extend(data.library_relocations.iter().map(|reloc| {
                         LibraryRelocation { offset: base + reloc.offset, library: reloc.library }
                     }));
@@ -603,6 +638,7 @@ struct BytecodeAssembler<'gcx> {
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
     trailers: Vec<Trailer>,
+    data: Vec<(ir::DataId, usize, usize)>,
     debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
@@ -617,6 +653,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             immutable_refs: Vec::new(),
             library_relocations: Vec::new(),
             trailers: Vec::new(),
+            data: Vec::new(),
             debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
@@ -715,6 +752,8 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             immutable_refs: self.immutable_refs,
             library_relocations: self.library_relocations,
             trailers: self.trailers,
+            data: self.data,
+            data_places: Vec::new(),
             evm_ir: None,
             debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }
@@ -731,4 +770,17 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             self.modifier_depth,
         );
     }
+}
+
+/// Where each data entry of `keys` is in bytecode whose data is `data`: its key, offset and length.
+fn data_places(
+    data: &[(ir::DataId, usize, usize)],
+    keys: Vec<(String, ir::DataRef, usize)>,
+) -> Vec<(String, usize, usize)> {
+    keys.into_iter()
+        .filter_map(|(key, at, len)| {
+            let &(_, base, _) = data.iter().find(|&&(id, ..)| id == at.id)?;
+            Some((key, base + at.offset as usize, len))
+        })
+        .collect()
 }

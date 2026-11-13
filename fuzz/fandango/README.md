@@ -160,6 +160,13 @@ python3 fuzz/fandango/run_source_runtime.py \
   --verbose
 ```
 
+Debug builds of the compiler check the facts their analyses claim at run time
+by default; `run_source_runtime.py --check-analyses on|off` passes
+`-Zcheck-analyses` to override that. A difference whose Solar
+revert data is `AnalysisFactViolated(uint256,uint256,uint256)` is reported as
+an `analysis-fact` failure with the fact decoded, since the false fact explains
+the mismatch.
+
 ### Use SolSmith
 
 SolSmith is the type-aware Solidity generator. It is the CSmith/Yarpgen-style

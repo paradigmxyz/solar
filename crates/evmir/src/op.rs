@@ -20,7 +20,7 @@ const UNKNOWN_PREFIX: &str = "op_";
 
 /// Declarative properties of an EVM operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct OpcodeTraits(u8);
+pub struct OpcodeTraits(u16);
 
 impl OpcodeTraits {
     /// No additional properties.
@@ -50,6 +50,11 @@ impl OpcodeTraits {
     /// The operation runs another frame, so the executing call's return data buffer afterwards
     /// holds that frame's output: every call and create.
     pub const SETS_RETURNDATA: Self = Self(1 << 7);
+    /// The result is an input the transaction, its call or its block fixes for the whole call
+    /// frame: two reads with equal operands agree wherever they run in the frame. `GAS`, `MSIZE`,
+    /// `PC`, `RETURNDATASIZE` and `SELFBALANCE` are context reads but not inputs, since what they
+    /// see changes as the frame runs.
+    pub const TX_INPUT: Self = Self(1 << 8);
 
     /// Returns the union of two property sets.
     pub const fn union(self, other: Self) -> Self {
@@ -356,18 +361,18 @@ opcodes! {
     0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
     0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9);
     0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
-    0x30 => ADDRESS => address => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
+    0x30 => ADDRESS => address => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy) => result_bits(160);
     0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy) => input_bits(160);
-    0x32 => ORIGIN => origin => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x33 => CALLER => caller => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits(CONTEXT_READ) => gas(verylow) => available(legacy);
+    0x32 => ORIGIN => origin => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy) => result_bits(160);
+    0x33 => CALLER => caller => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy) => result_bits(160);
+    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy);
+    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(verylow) => available(legacy);
     // Calldata and code lengths are gas-bounded, even before code-size caps, and fit in 64 bits.
-    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
+    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy) => result_bits(64);
     0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
     0x38 => CODESIZE => codesize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
     0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy);
     0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => result_bits(64) => input_bits(160);
     0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
     // Return data comes from gas-bounded EVM memory or precompile output, so its length fits in 64 bits.
@@ -375,16 +380,16 @@ opcodes! {
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
     0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
-    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x43 => NUMBER => number => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x46 => CHAINID => chainid => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Istanbul);
+    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy) => result_bits(160);
+    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy);
+    0x43 => NUMBER => number => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy);
+    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy);
+    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(legacy);
+    0x46 => CHAINID => chainid => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(since Istanbul);
     0x47 => SELFBALANCE => selfbalance => stack_io(0, 1) => traits(CONTEXT_READ) => gas(low) => available(since Istanbul);
-    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since London);
-    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits(CONTEXT_READ) => gas(verylow) => available(since Cancun);
-    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Cancun);
+    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(since London);
+    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(verylow) => available(since Cancun);
+    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits(CONTEXT_READ | TX_INPUT) => gas(base) => available(since Cancun);
     0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => gas(base) => available(slot_num);
     0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy) => input_bits(0);
     0x51 => MLOAD => mload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
@@ -539,6 +544,12 @@ impl OpDef {
     #[must_use]
     pub const fn is_context_read(self) -> bool {
         self.traits.contains(OpcodeTraits::CONTEXT_READ)
+    }
+
+    /// Returns whether this operation reads an input fixed for the whole call frame.
+    #[must_use]
+    pub const fn is_tx_input(self) -> bool {
+        self.traits.contains(OpcodeTraits::TX_INPUT)
     }
 
     /// Returns whether this operation replaces the executing call's return data buffer.
@@ -969,6 +980,15 @@ pub const fn sets_returndata(op: u8) -> bool {
 pub const fn is_context_read(op: u8) -> bool {
     match definition(op) {
         Some(definition) => definition.is_context_read(),
+        None => false,
+    }
+}
+
+/// Returns whether `op` reads an input fixed for the whole call frame.
+#[must_use]
+pub const fn is_tx_input(op: u8) -> bool {
+    match definition(op) {
+        Some(definition) => definition.is_tx_input(),
         None => false,
     }
 }

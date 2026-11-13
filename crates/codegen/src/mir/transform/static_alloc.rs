@@ -17,14 +17,32 @@
 //!   the free-memory pointer, since memory-safe assembly could otherwise derive aliases from where
 //!   the object lies relative to the heap;
 //! - allocations marked as source-visible FMP advances are never placed statically.
+//!
+//! With `-Zcheck-analyses`, the block of each allocation the pass defers reads a guard word just
+//! before the allocation, records it zero, `assume eq defer_alloc, guard, 0`, and sets it to one:
+//! the block runs at most once per call, so it never finds the guard set. The guard is a word of
+//! the entry's local region past its locals and return buffer, which the frame layout reserves by
+//! growing the local region, and which the call starts with zeroed like all of its memory. The
+//! entry block also records the heap floor at or above the end of the guard,
+//! `assume ule defer_alloc, guard + 32, heap_floor`: the backend places the heap above the local
+//! region, and the record lets `-Zprove-analyses` keep the guard apart from the heap. Memory
+//! dead store elimination drops the guard's store when no path leads from it back to the guard's
+//! read; one that keeps it found the cycle this pass's analysis missed, or a pass between them
+//! made. A deferral the second run of the pass makes again keeps its first guard.
 
 use crate::mir::{
-    AllocationSemantics, ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType,
-    Module, PtrLocation, Terminator, ValueId,
+    AllocationSemantics, ArgIdx, AssumePredicate, BlockId, Callee, FactSource, Function,
+    FunctionId, Immediate, InstId, InstKind, Instruction, MirType, Module, PtrLocation, Terminator,
+    Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
+    transform::{
+        lower_assumes::{record_fact, should_check_analyses},
+        storage_promotion::allocate_temp_addr,
+    },
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -45,10 +63,11 @@ impl MirPass for DeferAlloc {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
         let entries = module.runtime_entries();
@@ -60,10 +79,14 @@ impl MirPass for DeferAlloc {
 
         let mut changed = false;
         for (func_id, alloc) in candidates {
-            let metadata = &mut module.functions[func_id].inst_mut(alloc).metadata;
+            let func = &mut module.functions[func_id];
+            let metadata = &mut func.inst_mut(alloc).metadata;
             if !metadata.deferred_alloc() {
                 metadata.set_deferred_alloc();
                 changed = true;
+                if record {
+                    guard_once(func, alloc);
+                }
             }
         }
         changed
@@ -388,4 +411,47 @@ fn call_use_is_safe(
             !summary.captures_param(index)
                 && !(summary.may_observe_fmp() && summary.observes_param(index))
         })
+}
+
+/// Records that the block of the deferred `alloc` runs at most once per call: a guard word of the
+/// entry's local region, zero when the call starts, is still zero just before the allocation,
+/// which then sets it.
+fn guard_once(func: &mut Function, alloc: InstId) {
+    let Some((block, position)) = func.blocks.iter_enumerated().find_map(|(block, data)| {
+        data.instructions.iter().position(|&inst| inst == alloc).map(|position| (block, position))
+    }) else {
+        return;
+    };
+    let guard = allocate_temp_addr(func);
+    let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
+    let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+    // seen = mload guard; mstore guard, 1; ...; v = alloc size
+    let (load, seen) = func.alloc_value_inst(
+        Instruction::new(InstKind::Load(guard, PtrLocation::Memory), Some(MirType::I256))
+            .with_debug_loc_dropped(),
+    );
+    let store = func.alloc_inst(
+        Instruction::new(InstKind::Store(guard, one, PtrLocation::Memory), None)
+            .with_debug_loc_dropped(),
+    );
+    func.blocks[block].instructions.splice(position..position, [load, store]);
+    // assume eq defer_alloc, seen, 0
+    record_fact(func, block, FactSource::DeferAlloc, AssumePredicate::Eq, seen, zero);
+    let Some(end) = func.value_u64(guard).and_then(|guard| guard.checked_add(32)) else {
+        return;
+    };
+    let end = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(end))));
+    // floor = heap_floor; assume ule defer_alloc, guard + 32, floor; ...the entry block
+    let (floor_inst, floor) = func.alloc_value_inst(
+        Instruction::new(InstKind::HeapFloor, Some(MirType::I256)).with_debug_loc_dropped(),
+    );
+    let kind = InstKind::Assume {
+        predicate: AssumePredicate::Ule,
+        source: FactSource::DeferAlloc,
+        lhs: end,
+        rhs: floor,
+    };
+    let record = func.alloc_inst(Instruction::new(kind, None).with_debug_loc_dropped());
+    let entry = &mut func.blocks[BlockId::ENTRY].instructions;
+    entry.splice(0..0, [floor_inst, record]);
 }

@@ -25,15 +25,24 @@
 //! No allocation or initialization is removed here, and no code is moved or cloned.
 //! Run after semantic memory lowering and allocation coalescing, before raw
 //! allocations lose their provenance. Facts do not cross caller block boundaries.
+//!
+//! With `-Zcheck-analyses`, a folded call with a result stays as the evidence of its fold, and the
+//! pass records its result equal to the constant, `assume eq readonly_eval, result, constant`,
+//! while every other use takes the constant. The call reads the allocation words the evaluation
+//! took from the stores before it, so the check tests that alias analysis was right that nothing
+//! between overwrote them, together with the evaluation itself. The call writes nothing on the path
+//! these arguments take, so running it again changes only gas. A folded void call returns nothing
+//! to compare and is removed as before.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module,
-    PtrLocation, Terminator, Value, ValueId,
+    ArgIdx, AssumePredicate, BlockId, Callee, FactSource, Function, FunctionId, Immediate, InstId,
+    InstKind, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
         MemoryLocation,
     },
     pass::{MirPass, ModuleAnalyses},
+    transform::lower_assumes::{record_fact, should_check_analyses},
     utils::eval,
 };
 use alloy_primitives::U256;
@@ -81,11 +90,13 @@ impl MirPass for ReadonlyEval {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         let mut changed = false;
+        let mut evidence = Vec::new();
         let mut values = FxHashMap::default();
         let mut dead = DenseBitSet::<InstId>::new_empty(0);
         for id in module.functions.indices() {
@@ -95,6 +106,7 @@ impl MirPass for ReadonlyEval {
             }
             let func = module.function_mut(id);
             values.clear();
+            evidence.clear();
             dead.clear_to(func.num_insts());
             // result = icall readonly(args); use result => use constant
             // icall checked_void(known_successful_args) => empty
@@ -104,6 +116,10 @@ impl MirPass for ReadonlyEval {
                     let immediate = Immediate::for_type(func.inst(inst).result_ty, word);
                     let value = func.alloc_value(Value::Immediate(immediate));
                     values.insert(result, value);
+                    if record {
+                        evidence.push((inst, result, value));
+                        continue;
+                    }
                 }
                 dead.insert(inst);
             }
@@ -113,6 +129,15 @@ impl MirPass for ReadonlyEval {
                 block.instructions.retain(|&inst| !dead.contains(inst));
             }
             func.replace_uses_canonicalized(&values);
+            if !evidence.is_empty() {
+                let blocks = func.inst_block_table();
+                for &(inst, result, constant) in &evidence {
+                    let block = blocks[inst].expect("a kept call is in a block");
+                    // assume eq readonly_eval, result, constant
+                    let source = FactSource::ReadonlyEval;
+                    record_fact(func, block, source, AssumePredicate::Eq, result, constant);
+                }
+            }
             changed = true;
         }
         changed

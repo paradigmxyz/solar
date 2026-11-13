@@ -86,6 +86,9 @@ pub(crate) fn emit_requested(
         capture_evm_ir.union_with(contracts);
     }
     let mut generated_bytecode_contracts = bytecode_contracts;
+    if gcx.sess.opts.unstable.emit_lean_stages.is_some() {
+        generated_bytecode_contracts.union_with(&ContractSelection::All);
+    }
     if has_disasm_dump(gcx)
         && let Some(contracts) = &dump_contracts
     {
@@ -117,6 +120,9 @@ pub(crate) fn emit_requested(
         emit_mir_pipeline_output(gcx, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     emit_combined_json(gcx, artifacts.as_ref())?;
+    if let Some(artifacts) = &artifacts {
+        emit_lean_manifests(gcx, artifacts)?;
+    }
     if let Some(contracts) = &dump_contracts
         && has_evm_ir_dump(gcx)
     {
@@ -132,6 +138,59 @@ pub(crate) fn emit_requested(
         )?;
     }
     Ok(artifacts)
+}
+
+/// Writes the manifest of every contract whose stages `-Zemit-lean-stages` wrote.
+fn emit_lean_manifests(
+    gcx: Gcx<'_>,
+    artifacts: &FxHashMap<ContractId, ContractArtifact>,
+) -> Result {
+    if gcx.sess.opts.unstable.emit_lean_stages.is_none() {
+        return Ok(());
+    }
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let sources = gcx
+        .hir
+        .source_ids()
+        .map(|id| {
+            let file = &gcx.hir.source(id).file;
+            (file.name.display().to_string(), file.src.as_bytes())
+        })
+        .collect();
+    let info = solar_codegen::lean_stages::ManifestInfo {
+        compiler: solar_config::version::solc_compat_version(),
+        arguments: &arguments,
+        sources,
+    };
+    let mut written = BTreeMap::new();
+    for (&id, artifact) in artifacts {
+        let name = gcx.hir.contract(id).name.as_str();
+        if let Some(other) = written.insert(name, id)
+            && other != id
+        {
+            return Err(gcx
+                .dcx()
+                .err(format!("-Zemit-lean-stages: two contracts are named `{name}`"))
+                .emit());
+        }
+        let immutables = artifact
+            .immutable_references
+            .iter()
+            .map(|reference| {
+                (reference.id, reference.start, usize::from(reference.type_size.bytes()))
+            })
+            .collect::<Vec<_>>();
+        solar_codegen::lean_stages::write_manifest(
+            gcx,
+            name,
+            &artifact.runtime,
+            !artifact.runtime_link_references.is_empty(),
+            &immutables,
+            &artifact.runtime_data,
+            &info,
+        )?;
+    }
+    Ok(())
 }
 
 fn emit_ir_input(gcx: Gcx<'_>) -> Result {
