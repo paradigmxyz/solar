@@ -586,8 +586,11 @@ fn external_calls_map_to_the_call_expression() {
             "bin,bin-runtime,srcmap-runtime,ethdebug-runtime",
             &[],
         );
+        let audited =
+            compile_files(&["src/Calls.sol"], mode, "bin,bin-runtime", &["-Zdebugify=report"]);
         for code in ["bin", "bin-runtime"] {
             assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+            assert_eq!(plain["contracts"][name][code], audited["contracts"][name][code], "{mode}");
         }
         let id = debug["sourceList"]
             .as_array()
@@ -614,7 +617,7 @@ fn external_calls_map_to_the_call_expression() {
             "token.transfer(to, 1)",
         ];
         assert_eq!(calls.len(), expressions.len(), "{mode}");
-        for (call, expression) in calls.into_iter().zip(expressions) {
+        for (call, expression) in calls.iter().copied().zip(expressions) {
             let start = source.find(expression).unwrap();
             let end = start + expression.len();
             assert_eq!(
@@ -627,5 +630,11 @@ fn external_calls_map_to_the_call_expression() {
                 "{mode}: {expression} has no instruction before its call"
             );
         }
+        // The success test of the `try` belongs to the statement, not to the call.
+        let statement = source.find("try token.transfer").unwrap();
+        let branch = (calls[2]..instructions.len())
+            .find(|&index| instructions[index]["operation"]["mnemonic"] == "JUMPI")
+            .unwrap();
+        assert_eq!(entries[branch][0], statement as i64, "{mode}: the `try` branch");
     }
 }
