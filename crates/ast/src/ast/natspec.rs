@@ -106,7 +106,8 @@ pub enum NatSpecKind {
     Return { name: Option<Ident> },
     /// `@inheritdoc <contract>`
     ///
-    /// Copies all tags from the base function. The `contract` field contains the contract name.
+    /// Copies all tags from the base function. The `contract` field contains the contract
+    /// reference: a contract name, or a path such as `M.Base` through an import namespace.
     Inheritdoc { contract: Ident },
     /// `@custom:<tag>`
     ///

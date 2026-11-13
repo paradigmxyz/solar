@@ -42,7 +42,10 @@
 //! existing data once more, without store runs, so linked bytecode can share storage, such as
 //! runtime code inside the creation code that contains it.
 
-use super::{EvmPass, utils::is_split_point};
+use super::{
+    EvmPass,
+    utils::{RunEvents, is_split_point},
+};
 use crate::{
     backend::evm::{
         ir::{
@@ -295,16 +298,17 @@ fn materialize_data(
     let changed = !prepared.is_empty();
     for (rewrite, data) in prepared.into_iter().rev() {
         let instructions = &mut module.blocks[rewrite.block].instructions;
-        // The copy carries every origin of the stores it replaces; their function events land
-        // on the copy itself, the last replacement.
+        // The copy carries every origin of the stores it replaces.
         // The first store seeds it, so that a store whose location was dropped or explained keeps
         // that kind instead of merging into the default kind of an empty seed.
         let mut metadata = Metadata::default();
         metadata.preserve_debug_loc(&instructions[rewrite.start].metadata);
         for inst in &instructions[rewrite.start..rewrite.end] {
             metadata.combine_debug_locs([&inst.metadata]);
-            metadata.move_function_events(&inst.metadata);
         }
+        let events = RunEvents::of(
+            instructions[rewrite.start..rewrite.end].iter().map(|inst| &inst.metadata),
+        );
         // <head>
         // push size
         // push data | calldatasize
@@ -324,7 +328,7 @@ fn materialize_data(
             .rposition(|inst| matches!(inst.opcode, op::CODECOPY | op::CALLDATACOPY))
             .unwrap();
         replacement[copy].metadata.combine_debug_locs([&metadata]);
-        replacement[copy].metadata.move_function_events(&metadata);
+        events.place(&mut replacement);
         instructions.splice(rewrite.start..rewrite.end, replacement);
     }
     changed

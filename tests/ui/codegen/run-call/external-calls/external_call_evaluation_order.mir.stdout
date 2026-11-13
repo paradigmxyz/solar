@@ -142,7 +142,7 @@ fn @dirtyGasOption() -> i1 [selector=0x494be41f, abi_params=[], abi_returns=[wor
     v3 = trunc i256 v2 to i8
     v4 = zext i8 v3 to i256
     v5 = abi_encode [word], object, selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args 0
-    v6 = address_call v0, v5, gas v4
+    v6 = extcall v0, v5, gas v4
     ret v6
 }
 
@@ -152,9 +152,10 @@ fn @dirtySend() -> i1 [selector=0x82ec93de, payable, abi_params=[], abi_returns=
     v0 = icall @dirtyUint8, 256
     v1 = trunc i256 v0 to i8
     v2 = zext i8 v1 to i256
-    v3 = icall send<>, i160 0xbeef, v2
-    v4 = ne v3, 0
-    ret v4
+    v3 = eq v2, 0
+    v4 = select v3, 0x8fc, 0
+    v5 = extcall i160 0xbeef, gas v4, value v2
+    ret v5
 }
 
 ; function dirtyIndex() external pure returns (uint256) [selector 0xe98f4d7c]

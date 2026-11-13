@@ -1,0 +1,12 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/call_return_stack_overflow.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/call_return_stack_overflow.evmir (after none) ===
+  @module module
+  bb0 [stack=1020]:
+    push bb2
+    jump bb1
+  bb1 [ret=0, inputs=1, outputs=6]:
+    jump
+  bb2 [continuation]:
+    stop
+  
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/validation/call_return_stack_overflow.evmir:module":{"bin-runtime":"6003565b"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}

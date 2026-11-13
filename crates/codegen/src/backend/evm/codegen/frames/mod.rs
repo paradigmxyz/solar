@@ -110,8 +110,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Records a function entry when debug output is requested.
-    pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(&mut self, func: &Function) {
+    /// Records a function entry when debug output is requested. `dispatched` tells that the
+    /// dispatcher or the deployment code enters `func`, not a call.
+    pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(
+        &mut self,
+        func: &Function,
+        dispatched: bool,
+    ) {
         if self.capture_debug_info
             && !func.declaration_span.is_dummy()
             && let Some(identifier) = func.debug_identifier
@@ -119,6 +124,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.mark_function_invoke(DebugFunction {
                 identifier,
                 declaration: func.declaration_span,
+                dispatched,
             });
         }
     }

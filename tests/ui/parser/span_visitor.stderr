@@ -78,7 +78,7 @@ note: span #13
    ╭▸ ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    │
 LL │     uint256 x;
-   ╰╴    ━━━━━━━━━━
+   ╰╴    ━━━━━━━━━
 
 note: span #14
    ╭▸ ROOT/tests/ui/parser/span_visitor.sol:LL:CC

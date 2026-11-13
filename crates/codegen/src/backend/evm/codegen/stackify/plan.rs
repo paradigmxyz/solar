@@ -12,7 +12,6 @@ use crate::{
             select::{InstKindOpcode, opcode_lowering, push_order, rematerializable_nullary_value},
             values::{gas_minus, late_gas_reads},
         },
-        ir::INDEXED_JUMP_STACK_GROWTH,
         op,
     },
     mir::{
@@ -41,20 +40,11 @@ struct Sim {
     stack: Layout,
     steps: Vec<Step>,
     cost: Cost,
-    /// The highest physical stack seen, counting the words below `stack`.
-    peak: usize,
-    /// Physical words below `stack` that a floating block's layout leaves out.
-    below: usize,
 }
 
 impl Sim {
     fn new(stack: Layout) -> Self {
-        Self::with_below(stack, 0)
-    }
-
-    fn with_below(stack: Layout, below: usize) -> Self {
-        let peak = below + stack.len();
-        Self { stack, steps: Vec::new(), cost: Cost::ZERO, peak, below }
+        Self { stack, steps: Vec::new(), cost: Cost::ZERO }
     }
 
     fn height(&self) -> usize {
@@ -71,15 +61,11 @@ impl Sim {
         self.stack.iter().filter(|&&slot| slot == Slot::Junk).count() as u32
     }
 
-    fn observe(&mut self, extra: usize) {
-        self.peak = self.peak.max(self.below + self.stack.len() + extra);
-    }
-
     /// Copies the state without the steps recorded so far.
     fn fork(&self) -> Self {
         let mut stack = Layout::with_capacity(self.stack.len() + FORK_HEADROOM);
         stack.extend_from_slice(&self.stack);
-        Self { stack, steps: Vec::new(), cost: self.cost, peak: self.peak, below: self.below }
+        Self { stack, steps: Vec::new(), cost: self.cost }
     }
 
     /// Makes this a fork of `other`, reusing its buffers.
@@ -89,8 +75,6 @@ impl Sim {
         self.stack.extend_from_slice(&other.stack);
         self.steps.clear();
         self.cost = other.cost;
-        self.peak = other.peak;
-        self.below = other.below;
     }
 
     /// Continues with a fork's state, appending its steps. The fork is left empty to reuse.
@@ -98,7 +82,6 @@ impl Sim {
         std::mem::swap(&mut self.stack, &mut fork.stack);
         self.steps.append(&mut fork.steps);
         self.cost = fork.cost;
-        self.peak = fork.peak;
     }
 }
 
@@ -157,10 +140,6 @@ const FORK_HEADROOM: usize = 8;
 /// Most opcodes recomputing one value live across a write that may reach the spill area.
 const MAX_RECOMPUTED_OPS: u32 = 4;
 
-/// Most words a switch dispatch holds above its selector: the jump-table index computed from a
-/// copy of the selector, and the words the indexed jump holds above that index.
-const SWITCH_DISPATCH_WORDS: usize = 1 + INDEXED_JUMP_STACK_GROWTH;
-
 /// What planning has decided so far, kept when a plan fails so that the next attempt can resume
 /// from the first block the new spills affect instead of planning the function again.
 ///
@@ -174,10 +153,7 @@ pub(super) struct Progress {
     layouts: IndexVec<BlockId, Option<Layout>>,
     blocks: IndexVec<BlockId, Option<BlockPlan>>,
     natural: FxHashMap<BlockId, Layout>,
-    floating_below: IndexVec<BlockId, usize>,
     pending: FxHashMap<BlockId, Vec<Pending>>,
-    peak: usize,
-    calls: Vec<(FunctionId, usize)>,
     cost: Cost,
     non_loop_gas: u32,
     journal: Vec<Undo>,
@@ -189,14 +165,12 @@ impl Progress {
     /// block that failed when the plan did not get that far.
     pub(super) fn rewind(&mut self, start: usize) {
         let start = start.min(self.marks.len().saturating_sub(1));
-        let Some(&Mark { journal, calls, cost, non_loop_gas, peak, .. }) = self.marks.get(start)
-        else {
+        let Some(&Mark { journal, cost, non_loop_gas, .. }) = self.marks.get(start) else {
             return;
         };
         for undo in self.journal.drain(journal..).rev() {
             match undo {
                 Undo::Layout(block) => self.layouts[block] = None,
-                Undo::FloatingBelow(block, below) => self.floating_below[block] = below,
                 Undo::Deferred(join) => {
                     let Entry::Occupied(mut edges) = self.pending.entry(join) else {
                         unreachable!("deferred edge without its join")
@@ -228,10 +202,8 @@ impl Progress {
         for mark in self.marks.drain(start..) {
             self.blocks[mark.block] = None;
         }
-        self.calls.truncate(calls);
         self.cost = cost;
         self.non_loop_gas = non_loop_gas;
-        self.peak = peak;
     }
 }
 
@@ -239,8 +211,6 @@ impl Progress {
 enum Undo {
     /// The block's layout was chosen.
     Layout(BlockId),
-    /// The words below the block's layout were raised from this count.
-    FloatingBelow(BlockId, usize),
     /// An edge into the join was recorded.
     Deferred(BlockId),
     /// The join took its recorded edges.
@@ -258,10 +228,8 @@ enum Undo {
 struct Mark {
     block: BlockId,
     journal: usize,
-    calls: usize,
     cost: Cost,
     non_loop_gas: u32,
-    peak: usize,
 }
 
 /// A planned function together with the layouts its loop latches would choose.
@@ -332,9 +300,6 @@ pub(super) struct Planner<'a> {
     /// Blocks that never return through the caller's address and leave no loop: their layouts
     /// constrain only the words at the top of the stack.
     floating: DenseBitSet<BlockId>,
-    /// Physical words below a floating block's layout on its deepest entry, which stack heights
-    /// planned from that layout leave out.
-    floating_below: IndexVec<BlockId, usize>,
     /// Number of forward (non-back) edges into each block.
     forward_preds: IndexVec<BlockId, u32>,
     /// Edges into joins whose layout waits until every forward predecessor is planned.
@@ -360,8 +325,6 @@ pub(super) struct Planner<'a> {
     tie_base: RefCell<Sim>,
     /// The operand order the next `prepare_any` with several orders must use.
     forced_order: Cell<Option<usize>>,
-    peak: usize,
-    calls: Vec<(FunctionId, usize)>,
     cost: Cost,
     non_loop_gas: u32,
     /// How to revert each change to the state that outlives a block, in order.
@@ -454,19 +417,17 @@ impl<'a> Planner<'a> {
             }
         }
         // A read of the multi-return buffer that no call binds may observe the results of a
-        // call whose protocol is not adjacent to it, so such calls publish their results.
+        // call whose protocol is not adjacent to it, so such calls publish their results. A
+        // recursive callee publishes to the return area of its fixed frame too: its activations
+        // return on the stack and never use that area, and the frame's spills and locals lie
+        // above it.
         let mut publish = DenseBitSet::new_empty(func.num_insts());
-        if func.instructions().any(|inst| {
-            !skipped.contains(inst)
-                && matches!(func.inst(inst).kind, InstKind::Load(addr, PtrLocation::Memory)
-                    if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
-        }) {
+        if func.instructions().any(|inst| unbound_buffer_read(func, &skipped, inst)) {
+            let blocks = func.inst_block_table();
             for (&inst, extras) in &projections {
-                if extras.iter().all(Option::is_none) {
-                    let (callee, _) = icall(&func.inst(inst).kind).unwrap();
-                    if info.components[callee].is_some() {
-                        return Err("recursive multi-word call through memory");
-                    }
+                if extras.iter().all(Option::is_none)
+                    && reaches_unbound_buffer_read(func, cfg, &skipped, &blocks, inst)
+                {
                     publish.insert(inst);
                 }
             }
@@ -635,7 +596,6 @@ impl<'a> Planner<'a> {
             executions,
             backedges,
             floating,
-            floating_below: index_vec![0; func.blocks.len()],
             forward_preds,
             pending: FxHashMap::default(),
             plain_trial: None,
@@ -647,8 +607,6 @@ impl<'a> Planner<'a> {
             tie: Cell::new(None),
             tie_base: RefCell::default(),
             forced_order: Cell::new(None),
-            peak: 0,
-            calls: Vec::new(),
             cost: Cost::ZERO,
             non_loop_gas: 0,
             journal: Vec::new(),
@@ -670,10 +628,7 @@ impl<'a> Planner<'a> {
             self.layouts = progress.layouts;
             self.blocks = progress.blocks;
             self.natural = progress.natural;
-            self.floating_below = progress.floating_below;
             self.pending = progress.pending;
-            self.peak = progress.peak;
-            self.calls = progress.calls;
             self.cost = progress.cost;
             self.non_loop_gas = progress.non_loop_gas;
             self.journal = progress.journal;
@@ -684,10 +639,7 @@ impl<'a> Planner<'a> {
                 layouts: self.layouts,
                 blocks: self.blocks,
                 natural: self.natural,
-                floating_below: self.floating_below,
                 pending: self.pending,
-                peak: self.peak,
-                calls: self.calls,
                 cost: self.cost,
                 non_loop_gas: self.non_loop_gas,
                 journal: self.journal,
@@ -699,8 +651,6 @@ impl<'a> Planner<'a> {
             blocks: self.blocks,
             spilled: self.spilled.clone(),
             ret_spilled: self.ret_spilled,
-            peak: self.peak,
-            calls: self.calls,
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
@@ -715,10 +665,8 @@ impl<'a> Planner<'a> {
             self.marks.push(Mark {
                 block,
                 journal: self.journal.len(),
-                calls: self.calls.len(),
                 cost: self.cost,
                 non_loop_gas: self.non_loop_gas,
-                peak: self.peak,
             });
             self.current.set(block);
             self.resolve_join(block)?;
@@ -727,7 +675,7 @@ impl<'a> Planner<'a> {
                 None if block == BlockId::ENTRY => self.entry_layout(),
                 None => return Err(Fail::Unsupported("block without a planned predecessor")),
             };
-            let mut sim = Sim::with_below(layout, self.floating_below[block]);
+            let mut sim = Sim::new(layout);
             if block == BlockId::ENTRY {
                 if self.ret_spilled {
                     // [args, return] -> [args]
@@ -740,10 +688,6 @@ impl<'a> Planner<'a> {
             let terminator_start = sim.steps.len();
             let exit = self.plan_terminator(&mut sim, block)?;
             self.charge(&sim, block);
-            self.calls.extend(sim.steps.iter().filter_map(|step| match *step {
-                Step::Call(callee, base) => Some((callee, base)),
-                _ => None,
-            }));
             self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
         }
         Ok(())
@@ -1405,13 +1349,12 @@ impl<'a> Planner<'a> {
             .with_steps(cost.steps.saturating_mul(self.executions[block]))
     }
 
-    /// Adds the cost of code planned in `block` and raises the peak to its stack.
+    /// Adds the cost of code planned in `block`.
     fn charge(&mut self, sim: &Sim, block: BlockId) {
         self.cost += self.weigh(sim.cost, block);
         if !self.cfg.cyclic_blocks().contains(block) {
             self.non_loop_gas = self.non_loop_gas.saturating_add(self.target.runtime_gas(sim.cost));
         }
-        self.peak = self.peak.max(sim.peak);
     }
 
     fn entry_layout(&self) -> Layout {
@@ -1571,7 +1514,6 @@ impl<'a> Planner<'a> {
             .or_else(|| self.target.stack_op(op))
             .expect("stack operation within reach");
         sim.steps.push(Step::Stack(op));
-        sim.observe(0);
         Ok(())
     }
 
@@ -1651,7 +1593,6 @@ impl<'a> Planner<'a> {
             sim.steps.push(Step::Materialize(value));
         }
         sim.stack.push(Slot::Value(value));
-        sim.observe(1);
     }
 
     fn is_fresh(&self, value: ValueId) -> bool {
@@ -1690,7 +1631,6 @@ impl<'a> Planner<'a> {
                 sim.cost += StackCosts::DIRECT_LOAD;
                 sim.steps.push(Step::ReloadRet);
                 sim.stack.push(Slot::Ret);
-                sim.observe(1);
             }
             Slot::Junk | Slot::Saved(_) => unreachable!("no fresh copy"),
         }
@@ -1709,7 +1649,6 @@ impl<'a> Planner<'a> {
         sim.stack.pop();
         sim.cost += StackCosts::DIRECT_STORE;
         sim.steps.push(Step::Spill(value));
-        sim.observe(1);
     }
 
     fn spill_ret_top(&self, sim: &mut Sim) {
@@ -1718,7 +1657,6 @@ impl<'a> Planner<'a> {
         sim.stack.pop();
         sim.cost += StackCosts::DIRECT_STORE;
         sim.steps.push(Step::SpillRet);
-        sim.observe(1);
     }
 
     /// Pushes a copy of `value`: a fresh materialization or a `DUP` of its shallowest copy.
@@ -1741,7 +1679,6 @@ impl<'a> Planner<'a> {
         sim.cost += self.target.push(U256::ZERO);
         sim.steps.push(Step::Filler);
         sim.stack.push(Slot::Junk);
-        sim.observe(0);
     }
 
     fn pop_top_junk(&self, sim: &mut Sim) -> Result<(), Fail> {
@@ -2318,8 +2255,7 @@ impl<'a> Planner<'a> {
             let ops: Operands = args.iter().rev().copied().collect();
             self.prepare(sim, &ops, &dying)?;
             let base = sim.height() - args.len();
-            sim.observe(2);
-            sim.steps.push(Step::Call(callee, sim.below + base));
+            sim.steps.push(Step::Call(callee));
             sim.cost += StackCosts::INTERNAL_CALL;
             sim.stack.truncate(base);
             let arity = self.info.returns[callee];
@@ -2333,15 +2269,18 @@ impl<'a> Planner<'a> {
                 let live = value.filter(|&value| self.used_later(block, uses, value));
                 sim.stack.push(live.map_or(Slot::Junk, Slot::Value));
             }
-            sim.observe(0);
             if self.publish.contains(inst) {
                 // [result(m-1), ..., result1, result0] -> [result0], storing result1.. to the
                 // callee's return area
-                sim.steps.push(Step::Publish { callee, arity, params: self.info.params[callee] });
+                sim.steps.push(Step::Publish {
+                    inst,
+                    callee,
+                    arity,
+                    params: self.info.params[callee],
+                });
                 let top = sim.stack.pop().unwrap();
                 sim.stack.truncate(sim.stack.len() + 1 - arity);
                 sim.stack.push(top);
-                sim.observe(2);
                 sim.cost += self
                     .target
                     .opcode(op::SWAP1)
@@ -2407,7 +2346,6 @@ impl<'a> Planner<'a> {
             InstKind::Select(..) => {
                 // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
                 self.prepare(sim, &push_order, &dying)?;
-                sim.observe(1);
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.select_stack_ops();
                 sim.stack.truncate(sim.stack.len() - 3);
@@ -2416,7 +2354,6 @@ impl<'a> Planner<'a> {
             InstKind::DataCopy(_, dest, size) => {
                 // [size, dest] -> push_data data; swap1; codecopy
                 self.prepare(sim, &[*size, *dest], &dying)?;
-                sim.observe(1);
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.opcode(op::SWAP1);
                 sim.stack.truncate(sim.stack.len() - 2);
@@ -2456,7 +2393,6 @@ impl<'a> Planner<'a> {
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.opcode(op::PUSH2);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
-                sim.observe(0);
             }
             InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd => {
                 // push base; [push offset; codesize; sub; add]
@@ -2470,7 +2406,6 @@ impl<'a> Planner<'a> {
                         .plus(self.target.opcode(op::SUB).plus(self.target.opcode(op::ADD)));
                 }
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
-                sim.observe(2);
             }
             InstKind::LoadImmutable(_) | InstKind::HeapFloor => {
                 // A heap floor in a constructor is recomputed from the argument blob.
@@ -2478,7 +2413,6 @@ impl<'a> Planner<'a> {
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.opcode(push);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
-                sim.observe(1);
             }
             _ => {
                 let Some(lowering) = opcode_lowering(&kind.op()) else {
@@ -2511,7 +2445,6 @@ impl<'a> Planner<'a> {
         for _ in 0..pushes {
             sim.stack.push(Slot::Junk);
         }
-        sim.observe(0);
     }
 
     fn set_top_result(&self, sim: &mut Sim, result: Option<ValueId>) {
@@ -2585,8 +2518,6 @@ impl<'a> Planner<'a> {
                     // [...] -> [arg(n-1), ..., arg0, return]; jump callee
                     let (callee, args) = icall(&func.inst(call).kind).unwrap();
                     self.shuffle(sim, &with_return_address(args))?;
-                    self.calls.push((callee, 0));
-                    sim.observe(1);
                     return Ok(Exit::TailCall { callee, origin: Some(call) });
                 }
                 // [..., return] -> [result(m-1), ..., result0, return]
@@ -2601,29 +2532,22 @@ impl<'a> Planner<'a> {
                 self.prepare(sim, &[*recipient], &dying)?;
                 Ok(Exit::Terminal)
             }
-            Terminator::RevertReturndata => {
-                sim.observe(3);
+            Terminator::RevertReturndata | Terminator::Stop | Terminator::Invalid => {
                 Ok(Exit::Terminal)
             }
-            Terminator::Stop | Terminator::Invalid => Ok(Exit::Terminal),
             Terminator::TailCall { function, args } => {
                 let callee = *function;
-                let base;
                 if self.info.returning.contains(callee) && self.has_ret {
                     // [...] -> [arg(n-1), ..., arg0, return]
                     self.shuffle(sim, &with_return_address(args))?;
-                    base = 0;
                 } else {
                     let ops: Operands = args.iter().rev().copied().collect();
                     self.prepare(sim, &ops, &dying)?;
-                    base = sim.height() - args.len();
                     if self.info.returning.contains(callee) {
                         // This body has no return address to forward.
                         self.filler(sim);
                     }
                 }
-                self.calls.push((callee, sim.below + base));
-                sim.observe(1);
                 Ok(Exit::TailCall { callee, origin: None })
             }
         }
@@ -2791,12 +2715,10 @@ impl<'a> Planner<'a> {
         } else {
             let layout = self.adopt(sim, pred, succ)?;
             self.set_layout(succ, layout);
-            self.note_entry(succ, sim);
             return Ok(());
         };
         let target = self.edge_target(pred, succ, &layout, sim.height());
         self.shuffle_edge(sim, pred, succ, target)?;
-        self.note_entry(succ, sim);
         Ok(())
     }
 
@@ -2815,19 +2737,6 @@ impl<'a> Planner<'a> {
         {
             self.natural.insert(succ, layout);
             self.journal.push(Undo::Natural(succ));
-        }
-    }
-
-    /// Raises the physical words below the layout of `succ` to cover an edge that leaves the
-    /// stack of `sim`.
-    fn note_entry(&mut self, succ: BlockId, sim: &Sim) {
-        if let Some(layout) = &self.layouts[succ] {
-            let below = sim.below + sim.height().saturating_sub(layout.len());
-            let old = self.floating_below[succ];
-            if below > old {
-                self.floating_below[succ] = below;
-                self.journal.push(Undo::FloatingBelow(succ, old));
-            }
         }
     }
 
@@ -2926,7 +2835,6 @@ impl<'a> Planner<'a> {
             match edge.side {
                 None => {
                     self.shuffle_edge(&mut sim, edge.pred, join, target)?;
-                    self.note_entry(join, &sim);
                     self.charge(&sim, edge.pred);
                     let plan = self.blocks[edge.pred].as_mut().expect("planned predecessor");
                     self.journal.push(Undo::Steps(edge.pred, plan.steps.len()));
@@ -2934,7 +2842,6 @@ impl<'a> Planner<'a> {
                 }
                 Some(then) => {
                     if self.satisfies(&sim, edge.pred, join) {
-                        self.note_entry(join, &sim);
                         continue;
                     }
                     self.jump_edge(&mut sim, edge.pred, join)?;
@@ -3233,17 +3140,15 @@ impl<'a> Planner<'a> {
         }
         if self.layouts[succ].is_some() {
             if self.satisfies(sim, pred, succ) {
-                self.note_entry(succ, sim);
                 return Ok(Edge { target: succ, trampoline: None });
             }
         } else if let Some(mut view) = self.view(sim, pred, succ) {
             let cut = self.floating_cut(succ, &view);
             view.drain(..cut);
             self.set_layout(succ, view);
-            self.note_entry(succ, sim);
             return Ok(Edge { target: succ, trampoline: None });
         }
-        let mut trampoline = Sim::with_below(sim.stack.clone(), sim.below);
+        let mut trampoline = Sim::new(sim.stack.clone());
         self.jump_edge(&mut trampoline, pred, succ)?;
         trampoline.cost += StackCosts::EDGE_JUMP;
         self.charge(&trampoline, pred);
@@ -3426,7 +3331,6 @@ impl<'a> Planner<'a> {
             }
         }
         self.prepare(sim, &[value], &dying)?;
-        sim.observe(SWITCH_DISPATCH_WORDS);
         if entry_mode {
             *sim.stack.last_mut().unwrap() = Slot::Junk;
         } else {
@@ -3446,10 +3350,8 @@ impl<'a> Planner<'a> {
                     None => false,
                 },
             };
-            if direct {
-                self.note_entry(target, sim);
-            } else {
-                let mut trampoline = Sim::with_below(sim.stack.clone(), sim.below);
+            if !direct {
+                let mut trampoline = Sim::new(sim.stack.clone());
                 self.jump_edge(&mut trampoline, block, target)?;
                 trampoline.cost += StackCosts::EDGE_JUMP;
                 self.charge(&trampoline, block);
@@ -3660,6 +3562,63 @@ pub(super) fn call_projection(
     Some(Projection { elided, extras, tracked })
 }
 
+/// Whether `inst` reads the multi-return buffer pointer outside the protocol of any call.
+fn unbound_buffer_read(func: &Function, skipped: &DenseBitSet<InstId>, inst: InstId) -> bool {
+    !skipped.contains(inst)
+        && matches!(func.inst(inst).kind, InstKind::Load(addr, PtrLocation::Memory)
+            if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
+}
+
+/// Whether a read of the multi-return buffer pointer that no call binds is reachable from
+/// `call` along a path that does not first overwrite the whole word. Only such reads can observe
+/// the call's results, so a call that reaches none, such as one on another branch than an ABI
+/// decoder reading the scratch word at the same address, need not publish them.
+fn reaches_unbound_buffer_read(
+    func: &Function,
+    cfg: &CfgInfo,
+    skipped: &DenseBitSet<InstId>,
+    blocks: &IndexVec<InstId, Option<BlockId>>,
+    call: InstId,
+) -> bool {
+    let slot = EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT;
+    // Scans `insts`: Some(true) at a read, Some(false) at a full overwrite of the word, None
+    // when control leaves the block with the word unchanged.
+    let scan = |insts: &[InstId]| {
+        insts.iter().find_map(|&inst| {
+            if unbound_buffer_read(func, skipped, inst) {
+                return Some(true);
+            }
+            match func.inst(inst).kind {
+                InstKind::Store(addr, _, PtrLocation::Memory)
+                    if func.value_u64(addr) == Some(slot) =>
+                {
+                    Some(false)
+                }
+                _ => None,
+            }
+        })
+    };
+    let block = blocks[call].expect("a projected call is in a block");
+    let insts = &func.blocks[block].instructions;
+    let position = insts.iter().position(|&inst| inst == call).unwrap();
+    if let Some(found) = scan(&insts[position + 1..]) {
+        return found;
+    }
+    let mut visited = DenseBitSet::new_empty(func.blocks.len());
+    let mut worklist = cfg.successors(block).to_vec();
+    while let Some(block) = worklist.pop() {
+        if !visited.insert(block) {
+            continue;
+        }
+        match scan(&func.blocks[block].instructions) {
+            Some(true) => return true,
+            Some(false) => {}
+            None => worklist.extend_from_slice(cfg.successors(block)),
+        }
+    }
+    false
+}
+
 /// Values computed by stable single-opcode arithmetic, calldata loads, and casts from words
 /// pushed fresh at no risk of change: immediates, calldata words, stable environment reads,
 /// and data sizes. Maps each to the cost and opcode count of recomputing it, at most
@@ -3829,8 +3788,6 @@ pub(super) fn same_outcome(a: &Result<Planned, Fail>, b: &Result<Planned, Fail>)
     match (a, b) {
         (Ok(a), Ok(b)) => {
             a.plan.blocks == b.plan.blocks
-                && a.plan.peak == b.plan.peak
-                && a.plan.calls == b.plan.calls
                 && a.plan.cost == b.plan.cost
                 && a.plan.non_loop_gas == b.plan.non_loop_gas
                 && a.natural == b.natural

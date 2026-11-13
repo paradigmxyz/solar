@@ -1,0 +1,29 @@
+//@ filecheck:
+// The address of the first variable of a tuple declaration, and of a single one, has no state
+// mutability, and that of the second has.
+// CHECK: "name": "a"
+// CHECK: "name": "address"
+// CHECK-NOT: "stateMutability"
+// CHECK: "name": "b"
+// CHECK: "name": "address"
+// CHECK: "stateMutability": "nonpayable"
+// An inline array has the common mobile type of its elements, and the error call that `require`
+// takes in parentheses has the type `error`. A comparison array is an array of bool.
+// CHECK: "typeIdentifier": "t_array$_t_uint8_$2_memory_ptr"
+// CHECK: "typeIdentifier": "t_array$_t_array$_t_uint8_$2_memory_ptr_$2_memory_ptr"
+// CHECK: "typeIdentifier": "t_array$_t_uint8_$3_memory_ptr"
+// CHECK: "typeIdentifier": "t_array$_t_uint16_$2_memory_ptr"
+// CHECK: "typeIdentifier": "t_array$_t_bool_$2_memory_ptr"
+// CHECK: "typeIdentifier": "t_error"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

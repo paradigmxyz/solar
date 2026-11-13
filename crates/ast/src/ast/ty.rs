@@ -359,6 +359,15 @@ impl<'ast> TypeFunction<'ast> {
         self.state_mutability.map(Spanned::into_inner).unwrap_or(StateMutability::NonPayable)
     }
 
+    /// Returns the visibility of the function type: `external` or, for every other visibility,
+    /// which the AST validator reports, `internal`.
+    pub fn visibility_or_default(&self) -> Visibility {
+        match self.visibility() {
+            Some(Visibility::External) => Visibility::External,
+            _ => Visibility::Internal,
+        }
+    }
+
     pub fn returns(&self) -> &[crate::VariableDefinition<'ast>] {
         self.returns.as_ref().map(|pl| &pl.vars[..]).unwrap_or(&[])
     }

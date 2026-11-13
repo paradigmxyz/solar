@@ -3,14 +3,12 @@
   @module PayableCalls
   fn @send_value(arg0: i160, arg1: i256) -> i256 {
     bb0:
--     v0 = icall send<>, arg0, arg1 !metadata(span=10..20, modifier_depth=2)
--     ret v0
-+     v1 = eq arg1, 0 !metadata(span=10..20, modifier_depth=2)
-+     v2 = select v1, 0x8fc, 0 !metadata(span=10..20, modifier_depth=2)
-+     v3 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
-+     v4 = call v2, v3, arg1, 0, 0, 0, 0 !metadata(span=10..20, modifier_depth=2)
-+     v5 = zext i1 v4 to i256 !metadata(span=10..20, modifier_depth=2)
-+     ret v5
+-     v0 = extcall arg0, gas 0x8fc, value arg1 !metadata(span=10..20, modifier_depth=2)
+-     v1 = zext i1 v0 to i256
++     v2 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
++     v3 = call 0x8fc, v2, arg1, 0, 0, 0, 0 !metadata(span=10..20, modifier_depth=2)
++     v1 = zext i1 v3 to i256
+      ret v1
   }
   
   fn @transfer_value(arg0: i1, arg1: i160, arg2: i256) -> i256 {
@@ -19,35 +17,20 @@
     bb2:                                            ; preds = bb0
       jump bb3
     bb1:                                            ; preds = bb0
--     icall transfer<>, arg1, arg2 !metadata(span=30..40, modifier_depth=3)
--     v0 = icall send<>, arg1, 0
--     icall transfer<>, arg1, 1
-+     v2 = eq arg2, 0 !metadata(span=30..40, modifier_depth=3)
-+     v3 = select v2, 0x8fc, 0 !metadata(span=30..40, modifier_depth=3)
-+     v4 = zext i160 arg1 to i256 !metadata(span=30..40, modifier_depth=3)
-+     v5 = call v3, v4, arg2, 0, 0, 0, 0 !metadata(span=30..40, modifier_depth=3)
-+     jumpi v5, bb5, bb4 !metadata(span=30..40, modifier_depth=3)
-+   bb4 [cold]:                                     ; preds = bb1
-+     revert_returndata !metadata(span=30..40, modifier_depth=3)
-+   bb5:                                            ; preds = bb1
-+     v6 = eq 0, 0
-+     v7 = select v6, 0x8fc, 0
-+     v8 = zext i160 arg1 to i256
-+     v9 = call v7, v8, 0, 0, 0, 0, 0
-+     v10 = zext i1 v9 to i256
-+     v11 = eq 1, 0
-+     v12 = select v11, 0x8fc, 0
-+     v13 = zext i160 arg1 to i256
-+     v14 = call v12, v13, 1, 0, 0, 0, 0
-+     jumpi v14, bb7, bb6
-+   bb6 [cold]:                                     ; preds = bb5
-+     revert_returndata
-+   bb7:                                            ; preds = bb5
+-     v0 = extcall arg1, gas 0x8fc, value arg2 !metadata(span=30..40, modifier_depth=3)
+-     v1 = extcall arg1, gas 0x8fc, value 0
+-     v2 = zext i1 v1 to i256
+-     v3 = extcall arg1, gas 0, value 1
++     v5 = zext i160 arg1 to i256 !metadata(span=30..40, modifier_depth=3)
++     v6 = call 0x8fc, v5, arg2, 0, 0, 0, 0 !metadata(span=30..40, modifier_depth=3)
++     v7 = zext i160 arg1 to i256
++     v8 = call 0x8fc, v7, 0, 0, 0, 0, 0
++     v2 = zext i1 v8 to i256
++     v9 = zext i160 arg1 to i256
++     v10 = call 0, v9, 1, 0, 0, 0, 0
       jump bb3
--   bb3:                                            ; preds = bb1, bb2
--     v1 = phi [bb1: v0], [bb2: 0]
-+   bb3:                                            ; preds = bb7, bb2
-+     v1 = phi [bb7: v10], [bb2: 0]
-      ret v1
+    bb3:                                            ; preds = bb1, bb2
+      v4 = phi [bb1: v2], [bb2: 0]
+      ret v4
   }
   

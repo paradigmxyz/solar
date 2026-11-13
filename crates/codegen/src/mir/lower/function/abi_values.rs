@@ -361,30 +361,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         data_ptr: ValueId,
         data_len: ValueId,
-        selector_matches: ValueId,
     ) -> ValueId {
-        // valid = selector_matches ? try_decode_error_message(data) : false
-        let validate = self.builder.create_block();
-        let no_match = self.builder.create_block();
-        let done = self.builder.create_block();
-        self.builder.branch(selector_matches, validate, no_match);
-
-        self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
         // pointer = ptrtoint data to i256
         // valid = icall try_decode_error_message, pointer, length
         let data_ptr = self.builder.cast(data_ptr, MirType::I256);
-        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
-        let valid_block = self.builder.current_block();
-        self.builder.jump(done);
-
-        self.builder.switch_to_block(no_match);
-        let no_match_value = self.builder.imm_bool(false);
-        let no_match_block = self.builder.current_block();
-        self.builder.jump(done);
-
-        self.builder.switch_to_block(done);
-        self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+        self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1)
     }
 
     /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper.
@@ -441,9 +423,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .expect("error catch match helper construction cannot fail")
     }
 
-    pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let payload_ptr = self.builder.memory_data_at(data, 4);
-        self.builder.load(payload_ptr, PtrLocation::Memory)
+    /// Reads the code of a `Panic(uint256)` payload through scratch memory.
+    pub(super) fn lower_panic_catch_scratch_word(&mut self) -> ValueId {
+        // returndatacopy(0, 4, 32)
+        // code = mload(0)
+        let zero = self.builder.imm(U256::ZERO);
+        let four = self.builder.imm(4);
+        let word = self.builder.imm(32);
+        self.builder.copy(zero, four, word, PtrLocation::Returndata);
+        self.builder.load(zero, PtrLocation::Memory)
     }
 
     pub(super) fn lower_abi_encode_packed(
@@ -941,51 +929,69 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.cx.gcx.types.bytes_ref.memory;
-        // input = materialize(bytes)
+        // input = stage(bytes)
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
             let input = self.operand(input)?.id();
-            // The precompile consumes the bytes synchronously. Like low-level call input,
-            // this range needs neither a length header nor a reserved memory object.
-            // source = slice_ptr input
-            // length = slice_len input
-            // data = fmp
-            // calldatacopy data, source, length
-            // input = make_memory_slice data, length
-            let source = self.builder.slice_ptr(input);
-            let length = self.builder.slice_len(input);
-            let data = self.builder.fmp();
-            self.builder.copy_heap(data, source, length, PtrLocation::Calldata);
-            self.builder.make_slice(data, length, PtrLocation::Memory)
+            self.builder.stage_bytes(input)
         } else {
             let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, input, span)?
         };
-        // result = sha256(input) / ripemd160(input)
-        let kind = if builtin == Builtin::Sha256 {
-            InstKind::builtin(crate::mir::Builtin::Sha256, [input])
+        // The digest is a full word, so it can land in scratch memory.
+        // success = extcall static word (sha256 ? 2 : 3), input
+        // branch success, done, failed
+        // failed: revert_returndata
+        // done: digest = mload 0
+        let ripemd = builtin == Builtin::Ripemd160;
+        let address = self.builder.imm(if ripemd { 3 } else { 2 });
+        let policy = CallPolicy { kind: ExtCallKind::Static, output: CallOutput::Word };
+        let success = self.builder.extcall(policy, address, Some(input), None, None);
+        let digest = self.load_call_word(success);
+        if ripemd {
+            // result = digest << 96
+            let scale = self.builder.imm(1_u128 << 96);
+            Some(self.builder.mul(scale, digest))
         } else {
-            InstKind::builtin(crate::mir::Builtin::Ripemd160, [input])
-        };
-        Some(self.builder.emit_inst(kind, Some(MirType::I256)))
+            Some(digest)
+        }
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'gcx>) -> Option<ValueId> {
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
-        let hash = &values[0];
-        let v = &values[1];
-        let r = &values[2];
-        let s = &values[3];
-        let hash = self.operand(hash)?.id();
-        let v = self.operand(v)?.id();
-        let r = self.operand(r)?.id();
-        let s = self.operand(s)?.id();
+        let values = values
+            .iter()
+            .map(|value| self.operand(value).map(|operand| operand.id()))
+            .collect::<Option<Vec<_>>>()?;
+        // A rejected signature returns no data, so the output word is cleared first.
+        // base = fmp
+        // mstore(base, hash), mstore(base + 32, v), mstore(base + 64, r), mstore(base + 96, s)
+        // input = make_memory_slice base, 128
+        // success = extcall static word 1, input
+        // branch success, done, failed
+        // failed: revert_returndata
+        // done: result = mload 0
+        let base = self.builder.fmp();
+        let words = self.builder.cast_word(base);
+        for (offset, value) in (0..).step_by(32).zip(values) {
+            let address = self.builder.add_offset(words, offset);
+            let value = self.builder.cast_word(value);
+            self.builder.store(address, value);
+        }
+        let size = self.builder.imm(128);
+        let input = self.builder.make_slice(base, size, PtrLocation::Memory);
+        let address = self.builder.imm(1);
+        let policy = CallPolicy { kind: ExtCallKind::Static, output: CallOutput::Word };
+        let success = self.builder.extcall(policy, address, Some(input), None, None);
+        Some(self.load_call_word(success))
+    }
 
-        // result = ecrecover(hash, v, r, s)
-        Some(self.builder.emit_inst(
-            InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
-            Some(MirType::I256),
-        ))
+    /// Reverts with the returndata of a failed call, and otherwise loads the word that a call with
+    /// a word output left in scratch memory.
+    fn load_call_word(&mut self, success: ValueId) -> ValueId {
+        self.builder.revert_returndata_unless(success);
+        let scratch = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+        self.builder.load(scratch, PtrLocation::Memory)
     }
 
     /// `keccak256(abi.encode(..))` of one or two value-type words, hashed in scratch space like
@@ -1027,7 +1033,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 }
 
 /// Whether the type is a calldata reference or a slice of one.
-fn lies_in_calldata(ty: Ty<'_>) -> bool {
+pub(super) fn lies_in_calldata(ty: Ty<'_>) -> bool {
     match ty.kind {
         TyKind::Slice(inner) => inner.is_ref_at(DataLocation::Calldata),
         _ => ty.is_ref_at(DataLocation::Calldata),

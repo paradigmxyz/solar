@@ -1,0 +1,22 @@
+// Only `stopAfter: parsing` turns an import of a source that cannot be read into a warning.
+// CHECK: "severity": "error"
+// CHECK: "message": "couldn't read missing.sol: File not found.",
+// CHECK-NOT: "ast"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"./missing.sol\"; contract C {}"
+    }
+  },
+  "settings": {
+    "stopAfter": "lowering",
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

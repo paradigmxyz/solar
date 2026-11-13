@@ -678,23 +678,23 @@ fn @checkAddresses(arg0: i256) -> i1 [selector=0x6714a02d, abi_params=[uint256],
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
-    v15 = phi [bb0: 0], [bb3: v51]
+    v15 = phi [bb0: 0], [bb3: v41]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v52 = icall @load_storage_packed_array_20_0, 6
-    v53 = abi_encode [memory_array<word<uint160>>], scratch, args v52
-    v54 = extract_value slice<memory>, v53, 0
-    v55 = extract_value slice<memory>, v53, 1
-    v56 = keccak256 v54, v55
-    v57 = abi_encode [memory_array<word<uint160>>], scratch, args v14
-    v58 = extract_value slice<memory>, v57, 0
-    v59 = extract_value slice<memory>, v57, 1
-    v60 = keccak256 v58, v59
-    v61 = eq v56, v60
-    ret v61
+    v42 = icall @load_storage_packed_array_20_0, 6
+    v43 = abi_encode [memory_array<word<uint160>>], scratch, args v42
+    v44 = extract_value slice<memory>, v43, 0
+    v45 = extract_value slice<memory>, v43, 1
+    v46 = keccak256 v44, v45
+    v47 = abi_encode [memory_array<word<uint160>>], scratch, args v14
+    v48 = extract_value slice<memory>, v47, 0
+    v49 = extract_value slice<memory>, v47, 1
+    v50 = keccak256 v48, v49
+    v51 = eq v46, v50
+    ret v51
   bb4:                                            ; preds = bb1
     v17 = checked_add uint256, 0xbeef, v15
     v18 = trunc i256 v17 to i160
@@ -721,26 +721,16 @@ fn @checkAddresses(arg0: i256) -> i1 [selector=0x6714a02d, abi_params=[uint256],
     icall panic_if<0x41>, v35
     v36 = add v34, 1
     v37 = storage_array_data_slot 6
-    v38 = div v34, 1
-    v39 = add v37, v38
-    v40 = mod v34, 1
-    v41 = mul v40, 20
-    v42 = mul v41, 8
-    v43 = shl 0xffffffffffffffffffffffffffffffffffffffff, v42
-    v44 = sload v39 !metadata(storage=symbolic(v39))
-    v45 = not v43
-    v46 = and v44, v45
-    v47 = zext i160 v33 to i256
-    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffff
-    v49 = shl v48, v42
-    v50 = or v46, v49
-    sstore v39, v50 !metadata(storage=symbolic(v39))
+    v38 = add v37, v34
+    v39 = zext i160 v33 to i256
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore v38, v40 !metadata(storage=symbolic(v38))
     sstore 6, v36 !metadata(storage=slot(6))
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v51 = checked_add uint256, v15, 1
+    v41 = checked_add uint256, v15, 1
     jump bb1
 }
 

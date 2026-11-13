@@ -11,7 +11,7 @@
 //! into the output or the hash buffer, as solc does, so the value has no memory copy and costs no
 //! free-memory growth. Storage is read here, after the arguments ran. Whole words are written, so a
 //! part may write up to 31 bytes past its end: the next part overwrites them, and after the last
-//! part they lie in the cleared word or above the allocation.
+//! part they lie in the padding or above the allocation.
 //! An array of full words that need no cleanup copies as one block, as the standard encoder
 //! copies it: one `MCOPY` from memory and one `CALLDATACOPY` from calldata. An array of fixed
 //! arrays of words in calldata takes the standard encoder's wrap guard. Words that need cleanup
@@ -289,17 +289,6 @@ impl PackedEncoder<'_, '_> {
                 }
             }
             index += 1;
-        }
-        if !word_aligned {
-            // Clear the word after the encoding, as solc's final copy does: the
-            // bytes past its end in the last word read as zero padding, which
-            // code that reads whole words of the result, such as assembly,
-            // relies on. A bytes or calldata copy writes no further than its
-            // length, so the copied parts would otherwise leave the
-            // allocation's earlier contents there.
-            // mstore(output + 32 + total, 0)
-            let zero = self.builder.imm(0);
-            self.builder.memory_store_word(output, offset, zero);
         }
         output
     }

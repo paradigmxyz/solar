@@ -32,10 +32,12 @@
 //! guarded loop with no other exit receive the trip-count weight. These are
 //! estimates, never legality facts.
 //!
-//! Callees with phis need a stack estimate: backward liveness gives the callee's
-//! peak live words and the caller words surviving the call, and their sum must fit
-//! twelve words, leaving headroom for operand staging. This bounds spills but does
-//! not promise the scheduler emits none.
+//! Clones of callees with several blocks, when the callee has phis or the call sits
+//! in a loop, need a stack estimate: backward liveness gives the callee's peak live
+//! words and the caller words surviving the call, and their sum must fit twelve
+//! words, leaving headroom for operand staging. This bounds spills but does not
+//! promise the scheduler emits none. A single-block clone needs no estimate: the
+//! call it replaces holds the same caller words and a return address.
 //!
 //! A callee documented `@custom:solar-inline always` skips every profitability test, the stack
 //! estimate below included: each call where cloning is legal is cloned, while the module's
@@ -279,13 +281,6 @@ impl MirInliner {
 
         let call_graph = CallGraphInfo::new(module);
         let mut call_counts = call_counts(module, &call_graph);
-        // Keep the initial candidate set stable as inlining removes call sites.
-        let memory_wrappers = module
-            .functions
-            .iter_enumerated()
-            .filter(|&(id, func)| call_counts[id] > 0 && is_memory_wrapper(func))
-            .map(|(id, func)| (id, scalar_stack_peak(func)))
-            .collect::<FxHashMap<_, _>>();
 
         let entries = module.external_entries();
         let mut summaries = self.summarize_module(module, &entries);
@@ -381,11 +376,13 @@ impl MirInliner {
                     continue;
                 }
 
+                // A single-block clone holds no more words than its call, which adds a return
+                // address.
                 if !always
+                    && summary.block_count > 1
                     && let Some(peak) = (summary.has_phi || site.loop_depth > 0)
                         .then_some(summary.phi_stack_peak)
                         .flatten()
-                        .or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
                     let liveness =
@@ -1035,8 +1032,7 @@ fn summarize_function(
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Check { .. }
-                            | Builtin::Require(_)
-                            | Builtin::Transfer,
+                            | Builtin::Require(_),
                         ),
                     ..
                 } => {
@@ -1765,7 +1761,7 @@ fn inline_literal_call(
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
-        instruction.metadata.preserve_debug_loc(&source.metadata);
+        instruction.metadata = source.metadata.without_operand_facts();
         cloner.adopt_call_loc(&mut instruction.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
             // object = alloc size
@@ -1876,7 +1872,7 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                instruction.metadata.preserve_debug_loc(&inst.metadata);
+                instruction.metadata = inst.metadata.without_operand_facts();
                 self.adopt_call_loc(&mut instruction.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);

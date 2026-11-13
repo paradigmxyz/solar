@@ -27,6 +27,7 @@ use solar_interface::{
 };
 use std::ops::ControlFlow;
 
+mod ast_facts;
 mod no_effect;
 mod pure;
 mod yul;
@@ -106,6 +107,8 @@ struct TypeChecker<'gcx> {
     value_position: ValuePosition,
     /// Whether each constant read in inline assembly is circular.
     circular_constants: FxHashMap<hir::VariableId, bool>,
+    /// Whether to record what the AST JSON reads back, which is only so when the ASTs are kept.
+    record_ast_facts: bool,
     /// The expression of the expression statement being checked, without parentheses.
     statement_expr: Option<hir::ExprId>,
 }
@@ -170,6 +173,17 @@ enum NotLvalueReason {
     Generic,
 }
 
+/// Returns why indexing a value of type `ty` is not an lvalue, if it is not.
+fn index_not_lvalue_reason(ty: Ty<'_>) -> Option<NotLvalueReason> {
+    if ty.loc() == Some(DataLocation::Calldata) {
+        Some(NotLvalueReason::CalldataArray)
+    } else if ty.peel_refs().is_fixed_bytes() {
+        Some(NotLvalueReason::FixedBytesIndex)
+    } else {
+        None
+    }
+}
+
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId, results: TypeckResults<'gcx>) -> Self {
         Self {
@@ -187,6 +201,7 @@ impl<'gcx> TypeChecker<'gcx> {
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
             circular_constants: FxHashMap::default(),
+            record_ast_facts: gcx.sess.opts.unstable.keep_asts,
             statement_expr: None,
         }
     }
@@ -240,6 +255,16 @@ impl<'gcx> TypeChecker<'gcx> {
                     .warn_code_at(span, error_code!(1400), "`msg.gas` is deprecated")
                     .help("use `gasleft()` instead")
                     .emit();
+            } else if let Builtin::AddressPayableSend | Builtin::AddressPayableTransfer = builtin {
+                // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L3288-L3299>
+                self.dcx()
+                    .warn_code_at(
+                        span,
+                        error_code!(9207),
+                        format!("`{}` is deprecated and scheduled for removal", builtin.name()),
+                    )
+                    .help("use `call{value: <amount>}(\"\")` instead")
+                    .emit();
             }
         }
     }
@@ -253,7 +278,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if ty.references_error() {
             return;
         }
-        if !self.is_pure(slot) {
+        if !self.results.is_pure(self.gcx, slot) {
             self.dcx().emit_err_code(
                 slot.span,
                 error_code!(1139),
@@ -713,7 +738,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = self.type_of_res(res);
                 if self.in_yul {
                     match self.check_yul_external_ident(res, ty, expr.span) {
-                        Ok(true) => return self.gcx.types.uint(256),
+                        Ok(true) => {
+                            if self.record_ast_facts
+                                && let hir::Res::Item(hir::ItemId::Variable(declaration)) = res
+                            {
+                                self.record_yul_reference(expr.span, None, declaration);
+                            }
+                            return self.gcx.types.uint(256);
+                        }
                         Ok(false) => {}
                         Err(guar) => return self.gcx.mk_ty_err(guar),
                     }
@@ -725,11 +757,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 if ty.references_error() {
                     return ty;
                 }
-                if ty.loc() == Some(DataLocation::Calldata) {
-                    self.try_set_not_lvalue(NotLvalueReason::CalldataArray);
-                }
-                if ty.peel_refs().is_fixed_bytes() {
-                    self.try_set_not_lvalue(NotLvalueReason::FixedBytesIndex);
+                if let Some(reason) = index_not_lvalue_reason(ty) {
+                    self.try_set_not_lvalue(reason);
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
@@ -856,7 +885,13 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .emit();
                         }
                         self.register_resolved_member(expr, member);
-                        member.ty
+                        // The receiver of an attached function that nothing calls stays its
+                        // first parameter, and the type remembers it.
+                        if member.attached {
+                            member.ty.as_attached_function(self.gcx)
+                        } else {
+                            member.ty
+                        }
                     }
                     Err(MemberAccessError::NotFound) => {
                         let msg = format!(
@@ -873,36 +908,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                let not_lvalue_reason = match receiver_ty.kind {
-                    _ if matches!(
-                        receiver_ty.peel_refs().kind,
-                        TyKind::Array(..) | TyKind::DynArray(_)
-                    ) && possible_members.len() == 1
-                        && possible_members[0].name == sym::length =>
-                    {
-                        Some(NotLvalueReason::ArrayLength)
+                let not_lvalue_reason =
+                    self.member_not_lvalue_reason(receiver_ty, &possible_members);
+                match not_lvalue_reason {
+                    Some(reason) => self.try_set_not_lvalue(reason),
+                    None if self.record_ast_facts => {
+                        self.mark_lvalue(expr.id);
                     }
-                    TyKind::Ref(inner, d) if d.is_calldata() => {
-                        let reason = if matches!(inner.kind, TyKind::Struct(_)) {
-                            NotLvalueReason::CalldataStruct
-                        } else {
-                            NotLvalueReason::CalldataArray
-                        };
-                        Some(reason)
-                    }
-                    TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
-                    TyKind::Type(ty)
-                        if matches!(ty.kind, TyKind::Contract(_))
-                            && let [member] = possible_members.as_slice()
-                            && let Some(res) = member.res
-                            && res.as_variable().is_some() =>
-                    {
-                        self.res_not_lvalue_reason(res)
-                    }
-                    _ => Some(NotLvalueReason::Generic),
-                };
-                if let Some(reason) = not_lvalue_reason {
-                    self.try_set_not_lvalue(reason);
+                    None => {}
                 }
 
                 ty
@@ -1295,14 +1308,22 @@ impl<'gcx> TypeChecker<'gcx> {
         assign: bool,
     ) -> Ty<'gcx> {
         let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
+        let record_common = self.record_ast_facts && (op.kind.is_cmp() || op.kind.is_logical());
         if let Some(common) = common
             && !(assign && common != lhs)
         {
+            if let (true, Some(expr_id)) = (record_common, expr_id) {
+                self.results.ast.solc_tys.insert(expr_id, common);
+            }
             return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
         }
         if !assign && let Some((ty, function)) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
             if let (Some(expr_id), Some(function)) = (expr_id, function) {
                 self.results.user_operators.insert(expr_id, function);
+                // A user-defined operator takes the type of its operands.
+                if record_common {
+                    self.results.ast.solc_tys.insert(expr_id, lhs);
+                }
             }
             return ty;
         }
@@ -2623,6 +2644,13 @@ impl<'gcx> TypeChecker<'gcx> {
             .filter(|m| m.name == ident.name)
             .collect::<SmallVec<[_; 4]>>();
 
+        // solc takes the member of a call as an lvalue like any other member.
+        if self.record_ast_facts
+            && self.member_not_lvalue_reason(receiver_ty, &possible_members).is_none()
+        {
+            self.mark_lvalue(callee.id);
+        }
+
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
@@ -3196,7 +3224,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.expect_ty(init, ty)
                 };
-                if var.is_constant() && !ty.references_error() && !self.is_pure(init) {
+                if var.is_constant()
+                    && !ty.references_error()
+                    && !self.results.is_pure(self.gcx, init)
+                {
                     self.dcx().emit_err_code(
                         init.span,
                         error_code!(8349),
@@ -3620,6 +3651,42 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    /// Returns why a member of `receiver_ty` is not an lvalue, if it is not.
+    fn member_not_lvalue_reason(
+        &self,
+        receiver_ty: Ty<'gcx>,
+        possible_members: &[members::Member<'gcx>],
+    ) -> Option<NotLvalueReason> {
+        match receiver_ty.kind {
+            _ if matches!(
+                receiver_ty.peel_refs().kind,
+                TyKind::Array(..) | TyKind::DynArray(_)
+            ) && possible_members.len() == 1
+                && possible_members[0].name == sym::length =>
+            {
+                Some(NotLvalueReason::ArrayLength)
+            }
+            TyKind::Ref(inner, d) if d.is_calldata() => {
+                let reason = if matches!(inner.kind, TyKind::Struct(_)) {
+                    NotLvalueReason::CalldataStruct
+                } else {
+                    NotLvalueReason::CalldataArray
+                };
+                Some(reason)
+            }
+            TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
+            TyKind::Type(ty)
+                if matches!(ty.kind, TyKind::Contract(_))
+                    && let [member] = possible_members
+                    && let Some(res) = member.res
+                    && res.as_variable().is_some() =>
+            {
+                self.res_not_lvalue_reason(res)
+            }
+            _ => Some(NotLvalueReason::Generic),
+        }
+    }
+
     fn try_set_not_lvalue(&mut self, reason: NotLvalueReason) {
         if let Some(Ok(())) = self.lvalue_context {
             self.lvalue_context = Some(Err(reason));
@@ -3796,6 +3863,12 @@ impl<'gcx> TypeChecker<'gcx> {
                     ),
                 )
                 .emit();
+        }
+
+        // A tuple that is written to is an lvalue.
+        if self.record_ast_facts && self.in_lvalue() && matches!(expr.kind, hir::ExprKind::Tuple(_))
+        {
+            self.mark_lvalue(expr.id);
         }
     }
 
@@ -4034,6 +4107,20 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 self.discard(expr, Discarded::All);
                 self.statement_expr = Some(expr.peel_parens().id);
                 let ty = self.check_expr(expr);
+                // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L1358-L1359>
+                if let hir::ExprKind::Call(callee, _) = expr.kind
+                    && self.results.resolved_expr(callee)
+                        == Some(hir::Res::Builtin(Builtin::AddressPayableSend))
+                {
+                    self.dcx()
+                        .warn_code_at(
+                            stmt.span,
+                            error_code!(5878),
+                            "failure condition of `send` ignored",
+                        )
+                        .help("consider using `transfer` instead")
+                        .emit();
+                }
                 if self.has_no_effect(expr) {
                     self.results.no_effect_stmts.push(expr.span);
                 }

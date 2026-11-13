@@ -109,12 +109,15 @@
       stop
   }
   
-  fn @precompiles(arg0: ptr<memory>) -> i256 {
+  fn @precompiles(arg0: ptr<memory>, arg1: i160) -> i256 {
     bb0:
-      v0 = icall sha256<>, arg0
-      v1 = icall ripemd160<>, arg0
-      v2 = icall ecrecover<>, 0, 0, 0, 0
-      ret v2
+      v0 = extcall static word i160 2, arg0
+      v1 = extcall static word i160 3, arg0
+      v2 = extcall static word i160 1, arg0
+      v3 = extcall arg1, arg0, gas 0x8fc, value 1
+      v4 = extcall arg1, gas 0x8fc, value 1
+      v5 = zext i1 v2 to i256
+      ret v5
   }
   
   fn @concatenate(arg0: ptr<memory>) -> ptr<memory> {

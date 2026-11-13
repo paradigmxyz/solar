@@ -19,10 +19,7 @@ fn @failsCheaply() -> i1 [selector=0xa8da8192, view, abi_params=[], abi_returns=
     v4 = staticcall v2, v3, 28, 4, 0, 0
     jumpi v4, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     v11 = gas
     v12 = checked_sub uint256, v0, v11
@@ -39,4 +36,7 @@ fn @failsCheaply() -> i1 [selector=0xa8da8192, view, abi_params=[], abi_returns=
     ret false
   bb3:
     ret false
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }

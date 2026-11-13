@@ -78,6 +78,8 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     dcx.emit_deferred(event_error_diagnostics);
     dcx.emit_deferred(unit_diagnostics);
     dcx.emit_deferred(contract_diagnostics);
+    // The writer finds the references of an assembly block by position.
+    typeck_results.ast.yul_references.sort_unstable_by_key(|r| r.span.lo());
     gcx.set_typeck_results(typeck_results);
     // solc's `PostTypeChecker` runs when type checking succeeds, and its own errors do not stop
     // its constant cycle check.
@@ -156,6 +158,9 @@ fn merge_typeck_results<'gcx>(
     let mut resolved_exprs = Vec::with_capacity(results.len());
     let mut resolved_callees = Vec::with_capacity(results.len());
     for new_results in results {
+        merged.ast.lvalues.extend(new_results.ast.lvalues);
+        merged.ast.solc_tys.extend(new_results.ast.solc_tys);
+        merged.ast.yul_references.extend(new_results.ast.yul_references);
         expr_types.push(new_results.expr_types);
         resolved_exprs.push(new_results.resolved_exprs);
         resolved_callees.push(new_results.resolved_callees);

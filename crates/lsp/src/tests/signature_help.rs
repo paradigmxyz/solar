@@ -871,7 +871,7 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
         original.replace("// short", "// this comment is now much longer"),
         original.replace("// short", "// 😀"),
         original.replace('\n', "\r\n"),
-        original.clone(),
+        original,
     ] {
         set_source(&state, &fixture, &changed);
         for _ in 0..2 {

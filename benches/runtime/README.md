@@ -98,7 +98,8 @@ Post-call checks require two deposits, 20 million units in escrow, and 80 millio
 and compare queue hashes and key counts across compilers. The 64-byte ciphertext exercises portal
 validation and queueing; it does not test decryption or live Tempo precompile gas. Setup and proxy
 deployment are outside call gas; `deploy_gas` measures the implementation, and `proxy_deploy_gas`
-records the proxy separately. Compiler settings preserve the pinned Osaka target and metadata.
+records the proxy separately. Compiler settings preserve the pinned Osaka target and, like every
+other case, omit CBOR metadata.
 
 ## Reference compilers
 

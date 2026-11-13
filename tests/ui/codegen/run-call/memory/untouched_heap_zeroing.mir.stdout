@@ -501,19 +501,6 @@ fn @afterInternalStaging(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x
     ret v28
 }
 
-; function decodeTail(bytes calldata raw) external pure returns (uint256 word) [selector 0x16e013a7]
-fn @decodeTail(arg0: slice<calldata>) -> i256 [selector=0x16e013a7, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = abi_decode [bytes], arg0
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = mload v0
-    v3 = ptrtoint ptr<memory> v0 to i256
-    v4 = add v3, 32
-    v5 = add v4, v2
-    v6 = mload v5
-    ret v6
-}
-
 ; function literalAtEntry() external pure returns (bytes memory) [selector 0xc0156f8d]
 fn @literalAtEntry() -> ptr<memory> [selector=0xc0156f8d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -540,21 +527,4 @@ fn @literalAfterEmit(arg0: slice<calldata>) -> ptr<memory> [selector=0x5034880d,
     v5 = ptradd v3, 64
     mstore v5, 0x4141414141414141410000000000000000000000000000000000000000000000
     ret v3
-}
-
-; function decodeTailAfterEmit(bytes calldata raw) external returns (uint256 word) [selector 0x5fe24240]
-fn @decodeTailAfterEmit(arg0: slice<calldata>) -> i256 [selector=0x5fe24240, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = abi_encode [calldata_bytes], scratch, args arg0
-    v1 = extract_value slice<memory>, v0, 0
-    v2 = extract_value slice<memory>, v0, 1
-    log v1, v2, 0xb76c48be4e2908f4c9d4eabaf7538e91577fd9ae26db46693fa8d861c6a42fb
-    v3 = abi_decode [bytes], arg0
-    v4 = ptrtoint ptr<memory> v3 to i256
-    v5 = mload v3
-    v6 = ptrtoint ptr<memory> v3 to i256
-    v7 = add v6, 32
-    v8 = add v7, v5
-    v9 = mload v8
-    ret v9
 }
