@@ -1,6 +1,7 @@
 import SolarTV.MIR.Transforms.DCE
 import SolarTV.MIR.Transforms.Casts
 import SolarTV.MIR.Transforms.CheckElim
+import SolarTV.MIR.Transforms.AbiValidation
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
 import SolarTV.MIR.Transforms.RenamePhiPredecessors
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
@@ -127,3 +128,39 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.MIR.State.uninitialized_neighbor' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.State.uninitialized_neighbor
+
+/-- info: 'SolarTV.MIR.State.discharge_abi_obligation' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.discharge_abi_obligation
+
+/-- info: 'SolarTV.MIR.State.unproved_abi_obligation' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.unproved_abi_obligation
+
+/-- info: 'SolarTV.MIR.State.function_normalization_is_not_padding_evidence' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.function_normalization_is_not_padding_evidence
+
+/-- info: 'SolarTV.MIR.State.shift_zero_iff_padding' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.shift_zero_iff_padding
+
+/-- info: 'SolarTV.MIR.State.canonical_uint_shift' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.canonical_uint_shift
+
+/-- info: 'SolarTV.MIR.State.canonical_uint_and' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.canonical_uint_and
+
+/-- info: 'SolarTV.MIR.State.wordBits_widenBits' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.wordBits_widenBits
+
+/-- info: 'SolarTV.MIR.State.wordBits_ite' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.wordBits_ite
+
+/-- info: 'SolarTV.MIR.State.widenBits_ite' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.widenBits_ite

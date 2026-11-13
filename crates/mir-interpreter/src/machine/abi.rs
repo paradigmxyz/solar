@@ -4,14 +4,14 @@
 //! Packed literals/scalars retain their individual word stores and trailing zero
 //! word through the packed submodule. Scalar decoders check
 //! the signed tuple length and canonical encodings before returning a value.
-//! Validation markers require a decoder-established obligation. Recursive shapes
-//! use the encode/decode submodules without delegating to compiler lowering.
+//! Validation markers check explicit canonicality obligations without inventing guards. Recursive
+//! shapes use the encode/decode submodules without delegating to compiler lowering.
 
 use super::{Outcome, Run, RuntimeValue, limit};
 use alloy_primitives::U256;
 use solar_mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamType, AbiType, AbiWordValidator,
-    AllocationSemantics, Function, PtrLocation, Semantics, Value, ValueId, ValueLayout,
+    AllocationSemantics, PtrLocation, ValueLayout,
 };
 use std::ops::ControlFlow;
 
@@ -144,36 +144,18 @@ impl Run<'_, '_, '_> {
 
     pub(super) fn semantic_validate_abi(
         &mut self,
-        body: &Function,
-        value: ValueId,
+        validator: AbiWordValidator,
         word: U256,
     ) -> ControlFlow<Outcome> {
-        let Value::Inst(origin) = *body.value(value) else {
-            return ControlFlow::Break(Outcome::Unsupported("ABI marker lacks decoder evidence"));
-        };
-        // validate_abi (shr raw, 64) retains the raw function word's obligation.
-        // Never turn this evidence check into a synthetic runtime revert.
-        if let Some(Semantics::Opcode("shr", operands)) = body.inst(origin).kind.semantics()
-            && let [shift, raw] = operands.as_slice()
-            && body.value(*shift).as_immediate().and_then(|v| v.as_u256()) == Some(U256::from(64))
-        {
-            let raw = self.frame().read(*raw)?;
-            if !canonical(raw, Some(AbiWordValidator::LeftAligned(192))) {
-                return ControlFlow::Break(Outcome::Unsupported("invalid decoder ABI evidence"));
-            }
-            return ControlFlow::Continue(());
+        if !validator.is_well_formed() {
+            return ControlFlow::Break(Outcome::Unsupported("invalid ABI word validator"));
         }
-        let Some(Semantics::AbiDecode(_, layout)) = body.inst(origin).kind.semantics() else {
-            return ControlFlow::Break(Outcome::Unsupported("ABI marker lacks decoder evidence"));
-        };
-        let Some((rule, function)) = scalar_layout(layout) else {
+        // This obligation is checked on the value at this program point, not inferred from
+        // the shape of its definition. A false obligation is not an EVM revert or an assumption.
+        if !canonical(word, Some(validator)) {
             return ControlFlow::Break(Outcome::Unsupported(
-                "ABI marker requires a scalar decoder",
+                "unproved ABI canonicality obligation",
             ));
-        };
-        let rule = if function { Some(AbiWordValidator::Unsigned(192)) } else { rule };
-        if !canonical(word, rule) {
-            return ControlFlow::Break(Outcome::Unsupported("invalid decoder ABI evidence"));
         }
         ControlFlow::Continue(())
     }

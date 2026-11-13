@@ -366,4 +366,33 @@ fn @twice(arg0: i256) -> i256 {
         let result = replay::run(&source, &[], &[], 0, Options::default()).unwrap();
         assert!(matches!(result.outcome, replay::Outcome::Unsupported(_)));
     }
+
+    #[test]
+    fn replay_abi_obligations_use_explicit_rules() {
+        for (rule, clean, dirty) in [
+            ("uint1", U256::ONE, U256::from(2)),
+            ("uint8", U256::from(255), U256::from(256)),
+            ("uint255", (U256::ONE << 255) - U256::ONE, U256::ONE << 255),
+            ("int8", U256::MAX, U256::from(255)),
+            ("bytes2", U256::from(0xabcd) << 240, (U256::from(0xabcd) << 240) | U256::ONE),
+            ("bytes24", U256::from(17) << 64, (U256::from(17) << 64) | U256::ONE),
+            ("bool", U256::ONE, U256::from(2)),
+            ("enum 3", U256::from(2), U256::from(3)),
+        ] {
+            let source = format!(
+                "@module Abi\nfn @f(arg0: i256) -> i256 {{\nbb0:\nvalidate_abi {rule}, arg0\nret arg0\n}}\n"
+            );
+            for (word, canonical) in [(clean, true), (dirty, false)] {
+                let result = replay::run(&source, &[word], &[], 0, Options::default()).unwrap();
+                match result.outcome {
+                    replay::Outcome::Return(values) if canonical => assert_eq!(values, [word]),
+                    replay::Outcome::Unsupported(reason) if !canonical => {
+                        assert_eq!(reason, "unproved ABI canonicality obligation");
+                    }
+                    outcome => panic!("unexpected {rule} obligation outcome: {outcome:?}"),
+                }
+                assert_eq!(result.memory_size, 0, "an obligation must not expand memory");
+            }
+        }
+    }
 }

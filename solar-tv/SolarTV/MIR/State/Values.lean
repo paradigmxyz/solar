@@ -32,6 +32,25 @@ def Scalar.ofWord (width : Nat) (value : Word) : Scalar := ⟨width,wordBits wid
 
 @[simp↓] theorem widenBits_full (word : Word) : widenBits word = word := by rfl
 
+@[simp↓] theorem wordBits_widenBits (width : Nat) (value : BitVec width)
+    (bound : width ≤ 256) : wordBits width (widenBits value) = value := by
+  by_cases h : width = 256
+  · subst width
+    rfl
+  · simp [wordBits, widenBits, h, bound]
+
+@[simp↓] theorem wordBits_ite (condition : Prop) [Decidable condition]
+    (width : Nat) (yes no : Word) :
+    wordBits width (if condition then yes else no) =
+      if condition then wordBits width yes else wordBits width no := by
+  split <;> rfl
+
+@[simp↓] theorem widenBits_ite (condition : Prop) [Decidable condition]
+    (yes no : BitVec width) :
+    widenBits (if condition then yes else no) =
+      if condition then widenBits yes else widenBits no := by
+  split <;> rfl
+
 inductive ValueType where
   | word (width : Nat)
   | pointer (location : Nat)
