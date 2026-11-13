@@ -163,11 +163,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                 heads.join(" "),
                 ctors.join(" ")
             );
-            for (n, fs) in &prog.structs {
+            // Declare every zero first: a struct's zero mentions the zeros of the structs its
+            // fields hold, which may come later in the list.
+            for (n, _) in &prog.structs {
                 pre.push_str(&format!(
                     "(declare-const |S.{n}.zero| |S.{n}|)
 "
                 ));
+            }
+            for (n, fs) in &prog.structs {
                 for (f, t) in fs {
                     pre.push_str(&format!(
                         "(assert (= (|{n}.{f}| |S.{n}.zero|) {}))
