@@ -30,9 +30,9 @@ What a run does:
    consecutive stages, their composition from the first lowered MIR to the final EVM IR, and the
    assembly walk of the bytecode against the final EVM IR.
    When the final EVM IR is inside the fragment the assembly checker executes, it also writes
-   \`Proofs/Execution.lean\`: the checker of code with loops (\`AssembleLoop.checkL\`) accepts the
+   `Proofs/Execution.lean`: the checker of code with loops (`AssembleLoop.checkL`) accepts the
    bytecode on a certificate [asm_cert.py](asm_cert.py) infers (the kernel's evaluation re-derives
-   every claim, so the inference is not trusted), and \`NAME_bytecode\` composes it with the
+   every claim, so the inference is not trusted), and `NAME_bytecode` composes it with the
    backend stages read backwards: at every gas, every result of the exact bytecode is the first
    lowered MIR's or a failure that changes nothing. Outside the fragment (external calls, jump
    tables) the bytecode is only decoded, and the driver says so.
@@ -83,3 +83,23 @@ CI's `certify Counter` job runs test.sh and then the driver on
 
 To move the pin, update [solidity-lean.rev](solidity-lean.rev) to a solidity-lean commit and
 run the driver on Counter.
+
+## The published statement
+
+A contract with `Certified/NAME/shape.json` gets one published theorem,
+`Certified.NAME.Final.final` in `Certified/NAME/Final.lean`, which [final.py](final.py) writes:
+its statement `Statement` is fixed by the driver from `shape.json` (the checked source, the
+declared valid calls, the allowed statuses, the specification, named environment assumptions and,
+for the strongest status, the gas bound) and from the runtime bytecode this run compiled, never
+from a proof module. The statement binds the freshly exported bytecode to that hex by exact
+equality, decided by the kernel, and states solidity-lean's `Shapes.Certified` (equivalence at
+every gas, termination with an allowed status, the specification, and resources: the source's
+result from a proved gas bound on) or `Shapes.Functional` (the first three) of it. The proof
+module named in `shape.json` supplies only a term the kernel must accept at that type, and the
+theorem's axioms are audited (only `propext`, `Classical.choice` and `Quot.sound`).
+
+The record's statuses (`equivalence`, `termination`, `spec`, `resources`, `assumptions`,
+`excluded`, `strongest`) come from that statement; `CERTIFIED` is printed only for
+`Shapes.Certified`. [final_neg.sh](final_neg.sh) checks that variants fail: stale or substituted
+bytecode, the strongest status without resources, a wrong postcondition, no allowed status and a
+`sorryAx` proof.

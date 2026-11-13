@@ -37,10 +37,19 @@
 #    (unproved), never as passing; --require-spec fails on any. When CERTIFIED/NAME/headline exists (lines "MODULE THEOREM": the source-to-bytecode or
 #    spec-to-bytecode theorems solidity-lean states for the contract), builds each MODULE and
 #    audits each THEOREM the same way. --require-headline fails when there is none.
+# 6b. When CERTIFIED/NAME/shape.json exists, tools/certify/final.py writes CERTIFIED/NAME/Final.lean:
+#    the published statement, fixed by the driver from shape.json and the bytecode this run
+#    compiled (exact hex equality with the fresh export, then Shapes.Certified or
+#    Shapes.Functional of it against the checked source), with the proof shape.json names as its
+#    term. The module is built and its theorem's axioms audited; --require-final fails without it.
 # 7. tools/certify/negative.sh: edited bytecode and stage artifacts fail with a mismatch, not a
-#    timeout, while unedited controls pass.
+#    timeout, while unedited controls pass; with shape.json, tools/certify/final_neg.sh: stale or
+#    substituted bytecode, the strongest status without resources, a wrong postcondition, no
+#    allowed status and a sorry proof each fail the published statement.
 #
-# Each run reports separate statuses, never one blanket claim: mir_to_evmir (the stage proofs'
+# The record's statuses (equivalence, termination, spec, resources, assumptions, excluded,
+# strongest) come from the published statement when there is one; CERTIFIED is printed only when
+# it is Shapes.Certified, all four proved. Each run also reports the stage statuses, never one blanket claim: mir_to_evmir (the stage proofs'
 # composition from the first lowered MIR to the final EVM IR), assembly (decoded: the bytecode
 # decodes to the final EVM IR's instructions; executed: a theorem that running the bytecode
 # refines the final EVM IR, when the generator writes one), vc (solar-verify's conditions:
@@ -77,7 +86,7 @@ hthms=()
 
 die() { echo "certify: error: $*" >&2; exit 1; }
 run() { "${wrap[@]}" "$@"; }
-usage="usage: scripts/certify FILE.sol [--contract C] [--name NAME] [--loops N] [--no-negatives] [--require-headline] [--require-spec] [-- SOLAR_OPTIONS...]"
+usage="usage: scripts/certify FILE.sol [--contract C] [--name NAME] [--loops N] [--no-negatives] [--require-headline] [--require-spec] [--require-final] [-- SOLAR_OPTIONS...]"
 [[ $# -ge 1 ]] || die "$usage"
 [[ "$1" != -h && "$1" != --help ]] || { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'; exit 0; }
 [[ -f "$1" ]] || die "no such file $1"
@@ -89,6 +98,7 @@ loops=
 negatives=1
 require_headline=0
 require_spec=0
+require_final=0
 options=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -98,6 +108,7 @@ while [[ $# -gt 0 ]]; do
         --no-negatives) negatives=0; shift ;;
         --require-headline) require_headline=1; shift ;;
         --require-spec) require_spec=1; shift ;;
+        --require-final) require_final=1; shift ;;
         --) shift; options=("$@"); break ;;
         *) die "unknown argument $1; $usage" ;;
     esac
@@ -443,9 +454,50 @@ else
     caveats+=("not end to end: solidity-lean states no source or spec theorem for $name")
 fi
 
+echo "== 6b. the published statement"
+# CERTIFIED/NAME/shape.json names the statement's inputs (the checked source, the declared valid
+# calls, allowed statuses, specification, environment assumptions and, for the strongest status,
+# the gas bound) and the proof term. tools/certify/final.py writes CERTIFIED/NAME/Final.lean, whose
+# Statement it builds from shape.json and from $plain, the bytecode this run compiled, never from a
+# proof module; the kernel must accept the proof at exactly that type, the statement binds the
+# fresh export to $plain by exact equality, and the axiom audit admits only propext,
+# Classical.choice and Quot.sound. The statuses come from the statement's kind alone.
+final_record="$lean_dir/.lake/certify-$name.json.final"
+rm -f "$final_record"
+final_thm=
+if [[ -f "$dir/shape.json" ]]; then
+    final_thm="$(python3 "$here/final.py" "$dir/shape.json" --name "$name" --contract "$contract" \
+        --hex "$plain" --out "$dir/Final.lean" --record "$final_record")" || die "final.py cannot write the published statement"
+    bash "$here/audit.sh" scan "$dir/Final.lean" || die "$dir/Final.lean fails the scan"
+    mapfile -t fmods < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json")
+    for module in "${fmods[@]}"; do
+        mfile="${module//.//}.lean"
+        [[ -f "$mfile" ]] || mfile="$examples/${module//.//}.lean"
+        [[ -f "$mfile" ]] || die "shape.json names $module, which is not in $lean_dir"
+        bash "$here/audit.sh" scan "$mfile" || die "$mfile fails the scan"
+    done
+    printf '%s: ' "$name.Final"
+    if ! run lake "-KleanMemory=$memory" build "$name.Final" > "$log" 2>&1; then
+        grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
+        die "$name.Final does not check: the proof is not of the published statement"
+    fi
+    tail -n 1 "$log"
+    audit "$lean_dir/.lake/certify-final-$name.out" "$name.Final" -- "$final_thm"
+    echo "published: $final_thm"
+elif [[ $require_final -eq 1 ]]; then
+    die "--require-final: $dir/shape.json is missing: no published statement for $name"
+else
+    echo "no $dir/shape.json: no published statement"
+    caveats+=("no published statement: equivalence, termination, spec and resources not stated together")
+fi
+
 echo "== 7. negative tests"
 if [[ $negatives -eq 1 ]]; then
     bash "$here/negative.sh" "$lean_dir" "$examples" "$name" "$contract"
+    if [[ -f "$dir/shape.json" ]]; then
+        CERTIFY_LEAN="lake env lean -M $memory" bash "$here/final_neg.sh" "$lean_dir" "$examples" "$name" "$contract" "$plain" ||
+            die "a variant of the published statement checks"
+    fi
 else
     echo "skipped (--no-negatives)"
     caveats+=("negative tests skipped")
@@ -460,11 +512,13 @@ printf '%s\n' "${e2e_thms[@]}" > "$record.headline"
 python3 - "$record" "$dir/record.json" "$lean_dir/.lake/certify-headline-$name.out" "$contract" "$name" \
     "$source" "$plain" "$version" "$head" "$final" "$mir_status" "$assembly_status" "$spec_status" \
     "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" \
-    "$lean_dir/.lake/certify-audit-$name.out" "$executes" "$lean_dir/.lake/certify-$name.json.binding" <<'EOF'
+    "$lean_dir/.lake/certify-audit-$name.out" "$executes" "$lean_dir/.lake/certify-$name.json.binding" \
+    "$final_record" <<'EOF'
 import json, re, sys
 
 (out, committed, audit_out, contract, name, source, bytecode, solar, lean, final, mir, assembly,
- spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes, binding_file) = sys.argv[1:]
+ spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes, binding_file,
+ final_file) = sys.argv[1:]
 lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
 e2e = lines(".headline")
 text = open(audit_out).read() if e2e else ""
@@ -524,6 +578,28 @@ try:
     vacuous = "obligations with refuted hypotheses: " + open(vacuous_file).read().strip()
 except OSError:
     vacuous = "not checked"
+# The owner's acceptance statuses, each reported apart. They come from the published statement
+# (Final.lean, checked by the kernel against the driver's fixed statement) when there is one; the
+# strongest status needs all four. Without one, nothing is stated together.
+try:
+    final = json.load(open(final_file))
+except (OSError, ValueError):
+    final = None
+if final:
+    statuses = dict(final["statuses"])
+    statuses["assumptions"] = final["assumptions"] or "none beyond the statement's scope"
+    statuses["excluded"] = final["excluded"]
+    statuses["strongest"] = all(v.startswith("proved") for v in final["statuses"].values())
+else:
+    statuses = {
+        "equivalence": "not proved: stage refinement only (" + mir + "; assembly " + assembly.split(":")[0] + ")",
+        "termination": "not proved",
+        "spec": ("proved of the fresh bytecode (" + e2e_kind + "): " + ", ".join(bound)) if bound
+        else ("proved only of a checked-in copy of the code: " + ", ".join(e2e)) if e2e else "not proved",
+        "resources": "not proved",
+        "assumptions": "see hypotheses and assembly_hypotheses",
+        "strongest": False,
+    }
 record = {
     "contract": contract,
     "name": name,
@@ -539,14 +615,8 @@ record = {
     # equivalence, termination, spec and resources. The stage proofs are one-directional (every
     # result of the later stage is matched by the earlier one's, or a failure that changes
     # nothing), and nothing here proves termination or gas bounds yet.
-    "statuses": {
-        "equivalence": "not proved: stage refinement only (" + mir + "; assembly " + assembly.split(":")[0] + ")",
-        "termination": "not proved",
-        "spec": ("proved of the fresh bytecode (" + e2e_kind + "): " + ", ".join(bound)) if bound
-        else ("proved only of a checked-in copy of the code: " + ", ".join(e2e)) if e2e else "not proved",
-        "resources": "not proved",
-        "assumptions": "see hypotheses and assembly_hypotheses",
-    },
+    "statuses": statuses,
+    "final": final,
     "end_to_end_statement": stmts,
     "binding": binding,
     "hypotheses": {t: premises(s) if s else None for t, s in stmts.items()},
@@ -575,10 +645,15 @@ if [[ ${#e2e_thms[@]} -gt 0 ]]; then echo "end_to_end: proved ($e2e_kind): ${e2e
 if [[ ${#caveats[@]} -gt 0 ]]; then
     echo "caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
 fi
-echo "statuses: equivalence not proved (refinement only), termination not proved, resources not proved, spec $( [[ ${#e2e_thms[@]} -gt 0 ]] && echo proved || echo 'not proved')"
-# CERTIFIED needs equivalence, termination, spec and resources together, which no run proves
-# yet; a run reports what it checked instead.
-if [[ ${#e2e_thms[@]} -gt 0 ]]; then
+python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["statuses"]; print("statuses: " + ", ".join(k + " " + str(s[k]) for k in ("equivalence", "termination", "spec", "resources", "strongest")))' "$record"
+strongest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["statuses"]["strongest"])' "$record")"
+# CERTIFIED needs equivalence, termination, spec and resources together, from the published
+# statement the kernel checked (kind certified); any other run reports what it checked instead.
+if [[ "$strongest" == "True" ]]; then
+    echo "CERTIFIED $name ($contract): equivalence, termination, spec and resources by $final_thm; bytecode $plain"
+elif [[ -s "$final_record" ]]; then
+    echo "CHECKED $name ($contract), published $final_thm; not certified: resources not proved; bytecode $plain"
+elif [[ ${#e2e_thms[@]} -gt 0 ]]; then
     echo "CHECKED $name ($contract), spec of the bytecode by ${e2e_thms[*]}; not certified: equivalence, termination and resources not proved; bytecode $plain"
 else
     echo "CHECKED $name ($contract), not end to end: $final (first lowered MIR to final EVM IR), assembly ${assembly_status%%:*}; bytecode $plain"
