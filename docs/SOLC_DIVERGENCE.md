@@ -816,9 +816,10 @@ Difference: `solc` rejects invalid NatSpec with errors, such as 3881 for a
 `@return` tags, 6546 for a tag the item does not allow, and 4682, 5142 and
 9397 for `@inheritdoc` (TYPECK-026 covers its references). Where `solar` runs
 the same check, it reports a warning with the same code. Some checks still
-differ: tag placement does not follow `solc`'s tables, and `solar` does not
-report 3335, 9942, 6564 or 2968 for a `@param` tag without a name or
-description or a malformed `@custom:` name. Of the tag checks, only the
+differ: the tags allowed on each kind of item differ from `solc`'s, a bare
+`@custom` tag warns 6546 instead of 6564, and `solar` does not report 3335 or
+9942 for a `@param` tag without a name or description, nor 6564 or 2968 for an
+empty or malformed `@custom:` name. Of the tag checks, only the
 `@custom:solar-` tags of TYPECK-022 are errors.
 
 Rationale: a documentation mistake should not fail a build
