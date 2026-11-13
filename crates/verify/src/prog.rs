@@ -15,6 +15,7 @@ use solar_parse::{
         source_map::FileName,
     },
 };
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub(crate) struct Spec<'a> {
     pub expr: &'a Expr<'a>,
@@ -192,7 +193,6 @@ impl<'a> Program<'a> {
 struct Builder<'s, 'a> {
     sess: &'s Session,
     arena: &'a ast::Arena,
-    nspec: usize,
     quants: Vec<QInfo>,
     errors: Vec<(Span, String)>,
     enums: FxHashMap<String, usize>,
@@ -237,11 +237,14 @@ impl<'s, 'a> Builder<'s, 'a> {
                 return None;
             }
         };
-        self.nspec += 1;
+        // The source map returns the file it already has for a name, so a spec's name must be
+        // unique across every program the session builds, not only this one: reusing `spec#1`
+        // for a second input file would parse the first file's spec in its place.
+        let n = SPECS.fetch_add(1, Ordering::Relaxed) + 1;
         let mut p = Parser::from_source_code(
             self.sess,
             self.arena,
-            FileName::Custom(format!("spec#{}", self.nspec)),
+            FileName::Custom(format!("spec#{n}")),
             pre,
         )
         .ok()?;
@@ -685,7 +688,6 @@ pub(crate) fn build<'a>(
     let mut b = Builder {
         sess,
         arena,
-        nspec: 0,
         quants: vec![],
         errors: vec![],
         enums: FxHashMap::default(),
@@ -1222,3 +1224,6 @@ fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<(&'static str, &
         _ => None,
     }
 }
+
+/// Specs parsed in this process, which names each one's source file.
+static SPECS: AtomicUsize = AtomicUsize::new(0);

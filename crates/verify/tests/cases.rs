@@ -629,3 +629,27 @@ fn emit_lean_round_trip() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// Several input files in one run verify as they do one at a time: each file's specs are its own
+/// (spec source names were once reused across files, which parsed the first file's specs in
+/// place of the later ones').
+#[test]
+fn several_files_in_one_run() {
+    let files =
+        ["examples/Token.sol", "examples/Vault.sol", "examples/ArrayMax.sol", "examples/Bugs.sol"];
+    let marks = |out: &str| -> Vec<String> {
+        out.lines()
+            .filter(|l| l.starts_with('\u{2714}') || l.starts_with('\u{2718}'))
+            .map(str::to_string)
+            .collect()
+    };
+    let mut alone = vec![];
+    for file in files {
+        alone.extend(marks(&run_verifier(&["--dry-run", file]).stdout));
+    }
+    let mut args = vec!["--dry-run"];
+    args.extend(files);
+    let together = run_verifier(&args);
+    assert!(!together.stderr.contains("not erasable"), "{}", together.stderr);
+    assert_eq!(marks(&together.stdout), alone);
+}
