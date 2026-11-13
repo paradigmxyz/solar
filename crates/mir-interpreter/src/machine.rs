@@ -73,8 +73,8 @@ use solar_data_structures::{
 use solar_evmir::op;
 use solar_mir::{
     AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
-    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, Function, FunctionId, InstId,
-    InstKind, MirType, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId, InstId, InstKind,
+    MirType, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -82,6 +82,7 @@ mod abi;
 mod arrays;
 mod builtins;
 mod frames;
+mod links;
 mod messages;
 mod placement;
 mod precompiles;
@@ -288,6 +289,8 @@ pub enum PlacementRead<'a> {
     ConstructorEnd,
     /// The byte length of a linked data entry.
     DataSize(usize),
+    /// The first byte of an explicitly placed data entry in the supplied code image.
+    DataOffset(usize),
     /// Constructor immutable staging word address.
     ImmutableSlot(usize),
     /// Typed runtime immutable value after patching.
@@ -1480,6 +1483,9 @@ impl<'a> Run<'_, 'a, '_> {
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
             (op::CODECOPY, &[dest, offset, len]) if self.semantic.is_some() => {
+                if len.is_zero() {
+                    return ControlFlow::Continue(None);
+                }
                 let Some(bytes) = self.world.as_mut().and_then(|w| w.host.code_image()) else {
                     return ControlFlow::Break(Outcome::Unsupported(
                         "missing explicit MIR code image",
@@ -1654,29 +1660,6 @@ impl<'a> Run<'_, 'a, '_> {
         }
         let bytes = limit(self.memory.read(U256::ZERO, U256::from(words.len() * 32)))?;
         ControlFlow::Continue(U256::from_be_bytes(keccak256(bytes).0))
-    }
-
-    /// Copies `len` bytes of the constant data at `data` to memory at `dest`.
-    fn data_copy(&mut self, data: DataRef, dest: U256, len: U256) -> ControlFlow<Outcome> {
-        self.burn_words(len)?;
-        // Another contract's bytecode is known only once final assembly links it in.
-        let Some(bytes) = self
-            .machine
-            .module
-            .data
-            .get(data.id)
-            .filter(|data| data.library_relocations.is_empty())
-            .and_then(|data| data.bytes.known())
-        else {
-            return ControlFlow::Break(Outcome::Unsupported("datacopy of unlinked data"));
-        };
-        let start = data.offset as usize;
-        // The backend copies from where it placed the data in the code, so the bytes past its end
-        // are whatever follows it there.
-        let Some(bytes) = bytes.get(start..start.saturating_add(len.to::<usize>())) else {
-            return ControlFlow::Break(Outcome::Unsupported("datacopy past its data"));
-        };
-        limit(self.memory.write(dest, bytes))
     }
 
     /// Executes the backend's recorded static address or ordered dynamic FMP bump.

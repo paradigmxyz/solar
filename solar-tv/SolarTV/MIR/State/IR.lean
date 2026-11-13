@@ -145,7 +145,7 @@ inductive Operation where
   | makeSlice (location : Nat)
   | slot (op : SlotOp)
   | object (op : StorageObjectOp)
-  | dataCopy (bytes : List Byte) (offset : Nat)
+  | dataCopy (id : Nat) (bytes : Option (List Byte)) (relocations : List (Nat × Nat)) (offset : Nat)
   | frame (write : Bool) (address : Word) (ty : ValueType)
   | internalFrame (write : Bool) (function : String) (offset : Nat) (ty : ValueType)
 

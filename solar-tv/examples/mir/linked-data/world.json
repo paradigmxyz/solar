@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "mir_layout": {
+    "code": "0xaa112233bb",
+    "data": {"0": {"offset": 1, "size": 3}}
+  }
+}

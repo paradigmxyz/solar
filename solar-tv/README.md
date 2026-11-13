@@ -465,10 +465,24 @@ solar-tv/solar-tv mir solar-tv/examples/mir/storage-bytes/{before,after}.mir \
 
 The examples are actual `lower-mapping-slots` and `lower-builtins` outputs;
 `broken.mir` changes a parent slot or stored byte. Constant `datacopy` also
-executes directly for ranges wholly inside known data. Unresolved library
-relocations, deferred contract code and bytes following a data entry need a
-link/layout boundary and remain unsupported. Exported constant bytes are
-limited to 64 KiB across the selected call graph.
+executes directly for ranges wholly inside known data. Library patches use the
+explicit `mir_layout.libraries` addresses. Deferred contract code requires
+`mir_layout.code` and the entry's `data` extent. The verifier still requires an
+exact `datasize` copy; use `codecopy` for arbitrary image ranges, including
+neighboring bytes and zero padding. Known entries must match a supplied image
+after patching; inconsistent bytes or extents are inconclusive. Empty copies
+read no source bytes or relocations; computing `datasize` still needs its extent.
+Exported constant bytes are limited to 64 KiB across the selected call graph. Supplied
+deferred images remain boundary assumptions, not proofs of another contract's
+compilation or final assembler placement.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/linked-data/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/linked-data/world.json
+```
+
+This example specializes a copy under the supplied link boundary. Its broken
+variant writes one byte later, changing both memory and the returned word.
 
 Storage-array loads also execute directly: packed integers, signed values,
 fixed bytes, checked enums and nested bytes objects. The array header is reserved

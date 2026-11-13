@@ -393,10 +393,22 @@ def operation(value, definitions):
         )
     elif kind == "data_copy":
         raw = value["bytes"]
-        if not isinstance(raw, list) or len(raw) > 65536:
+        if raw is not None and (not isinstance(raw, list) or len(raw) > 65536):
             raise Unsupported("MIR constant data limit of 64 KiB")
-        data = "[" + ",".join(number(byte, 256) for byte in raw) + "]"
-        expression = f".dataCopy {data} {number(value['offset'])}"
+        data = (
+            "none"
+            if raw is None
+            else "(some [" + ",".join(number(byte, 256) for byte in raw) + "])"
+        )
+        relocations = (
+            "["
+            + ",".join(
+                f"({number(offset)},{number(library)})"
+                for offset, library in value["relocations"]
+            )
+            + "]"
+        )
+        expression = f".dataCopy {number(value['id'])} {data} {relocations} {number(value['offset'])}"
     elif kind in {"mapping_slot", "mapping_slot_bytes", "array_data_slot"}:
         expression = {
             "mapping_slot": ".slot .mapping",
