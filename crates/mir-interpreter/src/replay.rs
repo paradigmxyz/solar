@@ -179,6 +179,8 @@ pub enum StateOutcome {
     Revert(Vec<u8>),
     /// Exceptional halt, including static violations or unavailable instructions.
     Invalid,
+    /// An `assume` whose fact fails: undefined behaviour, which any result refines.
+    Undefined,
     /// The interpreter cannot establish the result, including work/memory limits.
     Unsupported(String),
 }
@@ -220,6 +222,7 @@ pub fn run_state(
                 RunOutcome::Stop => StateOutcome::Success(Vec::new()),
                 RunOutcome::Revert(data) => StateOutcome::Revert(data),
                 RunOutcome::Invalid | RunOutcome::ReturndataOutOfBounds => StateOutcome::Invalid,
+                RunOutcome::Undefined => StateOutcome::Undefined,
                 RunOutcome::Unsupported(what) => StateOutcome::Unsupported(what.into()),
                 RunOutcome::Limit(what) => {
                     StateOutcome::Unsupported(format!("state replay limit: {what:?}"))
