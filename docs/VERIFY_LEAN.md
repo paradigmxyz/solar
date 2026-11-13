@@ -38,9 +38,7 @@ each exercises:
 | ArrayMax | 2 | 12 | a loop: invariant on entry and preserved, `decreases`, array reads |
 
 Counts are queries with Z3 4.13 and include split cases, side queries and advisory checks; the
-manifest's `role` tells them apart. Export one source file per run: a run over several files
-can report spurious ghost-erasure errors in the later ones, which affects verification as a
-whole, not only the export.
+manifest's `role` tells them apart.
 
 ## Layout
 
