@@ -1,0 +1,120 @@
+; === ROOT/tests/ui/codegen/mir/inline/udvt_operator.sol:Operator ===
+@module Operator
+; function run(Ratio r, Ratio limit, uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f) external pure returns (uint256 s) [selector 0x6c7b07bc]
+fn @run(arg0: i96, arg1: i96, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256) -> i256 [selector=0x6c7b07bc, pure, abi_params=[uint96, uint96, uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb5
+    v0 = phi [bb0: arg0], [bb5: v21]
+    v1 = phi [bb0: arg1], [bb5: v1]
+    v2 = phi [bb0: arg2], [bb5: v2]
+    v3 = phi [bb0: arg3], [bb5: v3]
+    v4 = phi [bb0: arg4], [bb5: v4]
+    v5 = phi [bb0: arg5], [bb5: v5]
+    v6 = phi [bb0: arg6], [bb5: v6]
+    v7 = phi [bb0: arg7], [bb5: v7]
+    v8 = phi [bb0: 0], [bb5: v14]
+    v9 = phi [bb0: 0], [bb5: v15]
+    v10 = phi [bb0: 0], [bb5: v16]
+    v11 = phi [bb0: 0], [bb5: v17]
+    v12 = phi [bb0: 0], [bb5: v18]
+    v13 = phi [bb0: 0], [bb5: v19]
+    jumpi true, bb3, bb4
+  bb4:                                            ; preds = bb1
+    jump bb2
+  bb3:                                            ; preds = bb1
+    v14 = add v8, v2
+    v15 = add v9, v3
+    v16 = add v10, v4
+    v17 = add v11, v5
+    v18 = add v12, v6
+    v19 = add v13, v7
+    v20 = icall @eq, v0, v1
+    jumpi v20, bb6, bb7
+  bb7:                                            ; preds = bb3
+    jump bb8
+  bb8:                                            ; preds = bb7
+    v21 = add v0, i96 1
+    jump bb5
+  bb5:                                            ; preds = bb8
+    jump bb1
+  bb6:                                            ; preds = bb3
+    jump bb2
+  bb2:                                            ; preds = bb6, bb4
+    v22 = phi [bb6: v14], [bb4: v8]
+    v23 = phi [bb6: v15], [bb4: v9]
+    v24 = phi [bb6: v16], [bb4: v10]
+    v25 = phi [bb6: v17], [bb4: v11]
+    v26 = phi [bb6: v18], [bb4: v12]
+    v27 = phi [bb6: v19], [bb4: v13]
+    v28 = xor v22, v23
+    v29 = xor v28, v24
+    v30 = xor v29, v25
+    v31 = xor v30, v26
+    v32 = xor v31, v27
+    ret v32
+}
+
+; function eq(Ratio a, Ratio b) pure returns (bool)
+fn @eq(arg0: i96, arg1: i96) -> i1 [pure] {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/mir/inline/udvt_operator.sol:Unwrapped ===
+@module Unwrapped
+; function run(Ratio r, Ratio limit, uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f) external pure returns (uint256 s) [selector 0x6c7b07bc]
+fn @run(arg0: i96, arg1: i96, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256) -> i256 [selector=0x6c7b07bc, pure, abi_params=[uint96, uint96, uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb5
+    v0 = phi [bb0: arg0], [bb5: v21]
+    v1 = phi [bb0: arg1], [bb5: v1]
+    v2 = phi [bb0: arg2], [bb5: v2]
+    v3 = phi [bb0: arg3], [bb5: v3]
+    v4 = phi [bb0: arg4], [bb5: v4]
+    v5 = phi [bb0: arg5], [bb5: v5]
+    v6 = phi [bb0: arg6], [bb5: v6]
+    v7 = phi [bb0: arg7], [bb5: v7]
+    v8 = phi [bb0: 0], [bb5: v14]
+    v9 = phi [bb0: 0], [bb5: v15]
+    v10 = phi [bb0: 0], [bb5: v16]
+    v11 = phi [bb0: 0], [bb5: v17]
+    v12 = phi [bb0: 0], [bb5: v18]
+    v13 = phi [bb0: 0], [bb5: v19]
+    jumpi true, bb3, bb4
+  bb4:                                            ; preds = bb1
+    jump bb2
+  bb3:                                            ; preds = bb1
+    v14 = add v8, v2
+    v15 = add v9, v3
+    v16 = add v10, v4
+    v17 = add v11, v5
+    v18 = add v12, v6
+    v19 = add v13, v7
+    v20 = eq v0, v1
+    jumpi v20, bb6, bb7
+  bb7:                                            ; preds = bb3
+    jump bb8
+  bb8:                                            ; preds = bb7
+    v21 = add v0, i96 1
+    jump bb5
+  bb5:                                            ; preds = bb8
+    jump bb1
+  bb6:                                            ; preds = bb3
+    jump bb2
+  bb2:                                            ; preds = bb6, bb4
+    v22 = phi [bb6: v14], [bb4: v8]
+    v23 = phi [bb6: v15], [bb4: v9]
+    v24 = phi [bb6: v16], [bb4: v10]
+    v25 = phi [bb6: v17], [bb4: v11]
+    v26 = phi [bb6: v18], [bb4: v12]
+    v27 = phi [bb6: v19], [bb4: v13]
+    v28 = xor v22, v23
+    v29 = xor v28, v24
+    v30 = xor v29, v25
+    v31 = xor v30, v26
+    v32 = xor v31, v27
+    ret v32
+}

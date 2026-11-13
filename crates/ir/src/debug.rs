@@ -17,6 +17,9 @@ pub struct DebugFunction {
     pub identifier: Symbol,
     /// Source range of the complete declaration.
     pub declaration: Span,
+    /// Whether the dispatcher or the deployment code enters the function, instead of a call from
+    /// other code.
+    pub dispatched: bool,
 }
 
 /// Function activation transition associated with an instruction.

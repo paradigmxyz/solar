@@ -1,0 +1,10 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_array_short_head.sol:C ===
+@module C
+; function f(bytes calldata input) external pure returns (uint256[2] calldata s) [selector 0xd45754f8]
+fn @f(arg0: slice<calldata>) -> slice<calldata> [selector=0xd45754f8, pure, abi_params=[bytes], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = make_calldata_slice v0, 2
+    ret v2
+}

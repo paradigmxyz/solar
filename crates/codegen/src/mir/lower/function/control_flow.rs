@@ -45,7 +45,7 @@ struct TryTarget<'a, 'gcx> {
     /// Parameter names for named-argument resolution.
     parameter_names: Option<CallableParamNames>,
     /// The call opcode; unused for a contract creation.
-    kind: AddressCallKind,
+    kind: ExtCallKind,
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -271,7 +271,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .collect(),
                 return_types: Vec::new(),
                 parameter_names: Some(parameter_names),
-                kind: AddressCallKind::Call,
+                kind: ExtCallKind::Call,
             }
         } else if let ExprKind::Member(receiver, _) = callee.kind
             && let Some(function_id) = self.cx.gcx.resolved_function(callee)
@@ -303,7 +303,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .call_param_source(callee)
                         .map(|source| self.cx.gcx.callable_param_names(source)),
-                    AddressCallKind::Delegate,
+                    ExtCallKind::Delegate,
                 )
             } else {
                 (

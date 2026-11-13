@@ -270,7 +270,18 @@ impl<'gcx> TypeChecker<'gcx> {
         };
 
         let (span, code, msg): (Span, DiagId, DiagMsg) = match inner() {
-            Ok(()) => return self.gcx.types.uint(256),
+            Ok(()) => {
+                if self.record_ast_facts
+                    && let Some(hir::Res::Item(hir::ItemId::Variable(declaration))) = res
+                {
+                    self.record_yul_reference(
+                        expr.span.to(member.span),
+                        Some(member.name),
+                        declaration,
+                    );
+                }
+                return self.gcx.types.uint(256);
+            }
             Err(ErrorKind::NonVariable) => (
                 member.span,
                 error_code!(7944),

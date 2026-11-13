@@ -339,12 +339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     {
                         self.builder.slice_len(previous)
                     }
-                    _ => match ty.peel_refs().kind {
-                        TyKind::Array(_, length) => {
-                            self.builder.imm(u64::try_from(length).unwrap_or(0))
-                        }
-                        _ => self.builder.imm(U256::ZERO),
-                    },
+                    _ => self.calldata_static_length(ty),
                 };
                 value = self.builder.make_slice(value, length, PtrLocation::Calldata);
             }

@@ -1,8 +1,8 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=late-word
 @module ShiftPairMaskEvents
 
-// The first shift's count is a copy of the second's, which keeps its function events. The event
-// is not repeated on the copy.
+// The window runs straight through once, so its function entry moves to the first instruction of
+// the replacement. The copy of the shift count, which the first shift takes, does not repeat it.
 bb0:
   push 4
   calldataload

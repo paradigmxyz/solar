@@ -1,5 +1,5 @@
 use solar_codegen::ContractSelection;
-use solar_config::CompileOpts;
+use solar_config::{CompileOpts, CompilerOutput};
 use solar_interface::{
     Result, Session, data_structures::map::FxHashMap, diagnostics::DiagCtxt, error_code,
     source_map::SourceFile,
@@ -14,7 +14,8 @@ pub(super) fn run(opts: CompileOpts) -> ExitCode {
     }
 }
 
-pub fn run_compiler_args(opts: CompileOpts) -> Result {
+pub fn run_compiler_args(mut opts: CompileOpts) -> Result {
+    opts.unstable.keep_asts |= opts.emit.contains(&CompilerOutput::Ast);
     if opts.standard_json {
         return crate::standard_json::run(opts).map_err(|e| {
             DiagCtxt::new_early().err(format!("failed to write standard JSON output: {e}")).emit()
@@ -104,7 +105,9 @@ pub(crate) fn run_pipeline(
     let ControlFlow::Continue(()) = compiler.lower_asts()? else {
         return Ok(ControlFlow::Break(()));
     };
-    compiler.drop_asts();
+    if !sess.opts.unstable.keep_asts {
+        compiler.drop_asts();
+    }
     let ControlFlow::Continue(()) = compiler.analysis()? else {
         return Ok(ControlFlow::Break(()));
     };

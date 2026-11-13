@@ -132,33 +132,30 @@ fn @bytesTail() {
 ; function concat() external pure returns (bool) [selector 0x6bdbf8e6]
 fn @concat() {
   bb0:
-    v59 = heap_floor !metadata(alloc_ptr)
-    v60 = add v59, 160 !metadata(alloc_ptr)
-    mstore 64, v60 !metadata(memory=scratch)
-    mstore v59, 33
-    v39 = add v59, 32
-    mstore v39, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v41 = add v59, 64
-    mstore v41, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v58 = add v59, 96
-    mstore v58, 2
-    v43 = add v59, 128
-    mstore v43, 0x2223000000000000000000000000000000000000000000000000000000000000
-    v61 = mload 64 !metadata(alloc_ptr)
-    v62 = add v61, 96
-    mstore 64, v62
-    mstore v61, 35
-    v45 = add v61, 32
-    icall @mcopy_words, v45, v39, 33
-    v47 = add v45, 33
-    icall @mcopy_words, v47, v43, 2
-    v49 = add v61, 35
-    v50 = add v49, 32
-    mstore v50, 0
-    v10 = keccak256 v45, 35
+    v54 = heap_floor !metadata(alloc_ptr)
+    v55 = add v54, 160 !metadata(alloc_ptr)
+    mstore 64, v55 !metadata(memory=scratch)
+    mstore v54, 33
+    v37 = add v54, 32
+    mstore v37, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v39 = add v54, 64
+    mstore v39, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v53 = add v54, 96
+    mstore v53, 2
+    v41 = add v54, 128
+    mstore v41, 0x2223000000000000000000000000000000000000000000000000000000000000
+    v56 = mload 64 !metadata(alloc_ptr)
+    v57 = add v56, 96
+    mstore 64, v57
+    mstore v56, 35
+    v43 = add v56, 32
+    icall @mcopy_words, v43, v37, 33
+    v45 = add v43, 33
+    icall @mcopy_words, v45, v41, 2
+    v10 = keccak256 v43, 35
     v11 = eq v10, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
-    v37 = zext i1 v11 to i256
-    mstore 0, v37
+    v35 = zext i1 v11 to i256
+    mstore 0, v35 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -213,26 +210,24 @@ fn @assembled() {
 ; function recycled() external pure returns (bool) [selector 0xa163996f]
 fn @recycled() {
   bb0:
-    v42 = icall @alloc, 96
-    mstore v42, 64
-    v2 = add v42, 32
+    v36 = icall @alloc, 96
+    mstore v36, 64
+    v2 = add v36, 32
     mstore v2, 0x1111111111111111111111111111111111111111111111111111111111111111
-    v4 = add v42, 64
+    v4 = add v36, 64
     mstore v4, 0x2222222222222222222222222222222222222222222222222222222222222222
     mstore 64, v2
-    v43 = mload 64 !metadata(alloc_ptr)
-    v44 = add v43, 96
-    mstore 64, v44
-    mstore v43, 64
-    v34 = add v43, 32
-    icall @mcopy_words, v34, v2, 64
-    v36 = add v43, 64
-    v37 = add v43, 96
-    mstore v37, 0
-    v10 = mload v36
+    v37 = mload 64 !metadata(alloc_ptr)
+    v38 = add v37, 96
+    mstore 64, v38
+    mstore v37, 64
+    v32 = add v37, 32
+    icall @mcopy_words, v32, v2, 64
+    v9 = add v37, 64
+    v10 = mload v9
     v11 = eq v10, 0x2222222222222222222222222222222222222222222222222222222222222222
-    v30 = zext i1 v11 to i256
-    mstore 0, v30
+    v28 = zext i1 v11 to i256
+    mstore 0, v28 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -265,26 +260,24 @@ fn @freshEmpty() {
 ; function recycledTail() external pure returns (bytes32 last) [selector 0x52eea5e4]
 fn @recycledTail() {
   bb0:
-    v41 = icall @alloc, 96
-    mstore v41, 63
-    v2 = add v41, 32
+    v35 = icall @alloc, 96
+    mstore v35, 63
+    v2 = add v35, 32
     mstore v2, 0x1111111111111111111111111111111111111111111111111111111111111111
-    v4 = add v41, 64
+    v4 = add v35, 64
     mstore v4, 0x2222222222222222222222222222222222222222222222222222222222222222
-    v6 = add v41, 96
+    v6 = add v35, 96
     mstore v6, 0x3333333333333333333333333333333333333333333333333333333333333333
     mstore 64, v2
-    v42 = mload 64 !metadata(alloc_ptr)
-    v43 = add v42, 96
-    mstore 64, v43
-    mstore v42, 63
-    v33 = add v42, 32
-    icall @mcopy_words, v33, v2, 63
-    v36 = add v42, 95
-    mstore v36, 0
-    v11 = add v42, 64
+    v36 = mload 64 !metadata(alloc_ptr)
+    v37 = add v36, 96
+    mstore 64, v37
+    mstore v36, 63
+    v31 = add v36, 32
+    icall @mcopy_words, v31, v2, 63
+    v11 = add v36, 64
     v12 = mload v11
-    mstore 0, v12
+    mstore 0, v12 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -297,8 +290,8 @@ fn @pair() {
     v7 = add v6, 4
     v9 = sub v4, 36
     v10 = lt v9, v6
-    v66 = or v5, v10
-    jumpi v66, bb1, bb2
+    v59 = or v5, v10
+    jumpi v59, bb1, bb2
   bb2:                                            ; preds = bb0
     v11 = calldataload v7
     v12 = add v7, 32
@@ -308,34 +301,34 @@ fn @pair() {
     v16 = lt v15, v11
     jumpi v16, bb3, bb4
   bb4:                                            ; preds = bb2
-    v64 = icall @alloc, v15
-    mstore v64, v11
+    v57 = icall @alloc, v15
+    mstore v57, v11
     v18 = sub v4, v12
     v19 = lt v18, v11
     jumpi v19, bb1, bb5
   bb5:                                            ; preds = bb4
-    v57 = add v64, 32
-    calldatacopy v57, v12, v11
-    v65 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v31 = add v65, 64
-    mstore v65, 64
-    v37 = add v31, 32
-    v38 = add v31, v14
-    mstore v38, 0
-    mstore v31, v11
-    v40 = add v37, v14
-    icall @mcopy_words, v37, v57, v11
-    v44 = sub v40, v65
-    v42 = add v65, 32
-    mstore v42, v44
-    v48 = add v40, 32
-    v49 = add v40, v14
-    mstore v49, 0
-    mstore v40, v11
-    v51 = add v48, v14
-    icall @mcopy_words, v48, v57, v11
-    v53 = sub v51, v65
-    v3 = keccak256 v65, v53
+    v53 = add v57, 32
+    calldatacopy v53, v12, v11
+    v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v27 = add v58, 64
+    mstore v58, 64
+    v33 = add v27, 32
+    v34 = add v27, v14
+    mstore v34, 0
+    mstore v27, v11
+    v36 = add v33, v14
+    icall @mcopy_words, v33, v53, v11
+    v40 = sub v36, v58
+    v38 = add v58, 32
+    mstore v38, v40
+    v44 = add v36, 32
+    v45 = add v36, v14
+    mstore v45, 0
+    mstore v36, v11
+    v47 = add v44, v14
+    icall @mcopy_words, v44, v53, v11
+    v49 = sub v47, v58
+    v3 = keccak256 v58, v49
     mstore 0, v3
     returndata 0, 32
   bb3 [cold]:                                     ; preds = bb2

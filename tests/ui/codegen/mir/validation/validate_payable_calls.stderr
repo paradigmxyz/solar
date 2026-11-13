@@ -1,6 +1,6 @@
-error: [fn0] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+error: [fn0] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
 
-error: [fn1] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+error: [fn1] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
 
 error: [fn2] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
@@ -16,15 +16,5 @@ error: [fn7] [bb0, inst0] `icall` has incompatible scalar types; use an explicit
 
 error: [fn8] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn9] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-
-error: [fn10] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-
-error: [fn11] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-
-error: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-
-error: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-
-error: aborting due to 14 previous errors
+error: aborting due to 9 previous errors
 

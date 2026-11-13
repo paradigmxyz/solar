@@ -1,0 +1,24 @@
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify -Zdebugify=check
+//@ filecheck:
+// A callee's entry thunk jumps to a loop header. The header has another entry, the loop's back
+// edge, so an entry on it would run once per iteration, and one on the caller's jump is not the
+// callee's first instruction. The entry is unknown.
+// CHECK-LABEL: (after cfg-simplify)
+// CHECK-NOT: {{^[ +].*invoke}}
+// CHECK: {{^[ +].*}}jump bb2 !metadata(span=1..5){{$}}
+// CHECK-NOT: {{^[ +].*invoke}}
+@module ThunkLoopHeaderEntry
+bb0:
+  push 0
+  jump bb1 !metadata(span=1..5)
+bb1 [invoke=callee@10..50]:
+  jump bb2
+bb2:
+  calldatasize
+  jumpi bb3, bb4
+bb3:
+  push 1
+  pop
+  jump bb2
+bb4:
+  stop

@@ -149,6 +149,8 @@ contract C {
         (a, x = 1);
         a == b ? g() : 0;
         payable(owner).send(0);
+        //~^ WARN: `send` is deprecated and scheduled for removal
+        //~| WARN: failure condition of `send` ignored
         abi.encode(a);
         new C();
         U u;

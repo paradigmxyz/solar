@@ -94,6 +94,40 @@ def show_pair(pair, full=False):
         print(f"  replay comparison: {shlex.join(['sh', pair['replay']])}")
 
 
+def show_ast_summary(summary, worst=10):
+    fields = summary["fields"]
+    total = {k: sum(row[k] for row in fields) for k in ("compared", "equal", "ignored")}
+    reference = [n for n, c in summary["node_types"].items() if c["left"]]
+    print(
+        f"AST: {total['equal']}/{total['compared']} field comparisons equal"
+        f" ({total['equal'] * 100_000 // max(total['compared'], 1) / 1000}%), {total['ignored']} ignored"
+    )
+    nodes = summary["node_types"].values()
+    print(
+        f"AST nodes: {sum(c['paired'] for c in nodes)}/{sum(c['left'] for c in nodes)}"
+        " of the reference's are paired with a candidate node"
+    )
+    missing = summary["never_emitted"]
+    print(
+        f"AST node types: {len(reference) - len(missing)}/{len(reference)} of the reference's are emitted"
+        + (f"; never emitted: {shorten(', '.join(missing))}" if missing else "")
+    )
+    lowest = sorted(
+        (row for row in fields if row["equal"] < row["compared"]),
+        key=lambda row: row["equal"] / row["compared"],
+    )
+    for row in lowest[:worst]:
+        print(
+            f"  {row['nodeType']}.{row['field']}: {row['equal']}/{row['compared']} equal,"
+            f" {row['different']} different, {row['missing_left']} missing left,"
+            f" {row['missing_right']} missing right"
+        )
+    if len(lowest) > worst:
+        print(f"  ... {len(lowest) - worst} more fields below 100%; see report.json")
+    if summary["unused_rules"]:
+        print(f"unused AST rules: {summary['unused_rules']}")
+
+
 class Tests(unittest.TestCase):
     def test_difference_output(self):
         pair = {
@@ -154,4 +188,28 @@ class Tests(unittest.TestCase):
         self.assertEqual(shorten(json.dumps("x" * 200)), '"' + "x" * 176 + "...")
         self.assertEqual(
             shorten(json.dumps("x" * 200), full=True), '"' + "x" * 200 + '"'
+        )
+
+    def test_ast_summary(self):
+        row = {"nodeType": "Call", "field": "isPure", "compared": 4, "equal": 3}
+        row.update(different=1, missing_left=0, missing_right=0, ignored=2)
+        summary = {
+            "fields": [row, {**row, "field": "kind", "equal": 4, "different": 0}],
+            "node_types": {
+                "Call": {"left": 2, "right": 2, "paired": 2},
+                "Throw": {"left": 1, "right": 0, "paired": 0},
+            },
+            "never_emitted": ["Throw"],
+            "unused_rules": [1],
+        }
+        with patch("sys.stdout", new_callable=io.StringIO) as output:
+            show_ast_summary(summary)
+        self.assertEqual(
+            output.getvalue(),
+            """AST: 7/8 field comparisons equal (87.5%), 4 ignored
+AST nodes: 2/3 of the reference's are paired with a candidate node
+AST node types: 1/2 of the reference's are emitted; never emitted: Throw
+  Call.isPure: 3/4 equal, 1 different, 0 missing left, 0 missing right
+unused AST rules: [1]
+""",
         )

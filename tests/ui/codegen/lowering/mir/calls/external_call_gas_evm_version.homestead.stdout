@@ -359,7 +359,7 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v5 = address_call v2, v4
+    v5 = extcall v2, v4
     jumpi v5, bb3, bb4
   bb4:                                            ; preds = bb2
     jump bb5
@@ -383,15 +383,16 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall send<>, v2, 0
-    v5 = ne v4, 0
-    jumpi v5, bb3, bb4
+    v4 = eq 0, 0
+    v5 = select v4, 0x8fc, 0
+    v6 = extcall v2, gas v5, value 0
+    jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb2
     jump bb5
   bb3:                                            ; preds = bb2
     jump bb5
   bb5:                                            ; preds = bb3, bb4
-    v6 = phi [bb3: i8 1], [bb4: i8 0]
-    v7 = zext i8 v6 to i256
-    ret v7
+    v7 = phi [bb3: i8 1], [bb4: i8 0]
+    v8 = zext i8 v7 to i256
+    ret v8
 }

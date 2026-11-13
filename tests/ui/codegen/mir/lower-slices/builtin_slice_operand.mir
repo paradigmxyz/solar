@@ -1,0 +1,10 @@
+//@ compile-flags: -Zmir-pipeline=lower-slices
+@module BuiltinSliceOperand
+
+// A builtin reads the length of its slice, so `lower-slices` must not erase the slice first.
+//~? ERROR: `lower-slices` requires lowered builtin slice operands; run `lower-builtins` first
+fn @hash(arg0: slice<memory>) -> i1 {
+  bb0:
+    v0 = extcall static word i160 2, arg0
+    ret v0
+}

@@ -1,0 +1,33 @@
+//@ filecheck:
+// The functions that an internal function pointer reaches are numbered from 1 by their IDs.
+// A contract without pointers has no `internalFunctionIDs`.
+// CHECK: "name": "Pointers"
+// CHECK: "internalFunctionIDs": {
+// CHECK-NEXT: "{{[0-9]+}}": 1,
+// CHECK-NEXT: "{{[0-9]+}}": 2
+// CHECK-NEXT: }
+// CHECK: "name": "Plain"
+// CHECK-NOT: "internalFunctionIDs"
+// CHECK: "name": "Base"
+// CHECK-NOT: "internalFunctionIDs"
+// CHECK: "name": "Derived"
+// CHECK: "internalFunctionIDs": {
+// CHECK-NEXT: "{{[0-9]+}}": 1,
+// CHECK-NEXT: "{{[0-9]+}}": 2
+// CHECK-NEXT: }
+// CHECK: "name": "Parenthesized"
+// CHECK: "internalFunctionIDs": {
+// CHECK-NEXT: "{{[0-9]+}}": 1
+// CHECK-NEXT: }
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

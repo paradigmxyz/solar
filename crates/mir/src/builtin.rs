@@ -19,22 +19,12 @@ pub enum Builtin {
         is_zero: bool,
         failure: super::RevertKind,
     },
-    /// SHA-256 of a memory bytes object or slice; a failed precompile call reverts.
-    Sha256,
-    /// Left-aligned RIPEMD-160 of a memory bytes object or slice; the same effects as `sha256`.
-    Ripemd160,
-    /// Recover an address from hash, recovery ID, and signature words.
-    EcRecover,
     /// ERC-7201 namespace slot derived from a bytes object.
     Erc7201,
     /// Solidity modular addition, which panics for a zero modulus.
     CheckedAddMod,
     /// Solidity modular multiplication, which panics for a zero modulus.
     CheckedMulMod,
-    /// Send value to an address with a 2300 gas stipend, returning success.
-    Send,
-    /// Transfer value with a 2300 gas stipend, reverting with returndata on failure.
-    Transfer,
     /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
     ReturndataBytes,
 }
@@ -108,10 +98,8 @@ impl Builtin {
     /// Operand count for builtins with a fixed signature.
     pub(crate) const fn fixed_arity(&self) -> Option<usize> {
         match self {
-            Self::Sha256 | Self::Ripemd160 | Self::Erc7201 => Some(1),
-            Self::EcRecover => Some(4),
+            Self::Erc7201 => Some(1),
             Self::CheckedAddMod | Self::CheckedMulMod => Some(3),
-            Self::Send | Self::Transfer => Some(2),
             Self::ReturndataBytes => Some(0),
             Self::Require(_) | Self::Check { .. } => None,
         }
