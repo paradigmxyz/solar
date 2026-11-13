@@ -64,6 +64,7 @@ inductive AbiRule where
 inductive PackedInput where
   | literal (bytes : List SolarTV.Execution.Byte)
   | scalar (index size : Nat) (fixedBytes : Bool)
+  | bytes (index location : Nat)
 
 inductive AbiShape where
   | scalar (rule : AbiRule) (function : Bool) (width : Nat)
