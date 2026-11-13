@@ -15,16 +15,20 @@
 # contract:
 #
 # - bytecode: the first ADD opcode (else LT, else EQ) of the linear decoding as another opcode,
-#   and the first two entries of its first packed jump table swapped, when present;
+#   its first LT as GT when it has an ADD, and the first two entries of its first packed jump
+#   table swapped, when present;
 # - final EVM IR: its first add as sub, the key N its first sstore pushes as N + 1, and its call
 #   value check dropped (the call goes on instead of reverting), its jump to the Panic(0x11) block
 #   of the overflow check dropped, its first log dropped, the signature topic of its first log
 #   plus one, the data offset of its first log at the next word, its first keccak256 (a mapping
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
-#   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
-#   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), and its first
-#   jump table's first two entries swapped, each when present;
+#   mapping slot it reads plus one, the inner key of its first nested mapping read plus one,
+#   the two topics under its first log's signature swapped, its first revert on a word read
+#   from storage dropped, its first branch on the all-ones word dropped, its first mul as add,
+#   and its first range test of a narrow product (`push 2^k - 1; dup n; gt`) as `push 0`, its
+#   first external call as another kind of call and the check of that call's success dropped (a
+#   failed call goes on), and its first jump table's first two entries swapped, each when
+#   present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -184,6 +188,27 @@ hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
 s = s.replace(hex_old, hex_old[:2 * offset] + "%02x" % new + hex_old[2 * offset + 2:])
 EOF
 
+# The first LT of the linear decoding as GT, when the case above edited an ADD (a comparison
+# such as a balance check the other way round).
+try bytecode-lt "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" <<'EOF'
+import re
+body = re.search(r"def bytecode : List Nat :=\n  \[(.*?)\]", s, re.S)
+code = [int(b, 16) for b in re.findall(r"0x[0-9a-f]+", body.group(1))]
+ops, pc = [], 0
+while pc < len(code):
+    ops.append(pc)
+    pc += 1 + (code[pc] - 0x5f if 0x60 <= code[pc] <= 0x7f else 0)
+if not any(code[pc] == 0x01 for pc in ops): sys.exit(3)
+offset = next((pc for pc in ops if code[pc] == 0x10), None)
+if offset is None: sys.exit(3)
+print(f"  bytecode offset {offset}: 0x10 as 0x11")
+code[offset] = 0x11
+rows = [", ".join("0x%02x" % b for b in code[i:i + 16]) for i in range(0, len(code), 16)]
+s = s[:body.start(1)] + ",\n   ".join(rows) + s[body.end(1):]
+hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
+s = s.replace(hex_old, hex_old[:2 * offset] + "11" + hex_old[2 * offset + 2:])
+EOF
+
 # The first packed jump table's first two entries swapped in the bytecode (the PUSH of one-byte
 # offsets before SWAP1; BYTE; JUMP).
 try bytecode-jump-table "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" <<'EOF'
@@ -315,6 +340,66 @@ print(f"  mapping slot {m.group(1)} as {slot + 1}")
 s = s[:m.start(1)] + str(slot + 1) + s[m.end(1):]
 EOF
 try "$last-mapping-slot" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/mapping-slot.py"
+
+# The inner key of the first nested mapping read plus one: the key stored at 0 before a hash
+# whose slot word at 32 is the previous hash (mapping(k1 => mapping(k2 => v))[k1][k2], such as an
+# allowance's spender), so the read moves to another entry of the inner mapping.
+cat > "$tmp/nested-key.py" <<'EOF'
+import re
+m = re.search(r"\.effect \.keccak256 2,\n(?:[^\n]*\n){0,4}?(\s*)\.op \(\.stack \(\.push 0\)\),\n\s*\.op \.store,\n"
+              r"\s*\.op \(\.stack \(\.push 32\)\),\n\s*\.op \.store,\n\s*\.op \(\.stack \(\.push 64\)\),\n"
+              r"\s*\.op \(\.stack \(\.push 0\)\),\n\s*\.effect \.keccak256 2,", s)
+if m is None: sys.exit(3)
+print("  the inner key of the first nested mapping read plus one")
+ind = m.group(1)
+at = m.start(1)
+s = s[:at] + f"{ind}.op (.stack (.push 1)),\n{ind}.op (.stack .add),\n" + s[at:]
+EOF
+try "$last-nested-mapping-key" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/nested-key.py"
+
+# The first log of three or more topics with its first two topics after the signature swapped:
+# a SWAP1 of the words under the pushes of its signature, data size and data offset (an event's
+# indexed arguments, such as a transfer's sender and recipient, in each other's places).
+cat > "$tmp/log-swap.py" <<'EOF'
+import re
+m = re.search(r"\n(\s*)\.op \(\.stack \(\.push 0x[0-9a-f]{64}\)\),\n\s*\.op \(\.stack \(\.push (?:0x[0-9a-f]+|\d+)\)\),\n"
+              r"\s*\.op \(\.stack \(\.push (?:0x[0-9a-f]+|\d+)\)\),\n\s*\.effect \(\.log [34]\) \d,", s)
+if m is None: sys.exit(3)
+print("  the two topics under the first log's signature swapped")
+s = s[:m.start()] + f"\n{m.group(1)}.op (.stack (.swap 0))," + s[m.start():]
+EOF
+try "$last-log-swap-topics" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/log-swap.py"
+
+# The first check of a word read from storage dropped: a jump to a block that reverts with no
+# data (push 0; push 0; revert) on a word an sload read at most two stack operations before
+# (a flag such as require(!frozen[msg.sender])) pops its condition instead, so the call goes on.
+python3 - "$gen/$last.lean" > "$tmp/storage-check.py" <<'EOF'
+import re, sys
+text = open(sys.argv[1]).read()
+blocks = re.split(r"\n    -- bb\d+\n", text.split("blocks := [", 1)[1])[1:]
+empty = [i for i, b in enumerate(blocks)
+         if re.fullmatch(r"\s*\[\.op \(\.stack \(\.push 0\)\),\s*\.op \(\.stack \(\.(?:push 0|dup 0)\)\),\s*\.revert\],?\s*", b)]
+m = None
+if empty:
+    m = re.search(r"\.effect \.sload 1,\n(?:\s*\.op \(\.stack [^\n]*\),\n){0,2}\s*(\.jumpi (?:%s),)"
+                  % "|".join(map(str, empty)), text)
+new = m.group(0)[: m.start(1) - m.start(0)] + ".op (.stack .pop)," if m else ""
+print(f"old, new = {m.group(0)!r}, {new!r}" if m else "sys.exit(3)")
+print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
+EOF
+try "$last-no-storage-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/storage-check.py"
+
+# The first test for the all-ones word dropped (not; iszero; jumpi, a branch on
+# x == type(uint256).max, such as an unlimited allowance's): the jump pops its condition, so the
+# code goes on as for any other word.
+cat > "$tmp/all-ones.py" <<'EOF'
+import re
+m = re.search(r"\.op \(\.stack \.not\),\n\s*\.op \(\.stack \.iszero\),\n\s*(\.jumpi \d+,)", s)
+if m is None: sys.exit(3)
+print(f"  {m.group(1)} after the all-ones test as a pop")
+s = s[:m.start(1)] + ".op (.stack .pop)," + s[m.end(1):]
+EOF
+try "$last-no-all-ones-branch" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/all-ones.py"
 
 # The first multiplication as an addition.
 replace_first '".op (.stack .mul)"' '".op (.stack .add)"' > "$tmp/mul-add.py"
