@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// .slot and .offset of state variables in assembly, enums assigned in assembly and byte with a
-// symbolic index: every ok_* must verify, every bad_* must fail.
+// .slot and .offset of state variables in assembly, enums assigned in assembly, calldata reads
+// and byte with a symbolic index: every ok_* must verify, every bad_* must fail.
 contract Slots {
     enum Kind {
         A,
@@ -182,11 +182,62 @@ contract Slots {
         assert(uint8(k) < 4);
     }
 
-    // expect: outside enum
+    // expect: may hold a word outside enum
     function bad_enum_wide(uint256 x) public pure returns (Kind k) {
         assembly {
             k := shr(2, x)
         }
+    }
+
+    /// Seaport's basic-order route: a raw word until validation, read in Solidity only after.
+    function ok_enum_validated_later(uint256 x) public pure returns (bool) {
+        Kind k;
+        assembly {
+            k := shr(2, x)
+        }
+        require(x < 20);
+        return k == Kind.E;
+    }
+
+    /// Assembly may read the raw word before validation.
+    function ok_enum_raw_in_assembly(uint256 x) public pure returns (uint256 big) {
+        Kind k;
+        assembly {
+            k := shr(2, x)
+            big := gt(k, 4)
+        }
+    }
+
+    // expect: may hold a word outside enum
+    function bad_enum_read_before_check(uint256 x) public pure returns (bool) {
+        Kind k;
+        assembly {
+            k := shr(2, x)
+        }
+        bool e = k == Kind.E;
+        require(x < 20);
+        return e;
+    }
+
+    /// Calldata is fixed for the call: validating one read of an offset bounds another.
+    function ok_calldata_fixed() public pure returns (bool) {
+        Kind k;
+        uint256 v;
+        assembly {
+            k := shr(2, calldataload(4))
+            v := calldataload(4)
+        }
+        require(v < 20);
+        return k == Kind.E;
+    }
+
+    function bad_calldata_other_offset() public pure returns (uint256 a) {
+        uint256 b;
+        assembly {
+            a := calldataload(4)
+            b := calldataload(36)
+        }
+        assert(a == b);
     }
 
     // ---------------------------------------------------------------- byte

@@ -1178,19 +1178,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             Ty::Uint(256) => v,
             // any word: a call through it must show it holds a function (`call_ptr`)
             Ty::Fn(_) => v,
-            Ty::Enum(en, _) => {
-                // the word must name a variant, as the enum's range is assumed of it everywhere
+            Ty::Enum(..) => {
+                // the raw word: its range is owed where Solidity reads it (`check_raw_enum`)
                 if self.spec {
                     return unsupported(
                         span,
                         format!("assembly assignment to enum `{n}` in a spec"),
                     );
                 }
-                let r = var.ty.range(&v).unwrap();
-                let why = format!(
-                    "assembly may assign `{n}` a word outside enum `{en}`, which the model cannot hold"
-                );
-                self.must_hold(&r, &why, span)?;
+                self.raw_enums.insert(n.clone());
                 v
             }
             Ty::Uint(k) => self.y_modp(cx, l, &pow2(*k as u32)).render(),
@@ -1216,7 +1212,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         match &v.ty {
             Ty::Bool => Ok(Self::y_flagt(&v.t)),
             Ty::Uint(_) | Ty::Addr | Ty::Contract(_) | Ty::Enum(..) => {
-                if let Some(b) = v.ty.bounds()
+                // an enum assembly set holds a raw word: no range is known of it
+                let raw = matches!(v.ty, Ty::Enum(..)) && self.raw_enums.contains(n);
+                if !raw
+                    && let Some(b) = v.ty.bounds()
                     && !v.t.contains(' ')
                 {
                     cx.extra.insert(v.t.clone(), b);
@@ -2003,7 +2002,20 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             "calldataload" => {
                 want(1)?;
-                one(self.y_fresh(span, "calldataload")?)
+                // calldata is fixed for the whole call: the same offset reads the same word
+                // (Solidity calldata parameters are not tied to it)
+                self.declare_fun("sv_calldataload", 1, "Int");
+                let t = format!("(sv_calldataload {})", a[0]);
+                if self.bound.is_empty() || self.y_closed(&t) {
+                    let x = self.fresh("calldataload");
+                    self.smt.send(&format!(
+                        "(declare-const {x} Int)\n(assert (= {x} {t}))\n(assert {})\n",
+                        Ty::Uint(256).range(&x).unwrap()
+                    ));
+                    self.ranges.insert(x.clone(), (BigInt::zero(), w256() - 1));
+                    return one(x);
+                }
+                one(t)
             }
             "returndatacopy" | "calldatacopy" | "codecopy" => {
                 want(3)?;

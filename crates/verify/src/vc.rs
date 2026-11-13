@@ -147,6 +147,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// State variables whose `.slot` assembly anywhere in the program reads: a raw `sstore` may
     /// write them.
     slot_taken: BTreeSet<String>,
+    /// Enum variables of the running function that assembly assigned a raw word: their range is
+    /// owed at each Solidity-level read and at return (`check_raw_enum`), not at the assignment.
+    raw_enums: FxHashSet<String>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -240,6 +243,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             slot_consts: vec![],
             keccak_in: FxHashMap::default(),
             slot_taken: yul::slot_taken(prog),
+            raw_enums: FxHashSet::default(),
         }
     }
 
@@ -273,6 +277,23 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.fn_tags.clear();
         self.slot_consts.clear();
         self.keccak_in.clear();
+        self.raw_enums.clear();
+    }
+
+    /// An enum variable assembly may have set to a raw word must hold one of its variants where
+    /// Solidity reads it or returns it: the model (and a compiler's cleanup) assumes it does. A
+    /// read in a spec sees the raw word.
+    fn check_raw_enum(&mut self, n: &str, span: Span) -> R<()> {
+        if self.spec || !self.raw_enums.contains(n) {
+            return Ok(());
+        }
+        let Some(v) = self.env.get(n).cloned() else { return Ok(()) };
+        let Ty::Enum(en, _) = &v.ty else { return Ok(()) };
+        let r = v.ty.range(&v.t).unwrap();
+        let why = format!(
+            "`{n}`, set in assembly, may hold a word outside enum `{en}` where Solidity uses it"
+        );
+        self.must_hold(&r, &why, span)
     }
 
     // ---------------------------------------------------------------- SMT helpers
@@ -1357,6 +1378,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         let (g, e) = self.merge(states);
         self.guard = g;
         self.env = e;
+        for (n, _) in &f.rets {
+            self.check_raw_enum(n, f.item.header.span)?;
+        }
         if self.guard == "false"
             || matches!(self.smt.check(&self.guard.clone(), "false", &[]), Res::Unsat)
         {
@@ -2690,6 +2714,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Ident(id) => {
                 let n = id.as_str();
+                self.check_raw_enum(n, e.span)?;
                 if let Some(v) = self.env.get(n) {
                     let v = v.clone();
                     if matches!(v.ty, Ty::Struct(_)) && self.c.state.iter().any(|s| s.name == n) {
@@ -4826,6 +4851,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let saved_aliases = std::mem::take(&mut self.aliases);
         let saved_slocals = std::mem::take(&mut self.slocals);
         let saved_alias_env = std::mem::take(&mut self.alias_env);
+        let saved_raw_enums = std::mem::take(&mut self.raw_enums);
         let saved_old = self.old.take();
         let saved_c = std::mem::replace(&mut self.c, c);
         let caller_lib = saved_c.kind == ast::ContractKind::Library;
@@ -5017,6 +5043,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             self.ret_alias_out = ra;
             for (n, _) in &f.rets {
+                self.check_raw_enum(n, span)?;
+            }
+            for (n, _) in &f.rets {
                 match self.aliases.get(n).copied() {
                     // a storage return variable pointed somewhere: its current value
                     Some(t) => out.push(self.eval(t)?),
@@ -5036,6 +5065,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             Ok(out)
         })();
         let callee_env = std::mem::replace(&mut self.env, saved_env);
+        self.raw_enums = saved_raw_enums;
         self.aliases = saved_aliases;
         self.slocals = saved_slocals;
         self.alias_env = saved_alias_env;
