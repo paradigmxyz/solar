@@ -1589,6 +1589,36 @@ impl<'p, 'a> Vc<'p, 'a> {
         Ok(Some(vec![]))
     }
 
+    /// The contract whose `type(C).creationCode` a `create`/`create2` deploys, when its code
+    /// arguments are `add(p, 32)` and `mload(p)` of a Solidity variable `p` holding that value.
+    fn y_creation_code(&self, cx: &Yc<'a>, c: &'a yul::ExprCall<'a>) -> Option<String> {
+        let k = c.arguments.len();
+        let (off, len) = (&c.arguments[k - 3], &c.arguments[k - 2]);
+        let path = |e: &yul::Expr<'_>| match &e.kind {
+            yul::ExprKind::Path(p) if p.segments().len() == 1 => {
+                Some(p.segments()[0].as_str().to_string())
+            }
+            _ => None,
+        };
+        let lit32 = |e: &yul::Expr<'_>| matches!(&e.kind, yul::ExprKind::Lit(l) if matches!(&l.kind, LitKind::Number(n) if *n == 32u64));
+        let yul::ExprKind::Call(add) = &off.kind else { return None };
+        let yul::ExprKind::Call(ml) = &len.kind else { return None };
+        if add.name.as_str() != "add" || ml.name.as_str() != "mload" || ml.arguments.len() != 1 {
+            return None;
+        }
+        let [x, y] = &add.arguments[..] else { return None };
+        let p = match (path(x), path(y)) {
+            (Some(p), None) if lit32(y) => p,
+            (None, Some(p)) if lit32(x) => p,
+            _ => return None,
+        };
+        if path(&ml.arguments[0]).as_deref() != Some(p.as_str()) || Self::is_local(cx, &p) {
+            return None;
+        }
+        let v = self.env.get(&p)?;
+        self.creation_code.get(&v.t).cloned()
+    }
+
     fn y_call(&mut self, cx: &mut Yc<'a>, span: Span, c: &'a yul::ExprCall<'a>) -> R<Vec<String>> {
         let name = c.name.as_str();
         if let Some(r) = self.y_struct_slot(cx, span, name, c)? {
@@ -2063,15 +2093,25 @@ impl<'p, 'a> Vc<'p, 'a> {
                         format!("assembly `{name}` inside a spec evaluation"),
                     );
                 }
-                // the new contract's constructor is outside code; the result is an arbitrary
-                // address (0 on failure)
+                // the new contract's constructor is outside code, unless the code deployed is
+                // `type(C).creationCode` of a contract C of the program whose deployment runs
+                // only its own code; the result is an arbitrary address (0 on failure)
                 if self.y_konst(&a[0]).is_none_or(|v| !v.is_zero()) {
                     let ok = self.decl("create_ok", &Ty::Bool);
                     let v = a[0].clone();
                     self.send_value(&v, Some(&ok));
                 }
-                self.external_call(vec![], false, span)?;
+                let known = self.y_creation_code(cx, c);
+                match &known {
+                    Some(cn) if self.deploys_quietly(cn) => self.bump_code_epoch(),
+                    _ => {
+                        self.external_call(vec![], false, span)?;
+                    }
+                }
                 let r = self.decl("created", &Ty::Addr);
+                if let Some(cn) = known {
+                    self.created(&r, &cn);
+                }
                 one(r)
             }
             "staticcall" => {

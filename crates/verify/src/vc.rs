@@ -150,6 +150,12 @@ pub(crate) struct Vc<'p, 'a> {
     /// Enum variables of the running function that assembly assigned a raw word: their range is
     /// owed at each Solidity-level read and at return (`check_raw_enum`), not at the assignment.
     raw_enums: FxHashSet<String>,
+    /// `type(C).creationCode` values of this VC: the term and `C`.
+    creation_code: FxHashMap<String, String>,
+    /// Addresses this VC created with the code of a contract of the program (`new C`, or
+    /// `create2` of `type(C).creationCode`), whose constructors run no outside code: each holds
+    /// C's code or, where creation failed, none. Forgotten at any call that may run outside code.
+    known_code: Vec<(String, String)>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -244,6 +250,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             keccak_in: FxHashMap::default(),
             slot_taken: yul::slot_taken(prog),
             raw_enums: FxHashSet::default(),
+            creation_code: FxHashMap::default(),
+            known_code: vec![],
         }
     }
 
@@ -278,6 +286,219 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.slot_consts.clear();
         self.keccak_in.clear();
         self.raw_enums.clear();
+        self.creation_code.clear();
+        self.known_code.clear();
+    }
+
+    /// Whether running `item` of contract `c` (its body, its modifiers and every function it
+    /// calls) may run code outside the program: an external or low-level call, a creation, a
+    /// call through a pointer, or assembly that calls, creates or self-destructs. Conservative:
+    /// any call it cannot resolve counts.
+    fn calls_out(
+        &self,
+        c: &'p Contract<'a>,
+        item: &'a ast::ItemFunction<'a>,
+        seen: &mut FxHashSet<usize>,
+    ) -> bool {
+        if !seen.insert(item as *const _ as usize) {
+            return false;
+        }
+        let mut stmts: Vec<&'a Stmt<'a>> = item.body.iter().flat_map(|b| b.stmts.iter()).collect();
+        for m in item.header.modifiers.iter() {
+            let name = m.name.last().as_str();
+            match c.modifiers.get(name) {
+                Some(md) => stmts.extend(md.body.iter().flat_map(|b| b.stmts.iter())),
+                // a base constructor's arguments (its body is checked with the base constructors)
+                None if self.prog.contract(name).is_some() => {}
+                None => return true,
+            }
+            for a in m.arguments.exprs() {
+                let mut out = false;
+                walk::sub_exprs(a, &mut |x| out |= self.expr_calls_out(c, x, seen));
+                if out {
+                    return true;
+                }
+            }
+        }
+        let mut out = false;
+        for s in stmts {
+            walk::all_stmts(s, &mut |s| {
+                match &s.kind {
+                    StmtKind::Assembly(a) => {
+                        let mut w = BTreeSet::new();
+                        let mut all = false;
+                        yul::asm_effects(&a.block, &mut w, &mut all, false);
+                        out |= all;
+                    }
+                    StmtKind::Try(_) => out = true,
+                    _ => {}
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| out |= self.expr_calls_out(c, x, seen))
+                });
+            });
+        }
+        out
+    }
+
+    /// Whether call expression `e` in contract `c` may run code outside the program (see
+    /// `calls_out`); false for anything that is no call.
+    fn expr_calls_out(
+        &self,
+        c: &'p Contract<'a>,
+        e: &'a Expr<'a>,
+        seen: &mut FxHashSet<usize>,
+    ) -> bool {
+        let ExprKind::Call(callee, args) = &e.kind else { return false };
+        let n = args.exprs().count();
+        let free = self.prog.contract(FREE).map(|l| &l.funcs[..]).unwrap_or(&[]);
+        // a name some contract or interface of the program declares as a function: a member
+        // call by that name may be an external call
+        let external_name = |m: &str| {
+            self.prog.contracts.iter().any(|k| {
+                k.kind != ast::ContractKind::Library && k.funcs.iter().any(|f| f.name == m)
+            })
+        };
+        let through =
+            |owner: &'p Contract<'a>, fs: Vec<&'p Func<'a>>, seen: &mut FxHashSet<usize>| {
+                fs.is_empty() || fs.iter().any(|f| self.calls_out(owner, f.item, seen))
+            };
+        match &callee.kind {
+            ExprKind::Type(_) => false,
+            ExprKind::Ident(id) => {
+                let name = id.as_str();
+                if self.names_no_pointer(name) {
+                    return false;
+                }
+                let own: Vec<&'p Func<'a>> = c
+                    .funcs
+                    .iter()
+                    .chain(&c.overridden)
+                    .filter(|f| f.name == name && f.params.len() == n)
+                    .collect();
+                if !own.is_empty() {
+                    return through(c, own, seen);
+                }
+                let Some(lib) = self.prog.contract(FREE) else { return true };
+                let fs = free.iter().filter(|f| f.name == name && f.params.len() == n).collect();
+                through(lib, fs, seen)
+            }
+            ExprKind::Member(base, m) => {
+                let m = m.as_str();
+                if let ExprKind::Ident(b) = &base.kind {
+                    let b = b.as_str();
+                    if b == "abi" || self.prog.udvts.contains_key(b) {
+                        return false;
+                    }
+                    if b == "super" {
+                        let fs = c
+                            .funcs
+                            .iter()
+                            .chain(&c.overridden)
+                            .filter(|f| f.name == m && f.params.len() == n)
+                            .collect();
+                        return through(c, fs, seen);
+                    }
+                    if let Some(lib) =
+                        self.prog.contract(b).filter(|k| k.kind == ast::ContractKind::Library)
+                    {
+                        let fs = lib
+                            .funcs
+                            .iter()
+                            .filter(|f| f.name == m && f.params.len() == n)
+                            .collect();
+                        return through(lib, fs, seen);
+                    }
+                }
+                if matches!(base.kind, ExprKind::Type(_)) && m == "concat" {
+                    return false;
+                }
+                if external_name(m) {
+                    return true;
+                }
+                if matches!(m, "push" | "pop") {
+                    return false;
+                }
+                let cands = self.prog.using_fns(m, n);
+                if cands.is_empty() {
+                    return true;
+                }
+                cands.into_iter().any(|(lib, f)| self.calls_out(lib, f.item, seen))
+            }
+            _ => true,
+        }
+    }
+
+    /// Whether deploying contract `cn` runs only its own code: its constructors (bases'
+    /// included), their modifiers and arguments and the state variables' initializers make no
+    /// outside call. Abstract contracts and interfaces never deploy.
+    fn deploys_quietly(&self, cn: &str) -> bool {
+        let Some(c) = self.prog.contract(cn) else { return false };
+        if c.kind != ast::ContractKind::Contract {
+            return false;
+        }
+        let mut seen = FxHashSet::default();
+        let ctors = c
+            .funcs
+            .iter()
+            .filter(|f| f.name == "constructor")
+            .map(|f| f.item)
+            .chain(c.base_ctors.iter().map(|(_, f)| *f));
+        for item in ctors {
+            if self.calls_out(c, item, &mut seen) {
+                return false;
+            }
+        }
+        let inits = c
+            .state
+            .iter()
+            .filter_map(|s| s.init)
+            .chain(c.base_args.values().flat_map(|a| a.exprs()));
+        for e in inits {
+            let mut out = false;
+            walk::sub_exprs(e, &mut |x| out |= self.expr_calls_out(c, x, &mut seen));
+            if out {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Records an address this VC just created with `cn`'s code, when that deployment runs
+    /// only its own code.
+    fn created(&mut self, addr: &str, cn: &str) {
+        if self.deploys_quietly(cn) {
+            self.known_code.push((addr.to_string(), cn.to_string()));
+        }
+    }
+
+    /// The function a high-level call of `m` with `argc` arguments on `target` runs, when
+    /// `target` is proved (on this path) to be an address this VC created with known code and
+    /// that function runs no outside code: such a call cannot reenter this contract. An address
+    /// whose creation failed holds no code, which runs nothing either.
+    fn quiet_target(&mut self, target: &str, m: &str, want: Option<&'p Func<'a>>) -> bool {
+        let known = self.known_code.clone();
+        let guard = self.guard.clone();
+        for (addr, cn) in known {
+            if !matches!(self.smt.check(&guard, &format!("(= {target} {addr})"), &[]), Res::Unsat) {
+                continue;
+            }
+            let Some(c) = self.prog.contract(&cn) else { return false };
+            let fs: Vec<&'p Func<'a>> = c
+                .funcs
+                .iter()
+                .filter(|f| {
+                    f.name == m
+                        && f.is_entry()
+                        && want.is_none_or(|w| {
+                            w.params.iter().map(|p| &p.1).eq(f.params.iter().map(|p| &p.1))
+                        })
+                })
+                .collect();
+            let [f] = fs[..] else { return false };
+            return !self.calls_out(c, f.item, &mut FxHashSet::default());
+        }
+        false
     }
 
     /// An enum variable assembly may have set to a raw word must hold one of its variants where
@@ -2423,6 +2644,13 @@ impl<'p, 'a> Vc<'p, 'a> {
             ExprKind::Index(base, IndexKind::Index(Some(idx))) => {
                 let b = self.eval(base)?;
                 let i = self.eval(idx)?;
+                if b.ty == Ty::Opaque {
+                    // memory bytes written in place: another name may share them, and their
+                    // contents (not tracked) become unknown
+                    self.creation_code.clear();
+                    let t = self.decl("bytes", &Ty::Opaque);
+                    return self.assign(base, Self::val(Ty::Opaque, t));
+                }
                 if let Ty::Arr(..) = &b.ty {
                     let len = match &b.len {
                         Some(l) => l.clone(),
@@ -3268,8 +3496,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                 return Ok(self.named_const(&format!("iid.{n}"), &Ty::Uint(32)));
             }
             if m == "name" || m == "creationCode" || m == "runtimeCode" {
-                let t = self.decl("typeinfo", &Ty::Opaque);
-                return Ok(Self::val(Ty::Opaque, t));
+                let v = self.decl("typeinfo", &Ty::Opaque);
+                if m == "creationCode"
+                    && let ast::TypeKind::Custom(p) = &t.kind
+                {
+                    self.creation_code.insert(v.clone(), p.last().as_str().to_string());
+                }
+                return Ok(Self::val(Ty::Opaque, v));
             }
             let ty = self.ty_of_decl(t);
             let (lo, hi) = ty.bounds().ok_or((e.span, "type(..) of non-integer".to_string()))?;
@@ -3569,10 +3802,18 @@ impl<'p, 'a> Vc<'p, 'a> {
                             self.send_value(&v, None);
                         }
                         let ty = if self.contract_named(&cn).is_some() {
-                            Ty::Contract(cn)
+                            Ty::Contract(cn.clone())
                         } else {
                             Ty::Addr
                         };
+                        if self.deploys_quietly(&cn) {
+                            // only C's own code runs, which cannot call back in; the address
+                            // now holds new code
+                            self.bump_code_epoch();
+                            let r = self.fresh_var("created", &ty);
+                            self.created(&r.t, &cn);
+                            return Ok(vec![r]);
+                        }
                         self.external_call(vec![ty], false, e.span)
                     }
                     _ => Err((e.span, "unsupported `new`".into())),
@@ -3867,7 +4108,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                                 None => self.reverts_if("true"),
                             }
                         }
-                        let mut out = self.external_call(rets, st, e.span)?;
+                        // a contract this VC created whose code here runs nothing outside
+                        let quiet = !st && self.quiet_target(&bv.t, m, target);
+                        let mut out = self.external_call(rets, st || quiet, e.span)?;
                         if st && target.is_some() {
                             let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
                             self.deterministic_view(cn, m, &tv, &avals, &mut out);
@@ -4490,14 +4733,23 @@ impl<'p, 'a> Vc<'p, 'a> {
         r
     }
 
+    /// Code at some address may have changed (see `__code_epoch`).
+    fn bump_code_epoch(&mut self) {
+        if let Some(ep) = self.env.get("__code_epoch").cloned() {
+            let ne = self.fresh_var("__code_epoch", &ep.ty);
+            self.bind("__code_epoch", ep.ty.clone(), ne);
+        }
+    }
+
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
         if self.in_library() {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
         self.call_value = None;
-        if !is_static && let Some(ep) = self.env.get("__code_epoch").cloned() {
-            let ne = self.fresh_var("__code_epoch", &ep.ty);
-            self.bind("__code_epoch", ep.ty.clone(), ne);
+        if !is_static {
+            self.bump_code_epoch();
+            // outside code may run: it may change what code the created addresses hold
+            self.known_code.clear();
         }
         let locked = !self.spec && !is_static && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before

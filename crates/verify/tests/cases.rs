@@ -372,6 +372,11 @@ fn control() {
 }
 
 #[test]
+fn created() {
+    check("tests/cases/created.sol")
+}
+
+#[test]
 fn eth() {
     check("tests/cases/eth.sol")
 }

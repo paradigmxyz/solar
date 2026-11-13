@@ -187,7 +187,13 @@ it may write, assume its ensures. Functions without a contract are inlined, so r
 contract. Loops are cut at their invariants.
 
 An external call may reenter any public function, so the contract invariants must hold before it,
-and storage is havocked across it. Under a `@custom:reentrancy-guard` lock, only what the entry
+and storage is havocked across it. A call to an address the function itself created (`new C`, or
+`create`/`create2` of `type(C).creationCode` read as `add(p, 32)` and `mload(p)`) runs C's code,
+or none where the creation failed: when that code (the constructors and state initializers, or the
+called function with its modifiers and every function it calls) makes no external call, creation
+or call through a pointer, neither the creation nor the call can reenter, so neither havocs. The
+target must be proved to be that address, the called function must match by name and parameter
+types, and any other external call in between forgets what the created addresses hold. Under a `@custom:reentrancy-guard` lock, only what the entry
 points that stay callable under the lock can write is havocked. View and pure calls and
 `.transfer` havoc nothing.
 
