@@ -128,6 +128,16 @@ theorem caller_le_mask (o : Oracle) :
   rw [BitVec.lt_def, BitVec.toNat_setWidth, hm, Nat.mod_eq_of_lt (by omega)]
   omega
 
+/-- An address immutable's `PUSH20` placeholder pushes 20 bytes, which fit. -/
+theorem immutable20_le_mask (o : Oracle) (id : Nat) :
+    ¬ (1461501637330902918203684832716283019655932542975 : Word) < immutableWord o id 20 := by
+  have hm : (1461501637330902918203684832716283019655932542975 : Word).toNat = 2 ^ 160 - 1 := rfl
+  have h := immutableWord_toNat o id 20 (by decide) (by decide)
+  have lt := Nat.mod_lt (immutableValue o id).toNat (by decide : 0 < 256 ^ 20)
+  rw [BitVec.lt_def, hm, h]
+  have : (256 : Nat) ^ 20 = 2 ^ 160 := by decide
+  omega
+
 /-- A width test as solar spells it, by shifting out the address bits, as the mask test. -/
 theorem shr160_eq_zero (x : Word) :
     (Evm.shr 160 x = 0) = ¬ (1461501637330902918203684832716283019655932542975 : Word) < x := by
@@ -252,8 +262,9 @@ variable (o : Oracle) (call : Call) (s : State)
       let memory := s.memory.expand offset.toNat size.toNat
       some (some (o.keccak (memory.read offset.toNat size.toNat)), { s with memory }) := rfl
 
-@[defeq] theorem apply_immutable (id : Nat) : Effect.apply o call (.immutable id) [] s =
-    some (some (o.env "immutable" [] [BitVec.ofNat 256 id]), s) := rfl
+@[defeq] theorem apply_immutable (id bytes : Nat) (read : ImmutableRead) :
+    Effect.apply o call (.immutable id bytes read) [] s =
+      some (some (read.apply (immutableWord o id bytes)), s) := rfl
 @[defeq] theorem apply_codecopy (dest offset size : Word) :
     Effect.apply o call .codecopy [dest, offset, size] s =
       let memory := s.memory.write dest.toNat size.toNat (fun i => codeByte o (offset.toNat + i))
@@ -350,22 +361,22 @@ end effects
 
 /-! Stack positions of `dup` and `swap` as numbers. -/
 
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+theorem fin256_val_0 : ((0 : Fin 256) : Nat) = 0 := rfl
+theorem fin256_val_1 : ((1 : Fin 256) : Nat) = 1 := rfl
+theorem fin256_val_2 : ((2 : Fin 256) : Nat) = 2 := rfl
+theorem fin256_val_3 : ((3 : Fin 256) : Nat) = 3 := rfl
+theorem fin256_val_4 : ((4 : Fin 256) : Nat) = 4 := rfl
+theorem fin256_val_5 : ((5 : Fin 256) : Nat) = 5 := rfl
+theorem fin256_val_6 : ((6 : Fin 256) : Nat) = 6 := rfl
+theorem fin256_val_7 : ((7 : Fin 256) : Nat) = 7 := rfl
+theorem fin256_val_8 : ((8 : Fin 256) : Nat) = 8 := rfl
+theorem fin256_val_9 : ((9 : Fin 256) : Nat) = 9 := rfl
+theorem fin256_val_10 : ((10 : Fin 256) : Nat) = 10 := rfl
+theorem fin256_val_11 : ((11 : Fin 256) : Nat) = 11 := rfl
+theorem fin256_val_12 : ((12 : Fin 256) : Nat) = 12 := rfl
+theorem fin256_val_13 : ((13 : Fin 256) : Nat) = 13 := rfl
+theorem fin256_val_14 : ((14 : Fin 256) : Nat) = 14 := rfl
+theorem fin256_val_15 : ((15 : Fin 256) : Nat) = 15 := rfl
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -704,6 +715,17 @@ dsimproc_decl evmNotLit (Evm.not _) := fun e => do
   let some n := lit.rawNatLit? | return .continue
   return .done (← mkNumeral ty (~~~(BitVec.ofNat 256 n)).toNat)
 
+open Lean Meta Simp in
+/-- `add` of two literals as the literal it leaves, so that a pass that folds an address
+(`push 132`) and one that leaves it as a sum (`add 4 128`) push the same word. -/
+dsimproc_decl evmAddLit (Evm.add _ _) := fun e => do
+  let_expr Evm.add a b := e | return .continue
+  let_expr OfNat.ofNat ty la _ := a | return .continue
+  let_expr OfNat.ofNat _ lb _ := b | return .continue
+  let some n := la.rawNatLit? | return .continue
+  let some m := lb.rawNatLit? | return .continue
+  return .done (← mkNumeral ty (BitVec.ofNat 256 n + BitVec.ofNat 256 m).toNat)
+
 /-- The definitional evaluation of both layers. -/
 macro "sym_eval" : tactic => `(tactic|
   dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
@@ -720,26 +742,27 @@ macro "sym_eval" : tactic => `(tactic|
     apply_mstore, apply_mstore8, apply_msize, apply_sload, apply_sstore, apply_tload,
     apply_tstore, apply_calldatasize, apply_callvalue, apply_caller, apply_address,
     apply_returndatasize, apply_keccak256, apply_log0, apply_log1, apply_log2, apply_log3,
-    apply_log4, logged, apply_gas, apply_immutable, apply_codecopy, apply_create,
+    apply_log4, logged, apply_gas, apply_immutable, ImmutableRead.apply, apply_codecopy, apply_create,
     apply_create2, created, apply_env, apply_calldatacopy, apply_mcopy,
     apply_returndatacopy, apply_call, apply_callcode, apply_delegatecall,
     apply_staticcall, called, returndataSize, BitVec.reduceToNat,
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
-    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit, evmAddLit,
+    fin256_val_0, fin256_val_1, fin256_val_2, fin256_val_3, fin256_val_4, fin256_val_5,
+    fin256_val_6, fin256_val_7, fin256_val_8, fin256_val_9, fin256_val_10, fin256_val_11,
+    fin256_val_12, fin256_val_13, fin256_val_14, fin256_val_15])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
 macro "sym_cond" : tactic => `(tactic|
-  simp only [*, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint,
+  simp only [*, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint, Mem.load_store_of_disjoint,
+    SolarTV.environment, BitVec.reduceOfNat, BitVec.reduceLT,
     Mem.expand_store, Mem.load_store_same,
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
     wordAddComm, wordMulComm, wordAndComm, wordOrComm, wordXorComm, and_mask,
-    mask_and, caller_le_mask, shr160_eq_zero, zero_eq_shr160, and_self, and_true, true_and, and_false, false_and,
+    mask_and, caller_le_mask, immutable20_le_mask, shr160_eq_zero, zero_eq_shr160, and_self, and_true, true_and, and_false, false_and,
     ite_true, ite_false,
     not_false_eq_true, not_true_eq_false, Classical.not_not, ↓reduceIte, Nat.reduceGT, Nat.reduceLT,
     Nat.reduceEqDiff, Nat.reduceLeDiff, Nat.reduceAdd, Nat.reduceSub, Nat.lt_irrefl,
@@ -752,7 +775,7 @@ set_option hygiene false in
 /-- Symbolic execution to one result: evaluate, decide what the cases decide, split on the
 next condition, and close each leaf by reflexivity or a contradiction between its cases. A leaf
 it cannot close fails with its goal, the two ends on that path. -/
-macro "sym_exec" : tactic => `(tactic| (
+macro "sym_exec" : tactic => `(tactic| set_option maxRecDepth 20000 in (
   obtain ⟨cd, hcd⟩ : ∃ cd, cd = calldataWord call := ⟨_, rfl⟩
   sym_norm
   repeat' (split_cond <;> sym_norm)

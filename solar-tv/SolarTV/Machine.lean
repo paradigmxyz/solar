@@ -27,9 +27,12 @@ frame, no gas: `GAS` is an environment read, but one the world records, so that 
 a function of a history no other read has and two reads need not agree. A stage then holds for
 every gas the frame may have left at each read, as passes may change the gas the code uses;
 it needs both programs to read gas in the same order among their logs and calls. An immutable
-is the oracle's environment read `immutable` of its number in the empty world: the word the
-deployment code wrote, the same wherever the frame reads it. So is the frame's code, byte by byte
-(`code`), which `CODECOPY` copies like calldata, zero past its end; it holds the program data,
+is a value fixed at deployment: the oracle's environment read `immutable` of its number in the
+empty world, the same wherever and whenever the frame reads it. The deployment code writes it
+over each of its placeholders, a `PUSH<N>` of zeros in the runtime code, which then pushes the
+low `N` bytes of that word (`immutableWord`); a load decodes them as the compiler does
+(`ImmutableRead`). The frame's code is such a read too, byte by byte (`code`), which `CODECOPY`
+copies like calldata, zero past its end; it holds the program data,
 such as the creation code of a contract the frame creates, at the offsets the stages take from
 the assembled code. `CREATE` and `CREATE2` record their value, salt, code and state in the world
 as a call does, and the new address and the storage after them are the oracle's. -/
@@ -141,6 +144,20 @@ private theorem fold_bytes (v : BitVec 256) (n : Nat) (h : n ≤ 32) :
     rw [List.range_succ, List.map_append, List.foldl_append, ih (by omega)]
     simp only [List.map_cons, List.map_nil, List.foldl_cons, List.foldl_nil]
     exact step_bytes v n (by omega)
+
+/-- A load reads none of the bytes a store outside its word writes. -/
+theorem load_store_of_disjoint (m : Mem) (offset address : Nat) (value : Word)
+    (disjoint : address + 32 ≤ offset ∨ offset + 32 ≤ address) :
+    (m.store offset value).load address = m.load address := by
+  unfold store
+  rw [load_expand]
+  unfold load read
+  congr 1
+  apply List.map_congr_left
+  intro i mem
+  simp only [List.mem_range] at mem
+  have : ¬(offset ≤ address + i ∧ address + i < offset + 32) := by omega
+  simp only [this, ite_false]
 
 /-- A load of the word a store wrote reads it back. -/
 theorem load_store_same (m : Mem) (offset : Nat) (value : Word) :
@@ -268,6 +285,48 @@ def calldataByte (call : Call) (offset : Nat) : Memory.Byte :=
 def update (m : Word → Word) (key value : Word) : Word → Word :=
   fun j => if j = key then value else m j
 
+/-- How a load of an immutable decodes the word its placeholder pushes, as the code after the
+push does: as it is (a full word, or a value zero-extended from the placeholder's bytes),
+sign-extended from byte `byte` (`SIGNEXTEND`, a signed integer), or shifted left by `bits`
+(`SHL`, fixed bytes the placeholder holds right-aligned). -/
+inductive ImmutableRead where
+  | word
+  | signExtend (byte : Word)
+  | shiftLeft (bits : Word)
+
+def ImmutableRead.apply : ImmutableRead → Word → Word
+  | .word, x => x
+  | .signExtend byte, x => Evm.signextend byte x
+  | .shiftLeft bits, x => Evm.shl bits x
+
+/-- The value fixed at deployment for immutable `id`. -/
+def immutableValue (o : Oracle) (id : Nat) : Word := o.env "immutable" [] [BitVec.ofNat 256 id]
+
+/-- The word a `PUSH<bytes>` placeholder of immutable `id` pushes: the low `bytes` bytes of the
+value, which the deployment code writes there. -/
+def immutableWord (o : Oracle) (id bytes : Nat) : Word :=
+  if bytes < 32 then BitVec.ofNat 256 ((immutableValue o id).toNat % 2 ^ (8 * bytes))
+  else immutableValue o id
+
+/-- The word a placeholder of width `bytes` pushes in the stages is the value a deployment
+links there: the immutable's value modulo `256 ^ bytes`. -/
+theorem immutableWord_toNat (o : Oracle) (id bytes : Nat) (b1 : 1 ≤ bytes) (b32 : bytes ≤ 32) :
+    (immutableWord o id bytes).toNat = (immutableValue o id).toNat % 256 ^ bytes := by
+  have pow : 2 ^ (8 * bytes) = 256 ^ bytes := by
+    rw [Nat.pow_mul]
+  unfold immutableWord
+  split
+  · rw [BitVec.toNat_ofNat, pow]
+    apply Nat.mod_eq_of_lt
+    have : 256 ^ bytes ≤ 2 ^ 256 := by
+      rw [← pow]; exact Nat.pow_le_pow_right (by decide) (by omega)
+    have := Nat.mod_lt (immutableValue o id).toNat (Nat.pow_pos (n := bytes) (by decide : 0 < 256))
+    omega
+  · have : bytes = 32 := by omega
+    subst this
+    rw [Nat.mod_eq_of_lt]
+    exact (immutableValue o id).isLt
+
 inductive Effect where
   | mload | mstore | mstore8 | msize | sload | sstore | tload | tstore
   | calldataload | calldatasize | callvalue | caller | address | returndatasize
@@ -277,9 +336,9 @@ inductive Effect where
   | call (kind : CallKind)
   | calldatacopy | mcopy | returndatacopy
   | gas
-  /-- The word the deployment code writes for immutable `id` (`loadimmutable`, and the
-  `PUSH32` placeholder it fills). -/
-  | immutable (id : Nat)
+  /-- Immutable `id` from its `PUSH<bytes>` placeholder, decoded by `read` (`loadimmutable`;
+  the placeholder push itself reads `.word`). -/
+  | immutable (id bytes : Nat) (read : ImmutableRead)
   | codecopy | create | create2
 
 /-- The size of the return data the world's last call left. -/
@@ -362,7 +421,7 @@ def Effect.apply (o : Oracle) (call : Call) : Effect → List Word → State →
     let read := s.memory.expand source.toNat size.toNat
     let memory := read.write dest.toNat size.toNat (fun i => read.bytes (source.toNat + i))
     some (none, { s with memory })
-  | .immutable id, [], s => some (some (o.env "immutable" [] [BitVec.ofNat 256 id]), s)
+  | .immutable id bytes read, [], s => some (some (read.apply (immutableWord o id bytes)), s)
   | .codecopy, [dest, offset, size], s =>
     let memory := s.memory.write dest.toNat size.toNat (fun i => codeByte o (offset.toNat + i))
     some (none, { s with memory })

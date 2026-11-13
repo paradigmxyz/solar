@@ -113,6 +113,12 @@ assert manifest["bytecode"] == bytecode, "manifest bytecode"
 assert manifest["bytecode_sha256"] == hashlib.sha256(bytes.fromhex(bytecode)).hexdigest()
 for stage in manifest["stages"]:
     assert stage["sha256"] == sha(directory / stage["file"]), stage["file"]
+# Each immutable placeholder is a PUSH of zeros of its width, which a deployment links.
+code = bytes.fromhex(bytecode)
+for p in manifest.get("immutables", []):
+    start, width = p["start"], p["bytes"]
+    assert 1 <= width <= 32 and code[start - 1] == 0x5f + width, f"placeholder {p}"
+    assert code[start:start + width] == bytes(width), f"placeholder {p} is linked"
 print("stages:", ", ".join(f"{s['definition']} ({s['pass']})" for s in manifest["stages"]))
 print("bytecode:", bytecode, "sha256", manifest["bytecode_sha256"])
 EOF
@@ -164,13 +170,18 @@ trap 'rm -f "$audit"' EXIT
     done
     echo "#print axioms SolarTV.Milestone.$cap.walk_eq"
     echo "#print axioms SolarTV.Milestone.$cap.decodes"
+    if grep -q '^theorem decodes_linked' "milestone/$name/Proofs/Assembly.lean"; then
+        echo "#print axioms SolarTV.Milestone.$cap.decodes_linked"
+    fi
 } > "$audit"
 report="$(lake env lean -M "$memory" "$audit" 2>&1)" || { echo "$report" >&2; die "the audit does not check"; }
 echo "$report"
 bad="$(grep "depends on axioms" <<<"$report" | sed -E 's/.*depends on axioms: \[(.*)\]/\1/' |
     tr ',' '\n' | tr -d ' ' | grep -v -x -E 'propext|Classical\.choice|Quot\.sound' || true)"
 [[ -z "$bad" ]] || die "axioms beyond propext, Classical.choice and Quot.sound: $bad"
-[[ "$(grep -c "depends on axioms" <<<"$report")" -eq $((${#modules[@]} + 3)) ]] || die "a theorem is missing from the audit"
+linked=0
+grep -q '^theorem decodes_linked' "$tv/milestone/$name/Proofs/Assembly.lean" && linked=1
+[[ "$(grep -c "depends on axioms" <<<"$report")" -eq $((${#modules[@]} + 3 + linked)) ]] || die "a theorem is missing from the audit"
 cd "$root"
 
 echo "== 4. negative tests"

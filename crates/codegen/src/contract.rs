@@ -82,6 +82,8 @@ pub struct ImmutableReference {
     /// against direct calls and is reported as [`Self::LIBRARY_DEPLOY_ADDRESS`], like solc's
     /// IR pipeline.
     pub variable_id: Option<VariableId>,
+    /// The immutable's number in the contract's MIR (`loadimmutable`).
+    pub id: usize,
     /// Byte offset where the placeholder data begins.
     pub start: usize,
     /// Type width encoded by the placeholder.
@@ -812,6 +814,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                     .immutable(reference.id)
                     .variable_id
                     .map(|id| VariableId::from_usize(id.index())),
+                id: reference.id.index(),
                 start: reference.code_offset + 1,
                 type_size: reference.type_size,
             })

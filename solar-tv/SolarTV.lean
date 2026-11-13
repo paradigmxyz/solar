@@ -12,10 +12,12 @@ import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
 import SolarTV.Stages.Assembly
+import SolarTV.Stages.Link
 import SolarTV.Stages.Entries
 
 import SolarTV.Agreement.Encoder
 import SolarTV.Composition
+import SolarTV.Reentrancy
 import SolarTV.MIR.Validation.AddZero
 
 import SolarTV.State.StorageSafety
@@ -228,3 +230,11 @@ info: 'SolarTV.MIR.Validation.AddZero.stage' depends on axioms: [propext, Classi
 /-- info: 'SolarTV.MIR.State.uninitialized_neighbor' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.State.uninitialized_neighbor
+
+/-- info: 'SolarTV.Reentrancy.Respects.frame' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Reentrancy.Respects.frame
+
+/-- info: 'SolarTV.Reentrancy.preserves_all' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Reentrancy.preserves_all

@@ -84,3 +84,20 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# owned: the stages of milestone/owned/owned.sol's Owned and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "owned"
+srcDir = "milestone"
+roots = ["owned.Proofs"]
+globs = ["owned.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# verify_vault: crates/verify/examples/Vault.sol's reentrancy lock at its final EVM IR, which
+# milestone/certify.sh exports (gen/Vault/Evm15.lean), and its kernel proof (Lock.lean).
+[[lean_lib]]
+name = "verify_vault"
+srcDir = "milestone"
+roots = ["verify_vault.Lock"]
+moreLeanArgs = ["-M", "3000"]
