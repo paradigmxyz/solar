@@ -12,7 +12,8 @@
 # solidity-lean checkout, its Lean library NAME and the namespace SolarTV.Milestone.<Name>.
 # SOLAR_OPTIONS default to -Ogas --evm-version osaka (kept in CERTIFIED/NAME/options). --loops N
 # (kept in CERTIFIED/NAME/loops) claims that a run's loops make at most N iterations in all; the
-# first stage's end proof checks it.
+# first stage's end proof checks it. CERTIFIED/NAME/heartbeats, when present, raises the run proofs'
+# maxHeartbeats.
 #
 # Steps:
 # 1. The solidity-lean checkout: SOLIDITY_LEAN_DIR, which must be at the commit in
@@ -122,6 +123,11 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+# CERTIFIED/NAME/heartbeats, when present, is the run proofs' maxHeartbeats (certify.py's
+# --heartbeats), for a contract whose symbolic runs need more than the default: a larger budget
+# can only let a proof pass, never change what it states.
+heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
+[[ "$heartbeats" =~ ^[0-9]+$ ]] || die "$dir/heartbeats is not a number"
 
 echo "== 2. solar"
 if [[ -n "${SOLAR:-}" ]]; then
@@ -199,7 +205,7 @@ echo "== 4. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 "$here/certify.py" "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops")" || die "certify.py cannot write the proofs"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats")" || die "certify.py cannot write the proofs"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 
@@ -212,8 +218,8 @@ if [[ $lakefile == lakefile.lean ]]; then
 -- solar's scripts/certify writes.
 lean_lib «$name» where
   srcDir := "$examples"
-  roots := #[`$name.Proofs]
-  globs := #[.andSubmodules `$name]
+  roots := #[\`$name.Proofs]
+  globs := #[.andSubmodules \`$name]
 EOF
     fi
 elif ! grep -q "^name = \"$name\"$" lakefile.toml; then
@@ -335,7 +341,17 @@ if [[ $committed -eq 1 ]]; then
     prefix="$(git rev-parse --show-prefix)"
     others="$(git status --porcelain -- "$dir" "$lakefile" | grep -v -E " $prefix$gen/(Manifest\.lean|manifest\.json)$" || true)"
     [[ -z "$others" ]] || { echo "$others" >&2; git diff --stat -- "$dir" "$lakefile" >&2; die "regenerated files differ from solidity-lean's committed ones"; }
-    changed="$(git diff -U0 HEAD -- "$gen/Manifest.lean" "$gen/manifest.json" | grep '^[-+] ' | grep -v compiler || true)"
+    # Every line but the compiler's version, in either file, must be the committed one; the
+    # options' thread count, which solar takes from the machine and which changes no output,
+    # is compared as N.
+    norm() { grep -v -E '^(def compiler : String := "[^"]*"|  "compiler": "[^"]*",)$' |
+        sed -E 's/threads: [0-9]+/threads: N/'; }
+    changed=
+    for f in "$gen/Manifest.lean" "$gen/manifest.json"; do
+        git show "HEAD:./$f" | norm > .lake/certify-committed
+        norm < "$f" > .lake/certify-regenerated
+        changed+="$(diff .lake/certify-committed .lake/certify-regenerated || true)"
+    done
     [[ -z "$changed" ]] || { echo "$changed" >&2; die "the manifest differs in more than the compiler's commit"; }
     echo "every file of $dir regenerates to the committed one"
 else

@@ -386,7 +386,11 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
     ]
     for ia, ib, h in cuts:
         ws = words(h)
-        binder = f"∃ ({' '.join(ws)} : Word) (s : State), " if ws else "∃ s : State, "
+        binder = (
+            f"∃ ({' '.join(ws)} : EvmRules.Word) (s : State), "
+            if ws
+            else "∃ s : State, "
+        )
         rels.append(
             f"fun x x' => {binder}x = ({ia}, {stack_term(ws)}, s) ∧ "
             f"x' = ({ib}, {stack_term(ws)}, s)"
@@ -408,7 +412,7 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
     mks = []
     for n, (ia, ib, h) in enumerate(cuts, start=1):
         ws = words(h)
-        wb = f"{{{' '.join(ws)} : Word}} " if ws else ""
+        wb = f"{{{' '.join(ws)} : EvmRules.Word}} " if ws else ""
         name = f"{p}_mk{n}"
         mks.append(name)
         out.append(
@@ -430,7 +434,7 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
         binders = ""
         ws = [v for v in vars_ if v != "s"]
         if ws:
-            binders += f" ({' '.join(ws)} : Word)"
+            binders += f" ({' '.join(ws)} : EvmRules.Word)"
         if "s" in vars_:
             binders += " (s : State)"
         out.append(
@@ -486,7 +490,9 @@ def parse_mir(text):
     of params and blocks by number, a block (phis, insts, term) with phis
     [(dst, [(pred, operand)])]."""
     body = text[text.index("functions := [") + len("functions := [") :]
-    parts = re.split(r"^\s*-- @(\S+)\s*$", body, flags=re.MULTILINE)
+    # A function the runtime does not reach keeps its place, with no blocks, so that positions
+    # stay the compiler's function numbers that configurations name.
+    parts = re.split(r"^\s*-- @([^\s:]+)(?::.*)?$", body, flags=re.MULTILINE)
     funcs = []
     for i in range(1, len(parts), 2):
         chunk = parts[i + 1]
@@ -655,7 +661,7 @@ def phi_input(func, h, pred, dst):
 
 
 def word_lit(op):
-    return f"({op.split()[1]} : Word)"
+    return f"({op.split()[1]} : EvmRules.Word)"
 
 
 # --- Lean ------------------------------------------------------------------------------------
@@ -891,9 +897,18 @@ def mir_mir_rels(pass_name, fa_list, fb_list, cuts):
         for pa in preds_a:
             for pb in preds_b:
                 conds = [f"env' {v} = env {v}" for v in live]
+                feasible = True
                 for d in dsts:
                     ia, ib = phi_input(fa, h, pa, d), phi_input(fb, h, pb, d)
+                    if not ia.startswith(".value") and not ib.startswith(".value"):
+                        # Two constants: the pair of edges either always binds the phi alike
+                        # (nothing to relate) or never runs together (no relation at all).
+                        if int(ia.split()[1], 0) != int(ib.split()[1], 0):
+                            feasible = False
+                        continue
                     conds.append(f"{env_word(ib, "env'")} = {env_word(ia, 'env')}")
+                if not feasible:
+                    continue
                 rels.append(
                     {
                         "src_vars": [("env", "MIR.Lowered.Env"), ("s", "State")],
@@ -961,7 +976,7 @@ def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts):
             rels.append(
                 {
                     "src_vars": [("env", "MIR.Lowered.Env"), ("s", "State")],
-                    "tgt_vars": [(j, "Word") for j in junk],
+                    "tgt_vars": [(j, "EvmRules.Word") for j in junk],
                     "src": f"([], MIR.Lowered.Pos.enter {f} {pa} {h}, env, s)",
                     "tgt": f"({e}, [{', '.join(words)}], s)",
                     "conds": [],
@@ -982,7 +997,7 @@ def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts):
 def evm_evm_rels(cuts):
     rels = []
     for ia, ib, h in cuts:
-        ws = [(f"w{i}", "Word") for i in range(h)]
+        ws = [(f"w{i}", "EvmRules.Word") for i in range(h)]
         st = "[" + ", ".join(w for w, _ in ws) + "]"
         rels.append(
             {

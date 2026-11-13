@@ -2028,7 +2028,7 @@ mod tests {
     }
 
     /// The Lean theorems that the terms [`Encoder`] gives each pure opcode and MIR operation
-    /// equal their Lean semantics, regenerated with `SNAPSHOTS=overwrite`.
+    /// equal their Lean semantics, regenerated in `SOLAR_TV_LEAN` with `SNAPSHOTS=overwrite`.
     #[test]
     fn lean_agreement() {
         let mut out = String::from(
@@ -2218,9 +2218,13 @@ theorem step_{mnemonic} (ctx : EVM.Context) ({args} : Word) (rest : EVM.Stack) :
         }
 
         out.push_str("end SolarTV.Agreement\n");
-        snapbox::assert_data_eq!(
-            out,
-            snapbox::file!["../../../../../solar-tv/SolarTV/Agreement/Encoder.lean"].raw()
-        );
+        // The proofs live in solidity-lean, at the commit `tools/certify/solidity-lean.rev`
+        // pins; the translation validation CI job points `SOLAR_TV_LEAN` at that checkout.
+        let Some(root) = std::env::var_os("SOLAR_TV_LEAN") else {
+            eprintln!("skipped: set SOLAR_TV_LEAN to a solidity-lean checkout");
+            return;
+        };
+        let path = std::path::Path::new(&root).join("tv/SolarTV/Agreement/Encoder.lean");
+        snapbox::assert_data_eq!(out, snapbox::Data::read_from(&path, None).raw());
     }
 }

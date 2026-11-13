@@ -25,6 +25,8 @@ import json
 import pathlib
 import re
 
+import cutpoints
+
 AXIOMS = "[propext, Classical.choice, Quot.sound]"
 
 
@@ -97,6 +99,148 @@ def header(imports, doc, namespace, opens):
     )
 
 
+def loops_somewhere(gen, stages):
+    """Whether a stage's program has a cycle: a MIR loop header or an EVM IR cycle."""
+    for s in stages:
+        text = (gen / f"{s['module']}.lean").read_text()
+        if s["kind"] == "mir":
+            if any(cutpoints.mir_headers(f)[0] for f in cutpoints.parse_mir(text)):
+                return True
+        elif cutpoints.loops(cutpoints.parse_evm(text)):
+            return True
+    return False
+
+
+def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
+    """The proofs of a contract whose programs loop: per pair of consecutive stages a LayerSim
+    through the cut points cutpoints.py derives from what the compiler kept across the pass,
+    and the Stages module that chains their certificates on every call, both ways."""
+    gm, pm, out = args.gen_module, args.proof_module, args.proof_dir
+    contract = manifest["contract"]
+    (out / "Runs").mkdir(parents=True, exist_ok=True)
+    pairs = list(itertools.pairwise(stages))
+    first, last = stages[0], stages[-1]
+    for a, b in pairs:
+        p = b["def"]
+        try:
+            body = cutpoints.stage_body(
+                args.gen,
+                a | {"file": a["module"] + ".lean"},
+                b | {"file": b["module"] + ".lean"},
+                int(args.heartbeats),
+            )
+        except cutpoints.Unsupported as e:
+            raise SystemExit(f"error: no cut points for {a['def']} to {b['def']}: {e}")
+        what = (
+            "Stack scheduling: the last lowered MIR and the scheduled EVM IR"
+            if b["kind"] == "sched"
+            else f"`{b['pass']}`: its input and output"
+        )
+        body += (
+            f"/-- Every end of `{a['def']}` on a call is matched by an agreeing end of "
+            f"`{p}`. -/\n"
+            f"theorem {p}_certified (o : Oracle) :\n"
+            f"    Certified {layer(a)} {layer(b)} o {a['def']} {p} anyCall :=\n"
+            f"  ({p}_sim o).certified\n\n"
+            f"/-- Every end of `{p}` on a call is matched by an agreeing end of "
+            f"`{a['def']}`. -/\n"
+            f"theorem {p}_certified_back (o : Oracle) :\n"
+            f"    Certified {layer(b)} {layer(a)} o {p} {a['def']} anyCall :=\n"
+            f"  ({p}_sim o).certified_back\n\n"
+        )
+        (out / "Runs" / f"{b['module']}.lean").write_text(
+            header(
+                [
+                    "W1Proofs.Segment",
+                    "W1Proofs.Stage",
+                    "W1Proofs.Axioms",
+                    f"{gm}.{b['module']}",
+                    f"{gm}.{a['module']}",
+                ],
+                f"{what} simulated through cut points on every call: from every pair of "
+                "configurations the relations derived from the compiler relate, the two "
+                "loop-free segments end alike (`sym_seg`), so their runs end in agreeing "
+                "results for any number of loop iterations, both ways.",
+                ns,
+                opens,
+            )
+            + "open SolarTV.CutPoint (seg SegRel)\n\n"
+            + body
+            + "".join(
+                f"/-- info: '{ns}.{n}' depends on axioms within {AXIOMS} -/\n"
+                f"#guard_msgs in\n#axioms_within {n}\n\n"
+                for n in (f"{p}_certified", f"{p}_certified_back")
+            )
+            + f"end {ns}\n"
+        )
+    mirs = [s for s in stages if s["kind"] == "mir"]
+    sched = next(s for s in stages if s["kind"] == "sched")
+    evms = [s for s in stages if s["kind"] == "evm"]
+
+    def steps(xs):
+        return (
+            "trivial"
+            if not xs
+            else "⟨" + ", ".join(f"{x['def']}_certified o" for x in xs) + ", trivial⟩"
+        )
+
+    final = f"{label}_mir_to_evmir"
+    body = [
+        (
+            f"/-- The compilation from the first lowered MIR to the final EVM IR. -/\n"
+            f"def compilation : Compilation :=\n"
+            f"  ⟨{first['def']}, [{', '.join(m['def'] for m in mirs[1:])}], {sched['def']}, "
+            f"[{', '.join(e['def'] for e in evms)}]⟩\n"
+        ),
+        (
+            f"/-- Every stage from the first lowered MIR to the final EVM IR, each through cut "
+            f"points, chained by the library's composition, on every call. -/\n"
+            f"theorem {final} (o : Oracle) : Stage (mirSem o) (evmirSem o) {first['def']} "
+            f"{last['def']} anyCall :=\n"
+            f"  mir_to_evmir_certified o anyCall compilation {steps(mirs[1:])} "
+            f"({sched['def']}_certified o)\n    {steps(evms)}\n"
+        ),
+    ]
+    fwd = f"{stages[1]['def']}_certified o"
+    for s in stages[2:]:
+        fwd = f"({fwd}).trans ({s['def']}_certified o)"
+    back = f"{stages[-1]['def']}_certified_back o"
+    for s in reversed(stages[1:-1]):
+        back = f"({back}).trans ({s['def']}_certified_back o)"
+    body.append(
+        f"/-- Every end of the first lowered MIR is matched by an agreeing end of the final "
+        f"EVM IR, on every call. -/\n"
+        f"theorem {label}_certified (o : Oracle) :\n"
+        f"    Certified MIR.Lowered.moduleLayer EVM.Program.layer o {first['def']} "
+        f"{last['def']} anyCall :=\n  {fwd}\n"
+    )
+    body.append(
+        f"/-- Every end of the final EVM IR is matched by an agreeing end of the first "
+        f"lowered MIR, on every call: one ends exactly when the other does. -/\n"
+        f"theorem {label}_certified_back (o : Oracle) :\n"
+        f"    Certified EVM.Program.layer MIR.Lowered.moduleLayer o {last['def']} "
+        f"{first['def']} anyCall :=\n  {back}\n"
+    )
+    checks = "".join(
+        "\n" + axioms_check(ns, n)
+        for n in (final, f"{label}_certified", f"{label}_certified_back")
+    )
+    imports = [f"{pm}.Runs.{s['module']}" for s in stages[1:]] + [
+        "W1Proofs.Stage",
+        "SolarTV.Composition",
+    ]
+    doc = (
+        f"The backend stages of `{contract}`, each proved on every call (`anyCall`: any "
+        "calldata, call value and storage) under every oracle through cut points, whatever "
+        "number of times its loops run, and chained from the first lowered MIR "
+        f"`{first['def']}` to the final EVM IR `{last['def']}`, both ways."
+    )
+    (out / "Stages.lean").write_text(
+        header(imports, doc, ns, opens) + "\n".join(body) + checks + f"\nend {ns}\n"
+    )
+    return final
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("gen", type=pathlib.Path)
@@ -119,6 +263,14 @@ def main():
         "multiplied by one more than it, a claim the end proof checks",
     )
     ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="SELECTOR=SIGNATURE",
+        help="leave the calls of this external function out of every theorem's scope: "
+        "each run proof assumes the call's selector word is not SELECTOR (hex)",
+    )
+    ap.add_argument(
         "--axioms",
         default="{}",
         help="JSON: theorem name to its expected axiom list, where it is not " + AXIOMS,
@@ -137,6 +289,37 @@ def main():
     (out / "Runs").mkdir(parents=True, exist_ok=True)
     calls = any(s["calls"] for s in stages)
     hb = int(args.heartbeats) * (4 if calls else 1)
+    excluded = []
+    for e in args.exclude:
+        sel, _, sig = e.partition("=")
+        if not re.fullmatch(r"[0-9a-f]{8}", sel) or not sig:
+            raise SystemExit(f"error: --exclude {e} is not SELECTOR=SIGNATURE")
+        excluded.append((int(sel, 16), sig))
+    # A run proof's assumptions: the call's selector word is none of the excluded ones.
+    hyps = "".join(
+        f" (hsel{i} : EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x})"
+        for i, (sel, _) in enumerate(excluded)
+    )
+    scope = "scope" if excluded else "anyCall"
+    lam = "fun call h" if excluded else "fun call _"
+    every = (
+        "every call"
+        if not excluded
+        else "every call but those of " + ", ".join(f"`{sig}`" for _, sig in excluded)
+    )
+
+    def given(h):
+        """The run proofs' assumptions from `h : scope call`."""
+        return "".join(
+            " " + h + ".2" * i + (".1" if i < len(excluded) - 1 else "")
+            for i in range(len(excluded))
+        )
+
+    # Both orientations of each assumption, so that the case split's test of the selector in
+    # either order rewrites to false and the path of an excluded function ends there.
+    prune = "".join(
+        f"  have hsel{i}s := Ne.symm hsel{i}\n" for i in range(len(excluded))
+    )
 
     def write(path, text):
         path.write_text(text)
@@ -150,133 +333,165 @@ def main():
             f"#guard_msgs in\n#axioms_within {name}\n"
         )
 
-    # The first MIR stage ends.
-    first = stages[0]
-    ends = f"{first['def']}_ends"
-    write(
-        out / "Runs" / f"{first['module']}.lean",
-        header(
-            ["W1Proofs.Tactic", "W1Proofs.Axioms", f"{gm}.{first['module']}"],
-            f"The first lowered MIR ends on every call within {first['fuel']} blocks, "
-            + (
-                "the number of its blocks"
-                if first["calls"] == 0
-                else "its block count times the square of one more than its call sites"
-            )
-            + (
-                "."
-                if args.loops == 0
-                else f", times {args.loops + 1}: its loops run at most {args.loops} iterations."
-            ),
-            ns,
-            opens,
-        )
-        + f"set_option maxHeartbeats {hb} in\n"
-        f"theorem {ends} (o : Oracle) (call : Call) :\n"
-        f"    ({run_fn(first)} o {first['def']} call {first['fuel']}).isSome = true := by\n"
-        "  sym_exec\n\n" + ax(ends) + f"\nend {ns}\n",
-    )
-
-    # Each pair of consecutive stages ends in the same result.
-    pairs = list(itertools.pairwise(stages))
-    for a, b in pairs:
-        name = f"{b['def']}_run"
-        what = (
-            "Stack scheduling: the last lowered MIR and the scheduled EVM IR"
-            if b["kind"] == "sched"
-            else f"`{b['pass']}`: its input and output"
-        )
+    cut = loops_somewhere(args.gen, stages) and not excluded
+    if cut:
+        final = write_cut_points(args, manifest, stages, ns, opens, label, every)
+        last = stages[-1]
+        first = stages[0]
+    else:
+        # The first MIR stage ends.
+        first = stages[0]
+        ends = f"{first['def']}_ends"
         write(
-            out / "Runs" / f"{b['module']}.lean",
+            out / "Runs" / f"{first['module']}.lean",
             header(
-                [
-                    "W1Proofs.Tactic",
-                    "W1Proofs.Axioms",
-                    f"{gm}.{b['module']}",
-                    f"{gm}.{a['module']}",
-                ],
-                f"{what} end in the same result on every call.",
+                ["W1Proofs.Tactic", "W1Proofs.Axioms", f"{gm}.{first['module']}"],
+                f"The first lowered MIR ends on {every} within {first['fuel']} blocks, "
+                + (
+                    "the number of its blocks"
+                    if first["calls"] == 0
+                    else "its block count times the square of one more than its call sites"
+                )
+                + (
+                    "."
+                    if args.loops == 0
+                    else f", times {args.loops + 1}: its loops run at most {args.loops} iterations."
+                ),
                 ns,
                 opens,
             )
             + f"set_option maxHeartbeats {hb} in\n"
-            f"theorem {name} (o : Oracle) (call : Call) :\n"
-            f"    {run_fn(a)} o {a['def']} call {a['fuel']} = "
-            f"{run_fn(b)} o {b['def']} call {b['fuel']} := by\n"
-            "  sym_exec\n\n" + ax(name) + f"\nend {ns}\n",
+            f"theorem {ends} (o : Oracle) (call : Call){hyps} :\n"
+            f"    ({run_fn(first)} o {first['def']} call {first['fuel']}).isSome = true := by\n"
+            + prune
+            + "  sym_exec\n\n"
+            + ax(ends)
+            + f"\nend {ns}\n",
         )
 
-    # Stages and their composition.
-    mirs = [s for s in stages if s["kind"] == "mir"]
-    sched = next(s for s in stages if s["kind"] == "sched")
-    evms = [s for s in stages if s["kind"] == "evm"]
-    last = stages[-1]
-    body = []
-    prev_ends = f"(fun call _ => {ends} o call)"
-    for a, b in pairs:
-        stage = (
-            f"theorem stage_{b['def']} (o : Oracle) : Stage ({sem(a)} o) ({sem(b)} o) "
-            f"{a['def']} {b['def']} anyCall :=\n"
-            f"  stage_of_runs (A := {layer(a)}) (B := {layer(b)}) {a['fuel']} {b['fuel']} "
-            f"{prev_ends}\n    (fun call _ => {b['def']}_run o call)\n"
-        )
-        body.append(f"/-- `{b['pass']}`: {a['def']} to {b['def']}. -/\n" + stage)
-        if b is not last:
-            body.append(
-                f"theorem {b['def']}_ends (o : Oracle) : ∀ call, anyCall call →\n"
-                f"    ({run_fn(b)} o {b['def']} call {b['fuel']}).isSome = true :=\n"
-                f"  ends_of_runs (A := {layer(a)}) (B := {layer(b)})\n"
-                f"    (o := o) (p := {a['def']}) (q := {b['def']}) (n := {a['fuel']}) "
-                f"(m := {b['fuel']}) {prev_ends}\n"
-                f"    (fun call _ => {b['def']}_run o call)\n"
+        # Each pair of consecutive stages ends in the same result.
+        pairs = list(itertools.pairwise(stages))
+        for a, b in pairs:
+            name = f"{b['def']}_run"
+            what = (
+                "Stack scheduling: the last lowered MIR and the scheduled EVM IR"
+                if b["kind"] == "sched"
+                else f"`{b['pass']}`: its input and output"
             )
-            prev_ends = f"({b['def']}_ends o)"
+            write(
+                out / "Runs" / f"{b['module']}.lean",
+                header(
+                    [
+                        "W1Proofs.Tactic",
+                        "W1Proofs.Axioms",
+                        f"{gm}.{b['module']}",
+                        f"{gm}.{a['module']}",
+                    ],
+                    f"{what} end in the same result on {every}.",
+                    ns,
+                    opens,
+                )
+                + f"set_option maxHeartbeats {hb} in\n"
+                f"theorem {name} (o : Oracle) (call : Call){hyps} :\n"
+                f"    {run_fn(a)} o {a['def']} call {a['fuel']} = "
+                f"{run_fn(b)} o {b['def']} call {b['fuel']} := by\n"
+                + prune
+                + "  sym_exec\n\n"
+                + ax(name)
+                + f"\nend {ns}\n",
+            )
 
-    def steps(xs):
-        return (
-            "trivial"
-            if not xs
-            else "⟨" + ", ".join(f"stage_{x['def']} o" for x in xs) + ", trivial⟩"
-        )
+        # Stages and their composition.
+        mirs = [s for s in stages if s["kind"] == "mir"]
+        sched = next(s for s in stages if s["kind"] == "sched")
+        evms = [s for s in stages if s["kind"] == "evm"]
+        last = stages[-1]
+        body = []
+        prev_ends = f"({lam} => {ends} o call{given('h')})"
+        if excluded:
+            body.append(
+                "/-- The calls the stages are about: every call whose selector word is none of "
+                + ", ".join(f"`{sel:#010x}` (`{sig}`)" for sel, sig in excluded)
+                + ", whose functions are outside these proofs. -/\n"
+                "def scope : Call → Prop := fun call =>\n  "
+                + " ∧ ".join(
+                    f"EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x}"
+                    for sel, _ in excluded
+                )
+                + "\n"
+            )
+        for a, b in pairs:
+            stage = (
+                f"theorem stage_{b['def']} (o : Oracle) : Stage ({sem(a)} o) ({sem(b)} o) "
+                f"{a['def']} {b['def']} {scope} :=\n"
+                f"  stage_of_runs (A := {layer(a)}) (B := {layer(b)}) {a['fuel']} {b['fuel']} "
+                f"{prev_ends}\n    ({lam} => {b['def']}_run o call{given('h')})\n"
+            )
+            body.append(f"/-- `{b['pass']}`: {a['def']} to {b['def']}. -/\n" + stage)
+            if b is not last:
+                body.append(
+                    f"theorem {b['def']}_ends (o : Oracle) : ∀ call, {scope} call →\n"
+                    f"    ({run_fn(b)} o {b['def']} call {b['fuel']}).isSome = true :=\n"
+                    f"  ends_of_runs (A := {layer(a)}) (B := {layer(b)})\n"
+                    f"    (o := o) (p := {a['def']}) (q := {b['def']}) (n := {a['fuel']}) "
+                    f"(m := {b['fuel']}) {prev_ends}\n"
+                    f"    ({lam} => {b['def']}_run o call{given('h')})\n"
+                )
+                prev_ends = f"({b['def']}_ends o)"
 
-    final = f"{label}_mir_to_evmir"
-    body.append(
-        f"/-- The compilation from the first lowered MIR to the final EVM IR. -/\n"
-        f"def compilation : Compilation :=\n"
-        f"  ⟨{first['def']}, [{', '.join(m['def'] for m in mirs[1:])}], {sched['def']}, "
-        f"[{', '.join(e['def'] for e in evms)}]⟩\n"
-    )
-    body.append(
-        f"/-- Every stage from the first lowered MIR to the final EVM IR, chained by the "
-        f"library's composition, on every call. -/\n"
-        f"theorem {final} (o : Oracle) : Stage (mirSem o) (evmirSem o) {first['def']} "
-        f"{last['def']} anyCall :=\n"
-        f"  mir_to_evmir o anyCall compilation {steps(mirs[1:])} (stage_{sched['def']} o)\n"
-        f"    {steps(evms)}\n"
-    )
-    checks = (
-        "".join("\n" + axioms_check(ns, f"stage_{b['def']}") for _, b in pairs)
-        + "\n"
-        + axioms_check(ns, final)
-    )
-    imports = [f"{pm}.Runs.{s['module']}" for s in stages] + [
-        "W1Proofs.Stage",
-        "SolarTV.Composition",
-    ]
-    doc = (
-        f"The backend stages of `{contract}`, each proved on every call (`anyCall`: any "
-        "calldata, call value and storage) under every oracle, and chained from the first "
-        f"lowered MIR `{first['def']}` to the final EVM IR `{last['def']}`. Fuels are the "
-        + (
-            "programs' block counts."
-            if all(s["calls"] == 0 for s in stages)
-            else "programs' block counts times the square of one more than their call sites."
+        def steps(xs):
+            return (
+                "trivial"
+                if not xs
+                else "⟨" + ", ".join(f"stage_{x['def']} o" for x in xs) + ", trivial⟩"
+            )
+
+        final = f"{label}_mir_to_evmir"
+        body.append(
+            f"/-- The compilation from the first lowered MIR to the final EVM IR. -/\n"
+            f"def compilation : Compilation :=\n"
+            f"  ⟨{first['def']}, [{', '.join(m['def'] for m in mirs[1:])}], {sched['def']}, "
+            f"[{', '.join(e['def'] for e in evms)}]⟩\n"
         )
-    )
-    write(
-        out / "Stages.lean",
-        header(imports, doc, ns, opens) + "\n".join(body) + checks + f"\nend {ns}\n",
-    )
+        body.append(
+            f"/-- Every stage from the first lowered MIR to the final EVM IR, chained by the "
+            f"library's composition, on {every}. -/\n"
+            f"theorem {final} (o : Oracle) : Stage (mirSem o) (evmirSem o) {first['def']} "
+            f"{last['def']} {scope} :=\n"
+            f"  mir_to_evmir o {scope} compilation {steps(mirs[1:])} (stage_{sched['def']} o)\n"
+            f"    {steps(evms)}\n"
+        )
+        checks = (
+            "".join("\n" + axioms_check(ns, f"stage_{b['def']}") for _, b in pairs)
+            + "\n"
+            + axioms_check(ns, final)
+        )
+        imports = [f"{pm}.Runs.{s['module']}" for s in stages] + [
+            "W1Proofs.Stage",
+            "SolarTV.Composition",
+        ]
+        doc = (
+            f"The backend stages of `{contract}`, each proved on "
+            + (
+                "every call (`anyCall`: any calldata, call value and storage)"
+                if not excluded
+                else f"{every} (`scope`: any other calldata, any call value and storage)"
+            )
+            + " under every oracle, and chained from the first "
+            f"lowered MIR `{first['def']}` to the final EVM IR `{last['def']}`. Fuels are the "
+            + (
+                "programs' block counts."
+                if all(s["calls"] == 0 for s in stages)
+                else "programs' block counts times the square of one more than their call sites."
+            )
+        )
+        write(
+            out / "Stages.lean",
+            header(imports, doc, ns, opens)
+            + "\n".join(body)
+            + checks
+            + f"\nend {ns}\n",
+        )
 
     # The final EVM IR against the bytecode.
     bytecode_text = (args.gen / "Bytecode.lean").read_text()
@@ -344,8 +559,10 @@ def main():
         if tables
         else f"itemsOf {last['def']}"
     )
+    immutables = manifest.get("immutables", [])
     asm = header(
-        ["W1Proofs.Items", f"{gm}.{last['module']}", f"{gm}.Bytecode"],
+        ["W1Proofs.Items", f"{gm}.{last['module']}", f"{gm}.Bytecode"]
+        + ([f"{gm}.Manifest", "SolarTV.Stages.Link"] if immutables else []),
         f"The final EVM IR of `{contract}` against its bytecode, by the assembly "
         "checker's walk: the bytecode decodes, linearly from offset 0, to exactly the "
         "program's instructions, each jumped-to block at its `JUMPDEST`.",
@@ -375,8 +592,33 @@ def main():
         + axioms_check(ns, "walk_eq", "[propext, Quot.sound]")
         + "\n"
         + axioms_check(ns, "decodes", "[propext, Quot.sound]")
-        + f"\nend {ns}\n"
     )
+    if immutables:
+        # The bytecode a deployment runs is this one linked at the immutables' placeholders.
+        asm += (
+            "\n/-- The placeholders of the final EVM IR's immutables in the bytecode: each one's "
+            "immutable, the offset\nof its bytes and their count. -/\n"
+            "def placeholders : List Placeholder := placeholdersOf stream items\n\n"
+            "/-- They are the ones the manifest lists. -/\n"
+            "theorem placeholders_eq :\n"
+            "    placeholders.map (fun p => (p.id, p.start, p.bytes)) = Manifest.immutables := by\n"
+            "  decide +kernel\n\n"
+            "/-- Each placeholder is a push of its width. -/\n"
+            "theorem placed_eq : placed bytecode stream items = true := by decide +kernel\n\n"
+            "/-- Every bytecode a deployment runs, the bytecode linked with any values of the "
+            "immutables, decodes to\nthe final EVM IR's instructions, each placeholder pushing "
+            "its immutable's value. -/\n"
+            "theorem decodes_linked (values : Nat → Nat) :\n"
+            "    decodeFrom (link bytecode placeholders values) (bytecode.length + 1) 0 =\n"
+            "      linkedStream values stream items :=\n"
+            "  SolarTV.Assembly.decodes_linked checked placed_eq values\n\n"
+            "theorem linked_items (values : Nat → Nat) :\n"
+            "    (linkedStream values stream items).map Prod.snd =\n"
+            "      items.map (Item.linked offset values) :=\n"
+            "  linked_instructions checked values\n\n"
+            + axioms_check(ns, "decodes_linked")
+        )
+    asm += f"\nend {ns}\n"
     write(out / "Assembly.lean", asm)
     root = out.parent / f"{out.name}.lean"
     write(

@@ -2,19 +2,19 @@
 //!
 //! The analysis runs each function body forward in a product of two domains:
 //!
-//! - [\`octagon\`]: relations \`±x ± y <= c\` between integer locals, parameters, return variables
-//!   and array lengths, with widening up to thresholds drawn from the function's constants and type
+//! - [`octagon`]: relations `±x ± y <= c` between integer locals, parameters, return variables and
+//!   array lengths, with widening up to thresholds drawn from the function's constants and type
 //!   bounds, then two descending iterations;
-//! - array segment facts: \`forall j in [lo, hi): xs[j] <= v\` (or \`>=\`) and \`exists j in [lo,
-//!   hi): xs[j] == v\`, for arrays the code does not write, with segment bounds \`var + k\` or
-//!   constants (after Cousot, Cousot and Logozzo, "A Parametric Segmentation Functor for Fully
-//!   Automatic and Scalable Array Content Analysis", POPL 2011). Reads \`xs[e]\` become cell
-//!   variables in the octagon, so guards such as \`xs[i] > m\` relate them to scalars.
+//! - array segment facts: `forall j in [lo, hi): xs[j] <= v` (or `>=`) and `exists j in [lo, hi):
+//!   xs[j] == v`, for arrays the code does not write, with segment bounds `var + k` or constants
+//!   (after Cousot, Cousot and Logozzo, "A Parametric Segmentation Functor for Fully Automatic and
+//!   Scalable Array Content Analysis", POPL 2011). Reads `xs[e]` become cell variables in the
+//!   octagon, so guards such as `xs[i] > m` relate them to scalars.
 //!
 //! What the analysis cannot model forgets what it may touch (assembly, calls, array writes, other
 //! statements), so its results over-approximate the reachable states. Nothing it produces is
 //! trusted: each loop's head state is written as spec-language invariants
-//! ([\`infer_function\`]) that the verifier proves like any other (entry, preservation, use).
+//! ([`infer_function`]) that the verifier proves like any other (entry, preservation, use).
 
 pub(crate) mod octagon;
 
@@ -56,15 +56,15 @@ const WIDEN_DELAY: usize = 2;
 /// What a fact says of the array's cells in its segment, relative to the scalar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Kind {
-    /// every cell is \`<= v\`
+    /// every cell is `<= v`
     Le,
-    /// every cell is \`>= v\`
+    /// every cell is `>= v`
     Ge,
-    /// some cell is \`== v\`
+    /// some cell is `== v`
     Eq,
 }
 
-/// A segment fact about array \`arr\` over \`[lo, hi)\` and scalar \`val\`.
+/// A segment fact about array `arr` over `[lo, hi)` and scalar `val`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Fact {
     kind: Kind,
@@ -74,7 +74,7 @@ struct Fact {
     hi: SegBound,
 }
 
-/// A segment bound: \`var + k\`, or the constant \`k\`.
+/// A segment bound: `var + k`, or the constant `k`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct SegBound {
     var: Option<String>,
@@ -101,7 +101,7 @@ impl SegBound {
     }
 }
 
-/// A cell \`arr[idx]\` read by the code, tracked as an octagon variable.
+/// A cell `arr[idx]` read by the code, tracked as an octagon variable.
 #[derive(Clone, Debug, PartialEq)]
 struct Cell {
     name: String,
@@ -191,7 +191,7 @@ fn len_name(arr: &str) -> String {
     format!("{arr}.length")
 }
 
-/// Infers invariants for every loop in \`f\`'s body, assuming \`requires\` at entry. Returns
+/// Infers invariants for every loop in `f`'s body, assuming `requires` at entry. Returns
 /// spec-language texts keyed by the loop statement's span.
 pub(crate) fn infer_function<'a>(
     f: &'a ItemFunction<'a>,
@@ -281,7 +281,7 @@ impl Analyzer {
         }
     }
 
-    /// Forgets \`name\` (a scalar or an array) and every fact and cell that mentions it.
+    /// Forgets `name` (a scalar or an array) and every fact and cell that mentions it.
     fn kill_var(&mut self, st: &mut State, name: &str) {
         let l = len_name(name);
         st.facts.retain(|f| {
@@ -340,7 +340,7 @@ impl Analyzer {
         matches!(self.vars.get(n), Some(VarKind::Int(..)))
     }
 
-    /// Forgets what \`e\` may write: assigned and incremented variables, and memory on calls.
+    /// Forgets what `e` may write: assigned and incremented variables, and memory on calls.
     fn havoc_effects<'a>(&mut self, st: &mut State, e: &'a Expr<'a>) {
         let mut writes: Vec<String> = vec![];
         let mut call = false;
@@ -375,7 +375,7 @@ impl Analyzer {
 
     // ------------------------------------------------------------------ expressions
 
-    /// The linear value of \`e\`, applying its effects to \`st\`; None when it is not linear in the
+    /// The linear value of `e`, applying its effects to `st`; None when it is not linear in the
     /// tracked variables (its effects are then applied conservatively).
     fn eval<'a>(&mut self, st: &mut State, e: &'a Expr<'a>) -> Option<Lin> {
         let e = e.peel_parens();
@@ -487,7 +487,7 @@ impl Analyzer {
                     _ => None,
                 }
             }
-            // \`uint256(x)\`: exact when x's range fits
+            // `uint256(x)`: exact when x's range fits
             ExprKind::Call(callee, args) => {
                 if let ExprKind::Type(t) = &callee.kind
                     && let Some((lo, hi)) = int_range(t)
@@ -510,7 +510,7 @@ impl Analyzer {
         }
     }
 
-    /// \`st\` restricted to the states where \`e\` is \`positive\`.
+    /// `st` restricted to the states where `e` is `positive`.
     fn assume<'a>(&mut self, mut st: State, e: &'a Expr<'a>, positive: bool) -> State {
         if st.is_bottom() {
             return st;
@@ -625,7 +625,7 @@ impl Analyzer {
         let n = id.as_str().to_string();
         match self.vars.get(&n).cloned() {
             Some(VarKind::Int(..)) => {
-                // \`x = c ? a : b\`: each branch on its own
+                // `x = c ? a : b`: each branch on its own
                 if op.is_none()
                     && let ExprKind::Ternary(c, a, b) = &r.peel_parens().kind
                 {
@@ -651,7 +651,7 @@ impl Analyzer {
                 self.assign_var(st, &n, v);
             }
             Some(VarKind::Arr(_)) => {
-                // \`ys = new T[](n)\` sets the length; any other array value: unknown length
+                // `ys = new T[](n)` sets the length; any other array value: unknown length
                 let len = match &r.peel_parens().kind {
                     ExprKind::Call(callee, args) if matches!(callee.kind, ExprKind::New(_)) => {
                         args.exprs().next().and_then(|n| self.eval(st, n))
@@ -676,7 +676,7 @@ impl Analyzer {
         }
     }
 
-    /// \`n := v\` (None: an unknown value of n's type). Checked arithmetic reverts out of range;
+    /// `n := v` (None: an unknown value of n's type). Checked arithmetic reverts out of range;
     /// unchecked arithmetic wraps, which the analysis models only when it cannot happen.
     fn assign_var(&mut self, st: &mut State, n: &str, v: Option<Lin>) {
         if st.is_bottom() {
@@ -731,7 +731,7 @@ impl Analyzer {
             }
             facts.push(f);
         }
-        // \`n := w\`: n inherits w's facts
+        // `n := w`: n inherits w's facts
         if let Some(v) = &v
             && v.constant.is_zero()
             && v.terms.len() == 1
@@ -764,7 +764,7 @@ impl Analyzer {
         self.saturate(st);
     }
 
-    /// A bound \`n + k\` rewritten, over the octagon before n changes, without n.
+    /// A bound `n + k` rewritten, over the octagon before n changes, without n.
     fn rewrite_bound(old: &Octagon, n: &str, b: &SegBound) -> Option<SegBound> {
         let x = Lin::var(n);
         if let (Some(lo), Some(hi)) = old.range(&x)
@@ -856,7 +856,7 @@ impl Analyzer {
         self.prune(st);
     }
 
-    /// Does \`g\` (in state \`oct\`) imply \`f\`?
+    /// Does `g` (in state `oct`) imply `f`?
     fn implies(oct: &Octagon, g: &Fact, f: &Fact) -> bool {
         if g.kind != f.kind || g.arr != f.arr || g.val != f.val {
             return false;
@@ -870,7 +870,7 @@ impl Analyzer {
         }
     }
 
-    /// Is the forall fact \`f\` vacuous in \`oct\` (its segment empty)?
+    /// Is the forall fact `f` vacuous in `oct` (its segment empty)?
     fn vacuous(oct: &Octagon, f: &Fact) -> bool {
         f.kind != Kind::Eq && oct.entails_le0(&f.hi.lin().sub(&f.lo.lin()))
     }
@@ -1161,7 +1161,7 @@ impl Analyzer {
         }
     }
 
-    /// One pass over the loop from head state \`head\`: the state back at the head, and the
+    /// One pass over the loop from head state `head`: the state back at the head, and the
     /// states that break out.
     fn iterate<'a>(
         &mut self,

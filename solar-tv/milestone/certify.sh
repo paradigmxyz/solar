@@ -23,7 +23,7 @@
 #    MB (default 4500), builds it one module at a time, and audits the axioms of every
 #    theorem: only propext, Classical.choice and Quot.sound.
 # 4. negative.sh NAME CONTRACT: a bytecode mutation and edited stage artifacts fail with a
-#    mismatch.
+#    mismatch (unless CERTIFY_SKIP_NEGATIVE=1, to run them separately).
 # 5. When NAME is committed, the regenerated files must be the committed ones, except for the
 #    compiler's commit in the manifest.
 set -euo pipefail
@@ -161,7 +161,7 @@ trap 'rm -f "$audit"' EXIT
     echo "#check @$final"
     echo "#print axioms $final"
     for module in "${modules[@]}"; do
-        thm="$(sed -n 's/^theorem \([a-z0-9_]*\) .*/\1/p' "milestone/${module//.//}.lean" | head -1)"
+        thm="$(sed -n 's/^theorem \([a-z0-9_]*_\(run\|ends\|certified\)\) .*/\1/p' "milestone/${module//.//}.lean" | head -1)"
         echo "#print axioms SolarTV.Milestone.$cap.$thm"
     done
     echo "#print axioms SolarTV.Milestone.$cap.walk_eq"
@@ -177,7 +177,11 @@ bad="$(grep "depends on axioms" <<<"$report" | sed -E 's/.*depends on axioms: \[
 cd "$root"
 
 echo "== 4. negative tests"
-solar-tv/milestone/negative.sh "$name" "$contract"
+if [[ -z "${CERTIFY_SKIP_NEGATIVE:-}" ]]; then
+    solar-tv/milestone/negative.sh "$name" "$contract"
+else
+    echo "skipped (CERTIFY_SKIP_NEGATIVE)"
+fi
 
 echo "== 5. the regenerated files are the committed ones"
 if git ls-files --error-unmatch "$dir/bytecode.hex" > /dev/null 2>&1; then

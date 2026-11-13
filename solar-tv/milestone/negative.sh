@@ -38,7 +38,11 @@
 #   words in reverse order, and the first further result a call binds left unbound, when
 #   present.
 #
-# LEAN_MEMORY caps each Lean process (MB, default 4500).
+# LEAN_MEMORY caps each Lean process (MB, default 4500). NEGATIVE_CASES, an extended regex,
+# runs only the cases whose names match it.
+#
+# - final EVM IR of a program that loops: in its first block on a cycle, the first add as sub
+#   and the first conditional jump's test inverted.
 set -euo pipefail
 
 [[ $# -eq 2 ]] || { echo "usage: negative.sh NAME CONTRACT" >&2; exit 1; }
@@ -78,6 +82,7 @@ open(sys.argv[2], "w").write(s)
 check() {
     local case=$1 module=$2 proof=$3 expect=$4 pattern=${5:-}
     local dir="$tmp/$case" out="$tmp/$case/out"
+    [[ -z "${NEGATIVE_CASES:-}" || $case =~ ${NEGATIVE_CASES} ]] || return 0
     cases=$((cases + 1))
     if ! LEAN_PATH="$lean_path" lean -M "$memory" -R "$dir/src" -o "$dir/olean/$mod/$module.olean" \
         "$dir/src/$mod/$module.lean" > "$out" 2>&1; then
@@ -153,7 +158,7 @@ EOF
 # on longer bytecode, the kernel rejects its proof.
 walk_false='(Tactic .decide. proved that the proposition walk bytecode offset 0 items = some stream is false|'
 walk_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(walk bytecode offset 0 items = some stream\) = true)'
-mismatch='sym_exec: the runs end in different results on this path'
+mismatch='sym_exec: the runs end in different results on this path|sym_seg: the segments end differently on this path'
 
 edit bytecode-control "$gen/Bytecode.lean" <<<'pass'
 check bytecode-control Bytecode "$proofs/Assembly.lean" pass
@@ -205,6 +210,34 @@ check "$last-control" "$last" "$proofs/Runs/$last.lean" pass
 
 replace_first '".op (.stack .add)"' '".op (.stack .sub)"' > "$tmp/add-sub.py"
 try "$last-add-sub" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/add-sub.py"
+
+# In a program that loops: in the first block on a cycle of the final EVM IR (a loop's block),
+# its first add as sub, and its first conditional jump's test inverted (the loop exits where it
+# went on, or goes on where it exited). The cut-point proof must fail by its mismatch.
+cat > "$tmp/loop.py" <<EOF
+import re, sys
+sys.path.insert(0, "$here")
+import cutpoints
+blocks = cutpoints.parse_evm(s)
+succ, _, _ = cutpoints.evm_cfg(blocks)
+loop = sorted(cutpoints.on_cycle(succ))
+if not loop: sys.exit(3)
+def in_loop(old, new):
+    for n in loop:
+        ident = blocks[n][0]
+        m = re.search(r"^\s*-- bb%d\s*$" % ident, s, re.M)
+        nxt = re.compile(r"^\s*-- bb\d+\s*$", re.M).search(s, m.end())
+        end = nxt.start() if nxt else len(s)
+        i = s.find(old, m.end(), end)
+        if i >= 0:
+            print(f"  bb{ident}: {old} as {new}")
+            return s[:i] + new + s[i + len(old):]
+    sys.exit(3)
+EOF
+{ cat "$tmp/loop.py"; echo 's = in_loop(".op (.stack .add)", ".op (.stack .sub)")'; } > "$tmp/loop-add.py"
+try "$last-loop-add-sub" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/loop-add.py"
+{ cat "$tmp/loop.py"; echo 's = in_loop(".jumpi ", ".op (.stack .iszero),\n     .jumpi ")'; } > "$tmp/loop-exit.py"
+try "$last-loop-exit" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/loop-exit.py"
 
 # The key pushed for the first sstore that pushes its key, N, as N + 1.
 cat > "$tmp/sstore.py" <<'EOF'

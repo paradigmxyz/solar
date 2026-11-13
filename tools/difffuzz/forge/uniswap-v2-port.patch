@@ -1,0 +1,184 @@
+--- a/UniswapV2ERC20.sol
++++ b/UniswapV2ERC20.sol
+@@ -1,9 +1,9 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ import './interfaces/IUniswapV2ERC20.sol';
+ import './libraries/SafeMath.sol';
+ 
+-contract UniswapV2ERC20 is IUniswapV2ERC20 {
++contract UniswapV2ERC20 {
+     using SafeMath for uint;
+ 
+     string public constant name = 'Uniswap V2';
+@@ -21,11 +21,8 @@
+     event Approval(address indexed owner, address indexed spender, uint value);
+     event Transfer(address indexed from, address indexed to, uint value);
+ 
+-    constructor() public {
+-        uint chainId;
+-        assembly {
+-            chainId := chainid
+-        }
++    constructor() {
++        uint chainId = block.chainid;
+         DOMAIN_SEPARATOR = keccak256(
+             abi.encode(
+                 keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
+@@ -71,7 +68,7 @@
+     }
+ 
+     function transferFrom(address from, address to, uint value) external returns (bool) {
+-        if (allowance[from][msg.sender] != uint(-1)) {
++        if (allowance[from][msg.sender] != type(uint).max) {
+             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
+         }
+         _transfer(from, to, value);
+--- a/UniswapV2Factory.sol
++++ b/UniswapV2Factory.sol
+@@ -1,4 +1,4 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ import './interfaces/IUniswapV2Factory.sol';
+ import './UniswapV2Pair.sol';
+@@ -10,9 +10,7 @@
+     mapping(address => mapping(address => address)) public getPair;
+     address[] public allPairs;
+ 
+-    event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+-
+-    constructor(address _feeToSetter) public {
++    constructor(address _feeToSetter) {
+         feeToSetter = _feeToSetter;
+     }
+ 
+--- a/UniswapV2Pair.sol
++++ b/UniswapV2Pair.sol
+@@ -1,4 +1,4 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ import './interfaces/IUniswapV2Pair.sol';
+ import './UniswapV2ERC20.sol';
+@@ -8,7 +8,7 @@
+ import './interfaces/IUniswapV2Factory.sol';
+ import './interfaces/IUniswapV2Callee.sol';
+ 
+-contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
++contract UniswapV2Pair is UniswapV2ERC20 {
+     using SafeMath  for uint;
+     using UQ112x112 for uint224;
+ 
+@@ -58,7 +58,7 @@
+     );
+     event Sync(uint112 reserve0, uint112 reserve1);
+ 
+-    constructor() public {
++    constructor() {
+         factory = msg.sender;
+     }
+ 
+@@ -71,13 +71,18 @@
+ 
+     // update reserves and, on the first call per block, price accumulators
+     function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
+-        require(balance0 <= uint112(-1) && balance1 <= uint112(-1), 'UniswapV2: OVERFLOW');
++        require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, 'UniswapV2: OVERFLOW');
+         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
+-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
++        uint32 timeElapsed;
++        unchecked {
++            timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
++        }
+         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
+-            // * never overflows, and + overflow is desired
+-            price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
+-            price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
++            unchecked {
++                // * never overflows, and + overflow is desired
++                price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
++                price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
++            }
+         }
+         reserve0 = uint112(balance0);
+         reserve1 = uint112(balance1);
+--- a/interfaces/IERC20.sol
++++ b/interfaces/IERC20.sol
+@@ -1,4 +1,4 @@
+-pragma solidity >=0.5.0;
++pragma solidity ^0.8.0;
+ 
+ interface IERC20 {
+     event Approval(address indexed owner, address indexed spender, uint value);
+--- a/interfaces/IUniswapV2Callee.sol
++++ b/interfaces/IUniswapV2Callee.sol
+@@ -1,4 +1,4 @@
+-pragma solidity >=0.5.0;
++pragma solidity ^0.8.0;
+ 
+ interface IUniswapV2Callee {
+     function uniswapV2Call(address sender, uint amount0, uint amount1, bytes calldata data) external;
+--- a/interfaces/IUniswapV2ERC20.sol
++++ b/interfaces/IUniswapV2ERC20.sol
+@@ -1,4 +1,4 @@
+-pragma solidity >=0.5.0;
++pragma solidity ^0.8.0;
+ 
+ interface IUniswapV2ERC20 {
+     event Approval(address indexed owner, address indexed spender, uint value);
+--- a/interfaces/IUniswapV2Factory.sol
++++ b/interfaces/IUniswapV2Factory.sol
+@@ -1,4 +1,4 @@
+-pragma solidity >=0.5.0;
++pragma solidity ^0.8.0;
+ 
+ interface IUniswapV2Factory {
+     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+--- a/interfaces/IUniswapV2Pair.sol
++++ b/interfaces/IUniswapV2Pair.sol
+@@ -1,4 +1,4 @@
+-pragma solidity >=0.5.0;
++pragma solidity ^0.8.0;
+ 
+ interface IUniswapV2Pair {
+     event Approval(address indexed owner, address indexed spender, uint value);
+--- a/libraries/Math.sol
++++ b/libraries/Math.sol
+@@ -1,4 +1,4 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ // a library for performing various math operations
+ 
+--- a/libraries/SafeMath.sol
++++ b/libraries/SafeMath.sol
+@@ -1,4 +1,4 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ // a library for performing overflow-safe math, courtesy of DappHub (https://github.com/dapphub/ds-math)
+ 
+--- a/libraries/UQ112x112.sol
++++ b/libraries/UQ112x112.sol
+@@ -1,4 +1,4 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ // a library for handling binary fixed point numbers (https://en.wikipedia.org/wiki/Q_(number_format))
+ 
+--- a/test/ERC20.sol
++++ b/test/ERC20.sol
+@@ -1,9 +1,9 @@
+-pragma solidity =0.5.16;
++pragma solidity ^0.8.0;
+ 
+ import '../UniswapV2ERC20.sol';
+ 
+ contract ERC20 is UniswapV2ERC20 {
+-    constructor(uint _totalSupply) public {
++    constructor(uint _totalSupply) {
+         _mint(msg.sender, _totalSupply);
+     }
+ }

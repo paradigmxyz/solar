@@ -44,7 +44,7 @@
 //! creates, is copied with `CODECOPY` from the code, its offset and sizes written as
 //! `⟪dataoffset K O⟫` and `⟪datasize K A L⟫` until assembly fixes them ([`write_manifest`]), and
 //! the bytecode the stages are checked against is the code before it. `K` names the data by what
-//! it holds ([`data_key`]), not by its number, since MIR, the EVM IR passes and final assembly
+//! it holds (`data_key`), not by its number, since MIR, the EVM IR passes and final assembly
 //! each number data their own way, and final assembly shares equal creation code and bytes
 //! another entry contains. The manifest lists where each entry of it is and its size.
 //! `CREATE` and `CREATE2` take the new address from the oracle.
