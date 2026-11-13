@@ -54,3 +54,37 @@ fn @step(arg0: i256) -> i256 {
     v4 = add v3, 1
     ret v4
 }
+
+// Under stack pressure each copy pays deep `DUP`s and `SWAP`s that the size estimate omits, so a
+// leaf with a site where more words survive the call than the inline stack budget allows stays
+// shared, single block or not.
+// CHECK-LABEL: fn @pressure_caller
+// CHECK-COUNT-2: {{^ .*}}icall @churn
+fn @pressure_caller(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 {
+  bb0:
+    v0 = icall @churn, arg0
+    v1 = icall @churn, v0
+    v2 = add arg1, arg2
+    v3 = add v2, arg3
+    v4 = add v3, arg4
+    v5 = add v4, arg5
+    v6 = add v5, arg6
+    v7 = add v6, arg7
+    v8 = add v7, arg8
+    v9 = add v8, arg9
+    v10 = add v9, arg10
+    v11 = add v10, arg11
+    v12 = add v11, arg12
+    v13 = add v12, v1
+    ret v13
+}
+
+fn @churn(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 3
+    v1 = xor v0, arg0
+    v2 = add v1, 7
+    v3 = xor v2, v0
+    v4 = add v3, 1
+    ret v4
+}

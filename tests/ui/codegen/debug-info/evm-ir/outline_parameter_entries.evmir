@@ -1,0 +1,317 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module OutlineParameterEntries
+
+// The parameter pushes run before the part of each run that moves into the stub, so a function
+// entry on one does not stay there. The site's call sequence, which runs first, takes it.
+// CHECK-LABEL: (after outline)
+// CHECK: {{^[ +].*}}bb0:
+// CHECK: + push {{bb[0-9]+}} !metadata(invoke=first@1..10)
+// CHECK-NEXT: push 2{{$}}
+// CHECK: {{^[ +].*}}bb1:
+// CHECK: + push {{bb[0-9]+}} !metadata(invoke=second@11..20)
+// CHECK-NEXT: push 4{{$}}
+bb0:
+  push 1
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 2 !metadata(invoke=first@1..10)
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb1
+bb1:
+  push 3
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 4 !metadata(invoke=second@11..20)
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb2
+bb2:
+  push 5
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 6
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb3
+bb3:
+  push 7
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 8
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  stop
+
+// Parameterized computations can return 2 stack words.
+bb4:
+  push 13
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 14
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+bb5:
+  push 15
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 16
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+bb6:
+  push 17
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 18
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+bb7:
+  push 19
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 20
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+
+// Parameterized computations can return 16 stack words.
+bb8:
+  push 17
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 18
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+bb9:
+  push 19
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 20
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+bb10:
+  push 21
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 22
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+bb11:
+  push 23
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 24
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop

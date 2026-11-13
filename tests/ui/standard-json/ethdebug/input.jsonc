@@ -10,7 +10,11 @@
 // CHECK: "mnemonic": "JUMPI"
 // CHECK: "offset": 19
 // CHECK: "mnemonic": "PUSH1"
-// The external entry falls through; PUSH1 cannot establish an internal call.
+// The external entry falls through and nothing jumps into it, so its `invoke` has no target.
+// CHECK: "invoke": {
+// CHECK-NEXT: "identifier": "f"
+// CHECK: "jump": true
+// CHECK-NOT: "target"
 // CHECK: "mnemonic": "ADD"
 // CHECK: "offset": 79
 // CHECK-NEXT: "length": 5

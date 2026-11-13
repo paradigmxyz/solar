@@ -52,7 +52,7 @@ error[8274]: variables cannot be declared in interfaces
    ╭▸ ROOT/tests/ui/typeck/interfaces/interface_function_visibility.sol:LL:CC
    │
 LL │     uint256 public x;
-   ╰╴    ━━━━━━━━━━━━━━━━━
+   ╰╴    ━━━━━━━━━━━━━━━━
 
 error: aborting due to 9 previous errors
 

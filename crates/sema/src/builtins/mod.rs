@@ -23,7 +23,7 @@ pub(crate) fn scopes() -> (Declarations, FxHashMap<Builtin, Declarations>) {
 pub(crate) fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
     let mut declarations = Declarations::new();
     for builtin in builtins {
-        let decl = Declaration { res: hir::Res::Builtin(builtin), span: Span::DUMMY };
+        let decl = Declaration { res: hir::Res::Builtin(builtin), span: Span::DUMMY, import: None };
         declarations.declare_unchecked(builtin.name(), decl);
     }
     declarations
@@ -505,6 +505,70 @@ impl Builtin {
     /// Returns whether this builtin mutates its array receiver.
     pub const fn is_array_mutator(self) -> bool {
         matches!(self, Self::ArrayPush0 | Self::ArrayPush | Self::ArrayPop)
+    }
+
+    /// Returns the ID that solc gives to the global variable or function.
+    ///
+    /// Reference: `magicVariableToID` in `libsolidity/analysis/GlobalContext.cpp`.
+    pub fn solc_id(self) -> Option<i64> {
+        Some(match self {
+            Self::Abi => -1,
+            Self::AddMod => -2,
+            Self::Assert => -3,
+            Self::Block => -4,
+            Self::Blockhash => -5,
+            Self::EcRecover => -6,
+            Self::Gasleft => -7,
+            Self::Keccak256 => -8,
+            Self::Msg => -15,
+            Self::MulMod => -16,
+            Self::Require => -18,
+            Self::Revert | Self::RevertMsg => -19,
+            Self::Ripemd160 => -20,
+            Self::Selfdestruct => -21,
+            Self::Sha256 => -22,
+            Self::Super => -25,
+            Self::Tx => -26,
+            Self::This => -28,
+            Self::Blobhash => -29,
+            Self::Erc7201 => -30,
+            _ => return None,
+        })
+    }
+
+    /// Returns the name of the `FunctionType::Kind` of the builtin function in solc.
+    pub fn solc_kind(self) -> &'static str {
+        match self {
+            Self::Blockhash => "blockhash",
+            Self::Blobhash => "blobhash",
+            Self::Gasleft => "gasleft",
+            Self::Selfdestruct => "selfdestruct",
+            Self::Assert => "assert",
+            Self::Require => "require",
+            Self::Revert | Self::RevertMsg => "revert",
+            Self::AddMod => "addmod",
+            Self::MulMod => "mulmod",
+            Self::Keccak256 => "keccak256",
+            Self::Sha256 => "sha256",
+            Self::Ripemd160 => "ripemd160",
+            Self::EcRecover => "ecrecover",
+            Self::Erc7201 => "erc7201",
+            Self::AbiEncode => "abiencode",
+            Self::AbiEncodePacked => "abiencodepacked",
+            Self::AbiEncodeWithSelector => "abiencodewithselector",
+            Self::AbiEncodeCall => "abiencodecall",
+            Self::AbiEncodeWithSignature => "abiencodewithsignature",
+            Self::AbiDecode => "abidecode",
+            Self::AddressPayableTransfer => "transfer",
+            Self::AddressPayableSend => "send",
+            Self::ArrayPush0 | Self::ArrayPush => "arraypush",
+            Self::ArrayPop => "arraypop",
+            Self::StringConcat => "stringconcat",
+            Self::BytesConcat => "bytesconcat",
+            Self::UdvtWrap => "wrap",
+            Self::UdvtUnwrap => "unwrap",
+            _ => "internal",
+        }
     }
 
     /// Returns whether a call to this builtin is a compile-time constant when its arguments are.

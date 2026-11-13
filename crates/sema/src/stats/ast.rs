@@ -290,7 +290,7 @@ impl<'ast> Visit<'ast> for StatCollector {
     ) -> ControlFlow<Self::BreakValue> {
         self.record("ItemEnum", None, enum_);
         for variant in enum_.variants.iter() {
-            self.visit_ident(variant)?;
+            self.visit_ident(&variant.name)?;
         }
         // Don't visit name field since it isn't boxed
         ControlFlow::Continue(())

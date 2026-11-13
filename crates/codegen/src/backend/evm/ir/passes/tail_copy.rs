@@ -22,10 +22,10 @@
 //! Immutable and library placeholders, which the assembler patches by site, stay where they are,
 //! and so do opcodes the target lacks, whose new uses the checks between passes reject.
 //!
-//! NOTE: A copy keeps its instructions' source locations and function events, but not the
-//! function entry event of the tail's `JUMPDEST`, which no longer runs on that path. Keeping an
-//! executable jump for it would defeat the rewrite; recording it on the caller's last instruction
-//! could overwrite that instruction's own transition. Debug origins never affect eligibility.
+//! NOTE: A copy keeps its instructions' source locations and function events. The function entry
+//! event of the tail's `JUMPDEST` moves to the copy's first instruction, since the copy is the
+//! call. The replaced jump's events are dropped: keeping an executable jump for them would defeat
+//! the rewrite. Debug origins never affect eligibility.
 //!
 //! # `copy-loop-blocks`: loop blocks
 //!
@@ -49,14 +49,6 @@
 //!
 //! Beyond the shared rules, data offsets and sizes, block labels, and conditional jumps to a
 //! label pushed right before them are copied: a label keeps naming the same block.
-//!
-//! A copy never takes the stack higher than the path it replaces. That path pushed the label of
-//! its jump into the block one word over the block's entry stack, ran the block's code, and went
-//! on into the next block's. A copy of a block that falls through ends with a jump whose label
-//! goes on the stack the block leaves, so such a block qualifies only when the path reaches that
-//! height anyway: in the block's own code, or in the next block's before it can branch away, as
-//! a callee entered right after its return address does. Otherwise the copy could exceed the
-//! 1024-word limit where the path stays within it.
 //!
 //! Only gas builds copy, and only between hot blocks inside a loop. A copy saves the transfer on
 //! every iteration through the edge and deposits the copied bytes, less the removed label push
@@ -294,7 +286,23 @@ fn jump_callee(module: &Module, caller: BlockId) -> Option<BlockId> {
 /// The instructions and terminator a copy of the block `callee` appends to its caller.
 fn tail_body(module: &Module, callee: BlockId) -> (Vec<Instruction>, Option<Terminator>) {
     let tail = &module.blocks[callee];
-    (tail.instructions.clone(), tail.terminator.clone())
+    let (mut instructions, mut terminator) = (tail.instructions.clone(), tail.terminator.clone());
+    // NOTE: A copy of a function's entry block is an inlined call. The callee starts at the first
+    // instruction of the copy, which no jump enters, unless that instruction already has an
+    // event.
+    if let Some(function) = tail.metadata.function_invoke {
+        let metadata = match (instructions.first_mut(), &mut terminator) {
+            (Some(first), _) => Some(&mut first.metadata),
+            (None, Some(terminator)) => Some(&mut terminator.metadata),
+            (None, None) => None,
+        };
+        if let Some(metadata) = metadata
+            && metadata.function_invoke().is_none()
+        {
+            metadata.set_function_invoke(function);
+        }
+    }
+    (instructions, terminator)
 }
 
 /// Replaces the jump that ends `caller` with a tail.
@@ -395,11 +403,9 @@ fn loop_candidate(
     // The copy's own transfer must not cost more on each iteration than the tail's does.
     let jump = target.label_push() + target.opcode(op::JUMP);
     let ending = match tail.terminator.as_ref()?.kind {
-        // The copy jumps where the tail falls through, which must leave the loop, and must push
-        // that jump's label no higher than the path through the tail already reaches.
+        // The copy jumps where the tail falls through, which must leave the loop.
         TerminatorKind::Jump(next) if Some(next) == module.next_block(callee) => {
-            let next = &module.blocks[next];
-            if next.metadata.in_loop || !label_fits_path(tail, next) {
+            if module.blocks[next].metadata.in_loop {
                 return None;
             }
             jump
@@ -457,38 +463,6 @@ fn instruction_bytes(target: Target, inst: &Instruction) -> u32 {
     inst.as_stack_op()
         .and_then(|stack_op| target.stack_op(stack_op))
         .map_or_else(|| target.opcode(inst.opcode).bytes, |cost| cost.bytes)
-}
-
-/// Whether the label a copy of `block` pushes to jump to `next`, where the block falls through,
-/// stays within the highest stack of the path the copy replaces: the label of the jump into the
-/// block, one word over its entry stack, the block's own peak, or the first word the code of
-/// `next` pushes over the stack the block leaves, before `next` can branch away.
-fn label_fits_path(block: &Block, next: &Block) -> bool {
-    let (mut height, mut peak) = (0i64, 1i64);
-    for inst in &block.instructions {
-        height += stack_growth(inst);
-        peak = peak.max(height);
-    }
-    if height < peak {
-        return true;
-    }
-    let mut rise = 0i64;
-    for inst in &next.instructions {
-        rise += stack_growth(inst);
-        if rise > 0 {
-            return true;
-        }
-        if inst.as_evm_opcode() == Some(op::JUMPI) {
-            return false;
-        }
-    }
-    false
-}
-
-/// The words `inst` adds to the stack, negative when it removes some.
-fn stack_growth(inst: &Instruction) -> i64 {
-    let effect = inst.stack_effect();
-    i64::from(effect.outputs) - i64::from(effect.inputs)
 }
 
 /// Orders copies that add `added` bytes and save `saved` gas by the gas they save per added byte,

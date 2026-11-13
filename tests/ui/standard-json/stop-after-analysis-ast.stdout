@@ -1,0 +1,125 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0,
+      "ast": {
+        "id": 3,
+        "src": "0:71:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "A.sol",
+        "exportedSymbols": {
+          "C": [
+            0
+          ]
+        },
+        "nodes": [
+          {
+            "id": 0,
+            "src": "0:71:0",
+            "nodeType": "ContractDefinition",
+            "name": "C",
+            "nameLocation": "9:1:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "C",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 1,
+                "src": "13:56:0",
+                "nodeType": "FunctionDefinition",
+                "name": "f",
+                "nameLocation": "22:1:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 5,
+                  "src": "23:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 4,
+                  "src": "46:9:0",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 2,
+                      "src": "47:7:0",
+                      "nodeType": "VariableDeclaration",
+                      "name": "",
+                      "nameLocation": "-1:-1:-1",
+                      "typeName": {
+                        "id": 6,
+                        "src": "47:7:0",
+                        "nodeType": "ElementaryTypeName",
+                        "name": "uint256",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 1,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    }
+                  ]
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "public",
+                "body": {
+                  "id": 7,
+                  "src": "56:13:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 8,
+                      "src": "58:8:0",
+                      "nodeType": "Return",
+                      "expression": {
+                        "id": 9,
+                        "src": "65:1:0",
+                        "nodeType": "Literal",
+                        "kind": "number",
+                        "value": "1",
+                        "hexValue": "31",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_rational_1_by_1",
+                          "typeString": "int_const 1"
+                        },
+                        "isLValue": false,
+                        "isPure": true,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      },
+                      "functionReturnParameters": 4
+                    }
+                  ]
+                },
+                "functionSelector": "26121ff0"
+              }
+            ],
+            "scope": 3,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              0
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

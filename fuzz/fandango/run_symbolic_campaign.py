@@ -26,7 +26,6 @@ PROJECT_OUTPUTS = [
     "evm.deployedBytecode.linkReferences",
     "evm.deployedBytecode.object",
     "evm.methodIdentifiers",
-    "storageLayout",
 ]
 
 
@@ -51,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         "--timeout",
         type=float,
         default=600.0,
-        help="seconds per contract",
+        help="seconds per compiler run and per equivalence check",
     )
     argv = sys.argv[1:] if argv is None else argv
     # Arguments after `--` are passed to every solsymdiff run.
@@ -244,9 +243,6 @@ def _run(
             "reason": (process.stderr or process.stdout).strip()[-500:],
             "checks": [],
         }
-    checks = report.get("checks")
-    if checks is None and "status" in report and "bounds" in report:
-        checks = [{"label": label, **report} for label in report.get("checked", [])]
     return {
         **result,
         "status": report["status"],
@@ -258,7 +254,7 @@ def _run(
                 for key in ("label", "status", "reason", "differs_in", "counterexample")
                 if key in check
             }
-            for check in checks or []
+            for check in report.get("checks", [])
         ],
         "skipped": report.get("skipped", []),
         "limitations": report.get("limitations", []),
@@ -283,7 +279,7 @@ def _summary(results: list[dict[str, Any]]) -> str:
         "| | bounded agreement | mismatch | incomplete |",
         "| --- | --- | --- | --- |",
         _row("contracts", contracts),
-        _row("call sequences", checks),
+        _row("checks", checks),
         "",
     ]
     mismatches = [
@@ -301,8 +297,7 @@ def _summary(results: list[dict[str, Any]]) -> str:
     if mismatches:
         lines += ["## Mismatches", ""]
         for result, check in mismatches:
-            calls = check.get("counterexample", {}).get("calls", [])
-            calldata = " -> ".join(call["calldata"] for call in calls)
+            calldata = check.get("counterexample", {}).get("calldata", "")
             lines.append(
                 f"- `{result['contract']}` `{check['label']}` differs in "
                 f"{check.get('differs_in', 'an assertion')}: `{calldata}`"

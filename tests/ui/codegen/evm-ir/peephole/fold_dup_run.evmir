@@ -1,0 +1,34 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+//@ run-call: f(uint256)(uint256,uint256,uint256) 0 => 160, 1, 0
+//@ run-call: f(uint256)(uint256,uint256,uint256) 9 => 160, 1, 0
+//@ run-call: f(uint256)(uint256,uint256,uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 160, 1, 0
+
+// A `DUP` of a known constant folds like a push: `128 + 32` through a `DUP` is 160, `iszero` of a
+// `DUP` of zero is 1, and a `DUP` of zero is zero, wherever the word it copies sits below.
+@module fold_dup_run
+bb0:
+  push 128
+  push 32
+  dup 2
+  add
+  push 0
+  mstore
+  push 0
+  dup 1
+  iszero
+  push 32
+  mstore
+  push 4
+  calldataload
+  push 0
+  dup 1
+  mul
+  push 64
+  mstore
+  pop
+  push 96
+  push 0
+  return

@@ -1,0 +1,34 @@
+//@ filecheck:
+// A comment before the `;` of a variable or a statement is not part of its location, as in solc.
+// CHECK: "src": "112:6:0",
+// CHECK-NEXT: "nodeType": "VariableDeclaration"
+// CHECK: "src": "136:19:0",
+// CHECK-NEXT: "nodeType": "VariableDeclaration"
+// CHECK: "src": "177:17:0",
+// CHECK-NEXT: "nodeType": "VariableDeclaration"
+// CHECK: "src": "229:1:0",
+// CHECK-NEXT: "nodeType": "PlaceholderStatement"
+// CHECK: "src": "287:6:0",
+// CHECK-NEXT: "nodeType": "VariableDeclarationStatement"
+// CHECK: "src": "315:10:0",
+// CHECK-NEXT: "nodeType": "VariableDeclarationStatement"
+// CHECK: "src": "353:25:0",
+// CHECK-NEXT: "nodeType": "VariableDeclarationStatement"
+// CHECK: "src": "400:9:0",
+// CHECK-NEXT: "nodeType": "EmitStatement"
+// CHECK: "src": "441:5:0",
+// CHECK-NEXT: "nodeType": "Break"
+// CHECK: "src": "470:11:0",
+// CHECK-NEXT: "nodeType": "RevertStatement"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

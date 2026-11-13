@@ -39,7 +39,7 @@
 
 use super::{
     EvmPass,
-    utils::{SymbolicStackOp, symbolic_stack_op},
+    utils::{RunEvents, SymbolicStackOp, symbolic_stack_op},
 };
 use crate::{
     backend::evm::{
@@ -223,10 +223,10 @@ impl Normalizer {
                 .take(normalization.end - normalization.start)
                 .collect::<SmallVec<[_; MAX_STACK_RUN_LEN]>>();
             // The final instance's folded cycles take the debug information of the first swap they
-            // replace, and the function events of the others. Other replacements take the replaced
-            // operations' debug information positionally: a longer output repeats the last
-            // original's, and a shorter one takes the leftovers' function events into its last
-            // operation. Leftover origins go with the deleted operations.
+            // replace. Other replacements take the replaced operations' debug information
+            // positionally: a longer output repeats the last original's. Leftover origins go with
+            // the deleted operations. The run executes straight through, so its function entry
+            // moves to the first replacement and its exit to the last.
             let origins = exchanges
                 .then(|| {
                     let input =
@@ -239,6 +239,7 @@ impl Normalizer {
                         .map(|index| u8::from(index < run.len()))
                         .collect()
                 });
+            let events = RunEvents::of(run.iter().map(|inst| &inst.metadata));
             let mut run = run.into_iter();
             let first = instructions.len();
             for (op, origin) in normalization.output.into_iter().zip(origins) {
@@ -251,16 +252,11 @@ impl Normalizer {
                 } else {
                     replacement.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 }
-                for inst in replaced {
-                    replacement.metadata.move_function_events(&inst.metadata);
-                }
+                // Drain the originals that this output replaces.
+                replaced.for_each(drop);
                 instructions.push(replacement);
             }
-            for inst in run {
-                if let Some(last) = instructions.last_mut() {
-                    last.metadata.move_function_events(&inst.metadata);
-                }
-            }
+            events.place(&mut instructions[first..]);
         }
         instructions.extend(source);
         true

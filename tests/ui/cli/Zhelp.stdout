@@ -84,6 +84,9 @@ Options:
       -Zpack-wide-jump-tables
           Pack indexed jump table entries wider than one byte into words and pick them with a shift and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick
 
+      -Zkeep-asts
+          Keeps the ASTs after lowering, which the `ast` outputs need and which are dropped otherwise to free memory
+
       -Zhelp
           Print help
 

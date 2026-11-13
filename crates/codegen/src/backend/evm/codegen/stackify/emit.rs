@@ -22,7 +22,10 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -54,7 +57,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.function_labels[&func_id];
             self.asm.define_external_entry_label(label);
             self.mark_debug_external_entry_label(label, func);
-            self.mark_debug_function_invoke(func);
+            self.mark_debug_function_invoke(func, true);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, module, plan);
@@ -106,7 +109,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &func.blocks[BlockId::ENTRY].label_metadata,
             );
         }
-        self.mark_debug_function_invoke(func);
+        self.mark_debug_function_invoke(func, true);
         self.comment_function_entry(func, false, true);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
@@ -164,7 +167,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 None => self.asm.define_label(label),
             }
             self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
-            self.mark_debug_function_invoke(func);
+            self.mark_debug_function_invoke(func, false);
             self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, module, plan);
@@ -198,6 +201,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // instructions, so the buffer loads, and the values bound to the extra results, are the
         // same in both.
         if self.capture_mir {
+            let published = plan
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|block| &block.steps)
+                .filter_map(|step| match step {
+                    &Step::Publish { inst, .. } => Some(inst),
+                    _ => None,
+                })
+                .collect::<FxHashSet<_>>();
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (index, &inst) in block.instructions.iter().enumerate() {
                     let InstKind::ICall { function: Callee::Function(callee), .. } =
@@ -212,15 +225,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let Some(protocol) = call_projection(func, block_id, index, arity) else {
                         continue;
                     };
-                    let published = plan
-                        .blocks
-                        .iter()
-                        .flatten()
-                        .flat_map(|block| &block.steps)
-                        .any(|step| {
-                            matches!(step, Step::Publish { callee: target, .. } if *target == callee)
-                        });
-                    if protocol.extras.iter().any(Option::is_some) || !published {
+                    if protocol.extras.iter().any(Option::is_some) || !published.contains(&inst) {
                         self.stack_return_sites.insert(
                             (func_id, inst),
                             StackReturn {
@@ -572,7 +577,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee, _) => {
+            &Step::Call(callee) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -583,7 +588,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
             }
-            &Step::Publish { callee, arity, params } => {
+            &Step::Publish { callee, arity, params, .. } => {
                 // [result(m-1), ..., result1, result0]
                 // swap1; push frame[return + 32 * k]; mstore   (k = 1..m)
                 // push frame[return]; push 0x20; mstore
