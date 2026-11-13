@@ -28,17 +28,59 @@ class Unsupported(Exception):
 
 
 # Stack effects of EVM IR instructions: words popped and pushed.
-BINARY = {"eq", "sub", "add", "mul", "and", "or", "xor", "div", "sdiv", "mod", "smod", "exp",
-          "signextend", "lt", "gt", "slt", "sgt", "byte", "shl", "shr", "sar"}
+BINARY = {
+    "eq",
+    "sub",
+    "add",
+    "mul",
+    "and",
+    "or",
+    "xor",
+    "div",
+    "sdiv",
+    "mod",
+    "smod",
+    "exp",
+    "signextend",
+    "lt",
+    "gt",
+    "slt",
+    "sgt",
+    "byte",
+    "shl",
+    "shr",
+    "sar",
+}
 UNARY = {"iszero", "not", "clz"}
 TERNARY = {"addmod", "mulmod"}
 NULLARY = {"calldatasize", "returndatasize"}
 # Effects that leave a word.
-RESULT_EFFECTS = {"mload", "msize", "sload", "tload", "calldataload", "calldatasize",
-                  "callvalue", "caller", "address", "returndatasize", "keccak256", "gas",
-                  "create", "create2"}
-NO_RESULT_EFFECTS = {"mstore", "mstore8", "sstore", "tstore", "calldatacopy", "mcopy",
-                     "returndatacopy", "codecopy"}
+RESULT_EFFECTS = {
+    "mload",
+    "msize",
+    "sload",
+    "tload",
+    "calldataload",
+    "calldatasize",
+    "callvalue",
+    "caller",
+    "address",
+    "returndatasize",
+    "keccak256",
+    "gas",
+    "create",
+    "create2",
+}
+NO_RESULT_EFFECTS = {
+    "mstore",
+    "mstore8",
+    "sstore",
+    "tstore",
+    "calldatacopy",
+    "mcopy",
+    "returndatacopy",
+    "codecopy",
+}
 
 
 def split_top(s):
@@ -61,15 +103,19 @@ def split_top(s):
 
 def parse_evm(text):
     """The blocks of an exported EVM IR program, in order: (compiler block number, [instr])."""
-    body = text[text.index("blocks := [") + len("blocks := ["):]
-    parts = re.split(r"^\s*-- bb(\d+)\s*$", body, flags=re.M)
+    body = text[text.index("blocks := [") + len("blocks := [") :]
+    parts = re.split(r"^\s*-- bb(\d+)\s*$", body, flags=re.MULTILINE)
     blocks = []
     for i in range(1, len(parts), 2):
         ident = int(parts[i])
         chunk = parts[i + 1].strip()
-        chunk = re.sub(r"\]\s*\}\s*(end .*)?$", "", chunk, flags=re.S).strip()
+        chunk = re.sub(r"\]\s*\}\s*(end .*)?$", "", chunk, flags=re.DOTALL).strip()
         chunk = chunk.rstrip(",").strip()
-        assert chunk.startswith("[") and chunk.endswith("]"), (ident, chunk[:80], chunk[-80:])
+        assert chunk.startswith("[") and chunk.endswith("]"), (
+            ident,
+            chunk[:80],
+            chunk[-80:],
+        )
         blocks.append((ident, split_top(chunk[1:-1])))
     return blocks
 
@@ -79,7 +125,9 @@ def effect(instr):
     "dyn", "table" or "end"."""
     m = re.fullmatch(r"\.op \(\.stack \((\.push|\.dup|\.swap|\.exchange) .*\)\)", instr)
     if m:
-        return {".push": (0, 1), ".dup": (0, 1), ".swap": (0, 0), ".exchange": (0, 0)}[m[1]] + (None, [])
+        return {".push": (0, 1), ".dup": (0, 1), ".swap": (0, 0), ".exchange": (0, 0)}[
+            m[1]
+        ] + (None, [])
     m = re.fullmatch(r"\.op \(\.stack \.(\w+)\)", instr)
     if m:
         op = m[1]
@@ -95,8 +143,14 @@ def effect(instr):
             return (1, 0, None, [])
     m = re.fullmatch(r"\.op \.(\w+)", instr)
     if m:
-        return {"load": (1, 1), "store": (2, 0), "storeByte": (2, 0), "size": (0, 1),
-                "copy": (3, 0), "hash": (2, 1)}[m[1]] + (None, [])
+        return {
+            "load": (1, 1),
+            "store": (2, 0),
+            "storeByte": (2, 0),
+            "size": (0, 1),
+            "copy": (3, 0),
+            "hash": (2, 1),
+        }[m[1]] + (None, [])
     m = re.fullmatch(r"\.effect \(?\.(\w+)(?: [^)]*\))? (\d+)", instr)
     if m:
         kind, arity = m[1], int(m[2])
@@ -107,8 +161,11 @@ def effect(instr):
     m = re.fullmatch(r"\.(jump|jumpi|pushLabel) (\d+)", instr)
     if m:
         t = int(m[2])
-        return {"jump": (0, 0, "jump", [t]), "jumpi": (1, 0, "jumpi", [t]),
-                "pushLabel": (0, 1, None, [])}[m[1]]
+        return {
+            "jump": (0, 0, "jump", [t]),
+            "jumpi": (1, 0, "jumpi", [t]),
+            "pushLabel": (0, 1, None, []),
+        }[m[1]]
     if instr == ".jumpDyn":
         return (1, 0, "dyn", [])
     if instr == ".jumpiDyn":
@@ -123,7 +180,14 @@ def effect(instr):
 
 def evm_cfg(blocks):
     """Successors by block index and the static stack height at each block's entry."""
-    labels = sorted({int(t) for _, b in blocks for i in b for t in re.findall(r"^\.pushLabel (\d+)$", i)})
+    labels = sorted(
+        {
+            int(t)
+            for _, b in blocks
+            for i in b
+            for t in re.findall(r"^\.pushLabel (\d+)$", i)
+        }
+    )
     succ, heights = {}, {0: 0}
     exits = {}
     for idx, (_, instrs) in enumerate(blocks):
@@ -138,7 +202,7 @@ def evm_cfg(blocks):
                 break
         if not end:
             out.append(idx + 1)
-        succ[idx] = sorted(set(t for t in out if t < len(blocks)))
+        succ[idx] = sorted({t for t in out if t < len(blocks)})
     # Heights, forward from block 0; a dynamic jump's successors get no height from it.
     work = [0]
     dynamic = False
@@ -151,7 +215,9 @@ def evm_cfg(blocks):
         for ins in blocks[idx][1]:
             pop, push, kind, targets = effect(ins)
             if h < pop:
-                raise Unsupported(f"block bb{blocks[idx][0]} underflows its static stack")
+                raise Unsupported(
+                    f"block bb{blocks[idx][0]} underflows its static stack"
+                )
             h = h - pop
             for t in targets:
                 if heights.setdefault(t, h) != h:
@@ -189,7 +255,7 @@ def cyclic_component(succ, removed):
             if m in removed:
                 continue
             if color.get(m) == 1:
-                return stack[stack.index(m):]
+                return stack[stack.index(m) :]
             if m not in color:
                 c = dfs(m)
                 if c:
@@ -199,6 +265,7 @@ def cyclic_component(succ, removed):
         return None
 
     import sys
+
     sys.setrecursionlimit(100000)
     for n in sorted(succ):
         if n not in removed and n not in color:
@@ -226,9 +293,11 @@ def evm_cuts(pass_name, a_blocks, b_blocks):
                 continue
             candidates = [ids[n] for n in cycle if ids[n] in common]
             if not candidates:
-                raise Unsupported(f"{pass_name}: a loop through "
-                                  + ", ".join(f"bb{ids[n]}" for n in cycle)
-                                  + " has no block both programs keep")
+                raise Unsupported(
+                    f"{pass_name}: a loop through "
+                    + ", ".join(f"bb{ids[n]}" for n in cycle)
+                    + " has no block both programs keep"
+                )
             chosen.add(candidates[0])
             progress = True
             break
@@ -237,8 +306,10 @@ def evm_cuts(pass_name, a_blocks, b_blocks):
     else:
         raise Unsupported(f"{pass_name}: no cut set found")
     if chosen and (a_dyn or b_dyn):
-        raise Unsupported(f"{pass_name}: loops in a program with internal calls (return labels "
-                          "on the stack at a cut point)")
+        raise Unsupported(
+            f"{pass_name}: loops in a program with internal calls (return labels "
+            "on the stack at a cut point)"
+        )
     cuts = []
     for ident in sorted(chosen):
         ia, ib = a_ids.index(ident), b_ids.index(ident)
@@ -246,8 +317,10 @@ def evm_cuts(pass_name, a_blocks, b_blocks):
         if ha is None or hb is None:
             raise Unsupported(f"{pass_name}: bb{ident} has no static stack height")
         if ha != hb:
-            raise Unsupported(f"{pass_name}: bb{ident} is entered with {ha} words before and "
-                              f"{hb} after: the pass moved the header's words")
+            raise Unsupported(
+                f"{pass_name}: bb{ident} is entered with {ha} words before and "
+                f"{hb} after: the pass moved the header's words"
+            )
         cuts.append((ia, ib, ha))
     return cuts
 
@@ -273,25 +346,36 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
     cut_a = " || ".join(f"x.1 == {ia}" for ia, _, _ in cuts)
     cut_b = " || ".join(f"x.1 == {ib}" for _, ib, _ in cuts)
     out = []
-    out.append(f"/-- The cut points of `{A}`: the blocks that cut its loops. -/\n"
-               f"def {p}_cutA : {cfg} → Bool := fun x => {cut_a}\n\n"
-               f"/-- The same blocks of `{B}`. -/\n"
-               f"def {p}_cutB : {cfg} → Bool := fun x => {cut_b}\n\n")
+    out.append(
+        f"/-- The cut points of `{A}`: the blocks that cut its loops. -/\n"
+        f"def {p}_cutA : {cfg} → Bool := fun x => {cut_a}\n\n"
+        f"/-- The same blocks of `{B}`. -/\n"
+        f"def {p}_cutB : {cfg} → Bool := fun x => {cut_b}\n\n"
+    )
     # The cut tests of a configuration the code has built, so that evaluation decides them
     # only once the block is known.
     for side, test in (("A", cut_a), ("B", cut_b)):
-        out.append(f"theorem {p}_cut{side}_mk (b : Nat) (st : EVM.Stack) (s : State) :\n"
-                   f"    {p}_cut{side} (b, st, s) = ({test.replace('x.1', 'b')}) := rfl\n\n")
-    rels = ["fun x x' => x = (0, [], State.initial call) ∧ x' = (0, [], State.initial call)"]
+        out.append(
+            f"theorem {p}_cut{side}_mk (b : Nat) (st : EVM.Stack) (s : State) :\n"
+            f"    {p}_cut{side} (b, st, s) = ({test.replace('x.1', 'b')}) := rfl\n\n"
+        )
+    rels = [
+        "fun x x' => x = (0, [], State.initial call) ∧ x' = (0, [], State.initial call)"
+    ]
     for ia, ib, h in cuts:
         ws = words(h)
         binder = f"∃ ({' '.join(ws)} : Word) (s : State), " if ws else "∃ s : State, "
-        rels.append(f"fun x x' => {binder}x = ({ia}, {stack_term(ws)}, s) ∧ "
-                    f"x' = ({ib}, {stack_term(ws)}, s)")
-    out.append(f"/-- The relations at the first configurations and at each pair of cut points: "
-               f"the same words at the same height, and the same state. -/\n"
-               f"def {p}_rels (call : Call) : List ({cfg} → {cfg} → Prop) :=\n  ["
-               + ",\n   ".join(rels) + "]\n\n")
+        rels.append(
+            f"fun x x' => {binder}x = ({ia}, {stack_term(ws)}, s) ∧ "
+            f"x' = ({ib}, {stack_term(ws)}, s)"
+        )
+    out.append(
+        f"/-- The relations at the first configurations and at each pair of cut points: "
+        f"the same words at the same height, and the same state. -/\n"
+        f"def {p}_rels (call : Call) : List ({cfg} → {cfg} → Prop) :=\n  ["
+        + ",\n   ".join(rels)
+        + "]\n\n"
+    )
 
     def mem(i):
         t = "List.Mem.head _"
@@ -305,15 +389,19 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
         wb = f"{{{' '.join(ws)} : Word}} " if ws else ""
         name = f"{p}_mk{n}"
         mks.append(name)
-        out.append(f"theorem {name} {{call : Call}} {wb}{{s : State}} {{y : {cfg}}}\n"
-                   f"    (h : y = ({ib}, {stack_term(ws)}, s)) :\n"
-                   f"    ∃ Q ∈ {p}_rels call, Q ({ia}, {stack_term(ws)}, s) y :=\n"
-                   f"  rel_mem ({mem(n)}) ⟨{', '.join(ws + ['s'])}, rfl, h⟩\n\n")
-    seg_rel = (f"SegRel Agree (fun y y' => ∃ Q ∈ {p}_rels call, Q y y')")
+        out.append(
+            f"theorem {name} {{call : Call}} {wb}{{s : State}} {{y : {cfg}}}\n"
+            f"    (h : y = ({ib}, {stack_term(ws)}, s)) :\n"
+            f"    ∃ Q ∈ {p}_rels call, Q ({ia}, {stack_term(ws)}, s) y :=\n"
+            f"  rel_mem ({mem(n)}) ⟨{', '.join(ws + ['s'])}, rfl, h⟩\n\n"
+        )
+    seg_rel = f"SegRel Agree (fun y y' => ∃ Q ∈ {p}_rels call, Q y y')"
     unf = f"{p}_cutA_mk, {p}_cutB_mk"
     segs = []
     starts = [((0, [], "State.initial call"), (0, [], "State.initial call"), [])] + [
-        ((ia, words(h), "s"), (ib, words(h), "s"), words(h) + ["s"]) for ia, ib, h in cuts]
+        ((ia, words(h), "s"), (ib, words(h), "s"), words(h) + ["s"])
+        for ia, ib, h in cuts
+    ]
     for n, ((ia, wa, sa), (ib, wb_, sb), vars_) in enumerate(starts):
         name = f"{p}_seg{n}"
         segs.append(name)
@@ -323,37 +411,46 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
             binders += f" ({' '.join(ws)} : Word)"
         if "s" in vars_:
             binders += " (s : State)"
-        out.append(f"set_option maxHeartbeats {heartbeats} in\n"
-                   f"theorem {name} (o : Oracle) (call : Call){binders} :\n"
-                   f"    ∃ k k', {seg_rel}\n"
-                   f"      (seg (EVM.Program.block o call {A}) {p}_cutA k ({ia}, {stack_term(wa)}, {sa}))\n"
-                   f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' ({ib}, {stack_term(wb_)}, {sb})) := by\n"
-                   f"  refine ⟨{fuel_a}, {fuel_b}, ?_⟩\n"
-                   f"  sym_seg [{unf}] [{', '.join(mks)}]\n\n")
+        out.append(
+            f"set_option maxHeartbeats {heartbeats} in\n"
+            f"theorem {name} (o : Oracle) (call : Call){binders} :\n"
+            f"    ∃ k k', {seg_rel}\n"
+            f"      (seg (EVM.Program.block o call {A}) {p}_cutA k ({ia}, {stack_term(wa)}, {sa}))\n"
+            f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' ({ib}, {stack_term(wb_)}, {sb})) := by\n"
+            f"  refine ⟨{fuel_a}, {fuel_b}, ?_⟩\n"
+            f"  sym_seg [{unf}] [{', '.join(mks)}]\n\n"
+        )
     cases = []
     for n, (_, _, vars_) in enumerate(starts):
         pat = "⟨rfl, rfl⟩" if not vars_ else "⟨" + ", ".join(vars_) + ", rfl, rfl⟩"
         args = " ".join(vars_)
-        cases.append(f"  · obtain {pat} := holds\n    exact {segs[n]} o call {args}".rstrip())
-    out.append(f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
-               f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
-               f"      (seg (EVM.Program.block o call {A}) {p}_cutA k x)\n"
-               f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' x') := by\n"
-               f"  intro P mem x x' holds\n"
-               f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
-               f"  rcases mem with {' | '.join(['rfl'] * len(starts))}\n"
-               + "\n".join(cases) + "\n\n")
-    out.append(f"/-- `{A}` and `{B}` simulated through their cut points on every call. -/\n"
-               f"def {p}_sim (o : Oracle) :\n"
-               f"    CutPoint.LayerSim EVM.Program.layer EVM.Program.layer o {A} {B} anyCall where\n"
-               f"  σ := {cfg}\n  τ := {cfg}\n"
-               f"  step call := EVM.Program.block o call {A}\n"
-               f"  step' call := EVM.Program.block o call {B}\n"
-               f"  init call := (0, [], State.initial call)\n"
-               f"  init' call := (0, [], State.initial call)\n"
-               f"  runs _ _ := rfl\n  runs' _ _ := rfl\n"
-               f"  cut := {p}_cutA\n  cut' := {p}_cutB\n"
-               f"  Rel call := fun x x' => ∃ P ∈ {p}_rels call, P x x'\n"
-               f"  start _ _ := ⟨_, List.Mem.head _, rfl, rfl⟩\n"
-               f"  sim call _ := CutPoint.Sim.of_each ({p}_segments o call)\n\n")
+        cases.append(
+            f"  · obtain {pat} := holds\n    exact {segs[n]} o call {args}".rstrip()
+        )
+    out.append(
+        f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
+        f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+        f"      (seg (EVM.Program.block o call {A}) {p}_cutA k x)\n"
+        f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' x') := by\n"
+        f"  intro P mem x x' holds\n"
+        f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
+        f"  rcases mem with {' | '.join(['rfl'] * len(starts))}\n"
+        + "\n".join(cases)
+        + "\n\n"
+    )
+    out.append(
+        f"/-- `{A}` and `{B}` simulated through their cut points on every call. -/\n"
+        f"def {p}_sim (o : Oracle) :\n"
+        f"    CutPoint.LayerSim EVM.Program.layer EVM.Program.layer o {A} {B} anyCall where\n"
+        f"  σ := {cfg}\n  τ := {cfg}\n"
+        f"  step call := EVM.Program.block o call {A}\n"
+        f"  step' call := EVM.Program.block o call {B}\n"
+        f"  init call := (0, [], State.initial call)\n"
+        f"  init' call := (0, [], State.initial call)\n"
+        f"  runs _ _ := rfl\n  runs' _ _ := rfl\n"
+        f"  cut := {p}_cutA\n  cut' := {p}_cutB\n"
+        f"  Rel call := fun x x' => ∃ P ∈ {p}_rels call, P x x'\n"
+        f"  start _ _ := ⟨_, List.Mem.head _, rfl, rfl⟩\n"
+        f"  sim call _ := CutPoint.Sim.of_each ({p}_segments o call)\n\n"
+    )
     return "".join(out)
