@@ -883,6 +883,76 @@ def env_word(op, env):
     return word_lit(op)
 
 
+def header_facts(func, h, pred, live, env):
+    """The facts (assume) the code checks from header h, entered from pred, before it writes
+    memory or storage, as equations of the configuration at the cut point: a phi as its input
+    from pred, a load of a constant slot or offset as the state's word there, a value live into
+    the header as env's. They are candidates the compiler's own facts give, not invariants
+    written by hand: the cut-point proof checks that every segment establishes them again, and a
+    fact that does not hold fails it."""
+    blocks = func["blocks"]
+
+    def word(op, terms):
+        if op.startswith(".value"):
+            v = int(op.split()[1])
+            if v in terms:
+                return terms[v]
+            if v in live:
+                return f"{env} {v}"
+            return None
+        return word_lit(op)
+
+    # A phi's input from pred is a word of the configuration entering from pred.
+    terms = {}
+    for d, _ in blocks[h][0]:
+        op = phi_input(func, h, pred, d)
+        terms[d] = f"{env} {op.split()[1]}" if op.startswith(".value") else word_lit(op)
+    facts = []
+
+    def scan(b, terms, depth):
+        # A block with phis joins paths whose words differ: stop there.
+        if depth > 2 or (b != h and blocks[b][0]):
+            return
+        terms = dict(terms)
+        for ins in blocks[b][1]:
+            m = re.fullmatch(
+                r"\.effect \(some (\d+)\) \.(sload|mload) \[\.const ([0-9a-fx]+)\]", ins
+            )
+            if m:
+                c = int(m[3], 0)
+                terms[int(m[1])] = (
+                    f"s.storage ({c:#x} : EvmRules.Word)"
+                    if m[2] == "sload"
+                    else f"s.memory.load {c}"
+                )
+                continue
+            m = re.fullmatch(
+                r"\.assume false \.eq \[(\.\w+ [0-9a-fx]+), (\.\w+ [0-9a-fx]+)\]", ins
+            )
+            if m:
+                x, y = word(m[1], terms), word(m[2], terms)
+                if x is not None and y is not None and x != y:
+                    # The load or the value on the left, which simp rewrites; never a constant.
+                    if x.startswith("(") or (
+                        y.startswith("s.") and not x.startswith("s.")
+                    ):
+                        x, y = y, x
+                    fact = f"{x} = {y}"
+                    if not x.startswith("(") and fact not in facts:
+                        facts.append(fact)
+                continue
+            if re.match(r"\.(effect none \.(sstore|mstore|mstore8|tstore)|call)", ins):
+                return
+            for d in mir_defs(ins):
+                terms.pop(d, None)
+        for nxt in mir_succ(blocks[b][2]):
+            if nxt in blocks and nxt != h:
+                scan(nxt, terms, depth + 1)
+
+    scan(h, terms, 0)
+    return facts
+
+
 def mir_mir_rels(pass_name, fa_list, fb_list, cuts):
     """Relations between two MIR modules at their headers: the same state, the phis' inputs
     and every value live into the header the same words."""
@@ -909,6 +979,8 @@ def mir_mir_rels(pass_name, fa_list, fb_list, cuts):
                     conds.append(f"{env_word(ib, "env'")} = {env_word(ia, 'env')}")
                 if not feasible:
                     continue
+                conds += header_facts(fa, h, pa, set(live_a[h]), "env")
+                conds += header_facts(fb, h, pb, set(live_b[h]), "env'")
                 rels.append(
                     {
                         "src_vars": [("env", "MIR.Lowered.Env"), ("s", "State")],
