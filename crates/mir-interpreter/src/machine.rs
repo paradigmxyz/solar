@@ -275,7 +275,7 @@ pub enum PlacementRead<'a> {
     /// The entry heap lower bound for a named function.
     HeapFloor(&'a str),
     /// The current activation's internal frame base.
-    FrameBase(&'a str),
+    FrameBase(&'a str, usize),
     /// The explicitly selected memory-return convention's buffer.
     ReturnBuffer(&'a str),
     /// A deferred allocation's fixed address, absent for an FMP-backed placement.
@@ -882,13 +882,11 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Continue(());
                 }
                 Semantics::InternalFrameAddress(offset) => {
-                    if self.frames.len() != 1 {
-                        return ControlFlow::Break(Outcome::Unsupported(
-                            "internal frame placement requires an activation context",
-                        ));
-                    }
                     let name = body.name.to_string();
-                    let base = self.placement(PlacementRead::FrameBase(&name))?;
+                    let activation =
+                        self.frames.iter().filter(|frame| std::ptr::eq(frame.body, body)).count()
+                            - 1;
+                    let base = self.placement(PlacementRead::FrameBase(&name, activation))?;
                     self.frame().values[instruction.result().expect("frame address")] =
                         Some(RuntimeValue::Word(base + U256::from(offset)));
                     return ControlFlow::Continue(());
@@ -1056,7 +1054,7 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Continue(());
                 }
                 Semantics::FrameLoad(offset, mode, kind) => {
-                    let address = Self::semantic_frame_address(offset, mode, kind)?;
+                    let address = self.semantic_frame_address(body, offset, mode, kind)?;
                     let value = self.semantic_frame_load(address, kind)?;
                     self.frame().values[instruction.result().expect("frame load result")] =
                         Some(value);
@@ -1064,7 +1062,7 @@ impl<'a> Run<'_, 'a, '_> {
                 }
                 Semantics::FrameStore(offset, mode, kind, value) => {
                     let value = frame.read_value(value)?;
-                    let address = Self::semantic_frame_address(offset, mode, kind)?;
+                    let address = self.semantic_frame_address(body, offset, mode, kind)?;
                     return self.semantic_frame_store(address, kind, value);
                 }
                 Semantics::AddressCall(name, address, input, gas, value) => {

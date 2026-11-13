@@ -105,7 +105,8 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
         let caller := ⟨advance cursor,frame,inst.result,inst.ty⟩
         next {function := callee} (caller :: stack) child
     | _ =>
-      match ← instruction cfg frame inst with
+      let activation := stack.countP (fun caller => caller.cursor.function == cursor.function)
+      match ← instruction cfg frame inst activation with
       | .returned (_,frame) => next (advance cursor) stack frame
       | .reverted data => stop (.reverted (failureData data)) frame
       | .invalid => stop .invalid frame

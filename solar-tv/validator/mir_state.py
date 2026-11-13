@@ -353,6 +353,11 @@ def operation(value, definitions):
     elif kind in {"frame_load", "frame_store"}:
         address = literal(value["address"])
         expression = f".frame {'true' if kind == 'frame_store' else 'false'} ({address}) ({value_type(value['slot_type'])})"
+    elif kind in {"internal_frame_load", "internal_frame_store"}:
+        expression = (
+            f".internalFrame {'true' if kind == 'internal_frame_store' else 'false'} "
+            f"{json.dumps(value['function'])} {number(value['offset'], 2**64)} ({value_type(value['slot_type'])})"
+        )
     elif kind == "make_slice":
         location = {"memory": 0, "calldata": 1, "returndata": 2}.get(value["location"])
         if location is None:

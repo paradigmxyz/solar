@@ -155,28 +155,17 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             }
         }
     }
-    let reenters_selected = reachable.iter().any(|caller| {
-        CallGraphInfo::collect_internal_callees(&module.functions[caller], module.functions.len())
-            .contains(id)
-    });
     for owner in reachable.iter() {
         let f = &module.functions[owner];
         for inst in f.instructions() {
-            match f.inst(inst).kind.semantics() {
-                Some(Semantics::Opcode("gas", _)) => {
-                    if owner != id
-                        || module.dispatch_entry() == Some(owner)
-                        || f.blocks.len() != 1
-                        || f.instructions().count() != 1
-                        || !matches!(&f.blocks[solar_mir::BlockId::ENTRY].terminator,Some(Terminator::Return {values}) if values.as_slice()==f.inst(inst).result().as_slice())
-                    {
-                        return Err("GAS requires an isolated opcode window".into());
-                    }
-                }
-                Some(Semantics::InternalFrameAddress(_)) if owner != id || reenters_selected => {
-                    return Err("internal frame placement requires an activation context".into());
-                }
-                _ => {}
+            if matches!(f.inst(inst).kind.semantics(), Some(Semantics::Opcode("gas", _)))
+                && (owner != id
+                    || module.dispatch_entry() == Some(owner)
+                    || f.blocks.len() != 1
+                    || f.instructions().count() != 1
+                    || !matches!(&f.blocks[solar_mir::BlockId::ENTRY].terminator,Some(Terminator::Return {values}) if values.as_slice()==f.inst(inst).result().as_slice()))
+            {
+                return Err("GAS requires an isolated opcode window".into());
             }
         }
     }
@@ -436,10 +425,10 @@ fn export_operation(
                 json!({"kind":"load_storage_array","element":layout,"variants":variants,"args":operands(module,body,&[slot])?})
             }
             Semantics::FrameLoad(offset, mode, kind) => {
-                json!({"kind":"frame_load","address":frame_address(offset,mode,kind)?,"slot_type":value_type(module,kind.result_type())?,"args":[]})
+                frame_operation(module, body, offset, mode, kind, None)?
             }
             Semantics::FrameStore(offset, mode, kind, value) => {
-                json!({"kind":"frame_store","address":frame_address(offset,mode,kind)?,"slot_type":value_type(module,kind.result_type())?,"args":operands(module,body,&[value])?})
+                frame_operation(module, body, offset, mode, kind, Some(value))?
             }
             Semantics::AddressCall(name, address, input, gas, value) => {
                 let gas = gas.ok_or("implicit address-call gas requires caller pricing")?;
@@ -836,5 +825,31 @@ fn abi_location(location: solar_mir::PtrLocation) -> Result<usize, String> {
         solar_mir::PtrLocation::Returndata => Ok(2),
         solar_mir::PtrLocation::Storage => Ok(3),
         _ => Err("ABI encoding address space".to_string()),
+    }
+}
+
+fn frame_operation(
+    module: &Module,
+    body: &Function,
+    offset: u64,
+    mode: FrameMode,
+    kind: FrameSlotKind,
+    value: Option<ValueId>,
+) -> Result<Json, String> {
+    let args = operands(module, body, &value.into_iter().collect::<Vec<_>>())?;
+    let ty = value_type(module, kind.result_type())?;
+    if mode == FrameMode::Internal {
+        let offset = EvmMemoryLayout::internal_frame_prefix(
+            body.params.len() + body.return_components().len(),
+        )
+        .and_then(|prefix| prefix.checked_add(offset))
+        .ok_or("internal frame prefix overflow")?;
+        Ok(
+            json!({"kind":if value.is_some(){"internal_frame_store"}else{"internal_frame_load"},"function":body.name.to_string(),"offset":offset,"slot_type":ty,"args":args}),
+        )
+    } else {
+        Ok(
+            json!({"kind":if value.is_some(){"frame_store"}else{"frame_load"},"address":frame_address(offset,mode,kind)?,"slot_type":ty,"args":args}),
+        )
     }
 }

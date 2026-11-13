@@ -66,19 +66,32 @@ def read(value, memory):
                     raise Unsupported("invalid MIR placement function name")
                 _keys(
                     item,
-                    {"heap_floor", "frame_base", "return_buffer"},
+                    {"heap_floor", "frame_base", "return_buffer", "frame_bases"},
                     "MIR function placement",
                 )
                 fields = {
                     name: None for name in ("heap_floor", "frame_base", "return_buffer")
                 }
+                fields["frame_bases"] = []
                 for name, address in item.items():
+                    if name == "frame_bases":
+                        if not isinstance(address, list) or len(address) > 128:
+                            raise Unsupported("invalid MIR activation placements")
+                        bases = [int(_number(base, 64)) for base in address]
+                        if any(base < 128 or base % 32 for base in bases):
+                            raise Unsupported(
+                                "MIR placements must be aligned and at least 128"
+                            )
+                        fields[name] = bases
+                        continue
                     address = int(_number(address, 64))
                     if address < 128 or address % 32:
                         raise Unsupported(
                             "MIR placements must be aligned and at least 128"
                         )
                     fields[name] = address
+                if fields["frame_base"] is not None and fields["frame_bases"]:
+                    raise Unsupported("ambiguous MIR activation placements")
                 result[group][key] = fields
             elif group == "data":
                 _keys(item, {"offset", "size"}, "linked data extent")
@@ -175,7 +188,7 @@ def expression(layout):
     functions = (
         "["
         + ",".join(
-            f"({json.dumps(name)},⟨{option(value['heap_floor'], lambda x: literal(str(x)))},{option(value['frame_base'], lambda x: literal(str(x)))},{option(value['return_buffer'], lambda x: literal(str(x)))}⟩)"
+            f"({json.dumps(name)},⟨{option(value['heap_floor'], lambda x: literal(str(x)))},{option(value['frame_base'], lambda x: literal(str(x)))},{option(value['return_buffer'], lambda x: literal(str(x)))},{value['frame_bases']}⟩)"
             for name, value in layout["functions"].items()
         )
         + "]"

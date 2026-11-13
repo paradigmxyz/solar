@@ -101,6 +101,7 @@ structure FunctionPlacement where
   heapFloor : Option EvmRules.Word := none
   frameBase : Option EvmRules.Word := none
   returnBuffer : Option EvmRules.Word := none
+  frameBases : List EvmRules.Word := []
 
 inductive DeferredPlacement where
   | fixed (address : EvmRules.Word) (size : Nat)
@@ -146,6 +147,7 @@ inductive Operation where
   | object (op : StorageObjectOp)
   | dataCopy (bytes : List Byte) (offset : Nat)
   | frame (write : Bool) (address : Word) (ty : ValueType)
+  | internalFrame (write : Bool) (function : String) (offset : Nat) (ty : ValueType)
 
 structure Instruction where
   result : Option Nat

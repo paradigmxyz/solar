@@ -257,7 +257,7 @@ class MirLayoutTests(unittest.TestCase):
             fixture=fixture(functions={"f": {"frame_base": 256}}),
             status=2,
         )
-        self.assertIn("activation context", result.stderr)
+        self.assertIn("activation", result.stderr)
 
     def test_closed_initial_reads_preserve_symbolic_bytes(self):
         source = state.module(
