@@ -70,6 +70,7 @@ fn value_bytes(ty: &Ty) -> Option<u32> {
         Ty::Bool => Some(1),
         Ty::Uint(n) | Ty::Int(n) => Some(u32::from(*n) / 8),
         Ty::Addr | Ty::Contract(_) => Some(20),
+        Ty::Bytes(n) => Some(u32::from(*n) / 8),
         Ty::Enum(_, k) if *k <= 256 => Some(1),
         _ => None,
     }
@@ -126,6 +127,8 @@ fn lean_ty(ty: &Ty, sp: Span) -> R<String> {
         Ty::Uint(n) => format!("(.uint {n})"),
         Ty::Int(n) => format!("(.int {n})"),
         Ty::Addr | Ty::Contract(_) => ".address".into(),
+        // A `bytesN` value as storage holds it: its N bytes read as an unsigned number.
+        Ty::Bytes(n) => format!("(.fixedBytes {})", n / 8),
         Ty::Enum(_, k) => format!("(.enum {k})"),
         Ty::Lit => ".math".into(),
         _ => return Err((sp, format!("values of type `{}` are not exported", ty.name()))),
@@ -413,6 +416,19 @@ impl<'p, 'a> Cx<'p, 'a> {
             }
             ExprKind::Member(base, m) => {
                 let m = m.as_str();
+                if let ExprKind::TypeCall(t) = &base.kind
+                    && let TypeKind::Elementary(ElementaryType::UInt(n)) = &t.kind
+                {
+                    // `type(uintN).max` and `.min`: the type's bounds.
+                    return match m {
+                        "max" => Ok(Val::Term(format!(
+                            ".lit {}",
+                            crate::ty::pow2(u32::from(n.bits())) - 1
+                        ))),
+                        "min" => Ok(Val::Term(".lit 0".into())),
+                        _ => Err((sp, format!("member `.{m}` of a type not exported"))),
+                    };
+                }
                 if let ExprKind::Ident(b) = &base.kind {
                     match (b.as_str(), m) {
                         ("msg", "sender") => return Ok(Val::Term(".env .sender".into())),
@@ -453,6 +469,25 @@ impl<'p, 'a> Cx<'p, 'a> {
                 self.index(b, key, sp)?
             }
             ExprKind::Call(callee, args) => {
+                if let ExprKind::Type(t) = &callee.kind {
+                    // A conversion of a literal that fits the target type, such as
+                    // `address(0)`, is the literal's value; any other conversion is refused.
+                    let bits = match &t.kind {
+                        TypeKind::Elementary(ElementaryType::Address(_)) => 160,
+                        TypeKind::Elementary(ElementaryType::UInt(n)) => u32::from(n.bits()),
+                        _ => return Err((sp, "conversion not exported".into())),
+                    };
+                    let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
+                    return match argv[..] {
+                        [a] => match Self::lit_u64(a) {
+                            Some(v) if bits >= 64 || v < (1u64 << bits) => {
+                                Ok(Val::Term(format!(".lit {v}")))
+                            }
+                            _ => Err((sp, "conversion of a non-literal not exported".into())),
+                        },
+                        _ => Err((sp, "conversion not exported".into())),
+                    };
+                }
                 let ExprKind::Ident(fname) = &callee.kind else {
                     return Err((sp, "call not exported".into()));
                 };

@@ -641,7 +641,7 @@ jobs:
         run: cargo build --locked --bin solar
       - name: Driver negative tests
         run: tools/certify/test.sh
-      - name: Certify every contract (proofs, axiom audit, spec, headline, negative tests, regeneration)
+      - name: Certify every contract (proofs, axiom audit, spec, headline, negative tests)
         env:
           LEAN_MEMORY: "6000"
           LEAN_NUM_THREADS: "4"
@@ -655,6 +655,18 @@ jobs:
             echo "::endgroup::"
           done < <(grep -v -E '^\s*(#|$)' tools/certify/contracts)
           [[ ${#failed[@]} -eq 0 ]] || { echo "not certified: ${failed[*]}" >&2; exit 1; }
+      # A regression check, separate from certification: the regenerated stages and proofs of each
+      # contract are solidity-lean's committed ones.
+      - name: Regenerated files are the committed ones
+        if: always()
+        run: |
+          dir="$(bash tools/certify/checkout.sh)"
+          failed=()
+          while read -r name _; do
+            [[ -f "$dir/.lake/certify-$name.json" ]] || continue
+            tools/certify/regenerated.sh "$dir" "$name" || failed+=("$name")
+          done < <(grep -v -E '^\s*(#|$)' tools/certify/contracts)
+          [[ ${#failed[@]} -eq 0 ]] || { echo "stale committed files: ${failed[*]}" >&2; exit 1; }
       - name: Upload the generated Lean files
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

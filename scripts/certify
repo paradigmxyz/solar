@@ -39,8 +39,17 @@
 #    audits each THEOREM the same way. --require-headline fails when there is none.
 # 7. tools/certify/negative.sh: edited bytecode and stage artifacts fail with a mismatch, not a
 #    timeout, while unedited controls pass.
-# 8. When CERTIFIED/NAME is committed in solidity-lean, the regenerated files must be the
-#    committed ones, up to the compiler's commit in the manifest.
+#
+# Each run reports separate statuses, never one blanket claim: mir_to_evmir (the stage proofs'
+# composition from the first lowered MIR to the final EVM IR), assembly (decoded: the bytecode
+# decodes to the final EVM IR's instructions; executed: a theorem that running the bytecode
+# refines the final EVM IR, when the generator writes one), vc (solar-verify's conditions:
+# exported, refused, or built and discharged with --require-spec) and end_to_end (a theorem from
+# the source or spec to the exact bytecode: a headline or spec theorem), with each end-to-end
+# theorem's full statement, so its hypotheses are visible. They go to the record,
+# CERTIFIED/NAME/record.json and .lake/certify-NAME.json. That the regenerated files are the
+# committed ones is a separate regression check, tools/certify/regenerated.sh, not part of
+# certification.
 #
 # Environment: SOLIDITY_LEAN_DIR, SOLAR, CERTIFY_SKIP_BUILD, LEAN_MEMORY (MB per Lean process,
 # default 3000), LEAN_NUM_THREADS (default 1), CARGO_BUILD_JOBS (default 2), CERTIFY_WRAP (a
@@ -127,6 +136,10 @@ loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
 # --heartbeats), for a contract whose symbolic runs need more than the default: a larger budget
 # can only let a proof pass, never change what it states.
 heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
+# CERTIFIED/NAME/joins, when present, cuts the programs at their join points too (certify.py's
+# --joins), for a contract whose paths share too many blocks to evaluate each.
+joins=()
+[[ ! -f "$dir/joins" ]] || joins=(--joins)
 [[ "$heartbeats" =~ ^[0-9]+$ ]] || die "$dir/heartbeats is not a number"
 
 echo "== 2. solar"
@@ -205,7 +218,7 @@ echo "== 4. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 "$here/certify.py" "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops" --heartbeats "$heartbeats")" || die "certify.py cannot write the proofs"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats" "${joins[@]}")" || die "certify.py cannot write the proofs"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 
@@ -219,7 +232,7 @@ if [[ $lakefile == lakefile.lean ]]; then
 lean_lib «$name» where
   srcDir := "$examples"
   roots := #[\`$name.Proofs]
-  globs := #[.andSubmodules \`$name]
+  globs := #[.submodules \`$name]
 EOF
     fi
 elif ! grep -q "^name = \"$name\"$" lakefile.toml; then
@@ -239,11 +252,16 @@ fi
 bash "$here/audit.sh" scan "$dir" || die "the generated files of $name fail the scan"
 mkdir -p .lake
 log="$lean_dir/.lake/certify-$name.log"
+rm -f "$lean_dir/.lake/certify-vacuous-$name"
 mapfile -t stages < <(cd "$examples" && ls "$name/gen/$contract"/*.lean | sed 's|\.lean$||; s|/|.|g')
 mapfile -t runs < <(cd "$examples" && ls "$name"/Proofs/Runs/*.lean | sed 's|\.lean$||; s|/|.|g')
 # One module at a time, so that one Lean process runs at a time: the exported stages, which the
 # proofs import, then the proofs.
-for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "$name.Proofs"; do
+# The execution proof, when certify.py writes one (the final EVM IR inside the assembly checker's
+# fragment), runs the bytecode as the final EVM IR.
+execution=()
+[[ -f "$dir/Proofs/Execution.lean" ]] && execution=("$name.Proofs.Execution")
+for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "${execution[@]}" "$name.Proofs"; do
     printf '%s: ' "$module"
     if ! run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1; then
         grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
@@ -260,7 +278,17 @@ mapfile -t thms < <(grep -rhoE '^theorem [A-Za-z0-9_'"'"']+' "$dir/Proofs" | awk
 printf '%s\n' "${thms[@]}" | grep -qx "$final" || thms+=("$final")
 audit "$lean_dir/.lake/certify-audit-$name.out" "$name.Proofs" -- "${thms[@]}"
 echo "audited ${#thms[@]} theorems"
-claim="$final (backend: first lowered MIR to bytecode)"
+mir_status="proved: $final"
+executes="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1]).get("executes", ""))' "$info")"
+if [[ -n "$executes" ]]; then
+    printf '%s\n' "${thms[@]}" | grep -qx "$executes" || die "certify.py names $executes, which $dir/Proofs does not prove"
+    assembly_status="executed: $executes"
+else
+    assembly_status="decoded only: $name.Proofs.Assembly (the bytecode decodes to the final EVM IR's instructions; no execution theorem)"
+    caveats+=("assembly decoded, not executed")
+fi
+e2e_thms=()
+e2e_kind=""
 
 echo "== 6. the spec (solar-verify) and the headline theorems"
 # solar-verify's verification conditions as Lean: every function whose conditions fall outside
@@ -285,13 +313,78 @@ if [[ -n "$verify" ]]; then
     if [[ $require_spec -eq 1 && ${#refused[@]} -gt 0 ]]; then
         die "${#refused[@]} function(s) of $contract are outside the spec fragment (above)"
     fi
+    if [[ $require_spec -eq 1 ]]; then
+        # The conditions become the module NAME.VC, discharged in the kernel by Verify.VC.Discharge's
+        # dischargeScript (no solver, no verdict). CERTIFIED/NAME/spec (lines "MODULE THEOREM") must
+        # then name the theorem that composes them with the bytecode: one theorem from the spec to
+        # the exact bytecode, built and audited with the headline.
+        cp "$spec_dir/VC.lean" "$dir/VC.lean"
+        [[ -f Verify/VC/Discharge.lean ]] || die "--require-spec: the pinned solidity-lean has no Verify/VC/Discharge.lean to discharge the conditions with"
+        # The discharge imports Mathlib's tactics: fetch its build cache rather than build it.
+        if grep -q '"mathlib"' lake-manifest.json 2>/dev/null && [[ ! -d .lake/packages/mathlib/.lake/build/lib ]]; then
+            run lake exe cache get || die "cannot fetch Mathlib's build cache"
+        fi
+        bash "$here/audit.sh" scan "$dir/VC.lean" || die "the exported conditions fail the scan"
+        printf '%s: ' "$name.VC"
+        run lake "-KleanMemory=$memory" build "$name.VC" > "$log" 2>&1 || { tail -40 "$log" >&2; die "$name.VC does not check"; }
+        tail -n 1 "$log"
+        # How many obligations the script has and which are vacuous (their hypotheses refuted),
+        # by evaluation: the count only sizes the generated modules, whose proof fails when it is
+        # wrong, and vacuity is reported, never trusted.
+        probe="$lean_dir/.lake/certify-vc-probe-$name.lean"
+        printf 'import %s
+import Verify.VC.Discharge
+open SolidCore.Verify.VC
+#eval IO.println s!"COUNT {(obligations Certified.%s.VC.script).length}"
+#eval IO.println s!"VACUOUS {((List.range (obligations Certified.%s.VC.script).length).filter (fun i => vacuousAt Certified.%s.VC.script i))}"
+'             "$name.VC" "$cap" "$cap" "$cap" > "$probe"
+        run lake env lean -M "$memory" "$probe" > "$log" 2>&1 || { tail -40 "$log" >&2; die "cannot count the obligations of $name.VC"; }
+        count="$(sed -n 's/^COUNT //p' "$log")"
+        vacuous="$(sed -n 's/^VACUOUS //p' "$log")"
+        [[ "$count" =~ ^[0-9]+$ ]] || die "cannot count the obligations of $name.VC"
+        [[ -f scripts/verify/gen-discharged.py ]] || die "--require-spec: the pinned solidity-lean has no scripts/verify/gen-discharged.py"
+        rm -rf "$dir/Discharge" "$dir/Discharge.lean"
+        (cd "$examples" && python3 ../scripts/verify/gen-discharged.py "$name.Discharge" "Certified.$cap.VC"             "$name.VC" "Certified.$cap.VC.script" "$count") || die "cannot write the discharge of $name.VC"
+        bash "$here/audit.sh" scan "$dir/Discharge.lean" "$dir/Discharge" || die "the discharge fails the scan"
+        # One part at a time, so that one Lean process runs at a time.
+        mapfile -t parts < <(cd "$examples" && ls "$name"/Discharge/Part*.lean 2>/dev/null | sed 's|\.lean$||; s|/|.|g' | sort -V)
+        for module in "${parts[@]}" "$name.Discharge"; do
+            printf '%s: ' "$module"
+            run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1 || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check: the conditions are not discharged"; }
+            tail -n 1 "$log"
+        done
+        audit "$lean_dir/.lake/certify-vc-$name.out" "$name.Discharge" -- "Certified.$cap.VC.script_valid"
+        spec_status="exported and discharged in the kernel ($count obligations): Certified.$cap.VC.script_valid"
+        echo "$vacuous" > "$lean_dir/.lake/certify-vacuous-$name"
+        [[ "$vacuous" == "[]" ]] || caveats+=("vacuous obligations (hypotheses refuted) at $vacuous")
+        # The source-level connection, generically: when CERTIFIED/NAME/spec-connect names
+        # (one line "CORE_MODULE NAMESPACE SPEC_MODULE BUNDLE") the contract's checked SolidCore
+        # contract and solar-verify's spec bundle, tools/certify/spec_connect.py writes NAME.SpecConnect,
+        # whose F_holds state each function's spec of SolidCore's contract on the stage's calls.
+        if [[ -f "$dir/spec-connect" ]]; then
+            read -r core_mod core_ns spec_mod spec_bundle rest < <(grep -vE '^\s*(#|$)' "$dir/spec-connect" | head -n 1)
+            [[ -n "${spec_bundle:-}" && -z "${rest:-}" ]] || die "$dir/spec-connect is not CORE_MODULE NAMESPACE SPEC_MODULE BUNDLE"
+            mapfile -t holds < <(python3 "$here/spec_connect.py" --core-module "$core_mod" --namespace "$core_ns"                 --spec-module "$spec_mod" --bundle "$spec_bundle" --module-name "$name.SpecConnect"                 --out "$dir/SpecConnect.lean" --lean "${wrap[*]} lake env lean -M $memory" --cwd "$lean_dir"; echo "exit $?")
+            [[ "${holds[-1]}" == "exit 0" ]] || die "spec_connect.py refuses functions of $contract (above)"
+            unset 'holds[-1]'
+            [[ ${#holds[@]} -gt 0 ]] || die "spec_connect.py connects no function of $contract"
+            bash "$here/audit.sh" scan "$dir/SpecConnect.lean" || die "$dir/SpecConnect.lean fails the scan"
+            printf '%s: ' "$name.SpecConnect"
+            run lake "-KleanMemory=$memory" build "$name.SpecConnect" > "$log" 2>&1 || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$name.SpecConnect does not check"; }
+            tail -n 1 "$log"
+            audit "$lean_dir/.lake/certify-spec-$name.out" "$name.SpecConnect" -- "${holds[@]}"
+            spec_status+="; source spec holds of SolidCore (generic, not yet of the bytecode): ${holds[*]}"
+        fi
+        [[ -f "$dir/spec" ]] || die "--require-spec: $dir/spec is missing: solidity-lean discharges no VC of $name against its bytecode"
+        spec_status+="; composed with the bytecode by $(grep -vE '^\s*(#|$)' "$dir/spec" | awk '{print $2}' | paste -sd' ')"
+    fi
 elif [[ $require_spec -eq 1 ]]; then
     die "--require-spec needs solar-verify (SOLAR_VERIFY, or crates/verify in this checkout)"
 fi
 [[ ${#refused[@]} -eq 0 ]] || caveats+=("${#refused[@]} spec function(s) refused, unproved")
 echo "spec: $spec_status"
-if [[ -f "$dir/headline" ]]; then
-    mapfile -t lines < <(grep -vE '^\s*(#|$)' "$dir/headline")
+if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
+    mapfile -t lines < <(cat "$dir/headline" "$dir/spec" 2>/dev/null | grep -vE '^\s*(#|$)')
     [[ ${#lines[@]} -gt 0 ]] || die "$dir/headline names no theorem"
     hmods=()
     for line in "${lines[@]}"; do
@@ -319,12 +412,13 @@ if [[ -f "$dir/headline" ]]; then
         tail -n 1 "$log"
     done
     audit "$lean_dir/.lake/certify-headline-$name.out" "${umods[@]}" -- "${hthms[@]}"
-    claim="${hthms[*]} (headline) and $final (backend)"
+    e2e_thms=("${hthms[@]}")
+    e2e_kind="contract-specific"
 elif [[ $require_headline -eq 1 ]]; then
     die "$dir/headline is missing: solidity-lean states no source or spec theorem for $name"
 else
-    echo "no $dir/headline: certifying the backend only"
-    caveats+=("backend only: solidity-lean states no headline theorem for $name")
+    echo "no $dir/headline: no end-to-end theorem"
+    caveats+=("not end to end: solidity-lean states no source or spec theorem for $name")
 fi
 
 echo "== 7. negative tests"
@@ -335,67 +429,101 @@ else
     caveats+=("negative tests skipped")
 fi
 
-echo "== 8. the regenerated files are the committed ones"
-if [[ $committed -eq 1 ]]; then
-    # Porcelain paths start at the repository's root, which a package in a subdirectory is not.
-    prefix="$(git rev-parse --show-prefix)"
-    others="$(git status --porcelain -- "$dir" "$lakefile" | grep -v -E " $prefix$gen/(Manifest\.lean|manifest\.json)$" || true)"
-    [[ -z "$others" ]] || { echo "$others" >&2; git diff --stat -- "$dir" "$lakefile" >&2; die "regenerated files differ from solidity-lean's committed ones"; }
-    # Every line but the compiler's version, in either file, must be the committed one; the
-    # options' thread count, which solar takes from the machine and which changes no output,
-    # is compared as N.
-    norm() { grep -v -E '^(def compiler : String := "[^"]*"|  "compiler": "[^"]*",)$' |
-        sed -E 's/threads: [0-9]+/threads: N/'; }
-    changed=
-    for f in "$gen/Manifest.lean" "$gen/manifest.json"; do
-        git show "HEAD:./$f" | norm > .lake/certify-committed
-        norm < "$f" > .lake/certify-regenerated
-        changed+="$(diff .lake/certify-committed .lake/certify-regenerated || true)"
-    done
-    [[ -z "$changed" ]] || { echo "$changed" >&2; die "the manifest differs in more than the compiler's commit"; }
-    echo "every file of $dir regenerates to the committed one"
-else
-    echo "$dir is not committed in solidity-lean"
-fi
-
-# The run's record: what was proved, what was refused, and under which caveats.
+# The run's record: each status, the end-to-end theorems' statements, what was refused, and
+# under which caveats.
 record="$lean_dir/.lake/certify-$name.json"
 printf '%s\n' "${refused[@]}" > "$record.refused"
 printf '%s\n' "${caveats[@]}" > "$record.caveats"
-printf '%s\n' "${hthms[@]}" > "$record.headline"
-python3 - "$record" "$contract" "$name" "$source" "$plain" "$version" "$head" "$final" \
-    "$spec_status" "$negatives" <<'EOF'
-import json, sys
+printf '%s\n' "${e2e_thms[@]}" > "$record.headline"
+python3 - "$record" "$dir/record.json" "$lean_dir/.lake/certify-headline-$name.out" "$contract" "$name" \
+    "$source" "$plain" "$version" "$head" "$final" "$mir_status" "$assembly_status" "$spec_status" \
+    "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" <<'EOF'
+import json, re, sys
 
-out, contract, name, source, bytecode, solar, lean, final, spec, negatives = sys.argv[1:]
+(out, committed, audit_out, contract, name, source, bytecode, solar, lean, final, mir, assembly,
+ spec, negatives, e2e_kind, vacuous_file) = sys.argv[1:]
 lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
-json.dump(
-    {
-        "contract": contract,
-        "name": name,
-        "source": source,
-        "bytecode": bytecode,
-        "solar": solar,
-        "solidity_lean": lean,
-        "backend": {"theorem": final, "status": "proved"},
-        "headline": [{"theorem": t, "status": "proved"} for t in lines(".headline")],
-        "spec": {
-            "status": spec,
-            "refused": [
-                {"function": r.split(": ", 1)[0], "reason": r.split(": ", 1)[-1], "status": "refused (unproved)"}
-                for r in lines(".refused")
-            ],
-        },
-        "negative_tests": negatives == "1",
-        "caveats": lines(".caveats"),
-    },
-    open(out, "w"),
-    indent=2,
-)
+e2e = lines(".headline")
+text = open(audit_out).read() if e2e else ""
+
+
+def statement(thm):
+    # The audit file's "#check @THM" output, "@THM : TYPE", up to the next report line.
+    short = re.escape(thm.rsplit(".", 1)[-1])
+    found = re.search(r"^@?\S*" + short + r" :\s*(.*?)(?=^\S|\Z)", text, re.M | re.S)
+    return " ".join(found.group(1).split()) if found else None
+
+
+def depth_step(ch):
+    return 1 if ch in "([{⦃" else -1 if ch in ")]}⦄" else 0
+
+
+def premises(ty):
+    # The binders and premises before the conclusion, at bracket depth 0: a reading aid. The
+    # statement itself is authoritative.
+    out = []
+    while ty.startswith("∀"):
+        body, j, depth = ty[1:], 0, 0
+        while j < len(body) and not (depth == 0 and body[j] == ","):
+            depth += depth_step(body[j])
+            j += 1
+        out += [b.strip() for b in re.findall(r"[({⦃\[]([^(){}\[\]⦃⦄]*:[^(){}\[\]⦃⦄]*)[)}⦄\]]", body[:j])]
+        ty = body[j + 1 :].strip()
+    parts, depth, cur = [], 0, ""
+    for ch in ty:
+        depth += depth_step(ch)
+        if ch == "→" and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    return out + parts
+
+
+stmts = {t: statement(t) for t in e2e}
+try:
+    vacuous = "obligations with refuted hypotheses: " + open(vacuous_file).read().strip()
+except OSError:
+    vacuous = "not checked"
+record = {
+    "contract": contract,
+    "name": name,
+    "source": source,
+    "bytecode": bytecode,
+    "solar": solar,
+    "solidity_lean": lean,
+    "mir_to_evmir": mir,
+    "assembly": assembly,
+    "vc": spec,
+    "end_to_end": (f"proved ({e2e_kind}): " + ", ".join(e2e)) if e2e else "not proved",
+    "end_to_end_statement": stmts,
+    "hypotheses": {t: premises(s) if s else None for t, s in stmts.items()},
+    "refused": [
+        {"function": r.split(": ", 1)[0], "reason": r.split(": ", 1)[-1], "status": "refused (unproved)"}
+        for r in lines(".refused")
+    ],
+    "vacuous": vacuous,
+    "negative_tests": negatives == "1",
+    "caveats": lines(".caveats"),
+    "backend": {"theorem": final},
+}
+for path in (out, committed):
+    with open(path, "w") as f:
+        json.dump(record, f, indent=2, ensure_ascii=False)
+        f.write("\n")
 EOF
 rm -f "$record.refused" "$record.caveats" "$record.headline"
-echo "record: $record"
+echo "record: $record and $dir/record.json"
+echo "mir_to_evmir: $mir_status"
+echo "assembly: $assembly_status"
+echo "vc: $spec_status"
+if [[ ${#e2e_thms[@]} -gt 0 ]]; then echo "end_to_end: proved ($e2e_kind): ${e2e_thms[*]}"; else echo "end_to_end: not proved"; fi
 if [[ ${#caveats[@]} -gt 0 ]]; then
-    echo "certified with caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
+    echo "caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
 fi
-echo "CERTIFIED $name ($contract): $claim; bytecode $plain"
+# CERTIFIED only for an end-to-end theorem; a run without one reports what it checked.
+if [[ ${#e2e_thms[@]} -gt 0 ]]; then
+    echo "CERTIFIED $name ($contract): end to end by ${e2e_thms[*]}; bytecode $plain"
+else
+    echo "CHECKED $name ($contract), not end to end: $final (first lowered MIR to final EVM IR), assembly ${assembly_status%%:*}; bytecode $plain"
+fi

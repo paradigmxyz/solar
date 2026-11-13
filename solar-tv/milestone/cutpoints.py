@@ -470,11 +470,8 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
     for ident in sorted(chosen):
         if uncovered(chosen - {ident}) is None:
             chosen.discard(ident)
-    rels, tests_a, tests_b = [], [], []
-    for ident in sorted(chosen):
+    def shapes_of(ident):
         ia, ib = a_ids.index(ident), b_ids.index(ident)
-        tests_a.append(ia)
-        tests_b.append(ib)
         shapes = []
         for (nodes, _, _, ids), at in zip(sides, (ia, ib)):
             shape = {}
@@ -483,6 +480,50 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
                     key = tuple(None if w is None else ids[w] for w in stack)
                     shape[key] = stack
             shapes.append(shape)
+        return shapes
+
+    # Join points: a block both programs keep that more than one configuration enters, under
+    # the same stack shapes in both, is cut too, so that every segment is a tree of
+    # configurations and no path through the program is evaluated twice. A join whose shapes
+    # differ stays inside its segments.
+    for nodes, succ, node_ids, _ in sides if JOINS else ():
+        preds = {}
+        for n, ts in succ.items():
+            for t in set(ts):
+                preds[t] = preds.get(t, 0) + 1
+        for n, k in preds.items():
+            ident = node_ids[n]
+            if k >= 2 and ident in common and ident not in chosen:
+                shapes = shapes_of(ident)
+                if set(shapes[0]) == set(shapes[1]):
+                    chosen.add(ident)
+    a_nodes, a_succ_n, a_node_ids, _ = sides[0]
+    a_ix = {s: n for n, s in enumerate(a_nodes)}
+
+    def reach(at, stack):
+        """The cut configurations of a (block index, stack shape) a segment of a from
+        (at, stack) can end at: the relation lemmas its proof needs to try."""
+        start = a_ix.get((at, tuple(stack)))
+        if start is None or not JOINS:
+            return None
+        seen, work, found = {start}, [start], set()
+        while work:
+            for t in a_succ_n[work.pop()]:
+                if a_node_ids[t] in chosen:
+                    found.add(a_nodes[t])
+                elif t not in seen:
+                    seen.add(t)
+                    work.append(t)
+        return found
+
+    if JOINS:
+        bound_segments(sides[0], chosen, lambda i: set(shapes_of(i)[0]) == set(shapes_of(i)[1]), common)
+    rels, tests_a, tests_b = [], [], []
+    for ident in sorted(chosen):
+        ia, ib = a_ids.index(ident), b_ids.index(ident)
+        tests_a.append(ia)
+        tests_b.append(ib)
+        shapes = shapes_of(ident)
         if set(shapes[0]) != set(shapes[1]):
             raise Unsupported(
                 f"{pass_name}: bb{ident} is entered with stacks {sorted(map(str, shapes[0]))} "
@@ -509,10 +550,17 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
                     "src": f"({ia}, {term(sa)}, s)",
                     "tgt": f"({ib}, {term(sb)}, s)",
                     "conds": [],
+                    "block": (ia, tuple(sa)),
+                    "reach": reach(ia, sa),
                 }
             )
     fuel = (len(sides[0][0]) + 1, len(sides[1][0]) + 1)
-    return {"tests": (tests_a, tests_b), "rels": rels, "fuel": fuel}
+    return {
+        "tests": (tests_a, tests_b),
+        "rels": rels,
+        "fuel": fuel,
+        "entry_reach": reach(0, ()),
+    }
 
 
 def loops(blocks):
@@ -804,6 +852,84 @@ def mir_cuts(pass_name, a_funcs, b_funcs):
     return cuts
 
 
+# Whether to cut at join points too (certify.py's --joins): for a program whose paths share
+# so many blocks that evaluating every path from a loop's cut point does not end in time.
+JOINS = False
+
+# Relations per list, and segment proofs per module, under JOINS.
+CHUNK = 16
+
+
+# Under JOINS, the most configurations one segment evaluates before it is cut again.
+SEGMENT = 24
+
+
+def bound_segments(side, chosen, same_shapes, common):
+    """Cuts the configuration trees of side (nodes, succ, node ids) so that no segment
+    evaluates more than SEGMENT configurations: a configuration whose subtree is larger
+    becomes a cut point when both programs keep its block under the same stack shapes. Cutting
+    never changes what is proved, only where the segments end."""
+    nodes, succ, node_ids, _ = side
+    ok = {}
+
+    def eligible(n):
+        i = node_ids[n]
+        if i not in ok:
+            ok[i] = i in common and same_shapes(i)
+        return ok[i]
+
+    roots = [0] + [n for n in range(len(nodes)) if node_ids[n] in chosen]
+    size = {}
+    for root in roots:
+        # Post-order without recursion: a configuration's size is one more than its
+        # children's that the segment evaluates.
+        stack = [(root, False)]
+        while stack:
+            n, done = stack.pop()
+            if not done:
+                stack.append((n, True))
+                for c in succ[n]:
+                    if node_ids[c] not in chosen and c not in size:
+                        stack.append((c, False))
+                continue
+            s = 1 + sum(size.get(c, 0) for c in succ[n] if node_ids[c] not in chosen)
+            if s > SEGMENT and n != root and eligible(n):
+                chosen.add(node_ids[n])
+                s = 0
+            size[n] = s
+
+
+def mir_join_cuts(a_funcs, b_funcs, cuts):
+    """Join points of two MIR modules, cut besides their loop headers: a block of a function
+    that more than one of its blocks jumps to, in both modules, with the same phis. Cutting them
+    makes every segment a tree of blocks, so that no path is evaluated twice. Their relations
+    are the headers' (the same state, the phis' inputs and the live values the same words),
+    without the headers' candidate facts."""
+    if not JOINS:
+        return []
+    have = {(f, h) for f, h, _, _ in cuts}
+    out = []
+    for f, (fa, fb) in enumerate(zip(a_funcs, b_funcs)):
+        _, _, sa = mir_headers(fa)
+        _, _, sb = mir_headers(fb)
+
+        def preds(succ, h):
+            return sorted(b for b in succ if h in succ[b])
+
+        for h in sorted(set(fa["blocks"]) & set(fb["blocks"])):
+            if (f, h) in have or h == 0:
+                continue
+            pa, pb = preds(sa, h), preds(sb, h)
+            if len(pa) < 2 or len(pb) < 2:
+                continue
+            da = sorted(d for d, _ in fa["blocks"][h][0])
+            db = sorted(d for d, _ in fb["blocks"][h][0])
+            if da != db:
+                continue
+            out.append((f, h, pa, pb))
+    return out
+
+
 def tokens(s):
     """Split on spaces outside brackets."""
     out, depth, cur = [], 0, []
@@ -1020,7 +1146,7 @@ def layer_term(kind):
     return "MIR.Lowered.moduleLayer" if kind == "mir" else "EVM.Program.layer"
 
 
-def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
+def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_reach=None):
     """Lean (after the header) proving the stage from a["def"] to b["def"] through cut points:
     cuts_a/cuts_b are the cut tests' blocks, rels the relations at pairs of cut points, each a
     dict of src_vars, tgt_vars ([(name, type)]), src and tgt (configuration terms) and conds
@@ -1038,8 +1164,24 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
         "src": init_term(a["kind"], A),
         "tgt": init_term(b["kind"], B),
         "conds": [],
+        "reach": entry_reach,
     }
     allrels = [entry] + rels
+    # With JOINS, a stage has hundreds of relations: they are kept in lists of CHUNK, appended,
+    # so that a relation's membership proof and each case split stay small.
+    chunked = JOINS and len(allrels) > CHUNK
+    groups = [allrels[i : i + CHUNK] for i in range(0, len(allrels), CHUNK)]
+
+    def mem_of(n):
+        if not chunked:
+            return mem_proof(n)
+        k, i = divmod(n, CHUNK)
+        t = mem_proof(i)
+        if k < len(groups) - 1:
+            t = f"List.mem_append_left _ ({t})"
+        for _ in range(k):
+            t = f"List.mem_append_right _ ({t})"
+        return t
 
     def body(r):
         vs = r["src_vars"] + r["tgt_vars"]
@@ -1047,13 +1189,31 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
         inner = " ∧ ".join(parts)
         return f"∃ {binder_text(vs)}, {inner}" if vs else inner
 
-    out.append(
-        f"/-- The relations at the first configurations and at each pair of cut points, from what "
-        f"the compiler kept across the pass. -/\n"
-        f"def {p}_rels (call : Call) : List ({ca} → {cb} → Prop) :=\n  ["
-        + ",\n   ".join(f"fun x x' => {body(r)}" for r in allrels)
-        + "]\n\n"
-    )
+    if chunked:
+        for k, g in enumerate(groups):
+            out.append(
+                f"/-- Relations {k * CHUNK} to {k * CHUNK + len(g) - 1}. -/\n"
+                f"def {p}_rels{k} (call : Call) : List ({ca} → {cb} → Prop) :=\n  ["
+                + ",\n   ".join(f"fun x x' => {body(r)}" for r in g)
+                + "]\n\n"
+            )
+        joined = f"{p}_rels{len(groups) - 1} call"
+        for k in reversed(range(len(groups) - 1)):
+            joined = f"{p}_rels{k} call ++ ({joined})"
+        out.append(
+            f"/-- The relations at the first configurations and at each pair of cut points, from "
+            f"what the compiler kept across the pass. -/\n"
+            f"def {p}_rels (call : Call) : List ({ca} → {cb} → Prop) :=\n  {joined}\n\n"
+        )
+    else:
+        out.append(
+            f"/-- The relations at the first configurations and at each pair of cut points, from what "
+            f"the compiler kept across the pass. -/\n"
+            f"def {p}_rels (call : Call) : List ({ca} → {cb} → Prop) :=\n  ["
+            + ",\n   ".join(f"fun x x' => {body(r)}" for r in allrels)
+            + "]\n\n"
+        )
+
     mks = []
     for n, r in enumerate(rels, start=1):
         name = f"{p}_mk{n}"
@@ -1072,18 +1232,18 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
                 + ", ".join(names + tnames + ["rfl"] + [f"h{i}" for i in range(k)])
                 + "⟩"
             )
-            proof = f"by\n  obtain {pat} := h\n  exact rel_mem ({mem_proof(n)}) {wit}"
+            proof = f"by\n  obtain {pat} := h\n  exact rel_mem ({mem_of(n)}) {wit}"
         else:
             if k == 1:
                 wit = "⟨" + ", ".join([*names, "rfl", "h"]) + "⟩"
-                proof = f"\n  rel_mem ({mem_proof(n)}) {wit}"
+                proof = f"\n  rel_mem ({mem_of(n)}) {wit}"
             else:
                 pat = "⟨" + ", ".join(f"h{i}" for i in range(k)) + "⟩"
                 wit = (
                     "⟨" + ", ".join(names + ["rfl"] + [f"h{i}" for i in range(k)]) + "⟩"
                 )
                 proof = (
-                    f"by\n  obtain {pat} := h\n  exact rel_mem ({mem_proof(n)}) {wit}"
+                    f"by\n  obtain {pat} := h\n  exact rel_mem ({mem_of(n)}) {wit}"
                 )
         out.append(
             f"theorem {name} {{call : Call}} {src_vars} {{y : {cb}}}\n"
@@ -1093,6 +1253,17 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
     seg_rel = f"SegRel Agree (fun y y' => ∃ Q ∈ {p}_rels call, Q y y')"
     unf = ", ".join(unf_a + unf_b)
     segs = []
+    def seg_mks(r):
+        # The relation lemmas of the cut points the segment can reach, when the exporter's
+        # configuration graph names them: a leaf tries only those.
+        reach = r.get("reach")
+        if reach is None:
+            return mks
+        return [m for m, q in zip(mks, rels) if q.get("block") in reach]
+
+    if chunked:
+        out.append("-- @@defs-end\n")
+    seg_from = len(out)
     for n, r in enumerate(allrels):
         name = f"{p}_seg{n}"
         segs.append(name)
@@ -1106,28 +1277,69 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
             f"      (seg ({step_term(a['kind'], A)}) {cut_a} k {r['src']})\n"
             f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' {r['tgt']}) := by\n"
             f"  refine ⟨{fuel_a}, {fuel_b}, ?_⟩\n"
-            f"  sym_seg [{unf}] [{', '.join(mks)}]\n\n"
+            f"  sym_seg [{unf}] [{', '.join(seg_mks(r))}]\n\n"
+            + ("\x00" if chunked else "")
         )
-    cases = []
-    for n, r in enumerate(allrels):
-        vs = [v for v, _ in r["src_vars"] + r["tgt_vars"]]
-        hs = [f"h{i}" for i in range(len(r["conds"]))]
-        pat = "⟨" + ", ".join(vs + ["rfl", "rfl"] + hs) + "⟩"
-        cases.append(
-            f"  · obtain {pat} := holds\n"
-            f"    exact {segs[n]} o call {' '.join(vs + hs)}".rstrip()
+    def case_lines(start, group):
+        lines = []
+        for n, r in enumerate(group, start=start):
+            vs = [v for v, _ in r["src_vars"] + r["tgt_vars"]]
+            hs = [f"h{i}" for i in range(len(r["conds"]))]
+            pat = "⟨" + ", ".join(vs + ["rfl", "rfl"] + hs) + "⟩"
+            lines.append(
+                f"  · obtain {pat} := holds\n"
+                f"    exact {segs[n]} o call {' '.join(vs + hs)}".rstrip()
+            )
+        return lines
+
+    if chunked:
+        # The segment proofs, then per list the lemma that covers it, each list's part of the
+        # output marked for certify.py to put in a module of its own.
+        seg_texts = "".join(out[seg_from:]).split("\x00")
+        del out[seg_from:]
+        for k, g in enumerate(groups):
+            out.append("-- @@chunk\n")
+            out.append("".join(seg_texts[k * CHUNK : k * CHUNK + len(g)]))
+            out.append(
+                f"theorem {p}_segments{k} (o : Oracle) (call : Call) :\n"
+                f"    ∀ P ∈ {p}_rels{k} call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+                f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
+                f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
+                f"  intro P mem x x' holds\n"
+                f"  simp only [{p}_rels{k}, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
+                f"  rcases mem with {' | '.join(['rfl'] * len(g))}\n"
+                + "\n".join(case_lines(k * CHUNK, g))
+                + "\n\n"
+            )
+        out.append("-- @@main\n")
+        steps = []
+        for k in range(len(groups) - 1):
+            steps.append(
+                f"  rcases List.mem_append.1 mem with mem | mem\n"
+                f"  · exact {p}_segments{k} o call P mem x x' holds\n"
+            )
+        out.append(
+            f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
+            f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+            f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
+            f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
+            f"  intro P mem x x' holds\n"
+            f"  unfold {p}_rels at mem\n"
+            + "".join(steps)
+            + f"  exact {p}_segments{len(groups) - 1} o call P mem x x' holds\n\n"
         )
-    out.append(
-        f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
-        f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
-        f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
-        f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
-        f"  intro P mem x x' holds\n"
-        f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
-        f"  rcases mem with {' | '.join(['rfl'] * len(allrels))}\n"
-        + "\n".join(cases)
-        + "\n\n"
-    )
+    else:
+        out.append(
+            f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
+            f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+            f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
+            f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
+            f"  intro P mem x x' holds\n"
+            f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
+            f"  rcases mem with {' | '.join(['rfl'] * len(allrels))}\n"
+            + "\n".join(case_lines(0, allrels))
+            + "\n\n"
+        )
     out.append(
         f"/-- `{A}` and `{B}` simulated through their cut points on every call. -/\n"
         f"def {p}_sim (o : Oracle) :\n"
@@ -1141,7 +1353,7 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats):
         f"  runs _ _ := rfl\n  runs' _ _ := rfl\n"
         f"  cut := {cut_a}\n  cut' := {cut_b}\n"
         f"  Rel call := fun x x' => ∃ P ∈ {p}_rels call, P x x'\n"
-        f"  start _ _ := ⟨_, List.Mem.head _, rfl, rfl⟩\n"
+        f"  start _ _ := ⟨_, {mem_of(0)}, rfl, rfl⟩\n"
         f"  sim call _ := CutPoint.Sim.of_each ({p}_segments o call)\n\n"
     )
     return "".join(out)
@@ -1224,7 +1436,7 @@ def header_facts(func, h, pred, live, env):
     return facts
 
 
-def mir_mir_rels(pass_name, fa_list, fb_list, cuts, ctx_a=None, ctx_b=None):
+def mir_mir_rels(pass_name, fa_list, fb_list, cuts, ctx_a=None, ctx_b=None, joins=()):
     """Relations between two MIR modules at their headers: the same state, the phis' inputs
     and every value live into the header the same words; for a header under calls, one relation
     per call string, with the returns each module pushes and the caller's values read after the
@@ -1254,8 +1466,9 @@ def mir_mir_rels(pass_name, fa_list, fb_list, cuts, ctx_a=None, ctx_b=None):
                     conds.append(f"{env_word(ib, "env'")} = {env_word(ia, 'env')}")
                 if not feasible:
                     continue
-                conds += header_facts(fa, h, pa, set(live_a[h]), "env")
-                conds += header_facts(fb, h, pb, set(live_b[h]), "env'")
+                if (f, h) not in joins:
+                    conds += header_facts(fa, h, pa, set(live_a[h]), "env")
+                    conds += header_facts(fb, h, pb, set(live_b[h]), "env'")
                 ca, cb = ctx_a.get(f, {()}), ctx_b.get(f, {()})
                 if ca != cb:
                     raise Unsupported(
@@ -1463,6 +1676,7 @@ def stage_body(gen, a, b, heartbeats=2000000):
     pass), after the module header, or raise Unsupported."""
     ta = (gen / a["file"]).read_text()
     tb = (gen / b["file"]).read_text()
+    entry_reach = None
 
     def mir_fuel(funcs):
         # A segment may enter a callee's blocks once per call site.
@@ -1472,9 +1686,12 @@ def stage_body(gen, a, b, heartbeats=2000000):
     if a["kind"] == "mir" and b["kind"] == "mir":
         fa, fb = parse_mir(ta), parse_mir(tb)
         cuts = mir_cuts(b["pass"], fa, fb)
+        joins = mir_join_cuts(fa, fb, cuts)
         ctx_a = mir_contexts(b["pass"], fa, mir_entry(ta))
         ctx_b = mir_contexts(b["pass"], fb, mir_entry(tb))
-        tests_a, tests_b, rels = mir_mir_rels(b["pass"], fa, fb, cuts, ctx_a, ctx_b)
+        tests_a, tests_b, rels = mir_mir_rels(
+            b["pass"], fa, fb, cuts + joins, ctx_a, ctx_b, {(f, h) for f, h, _, _ in joins}
+        )
         fuel_a, fuel_b = mir_fuel(fa), mir_fuel(fb)
     elif a["kind"] == "mir":
         fa, sched = parse_mir(ta), parse_evm(tb)
@@ -1484,6 +1701,13 @@ def stage_body(gen, a, b, heartbeats=2000000):
         if cuts and not schedule_file.exists():
             raise Unsupported(f"{b['pass']}: no Schedule.json from the exporter")
         schedule = json.loads(schedule_file.read_text()) if cuts else {"functions": []}
+        # A join point is cut where the scheduler records the block's stack, alone it relates.
+        for j in mir_join_cuts(fa, fa, cuts):
+            try:
+                mir_evm_rels(b["pass"], fa, sched, schedule, cuts + [j], ctxs)
+            except Unsupported:
+                continue
+            cuts.append(j)
         tests_a, tests_b, rels = mir_evm_rels(
             b["pass"], fa, sched, schedule, cuts, ctxs
         )
@@ -1496,10 +1720,11 @@ def stage_body(gen, a, b, heartbeats=2000000):
         if isinstance(cuts, dict):
             (tests_a, tests_b), rels = cuts["tests"], cuts["rels"]
             fuel_a, fuel_b = cuts["fuel"]
+            entry_reach = cuts.get("entry_reach")
         else:
             tests_a, tests_b, rels = evm_evm_rels(cuts)
             fuel_a, fuel_b = len(ea) + 1, len(eb) + 1
-    return pair_module(a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats)
+    return pair_module(a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats, entry_reach)
 
 
 # --- Driver ----------------------------------------------------------------------------------
