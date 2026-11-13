@@ -975,6 +975,18 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Continue(());
                 }
                 Semantics::Packed(parts, hash) => {
+                    if parts.iter().any(|part| {
+                        matches!(
+                            part,
+                            solar_mir::PackedPart::Bytes { .. }
+                                | solar_mir::PackedPart::Array { .. }
+                        )
+                    }) {
+                        let word = self.semantic_packed_references(body, parts, hash)?;
+                        self.frame().values[instruction.result().expect("packed result")] =
+                            Some(RuntimeValue::Word(word));
+                        return ControlFlow::Continue(());
+                    }
                     let mut values = Vec::new();
                     for part in parts {
                         if let solar_mir::PackedPart::Scalar { value, .. } = part {

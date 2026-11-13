@@ -9,9 +9,9 @@ use alloy_primitives::{U256, keccak256};
 use solar_mir::{AllocationSemantics, PackedPart, ValueLayout};
 use std::ops::ControlFlow;
 
-struct Piece {
-    bytes: Vec<u8>,
-    scalar: bool,
+pub(super) struct Piece {
+    pub(super) bytes: Vec<u8>,
+    pub(super) scalar: bool,
 }
 
 fn emit(bytes: &[u8], offset: &mut usize, writes: &mut Vec<(usize, U256)>) {
@@ -32,6 +32,30 @@ fn flush(pending: &mut Vec<&Piece>, offset: &mut usize, writes: &mut Vec<(usize,
         }
     }
     pending.clear();
+}
+
+pub(super) fn word_stores(pieces: &[Piece]) -> Vec<(usize, U256)> {
+    let mut offset = 0;
+    let mut writes = Vec::new();
+    let mut pending = Vec::new();
+    let mut pending_length = 0;
+    for piece in pieces {
+        let size = piece.bytes.len();
+        if size > 32 || piece.scalar && size == 32 {
+            flush(&mut pending, &mut offset, &mut writes);
+            pending_length = 0;
+            emit(&piece.bytes, &mut offset, &mut writes);
+        } else {
+            if pending_length + size > 32 {
+                flush(&mut pending, &mut offset, &mut writes);
+                pending_length = 0;
+            }
+            pending.push(piece);
+            pending_length += size;
+        }
+    }
+    flush(&mut pending, &mut offset, &mut writes);
+    writes
 }
 
 impl Run<'_, '_, '_> {
@@ -81,26 +105,7 @@ impl Run<'_, '_, '_> {
             pieces.push(Piece { bytes, scalar });
         }
         let aligned = pieces.iter().all(|piece| piece.bytes.len().is_multiple_of(32));
-        let mut offset = 0;
-        let mut writes = Vec::new();
-        let mut pending = Vec::new();
-        let mut pending_length = 0;
-        for piece in &pieces {
-            let size = piece.bytes.len();
-            if size > 32 || piece.scalar && size == 32 {
-                flush(&mut pending, &mut offset, &mut writes);
-                pending_length = 0;
-                emit(&piece.bytes, &mut offset, &mut writes);
-            } else {
-                if pending_length + size > 32 {
-                    flush(&mut pending, &mut offset, &mut writes);
-                    pending_length = 0;
-                }
-                pending.push(piece);
-                pending_length += size;
-            }
-        }
-        flush(&mut pending, &mut offset, &mut writes);
+        let writes = word_stores(&pieces);
         let write_end = writes.iter().map(|(offset, _)| offset + 32).max().unwrap_or_default();
         let length = U256::from(length);
         let base = if hash {
