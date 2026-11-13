@@ -378,11 +378,12 @@ impl<'s, 'a> Builder<'s, 'a> {
     /// is dropped silently, since the user never wrote it.
     fn parse_candidate(&mut self, text: &str, span: Span) -> Option<Spec<'a>> {
         let pre = preprocess(text, &mut self.quants).ok()?;
-        self.nspec += 1;
+        // Unique across the session, as in `Self::parse_spec`.
+        let n = SPECS.fetch_add(1, Ordering::Relaxed) + 1;
         let mut p = Parser::from_source_code(
             self.sess,
             self.arena,
-            FileName::Custom(format!("spec#{}", self.nspec)),
+            FileName::Custom(format!("spec#{n}")),
             pre,
         )
         .ok()?;
