@@ -395,10 +395,15 @@ def operation(value, definitions):
         expression = f".slot (.arrayElement {number(value['stride'], 2**64)})"
     elif kind == "call":
         expression = f".call {number(value['function'])}"
-    elif kind == "allocate":
+    elif kind in {"allocate", "deferred_allocate"}:
         if type(value["zeroed"]) is not bool or type(value["checked"]) is not bool:
             raise Unsupported("invalid MIR allocation policy")
         expression = f".allocate {'true' if value['zeroed'] else 'false'} {'true' if value['checked'] else 'false'}"
+        if kind == "deferred_allocate":
+            expression = (
+                f".deferredAllocate {json.dumps(value['function'])} {number(value['site'], 4096)} "
+                f"{'true' if value['zeroed'] else 'false'} {'true' if value['checked'] else 'false'}"
+            )
     elif kind == "free_pointer":
         expression = ".freePointer"
     elif kind == "memory_zero":

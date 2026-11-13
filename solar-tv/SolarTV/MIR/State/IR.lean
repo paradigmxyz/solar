@@ -102,6 +102,10 @@ structure FunctionPlacement where
   frameBase : Option EvmRules.Word := none
   returnBuffer : Option EvmRules.Word := none
 
+inductive DeferredPlacement where
+  | fixed (address : EvmRules.Word) (size : Nat)
+  | heap (size : Nat)
+
 structure Layout where
   code : Option (List SolarTV.Execution.Byte) := none
   functions : List (String × FunctionPlacement) := []
@@ -111,6 +115,7 @@ structure Layout where
   immutableValues : List (Nat × EvmRules.Word) := []
   libraries : List (Nat × EvmRules.Word) := []
   gasBefore : Option Nat := none
+  allocations : List (String × List (Nat × DeferredPlacement)) := []
 
 inductive Operation where
   | binary (op : MIR.Op) (width : Nat)
@@ -132,6 +137,7 @@ inductive Operation where
   | call (callee : Nat)
   | freePointer
   | allocate (zeroed checked : Bool)
+  | deferredAllocate (function : String) (site : Nat) (zeroed checked : Bool)
   | external (op : MessageOp)
   | insertValue (ty : ValueType) (index : Nat)
   | extractValue (ty : ValueType) (index : Nat)

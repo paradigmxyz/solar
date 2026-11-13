@@ -33,7 +33,7 @@ MIR_UNFOLD = (
     "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, MIR.State.assign, "
     "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, MIR.State.Value.fits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
     "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
-    "MIR.State.allocate, MIR.State.freePointer, MIR.State.memoryOperation, "
+    "MIR.State.allocate, MIR.State.deferredAllocate, MIR.State.freePointer, MIR.State.memoryOperation, "
     "MIR.State.abiRequirePayload, MIR.State.requireLiteral, MIR.State.failureData, RevertData.fromBytes, MIR.State.abiEncode, MIR.State.abiWriteWords, MIR.State.abiDecode, MIR.State.abiCanonical, "
     "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.reduceClosedRead, Execution.readWord, "
     "Execution.readBytes, Execution.wordBytes, Execution.writeBytes, "

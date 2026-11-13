@@ -17,6 +17,23 @@ def layoutBinding (entries : List (Nat × α)) (id : Nat) : Option α :=
 def placementBinding (cfg : Config) (function : String) : Except String FunctionPlacement :=
   required ((cfg.layout.functions.find? (·.1 == function)).map Prod.snd) "missing MIR function placement"
 
+/-- A fixed placement does not read or bump the FMP; initialization remains explicit. -/
+def deferredAllocate (cfg : Config) (frame : Frame) (function : String) (site : Nat)
+    (size : Word) (zeroed checked : Bool) : Step := do
+  let sites ← required ((cfg.layout.allocations.find? (·.1 == function)).map Prod.snd) "missing deferred allocation placements"
+  let placement ← required (layoutBinding sites site) "missing deferred allocation site"
+  let extent := match placement with | .fixed _ size | .heap size => size
+  if extent != size.toNat then .error "deferred allocation extent disagrees with placement" else
+  match placement with
+  | .heap _ => allocate frame size zeroed checked
+  | .fixed address _ =>
+    if address.toNat+extent ≥ 2^64 then .error "invalid deferred allocation placement" else
+    let memory ← if zeroed then do
+        let memory ← expand frame.memory address.toNat extent
+        pure (writeBytes memory address.toNat (List.replicate extent 0))
+      else pure frame.memory
+    return .returned (some address,{frame with memory})
+
 def layoutOperation (cfg : Config) (frame : Frame) (op : ContextOp) (args : List Word) : Step := do
   let result (word : Word) := Except.ok (Outcome.returned (some word,frame))
   match op,args with
