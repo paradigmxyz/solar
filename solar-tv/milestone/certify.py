@@ -20,6 +20,7 @@ them.
 """
 
 import argparse
+import itertools
 import json
 import pathlib
 import re
@@ -29,7 +30,7 @@ AXIOMS = "[propext, Classical.choice, Quot.sound]"
 
 def blocks(text):
     """The number of blocks of an exported program: one "-- bbN" comment each."""
-    return len(re.findall(r"^\s*-- bb\d+$", text, re.M))
+    return len(re.findall(r"^\s*-- bb\d+$", text, re.MULTILINE))
 
 
 def calls(text):
@@ -177,7 +178,7 @@ def main():
     )
 
     # Each pair of consecutive stages ends in the same result.
-    pairs = list(zip(stages, stages[1:]))
+    pairs = list(itertools.pairwise(stages))
     for a, b in pairs:
         name = f"{b['def']}_run"
         what = (
