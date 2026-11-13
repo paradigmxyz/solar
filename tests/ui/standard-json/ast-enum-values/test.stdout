@@ -1,0 +1,115 @@
+{
+  "sources": {
+    "Color.sol": {
+      "id": 0,
+      "ast": {
+        "id": 8,
+        "src": "64:423:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Color.sol",
+        "exportedSymbols": {
+          "Color": [
+            6
+          ],
+          "Shade": [
+            7
+          ]
+        },
+        "nodes": [
+          {
+            "id": 6,
+            "src": "64:164:0",
+            "nodeType": "EnumDefinition",
+            "name": "Color",
+            "nameLocation": "69:5:0",
+            "members": [
+              {
+                "id": 0,
+                "src": "81:3:0",
+                "nodeType": "EnumValue",
+                "name": "Red",
+                "nameLocation": "81:3:0"
+              },
+              {
+                "id": 1,
+                "src": "152:5:0",
+                "nodeType": "EnumValue",
+                "name": "Green",
+                "nameLocation": "152:5:0",
+                "documentation": {
+                  "id": 9,
+                  "src": "90:57:0",
+                  "nodeType": "StructuredDocumentation",
+                  "text": "@notice example of notice\n @dev example of dev"
+                }
+              },
+              {
+                "id": 2,
+                "src": "191:4:0",
+                "nodeType": "EnumValue",
+                "name": "Blue",
+                "nameLocation": "191:4:0",
+                "documentation": {
+                  "id": 10,
+                  "src": "163:23:0",
+                  "nodeType": "StructuredDocumentation",
+                  "text": "@dev example of dev"
+                }
+              }
+            ],
+            "canonicalName": "Color"
+          },
+          {
+            "id": 7,
+            "src": "348:138:0",
+            "nodeType": "EnumDefinition",
+            "name": "Shade",
+            "nameLocation": "353:5:0",
+            "members": [
+              {
+                "id": 3,
+                "src": "406:5:0",
+                "nodeType": "EnumValue",
+                "name": "Light",
+                "nameLocation": "406:5:0",
+                "documentation": {
+                  "id": 11,
+                  "src": "365:36:0",
+                  "nodeType": "StructuredDocumentation",
+                  "text": "@dev ends before the blank line"
+                }
+              },
+              {
+                "id": 4,
+                "src": "446:3:0",
+                "nodeType": "EnumValue",
+                "name": "Mid",
+                "nameLocation": "446:3:0",
+                "documentation": {
+                  "id": 12,
+                  "src": "417:24:0",
+                  "nodeType": "StructuredDocumentation",
+                  "text": "@notice block doc "
+                }
+              },
+              {
+                "id": 5,
+                "src": "480:4:0",
+                "nodeType": "EnumValue",
+                "name": "Dark",
+                "nameLocation": "480:4:0",
+                "documentation": {
+                  "id": 13,
+                  "src": "451:24:0",
+                  "nodeType": "StructuredDocumentation",
+                  "text": "@dev after the comma"
+                }
+              }
+            ],
+            "canonicalName": "Shade"
+          }
+        ]
+      }
+    }
+  }
+}

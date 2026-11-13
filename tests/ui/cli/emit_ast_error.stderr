@@ -1,0 +1,8 @@
+error[7576]: unresolved symbol `undefined`
+   ╭▸ ROOT/tests/ui/cli/emit_ast_error.sol:LL:CC
+   │
+LL │         undefined;
+   ╰╴        ━━━━━━━━━
+
+error: aborting due to 1 previous error
+

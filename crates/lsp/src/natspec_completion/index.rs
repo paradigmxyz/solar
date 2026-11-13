@@ -184,7 +184,7 @@ impl NatSpecCompletionIndex {
 
                     let ItemKind::Contract(contract) = &item.kind else { continue };
                     for (contract_item_ordinal, contract_item) in contract.body.iter().enumerate() {
-                        if !semantic_items.contains_key(&contract_item.span) {
+                        if !semantic_items.contains_key(&semantic_span(contract_item)) {
                             continue;
                         }
                         let path = DeclarationPath::Contract {
@@ -270,7 +270,7 @@ impl NatSpecCompletionIndex {
         ast_item: &ast::Item<'_>,
         semantic_items: &mut FxHashMap<Span, Vec<SemanticItem>>,
     ) -> bool {
-        let Some(items) = semantic_items.get_mut(&ast_item.span) else { return false };
+        let Some(items) = semantic_items.get_mut(&semantic_span(ast_item)) else { return false };
         let Some(index) = find_hir_item(gcx, items, ast_item) else { return false };
         let Some(key) = DeclarationKey::from_ast(file, path, ast_item) else {
             return false;
@@ -278,6 +278,15 @@ impl NatSpecCompletionIndex {
         let semantic_item = items.swap_remove(index);
         merge_entry(entries, key, IndexedSemantics::Unique(semantic_item.semantics));
         true
+    }
+}
+
+/// Returns the span of the HIR item that lowers an AST item: the span of a variable item includes
+/// its `;`, which the span of the variable does not.
+fn semantic_span(item: &ast::Item<'_>) -> Span {
+    match &item.kind {
+        ItemKind::Variable(variable) => variable.span,
+        _ => item.span,
     }
 }
 

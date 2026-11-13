@@ -126,7 +126,7 @@ error[5210]: failed to evaluate constant: cyclic constant definition
    ╭▸ ROOT/tests/ui/typeck/constants/eval.sol:LL:CC
    │
 LL │ uint constant rec1 = rec1;
-   │ ────────────────────────── evaluation of constant value failed here
+   │ ───────────────────────── evaluation of constant value failed here
    ‡
 LL │     function e(uint[rec1] memory) public {}
    ╰╴                    ━━━━
@@ -135,7 +135,7 @@ error[5210]: failed to evaluate constant: cyclic constant definition
    ╭▸ ROOT/tests/ui/typeck/constants/eval.sol:LL:CC
    │
 LL │ uint constant rec1 = rec1;
-   │ ────────────────────────── evaluation of constant value failed here
+   │ ───────────────────────── evaluation of constant value failed here
    ‡
 LL │     function f(uint[rec2] memory) public {}
    ╰╴                    ━━━━

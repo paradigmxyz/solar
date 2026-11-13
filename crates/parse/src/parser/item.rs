@@ -433,8 +433,16 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
-        let variants = self.parse_delim_comma_seq(Delimiter::Brace, true, Self::parse_ident)?;
+        let variants =
+            self.parse_delim_comma_seq(Delimiter::Brace, true, Self::parse_enum_variant)?;
         Ok(ItemEnum { name, variants })
+    }
+
+    /// Parses an enum variant, with its doc comments.
+    fn parse_enum_variant(&mut self) -> PResult<'sess, EnumVariant<'ast>> {
+        let docs = self.parse_doc_comments();
+        let name = self.parse_ident()?;
+        Ok(EnumVariant { docs, name })
     }
 
     /// Parses a user-defined value type.
@@ -869,11 +877,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             None
         };
 
+        // The span ends at the last token before the `;`.
+        let span = lo.to(self.prev_token.span);
         if flags.contains(VarFlags::SEMI) {
             self.expect_semi()?;
         }
-
-        let span = lo.to(self.prev_token.span);
 
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";

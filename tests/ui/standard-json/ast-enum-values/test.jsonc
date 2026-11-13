@@ -1,0 +1,24 @@
+//@ filecheck:
+// Doc comments on enum values, and one that follows the last value, which is no documentation.
+// CHECK: "name": "Red"
+// CHECK-NOT: "documentation"
+// CHECK: "name": "Green"
+// CHECK: "documentation": {
+// CHECK: "nodeType": "StructuredDocumentation"
+// CHECK: "text": "@notice example of notice\n @dev example of dev"
+// CHECK: "name": "Blue"
+// CHECK: "text": "@dev example of dev"
+// CHECK-NOT: "beyond last value"
+// CHECK: "name": "Shade"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}
