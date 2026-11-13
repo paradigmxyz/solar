@@ -47,3 +47,22 @@ All other arithmetic is checked under ^0.8 where 0.5.16 wrapped. None of it is m
 `Math.sqrt`'s `y / x + x`, `UniswapV2ERC20.permit`'s `nonces[owner]++` and
 `UQ112x112.encode`'s product stay in range for every input the pair passes them, so the port
 reverts on exactly the inputs where 0.5.16 would have computed a wrapped value no caller reaches.
+
+## Certifying the factory
+
+```sh
+solar-tv/uniswap-v2/certify-factory.sh   # port.py, flatten, milestone/certify.sh
+```
+
+[certify-factory.sh](certify-factory.sh) writes the port, flattens the factory's unit into
+`target/uniswap-v2/factory.sol` and runs [certify.sh](../milestone/certify.sh) on
+`UniswapV2Factory` as `uni_factory`. The generated stages and proofs land in
+`solar-tv/milestone/uni_factory`, which `.gitignore` keeps out of the repository with the
+GPL source they come from. The factory's runtime has no loops; it embeds the pair's creation
+code as program data, which the assembly walk leaves after the code it covers. All 18 stage
+proofs, their composition from the first lowered MIR to the final EVM IR, and the assembly walk
+check, with only `propext`, `Classical.choice` and `Quot.sound`. They need more of Lean
+than the other milestone contracts: the heartbeat bound is lifted (`CERTIFY_HEARTBEATS=0`;
+the kernel still checks every proof), each EVM IR run takes about 25 minutes and up to 7 GB,
+and the kernel needs more than 12 GB for stack scheduling's proof (67 minutes), so the script
+runs Lean with `LEAN_MEMORY=13800` by default.

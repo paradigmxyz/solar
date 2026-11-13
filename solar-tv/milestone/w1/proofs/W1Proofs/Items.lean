@@ -14,9 +14,8 @@ block is no instruction, and of a final `jumpi then; jump else` that falls throu
 EVM IR semantics enters the next block past the end of a block, so the spelling runs the same
 blocks. The last block's final `stop` is no instruction either, as `lower_terminator` leaves
 it out of runtime code that nothing follows: the code ends there, which halts as STOP does. It
-is partial: an effect outside the EVM's opcodes (an oracle's environment read or
-call) or with another arity than its opcode's has no item, so a program outside that scope
-fails the check. Every contract's `Assembly` module (w1's and the ones
+is partial: an effect with no opcode or with another arity than its opcode's has no item, so a
+program outside that scope fails the check. Every contract's `Assembly` module (w1's and the ones
 `milestone/certify.py` writes) evaluates `SolarTV.Assembly.walk` over its bytecode against
 these items. -/
 
@@ -53,6 +52,28 @@ def memoryItem : EVM.Memory.Op → Option Item
   | .size => some (.op 0x59)
   | .copy | .hash => none
 
+/-- The opcode of an environment read the semantics takes from its oracle, by the mnemonic and
+arity `ENV_READS` in `crates/codegen/src/lean_stages.rs` exports it with, or `none`. -/
+def envItem : String → Nat → Option Item
+  | "origin", 0 => some (.op 0x32)
+  | "gasprice", 0 => some (.op 0x3a)
+  | "coinbase", 0 => some (.op 0x41)
+  | "timestamp", 0 => some (.op 0x42)
+  | "number", 0 => some (.op 0x43)
+  | "prevrandao", 0 => some (.op 0x44)
+  | "gaslimit", 0 => some (.op 0x45)
+  | "chainid", 0 => some (.op 0x46)
+  | "basefee", 0 => some (.op 0x48)
+  | "blobbasefee", 0 => some (.op 0x4a)
+  | "blockhash", 1 => some (.op 0x40)
+  | "blobhash", 1 => some (.op 0x49)
+  | "balance", 1 => some (.op 0x31)
+  | "selfbalance", 0 => some (.op 0x47)
+  | "extcodesize", 1 => some (.op 0x3b)
+  | "extcodehash", 1 => some (.op 0x3f)
+  | "codesize", 0 => some (.op 0x38)
+  | _, _ => none
+
 /-- The opcode of an effect with its arity, or `none` for one that is no opcode. -/
 def effectItem : Machine.Effect → Nat → Option Item
   | .address, 0 => some (.op 0x30)
@@ -85,6 +106,7 @@ def effectItem : Machine.Effect → Nat → Option Item
   | .create, 3 => some (.op 0xf0)
   | .create2, 4 => some (.op 0xf5)
   | .log n, arity => if n ≤ 4 ∧ arity = n + 2 then some (.op (0xa0 + n)) else none
+  | .env name, arity => envItem name arity
   | _, _ => none
 
 /-- The items of an instruction. -/

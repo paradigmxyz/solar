@@ -171,6 +171,7 @@ def main():
             ns,
             opens,
         )
+        + "set_option maxRecDepth 1000000 in\n"
         + f"set_option maxHeartbeats {hb} in\n"
         f"theorem {ends} (o : Oracle) (call : Call) :\n"
         f"    ({run_fn(first)} o {first['def']} call {first['fuel']}).isSome = true := by\n"
@@ -199,6 +200,8 @@ def main():
                 ns,
                 opens,
             )
+            # A contract creation's straight-line code nests its memory deeply.
+            + "set_option maxRecDepth 1000000 in\n"
             + f"set_option maxHeartbeats {hb} in\n"
             f"theorem {name} (o : Oracle) (call : Call) :\n"
             f"    {run_fn(a)} o {a['def']} call {a['fuel']} = "
@@ -284,6 +287,16 @@ def main():
         r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bytecode_text
     ).group(1)
     code = bytes.fromhex(hexcode)
+    # Program data (such as a created contract's code) follows the code: the walk covers
+    # the code before it, and the data are the bytes after it, which the walk does not read.
+    data = sorted(manifest.get("data", []), key=lambda d: d["offset"])
+    end = data[0]["offset"] if data else len(code)
+    covered = end
+    for d in data:
+        assert d["offset"] == covered, f"program data {d} is not contiguous"
+        covered += d["size"]
+    assert covered == len(code), "program data does not end the bytecode"
+    code = code[:end]
     dests, pc = [], 0
     while pc < len(code):
         op = code[pc]
@@ -308,7 +321,7 @@ def main():
         ["W1Proofs.Items", f"{gm}.{last['module']}", f"{gm}.Bytecode"]
         + ([f"{gm}.Manifest", "SolarTV.Stages.Link"] if immutables else []),
         f"The final EVM IR of `{contract}` against its bytecode, by the assembly "
-        "checker's walk: the bytecode decodes, linearly from offset 0, to exactly the "
+        "checker's walk: the bytecode's code decodes, linearly from offset 0, to exactly the "
         "program's instructions, each jumped-to block at its `JUMPDEST`.",
         ns,
         f"SolarTV.Assembly {exported} SolarTV.Milestone.W1",
@@ -316,22 +329,29 @@ def main():
     # The decisions evaluate the items and the walk recursively, item by item.
     asm += "set_option maxRecDepth 100000\n\n"
     asm += (
-        f"/-- The items of the final EVM IR. -/\n"
+        (
+            f"/-- The code before the program data, which the walk covers. -/\n"
+            f"def code : List Nat := bytecode.take {end}\n\n"
+            if data
+            else f"/-- The code: the whole bytecode, which has no program data. -/\n"
+            f"def code : List Nat := bytecode\n\n"
+        )
+        + f"/-- The items of the final EVM IR. -/\n"
         f"def items : List Item := (itemsOf {last['def']}).getD []\n\n"
         f"theorem items_eq : itemsOf {last['def']} = some items := by decide\n\n"
         f"/-- The layout: each jumped-to block at the bytecode's next `JUMPDEST`. The walk "
         f"checks it. -/\n"
         f"def offset (label : Nat) : Nat := {offset}\n\n"
         f"/-- The instructions the walk reaches, each at its offset. -/\n"
-        f"def stream : List (Nat × Instr) := (walk bytecode offset 0 items).getD []\n\n"
+        f"def stream : List (Nat × Instr) := (walk code offset 0 items).getD []\n\n"
         f"/-- The checker's walk accepts the exported bytecode against the final EVM IR. -/\n"
         # The kernel evaluates the walk: the elaborator's `decide` runs out of recursion
         # depth on longer bytecode.
-        f"theorem walk_eq : walk bytecode offset 0 items = some stream := by decide +kernel\n\n"
-        f"theorem checked : Walk bytecode offset 0 items stream := walk_sound walk_eq\n\n"
-        f"/-- The bytecode's linear decoding is the final EVM IR's instructions at the "
+        f"theorem walk_eq : walk code offset 0 items = some stream := by decide +kernel\n\n"
+        f"theorem checked : Walk code offset 0 items stream := walk_sound walk_eq\n\n"
+        f"/-- The code's linear decoding is the final EVM IR's instructions at the "
         f"layout. -/\n"
-        f"theorem decodes : decodeFrom bytecode (bytecode.length + 1) 0 = stream :=\n"
+        f"theorem decodes : decodeFrom code (code.length + 1) 0 = stream :=\n"
         f"  walk_decodes checked _ (by have := walk_length checked; omega)\n\n"
         + axioms_check(ns, "walk_eq", "[propext, Quot.sound]")
         + "\n"
@@ -348,12 +368,12 @@ def main():
             "    placeholders.map (fun p => (p.id, p.start, p.bytes)) = Manifest.immutables := by\n"
             "  decide +kernel\n\n"
             "/-- Each placeholder is a push of its width. -/\n"
-            "theorem placed_eq : placed bytecode stream items = true := by decide +kernel\n\n"
+            "theorem placed_eq : placed code stream items = true := by decide +kernel\n\n"
             "/-- Every bytecode a deployment runs, the bytecode linked with any values of the "
             "immutables, decodes to\nthe final EVM IR's instructions, each placeholder pushing "
             "its immutable's value. -/\n"
             "theorem decodes_linked (values : Nat → Nat) :\n"
-            "    decodeFrom (link bytecode placeholders values) (bytecode.length + 1) 0 =\n"
+            "    decodeFrom (link code placeholders values) (code.length + 1) 0 =\n"
             "      linkedStream values stream items :=\n"
             "  SolarTV.Assembly.decodes_linked checked placed_eq values\n\n"
             "theorem linked_items (values : Nat → Nat) :\n"

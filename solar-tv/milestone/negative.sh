@@ -154,8 +154,8 @@ EOF
 
 # decide +kernel evaluates the walk to false: it reports that the proposition is false, or,
 # on longer bytecode, the kernel rejects its proof.
-walk_false='(Tactic .decide. proved that the proposition walk bytecode offset 0 items = some stream is false|'
-walk_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(walk bytecode offset 0 items = some stream\) = true)'
+walk_false='(Tactic .decide. proved that the proposition walk code offset 0 items = some stream is false|'
+walk_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(walk code offset 0 items = some stream\) = true)'
 mismatch='sym_exec: the runs end in different results on this path'
 # decide +kernel evaluates the placeholders the walk finds against the manifest's to false.
 placeholders_false='(Tactic .decide. proved that the proposition List.map .* placeholders = Manifest.immutables is false|'

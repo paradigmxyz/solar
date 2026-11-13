@@ -489,6 +489,70 @@ dsimproc_decl foldShr (Evm.shr _ _) := fun e => do
   let some v ← wordLit? v | return .continue
   return .done (← mkNumeral (mkConst ``EvmRules.Word) (if s < 256 then v >>> s else 0))
 
+open Lean Meta Simp in
+/-- See `foldNot`: `peephole-early` folds the sum of two pushed numerals into one push. -/
+dsimproc_decl foldAdd (Evm.add _ _) := fun e => do
+  let_expr Evm.add a b := e | return .continue
+  let some a ← wordLit? a | return .continue
+  let some b ← wordLit? b | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) ((a + b) % 2 ^ 256))
+
+/-- `late-word` spells the address mask `and(x, 2^160 - 1)` as `shr(96, shl(96, x))`. -/
+theorem shr96_shl96 (x : Word) :
+    Evm.shr 96 (Evm.shl 96 x) = Evm.and x 1461501637330902918203684832716283019655932542975 := by
+  have hl : Evm.shl 96 x = x <<< 96 := by
+    unfold Evm.shl
+    rw [show (96 : Word).ult 256 = true from rfl, Bool.cond_true, BitVec.shiftLeft_eq']
+    rfl
+  have hr : ∀ y : Word, Evm.shr 96 y = y >>> 96 := by
+    intro y
+    unfold Evm.shr
+    rw [show (96 : Word).ult 256 = true from rfl, Bool.cond_true, BitVec.ushiftRight_eq']
+    rfl
+  rw [hr, hl]
+  unfold Evm.and
+  apply BitVec.eq_of_toNat_eq
+  have hm : (1461501637330902918203684832716283019655932542975 : Word).toNat = 2 ^ 160 - 1 := rfl
+  rw [BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, BitVec.toNat_and, hm,
+    Nat.and_two_pow_sub_one_eq_mod, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow,
+    show (2 : Nat) ^ 256 = 2 ^ 160 * 2 ^ 96 from Nat.pow_add 2 160 96,
+    Nat.mul_mod_mul_right, Nat.mul_div_cancel _ (Nat.two_pow_pos 96)]
+
+theorem add_neg_lit (a b c : Word) (h : b + c = 0) : Evm.add a c = Evm.sub a b := by
+  unfold Evm.sub Evm.add
+  bv_omega
+
+theorem add_neg_lit' (a b c : Word) (h : b + c = 0) : Evm.add c a = Evm.sub a b := by
+  unfold Evm.sub Evm.add
+  bv_omega
+
+open Lean Meta Simp in
+/-- The sum of a word and a numeral of at least 2^255 as the difference of the word and the
+numeral's negation: `late-word` spells `sub(x, n)` as `add(x, 2^256 - n)`, so that both
+programs subtract, and the tests on differences (`cond_sub`) apply. The kernel checks that the
+numerals add to zero by evaluation. -/
+simproc_decl wordAddNegLit (Evm.add _ _) := fun e => do
+  let_expr Evm.add x y := e | return .continue
+  let word := mkConst ``EvmRules.Word
+  let neg (c : Nat) : MetaM (Option (Expr × Expr × Expr)) := do
+    unless 2 ^ 255 ≤ c && c < 2 ^ 256 do return none
+    let b ← mkNumeral word (2 ^ 256 - c)
+    let lit ← mkNumeral word c
+    -- b + c = 0, decided by evaluation
+    let eq ← mkEq (← mkAdd b lit) (← mkNumeral word 0)
+    return some (b, lit, ← mkDecideProof eq)
+  if let some c ← wordLit? y then
+    if (← wordLit? x).isNone then
+      if let some (b, lit, h) ← neg c then
+        let proof := mkApp4 (mkConst ``add_neg_lit) x b lit h
+        return .visit { expr := mkApp2 (mkConst ``Evm.sub) x b, proof? := some proof }
+  if let some c ← wordLit? x then
+    if (← wordLit? y).isNone then
+      if let some (b, lit, h) ← neg c then
+        let proof := mkApp4 (mkConst ``add_neg_lit') y b lit h
+        return .visit { expr := mkApp2 (mkConst ``Evm.sub) y b, proof? := some proof }
+  return .continue
+
 open Lean Elab Tactic Meta in
 /-- Case-split on the first `if` of the goal whose condition is closed, as `hc`, with `hcs` its
 symmetric form when it is an equation or its negation, so that either program's orientation
@@ -715,10 +779,13 @@ dsimproc_decl evmNotLit (Evm.not _) := fun e => do
   let some n := lit.rawNatLit? | return .continue
   return .done (← mkNumeral ty (~~~(BitVec.ofNat 256 n)).toNat)
 
-/-- The definitional evaluation of both layers. -/
+/-- The definitional evaluation of both layers. It visits instance arguments too: an `if` on
+the stack's length after an effect that pushes its result (`gas`) keeps its `Decidable`
+instance on the unevaluated stack otherwise, and the goal stops being type-correct at the
+transparency `dsimp` checks it with, so that no later step makes progress. -/
 macro "sym_eval" : tactic => `(tactic|
-  dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
-    foldNot, foldShl, foldShr,
+  dsimp +instances only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
+    foldNot, foldShl, foldShr, foldAdd,
     MIR.Lowered.Module.run, MIR.Lowered.moduleBlock, MIR.Lowered.segment,
     MIR.Lowered.splitCall, MIR.Lowered.bindResult, MIR.Lowered.bindResults,
     MIR.Lowered.bindExtras, MIR.Lowered.publishResults, MIR.Lowered.publishWords, MIR.Lowered.bindPhis,
@@ -743,9 +810,12 @@ macro "sym_eval" : tactic => `(tactic|
     fin256_val_12, fin256_val_13, fin256_val_14, fin256_val_15])
 
 set_option hygiene false in
-/-- Branch conditions as propositions, decided by the cases split so far. -/
+/-- Branch conditions as propositions, decided by the cases split so far. A long block, as
+`cfg-simplify-early` merges a contract creation's straight-line code into one, takes more
+steps than `simp`'s default bound. -/
 macro "sym_cond" : tactic => `(tactic|
-  simp only [*, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint,
+  simp (maxSteps := 100000000) only [*, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint,
+    shr96_shl96, wordAddNegLit,
     Mem.expand_store, Mem.load_store_same,
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
