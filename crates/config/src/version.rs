@@ -18,6 +18,10 @@ pub const SOLAR_VERSION: &str = env!("SOLAR_VERSION");
 #[cfg(feature = "version")]
 pub const SOLC_COMPAT_VERSION: &str = env!("SOLC_COMPAT_VERSION");
 
+/// The full SHA of the commit the compiler was built from, or `unknown` without Git metadata.
+#[cfg(feature = "version")]
+pub const COMMIT_SHA: &str = env!("SOLAR_COMMIT_SHA");
+
 /// The long version information.
 #[cfg(feature = "version")]
 pub const VERSION: &str = concat!(
@@ -97,6 +101,15 @@ pub fn solar_version() -> &'static str {
 pub fn solc_compat_version() -> &'static str {
     if test_version() { TEST_SOLC_COMPAT_VERSION } else { SOLC_COMPAT_VERSION }
 }
+
+/// Returns [`COMMIT_SHA`], or 40 zeros under [`TEST_VERSION_ENV`].
+#[cfg(feature = "version")]
+pub fn commit_sha() -> &'static str {
+    if test_version() { TEST_COMMIT_SHA } else { COMMIT_SHA }
+}
+
+/// The commit SHA that compiler output reports under [`TEST_VERSION_ENV`].
+pub const TEST_COMMIT_SHA: &str = "0000000000000000000000000000000000000000";
 
 /// The solc-compatible version that compiler output reports under [`TEST_VERSION_ENV`].
 pub const TEST_SOLC_COMPAT_VERSION: &str =

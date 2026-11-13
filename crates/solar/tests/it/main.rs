@@ -34,3 +34,6 @@ mod debugify;
 
 #[cfg(all(feature = "cli", feature = "codegen"))]
 mod solar_tv;
+
+#[cfg(all(feature = "cli", feature = "codegen"))]
+mod lean_export;

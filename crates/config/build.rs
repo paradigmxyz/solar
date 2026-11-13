@@ -68,6 +68,8 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let solc_compat_version = format!("{solc_version}+commit.{sha_short}.solar.{version_suffixed}");
     println!("cargo:rustc-env=SOLC_COMPAT_VERSION={solc_compat_version}");
 
+    println!("cargo:rustc-env=SOLAR_COMMIT_SHA={sha}");
+
     let timestamp = env::var("VERGEN_BUILD_TIMESTAMP").unwrap();
 
     // The profile is the directory above `build`: `target/[<triple>/]<profile>/build/...`.

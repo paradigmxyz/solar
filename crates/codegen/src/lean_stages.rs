@@ -1227,6 +1227,8 @@ fn evm_program(program: &ir::Module) -> Result<String, String> {
 pub struct ManifestInfo<'a> {
     /// The compiler's version, with its commit.
     pub compiler: &'a str,
+    /// The full SHA of the commit the compiler was built from.
+    pub commit: &'a str,
     /// The command line, after the program name.
     pub arguments: &'a [String],
     /// Every source of the compilation: its path and contents.
@@ -1477,6 +1479,10 @@ pub fn write_manifest(
     }
 
     let opts = &gcx.sess.opts;
+    // NOTE: the thread count defaults to the host's number of cores and does not change the code,
+    // which the `lean_export` test checks against one thread; leaving it out keeps the manifest
+    // the same on every machine.
+    let options = format!("{opts:?}").replacen(&format!("threads: {:?}, ", opts.threads), "", 1);
     let evm_version = opts.evm_version.to_string();
     let optimization = format!("{:?}", opts.optimization);
     let list = |items: Vec<String>| format!("[{}]", items.join(",\n   "));
@@ -1498,6 +1504,7 @@ pub fn write_manifest(
         .collect();
     let _ = writeln!(lean, "def sources : List (String × String) :=\n  {}\n", list(sources));
     let _ = writeln!(lean, "def compiler : String := {}\n", lean_string(info.compiler));
+    let _ = writeln!(lean, "def compilerCommit : String := {}\n", lean_string(info.commit));
     let arguments = info.arguments.iter().map(|a| lean_string(a)).collect();
     let _ = writeln!(lean, "def arguments : List String :=\n  {}\n", list(arguments));
     let _ = writeln!(lean, "def evmVersion : String := {}\n", lean_string(&evm_version));
@@ -1541,10 +1548,11 @@ pub fn write_manifest(
             "sha256": sha256(bytes),
         })).collect::<Vec<_>>(),
         "compiler": info.compiler,
+        "compiler_commit": info.commit,
         "arguments": info.arguments,
         "evm_version": evm_version,
         "optimization": optimization,
-        "options": format!("{opts:?}"),
+        "options": options,
         "stages": stages.iter().map(|s| serde_json::json!({
             "file": format!("{}.lean", s.file),
             "definition": s.def(),
@@ -1571,4 +1579,13 @@ pub fn write_manifest(
     let mut text = serde_json::to_string_pretty(&json).expect("the manifest serializes");
     text.push('\n');
     write(gcx, &dir.join("manifest.json"), text.as_bytes())
+}
+
+/// Removes the manifest and the bytecode of a contract's stages, so that the stages of a
+/// compilation that failed bind to nothing.
+pub fn remove_manifest(gcx: Gcx<'_>, contract: &str) {
+    let Some(dir) = contract_dir(gcx, contract) else { return };
+    for file in ["manifest.json", "Manifest.lean", "Bytecode.lean"] {
+        let _ = fs::remove_file(dir.join(file));
+    }
 }

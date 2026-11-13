@@ -21,6 +21,11 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 filter = 'package(solar-compiler) & binary(it) & test(=foundry::external)'
 slow-timeout = { period = "2h" }
 
+# The export test compiles every codegen UI test four to six times; give it ten minutes.
+[[profile.default.overrides]]
+filter = 'package(solar-compiler) & binary(it) & test(=lean_export::export_keeps_bytecode_and_is_deterministic)'
+slow-timeout = { period = "60s", terminate-after = 10 }
+
 # The prover corpus prints why it skips when z3 is missing; show it on a pass.
 [[profile.default.overrides]]
 filter = 'package(solar-prove-analyses)'

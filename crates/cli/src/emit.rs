@@ -119,10 +119,11 @@ pub(crate) fn emit_requested(
     if pipeline_mir_output {
         emit_mir_pipeline_output(gcx, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
-    emit_combined_json(gcx, artifacts.as_ref())?;
+    // Before the outputs, so that a contract the exporter rejects prints no bytecode either.
     if let Some(artifacts) = &artifacts {
         emit_lean_manifests(gcx, artifacts)?;
     }
+    emit_combined_json(gcx, artifacts.as_ref())?;
     if let Some(contracts) = &dump_contracts
         && has_evm_ir_dump(gcx)
     {
@@ -159,13 +160,17 @@ fn emit_lean_manifests(
         .collect();
     let info = solar_codegen::lean_stages::ManifestInfo {
         compiler: solar_config::version::solc_compat_version(),
+        commit: solar_config::version::commit_sha(),
         arguments: &arguments,
         sources,
     };
-    let mut written = BTreeMap::new();
+    // A failed compilation writes no manifest: the stages of every contract, those exported
+    // before the error too, then bind to nothing that certify.sh accepts.
+    gcx.dcx().has_errors()?;
+    let mut contracts = BTreeMap::new();
     for (&id, artifact) in artifacts {
         let name = gcx.hir.contract(id).name.as_str();
-        if let Some(other) = written.insert(name, id)
+        if let Some((other, _)) = contracts.insert(name, (id, artifact))
             && other != id
         {
             return Err(gcx
@@ -173,6 +178,8 @@ fn emit_lean_manifests(
                 .err(format!("-Zemit-lean-stages: two contracts are named `{name}`"))
                 .emit());
         }
+    }
+    let result = contracts.iter().try_for_each(|(&name, &(_, artifact))| {
         let immutables = artifact
             .immutable_references
             .iter()
@@ -186,9 +193,14 @@ fn emit_lean_manifests(
             &immutables,
             &artifact.runtime_data,
             &info,
-        )?;
+        )
+    });
+    if result.is_err() {
+        for &name in contracts.keys() {
+            solar_codegen::lean_stages::remove_manifest(gcx, name);
+        }
     }
-    Ok(())
+    result
 }
 
 fn emit_ir_input(gcx: Gcx<'_>) -> Result {
