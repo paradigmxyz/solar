@@ -214,7 +214,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_refs,
             library_relocations: runtime_library_relocations,
             trailers: runtime_trailers,
-            data: runtime_data_layout,
+            data: _,
+            data_places: runtime_data_layout,
             evm_ir: runtime_evm_ir,
             debug_info: runtime_debug_info,
         } = self.asm.assemble_linked(

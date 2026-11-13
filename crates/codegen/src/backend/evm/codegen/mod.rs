@@ -455,8 +455,9 @@ pub struct EvmArtifact {
     pub deployment_trailers: Vec<Trailer>,
     /// Trailing runtime data in the runtime bytecode.
     pub runtime_trailers: Vec<Trailer>,
-    /// The program data in the runtime bytecode: each one's ID, offset and length.
-    pub(crate) runtime_data: Vec<(ir::DataId, usize, usize)>,
+    /// With `-Zemit-lean-stages`, the program data in the runtime bytecode: each entry's Lean
+    /// stage key, offset and length.
+    pub(crate) runtime_data: Vec<(String, usize, usize)>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

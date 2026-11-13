@@ -833,17 +833,29 @@ fn apply_stack_op<T: Copy>(stack: &mut Vec<T>, stack_op: op::StackOp) {
     }
 }
 
-/// Shares storage between data entries after deferred data is linked in.
-pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
-    !module.data.is_empty()
-        && scan_data_references(module, None).is_some_and(|mut scan| pack_data(module, &mut scan))
+/// Shares storage between data entries after deferred data is linked in, and returns where each
+/// entry that stays went, or `None` when nothing changed.
+pub(in crate::backend) fn pack_linked_data(
+    module: &mut Module,
+) -> Option<FxHashMap<DataId, DataRef>> {
+    if module.data.is_empty() {
+        return None;
+    }
+    let mut scan = scan_data_references(module, None)?;
+    pack_data_remap(module, &mut scan)
 }
 
 fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
+    pack_data_remap(module, scan).is_some()
+}
+
+/// Packs the data, returning where each old entry that stays went, or `None` when nothing
+/// changed.
+fn pack_data_remap(module: &mut Module, scan: &mut DataScan) -> Option<FxHashMap<DataId, DataRef>> {
     let DataScan { referenced, tail, in_place } = scan;
     let in_place = *in_place;
     if module.data.is_empty() {
-        return false;
+        return None;
     }
     let mut order = module
         .data
@@ -853,10 +865,10 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
     if order.is_empty() {
         module.data.clear();
         *tail = None;
-        return true;
+        return Some(FxHashMap::default());
     }
     if module.data.len() == 1 {
-        return false;
+        return None;
     }
     order.sort_unstable_by(|&a, &b| {
         let len = |id: DataId| module.data[id].bytes.known().map_or(0, |bytes| bytes.len());
@@ -909,7 +921,7 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
     let last = |id: &DataId, data: &Data| (Some(*id) == host || data.emit_in_runtime, *id);
     packed.sort_unstable_by(|id, data, other_id, other| last(id, data).cmp(&last(other_id, other)));
     if packed.values().eq(&module.data) {
-        return false;
+        return None;
     }
     for data_ref in remap.values_mut() {
         data_ref.id = DataId::new(packed.get_index_of(&data_ref.id).unwrap());
@@ -931,7 +943,7 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
         }
     }
     module.data = packed.into_values().collect();
-    true
+    Some(remap)
 }
 
 /// Finds `needle` inside an entry created from an older entry than `needle_id`, at its end when

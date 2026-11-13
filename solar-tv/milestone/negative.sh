@@ -20,8 +20,10 @@
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
 #   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
 #   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), each when
-#   present;
+#   of call and the check of that call's success dropped (a failed call goes on), the value
+#   its first create or create2 sends plus one, the first push of where the program data starts
+#   (a create's creation code) plus one, and the check of its first creation's success dropped
+#   (a failed creation goes on), each when present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -329,6 +331,36 @@ print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-call-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/call-check.py"
 
+# The value the first contract creation sends, pushed last before it, plus one: the new contract
+# sees another value.
+try "$last-create-value" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" <<'EOF'
+import re
+m = re.search(r"\.op \(\.stack \(\.push (\d+)\)\),\n\s*\.effect \.create2? \d", s)
+if m is None: sys.exit(3)
+print(f"  create value {m.group(1)} as {int(m.group(1)) + 1}")
+s = s[:m.start(1)] + str(int(m.group(1)) + 1) + s[m.end(1):]
+EOF
+
+# Where the program data starts, as the first push of it, plus one: a create's creation code is
+# copied from the next byte.
+python3 - "$gen/Bytecode.lean" > "$tmp/create-code.py" <<'EOF'
+import re, sys
+m = re.search(r"def dataStart : Nat := (\d+)", open(sys.argv[1]).read())
+print(f"old, new = '(.push {m.group(1)}))', '(.push {int(m.group(1)) + 1}))'" if m else "sys.exit(3)")
+print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
+EOF
+try "$last-create-code" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/create-code.py"
+
+# The check of the first contract creation's success dropped: the jump on a zero address pops
+# its condition instead, so a failed creation goes on as a successful one.
+try "$last-no-create-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" <<'EOF'
+import re
+m = re.search(r"\.effect \.create2? \d,[^\]]*?\.op \(\.stack \.iszero\),\n\s*(\.jumpi \d+,)", s)
+if m is None: sys.exit(3)
+print(f"  {m.group(1)} after the creation as a pop")
+s = s[:m.start(1)] + ".op (.stack .pop)," + s[m.end(1):]
+EOF
+
 try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" < "$tmp/add-sub.py"
 
 # Each lowered MIR pass that changes code, against its input: the first branch it wrote taken
@@ -395,6 +427,8 @@ def dead():
     """The lines of blocks that only the failure edges of lowered facts reach. A fact
     (`assume`) holds on every run the stage proof covers, so a pass that checks it with a
     branch to a revert writes code that never runs, and an edit there is no mutant."""
+    assumed = set(re.findall(r"\.assume (true|false) \.(\w+) \[([^\[\]]*)\]", input))
+    written = set(wrote)
     blocks, fn, bb = {}, None, None
     for j, line in enumerate(after):
         t = line.strip()
@@ -407,6 +441,14 @@ def dead():
         facts = {m.group(1) for j in range(j1, j2 + 1)
                  if any(".assume" in line for line in replaced.get(j, []))
                  for m in re.finditer(r"\.(?:pure|ne) (\d+) ", after[j])}
+        # A fact the pass tests in a block it added: a test it wrote of an input fact's operands,
+        # `gt` for `assume true .gt` and `ne` for `assume false .eq`.
+        facts |= {m.group(1) for j in range(j1, j2 + 1) if j in written
+                  for m in re.finditer(r"\.pure (\d+) \.(\w+) \[([^\[\]]*)\]", after[j])
+                  if ("true", m.group(2), m.group(3)) in assumed}
+        facts |= {m.group(1) for j in range(j1, j2 + 1) if j in written
+                  for m in re.finditer(r"\.ne (\d+) \(([^()]*)\) \(([^()]*)\)", after[j])
+                  if ("false", "eq", f"{m.group(2)}, {m.group(3)}") in assumed}
         targets = re.findall(r"\.jump (\d+)", text)
         for m in re.finditer(r"\.branch \(\.(\w+) ([^()]*)\) (\d+) (\d+)", text):
             targets += [m.group(4)] if m.group(1) == "value" and m.group(2) in facts else [m.group(3), m.group(4)]

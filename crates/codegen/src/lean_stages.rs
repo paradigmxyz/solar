@@ -42,9 +42,11 @@
 //!
 //! Program data after the code, such as the creation code of a contract the runtime code
 //! creates, is copied with `CODECOPY` from the code, its offset and sizes written as
-//! `⟪dataoffset D O⟫` and `⟪datasize D A L⟫` until assembly fixes them ([`write_manifest`]), and
-//! the bytecode the stages are checked against is the code before it. `CREATE` and `CREATE2` take
-//! the new address from the oracle.
+//! `⟪dataoffset K O⟫` and `⟪datasize K A L⟫` until assembly fixes them ([`write_manifest`]), and
+//! the bytecode the stages are checked against is the code before it. `K` names the data by what
+//! it holds ([`data_key`]), not by its number, since MIR, the EVM IR passes and final assembly
+//! each number data their own way, and final assembly shares equal creation code and bytes
+//! another entry contains. `CREATE` and `CREATE2` take the new address from the oracle.
 //!
 //! An immutable is the word the deployment code writes over its placeholder, which MIR's
 //! `loadimmutable` and EVM IR's placeholder push both read. Only a `PUSH32` placeholder holds the
@@ -67,7 +69,7 @@ use crate::backend::evm::call_projection;
 use alloy_primitives::U256;
 use sha2::{Digest, Sha256};
 use solar_data_structures::{
-    index::index_vec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use solar_evmir::{
@@ -76,9 +78,9 @@ use solar_evmir::{
 };
 use solar_interface::{Result, diagnostics::ErrorGuaranteed};
 use solar_mir::{
-    AllocationPlacement, AllocationSemantics, AssumePredicate, BlockId, Callee, DataRef, DataSize,
-    Function, FunctionId, Immediate, InstId, InstKind, MirPhase, MirType, Module, PtrLocation,
-    Semantics, Terminator, Value, ValueId,
+    AllocationPlacement, AllocationSemantics, AssumePredicate, BlockId, Callee, Data, DataBytes,
+    DataId, DataRef, DataSize, Function, FunctionId, Immediate, InstId, InstKind, MirPhase,
+    MirType, Module, PtrLocation, Semantics, Terminator, Value, ValueId,
 };
 use solar_sema::Gcx;
 use std::{
@@ -650,7 +652,7 @@ fn mir_function(module: &Module, id: FunctionId, func: &Function) -> Result<Stri
                 let dst = mir_result(instruction.result_ty, result, false, false)
                     .map_err(|m| at(format!("`datasize`: {m}")))?;
                 // v = datasize D: the size assembly fixes
-                insts.push(format!(".word {dst} (.const {})", data_size(size)));
+                insts.push(format!(".word {dst} (.const {})", data_size(&module.data, size)));
                 continue;
             }
             match kind.semantics() {
@@ -699,7 +701,7 @@ fn mir_function(module: &Module, id: FunctionId, func: &Function) -> Result<Stri
                     // datacopy D, dest, size: codecopy dest, dataoffset D, size
                     insts.push(format!(
                         ".effect none .codecopy [{dest}, .const {}, {size}]",
-                        data_offset(data)
+                        data_offset(&module.data, data)
                     ));
                 }
                 Some(Semantics::NotEqual(a, b)) => {
@@ -905,14 +907,28 @@ fn multi_returns(
     Ok((projections, elided))
 }
 
+/// The name of program data that every stage and final assembly share: a hash of the contract
+/// whose code it is, or of its bytes.
+pub(crate) fn data_key(data: &Data) -> String {
+    let digest = match &data.bytes {
+        DataBytes::Known(bytes) => Sha256::new().chain_update(b"bytes:").chain_update(bytes),
+        DataBytes::Deferred(code) => {
+            Sha256::new().chain_update(b"code:").chain_update(format!("{code:?}"))
+        }
+    }
+    .finalize();
+    digest[..8].iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// The placeholder of the offset of program data in the runtime code, which assembly fixes.
-fn data_offset(data: DataRef) -> String {
-    format!("⟪dataoffset {} {}⟫", data.id.index(), data.offset)
+fn data_offset(data: &IndexVec<DataId, Data>, at: DataRef) -> String {
+    format!("⟪dataoffset {} {}⟫", data_key(&data[at.id]), at.offset)
 }
 
 /// The placeholder of a size derived from program data's length, which assembly fixes.
-fn data_size(size: DataSize) -> String {
-    format!("⟪datasize {} {} {}⟫", size.data.index(), size.addend, u8::from(size.aligned))
+fn data_size(data: &IndexVec<DataId, Data>, size: DataSize) -> String {
+    let key = data_key(&data[size.data]);
+    format!("⟪datasize {key} {} {}⟫", size.addend, u8::from(size.aligned))
 }
 
 /// The value numbers a call binds for each parameter: every value of the parameter, once each,
@@ -1147,11 +1163,17 @@ fn evm_program(program: &ir::Module) -> Result<String, String> {
                     }
                     // push the offset of program data, which assembly fixes
                     PushValue::Data(data) => {
-                        instrs.push(format!(".op (.stack (.push {}))", data_offset(*data)));
+                        instrs.push(format!(
+                            ".op (.stack (.push {}))",
+                            data_offset(&program.data, *data)
+                        ));
                     }
                     // push a size derived from program data's length, which assembly fixes
                     PushValue::DataSize(size) => {
-                        instrs.push(format!(".op (.stack (.push {}))", data_size(*size)));
+                        instrs.push(format!(
+                            ".op (.stack (.push {}))",
+                            data_size(&program.data, *size)
+                        ));
                     }
                     other => return Err(at(format!("push of {other:?} has no Lean semantics"))),
                 }
@@ -1256,21 +1278,23 @@ fn lean_string(s: &str) -> String {
 
 /// Writes the offsets and sizes of program data that assembly fixed into the stages, replacing
 /// their placeholders, and returns where the code ends: the program data follows it to the end of
-/// the runtime code. Data that does not, or a placeholder of data the runtime code lacks, is an
-/// error.
+/// the runtime code. `data` is where final assembly put each entry it was given, by
+/// [`data_key`], with its length; entries may overlap, as assembly shares equal bytes. Data that
+/// does not follow the code, a placeholder of data the runtime code lacks, or of data placed at
+/// two offsets, is an error.
 fn program_data(
     gcx: Gcx<'_>,
     dir: &Path,
     contract: &str,
     len: usize,
-    data: &[(usize, usize, usize)],
+    data: &[(String, usize, usize)],
 ) -> Result<usize> {
     let mut placed = data.to_vec();
-    placed.sort_unstable_by_key(|&(_, offset, _)| offset);
+    placed.sort_unstable_by_key(|&(_, offset, size)| (offset, size));
     let code_end = placed.first().map_or(len, |&(_, offset, _)| offset);
-    let end = placed
-        .iter()
-        .try_fold(code_end, |end, &(_, offset, size)| (offset == end).then_some(end + size));
+    let end = placed.iter().try_fold(code_end, |end, &(_, offset, size)| {
+        (offset <= end).then_some(end.max(offset + size))
+    });
     if end != Some(len) {
         return Err(error(
             gcx,
@@ -1299,16 +1323,28 @@ fn program_data(
             let Some(len) = rest[start..].find('⟫') else { break };
             let marker = &rest[start + '⟪'.len_utf8()..start + len];
             rest = &rest[start + len + '⟫'.len_utf8()..];
-            let fields = marker.split(' ').skip(1).map(str::parse::<u64>).collect::<Vec<_>>();
-            let found = |id: u64| placed.iter().find(|&&(data, ..)| data as u64 == id);
-            let value = match (marker.split(' ').next(), fields.as_slice()) {
+            let mut words = marker.split(' ');
+            let (kind, key) = (words.next(), words.next().unwrap_or_default());
+            let fields = words.map(str::parse::<u64>).collect::<Vec<_>>();
+            let mut places = placed.iter().filter(|(data, ..)| data == key);
+            let found = places.next().filter(|first| places.all(|other| other == *first));
+            if found.is_none() && placed.iter().any(|(data, ..)| data == key) {
+                return Err(error(
+                    gcx,
+                    format_args!(
+                        "in `{file}` of `{contract}`: the runtime code has program data {key} \
+                         at several offsets"
+                    ),
+                ));
+            }
+            let value = match (kind, fields.as_slice()) {
                 // the data's offset in the runtime code, plus the offset into it
-                (Some("dataoffset"), [Ok(id), Ok(offset)]) => {
-                    found(*id).map(|&(_, at, _)| U256::from(at) + U256::from(*offset))
+                (Some("dataoffset"), [Ok(offset)]) => {
+                    found.map(|&(_, at, _)| U256::from(at) + U256::from(*offset))
                 }
                 // the data's length plus the addend, rounded down to a word when aligned
-                (Some("datasize"), [Ok(id), Ok(addend), Ok(aligned @ (0 | 1))]) => {
-                    found(*id).map(|&(_, _, size)| {
+                (Some("datasize"), [Ok(addend), Ok(aligned @ (0 | 1))]) => {
+                    found.map(|&(_, _, size)| {
                         let size = U256::from(size) + U256::from(*addend);
                         if *aligned == 1 { size & !U256::from(31) } else { size }
                     })
@@ -1319,8 +1355,7 @@ fn program_data(
                 return Err(error(
                     gcx,
                     format_args!(
-                        "in `{file}` of `{contract}`: the runtime code has no program data {}",
-                        marker.split(' ').nth(1).unwrap_or_default()
+                        "in `{file}` of `{contract}`: the runtime code has no program data {key}"
                     ),
                 ));
             };
@@ -1360,7 +1395,7 @@ pub fn write_manifest(
     runtime: &[u8],
     libraries: bool,
     immutables: &[(usize, usize)],
-    data: &[(usize, usize, usize)],
+    data: &[(String, usize, usize)],
     info: &ManifestInfo<'_>,
 ) -> Result {
     let Some(dir) = contract_dir(gcx, contract) else { return Ok(()) };
@@ -1559,7 +1594,7 @@ pub fn write_manifest(
     if !data.is_empty() {
         json["data"] = data
             .iter()
-            .map(|&(id, offset, size)| serde_json::json!({ "id": id, "offset": offset, "size": size }))
+            .map(|(key, offset, size)| serde_json::json!({ "key": key, "offset": offset, "size": size }))
             .collect();
     }
     if !immutables.is_empty() {

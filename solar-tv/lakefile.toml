@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# factory: the stages of milestone/factory/factory.sol's Factory and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "factory"
+srcDir = "milestone"
+roots = ["factory.Proofs"]
+globs = ["factory.+"]
+moreLeanArgs = ["-M", "3000"]

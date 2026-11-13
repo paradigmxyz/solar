@@ -14,7 +14,7 @@ use crate::{
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryTable},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 impl Assembler<'_> {
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
@@ -98,11 +98,26 @@ impl Assembler<'_> {
         if failed {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        if ir_program.link(bytecodes, libraries) {
+        // NOTE: Lean stages name data by what it holds, which linking fills in and packing shares:
+        // record each entry's name before linking and its length after.
+        let mut data = (self.gcx.sess.opts.unstable.emit_lean_stages.is_some()).then(|| {
+            ir_program
+                .data
+                .iter()
+                .map(|data| (crate::lean_stages::data_key(data), 0))
+                .collect::<Vec<_>>()
+        });
+        let linked = ir_program.link(bytecodes, libraries);
+        for ((_, len), entry) in data.iter_mut().flatten().zip(&ir_program.data) {
+            *len = entry.bytes.known().map_or(0, |bytes| bytes.len());
+        }
+        let mut remap = None;
+        if linked {
             ir_program.fold_data_sizes();
             // With literal sizes, linked bytes can share storage with other data.
-            let _changed = ir::pack_linked_data(&mut ir_program);
+            remap = ir::pack_linked_data(&mut ir_program);
         }
+        let data_keys = data_keys(data.unwrap_or_default(), remap.as_ref());
         let errors_before = self.gcx.dcx().err_count();
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
@@ -118,8 +133,24 @@ impl Assembler<'_> {
         };
         self.block_labels = labels;
         self.block_labels.clear();
-        PreparedAssembly { evm_ir, program }
+        PreparedAssembly { evm_ir, program, data_keys }
     }
+}
+
+/// Where packing put each data entry, named and with its length: the same entry unless it moved.
+fn data_keys(
+    data: Vec<(String, usize)>,
+    remap: Option<&FxHashMap<ir::DataId, ir::DataRef>>,
+) -> Vec<(String, ir::DataRef, usize)> {
+    data.into_iter()
+        .enumerate()
+        .filter_map(|(id, (key, len))| {
+            let id = ir::DataId::new(id);
+            let at =
+                remap.map_or(Some(ir::DataRef::new(id, 0)), |remap| remap.get(&id).copied())?;
+            Some((key, at, len))
+        })
+        .collect()
 }
 
 fn failed_preparation(ir_program: ir::Module, capture_evm_ir: bool) -> PreparedAssembly {

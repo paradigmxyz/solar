@@ -216,6 +216,11 @@ def main():
     bytecode_text = (args.gen / "Bytecode.lean").read_text()
     hexcode = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bytecode_text).group(1)
     code = bytes.fromhex(hexcode)
+    # Program data after the code, such as the creation code of a contract it creates, is not
+    # code: `bytecode` and the walk stop where it starts.
+    data_start = re.search(r"def dataStart : Nat := (\d+)", bytecode_text)
+    if data_start:
+        code = code[:int(data_start.group(1))]
     dests, pc = [], 0
     while pc < len(code):
         op = code[pc]

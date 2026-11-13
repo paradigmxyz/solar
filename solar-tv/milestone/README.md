@@ -37,8 +37,10 @@ one, its call value check, its overflow check, its first log, the signature topi
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
 `keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
 first `mul`, its first range test of a narrow product, the kind of its first external call and
-the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
-output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
+the check of that call's success, the value its first contract creation sends, where the program
+data starts (the creation code it copies) and the check of that creation's success; the
+scheduled EVM IR's first `add`; in each lowered MIR pass's output, the first branch it wrote
+taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
 its first constant plus one; the last MIR stage's first return of several words in reverse order
 and the first further result a call binds left unbound) and requires each generated proof to
@@ -207,6 +209,22 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [factory](factory/factory.sol): `Factory.make()` returns `address(new Child())` and
+  `make2(bytes32)` returns `address(new Twin{salt: salt}())`, where `Child` and `Twin` are empty
+  contracts with the same creation code; 188 bytes of runtime bytecode, the last 20 of them that
+  creation code, which final assembly holds once for both creates. Each create copies it with
+  `CODECOPY` from offset 168, takes the new address from the oracle (any creation's, zero for a
+  failed one) and forwards a failed creation's return data with `RETURNDATACOPY` and `REVERT`.
+  Stages `stage0 → mir1 → sched → evm1 → … → evm14` (`lower-assumes`, `stack-schedule`, then
+  `peephole-early` to `final-reorder-pushes`) and `evm14 → bytecode`, all proved for every oracle:
+  `SolarTV.Milestone.Factory.factory_mir_to_evmir`. Its negative tests also send another value
+  with the first creation, copy its creation code from the next byte, and drop the check of its
+  success.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/factory/factory.sol Factory
 ```
 
 ## Limits
