@@ -209,6 +209,23 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
 ```
 
+- [call_cleanup](call_cleanup/call_cleanup.sol): `contract CallCleanup`, whose `f(uint256)` and
+  `g(uint256)` pass `x & 0x7f` and `x >> 250` to an internal `low(uint256)` that returns
+  `uint8(a) + 1` unchecked; 83 bytes of runtime bytecode, compiled with the required lowerings
+  and then `call-cleanup` on lowered MIR ([call_cleanup/options](call_cleanup/options)). Integer
+  lowering spells `low`'s truncation and its wrapping sum as masks with 255; every caller passes
+  a word of at most 7 bits, so `call-cleanup` drops both masks (`stage0 → mir1`), which the stage
+  proof closes with `sym_word` reading the sum under the mask as a sum modulo the word size. Then
+  `mir1 → sched → evm1 → … → evm5` and `evm5 → bytecode`, all proved:
+  `SolarTV.Milestone.CallCleanup.call_cleanup_mir_to_evmir`. `coalesce-allocs`, the next pass by
+  name, has no milestone: it fuses `alloc`s, which `lower-alloc` expands before the lowered phase
+  (an `alloc` past `lower-evm-shaped` is an error), so on the lowered MIR the stages start from it
+  has nothing to change.
+
+```sh
+LEAN_MEMORY=3000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/call_cleanup/call_cleanup.sol CallCleanup
+```
+
 ## Limits
 
 The scope is the exporter's fragment (anything else is a compile error naming it) and loop-free

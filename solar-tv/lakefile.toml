@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# call_cleanup: the stages of milestone/call_cleanup/call_cleanup.sol's CallCleanup and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "call_cleanup"
+srcDir = "milestone"
+roots = ["call_cleanup.Proofs"]
+globs = ["call_cleanup.+"]
+moreLeanArgs = ["-M", "3000"]
