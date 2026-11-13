@@ -819,8 +819,7 @@ the same check, it reports a warning with the same code. Not every check
 matches yet: for example, a misplaced `@return` can warn 2604 instead of 6546,
 a bare `@custom` warns 6546 instead of 6564, and a `@param` tag without a
 description, which `solc` rejects with 9942, passes silently. Of the NatSpec
-checks, only a misused
-`@custom:solar-` tag (TYPECK-022) is an error.
+checks, only a misused `@custom:solar-` tag (TYPECK-022) is an error.
 
 Rationale: a documentation mistake should not fail a build
 ([#1281](https://github.com/paradigmxyz/solar/pull/1281)).
