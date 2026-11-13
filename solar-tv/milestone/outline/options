@@ -1,0 +1,4 @@
+-Osize
+--evm-version
+osaka
+-Zevm-ir-pipeline=outline,cfg-simplify-early

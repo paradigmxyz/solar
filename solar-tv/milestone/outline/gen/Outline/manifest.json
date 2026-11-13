@@ -1,0 +1,66 @@
+{
+  "arguments": [
+    "solar-tv/milestone/outline/outline.sol",
+    "-Osize",
+    "--evm-version",
+    "osaka",
+    "-Zevm-ir-pipeline=outline,cfg-simplify-early",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/outline/gen"
+  ],
+  "bytecode": "604436103417602c575f3560e01c8063773d45e01460305780639c34a15f14603c578063cffe3ba0146036575b5f5ffd5b6054603f565b6058603f565b60625b6004356024358160031b8160071c1891161790565b5f55005b5f54015f5260205ff35b6005025f5260205ff3",
+  "bytecode_sha256": "46a77025729e9bdde96337a602e59dcf72e91b70e5b3a95fffca14c3dcea8bfe",
+  "compiler": "0.8.38+commit.3a044a9d.solar.0.3.0-dev",
+  "contract": "Outline",
+  "evm_version": "osaka",
+  "optimization": "Size",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/outline/outline.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Size, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"evm-ir-pipeline=outline,cfg-simplify-early\", \"emit-lean-stages=solar-tv/milestone/outline/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: Some(\"outline,cfg-simplify-early\"), print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/outline/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/outline/outline.sol",
+      "sha256": "d34d3c54ecb9feab0a66be7552e790c65dc84729015a04725b98c14648bedfb3"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "8518174ffeb0fd3272fc6f72bac11e3d9d614839be6482928c05881df47c0d97"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "5ec2c0f125cc7c713e4e6de72812c17efd523208b6512d643e6723657061fa6b"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "outline",
+      "sha256": "bd03dc7f5d55a67b6b9e5a580fba47370571976202cfe4eb2949ae48549a3d62"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "8a9b70caae3c1849c942935306a7b2ba13f494a41e3fc308c127e76d236f4993"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "a16bf5d6de9d63b218cbb2ebd0ff891f6448dcaebd0cd93e8231e5543c0c8019"
+    }
+  ]
+}

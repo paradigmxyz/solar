@@ -1,0 +1,66 @@
+{
+  "arguments": [
+    "solar-tv/milestone/fallthrough/fallthrough.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "-Zevm-ir-pipeline=jumpi-fallthrough,cfg-simplify-early",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/fallthrough/gen"
+  ],
+  "bytecode": "34603b575f3560e01c806313d1aa2e14603f578063a61510ae14606d578063e420264a03603b576024361060695760043580156062575f556067565b5f5ffd5b60443610605e576004356024358181106058575f55605c565b505f555b005b5f5ffd5b60015f555b005b5f5ffd5b60443610608e57602435600435141560875760035f55608c565b60025f555b005b5f5ffd",
+  "bytecode_sha256": "a01a270c2b7a353cc56b1b5c88855724637ae67b65fed40f256873c9a1c424c7",
+  "compiler": "0.8.38+commit.3a044a9d.solar.0.3.0-dev",
+  "contract": "Fallthrough",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/fallthrough/fallthrough.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"evm-ir-pipeline=jumpi-fallthrough,cfg-simplify-early\", \"emit-lean-stages=solar-tv/milestone/fallthrough/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: Some(\"jumpi-fallthrough,cfg-simplify-early\"), print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/fallthrough/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/fallthrough/fallthrough.sol",
+      "sha256": "b08ceac6347c5ea34d91056b94a7bd449d00e3874ee7535f54fc0fae4b23bfe0"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "c8f988b80e3ffcdcdf82473c84f59f39b4eb1f1a5520bd596e9181ce8684b48c"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "de073dd203d744a5b4fabdc53e31f712f4c6dca8f50aebd01cb88ac05b5ae2a4"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "jumpi-fallthrough",
+      "sha256": "31fee9af0dd1918fa7ef712f3e47dac293adc501c34770d3dfc4a8d3be0ef611"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "4e1402014908e0543c6406bba7ee6618534deb7ca8525ef072ea0c87112c75aa"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "2169b84292f1515a25d83d5257681bdcd2843956a9301a67eb6b36005e4cbbd6"
+    }
+  ]
+}

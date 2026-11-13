@@ -84,3 +84,21 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# outline: the stages of milestone/outline/outline.sol's Outline and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "outline"
+srcDir = "milestone"
+roots = ["outline.Proofs"]
+globs = ["outline.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# fallthrough: the stages of milestone/fallthrough/fallthrough.sol's Fallthrough and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "fallthrough"
+srcDir = "milestone"
+roots = ["fallthrough.Proofs"]
+globs = ["fallthrough.+"]
+moreLeanArgs = ["-M", "3000"]

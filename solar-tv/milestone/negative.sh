@@ -33,6 +33,11 @@
 #   inputs swapped (in live code: when every such phi is on the failure path of a lowered fact,
 #   which never runs, the first test or subtraction it added with its operands swapped), and the
 #   first pure operation as another one (xor as and, add as sub, lt as gt, ...);
+# - each EVM IR pass output that changes code, against its input (the scheduled EVM IR for the
+#   first): in the lines the pass wrote, its first branch (`jumpi; jump`) taken the other way,
+#   else its first pushed label (a continuation) as the label another site it wrote pushes, else
+#   its first constant plus one; and its first word operation as another one (a test as its
+#   negation: eq as sub, sub as eq), else its first dup or swap one position deeper;
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
 #   words in reverse order, and the first further result a call binds left unbound, when
 #   present.
@@ -452,6 +457,84 @@ EOF
         [[ $kind == wrote ]] || label=$output-wrote-$kind
         try "$label" "$gen/$output.lean" "$output" "$proofs/Runs/$output.lean" "$mismatch" \
             < "$tmp/$output-$kind.py"
+    done
+done
+
+# Each EVM IR pass that changes code, against its input (the scheduled EVM IR for the first): in
+# the lines the pass wrote, its first branch (a jumpi and the jump after it) taken the other way,
+# else its first pushed label (a continuation) as the label another site it wrote pushes, else
+# its first constant plus one; and, as a second case, its first word operation as another one
+# (eq as sub, sub as eq, add as sub, ...), else its first dup or swap one position deeper.
+mapfile -t evm_passes < <(python3 -c '
+import json, sys
+s = [s for s in json.load(open(sys.argv[1]))["stages"] if s["kind"] in ("sched", "evm")]
+for a, b in zip(s, s[1:]): print(a["file"][:-5], b["file"][:-5])
+' "$gen/manifest.json")
+for pair in "${evm_passes[@]}"; do
+    read -r input output <<<"$pair"
+    if [[ $output != "$last" ]]; then
+        edit "$output-control" "$gen/$output.lean" <<<'pass'
+        check "$output-control" "$output" "$proofs/Runs/$output.lean" pass
+    fi
+    for kind in wrote op; do
+        python3 - "$gen/$input.lean" "$kind" > "$tmp/$output-evm-$kind.py" <<'EOF'
+import sys
+print(f"input = open({sys.argv[1]!r}).read()")
+print(f"kind = {sys.argv[2]!r}")
+print(r'''
+import difflib, re
+before, after = input.splitlines(keepends=True), s.splitlines(keepends=True)
+ops = difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes()
+wrote = [j for tag, _, _, j1, j2 in ops if tag in ("replace", "insert") for j in range(j1, j2)
+         if after[j].startswith("    ") and not after[j].lstrip().startswith(("--", "/-", "def "))]
+def bare(j): return after[j].strip().lstrip("[").rstrip(",]} ")
+hit = None
+if kind == "wrote":
+    for j in wrote:
+        a = re.fullmatch(r"\.jumpi (\d+)", bare(j))
+        b = j + 1 < len(after) and re.fullmatch(r"\.jump (\d+)", bare(j + 1))
+        if a and b and a.group(1) != b.group(1):
+            hit = [(j, a.group(0), ".jumpi " + b.group(1)), (j + 1, b.group(0), ".jump " + a.group(1))]
+            break
+    labels = [(j, m.group(1)) for j in wrote for m in [re.fullmatch(r"\.pushLabel (\d+)", bare(j))] if m]
+    other = [label for _, label in labels if label != labels[0][1]]
+    if hit is None and other:
+        hit = [(labels[0][0], ".pushLabel " + labels[0][1], ".pushLabel " + other[0])]
+    if hit is None:
+        for j in wrote:
+            m = re.search(r"\(\.push (0x[0-9a-f]+|\d+)\)", after[j])
+            if m:
+                new = int(m.group(1), 0) + 1
+                hit = [(j, m.group(0), "(.push %s)" % (hex(new) if m.group(1).startswith("0x") else new))]
+                break
+else:
+    # A test as its negation where there is one (eq as sub, sub as eq), so that the edited branch
+    # stays a condition the procedure decides.
+    others = {"xor": "and", "and": "or", "or": "xor", "add": "sub", "sub": "eq", "mul": "add",
+              "lt": "gt", "gt": "lt", "slt": "sgt", "sgt": "slt", "shl": "shr", "shr": "shl",
+              "eq": "sub", "iszero": "not", "div": "mul", "mod": "add"}
+    for j in wrote:
+        m = re.search(r"\(\.stack \.(\w+)\)", after[j])
+        if m and m.group(1) in others:
+            hit = [(j, m.group(0), "(.stack .%s)" % others[m.group(1)])]
+            break
+    if hit is None:
+        for j in wrote:
+            m = re.search(r"\(\.(dup|swap) (\d+)\)", after[j])
+            if m and int(m.group(2)) < 15:
+                hit = [(j, m.group(0), "(.%s %d)" % (m.group(1), int(m.group(2)) + 1))]
+                break
+if hit is None: sys.exit(3)
+for j, old, new in hit:
+    print(f"  line {j + 1}: {old} as {new}")
+    after[j] = after[j].replace(old, new, 1)
+s = "".join(after)
+''')
+EOF
+        label=$output-wrote
+        [[ $kind == wrote ]] || label=$output-wrote-$kind
+        try "$label" "$gen/$output.lean" "$output" "$proofs/Runs/$output.lean" "$mismatch" \
+            < "$tmp/$output-evm-$kind.py"
     done
 done
 

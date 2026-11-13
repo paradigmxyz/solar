@@ -40,10 +40,13 @@ first `mul`, its first range test of a narrow product, the kind of its first ext
 the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
-its first constant plus one; the last MIR stage's first return of several words in reverse order
-and the first further result a call binds left unbound) and requires each generated proof to
-fail with its mismatch, with unedited controls passing. Once `milestone/NAME` is committed, a rerun
-must regenerate it byte for byte (up to the compiler's build commit in the manifest).
+its first constant plus one; in each EVM IR pass's output, the first branch it wrote taken the
+other way, else the first continuation label it wrote as another site's, else its first constant
+plus one, and its first word operation as another one, a test as its negation; the last MIR stage's
+first return of several words in reverse order and the first further result a call binds left
+unbound) and requires each generated proof to fail with its mismatch, with unedited controls
+passing. Once `milestone/NAME` is committed, a rerun must regenerate it byte for byte (up to the
+compiler's build commit in the manifest).
 
 w1's proofs ([w1/proofs/W1Proofs](w1/proofs/W1Proofs)) are certify.py's output too, with their
 exact axiom sets pinned; [w1/check.sh](w1/check.sh) checks that they regenerate unchanged.
@@ -207,6 +210,35 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [outline](outline/outline.sol): three functions (`a(uint256,uint256)` stores, `b` adds the slot,
+  `c` multiplies by five) each start from the same closed computation of their two arguments,
+  `((x << 3) ^ (y >> 7)) | (x & y)`, compiled with `-Osize` and
+  `-Zevm-ir-pipeline=outline,cfg-simplify-early` ([outline/options](outline/options)). `outline`
+  replaces the three copies of the 14-instruction run (both calldata reads included) with a jump to
+  one shared body that returns through the continuation label each site pushes (`sched → evm1`),
+  108 bytes of runtime bytecode against 126 without it; `cfg-simplify-early` then merges the
+  dispatcher's jump blocks (`evm1 → evm2`). All proved:
+  `SolarTV.Milestone.Outline.outline_mir_to_evmir`. Its negative tests also return one site's call
+  to another site's continuation and return through the wrong stack word.
+
+```sh
+LEAN_MEMORY=3000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/outline/outline.sol Outline
+```
+
+- [fallthrough](fallthrough/fallthrough.sol): three functions that store one of two words on a
+  comparison (`a > b`, `a == 0`, `a != b`), compiled with
+  `-Zevm-ir-pipeline=jumpi-fallthrough,cfg-simplify-early`
+  ([fallthrough/options](fallthrough/options)), 146 bytes. Stack scheduling leaves the last
+  selector test as `eq; push bbN; jumpi; jump revert` with bbN, the jump to that selector's
+  function, next; `jumpi-fallthrough` turns it into `sub; push revert; jumpi`, falling into bbN
+  (`sched → evm1`), one byte less, and `cfg-simplify-early` merges the jump blocks (`evm1 → evm2`).
+  All proved: `SolarTV.Milestone.Fallthrough.fallthrough_mir_to_evmir`. Its negative tests also
+  send the turned branch back to the selector's function and test it with `eq` again.
+
+```sh
+LEAN_MEMORY=3000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/fallthrough/fallthrough.sol Fallthrough
 ```
 
 ## Limits

@@ -1,0 +1,4 @@
+-Ogas
+--evm-version
+osaka
+-Zevm-ir-pipeline=jumpi-fallthrough,cfg-simplify-early
