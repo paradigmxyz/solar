@@ -1,0 +1,49 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=lower-builtins,lower-checks,lower-arithmetic,lower-slices,lower-memory-objects,lower-alloc,lower-evm-shaped -Zdump=mir
+//@ normalize-stdout-test: "(?s)^.*$" -> ""
+//@ run-call: strided()(uint256,uint256) => 19, 19
+//@ filecheck:
+@module PackedStridedArray
+
+// The gap between elements contains 999. A contiguous copy would return it
+// instead of the second element, for both dynamic and fixed memory layouts.
+fn @entry() [entry] {
+  bb0:
+    mstore 64, 128
+    mstore 256, 2
+    mstore 288, 17
+    mstore 320, 999
+    mstore 352, 19
+    v0 = inttoptr i256 256 to ptr<memory>
+    v1 = icall @dynamic, v0
+    v2 = inttoptr i256 288 to ptr<memory>
+    v3 = icall @fixed, v2
+    mstore 0, v1
+    mstore 32, v3
+    returndata 0, 64
+}
+
+// CHECK-LABEL: fn @dynamic(
+// CHECK-NOT: mcopy
+// CHECK: mul {{.*}}, 2
+// CHECK: mload
+// CHECK-NOT: mcopy
+fn @dynamic(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = abi_encode_packed (array<word> memoryarray<2> arg0)
+    v1 = ptradd v0, 64
+    v2 = mload v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @fixed(
+// CHECK-NOT: mcopy
+// CHECK: mul {{.*}}, 2
+// CHECK: mload
+// CHECK-NOT: mcopy
+fn @fixed(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = abi_encode_packed (array<word> memoryfixedarray<2, 2> arg0)
+    v1 = ptradd v0, 64
+    v2 = mload v1
+    ret v2
+}
