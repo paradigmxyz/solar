@@ -34,7 +34,7 @@ MIR_UNFOLD = (
     "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, MIR.State.Value.fits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
     "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
     "MIR.State.allocate, MIR.State.freePointer, MIR.State.memoryOperation, "
-    "MIR.State.abiEncode, MIR.State.abiWriteWords, MIR.State.abiDecode, MIR.State.abiCanonical, "
+    "MIR.State.abiRequirePayload, MIR.State.requireLiteral, MIR.State.failureData, RevertData.fromBytes, MIR.State.abiEncode, MIR.State.abiWriteWords, MIR.State.abiDecode, MIR.State.abiCanonical, "
     "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.reduceClosedRead, Execution.readWord, "
     "Execution.readBytes, Execution.wordBytes, Execution.writeBytes, "
     "Execution.account, Execution.putAccount, Execution.warmSlot, Execution.warmAddress, "
@@ -104,6 +104,18 @@ def check(
     unfold = MIR_UNFOLD if direct_mir else UNFOLD
     if not a.inputs:
         proof = "  decide +kernel\n"
+    elif direct_mir and len(a.inputs) <= 4 and all(width == 1 for width in widths):
+        # A tiny Boolean domain has a complete kernel certificate without
+        # normalizing a machine under unknown control flow. Exhaust every value;
+        # this is not a set of testing assumptions or sampled executions.
+        proof = "  have boolCases : \u2200 value : BitVec 1, value = 0 \u2228 value = 1 := by decide +kernel\n"
+        for index, name in enumerate(a.inputs):
+            proof += (
+                f"  all_goals have cases{index} := boolCases {name}\n"
+                f"  all_goals rcases cases{index} with h | h\n"
+                f"  all_goals subst {name}\n"
+            )
+        proof += "  all_goals decide +kernel\n"
     elif direct_mir:
         # Normalize each execution before comparing it. Keep byte memory abstract
         # for the range-proved read/write laws; expanding every symbolic byte

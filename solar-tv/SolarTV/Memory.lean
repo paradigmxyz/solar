@@ -104,6 +104,7 @@ def code (result : Outcome (Returned width)) : List Word :=
   | .returned result => 0 :: result.value.setWidth 256 :: snapshot result.memory
   | .reverted .empty => [1]
   | .reverted (.panic value) => [2, value]
+  | .reverted (.data bytes) => 4 :: bytes.map (·.setWidth 256)
   | .invalid => [3]
 
 def describeReturn (result : Outcome (Returned width)) : String :=
@@ -111,6 +112,7 @@ def describeReturn (result : Outcome (Returned width)) : String :=
   | .returned result => s!"return={result.value.toNat}, {describe result.memory}"
   | .reverted .empty => "revert(empty)"
   | .reverted (.panic value) => s!"revert Panic({value.toNat})"
+  | .reverted (.data bytes) => s!"revert(data={bytes.map BitVec.toNat})"
   | .invalid => "invalid"
 
 end SolarTV.Memory

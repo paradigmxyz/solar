@@ -455,6 +455,11 @@ Layouts are bounded to depth 32 and 256 nodes; each operation has a work limit o
 Memory slices of static aggregates read contiguous encoded heads; dynamic memory
 aggregates retain their object representation.
 
+Require builtins preserve exact revert bytes, including short and long strings,
+dynamic messages and recursive custom-error arguments. `require(false, "")`
+returns `Error(string)` with an empty string, not an empty revert. Passing checks
+evaluate their arguments but do not read the referenced payload objects.
+
 Packed encodings accept literals and scalars; packed hashes require at most one
 merged word or whole-word parts. Reference packed inputs and physical call-return
 buffers remain unsupported. `validate_abi` needs decoder provenance or canonical

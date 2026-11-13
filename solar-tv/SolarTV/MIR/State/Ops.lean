@@ -3,7 +3,7 @@ import SolarTV.MIR.State.Aggregates
 import SolarTV.MIR.State.Frames
 import SolarTV.MIR.State.Layout
 import SolarTV.MIR.State.Abi
-import SolarTV.MIR.State.AbiEncode
+import SolarTV.MIR.State.AbiRequire
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -204,6 +204,9 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
     | .returned (word,next) => assign next inst.result inst.ty word
     | .reverted data => return .reverted data
     | .invalid => return .invalid
+  | .abi (.require op),operands =>
+    let args ← operands.mapM (readValue frame)
+    abiRequirePayload cfg frame op args
   | .abi (.encodeTree mode hasBase hasSelector shapes memorySlices),operands =>
     let args ← operands.mapM (readValue frame)
     match ← abiEncodeTree cfg frame mode hasBase hasSelector shapes memorySlices args with

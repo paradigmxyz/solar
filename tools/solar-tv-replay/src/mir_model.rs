@@ -486,33 +486,7 @@ fn export_operation(
                 if layout.types.iter().all(|t| matches!(t, AbiType::Word(_) | AbiType::Function)) {
                     json!({"kind":"abi_encode","mode":mode,"base":base.is_some(),"selector":selector.is_some(),"functions":layout.types.iter().map(|t|json!(matches!(t,AbiType::Function))).collect::<Vec<_>>(),"args":operands(module,body,&values)?})
                 } else {
-                    let mut nodes = 0;
-                    let shapes = layout
-                        .types
-                        .iter()
-                        .zip(args)
-                        .map(|(ty, value)| {
-                            let location = body.value_slice_location(*value);
-                            let ty = if let Some(location) = location {
-                                ty.clone().at_location(location)
-                            } else {
-                                ty.clone()
-                            };
-                            abi_encode_shape(&ty, 0, &mut nodes)
-                        })
-                        .collect::<Result<Vec<_>, String>>()?;
-                    let memory_slices = layout
-                        .types
-                        .iter()
-                        .zip(args)
-                        .map(|(ty, value)| {
-                            json!(
-                                body.value_slice_location(*value)
-                                    == Some(solar_mir::PtrLocation::Memory)
-                                    && matches!(ty, AbiType::FixedArray { .. } | AbiType::Tuple(_))
-                            )
-                        })
-                        .collect::<Vec<_>>();
+                    let (shapes, memory_slices) = abi_encode_shapes(body, &layout.types, args)?;
                     json!({"kind":"abi_encode_tree","memory_slices":memory_slices,"mode":mode,"base":base.is_some(),"selector":selector.is_some(),"shapes":shapes,"args":operands(module,body,&values)?})
                 }
             }
@@ -619,9 +593,38 @@ fn export_operation(
             Semantics::Call(Callee::Builtin(Builtin::Check { is_zero, failure }), args) => {
                 json!({"kind":"check","zero":is_zero,"panic":failure_code(*failure)?,"args":operands(module, body,args)?})
             }
-            Semantics::Call(Callee::Builtin(Builtin::Require(RequireKind::EmptyString)), args) => {
-                json!({"kind":"check","zero":true,"panic":null,"args":operands(module, body,args)?})
-            }
+            Semantics::Call(Callee::Builtin(Builtin::Require(kind)), args) => match kind {
+                RequireKind::EmptyString => {
+                    json!({"kind":"require_literal","bytes":[],"args":operands(module,body,args)?})
+                }
+                RequireKind::LongString(bytes) => {
+                    let bytes = bytes.as_byte_str();
+                    if bytes.len() > 65536 {
+                        return Err("require literal exceeds 64 KiB".into());
+                    }
+                    json!({"kind":"require_literal","bytes":bytes.to_vec(),"args":operands(module,body,args)?})
+                }
+                RequireKind::ShortString => {
+                    json!({"kind":"require_short","args":operands(module,body,args)?})
+                }
+                RequireKind::ErrorString | RequireKind::CustomError(_) => {
+                    let (types, values, custom) = match kind {
+                        RequireKind::ErrorString => (
+                            vec![AbiType::Bytes(solar_mir::PtrLocation::Memory)],
+                            args.get(1..).ok_or("require arguments missing")?,
+                            false,
+                        ),
+                        RequireKind::CustomError(layout) => (
+                            layout.types.to_vec(),
+                            args.get(2..).ok_or("require selector missing")?,
+                            true,
+                        ),
+                        _ => unreachable!(),
+                    };
+                    let (shapes, memory_slices) = abi_encode_shapes(body, &types, values)?;
+                    json!({"kind":"require_encode","custom":custom,"shapes":shapes,"memory_slices":memory_slices,"args":operands(module,body,args)?})
+                }
+            },
             _ => {
                 return Err(format!("unmodeled direct MIR operation `{}`", kind.op_def().mnemonic));
             }
@@ -749,4 +752,31 @@ fn abi_validator(validator: Option<AbiWordValidator>) -> Json {
         Some(AbiWordValidator::EnumRange(n)) => ("enumeration", n),
     };
     json!({"kind":kind,"bits":bits,"function":false})
+}
+
+fn abi_encode_shapes(
+    body: &Function,
+    types: &[AbiType],
+    args: &[ValueId],
+) -> Result<(Vec<Json>, Vec<Json>), String> {
+    if types.len() != args.len() {
+        return Err("ABI tuple arity".into());
+    }
+    let mut nodes = 0;
+    let mut shapes = Vec::new();
+    let mut memory_slices = Vec::new();
+    for (ty, &value) in types.iter().zip(args) {
+        let location = body.value_slice_location(value);
+        memory_slices.push(json!(
+            location == Some(solar_mir::PtrLocation::Memory)
+                && matches!(ty, AbiType::FixedArray { .. } | AbiType::Tuple(_))
+        ));
+        let ty = if let Some(location) = location {
+            ty.clone().at_location(location)
+        } else {
+            ty.clone()
+        };
+        shapes.push(abi_encode_shape(&ty, 0, &mut nodes)?);
+    }
+    Ok((shapes, memory_slices))
 }
