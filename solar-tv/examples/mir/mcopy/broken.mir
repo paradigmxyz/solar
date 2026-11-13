@@ -1,0 +1,34 @@
+@module Copy
+@phase lowered
+; runtime dispatch entry
+fn @f() [entry] {
+  bb0:
+    mstore 160, 17
+    v1 = eq 1, 0
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2, bb4
+    v2 = phi [bb2: 0], [bb4: v7]
+    v3 = lt v2, 0
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v8 = lt 0, 1
+    jumpi v8, bb6, bb1
+  bb6:                                            ; preds = bb5
+    v9 = mload 191
+    v10 = byte 0, v9
+    mstore8 0, v10 !metadata(memory=scratch)
+    jump bb1
+  bb4:                                            ; preds = bb3
+    v4 = add v2, 191
+    v5 = mload v4
+    v6 = add v2, 0
+    mstore v6, v5
+    v7 = add v2, 32
+    jump bb3
+  bb1:                                            ; preds = bb0, bb5, bb6
+    v0 = msize
+    mstore 0, v0
+    returndata 0, 32
+}
