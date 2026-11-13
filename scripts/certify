@@ -416,18 +416,18 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
     e2e_kind="contract-specific"
     # Whether each end-to-end theorem is about the freshly exported bytecode: its statement, or
     # else its proof, must reach (through the definitions it unfolds) a constant of the module
-    # NAME.gen.CONTRACT.Bytecode this run exported. A theorem about a checked-in copy of the code
+    # under NAME.gen.CONTRACT (its Bytecode or Manifest) this run exported. A theorem about a checked-in copy of the code
     # that never meets the fresh export is reported unbound. The check only reads the
     # environment, so a failure to run it is reported, never taken as binding.
     bind="$lean_dir/.lake/certify-bind-$name.lean"
     {
         printf 'import Lean\n'
-        printf 'import %s\n' "${umods[@]}" "$name.gen.$contract.Bytecode"
+        printf 'import %s\n' "${umods[@]}" "$name.gen.$contract.Bytecode" "$name.gen.$contract.Manifest"
         cat "$here/bind.lean.in"
         printf '\nopen Lean in\n#eval show CoreM Unit from do\n  let env ← getEnv\n'
-        printf '  let some i := env.getModuleIdx? %s | return\n' "\`$name.gen.$contract.Bytecode"
         for t in "${hthms[@]}"; do
-            printf '  IO.println s!"BIND %s {bindsTo env i %s false} {bindsTo env i %s true}"\n' "$t" "\`$t" "\`$t"
+            printf '  IO.println s!"BIND %s {bindsTo env %s %s false} {bindsTo env %s %s true}"\n' \
+                "$t" "\`$name.gen.$contract" "\`$t" "\`$name.gen.$contract" "\`$t"
         done
     } > "$bind"
     if run lake env lean -M "$memory" "$bind" > "$log" 2>&1; then
@@ -509,15 +509,15 @@ try:
     for line in open(binding_file).read().splitlines():
         t, by_statement, by_proof = line.split()
         binding[t] = (
-            "statement" if by_statement == "true"
-            else "proof only (the statement names a checked-in copy of the code)" if by_proof == "true"
-            else "none (about a checked-in copy of the code, never the fresh export)"
+            "statement reaches the fresh export" if by_statement == "true"
+            else "proof reaches the fresh export, statement does not" if by_proof == "true"
+            else "never reaches the fresh export"
         )
 except (OSError, ValueError):
     pass
 # Headline files also name negative controls (a wrong spec that fails); they bind nothing.
 negative = lambda t: any(w in t.rsplit(".", 1)[-1] for w in ("wrong", "fails", "rejects", "mutant"))
-bound = [t for t in e2e if not negative(t) and binding[t].startswith(("statement", "proof"))]
+bound = [t for t in e2e if not negative(t) and not binding[t].startswith(("never", "not"))]
 # The execution theorem's statement and premises (such as Assemble.EnvOk for environment reads).
 exec_stmt = statement(executes, open(proofs_audit).read()) if executes else None
 try:
