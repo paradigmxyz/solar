@@ -45,6 +45,7 @@ def script0 : Script where
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
+    .app .not [.app .eq [.fn 0 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 1 []], .app .le [.fn 1 [], .int 1461501637330902918203684832716283019655932542975]],
     .app .not [.app .eq [.fn 1 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 2 []], .app .le [.fn 2 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
@@ -121,6 +122,7 @@ def script1 : Script where
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
+    .app .not [.app .eq [.fn 0 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 1 []], .app .le [.fn 1 [], .int 1461501637330902918203684832716283019655932542975]],
     .app .not [.app .eq [.fn 1 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 2 []], .app .le [.fn 2 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
@@ -161,322 +163,322 @@ def script1 : Script where
 /-- ArrayMax.max#0: a query the encoding relies on (not-run). -/
 def ob0 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .and [.bool true, .app .le [.int 1, .int 0], .app .le [.int 1, .int 1], .app .ge [.int 1, .int 1], .app .eq [.int 1, .int 1], .app .le [.int 1, .int 1], .app .ge [.int 1, .int 1], .app .eq [.int 1, .int 1], .app .le [.int 1, .fn 20 []], .app .ge [.int 1, .fn 20 []], .app .eq [.int 1, .fn 20 []], .app .le [.int 1, .fn 17 []], .app .ge [.int 1, .fn 17 []], .app .eq [.int 1, .fn 17 []], .app .le [.int 1, .fn 20 []], .app .ge [.int 1, .fn 20 []], .app .eq [.int 1, .fn 20 []], .app .le [.fn 20 [], .int 0], .app .le [.fn 20 [], .int 1], .app .ge [.fn 20 [], .int 1], .app .eq [.fn 20 [], .int 1], .app .le [.fn 20 [], .int 1], .app .ge [.fn 20 [], .int 1], .app .eq [.fn 20 [], .int 1], .app .le [.fn 20 [], .fn 20 []], .app .ge [.fn 20 [], .fn 20 []], .app .eq [.fn 20 [], .fn 20 []], .app .le [.fn 20 [], .fn 17 []], .app .ge [.fn 20 [], .fn 17 []], .app .eq [.fn 20 [], .fn 17 []], .app .le [.fn 20 [], .int 1], .app .ge [.fn 20 [], .int 1], .app .eq [.fn 20 [], .int 1], .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]]), .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .int 1], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]]), .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 20 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]]), .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]]), .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .int 1], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]]), .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 20 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]]), .app .gt [.fn 17 [], .int 0], .app .gt [.int 1, .int 0], .app .gt [.fn 20 [], .int 0]]
 
 /-- ArrayMax.max#1: a query the encoding relies on (not-run). -/
 def ob1 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.int 1, .int 0]
 
 /-- ArrayMax.max#2: a query the encoding relies on (not-run). -/
 def ob2 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.int 1, .int 1]
 
 /-- ArrayMax.max#3: a query the encoding relies on (not-run). -/
 def ob3 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.int 1, .int 1]
 
 /-- ArrayMax.max#4: a query the encoding relies on (not-run). -/
 def ob4 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.int 1, .int 1]
 
 /-- ArrayMax.max#5: a query the encoding relies on (not-run). -/
 def ob5 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.int 1, .int 1]
 
 /-- ArrayMax.max#6: a query the encoding relies on (not-run). -/
 def ob6 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.int 1, .int 1]
 
 /-- ArrayMax.max#7: a query the encoding relies on (not-run). -/
 def ob7 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.int 1, .int 1]
 
 /-- ArrayMax.max#8: a query the encoding relies on (not-run). -/
 def ob8 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.int 1, .fn 20 []]
 
 /-- ArrayMax.max#9: a query the encoding relies on (not-run). -/
 def ob9 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.int 1, .fn 20 []]
 
 /-- ArrayMax.max#10: a query the encoding relies on (not-run). -/
 def ob10 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.int 1, .fn 20 []]
 
 /-- ArrayMax.max#11: a query the encoding relies on (not-run). -/
 def ob11 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.int 1, .fn 17 []]
 
 /-- ArrayMax.max#12: a query the encoding relies on (not-run). -/
 def ob12 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.int 1, .fn 17 []]
 
 /-- ArrayMax.max#13: a query the encoding relies on (not-run). -/
 def ob13 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.int 1, .fn 17 []]
 
 /-- ArrayMax.max#14: a query the encoding relies on (not-run). -/
 def ob14 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.int 1, .fn 20 []]
 
 /-- ArrayMax.max#15: a query the encoding relies on (not-run). -/
 def ob15 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.int 1, .fn 20 []]
 
 /-- ArrayMax.max#16: a query the encoding relies on (not-run). -/
 def ob16 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.int 1, .fn 20 []]
 
 /-- ArrayMax.max#17: a query the encoding relies on (not-run). -/
 def ob17 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.fn 20 [], .int 0]
 
 /-- ArrayMax.max#18: a query the encoding relies on (not-run). -/
 def ob18 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#19: a query the encoding relies on (not-run). -/
 def ob19 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#20: a query the encoding relies on (not-run). -/
 def ob20 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#21: a query the encoding relies on (not-run). -/
 def ob21 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#22: a query the encoding relies on (not-run). -/
 def ob22 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#23: a query the encoding relies on (not-run). -/
 def ob23 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#24: a query the encoding relies on (not-run). -/
 def ob24 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.fn 20 [], .fn 20 []]
 
 /-- ArrayMax.max#25: a query the encoding relies on (not-run). -/
 def ob25 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.fn 20 [], .fn 20 []]
 
 /-- ArrayMax.max#26: a query the encoding relies on (not-run). -/
 def ob26 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.fn 20 [], .fn 20 []]
 
 /-- ArrayMax.max#27: a query the encoding relies on (not-run). -/
 def ob27 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.fn 20 [], .fn 17 []]
 
 /-- ArrayMax.max#28: a query the encoding relies on (not-run). -/
 def ob28 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.fn 20 [], .fn 17 []]
 
 /-- ArrayMax.max#29: a query the encoding relies on (not-run). -/
 def ob29 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.fn 20 [], .fn 17 []]
 
 /-- ArrayMax.max#30: a query the encoding relies on (not-run). -/
 def ob30 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .le [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#31: a query the encoding relies on (not-run). -/
 def ob31 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .ge [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#32: a query the encoding relies on (not-run). -/
 def ob32 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .eq [.fn 20 [], .int 1]
 
 /-- ArrayMax.max#33: a query the encoding relies on (not-run). -/
 def ob33 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
 /-- ArrayMax.max#34: a query the encoding relies on (not-run). -/
 def ob34 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .int 1], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
 /-- ArrayMax.max#35: a query the encoding relies on (not-run). -/
 def ob35 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 20 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
 /-- ArrayMax.max#36: a query the encoding relies on (not-run). -/
 def ob36 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
 /-- ArrayMax.max#37: a query the encoding relies on (not-run). -/
 def ob37 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .int 1], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
 /-- ArrayMax.max#38: a query the encoding relies on (not-run). -/
 def ob38 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 20 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 20 []]]])
 
 /-- ArrayMax.max#39: a query the encoding relies on (not-run). -/
 def ob39 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .gt [.fn 17 [], .int 0]
 
 /-- ArrayMax.max#40: a query the encoding relies on (not-run). -/
 def ob40 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .gt [.int 1, .int 0]
 
 /-- ArrayMax.max#41: a query the encoding relies on (not-run). -/
 def ob41 : Obligation where
   script := script0
-  upto := 21
+  upto := 22
   guard := .fn 19 []
   goal := .app .gt [.fn 20 [], .int 0]
 
 /-- ArrayMax.max#42: a query the encoding relies on (not-run). -/
 def ob42 : Obligation where
   script := script0
-  upto := 35
+  upto := 36
   guard := .fn 32 []
   goal := .app .and [.app .le [.int 0, .app .add [.app .sub [.fn 17 [], .fn 21 []], .int 0]], .app .lt [.app .add [.app .sub [.fn 17 [], .fn 31 []], .int 0], .app .add [.app .sub [.fn 17 [], .fn 21 []], .int 0]]]
 
 /-- ArrayMax.max#43: a query only a warning reads (not-run). -/
 def ob43 : Obligation where
   script := script1
-  upto := 36
+  upto := 37
   guard := .fn 33 []
   goal := .bool false
 
 /-- ArrayMax.max#44: postcondition not satisfied: `forall uint256 j :: j < xs.length ==> xs[j] <= m` (not-run). -/
 def ob44 : Obligation where
   script := script1
-  upto := 36
+  upto := 37
   guard := .fn 33 []
   goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .implies [.app .lt [.var 0, .fn 17 []], .app .le [.app .select [.fn 16 [], .var 0], .fn 22 []]]])
 
 /-- ArrayMax.max#45: postcondition not satisfied: `exists uint256 j :: j < xs.length && xs[j] == m` (not-run). -/
 def ob45 : Obligation where
   script := script1
-  upto := 36
+  upto := 37
   guard := .fn 33 []
   goal := .«exists» [.int] (.app .and [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]]], .app .and [.app .lt [.var 0, .fn 17 []], .app .eq [.app .select [.fn 16 [], .var 0], .fn 22 []]]])
 

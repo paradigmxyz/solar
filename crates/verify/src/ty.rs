@@ -4,6 +4,8 @@ use num_bigint::BigInt;
 pub(crate) enum Ty {
     Bool,
     Uint(u16),
+    /// `bytesN`, as its N*8-bit value (the bytes read as a big-endian number, as storage holds it).
+    Bytes(u16),
     Int(u16),
     Addr,
     Contract(String),
@@ -49,7 +51,7 @@ impl Ty {
     }
     pub(crate) fn bounds(&self) -> Option<(BigInt, BigInt)> {
         match self {
-            Self::Uint(n) => Some((BigInt::from(0), pow2(*n as u32) - 1)),
+            Self::Uint(n) | Self::Bytes(n) => Some((BigInt::from(0), pow2(*n as u32) - 1)),
             Self::Int(n) => Some((-pow2(*n as u32 - 1), pow2(*n as u32 - 1) - 1)),
             Self::Addr | Self::Contract(_) => Some((BigInt::from(0), pow2(160) - 1)),
             Self::Enum(_, k) => Some((BigInt::from(0), BigInt::from(*k as i64 - 1))),
@@ -73,6 +75,7 @@ impl Ty {
         match self {
             Self::Bool => "bool".into(),
             Self::Uint(n) => format!("uint{n}"),
+            Self::Bytes(n) => format!("bytes{}", n / 8),
             Self::Int(n) => format!("int{n}"),
             Self::Addr => "address".into(),
             Self::Contract(c) => c.clone(),
@@ -122,7 +125,7 @@ pub(crate) fn parse_ty_text(s: &str) -> Option<Ty> {
                 Ty::Int(n.parse().ok()?)
             } else {
                 let n = s.strip_prefix("bytes")?;
-                Ty::Uint(n.parse::<u16>().ok()? * 8)
+                Ty::Bytes(n.parse::<u16>().ok()? * 8)
             }
         }
     })

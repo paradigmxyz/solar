@@ -31,7 +31,7 @@ use solar_parse::{
         data_structures::map::{FxHashMap, FxHashSet},
     },
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Whether `--infer-absint` asked for the analysis (set once, before any program is built).
 static ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -114,11 +114,14 @@ struct State {
     oct: Octagon,
     facts: Vec<Fact>,
     cells: Vec<Cell>,
+    /// The Solidity text each integer variable was last assigned, while that text still
+    /// denotes its value (nothing it reads was written since).
+    sym: BTreeMap<String, String>,
 }
 
 impl State {
     fn bottom() -> Self {
-        Self { oct: Octagon::bottom(), facts: vec![], cells: vec![] }
+        Self { oct: Octagon::bottom(), facts: vec![], cells: vec![], sym: BTreeMap::new() }
     }
     fn is_bottom(&self) -> bool {
         self.oct.is_bottom()
@@ -145,6 +148,8 @@ struct Analyzer {
     loops: Vec<LoopFrame>,
     unchecked: usize,
     ncells: usize,
+    /// the function's postconditions, as written
+    post: Vec<String>,
     /// loop statement span -> invariant texts at its head (the last analysis of the loop wins,
     /// which is the one under the enclosing loops' final head states)
     out: FxHashMap<Span, Vec<String>>,
@@ -191,11 +196,13 @@ fn len_name(arr: &str) -> String {
     format!("{arr}.length")
 }
 
-/// Infers invariants for every loop in `f`'s body, assuming `requires` at entry. Returns
-/// spec-language texts keyed by the loop statement's span.
+/// Infers invariants for every loop in `f`'s body, assuming `requires` at entry; `ensures` (spec
+/// texts) seed the symbolic candidates (see `Analyzer::symbolic`). Returns spec-language texts
+/// keyed by the loop statement's span.
 pub(crate) fn infer_function<'a>(
     f: &'a ItemFunction<'a>,
     requires: &[&'a Expr<'a>],
+    ensures: &[&str],
 ) -> FxHashMap<Span, Vec<String>> {
     let Some(body) = &f.body else { return FxHashMap::default() };
     let mut a = Analyzer {
@@ -205,6 +212,7 @@ pub(crate) fn infer_function<'a>(
         loops: vec![],
         unchecked: 0,
         ncells: 0,
+        post: ensures.iter().map(|e| e.to_string()).collect(),
         out: FxHashMap::default(),
     };
     let mut consts: BTreeSet<BigInt> = BTreeSet::new();
@@ -222,7 +230,7 @@ pub(crate) fn infer_function<'a>(
             })
         });
     }
-    let mut st = State { oct: Octagon::top(), facts: vec![], cells: vec![] };
+    let mut st = State { oct: Octagon::top(), facts: vec![], cells: vec![], sym: BTreeMap::new() };
     let params = f.header.parameters.iter().map(|p| (p, true));
     let rets = f.header.returns().iter().map(|p| (p, false));
     for (p, is_param) in params.chain(rets) {
@@ -283,6 +291,7 @@ impl Analyzer {
 
     /// Forgets `name` (a scalar or an array) and every fact and cell that mentions it.
     fn kill_var(&mut self, st: &mut State, name: &str) {
+        sym_kill(st, name);
         let l = len_name(name);
         st.facts.retain(|f| {
             f.arr != name
@@ -312,6 +321,8 @@ impl Analyzer {
 
     /// Array contents may have changed (an array write, a call, assembly): drop cells and facts.
     fn kill_memory(&mut self, st: &mut State) {
+        // texts that read array cells no longer denote their values
+        st.sym.retain(|_, t| !t.contains('['));
         for c in st.cells.clone() {
             self.drop_cell(st, &c.name);
         }
@@ -638,6 +649,7 @@ impl Analyzer {
                     *st = self.join(&t, &f);
                     return;
                 }
+                let shown = if op.is_none() { text(r) } else { None };
                 let v = self.eval(st, r);
                 let v = match op {
                     None => v,
@@ -649,6 +661,12 @@ impl Analyzer {
                     _ => None,
                 };
                 self.assign_var(st, &n, v);
+                if let Some(t) = shown
+                    && !mentions(&t, &n)
+                    && !st.is_bottom()
+                {
+                    st.sym.insert(n.clone(), t);
+                }
             }
             Some(VarKind::Arr(_)) => {
                 // `ys = new T[](n)` sets the length; any other array value: unknown length
@@ -683,6 +701,7 @@ impl Analyzer {
             return;
         }
         let Some(VarKind::Int(lo, hi)) = self.vars.get(n).cloned() else { return };
+        sym_kill(st, n);
         self.saturate(st);
         let v = v.filter(|v| {
             if self.unchecked == 0 {
@@ -948,7 +967,13 @@ impl Analyzer {
             }
         }
         let facts = Self::join_facts(&a, &b);
-        let mut out = State { oct: a.oct.join(&b.oct), facts, cells: a.cells.clone() };
+        let sym = a
+            .sym
+            .iter()
+            .filter(|(k, v)| b.sym.get(*k) == Some(*v))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let mut out = State { oct: a.oct.join(&b.oct), facts, cells: a.cells.clone(), sym };
         self.prune(&mut out);
         out
     }
@@ -1043,7 +1068,19 @@ impl Analyzer {
                                 self.assign_var(&mut f, &name, vb);
                                 st = self.join(&t, &f);
                             }
-                            _ => self.assign_var(&mut st, &name, v.flatten()),
+                            _ => {
+                                self.assign_var(&mut st, &name, v.flatten());
+                                let shown = match init {
+                                    Some(i) => text(i),
+                                    None => Some("0".to_string()),
+                                };
+                                if let Some(t) = shown
+                                    && !mentions(&t, &name)
+                                    && !st.is_bottom()
+                                {
+                                    st.sym.insert(name.clone(), t);
+                                }
+                            }
                         }
                     }
                     VarKind::Arr(_) => {
@@ -1229,7 +1266,12 @@ impl Analyzer {
         }
         // the final pass records the nested loops' invariants under this head
         let (_, breaks) = self.iterate(&head, cond, next, body);
-        let texts = self.render(&head, &entry, body, next);
+        let mut texts = self.render(&head, &entry, body, next);
+        for t in self.symbolic(&entry, body, next) {
+            if !texts.contains(&t) {
+                texts.push(t);
+            }
+        }
         self.out.insert(span, texts);
         let mut exit = match cond {
             Some(c) => self.assume(head.clone(), c, false),
@@ -1239,6 +1281,148 @@ impl Analyzer {
             exit = self.join(&exit, b);
         }
         exit
+    }
+
+    // ------------------------------------------------------------------ symbolic candidates
+
+    /// Nonlinear candidates the octagon cannot express, read off the loop's text:
+    ///
+    /// - each conjunct of a postcondition that reads a variable the loop writes (a loop that
+    ///   computes the result often keeps the result's property for its running value);
+    /// - each such conjunct pulled back through a top-level copy `a = b;` of the body (its weakest
+    ///   precondition through that statement, ignoring the rest of the body);
+    /// - for a body that copies `a = b;` and then sets `b = e;`, the relation `b == e[b := a]` that
+    ///   holds after every iteration, also disjoined with the entry values of `a` and `b` when
+    ///   their texts are known, so that it holds on entry too.
+    ///
+    /// Babylonian square roots (`z = x; x = (y / x + x) / 2;`) need all three. Each is only a
+    /// candidate: inference keeps it only if it holds on entry and the body preserves it.
+    fn symbolic<'a>(
+        &self,
+        entry: &State,
+        body: &'a Stmt<'a>,
+        next: Option<&'a Expr<'a>>,
+    ) -> Vec<String> {
+        if entry.is_bottom() {
+            return vec![];
+        }
+        // how often the loop writes each variable
+        let mut writes: FxHashMap<String, usize> = FxHashMap::default();
+        let mut opaque = false;
+        let count = |e: &'a Expr<'a>, w: &mut FxHashMap<String, usize>| {
+            crate::walk::sub_exprs(e, &mut |x| match &x.kind {
+                ExprKind::Assign(l, ..) => {
+                    for r in crate::walk::root(l) {
+                        *w.entry(r).or_default() += 1;
+                    }
+                }
+                ExprKind::Unary(op, x)
+                    if matches!(
+                        op.kind,
+                        UnOpKind::PreInc | UnOpKind::PreDec | UnOpKind::PostInc | UnOpKind::PostDec
+                    ) =>
+                {
+                    for r in crate::walk::root(x) {
+                        *w.entry(r).or_default() += 1;
+                    }
+                }
+                _ => {}
+            })
+        };
+        crate::walk::all_stmts(body, &mut |s| {
+            crate::walk::stmt_exprs(s, &mut |e| count(e, &mut writes));
+            if matches!(
+                s.kind,
+                StmtKind::Assembly(_) | StmtKind::DeclSingle(_) | StmtKind::DeclMulti(..)
+            ) {
+                opaque = true;
+            }
+        });
+        if let Some(n) = next {
+            count(n, &mut writes);
+        }
+        if opaque {
+            return vec![];
+        }
+        let written = |t: &str| idents(t).iter().any(|v| writes.contains_key(*v));
+        // the body's top-level statements, in order
+        let stmts: Vec<&'a Stmt<'a>> = match &body.kind {
+            StmtKind::Block(b) | StmtKind::UncheckedBlock(b) => b.stmts.iter().collect(),
+            _ => vec![body],
+        };
+        let assigns: Vec<(String, &'a Expr<'a>)> = stmts
+            .iter()
+            .filter_map(|s| match &s.kind {
+                StmtKind::Expr(e) => match &e.peel_parens().kind {
+                    ExprKind::Assign(l, None, r) => match &l.peel_parens().kind {
+                        ExprKind::Ident(id) if self.is_int(id.as_str()) => {
+                            Some((id.as_str().to_string(), &**r))
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        let copies: Vec<(String, String)> = assigns
+            .iter()
+            .filter_map(|(a, r)| match &r.peel_parens().kind {
+                ExprKind::Ident(b) if self.is_int(b.as_str()) && b.as_str() != a => {
+                    Some((a.clone(), b.as_str().to_string()))
+                }
+                _ => None,
+            })
+            .collect();
+        let mut out: Vec<String> = vec![];
+        // postcondition conjuncts, and their pullback through the copies
+        for p in &self.post {
+            if ["==>", "forall", "exists", "old(", "result", "||", "?"]
+                .iter()
+                .any(|k| p.contains(k))
+            {
+                continue;
+            }
+            for c in crate::spec::split_top(p, "&&") {
+                let c = c.trim();
+                if c.is_empty()
+                    || !written(c)
+                    || !idents(c).iter().all(|v| self.vars.contains_key(*v))
+                {
+                    continue;
+                }
+                out.push(c.to_string());
+                for (a, b) in &copies {
+                    if mentions(c, a) {
+                        out.push(subst(c, a, b));
+                    }
+                }
+            }
+        }
+        // a copy `a = b` followed by `b = e`, each the only write of its variable
+        for (i, (a, b)) in assigns.iter().enumerate() {
+            let ExprKind::Ident(src) = &b.peel_parens().kind else { continue };
+            let src = src.as_str();
+            if writes.get(a) != Some(&1) || writes.get(src) != Some(&1) {
+                continue;
+            }
+            let Some((_, e)) = assigns[i + 1..].iter().find(|(v, _)| v == src) else { continue };
+            let Some(e) = text(e) else { continue };
+            // the rest of `e` must not change in the loop
+            if idents(&e).iter().any(|v| *v != src && writes.contains_key(*v)) {
+                continue;
+            }
+            let rel = format!("{src} == {}", subst(&e, src, a));
+            if let (Some(a0), Some(b0)) = (entry.sym.get(a), entry.sym.get(src))
+                && !written(a0)
+                && !written(b0)
+            {
+                out.push(format!("{rel} || ({a} == {a0} && {src} == {b0})"));
+            }
+            out.push(rel);
+        }
+        out.dedup();
+        out
     }
 
     // ------------------------------------------------------------------ rendering
@@ -1392,4 +1576,92 @@ impl Analyzer {
         out.dedup();
         out
     }
+}
+
+/// Forgets what `sym` knows of `name`, and every text that reads it.
+fn sym_kill(st: &mut State, name: &str) {
+    st.sym.remove(name);
+    st.sym.retain(|_, t| !mentions(t, name));
+}
+
+/// The Solidity text of `e`, when every part of it is one this module prints exactly:
+/// identifiers, `.length`, indexing, integer literals, arithmetic, comparisons and boolean
+/// operators.
+fn text(e: &Expr<'_>) -> Option<String> {
+    Some(match &e.peel_parens().kind {
+        ExprKind::Ident(id) => id.as_str().to_string(),
+        ExprKind::Member(b, m) if m.as_str() == "length" => format!("{}.length", text(b)?),
+        ExprKind::Index(b, IndexKind::Index(Some(i))) => format!("{}[{}]", text(b)?, text(i)?),
+        ExprKind::Lit(l, None) => match &l.kind {
+            LitKind::Number(n) => n.to_string(),
+            _ => return None,
+        },
+        ExprKind::Binary(a, op, b) => {
+            use BinOpKind::*;
+            if !matches!(
+                op.kind,
+                Add | Sub | Mul | Div | Rem | Lt | Le | Gt | Ge | Eq | Ne | And | Or
+            ) {
+                return None;
+            }
+            format!("({} {} {})", text(a)?, op.kind.to_str(), text(b)?)
+        }
+        ExprKind::Unary(op, x) if op.kind == UnOpKind::Not => format!("!{}", text(x)?),
+        _ => return None,
+    })
+}
+
+fn is_ident_byte(c: u8) -> bool {
+    c.is_ascii_alphanumeric() || c == b'_' || c == b'$'
+}
+
+/// The identifiers `t` reads (not member names after a `.`, not numbers).
+fn idents(t: &str) -> Vec<&str> {
+    let b = t.as_bytes();
+    let mut out = vec![];
+    let mut i = 0;
+    while i < b.len() {
+        if !is_ident_byte(b[i]) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < b.len() && is_ident_byte(b[i]) {
+            i += 1;
+        }
+        if !b[start].is_ascii_digit() && (start == 0 || b[start - 1] != b'.') {
+            out.push(&t[start..i]);
+        }
+    }
+    out
+}
+
+/// Does `t` read the identifier `name`?
+fn mentions(t: &str, name: &str) -> bool {
+    idents(t).contains(&name)
+}
+
+/// `t` with every read of `name` replaced by `(by)`.
+fn subst(t: &str, name: &str, by: &str) -> String {
+    let b = t.as_bytes();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < b.len() {
+        if !is_ident_byte(b[i]) {
+            out.push(b[i] as char);
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < b.len() && is_ident_byte(b[i]) {
+            i += 1;
+        }
+        let word = &t[start..i];
+        if word == name && (start == 0 || b[start - 1] != b'.') {
+            out.push_str(&format!("({by})"));
+        } else {
+            out.push_str(word);
+        }
+    }
+    out
 }

@@ -175,6 +175,12 @@ pub(crate) struct Vc<'p, 'a> {
     cur_func: Option<&'p Func<'a>>,
     /// Guard and goal of each obligation that failed on the real run, for the Horn fallback.
     failed_goals: Vec<(String, String)>,
+    /// `type(C).creationCode` values of this VC: the term and `C`.
+    creation_code: FxHashMap<String, String>,
+    /// Addresses this VC created with the code of a contract of the program (`new C`, or
+    /// `create2` of `type(C).creationCode`), whose constructors run no outside code: each holds
+    /// C's code or, where creation failed, none. Forgotten at any call that may run outside code.
+    known_code: Vec<(String, String)>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -277,6 +283,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             horn_hints: FxHashMap::default(),
             cur_func: None,
             failed_goals: vec![],
+            creation_code: FxHashMap::default(),
+            known_code: vec![],
         }
     }
 
@@ -311,6 +319,278 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.slot_consts.clear();
         self.keccak_in.clear();
         self.raw_enums.clear();
+        self.creation_code.clear();
+        self.known_code.clear();
+    }
+
+    /// Whether running `item` of contract `c` (its body, its modifiers and every function it
+    /// calls) may run code outside the program: an external or low-level call, a creation, a
+    /// call through a pointer, or assembly that calls, creates or self-destructs. Conservative:
+    /// any call it cannot resolve counts.
+    fn calls_out(
+        &self,
+        c: &'p Contract<'a>,
+        item: &'a ast::ItemFunction<'a>,
+        seen: &mut FxHashSet<usize>,
+    ) -> bool {
+        if !seen.insert(item as *const _ as usize) {
+            return false;
+        }
+        let mut stmts: Vec<&'a Stmt<'a>> = item.body.iter().flat_map(|b| b.stmts.iter()).collect();
+        for m in item.header.modifiers.iter() {
+            let name = m.name.last().as_str();
+            match c.modifiers.get(name) {
+                Some(md) => stmts.extend(md.body.iter().flat_map(|b| b.stmts.iter())),
+                // a base constructor's arguments (its body is checked with the base constructors)
+                None if self.prog.contract(name).is_some() => {}
+                None => return true,
+            }
+            for a in m.arguments.exprs() {
+                let mut out = false;
+                walk::sub_exprs(a, &mut |x| out |= self.expr_calls_out(c, x, seen));
+                if out {
+                    return true;
+                }
+            }
+        }
+        let mut out = false;
+        for s in stmts {
+            walk::all_stmts(s, &mut |s| {
+                match &s.kind {
+                    StmtKind::Assembly(a) => {
+                        let mut w = BTreeSet::new();
+                        let mut all = false;
+                        yul::asm_effects(&a.block, &mut w, &mut all, false);
+                        out |= all;
+                    }
+                    StmtKind::Try(_) => out = true,
+                    _ => {}
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| out |= self.expr_calls_out(c, x, seen))
+                });
+            });
+        }
+        out
+    }
+
+    /// Whether call expression `e` in contract `c` may run code outside the program (see
+    /// `calls_out`); false for anything that is no call.
+    fn expr_calls_out(
+        &self,
+        c: &'p Contract<'a>,
+        e: &'a Expr<'a>,
+        seen: &mut FxHashSet<usize>,
+    ) -> bool {
+        let ExprKind::Call(callee, args) = &e.kind else { return false };
+        let n = args.exprs().count();
+        let free = self.prog.contract(FREE).map(|l| &l.funcs[..]).unwrap_or(&[]);
+        // a name some contract or interface of the program declares as a function: a member
+        // call by that name may be an external call
+        let external_name = |m: &str| {
+            self.prog.contracts.iter().any(|k| {
+                k.kind != ast::ContractKind::Library && k.funcs.iter().any(|f| f.name == m)
+            })
+        };
+        let through =
+            |owner: &'p Contract<'a>, fs: Vec<&'p Func<'a>>, seen: &mut FxHashSet<usize>| {
+                fs.is_empty() || fs.iter().any(|f| self.calls_out(owner, f.item, seen))
+            };
+        match &callee.kind {
+            ExprKind::Type(_) => false,
+            ExprKind::Ident(id) => {
+                let name = id.as_str();
+                if self.names_no_pointer(name) {
+                    return false;
+                }
+                let own: Vec<&'p Func<'a>> = c
+                    .funcs
+                    .iter()
+                    .chain(&c.overridden)
+                    .filter(|f| f.name == name && f.params.len() == n)
+                    .collect();
+                if !own.is_empty() {
+                    return through(c, own, seen);
+                }
+                let Some(lib) = self.prog.contract(FREE) else { return true };
+                let fs = free.iter().filter(|f| f.name == name && f.params.len() == n).collect();
+                through(lib, fs, seen)
+            }
+            ExprKind::Member(base, m) => {
+                let m = m.as_str();
+                if let ExprKind::Ident(b) = &base.kind {
+                    let b = b.as_str();
+                    if b == "abi" || self.prog.udvts.contains_key(b) {
+                        return false;
+                    }
+                    if b == "super" {
+                        let fs = c
+                            .funcs
+                            .iter()
+                            .chain(&c.overridden)
+                            .filter(|f| f.name == m && f.params.len() == n)
+                            .collect();
+                        return through(c, fs, seen);
+                    }
+                    if let Some(lib) =
+                        self.prog.contract(b).filter(|k| k.kind == ast::ContractKind::Library)
+                    {
+                        let fs = lib
+                            .funcs
+                            .iter()
+                            .filter(|f| f.name == m && f.params.len() == n)
+                            .collect();
+                        return through(lib, fs, seen);
+                    }
+                }
+                if matches!(base.kind, ExprKind::Type(_)) && m == "concat" {
+                    return false;
+                }
+                if external_name(m) {
+                    return true;
+                }
+                if matches!(m, "push" | "pop") {
+                    return false;
+                }
+                let cands = self.prog.using_fns(m, n);
+                if cands.is_empty() {
+                    return true;
+                }
+                cands.into_iter().any(|(lib, f)| self.calls_out(lib, f.item, seen))
+            }
+            _ => true,
+        }
+    }
+
+    /// Whether deploying contract `cn` runs only its own code: its constructors (bases'
+    /// included), their modifiers and arguments and the state variables' initializers make no
+    /// outside call. Abstract contracts and interfaces never deploy.
+    fn deploys_quietly(&self, cn: &str) -> bool {
+        let Some(c) = self.prog.contract(cn) else { return false };
+        if c.kind != ast::ContractKind::Contract {
+            return false;
+        }
+        let mut seen = FxHashSet::default();
+        let ctors = c
+            .funcs
+            .iter()
+            .filter(|f| f.name == "constructor")
+            .map(|f| f.item)
+            .chain(c.base_ctors.iter().map(|(_, f)| *f));
+        for item in ctors {
+            if self.calls_out(c, item, &mut seen) {
+                return false;
+            }
+        }
+        let inits = c
+            .state
+            .iter()
+            .filter_map(|s| s.init)
+            .chain(c.base_args.values().flat_map(|a| a.exprs()));
+        for e in inits {
+            let mut out = false;
+            walk::sub_exprs(e, &mut |x| out |= self.expr_calls_out(c, x, &mut seen));
+            if out {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Records an address this VC just created with `cn`'s code, when that deployment runs
+    /// only its own code.
+    fn created(&mut self, addr: &str, cn: &str) {
+        if self.deploys_quietly(cn) {
+            self.known_code.push((addr.to_string(), cn.to_string()));
+        }
+        // A creation succeeds only at an address without code, and every address in
+        // `__created` holds code for good: a new contract lands outside it, and joins it when C's
+        // code can never remove itself. `addr` is 0 where the creation failed.
+        let key = if self.env.contains_key("__created") { "__created" } else { "@host.__created" };
+        let Some(set) = self.env.get(key).cloned() else { return };
+        self.assume(&format!("(or (= {addr} 0) (not (select {} {addr})))", set.t));
+        if self.keeps_code(cn) {
+            let t = format!("(ite (= {addr} 0) {s} (store {s} {addr} true))", s = set.t);
+            self.bind(key, set.ty.clone(), Var { ty: set.ty, t, len: None });
+        }
+    }
+
+    /// Whether contract `cn`'s code can never remove itself or run other code in its place: no
+    /// `selfdestruct`, `delegatecall` or `callcode` in it, its bases, or any library or free
+    /// function (which it may run by delegatecall).
+    fn keeps_code(&self, cn: &str) -> bool {
+        let Some(c) = self.prog.contract(cn) else { return false };
+        let libs = self
+            .prog
+            .contracts
+            .iter()
+            .filter(|k| k.kind == ast::ContractKind::Library)
+            .flat_map(|k| k.funcs.iter().chain(&k.overridden).map(|f| f.item));
+        let items: Vec<&'a ast::ItemFunction<'a>> = c
+            .funcs
+            .iter()
+            .chain(&c.overridden)
+            .map(|f| f.item)
+            .chain(c.modifiers.values().copied())
+            .chain(c.base_ctors.iter().map(|(_, f)| *f))
+            .chain(libs)
+            .collect();
+        let mut bad = false;
+        for item in items {
+            for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
+                walk::all_stmts(s, &mut |s| {
+                    if let StmtKind::Assembly(a) = &s.kind {
+                        bad |= yul::asm_destroys(&a.block);
+                    }
+                    walk::stmt_exprs(s, &mut |e| {
+                        walk::sub_exprs(e, &mut |x| {
+                            if let ExprKind::Call(callee, _) = &x.kind {
+                                bad |= match &callee.peel_parens().kind {
+                                    ExprKind::Ident(i) => i.as_str() == "selfdestruct",
+                                    ExprKind::Member(_, m) => {
+                                        matches!(m.as_str(), "delegatecall" | "callcode")
+                                    }
+                                    ExprKind::CallOptions(c, _) => {
+                                        matches!(&c.kind, ExprKind::Member(_, m) if matches!(m.as_str(), "delegatecall" | "callcode"))
+                                    }
+                                    _ => false,
+                                };
+                            }
+                        })
+                    });
+                });
+            }
+        }
+        !bad
+    }
+
+    /// The function a high-level call of `m` with `argc` arguments on `target` runs, when
+    /// `target` is proved (on this path) to be an address this VC created with known code and
+    /// that function runs no outside code: such a call cannot reenter this contract. An address
+    /// whose creation failed holds no code, which runs nothing either.
+    fn quiet_target(&mut self, target: &str, m: &str, want: Option<&'p Func<'a>>) -> bool {
+        let known = self.known_code.clone();
+        let guard = self.guard.clone();
+        for (addr, cn) in known {
+            if !matches!(self.smt.check(&guard, &format!("(= {target} {addr})"), &[]), Res::Unsat) {
+                continue;
+            }
+            let Some(c) = self.prog.contract(&cn) else { return false };
+            let fs: Vec<&'p Func<'a>> = c
+                .funcs
+                .iter()
+                .filter(|f| {
+                    f.name == m
+                        && f.is_entry()
+                        && want.is_none_or(|w| {
+                            w.params.iter().map(|p| &p.1).eq(f.params.iter().map(|p| &p.1))
+                        })
+                })
+                .collect();
+            let [f] = fs[..] else { return false };
+            return !self.calls_out(c, f.item, &mut FxHashSet::default());
+        }
+        false
     }
 
     /// An enum variable assembly may have set to a raw word must hold one of its variants where
@@ -1200,6 +1480,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.ret_alias = None;
         self.cur.clear();
         let this = self.decl("this", &Ty::Addr);
+        // no contract runs at the zero address: nothing can be deployed there
+        self.smt.send(&format!(
+            "(assert (not (= {this} 0)))
+"
+        ));
         self.env.insert(
             "this".into(),
             Var { ty: Ty::Contract(self.c.name.clone()), t: this, len: None },
@@ -1212,7 +1497,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             ("block.chainid", Ty::Uint(256)),
             ("tx.origin", Ty::Addr),
             ("tx.gasprice", Ty::Uint(256)),
-            ("msg.sig", Ty::Uint(32)),
+            ("msg.sig", Ty::Bytes(32)),
             ("msg.data", Ty::Opaque),
             ("block.basefee", Ty::Uint(256)),
             ("block.blobbasefee", Ty::Uint(256)),
@@ -1565,6 +1850,10 @@ impl<'p, 'a> Vc<'p, 'a> {
             .iter()
             .filter(|m| self.c.modifiers.contains_key(m.name.last().as_str()))
             .collect();
+        if mi == 0 {
+            // Memory structs and arrays are values here: refuse writes through shared ones.
+            crate::memalias::check(self.prog, self.c, f, self.depth == 0 && f.is_entry())?;
+        }
         if mi < mods.len() {
             let m = mods[mi];
             let mdef = self.c.modifiers[m.name.last().as_str()];
@@ -1699,15 +1988,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             {
                 let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
                 let init: &'a Expr<'a> = v.initializer.as_deref().unwrap();
-                // a storage pointer: reads and writes go to the aliased location
-                // (index expressions are re-evaluated at each use; see README limits)
-                let mut cap = None;
+                // A storage pointer: reads and writes go to the aliased location, whose index
+                // values are fixed where the pointer is bound.
+                let cap;
                 let init = match &init.peel_parens().kind {
                     ExprKind::Ident(i) => {
                         cap = self.alias_env.get(i.as_str()).cloned();
                         self.aliases.get(i.as_str()).copied().unwrap_or(init)
                     }
-                    _ => init,
+                    _ => {
+                        cap = self.index_capture(init)?;
+                        init
+                    }
                 };
                 self.env.remove(&name);
                 self.slocals.insert(name.clone());
@@ -1832,6 +2124,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if let Some(e) = e {
                     let vals = self.eval_multi(e)?;
                     for ((n, ty), v) in rets.iter().zip(vals) {
+                        let v = Self::coerce(ty, v);
                         self.env.insert(n.clone(), Var { ty: ty.clone(), t: v.t, len: v.len });
                     }
                 }
@@ -1953,6 +2246,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn bind(&mut self, name: &str, ty: Ty, val: Val) {
+        let val = Self::coerce(&ty, val);
         let t = self.def(name, &ty.sort(), &val.t);
         let len = val.len.map(|l| self.def(&format!("{name}.length"), "Int", &l));
         let len = if let Ty::Arr(..) = ty {
@@ -2037,6 +2331,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
                 match &callee.kind {
                     ExprKind::New(t) => {
+                        out.insert("__created".into());
                         // contract creation runs outside code
                         if matches!(t.kind, ast::TypeKind::Custom(_)) && !self.lock_modset.get() {
                             *all = true;
@@ -2467,7 +2762,17 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Index(base, IndexKind::Index(Some(idx))) => {
                 let b = self.eval(base)?;
-                let i = self.eval(idx)?;
+                let mut i = self.eval(idx)?;
+                if b.ty == Ty::Opaque {
+                    // memory bytes written in place: another name may share them, and their
+                    // contents (not tracked) become unknown
+                    self.creation_code.clear();
+                    let t = self.decl("bytes", &Ty::Opaque);
+                    return self.assign(base, Self::val(Ty::Opaque, t));
+                }
+                if let Ty::Map(k, _) = &b.ty {
+                    i = Self::coerce(k, i);
+                }
                 if let Ty::Arr(..) = &b.ty {
                     let len = match &b.len {
                         Some(l) => l.clone(),
@@ -2794,13 +3099,16 @@ impl<'p, 'a> Vc<'p, 'a> {
             {
                 let ExprKind::Ident(i) = &l.peel_parens().kind else { unreachable!() };
                 let name = i.as_str().to_string();
-                let mut cap = None;
+                let cap;
                 let target: &'a Expr<'a> = match &r.peel_parens().kind {
                     ExprKind::Ident(j) if self.aliases.contains_key(j.as_str()) => {
                         cap = self.alias_env.get(j.as_str()).cloned();
                         self.aliases[j.as_str()]
                     }
-                    ExprKind::Ident(_) | ExprKind::Index(..) | ExprKind::Member(..) => r,
+                    ExprKind::Ident(_) | ExprKind::Index(..) | ExprKind::Member(..) => {
+                        cap = self.index_capture(r)?;
+                        r
+                    }
                     ExprKind::Call(..) => {
                         // a function returning a storage pointer we can follow
                         self.ret_alias = None;
@@ -2893,7 +3201,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let b = self.eval(base)?;
                 let i = self.eval(idx)?;
                 match &b.ty {
-                    Ty::Map(_, v) => {
+                    Ty::Map(k, v) => {
+                        let i = Self::coerce(k, i);
                         let t = format!("(select {} {})", b.t, i.t);
                         let ty = (**v).clone();
                         if self.bound.is_empty()
@@ -2936,6 +3245,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                         );
                         let t = self.decl("byte", &Ty::Uint(8));
                         Ok(Self::val(Ty::Uint(8), t))
+                    }
+                    Ty::Bytes(n) => {
+                        // Byte i of a `bytesN`, counted from the first (highest) byte.
+                        let k = (*n / 8) as u32;
+                        self.panic_unless(
+                            &format!("(and (<= 0 {}) (< {} {k}))", i.t, i.t),
+                            "fixed bytes index may be out of bounds",
+                            idx.span,
+                        );
+                        self.ensure_pow2();
+                        let t =
+                            format!("(mod (div {} (|pow2| (* 8 (- {} {})))) 256)", b.t, k - 1, i.t);
+                        Ok(Self::val(Ty::Bytes(8), t))
                     }
                     t => Err((e.span, format!("cannot index a value of type {}", t.name()))),
                 }
@@ -3018,7 +3340,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.fit(r, e.span)
             }
             UnOpKind::BitNot => match v.ty {
-                Ty::Uint(n) => Ok(Self::val(
+                Ty::Uint(n) | Ty::Bytes(n) => Ok(Self::val(
                     v.ty.clone(),
                     format!("(- {} {})", num(&(pow2(n as u32) - 1)), v.t),
                 )),
@@ -3066,6 +3388,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             Eq | Ne | Lt | Le | Gt | Ge => {
                 let a = self.eval(l)?;
                 let b = self.eval(r)?;
+                let (a, b) = Self::widen_pair(a, b);
                 let t = match op {
                     Eq => format!("(= {} {})", a.t, b.t),
                     Ne => format!("(not (= {} {}))", a.t, b.t),
@@ -3118,6 +3441,8 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     fn arith(&mut self, op: BinOpKind, a: Val, b: Val, span: Span) -> R<Val> {
         use BinOpKind::*;
+        let (a, b) =
+            if matches!(op, BitAnd | BitOr | BitXor) { Self::widen_pair(a, b) } else { (a, b) };
         let ty = if matches!(op, Pow | Shl | Shr | Sar) {
             // The result has the base's type. A literal base with a non-literal exponent or shift
             // amount is computed as uint256 (int256 if negative) since Solidity 0.7.
@@ -3254,7 +3579,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             BitAnd | BitOr | BitXor => {
                 let n = match ty {
-                    Ty::Uint(n) => n,
+                    Ty::Uint(n) | Ty::Bytes(n) => n,
                     Ty::Lit => 256,
                     _ => {
                         let f = format!("sv_bit{op:?}").to_lowercase();
@@ -3287,7 +3612,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 _ => None,
             };
             if let Some(k) = key {
-                return Ok(self.named_const(&k, &Ty::Uint(32)));
+                return Ok(self.named_const(&k, &Ty::Bytes(32)));
             }
         }
         if let ExprKind::Member(b2, en) = &base.kind {
@@ -3332,11 +3657,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                     ast::TypeKind::Custom(p) => p.last().as_str().to_string(),
                     _ => "?".into(),
                 };
-                return Ok(self.named_const(&format!("iid.{n}"), &Ty::Uint(32)));
+                return Ok(self.named_const(&format!("iid.{n}"), &Ty::Bytes(32)));
             }
             if m == "name" || m == "creationCode" || m == "runtimeCode" {
-                let t = self.decl("typeinfo", &Ty::Opaque);
-                return Ok(Self::val(Ty::Opaque, t));
+                let v = self.decl("typeinfo", &Ty::Opaque);
+                if m == "creationCode"
+                    && let ast::TypeKind::Custom(p) = &t.kind
+                {
+                    self.creation_code.insert(v.clone(), p.last().as_str().to_string());
+                }
+                return Ok(Self::val(Ty::Opaque, v));
             }
             let ty = self.ty_of_decl(t);
             let (lo, hi) = ty.bounds().ok_or((e.span, "type(..) of non-integer".to_string()))?;
@@ -3503,26 +3833,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                     "keccak256" => return Ok(vec![self.keccak_solidity(&argv)?]),
                     "sha256" | "ripemd160" => {
-                        let mut flat = vec![];
-                        for a in &argv {
-                            match &a.kind {
-                                ExprKind::Call(c2, inner) if matches!(&c2.kind, ExprKind::Member(b, _) if matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)) => {
-                                    for x in inner.exprs() {
-                                        flat.push(self.eval(x)?.t);
-                                    }
-                                }
-                                _ => flat.push(self.eval(a)?.t),
-                            }
-                        }
-                        let f = format!("sv_{n}");
-                        self.declare_fun(&f, flat.len(), "Int");
-                        self.ret_bound(&f, &Ty::Uint(256));
-                        self.injective(&f, flat.len());
-                        let t = if flat.is_empty() {
-                            f.clone()
-                        } else {
-                            format!("({f} {})", flat.join(" "))
-                        };
+                        let (kind, vals) = self.hash_args(&argv)?;
+                        let t = self.hash_flat(n, &kind, &vals);
                         let ty = Ty::Uint(256);
                         if self.bound.is_empty() {
                             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
@@ -3590,8 +3902,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let c = self.c;
                 let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
                 if let Some(f) = pick(&c.funcs, n, &vals) {
+                    let caps = self.storage_arg_caps(f, &argv, e.span)?;
                     let rets = self.internal_call(c, f, vals, e.span, false)?;
-                    self.write_back_storage_params(f, &argv, e.span)?;
+                    self.write_back_storage_params(f, &argv, &caps, e.span)?;
                     return Ok(rets);
                 }
                 // a file-level (free) function
@@ -3599,8 +3912,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let Some((lib, f)) = free.and_then(|l| Some((l, pick(&l.funcs, n, &vals)?))) else {
                     return Err((e.span, format!("unknown function `{n}`")));
                 };
+                let caps = self.storage_arg_caps(f, &argv, e.span)?;
                 let rets = self.internal_call(lib, f, vals, e.span, true)?;
-                self.write_back_storage_params(f, &argv, e.span)?;
+                self.write_back_storage_params(f, &argv, &caps, e.span)?;
                 Ok(rets)
             }
             ExprKind::Type(t) => {
@@ -3638,11 +3952,26 @@ impl<'p, 'a> Vc<'p, 'a> {
                             self.send_value(&v, None);
                         }
                         let ty = if self.contract_named(&cn).is_some() {
-                            Ty::Contract(cn)
+                            Ty::Contract(cn.clone())
                         } else {
                             Ty::Addr
                         };
-                        self.external_call(vec![ty], false, e.span)
+                        if self.deploys_quietly(&cn) {
+                            // only C's own code runs, which cannot call back in; the address
+                            // now holds new code
+                            self.bump_code_epoch();
+                            let r = self.fresh_var("created", &ty);
+                            // `new` reverts where the creation fails
+                            self.assume(&format!("(not (= {} 0))", r.t));
+                            self.created(&r.t, &cn);
+                            return Ok(vec![r]);
+                        }
+                        let r = self.external_call(vec![ty], false, e.span)?;
+                        self.assume(&format!("(not (= {} 0))", r[0].t));
+                        if self.contract_named(&cn).is_some() {
+                            self.created(&r[0].t, &cn);
+                        }
+                        Ok(r)
                     }
                     _ => Err((e.span, "unsupported `new`".into())),
                 }
@@ -3657,8 +3986,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                             .super_target(m, &vals)
                             .ok_or((e.span, format!("cannot resolve `super.{m}` here")))?;
                         let c = self.c;
+                        let caps = self.storage_arg_caps(f, &argv, e.span)?;
                         let rets = self.internal_call(c, f, vals, e.span, false)?;
-                        self.write_back_storage_params(f, &argv, e.span)?;
+                        self.write_back_storage_params(f, &argv, &caps, e.span)?;
                         return Ok(rets);
                     }
                     if bn == "abi" {
@@ -3748,6 +4078,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                                     Some(src),
                                     Ty::Bool
                                     | Ty::Uint(_)
+                                    | Ty::Bytes(_)
                                     | Ty::Int(_)
                                     | Ty::Addr
                                     | Ty::Contract(_)
@@ -3801,14 +4132,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
                         let f = pick(&lib.funcs, m, &vals)
                             .ok_or((e.span, format!("unknown library function `{bn}.{m}`")))?;
+                        let caps = self.storage_arg_caps(f, &argv, e.span)?;
                         let rets = self.internal_call(lib, f, vals, e.span, true)?;
-                        self.write_back_storage_params(f, &argv, e.span)?;
+                        self.write_back_storage_params(f, &argv, &caps, e.span)?;
                         return Ok(rets);
                     }
                 }
                 if let Some((lib, f, vals, all)) = self.pick_using(base, m, &argv)? {
+                    let caps = self.storage_arg_caps(f, &all, e.span)?;
                     let rets = self.internal_call(lib, f, vals, e.span, true)?;
-                    self.write_back_storage_params(f, &all, e.span)?;
+                    self.write_back_storage_params(f, &all, &caps, e.span)?;
                     return Ok(rets);
                 }
                 if matches!(base.kind, ExprKind::Type(_)) && m == "concat" {
@@ -3939,7 +4272,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                                 None => self.reverts_if("true"),
                             }
                         }
-                        let mut out = self.external_call(rets, st, e.span)?;
+                        // a contract this VC created whose code here runs nothing outside
+                        let quiet = !st && self.quiet_target(&bv.t, m, target);
+                        let mut out = self.external_call(rets, st || quiet, e.span)?;
+                        // A high-level call to an address without code reverts (the callee is
+                        // checked for code, or its return data comes back short), and the zero
+                        // address holds none: on return the target is not 0.
+                        self.assume(&format!("(not (= {} 0))", bv.t));
                         if st && target.is_some() {
                             let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
                             self.deterministic_view(cn, m, &tv, &avals, &mut out);
@@ -4116,8 +4455,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             1 => {
                 let (c, f, _) = live.pop().unwrap();
                 let lib = c.kind == ast::ContractKind::Library;
+                let caps = self.storage_arg_caps(f, argv, e.span)?;
                 let rets = self.internal_call(c, f, vals, e.span, lib)?;
-                self.write_back_storage_params(f, argv, e.span)?;
+                self.write_back_storage_params(f, argv, &caps, e.span)?;
                 Ok(retype(rets))
             }
             _ => {
@@ -4128,8 +4468,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.env = env0.clone();
                     self.assume(&format!("(= {} {t})", v.t));
                     let lib = c.kind == ast::ContractKind::Library;
+                    let caps = self.storage_arg_caps(f, argv, e.span)?;
                     let rets = self.internal_call(c, f, vals.clone(), e.span, lib)?;
-                    self.write_back_storage_params(f, argv, e.span)?;
+                    self.write_back_storage_params(f, argv, &caps, e.span)?;
                     for (i, r) in rets.into_iter().enumerate() {
                         self.env.insert(format!("@fnret.{i}"), r);
                     }
@@ -4152,6 +4493,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         &mut self,
         f: &'p Func<'a>,
         args: &[&'a Expr<'a>],
+        caps: &[Option<Env>],
         span: Span,
     ) -> R<()> {
         if self.spec {
@@ -4167,7 +4509,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 outs.get(k).cloned().ok_or((span, "internal: storage parameter".to_string()))?;
             k += 1;
             if p.data_location == Some(ast::DataLocation::Storage) {
-                self.assign(args[i], v)?;
+                // Back to the location the argument named when the call was made.
+                match caps.get(i).cloned().flatten() {
+                    Some(cap) => self.with_env(cap, |s| s.assign(args[i], v))?,
+                    None => self.assign(args[i], v)?,
+                }
                 continue;
             }
             // a memory object passed by reference: the caller's name for it sees the writes
@@ -4398,6 +4744,17 @@ impl<'p, 'a> Vc<'p, 'a> {
             return Self::val(ty, v.t);
         }
         match (&ty, &v.ty) {
+            // Between `bytesN` types the bytes keep their places: a wider type pads on the right,
+            // a narrower one keeps the leading bytes. A value of a different width typed as an
+            // integer can only be a `bytesM` here, since integers convert to `bytesN` only at
+            // their own width.
+            (Ty::Bytes(n), Ty::Bytes(m) | Ty::Uint(m)) if n > m => {
+                Self::val(ty.clone(), format!("(* {} {})", v.t, num(&pow2((n - m) as u32))))
+            }
+            (Ty::Bytes(n), Ty::Bytes(m) | Ty::Uint(m)) if n < m => {
+                Self::val(ty.clone(), format!("(div {} {})", v.t, num(&pow2((m - n) as u32))))
+            }
+            (Ty::Bytes(_), _) | (_, Ty::Bytes(_)) => Self::val(ty, v.t),
             (Ty::Uint(n), Ty::Uint(m)) if n >= m => Self::val(ty, v.t),
             (Ty::Int(n), Ty::Int(m)) if n >= m => Self::val(ty, v.t),
             (Ty::Int(n), Ty::Uint(m)) if n > m => Self::val(ty, v.t),
@@ -4786,14 +5143,23 @@ impl<'p, 'a> Vc<'p, 'a> {
         r
     }
 
+    /// Code at some address may have changed (see `__code_epoch`).
+    fn bump_code_epoch(&mut self) {
+        if let Some(ep) = self.env.get("__code_epoch").cloned() {
+            let ne = self.fresh_var("__code_epoch", &ep.ty);
+            self.bind("__code_epoch", ep.ty.clone(), ne);
+        }
+    }
+
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
         if self.in_library() {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
         self.call_value = None;
-        if !is_static && let Some(ep) = self.env.get("__code_epoch").cloned() {
-            let ne = self.fresh_var("__code_epoch", &ep.ty);
-            self.bind("__code_epoch", ep.ty.clone(), ne);
+        if !is_static {
+            self.bump_code_epoch();
+            // outside code may run: it may change what code the created addresses hold
+            self.known_code.clear();
         }
         let locked = !self.spec && !is_static && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before
@@ -4896,7 +5262,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         out: &mut [Val],
     ) {
         let scalar = |ty: &Ty| {
-            matches!(ty, Ty::Uint(_) | Ty::Int(_) | Ty::Bool | Ty::Addr | Ty::Contract(_))
+            matches!(
+                ty,
+                Ty::Uint(_) | Ty::Bytes(_) | Ty::Int(_) | Ty::Bool | Ty::Addr | Ty::Contract(_)
+            )
         };
         if self.in_library()
             || !self.bound.is_empty()
@@ -5161,7 +5530,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         for ((n, ty), a) in f.params.iter().zip(&args) {
-            self.env.insert(n.clone(), Var { ty: ty.clone(), t: a.t.clone(), len: a.len.clone() });
+            let a = Self::coerce(ty, a.clone());
+            self.env.insert(n.clone(), Var { ty: ty.clone(), t: a.t, len: a.len });
         }
         let result = (|| -> R<Vec<Val>> {
             if f.has_contract() {
@@ -5465,6 +5835,181 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         false
     }
+
+    /// An implicit conversion of v to type ty: a `bytesM` widens to a wider `bytesN` by padding
+    /// on the right. Every other implicit conversion keeps the value.
+    fn coerce(ty: &Ty, v: Val) -> Val {
+        match (ty, &v.ty) {
+            (Ty::Bytes(n), Ty::Bytes(m)) if n > m => Var {
+                ty: ty.clone(),
+                t: format!("(* {} {})", v.t, num(&pow2((n - m) as u32))),
+                len: v.len,
+            },
+            _ => v,
+        }
+    }
+
+    /// Two operands of one operator, the narrower `bytesN` widened to the other's type.
+    fn widen_pair(a: Val, b: Val) -> (Val, Val) {
+        match (&a.ty, &b.ty) {
+            (Ty::Bytes(n), Ty::Bytes(m)) if n > m => {
+                let ty = a.ty.clone();
+                (a, Self::coerce(&ty, b))
+            }
+            (Ty::Bytes(n), Ty::Bytes(m)) if n < m => {
+                let ty = b.ty.clone();
+                (Self::coerce(&ty, a), b)
+            }
+            _ => (a, b),
+        }
+    }
+
+    /// The values of the variables an access chain's index expressions read, so that the
+    /// location it names can be found again after they change (`p` in `S storage p = m[i]`
+    /// keeps pointing at `i`'s value when bound). `None` when it reads none.
+    fn index_capture(&self, e: &'a Expr<'a>) -> R<Option<Env>> {
+        let mut ids: Vec<(String, Span)> = vec![];
+        let mut cur = e.peel_parens();
+        loop {
+            match &cur.kind {
+                ExprKind::Member(b, _) => cur = b.peel_parens(),
+                ExprKind::Index(b, k) => {
+                    if let IndexKind::Index(Some(i)) = k {
+                        walk::sub_exprs(i, &mut |x| {
+                            if let ExprKind::Ident(id) = &x.kind {
+                                ids.push((id.as_str().to_string(), x.span));
+                            }
+                        });
+                    }
+                    cur = b.peel_parens();
+                }
+                _ => break,
+            }
+        }
+        let mut cap = Env::new();
+        for (n, span) in ids {
+            if self.aliases.contains_key(&n) {
+                return Err((
+                    span,
+                    format!(
+                        "storage location indexed through storage pointer `{n}` is not supported"
+                    ),
+                ));
+            }
+            if let Some(v) = self.env.get(&n) {
+                cap.insert(n, v.clone());
+            }
+        }
+        Ok((!cap.is_empty()).then_some(cap))
+    }
+
+    /// Runs f with the variables of cap set to their captured values, then restores them.
+    fn with_env<T>(&mut self, cap: Env, f: impl FnOnce(&mut Self) -> R<T>) -> R<T> {
+        let mut saved = vec![];
+        for (k, v) in cap {
+            saved.push((k.clone(), self.env.insert(k, v)));
+        }
+        let r = f(self);
+        for (k, v) in saved {
+            match v {
+                Some(v) => self.env.insert(k, v),
+                None => self.env.remove(&k),
+            };
+        }
+        r
+    }
+
+    /// Before a call to f: the index values of each storage argument, for writing it back. A
+    /// storage parameter is modelled as a copy written back after the call, which is exact
+    /// only when nothing else reaches the same storage during the call, so two storage
+    /// arguments with one root, or a callee that names an argument's root, are refused.
+    fn storage_arg_caps(
+        &self,
+        f: &'p Func<'a>,
+        args: &[&'a Expr<'a>],
+        span: Span,
+    ) -> R<Vec<Option<Env>>> {
+        let mut caps = vec![];
+        let mut roots: Vec<String> = vec![];
+        // Memory arguments are written back too: one object passed twice would be written back
+        // twice, the later copy winning, while the callee's writes through either name were
+        // visible through the other.
+        let mut mem_roots: Vec<(String, String)> = vec![];
+        for (i, p) in f.item.header.parameters.iter().enumerate() {
+            if i < args.len() && Self::mem_ref_param(p, &f.params[i].1) {
+                for r in walk::root(args[i]) {
+                    let pn = f.params[i].0.clone();
+                    if let Some((_, other)) = mem_roots.iter().find(|(x, _)| *x == r)
+                        && (self.mem_param_written(f, &pn) || self.mem_param_written(f, other))
+                    {
+                        return Err((
+                            span,
+                            format!(
+                                "two memory arguments of `{}` may name the same object, which it writes",
+                                f.name
+                            ),
+                        ));
+                    }
+                    mem_roots.push((r, pn));
+                }
+            }
+            if p.data_location != Some(ast::DataLocation::Storage) || i >= args.len() {
+                caps.push(None);
+                continue;
+            }
+            let a = args[i];
+            let mut r = walk::root(a);
+            if let [n] = &r[..]
+                && let Some(t) = self.aliases.get(n)
+            {
+                r = walk::root(t);
+            }
+            for n in &r {
+                if roots.contains(n) {
+                    return Err((
+                        span,
+                        format!("two storage arguments of `{}` may name the same storage", f.name),
+                    ));
+                }
+            }
+            // A library reaches the caller's storage only through its storage arguments.
+            let library = self
+                .prog
+                .contract(&f.contract)
+                .is_some_and(|c| c.kind == ast::ContractKind::Library);
+            let names: FxHashSet<String> = r.iter().cloned().collect();
+            if !library
+                && !names.is_empty()
+                && self.reaches_names(self.fn_stmts(f), &names, &mut FxHashSet::default())
+            {
+                return Err((
+                    span,
+                    format!(
+                        "`{}` reaches storage it also gets as a storage argument (storage parameters are modelled as copies)",
+                        f.name
+                    ),
+                ));
+            }
+            // Outside code the callee runs may reenter and change the argument's storage; the
+            // copy written back after the call would then overwrite that change.
+            if self
+                .prog
+                .contract(&f.contract)
+                .is_none_or(|c| self.calls_out(c, f.item, &mut FxHashSet::default()))
+            {
+                return Err((
+                    span,
+                    format!(
+                        "`{}` gets a storage argument and may run outside code, which could change that storage before it is written back (storage parameters are modelled as copies)",
+                        f.name
+                    ),
+                ));
+            }
+            roots.extend(r);
+            caps.push(self.index_capture(a)?);
+        }
+        Ok(caps)
+    }
 }
 
 fn wrap(_ty: &Ty, t: &str, lo: &BigInt, hi: &BigInt) -> String {
@@ -5488,7 +6033,7 @@ pub(crate) fn ty_of<'a>(p: &Program<'a>, t: &'a ast::Type<'a>) -> Ty {
             E::Address(_) => Ty::Addr,
             E::UInt(n) => Ty::Uint(n.bits()),
             E::Int(n) => Ty::Int(n.bits()),
-            E::FixedBytes(n) => Ty::Uint(n.bytes() as u16 * 8),
+            E::FixedBytes(n) => Ty::Bytes(n.bytes() as u16 * 8),
             _ => Ty::Opaque,
         },
         K::Mapping(m) => Ty::Map(Box::new(ty_of(p, &m.key)), Box::new(ty_of(p, &m.value))),
@@ -5543,9 +6088,10 @@ fn pick_in<'q, 'a>(cands: Vec<&'q Func<'a>>, args: &[Val]) -> Option<&'q Func<'a
         match (p, a) {
             _ if p == a => Some(3),
             (Ty::Uint(n), Ty::Uint(m)) if n >= m => Some(2),
+            (Ty::Bytes(n), Ty::Bytes(m)) if n >= m => Some(2),
             (Ty::Int(n), Ty::Int(m)) if n >= m => Some(2),
             (Ty::Int(n), Ty::Uint(m)) if n > m => Some(1),
-            (Ty::Uint(_) | Ty::Int(_) | Ty::Enum(..), Ty::Lit) => Some(1),
+            (Ty::Uint(_) | Ty::Bytes(_) | Ty::Int(_) | Ty::Enum(..), Ty::Lit) => Some(1),
             (Ty::Addr, Ty::Contract(_)) | (Ty::Contract(_), Ty::Addr) => Some(1),
             (Ty::Opaque, _) | (_, Ty::Opaque) => Some(0),
             _ => None,

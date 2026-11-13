@@ -61,6 +61,19 @@ pub(crate) fn sub_exprs<'a>(e: &'a Expr<'a>, f: &mut dyn FnMut(&'a Expr<'a>)) {
     let _ = V(f).visit_expr(e);
 }
 
+/// Calls `f` on every direct subexpression of `e` (not on `e`, and not deeper).
+pub(crate) fn sub_exprs_direct<'a>(e: &'a Expr<'a>, f: &mut dyn FnMut(&'a Expr<'a>)) {
+    struct V<'f, 'a>(&'f mut dyn FnMut(&'a Expr<'a>));
+    impl<'a> Visit<'a> for V<'_, 'a> {
+        type BreakValue = Never;
+        fn visit_expr(&mut self, e: &'a Expr<'a>) -> ControlFlow<Never> {
+            (self.0)(e);
+            ControlFlow::Continue(())
+        }
+    }
+    let _ = V(f).walk_expr(e);
+}
+
 /// Root variable name of an lvalue (`a[i][j].x` -> `a`).
 pub(crate) fn root<'a>(e: &'a Expr<'a>) -> Vec<String> {
     match &e.peel_parens().kind {

@@ -672,6 +672,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         match ty {
             Ty::Bool => out.push(format!("(ite {t} 1 0)")),
             Ty::Uint(_) | Ty::Addr | Ty::Contract(_) | Ty::Enum(..) => out.push(t.to_string()),
+            // A `bytesN` word holds its bytes first: the value shifted to the top.
+            Ty::Bytes(n) => out.push(format!("(* {t} {})", num(&pow2(256 - *n as u32)))),
             Ty::Lit => match t.parse::<BigInt>() {
                 Ok(n) if !n.is_negative() && n < w256() => out.push(t.to_string()),
                 _ => return false,
@@ -741,85 +743,109 @@ impl<'p, 'a> Vc<'p, 'a> {
         x
     }
 
-    /// Solidity keccak256(..): abi.encode of static values goes through the shared keccak;
-    /// abi.encodePacked has its own uninterpreted function; anything else (strings, bytes,
-    /// dynamic types) an injective-per-arity uninterpreted function of the flattened arguments.
-    /// A hash argument as an Int term: a bool as 0/1; an array or struct (whose contents we do not
-    /// encode) as a fresh value, so its hash is an arbitrary value (equal contents are not known to
-    /// hash equally: an over-approximation).
-    fn hash_arg(&mut self, v: &Var) -> String {
-        match v.ty.sort().as_str() {
-            "Int" => v.t.clone(),
-            "Bool" => format!("(ite {} 1 0)", v.t),
-            _ => self.decl("hashed", &Ty::Opaque),
+    /// A hash argument as an Int term, and the tag of its encoding: a bool as 0/1; an array or
+    /// struct (whose contents we do not encode) as a fresh value, so its hash is an arbitrary
+    /// value (equal contents are not known to hash equally: an over-approximation). The value is
+    /// the one its encoding holds (a signed integer in two's complement over its width when
+    /// packed, else over a word), and the tag names that encoding: a fixed-width value's type,
+    /// or `dyn` for anything whose encoding the term does not pin down.
+    fn hash_arg(&mut self, v: &Var, packed: bool) -> (String, String) {
+        let word = |n: u32| num(&pow2(n));
+        match &v.ty {
+            Ty::Bool => (format!("(ite {} 1 0)", v.t), "bool".into()),
+            Ty::Uint(n) => (v.t.clone(), format!("uint{n}")),
+            Ty::Bytes(n) => (v.t.clone(), format!("bytes{n}")),
+            Ty::Addr | Ty::Contract(_) => (v.t.clone(), "address".into()),
+            Ty::Enum(..) => (v.t.clone(), "uint8".into()),
+            Ty::Int(n) => {
+                let w = if packed { *n as u32 } else { 256 };
+                (format!("(mod {} {})", v.t, word(w)), format!("int{n}"))
+            }
+            Ty::Lit if !packed => (format!("(mod {} {})", v.t, word(256)), "uint256".into()),
+            _ if v.ty.sort() == "Int" => (v.t.clone(), "dyn".into()),
+            _ => (self.decl("hashed", &Ty::Opaque), "dyn".into()),
         }
     }
 
-    pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
-        let abi_call = |a: &'a Expr<'a>| -> Option<(&'a str, &'a ast::CallArgs<'a>)> {
+    /// Solidity keccak256, sha256 and ripemd160 of their argument, as an uninterpreted function
+    /// of the flattened values: one function per encoding (`abi.encode`, `encodePacked`, the
+    /// other `abi.*` forms, or raw bytes) and per list of argument tags, so two calls share a
+    /// function only when equal values give equal preimages. It is injective unless a packed
+    /// encoding holds a value of no fixed width, which can shift the bytes of its neighbours.
+    /// The argument of a hash builtin, evaluated once: the `abi.*` form that encodes it (`raw` for
+    /// bytes passed as they are) and its values.
+    pub(super) fn hash_args(&mut self, argv: &[&'a Expr<'a>]) -> R<(String, Vec<Var>)> {
+        let mut kind = "raw".to_string();
+        let mut vals = vec![];
+        for a in argv {
             if let ExprKind::Call(c2, inner) = &a.kind
                 && let ExprKind::Member(b, m) = &c2.kind
                 && matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)
             {
-                return Some((m.as_str(), inner));
+                kind = m.as_str().to_string();
+                for x in inner.exprs() {
+                    vals.push(self.eval(x)?);
+                }
+            } else {
+                vals.push(self.eval(a)?);
             }
-            None
-        };
+        }
+        Ok((kind, vals))
+    }
+
+    /// Solidity keccak256, sha256 and ripemd160 of their argument, as an uninterpreted function
+    /// of the flattened values: one function per encoding (`abi.encode`, `encodePacked`, the
+    /// other `abi.*` forms, or raw bytes) and per list of argument tags, so two calls share a
+    /// function only when equal values give equal preimages. It is injective unless a packed
+    /// encoding holds a value of no fixed width, which can shift the bytes of its neighbours.
+    pub(super) fn hash_flat(&mut self, h: &str, kind: &str, vals: &[Var]) -> String {
         let mut flat = vec![];
-        let mut packed = false;
-        let mut words: Option<(Vec<String>, Vec<Ty>)> = None;
-        for a in argv {
-            match abi_call(a) {
-                Some((m, inner)) => {
-                    let mut ws = Some((vec![], vec![]));
-                    for x in inner.exprs() {
-                        let v = self.eval(x)?;
-                        if let Some((w, tys)) = ws.as_mut() {
-                            let n0 = w.len();
-                            if !self.abi_words(&v.ty, &v.t, w) {
-                                ws = None;
-                            } else {
-                                let ty = if matches!(
-                                    v.ty,
-                                    Ty::Uint(_) | Ty::Addr | Ty::Contract(_) | Ty::Enum(..)
-                                ) && w.len() == n0 + 1
-                                {
-                                    v.ty.clone()
-                                } else {
-                                    Ty::Opaque
-                                };
-                                while tys.len() < w.len() {
-                                    tys.push(ty.clone());
-                                }
-                            }
-                        }
-                        let t = self.hash_arg(&v);
-                        flat.push(t);
-                    }
-                    if m == "encode" && argv.len() == 1 {
-                        words = ws;
-                    }
-                    packed |= m == "encodePacked";
+        let mut tags = vec![];
+        for v in vals {
+            let (t, tag) = self.hash_arg(v, kind == "encodePacked");
+            flat.push(t);
+            tags.push(tag);
+        }
+        let f = format!("sv_{h}.{kind}.{}", tags.join("."));
+        self.declare_fun(&f, flat.len(), "Int");
+        self.ret_bound(&f, &Ty::Uint(256));
+        if !(kind == "encodePacked" && tags.iter().any(|t| t == "dyn")) {
+            self.injective(&f, flat.len());
+        }
+        if flat.is_empty() { f } else { format!("({f} {})", flat.join(" ")) }
+    }
+
+    pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
+        let (kind, vals) = self.hash_args(argv)?;
+        let ty = Ty::Uint(256);
+        // abi.encode of static values goes through the keccak that assembly shares.
+        if kind == "encode" && argv.len() == 1 && !vals.is_empty() {
+            let mut ws = vec![];
+            let mut tys = vec![];
+            let mut ok = true;
+            for v in &vals {
+                let n0 = ws.len();
+                if !self.abi_words(&v.ty, &v.t, &mut ws) {
+                    ok = false;
+                    break;
                 }
-                None => {
-                    let v = self.eval(a)?;
-                    let t = self.hash_arg(&v);
-                    flat.push(t)
+                let wty = if matches!(v.ty, Ty::Uint(_) | Ty::Addr | Ty::Contract(_) | Ty::Enum(..))
+                    && ws.len() == n0 + 1
+                {
+                    v.ty.clone()
+                } else {
+                    Ty::Opaque
+                };
+                while tys.len() < ws.len() {
+                    tys.push(wty.clone());
                 }
             }
+            if ok && !ws.is_empty() {
+                let t = self.keccak_words(&ws, &tys);
+                return Ok(Var { ty, t, len: None });
+            }
         }
-        let ty = Ty::Uint(256);
-        if let Some((ws, tys)) = words
-            && !ws.is_empty()
-        {
-            let t = self.keccak_words(&ws, &tys);
-            return Ok(Var { ty, t, len: None });
-        }
-        let f = if packed { "sv_keccak256_packed" } else { "sv_keccak256" };
-        self.declare_fun(f, flat.len(), "Int");
-        self.ret_bound(f, &ty);
-        self.injective(f, flat.len());
-        let t = if flat.is_empty() { f.to_string() } else { format!("({f} {})", flat.join(" ")) };
+        let t = self.hash_flat("keccak256", &kind, &vals);
         if self.bound.is_empty() {
             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
         }
@@ -1244,9 +1270,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                 return Ok(());
             }
             Ty::Bool => self.y_cond(&v),
-            Ty::Uint(256) => v,
+            Ty::Uint(256) | Ty::Bytes(256) => v,
             // any word: a call through it must show it holds a function (`call_ptr`)
             Ty::Fn(_) => v,
+            Ty::Bytes(_) => {
+                // The word holds the bytes first; what code reads of the low bytes it leaves
+                // is not modelled.
+                return unsupported(
+                    span,
+                    format!("assembly assignment to `{n}` of type {}", var.ty.name()),
+                );
+            }
             Ty::Enum(..) => {
                 // the raw word: its range is owed where Solidity reads it (`check_raw_enum`)
                 if self.spec {
@@ -1280,6 +1314,9 @@ impl<'p, 'a> Vc<'p, 'a> {
     fn y_from_solidity(&mut self, cx: &mut Yc<'a>, span: Span, n: &str, v: &Var) -> R<String> {
         match &v.ty {
             Ty::Bool => Ok(Self::y_flagt(&v.t)),
+            // On the stack a `bytesN` holds its bytes first: the value shifted to the top.
+            Ty::Bytes(256) => Ok(v.t.clone()),
+            Ty::Bytes(k) => Ok(format!("(* {} {})", v.t, num(&pow2(256 - *k as u32)))),
             Ty::Uint(_) | Ty::Addr | Ty::Contract(_) | Ty::Enum(..) => {
                 // an enum assembly set holds a raw word: no range is known of it
                 let raw = matches!(v.ty, Ty::Enum(..)) && self.raw_enums.contains(n);
@@ -1590,7 +1627,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         for (f, ty) in &fields {
             let bytes = match ty {
                 Ty::Bool => 1,
-                Ty::Uint(n) | Ty::Int(n) => (*n as u32) / 8,
+                Ty::Uint(n) | Ty::Int(n) | Ty::Bytes(n) => (*n as u32) / 8,
                 Ty::Addr | Ty::Contract(_) => 20,
                 Ty::Enum(_, k) if *k <= 256 => 1,
                 _ => {
@@ -1641,8 +1678,25 @@ impl<'p, 'a> Vc<'p, 'a> {
         };
         let v = self.y_expr(cx, val)?;
         let mut args = vec![];
-        for (_, ty, shift, bits) in &layout {
+        for (f, ty, shift, bits) in &layout {
             let raw = format!("(mod (div {v} {}) {})", num(&pow2(*shift)), num(&pow2(*bits)));
+            // The word must hold a valid bool and enum value: the struct value stands for its
+            // fields, and an invalid byte would be read back as a different word.
+            let valid = match ty {
+                Ty::Bool => Some("bool".to_string()),
+                Ty::Enum(e, _) => Some(format!("enum {e}")),
+                _ => None,
+            };
+            if let (Some(what), Some((_, hi))) =
+                (valid, ty.bounds().or(Some((BigInt::zero(), BigInt::one()))))
+            {
+                self.prove(
+                    &format!("(<= {raw} {})", num(&hi)),
+                    &format!("assembly `sstore` through `{ptr}.slot` may write an invalid {what} to field `{f}`"),
+                    span,
+                    None,
+                );
+            }
             args.push(match ty {
                 Ty::Bool => format!("(not (= {raw} 0))"),
                 Ty::Int(_) => format!(
@@ -1656,6 +1710,36 @@ impl<'p, 'a> Vc<'p, 'a> {
         let nb = Var { ty: cur.ty, t: format!("(|mk.{sn}| {})", args.join(" ")), len: None };
         self.with_alias(&ptr, |s, t| s.assign(t, nb))?;
         Ok(Some(vec![]))
+    }
+
+    /// The contract whose `type(C).creationCode` a `create`/`create2` deploys, when its code
+    /// arguments are `add(p, 32)` and `mload(p)` of a Solidity variable `p` holding that value.
+    fn y_creation_code(&self, cx: &Yc<'a>, c: &'a yul::ExprCall<'a>) -> Option<String> {
+        let k = c.arguments.len();
+        let (off, len) = (&c.arguments[k - 3], &c.arguments[k - 2]);
+        let path = |e: &yul::Expr<'_>| match &e.kind {
+            yul::ExprKind::Path(p) if p.segments().len() == 1 => {
+                Some(p.segments()[0].as_str().to_string())
+            }
+            _ => None,
+        };
+        let lit32 = |e: &yul::Expr<'_>| matches!(&e.kind, yul::ExprKind::Lit(l) if matches!(&l.kind, LitKind::Number(n) if *n == 32u64));
+        let yul::ExprKind::Call(add) = &off.kind else { return None };
+        let yul::ExprKind::Call(ml) = &len.kind else { return None };
+        if add.name.as_str() != "add" || ml.name.as_str() != "mload" || ml.arguments.len() != 1 {
+            return None;
+        }
+        let [x, y] = &add.arguments[..] else { return None };
+        let p = match (path(x), path(y)) {
+            (Some(p), None) if lit32(y) => p,
+            (None, Some(p)) if lit32(x) => p,
+            _ => return None,
+        };
+        if path(&ml.arguments[0]).as_deref() != Some(p.as_str()) || Self::is_local(cx, &p) {
+            return None;
+        }
+        let v = self.env.get(&p)?;
+        self.creation_code.get(&v.t).cloned()
     }
 
     fn y_call(&mut self, cx: &mut Yc<'a>, span: Span, c: &'a yul::ExprCall<'a>) -> R<Vec<String>> {
@@ -1986,6 +2070,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 {
                     return one(x);
                 }
+                self.raw_slot_clear(&a[0], name == "tload", span)?;
                 let key = self
                     .raw_key(name == "tload")
                     .ok_or((span, format!("raw storage ({name}) is only modelled in contracts")))?;
@@ -2013,6 +2098,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if name == "sstore" && self.y_slot_access(span, &a[0], Some(&a[1]))?.is_some() {
                     return Ok(vec![]);
                 }
+                self.raw_slot_clear(&a[0], name == "tstore", span)?;
                 let key = self
                     .raw_key(name == "tstore")
                     .ok_or((span, format!("raw storage ({name}) is only modelled in contracts")))?;
@@ -2134,15 +2220,36 @@ impl<'p, 'a> Vc<'p, 'a> {
                         format!("assembly `{name}` inside a spec evaluation"),
                     );
                 }
-                // the new contract's constructor is outside code; the result is an arbitrary
-                // address (0 on failure)
+                // the new contract's constructor is outside code, unless the code deployed is
+                // `type(C).creationCode` of a contract C of the program whose deployment runs
+                // only its own code; the result is an arbitrary address (0 on failure)
                 if self.y_konst(&a[0]).is_none_or(|v| !v.is_zero()) {
                     let ok = self.decl("create_ok", &Ty::Bool);
                     let v = a[0].clone();
                     self.send_value(&v, Some(&ok));
                 }
-                self.external_call(vec![], false, span)?;
+                let known = self.y_creation_code(cx, c);
+                match &known {
+                    Some(cn) if self.deploys_quietly(cn) => self.bump_code_epoch(),
+                    _ => {
+                        self.external_call(vec![], false, span)?;
+                    }
+                }
                 let r = self.decl("created", &Ty::Addr);
+                match known {
+                    Some(cn) => self.created(&r, &cn),
+                    None => {
+                        // unknown code: it lands at a codeless address all the same
+                        let key = if self.env.contains_key("__created") {
+                            "__created"
+                        } else {
+                            "@host.__created"
+                        };
+                        if let Some(set) = self.env.get(key).cloned() {
+                            self.assume(&format!("(or (= {r} 0) (not (select {} {r})))", set.t));
+                        }
+                    }
+                }
                 one(r)
             }
             "staticcall" => {
@@ -2315,15 +2422,19 @@ pub(super) fn asm_effects(
                 "sstore" => {
                     out.insert("__raw".into());
                 }
+                "create" | "create2" => {
+                    out.insert("__created".into());
+                    if !lock {
+                        *all = true
+                    }
+                }
                 "tstore" => {
                     out.insert("__traw".into());
                 }
                 // under a held reentrancy lock a call or creation reaches only the entry points
                 // still open, whose writes the caller adds (modset_under_lock)
-                "call" | "create" | "create2" if lock => {}
-                "call" | "callcode" | "delegatecall" | "create" | "create2" | "selfdestruct" => {
-                    *all = true
-                }
+                "call" if lock => {}
+                "call" | "callcode" | "delegatecall" | "selfdestruct" => *all = true,
                 _ => {}
             }
             for a in c.arguments.iter() {
@@ -2438,4 +2549,92 @@ pub(super) fn slot_taken(prog: &Program<'_>) -> BTreeSet<String> {
         }
     }
     out
+}
+
+/// Whether an assembly block may remove its contract's code or run other code in its place
+/// (`selfdestruct`, `delegatecall`, `callcode`).
+pub(super) fn asm_destroys(b: &yul::Block<'_>) -> bool {
+    fn ex(e: &yul::Expr<'_>) -> bool {
+        match &e.kind {
+            yul::ExprKind::Call(c) => {
+                matches!(c.name.as_str(), "selfdestruct" | "delegatecall" | "callcode")
+                    || c.arguments.iter().any(ex)
+            }
+            _ => false,
+        }
+    }
+    b.stmts.iter().any(|s| {
+        use yul::StmtKind as K;
+        match &s.kind {
+            K::Block(b) => asm_destroys(b),
+            K::AssignSingle(_, e) | K::AssignMulti(_, e) | K::Expr(e) | K::VarDecl(_, Some(e)) => {
+                ex(e)
+            }
+            K::If(c, b) => ex(c) || asm_destroys(b),
+            K::Switch(sw) => ex(&sw.selector) || sw.cases.iter().any(|c| asm_destroys(&c.body)),
+            K::For(f) => {
+                asm_destroys(&f.init)
+                    || ex(&f.cond)
+                    || asm_destroys(&f.step)
+                    || asm_destroys(&f.body)
+            }
+            K::FunctionDef(f) => asm_destroys(&f.body),
+            _ => false,
+        }
+    })
+}
+
+impl<'p, 'a> Vc<'p, 'a> {
+    /// A raw storage slot that assembly reaches must lie past the slots the declared state
+    /// variables hold, which the executor models apart from raw storage.
+    fn raw_slot_clear(&mut self, slot: &str, transient: bool, span: Span) -> R<()> {
+        let c = if self.in_library() { self.host } else { self.c };
+        if c.custom_layout {
+            return unsupported(span, "raw storage in a contract with a custom storage layout");
+        }
+        let n: BigInt = c
+            .state
+            .iter()
+            .filter(|s| !s.constant && !s.immutable && !s.ghost && s.transient == transient)
+            .map(|s| slots_of(self.prog, &s.ty))
+            .sum();
+        if n.is_zero() {
+            return Ok(());
+        }
+        let phi = format!("(>= {slot} {})", num(&n));
+        let kind = if transient { "transient storage" } else { "storage" };
+        if self.spec {
+            let g = self.guard.clone();
+            if !matches!(self.smt.check(&g, &phi, &[]), crate::smt::Res::Unsat) {
+                return unsupported(
+                    span,
+                    format!("raw {kind} slot read in a spec may overlap a declared state variable"),
+                );
+            }
+            return Ok(());
+        }
+        self.prove(
+            &phi,
+            &format!(
+                "raw {kind} slot may overlap a declared state variable (they take at most slots 0 to {})",
+                n - 1
+            ),
+            span,
+            None,
+        );
+        Ok(())
+    }
+}
+
+/// How many storage slots a declared variable of type ty may take, without packing.
+fn slots_of(prog: &crate::prog::Program<'_>, ty: &Ty) -> BigInt {
+    match ty {
+        Ty::Arr(el, Some(n)) => BigInt::from(*n) * slots_of(prog, el),
+        Ty::Struct(sn) => {
+            let fields = prog.struct_fields(sn).cloned().unwrap_or_default();
+            let n: BigInt = fields.iter().map(|(_, t)| slots_of(prog, t)).sum();
+            n.max(BigInt::one())
+        }
+        _ => BigInt::one(),
+    }
 }

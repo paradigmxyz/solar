@@ -5,6 +5,7 @@ mod bvlower;
 mod ghost;
 mod interval;
 mod lean;
+mod memalias;
 mod mutate;
 mod operator;
 mod prog;

@@ -63,7 +63,7 @@ class AuditTests(unittest.TestCase):
         self.assertTrue(
             all(len(source["canonical_sha256"]) == 64 for source in data["inputs"])
         )
-        self.assertIn("semantics: solar-tv-v2 sha256=", result.stderr)
+        self.assertIn("semantics: solar-tv-v3 sha256=", result.stderr)
         self.assertIn("assumptions:", result.stderr)
 
     def test_counterexample_has_matching_independent_observations(self):

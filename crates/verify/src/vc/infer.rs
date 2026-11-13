@@ -28,7 +28,7 @@
 use super::{Env, Frame, LoopCtx, R, Var, Vc};
 use crate::{prog::Spec, ty::Ty, walk};
 use solar_parse::{
-    ast::{BinOpKind, Expr, ExprKind, IndexKind, LitKind, Stmt, UnOpKind},
+    ast::{BinOpKind, Expr, ExprKind, IndexKind, LitKind, Stmt, StmtKind, UnOpKind},
     interface::{
         Span,
         data_structures::map::{FxHashMap, FxHashSet},
@@ -49,6 +49,11 @@ pub(crate) enum Shape<'p, 'a> {
     /// (or, with `len`, the length of the array) named first is replaced by the value of the
     /// counter named second, as `n := i` turns `count == old(count) + n` into an invariant.
     Spec { spec: &'p Spec<'a>, subst: Option<Subst> },
+    /// A conjunct of a postcondition, for loops without a counter: with `copy` = (to, from) the
+    /// value of `from` stands for `to` (the body's `to = from` makes a fact about `to` after
+    /// the loop a fact about `from` one iteration earlier); with `or_guard`, the guard or the
+    /// conjunct (the conjunct holds once the loop is about to stop).
+    Conjunct { expr: &'a Expr<'a>, copy: Option<(String, String)>, or_guard: Option<&'a Expr<'a>> },
     /// An SMT term over placeholders: `|$v:x|` is the value of `x` in the state, `|$l:x|` its
     /// length, `|$e:x|` and `|$el:x|` the value and length at loop entry.
     Term(String),
@@ -474,6 +479,27 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.env = saved;
                 r.ok().map(|v| v.t)
             }
+            Shape::Conjunct { expr, copy, or_guard } => {
+                let mut e = env.clone();
+                if let Some((to, from)) = copy {
+                    let v = e.get(from)?.clone();
+                    let w = e.get_mut(to)?;
+                    if w.ty != v.ty {
+                        return None;
+                    }
+                    *w = v;
+                }
+                let saved = std::mem::replace(&mut self.env, e);
+                self.trial += 1;
+                let c = self.eval_spec(expr).map(|v| v.t);
+                let g = or_guard.map(|g| self.eval_spec(g).map(|v| v.t));
+                self.trial -= 1;
+                self.env = saved;
+                match g {
+                    None => c.ok(),
+                    Some(g) => Some(format!("(or {} {})", g.ok()?, c.ok()?)),
+                }
+            }
             Shape::Term(t) => instantiate(t, env, entry),
         }
     }
@@ -674,6 +700,54 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
         }
+        // Loops without a counter (a Newton iteration that runs while its next estimate
+        // improves): each conjunct of a postcondition, the same through the body's plain copies
+        // between variables, and the guard or the conjunct.
+        let mut copies: Vec<(String, String)> = vec![];
+        walk::all_stmts(body, &mut |st| {
+            if let StmtKind::Expr(e) = &st.kind
+                && let ExprKind::Assign(a, None, b) = &e.peel_parens().kind
+                && let (ExprKind::Ident(a), ExprKind::Ident(b)) =
+                    (&a.peel_parens().kind, &b.peel_parens().kind)
+                && entry.get(a.as_str()).is_some_and(int)
+                && entry.get(b.as_str()).is_some_and(int)
+            {
+                let pair = (a.as_str().to_string(), b.as_str().to_string());
+                if !copies.contains(&pair) {
+                    copies.push(pair);
+                }
+            }
+        });
+        if let Some(f) = self.cur_func {
+            for sp in &f.ensures {
+                let mut parts = vec![];
+                conjuncts(sp.expr, &mut parts);
+                if parts.len() < 2 {
+                    continue;
+                }
+                for c in parts {
+                    let text = expr_text(c);
+                    let mk = |copy, or_guard, text| Cand {
+                        shape: Shape::Conjunct { expr: c, copy, or_guard },
+                        text,
+                        origin: "spec",
+                    };
+                    cands.push(mk(None, None, text.clone()));
+                    for (to, from) in &copies {
+                        if mentions(&text, to) {
+                            cands.push(mk(
+                                Some((to.clone(), from.clone())),
+                                None,
+                                format!("{text} [{to} := {from}]"),
+                            ));
+                        }
+                    }
+                    if let Some(g) = cond {
+                        cands.push(mk(None, Some(g), format!("({}) || ({text})", expr_text(g))));
+                    }
+                }
+            }
+        }
         cands.extend(self.absint_candidates(s));
         cands.extend(self.horn_candidates(s.span));
         cands.truncate(MAX_CANDIDATES);
@@ -849,6 +923,17 @@ pub(crate) fn instantiate(t: &str, env: &Env, entry: &Env) -> Option<String> {
 }
 
 /// Does spec text mention the identifier `name`?
+/// The top-level conjuncts of `e`, split on the AST so precedence is never misread.
+fn conjuncts<'a>(e: &'a Expr<'a>, out: &mut Vec<&'a Expr<'a>>) {
+    match &e.peel_parens().kind {
+        ExprKind::Binary(a, op, b) if op.kind == BinOpKind::And => {
+            conjuncts(a, out);
+            conjuncts(b, out);
+        }
+        _ => out.push(e),
+    }
+}
+
 fn mentions(text: &str, name: &str) -> bool {
     text.match_indices(name).any(|(i, _)| {
         let ok = |c: Option<char>| !c.is_some_and(|c| c.is_alphanumeric() || c == '_');

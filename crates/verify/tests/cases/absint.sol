@@ -50,4 +50,64 @@ library Absint {
             unchecked { ++i; }
         }
     }
+
+    /// Babylonian square root (UniswapV2's Math.sqrt): its invariants are nonlinear.
+    /// @custom:ensures z * z <= y && y < (z + 1) * (z + 1)
+    function ok_sqrt(uint256 y) internal pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
+
+    /// a postcondition too strong for exact squares (y = 4 gives z = 2)
+    /// @custom:ensures z * z < y
+    function bad_sqrt_strict(uint256 y) internal pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
+
+    /// an iteration that overshoots: the loop stops above the root
+    /// @custom:ensures z * z <= y && y < (z + 1) * (z + 1)
+    function bad_sqrt_step(uint256 y) internal pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2 + 1;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
+
+    /// a start below the root
+    /// @custom:ensures z * z <= y && y < (z + 1) * (z + 1)
+    function bad_sqrt_start(uint256 y) internal pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 4;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
 }

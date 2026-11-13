@@ -46,6 +46,7 @@ def script0 : Script where
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
+    .app .not [.app .eq [.fn 0 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 1 []], .app .le [.fn 1 [], .int 1461501637330902918203684832716283019655932542975]],
     .app .not [.app .eq [.fn 1 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 2 []], .app .le [.fn 2 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
@@ -88,42 +89,42 @@ def script0 : Script where
 /-- Token.transfer#0: a query only a warning reads (not-run). -/
 def ob0 : Obligation where
   script := script0
-  upto := 34
+  upto := 35
   guard := .fn 32 []
   goal := .bool false
 
 /-- Token.transfer#1: postcondition not satisfied: `msg.sender != to ==> balanceOf[msg.sender] == old(balanceOf[msg.sender]) - amount` (not-run). -/
 def ob1 : Obligation where
   script := script0
-  upto := 36
+  upto := 37
   guard := .fn 32 []
   goal := .app .implies [.app .not [.app .eq [.fn 1 [], .fn 22 []]], .app .eq [.app .select [.fn 33 [], .fn 1 []], .app .sub [.app .select [.fn 17 [], .fn 1 []], .fn 23 []]]]
 
 /-- Token.transfer#2: postcondition not satisfied: `msg.sender != to ==> balanceOf[to] == old(balanceOf[to]) + amount` (not-run). -/
 def ob2 : Obligation where
   script := script0
-  upto := 38
+  upto := 39
   guard := .fn 32 []
   goal := .app .implies [.app .not [.app .eq [.fn 1 [], .fn 22 []]], .app .eq [.app .select [.fn 33 [], .fn 22 []], .app .add [.app .select [.fn 17 [], .fn 22 []], .fn 23 []]]]
 
 /-- Token.transfer#3: postcondition not satisfied: `forall address a :: a != msg.sender && a != to ==> balanceOf[a] == old(balanceOf[a])` (not-run). -/
 def ob3 : Obligation where
   script := script0
-  upto := 38
+  upto := 39
   guard := .fn 32 []
   goal := .«forall» [.int] (.app .implies [.app .and [.app .and [.app .le [.int 0, .var 0], .app .le [.var 0, .int 1461501637330902918203684832716283019655932542975]]], .app .implies [.app .and [.app .not [.app .eq [.var 0, .fn 1 []]], .app .not [.app .eq [.var 0, .fn 22 []]]], .app .eq [.app .select [.fn 33 [], .var 0], .app .select [.fn 17 [], .var 0]]]])
 
 /-- Token.transfer#4: postcondition not satisfied: `totalSupply == old(totalSupply)` (not-run). -/
 def ob4 : Obligation where
   script := script0
-  upto := 38
+  upto := 39
   guard := .fn 32 []
   goal := .app .eq [.fn 18 [], .fn 18 []]
 
 /-- Token.transfer#5: contract invariant not preserved: `totalSupply == sumBalances` (settled). -/
 def ob5 : Obligation where
   script := script0
-  upto := 38
+  upto := 39
   guard := .fn 32 []
   goal := .app .eq [.fn 18 [], .fn 16 []]
 

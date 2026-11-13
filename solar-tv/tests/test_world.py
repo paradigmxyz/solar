@@ -63,6 +63,11 @@ def deploy(runtime):
     )
 
 
+# Seconds per Lean check of a pair that deploys code: the kernel spends minutes on the creation
+# address and code deposit on Lean 4.35, past the checker's 60-second default.
+CREATION = 600
+
+
 class WorldTests(unittest.TestCase):
     def pair(
         self,
@@ -75,6 +80,7 @@ class WorldTests(unittest.TestCase):
         layer="evmir",
         height=0,
         version="cancun",
+        timeout=None,
     ):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -103,8 +109,14 @@ class WorldTests(unittest.TestCase):
             ]
             if mode:
                 args.append(f"--gas={mode}")
+            if timeout:
+                args.append(f"--timeout={timeout}")
             result = subprocess.run(
-                args, text=True, capture_output=True, check=False, timeout=180
+                args,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=3 * (timeout or 60),
             )
             record = json.loads((folder / "audit.json").read_text())
         self.assertEqual(result.returncode, status, result.stdout + result.stderr)
@@ -270,14 +282,14 @@ class WorldTests(unittest.TestCase):
         init = deploy("0x00")
         before = creation(init, salt=0) + "\npop\nstop"
         result, record = self.pair(
-            before, creation(init, salt=1) + "\npop\nstop", status=1
+            before, creation(init, salt=1) + "\npop\nstop", status=1, timeout=CREATION
         )
         self.assertIn("Account creation or existence changed", result.stdout)
         first = record["witness"]["observations"][0]
         repeated = (
             creation(init, salt=0) + "\npop\n" + creation(init, salt=0) + "\npop\nstop"
         )
-        _, record = self.pair(before, repeated, status=1)
+        _, record = self.pair(before, repeated, status=1, timeout=CREATION)
         after = record["witness"]["observations"][1]
         self.assertEqual(len(first[4]), 2)
         self.assertEqual(len(after[4]), 2)
@@ -316,6 +328,7 @@ class WorldTests(unittest.TestCase):
             creation(deploy("0xef")) + "\npop\nstop",
             creation(deploy("0xfe")) + "\npop\nstop",
             status=1,
+            timeout=CREATION,
         )
         observations = record["witness"]["observations"]
         self.assertEqual(len(observations[0][4]), 1)
@@ -492,11 +505,12 @@ class WorldTests(unittest.TestCase):
                         SOLAR,
                         "--world",
                         folder / "world.json",
+                        f"--timeout={CREATION}",
                     ],
                     text=True,
                     capture_output=True,
                     check=False,
-                    timeout=180,
+                    timeout=3 * CREATION,
                 )
                 self.assertEqual(
                     result.returncode, status, result.stdout + result.stderr

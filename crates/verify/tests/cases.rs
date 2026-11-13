@@ -392,6 +392,11 @@ fn control() {
 }
 
 #[test]
+fn created() {
+    check("tests/cases/created.sol")
+}
+
+#[test]
 fn eth() {
     check("tests/cases/eth.sol")
 }
@@ -930,4 +935,39 @@ fn emit_lean_inferred_loop() {
         assert!(kinds.iter().any(|k| k.starts_with(prefix)), "no {prefix:?} in {kinds:?}");
     }
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn memalias_calls() {
+    check("tests/cases/memalias_calls.sol");
+}
+
+#[test]
+fn memalias() {
+    check("tests/cases/memalias.sol")
+}
+
+#[test]
+fn fixedbytes() {
+    check("tests/cases/fixedbytes.sol")
+}
+
+#[test]
+fn hashing() {
+    check("tests/cases/hashing.sol")
+}
+
+#[test]
+fn rawstorage() {
+    check("tests/cases/rawstorage.sol")
+}
+
+#[test]
+fn storageptr() {
+    check("tests/cases/storageptr.sol")
+}
+
+#[test]
+fn infer_newton() {
+    check("tests/cases/infer_newton.sol");
 }

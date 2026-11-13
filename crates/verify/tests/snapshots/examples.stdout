@@ -37,9 +37,9 @@ $ solar-verify examples/Vault.sol
 verification results:: 3 verified, 0 errors
 
 $ solar-verify examples/struct_slot.sol
-✔ C.f (1 obligations)
-✔ C.g (1 obligations)
+✔ C.f (2 obligations)
+✔ C.g (2 obligations)
 ✔ C.h (1 obligations)
-✘ C.bad (1 of 1 obligations failed)
+✘ C.bad (1 of 2 obligations failed)
 ✔ C.constructor (0 obligations)
 verification results:: 4 verified, 1 errors

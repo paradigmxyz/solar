@@ -128,6 +128,9 @@ pub(crate) struct Contract<'a> {
     /// Defined in a file the verified file imports: not verified itself, though the functions a
     /// verified contract inherits from it are, as that contract's.
     pub imported: bool,
+    /// A contract in the hierarchy gives a custom storage layout (`layout at S`): the declared
+    /// state variables do not start at slot 0.
+    pub custom_layout: bool,
 }
 
 /// `@custom:group G L1 L2 ...` on a contract.
@@ -280,7 +283,7 @@ impl<'s, 'a> Builder<'s, 'a> {
                 ElementaryType::Address(_) => Ty::Addr,
                 ElementaryType::UInt(n) => Ty::Uint(n.bits()),
                 ElementaryType::Int(n) => Ty::Int(n.bits()),
-                ElementaryType::FixedBytes(n) => Ty::Uint(n.bytes() as u16 * 8),
+                ElementaryType::FixedBytes(n) => Ty::Bytes(n.bytes() as u16 * 8),
                 ElementaryType::String | ElementaryType::Bytes => Ty::Opaque,
             },
             TypeKind::Mapping(m) => Ty::Map(Box::new(self.ty(&m.key)), Box::new(self.ty(&m.value))),
@@ -507,8 +510,9 @@ impl<'s, 'a> Builder<'s, 'a> {
             // `crate::vc::infer` checks like any other.
             if crate::absint::enabled() {
                 let pre: Vec<&'a Expr<'a>> = requires.iter().map(|r: &Spec<'a>| r.expr).collect();
+                let post: Vec<&str> = ensures.iter().map(|e: &Spec<'a>| e.text.as_str()).collect();
                 let mut loops: Vec<_> =
-                    crate::absint::infer_function(f, &pre).into_iter().collect();
+                    crate::absint::infer_function(f, &pre, &post).into_iter().collect();
                 loops.sort_by_key(|(sp, _)| sp.lo());
                 for (sp, texts) in loops {
                     if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
@@ -755,14 +759,22 @@ pub(crate) fn build<'a>(
             base_ctors: vec![],
             imported: imported.contains(name),
             base_args: FxHashMap::default(),
+            custom_layout: lin.iter().any(|cn| items[cn].1.layout.is_some()),
         };
         let mut has_asm = false;
+        // whether the contract's code creates contracts (`new C`; assembly may too)
+        let mut creates = false;
         for cn in &lin {
             for sub in items[cn].1.body.iter() {
                 if let ItemKind::Function(f) = &sub.kind {
                     for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
                         crate::walk::all_stmts(st, &mut |x| {
-                            has_asm |= matches!(x.kind, StmtKind::Assembly(_))
+                            has_asm |= matches!(x.kind, StmtKind::Assembly(_));
+                            crate::walk::stmt_exprs(x, &mut |e| {
+                                crate::walk::sub_exprs(e, &mut |e| {
+                                    creates |= matches!(e.kind, ast::ExprKind::New(_))
+                                })
+                            });
                         });
                     }
                 }
@@ -969,6 +981,20 @@ pub(crate) fn build<'a>(
                 ghost_decl: None,
                 transient: false,
             });
+            if creates || has_asm || lib_asm {
+                // the addresses this contract deployed with code that can never be removed
+                // (see `Vc::created`): each holds code, so no later creation lands there
+                con.state.push(StateVar {
+                    name: "__created".into(),
+                    ty: Ty::Map(Box::new(Ty::Addr), Box::new(Ty::Bool)),
+                    init: None,
+                    constant: false,
+                    immutable: false,
+                    ghost: true,
+                    ghost_decl: None,
+                    transient: false,
+                });
+            }
             if con.kind == ContractKind::Contract
                 && !con.funcs.iter().any(|f| f.name == "constructor")
             {
@@ -1081,6 +1107,7 @@ pub(crate) fn build<'a>(
             base_ctors: vec![],
             imported: free_fns.iter().all(|(_, _, imp)| *imp),
             base_args: FxHashMap::default(),
+            custom_layout: false,
         };
         for (it, f, _) in &free_fns {
             con.funcs.push(b.func(FREE, it, f));

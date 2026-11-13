@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import audit, native, report
 from .check import PRELUDE, build_model, definition, run
-from .common import Inconclusive, Program, Unsupported
+from .common import Inconclusive, Program, Unsupported, lean_root
 
 UNFOLD = (
     "before, after, EVM.State.equivalent, EVM.State.observe, "
@@ -141,7 +141,7 @@ def check(
             file.write_text(declarations + text)
             return run(
                 ["lake", "env", "lean", file],
-                Path(__file__).resolve().parents[1],
+                lean_root(),
                 timeout,
             )
 

@@ -107,6 +107,10 @@ A statement spec attaches to the statement after it. An `@custom:assert` or `@cu
 the last statement of a block runs when the block ends; any other spec that no statement carries
 is an error.
 
+A `bytesN` value is the number its bytes spell, first byte most significant (`bytes2(0x1234)` is
+0x1234). Converting between widths keeps the bytes in place, as Solidity does: `bytes32(b1)` pads
+with zero bytes on the right and `bytes1(b32)` keeps the first byte.
+
 Spec expressions are Solidity expressions over **mathematical integers** (no overflow in specs),
 plus:
 
@@ -192,7 +196,23 @@ it may write, assume its ensures. Functions without a contract are inlined, so r
 contract. Loops are cut at their invariants.
 
 An external call may reenter any public function, so the contract invariants must hold before it,
-and storage is havocked across it. Under a `@custom:reentrancy-guard` lock, only what the entry
+and storage is havocked across it. A call to an address the function itself created (`new C`, or
+`create`/`create2` of `type(C).creationCode` read as `add(p, 32)` and `mload(p)`) runs C's code,
+or none where the creation failed: when that code (the constructors and state initializers, or the
+called function with its modifiers and every function it calls) makes no external call, creation
+or call through a pointer, neither the creation nor the call can reenter, so neither havocs. The
+target must be proved to be that address, the called function must match by name and parameter
+types, and any other external call in between forgets what the created addresses hold.
+
+A high-level call returns only from an address with code (the compiler checks for code, or the
+return data comes back short), so after it the target is not 0; `msg.sender` and `this` are not 0
+either. A contract that creates contracts has the ghost `__created` (`mapping(address => bool)`):
+the addresses it deployed with a contract of the program whose code can never remove itself (no
+`selfdestruct`, `delegatecall` or `callcode` in it, its bases or any library). A creation
+(`new`, `create`, `create2`) returns 0 or an address outside `__created`, since it succeeds only
+where there is no code, and adds it when its code is permanent; `new` never returns 0. Specs read
+it, so an invariant such as `getPair[a][b] != address(0) ==> __created[getPair[a][b]]` makes a
+new pair differ from every pair stored. Under a `@custom:reentrancy-guard` lock, only what the entry
 points that stay callable under the lock can write is havocked. View and pure calls and
 `.transfer` havoc nothing.
 
@@ -251,8 +271,13 @@ Any other address built from a `.slot` is not modelled. A raw `sstore` may write
 whose `.slot` assembly reads anywhere, so a call summarized by its contract havocs them. An enum
 assigned in assembly must be shown to get one of its variants, and `byte` takes a symbolic index.
 
-Not supported: Yul `for` loops, memory at symbolic offsets, `.slot` and `.offset` of anything else,
+Not supported: Yul `for` loops, memory at symbolic offsets, writes through a memory struct or array
+that may share its memory with another reference (one assigned from, passed as or stored into
+another reference: the executor models memory values as copies), `.slot` and `.offset` of anything else,
 `do`/`while` loops, imports that rename or namespace, storage pointers chosen by conditionals,
+storage pointers indexed through another storage pointer, calls whose storage arguments share a
+root or whose callee (other than a library function) names an argument's root (storage
+parameters are modelled as copies written back after the call),
 function pointer casts that reinterpret a value, external function pointers, assembly `return`,
 the code of other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to
 broadcast lemmas). Unsupported constructs are reported as errors, never skipped, so a ✔ is never
@@ -282,10 +307,18 @@ on the Lean side yet.
   (see Testing assumptions).
 - Other contracts reach this contract's storage only through its public functions: no
   `delegatecall` into it.
+- No code is ever deployed at the zero address, and code a contract cannot remove itself stays
+  (EIP-6780: `selfdestruct` removes code only in the transaction that created it, and then only
+  from code that runs it).
+- Calldata is fixed for the whole call: assembly's `calldataload` at one offset reads the same word
+  everywhere in the function being verified and the functions it inlines. Solidity's calldata
+  parameters are modelled as values and are not tied to these words.
 - `keccak256` is injective and its results lie in `[2^128, 2^256)`, so they never collide with
   small constant slots.
-- Raw storage slots that assembly reaches are disjoint from the declared state variables, and
-  assembly is memory-safe.
+- Raw storage slots that assembly reaches never equal the hashed slots of a declared mapping or
+  dynamic array, and assembly is memory-safe. That they lie past the slots the declared state
+  variables take is proved at each `sload`, `sstore`, `tload` and `tstore` (counting slots without
+  packing), and a contract with a custom storage layout cannot use raw storage.
 - A library named `Math` with a `mulDiv(x, y, denominator)` and no specs of its own is summarized
   as OpenZeppelin's `Math.mulDiv`; `--spec-check` tests the summary against the library's code.
 - A high-level call to a `view` or `pure` function answers as a function of its target, its

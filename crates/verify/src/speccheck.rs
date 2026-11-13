@@ -416,8 +416,8 @@ fn vty(
     let fixed = fixed_bytes(program, t);
     let (word, abi) = match ty {
         Ty::Bool => (Word::Bool, "bool".to_string()),
-        Ty::Uint(n) if fixed => (Word::Bytes(*n), format!("bytes{}", n / 8)),
-        Ty::Uint(n) => (Word::Uint(*n), format!("uint{n}")),
+        Ty::Uint(n) | Ty::Bytes(n) if fixed => (Word::Bytes(*n), format!("bytes{}", n / 8)),
+        Ty::Uint(n) | Ty::Bytes(n) => (Word::Uint(*n), format!("uint{n}")),
         Ty::Int(n) => (Word::Int(*n), format!("int{n}")),
         Ty::Addr | Ty::Contract(_) => (Word::Uint(160), "address".to_string()),
         Ty::Enum(..) => (Word::Uint(8), "uint8".to_string()),

@@ -59,10 +59,12 @@ def script0 : Script where
     ⟨"|g@48|", [], .bool⟩,
     ⟨"|g@49|", [], .bool⟩,
     ⟨"|ext_ret@50|", [], .bool⟩,
-    ⟨"|g@51|", [], .bool⟩
+    ⟨"|g@51|", [], .bool⟩,
+    ⟨"|g@52|", [], .bool⟩
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
+    .app .not [.app .eq [.fn 0 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 1 []], .app .le [.fn 1 [], .int 1461501637330902918203684832716283019655932542975]],
     .app .not [.app .eq [.fn 1 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 2 []], .app .le [.fn 2 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
@@ -107,64 +109,67 @@ def script0 : Script where
     .app .and [.app .le [.int 0, .fn 46 []], .app .le [.fn 46 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
     .app .eq [.fn 47 [], .app .and [.fn 38 [], .app .eq [.fn 41 [], .fn 40 []]]],
     .app .eq [.fn 48 [], .app .and [.fn 47 [], .app .le [.fn 41 [], .fn 42 []]]],
-    .app .eq [.fn 50 [], .app .and [.fn 48 [], .fn 49 []]]
+    .app .eq [.fn 50 [], .app .and [.fn 48 [], .app .not [.app .eq [.fn 17 [], .int 0]]]],
+    .app .eq [.fn 51 [], .app .and [.fn 50 [], .fn 49 []]]
   ]
 
 /-- Script 1 of Vault.withdraw: the solver's assertion stack. -/
 def script1 : Script where
   decls := [
-    ⟨"|this@52|", [], .int⟩,
-    ⟨"|msg.sender@53|", [], .int⟩,
-    ⟨"|msg.value@54|", [], .int⟩,
-    ⟨"|block.timestamp@55|", [], .int⟩,
-    ⟨"|block.number@56|", [], .int⟩,
-    ⟨"|block.chainid@57|", [], .int⟩,
-    ⟨"|tx.origin@58|", [], .int⟩,
-    ⟨"|tx.gasprice@59|", [], .int⟩,
-    ⟨"|msg.sig@60|", [], .int⟩,
-    ⟨"|msg.data@61|", [], .int⟩,
-    ⟨"|block.basefee@62|", [], .int⟩,
-    ⟨"|block.blobbasefee@63|", [], .int⟩,
-    ⟨"|block.coinbase@64|", [], .int⟩,
-    ⟨"|block.prevrandao@65|", [], .int⟩,
-    ⟨"|block.difficulty@66|", [], .int⟩,
-    ⟨"|block.gaslimit@67|", [], .int⟩,
-    ⟨"|sumShares@68|", [], .int⟩,
-    ⟨"|asset@69|", [], .int⟩,
-    ⟨"|totalShares@70|", [], .int⟩,
-    ⟨"|totalAssets@71|", [], .int⟩,
-    ⟨"|shares@72|", [], (.array .int .int)⟩,
-    ⟨"|locked@73|", [], .bool⟩,
-    ⟨"|__balance@74|", [], (.array .int .int)⟩,
-    ⟨"|__code_epoch@75|", [], .int⟩,
-    ⟨"|amount@76|", [], .int⟩,
-    ⟨"|g@77|", [], .bool⟩,
+    ⟨"|this@53|", [], .int⟩,
+    ⟨"|msg.sender@54|", [], .int⟩,
+    ⟨"|msg.value@55|", [], .int⟩,
+    ⟨"|block.timestamp@56|", [], .int⟩,
+    ⟨"|block.number@57|", [], .int⟩,
+    ⟨"|block.chainid@58|", [], .int⟩,
+    ⟨"|tx.origin@59|", [], .int⟩,
+    ⟨"|tx.gasprice@60|", [], .int⟩,
+    ⟨"|msg.sig@61|", [], .int⟩,
+    ⟨"|msg.data@62|", [], .int⟩,
+    ⟨"|block.basefee@63|", [], .int⟩,
+    ⟨"|block.blobbasefee@64|", [], .int⟩,
+    ⟨"|block.coinbase@65|", [], .int⟩,
+    ⟨"|block.prevrandao@66|", [], .int⟩,
+    ⟨"|block.difficulty@67|", [], .int⟩,
+    ⟨"|block.gaslimit@68|", [], .int⟩,
+    ⟨"|sumShares@69|", [], .int⟩,
+    ⟨"|asset@70|", [], .int⟩,
+    ⟨"|totalShares@71|", [], .int⟩,
+    ⟨"|totalAssets@72|", [], .int⟩,
+    ⟨"|shares@73|", [], (.array .int .int)⟩,
+    ⟨"|locked@74|", [], .bool⟩,
+    ⟨"|__balance@75|", [], (.array .int .int)⟩,
+    ⟨"|__code_epoch@76|", [], .int⟩,
+    ⟨"|amount@77|", [], .int⟩,
     ⟨"|g@78|", [], .bool⟩,
     ⟨"|g@79|", [], .bool⟩,
-    ⟨"|arith@80|", [], .int⟩,
-    ⟨"|g@81|", [], .bool⟩,
-    ⟨"|shares@82|", [], (.array .int .int)⟩,
-    ⟨"|sumShares@83|", [], .int⟩,
-    ⟨"|arith@84|", [], .int⟩,
-    ⟨"|g@85|", [], .bool⟩,
-    ⟨"|arith@86|", [], .int⟩,
-    ⟨"|g@87|", [], .bool⟩,
+    ⟨"|g@80|", [], .bool⟩,
+    ⟨"|arith@81|", [], .int⟩,
+    ⟨"|g@82|", [], .bool⟩,
+    ⟨"|shares@83|", [], (.array .int .int)⟩,
+    ⟨"|sumShares@84|", [], .int⟩,
+    ⟨"|arith@85|", [], .int⟩,
+    ⟨"|g@86|", [], .bool⟩,
+    ⟨"|arith@87|", [], .int⟩,
     ⟨"|g@88|", [], .bool⟩,
-    ⟨"|__code_epoch@89|", [], .int⟩,
-    ⟨"|sumShares@90|", [], .int⟩,
-    ⟨"|totalShares@91|", [], .int⟩,
-    ⟨"|totalAssets@92|", [], .int⟩,
-    ⟨"|shares@93|", [], (.array .int .int)⟩,
-    ⟨"|locked@94|", [], .bool⟩,
-    ⟨"|__balance@95|", [], (.array .int .int)⟩,
-    ⟨"|__code_epoch@96|", [], .int⟩,
-    ⟨"|g@97|", [], .bool⟩,
+    ⟨"|g@89|", [], .bool⟩,
+    ⟨"|__code_epoch@90|", [], .int⟩,
+    ⟨"|sumShares@91|", [], .int⟩,
+    ⟨"|totalShares@92|", [], .int⟩,
+    ⟨"|totalAssets@93|", [], .int⟩,
+    ⟨"|shares@94|", [], (.array .int .int)⟩,
+    ⟨"|locked@95|", [], .bool⟩,
+    ⟨"|__balance@96|", [], (.array .int .int)⟩,
+    ⟨"|__code_epoch@97|", [], .int⟩,
     ⟨"|g@98|", [], .bool⟩,
-    ⟨"|ext_ret@99|", [], .bool⟩,
-    ⟨"|g@100|", [], .bool⟩
+    ⟨"|g@99|", [], .bool⟩,
+    ⟨"|ext_ret@100|", [], .bool⟩,
+    ⟨"|g@101|", [], .bool⟩,
+    ⟨"|g@102|", [], .bool⟩
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
+    .app .not [.app .eq [.fn 0 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 1 []], .app .le [.fn 1 [], .int 1461501637330902918203684832716283019655932542975]],
     .app .not [.app .eq [.fn 1 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 2 []], .app .le [.fn 2 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
@@ -207,98 +212,99 @@ def script1 : Script where
     .app .and [.app .le [.int 0, .fn 44 []], .app .le [.fn 44 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
     .app .eq [.fn 45 [], .app .and [.fn 36 [], .app .eq [.fn 39 [], .fn 38 []]]],
     .app .eq [.fn 46 [], .app .and [.fn 45 [], .app .le [.fn 39 [], .fn 40 []]]],
-    .app .eq [.fn 48 [], .app .and [.fn 46 [], .fn 47 []]]
+    .app .eq [.fn 48 [], .app .and [.fn 46 [], .app .not [.app .eq [.fn 17 [], .int 0]]]],
+    .app .eq [.fn 49 [], .app .and [.fn 48 [], .fn 47 []]]
   ]
 
 /-- Vault.withdraw#0: assertion failed: `totalShares == sumShares && totalShares <= totalAssets` (not-run). -/
 def ob0 : Obligation where
   script := script0
-  upto := 37
+  upto := 38
   guard := .fn 37 []
   goal := .app .and [.app .eq [.fn 34 [], .fn 33 []], .app .le [.fn 34 [], .fn 36 []]]
 
 /-- Vault.withdraw#1: a query the encoding relies on (not-run). -/
 def ob1 : Obligation where
   script := script0
-  upto := 39
+  upto := 40
   guard := .fn 38 []
   goal := .bool true
 
 /-- Vault.withdraw#2: contract invariant must hold before an external call (reentrancy): `totalShares == sumShares` (not-run). -/
 def ob2 : Obligation where
   script := script0
-  upto := 39
+  upto := 40
   guard := .fn 38 []
   goal := .app .eq [.fn 34 [], .fn 33 []]
 
 /-- Vault.withdraw#3: contract invariant must hold before an external call (reentrancy): `totalShares <= totalAssets` (not-run). -/
 def ob3 : Obligation where
   script := script0
-  upto := 39
+  upto := 40
   guard := .fn 38 []
   goal := .app .le [.fn 34 [], .fn 36 []]
 
 /-- Vault.withdraw#4: a query only a warning reads (not-run). -/
 def ob4 : Obligation where
   script := script0
-  upto := 46
-  guard := .fn 50 []
+  upto := 48
+  guard := .fn 51 []
   goal := .bool false
 
 /-- Vault.withdraw#5: postcondition not satisfied: `!locked` (not-run). -/
 def ob5 : Obligation where
   script := script0
-  upto := 46
-  guard := .fn 50 []
+  upto := 48
+  guard := .fn 51 []
   goal := .app .not [.bool false]
 
 /-- Vault.withdraw#6: contract invariant not preserved: `totalShares == sumShares` (not-run). -/
 def ob6 : Obligation where
   script := script0
-  upto := 46
-  guard := .fn 50 []
+  upto := 48
+  guard := .fn 51 []
   goal := .app .eq [.fn 41 [], .fn 40 []]
 
 /-- Vault.withdraw#7: contract invariant not preserved: `totalShares <= totalAssets` (not-run). -/
 def ob7 : Obligation where
   script := script0
-  upto := 46
-  guard := .fn 50 []
+  upto := 48
+  guard := .fn 51 []
   goal := .app .le [.fn 41 [], .fn 42 []]
 
 /-- Vault.withdraw#8: assertion failed: `totalShares == sumShares && totalShares <= totalAssets` (not-run). -/
 def ob8 : Obligation where
   script := script1
-  upto := 35
+  upto := 36
   guard := .fn 35 []
   goal := .app .and [.app .eq [.fn 32 [], .fn 31 []], .app .le [.fn 32 [], .fn 34 []]]
 
 /-- Vault.withdraw#9: a query the encoding relies on (not-run). -/
 def ob9 : Obligation where
   script := script1
-  upto := 37
+  upto := 38
   guard := .fn 36 []
   goal := .bool true
 
 /-- Vault.withdraw#10: contract invariant must hold before an external call (reentrancy): `totalShares == sumShares` (not-run). -/
 def ob10 : Obligation where
   script := script1
-  upto := 37
+  upto := 38
   guard := .fn 36 []
   goal := .app .eq [.fn 32 [], .fn 31 []]
 
 /-- Vault.withdraw#11: contract invariant must hold before an external call (reentrancy): `totalShares <= totalAssets` (not-run). -/
 def ob11 : Obligation where
   script := script1
-  upto := 37
+  upto := 38
   guard := .fn 36 []
   goal := .app .le [.fn 32 [], .fn 34 []]
 
 /-- Vault.withdraw#12: entry point does not revert while reentrancy guard `locked` is held (not-run). -/
 def ob12 : Obligation where
   script := script1
-  upto := 44
-  guard := .fn 48 []
+  upto := 46
+  guard := .fn 49 []
   goal := .bool false
 
 end SolarVerifyVc.Vault.withdraw

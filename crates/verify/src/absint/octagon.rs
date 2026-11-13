@@ -1,8 +1,8 @@
 //! The octagon abstract domain (Miné, "The Octagon Abstract Domain", HOSC 2006) over
-//! mathematical integers: conjunctions of `±x ± y <= c` and `±x <= c`, kept as a
-//! difference-bound matrix over the 2n signed forms of the variables and closed with the integer
-//! tight closure of Bagnara, Hill and Zaffanella ("An improved tight closure algorithm for integer
-//! octagonal constraints", VMCAI 2008).
+//! mathematical integers: conjunctions of `±x ± y <= c` and `±x <= c`, kept as a difference-bound
+//! matrix over the 2n signed forms of the variables and closed with the integer tight closure of
+//! Bagnara, Hill and Zaffanella ("An improved tight closure algorithm for integer octagonal
+//! constraints", VMCAI 2008).
 //!
 //! Variables are named; [`Lin`] is a linear form over them. Bounds are exact [`BigInt`]s, so
 //! 256-bit ranges are represented without loss.

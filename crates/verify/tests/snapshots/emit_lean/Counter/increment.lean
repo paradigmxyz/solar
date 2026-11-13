@@ -37,6 +37,7 @@ def script0 : Script where
   ]
   asserts := [
     .app .and [.app .le [.int 0, .fn 0 []], .app .le [.fn 0 [], .int 1461501637330902918203684832716283019655932542975]],
+    .app .not [.app .eq [.fn 0 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 1 []], .app .le [.fn 1 [], .int 1461501637330902918203684832716283019655932542975]],
     .app .not [.app .eq [.fn 1 [], .int 0]],
     .app .and [.app .le [.int 0, .fn 2 []], .app .le [.fn 2 [], .int 115792089237316195423570985008687907853269984665640564039457584007913129639935]],
@@ -65,21 +66,21 @@ def script0 : Script where
 /-- Counter.increment#0: a query only a warning reads (not-run). -/
 def ob0 : Obligation where
   script := script0
-  upto := 24
+  upto := 25
   guard := .fn 24 []
   goal := .bool false
 
 /-- Counter.increment#1: postcondition not satisfied: `count == old(count) + 1` (not-run). -/
 def ob1 : Obligation where
   script := script0
-  upto := 24
+  upto := 25
   guard := .fn 24 []
   goal := .app .eq [.fn 23 [], .app .add [.fn 16 [], .int 1]]
 
 /-- Counter.increment#2: contract invariant not preserved: `count <= limit` (not-run). -/
 def ob2 : Obligation where
   script := script0
-  upto := 24
+  upto := 25
   guard := .fn 24 []
   goal := .app .le [.fn 23 [], .fn 17 []]
 
