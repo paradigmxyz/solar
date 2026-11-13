@@ -307,7 +307,7 @@ if [[ -n "$verify" ]]; then
     spec_dir="$lean_dir/.lake/certify/$name"
     bash "$here/spec.sh" "$verify" "$source" "$spec_dir" "Certified.$cap.VC" || die "the spec export fails"
     mapfile -t refused < "$spec_dir/refused"
-    spec_status="exported to $spec_dir/VC.lean"
+    spec_status="exported to .lake/certify/$name/VC.lean"
     [[ -s "$spec_dir/VC.lean" ]] || spec_status="refused as a whole by solar-verify"
     for entry in "${refused[@]}"; do echo "REFUSED (unproved) $entry"; done
     if [[ $require_spec -eq 1 && ${#refused[@]} -gt 0 ]]; then
