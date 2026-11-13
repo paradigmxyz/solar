@@ -303,6 +303,17 @@ def operation(value, definitions):
                 parts.append(
                     f".bytes {number(part['index'])} {number(part['location'], 4)}"
                 )
+            elif part["kind"] == "array":
+                count = (
+                    "none"
+                    if part["length"] is None
+                    else f"some {number(part['length'], 2**64)}"
+                )
+                parts.append(
+                    f".array {number(part['index'])} ({abi_encode_shape(part['element'])}) "
+                    f"{'true' if part['object'] else 'false'} {number(part['location'], 2)} "
+                    f"({count}) {number(part['stride'], 2**64)} {'true' if part['wordwise'] else 'false'}"
+                )
             else:
                 raise Unsupported("unsupported packed shape")
         expression = (

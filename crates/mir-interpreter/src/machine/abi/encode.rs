@@ -487,7 +487,7 @@ impl Run<'_, '_, '_> {
         ControlFlow::Continue(())
     }
 
-    fn abi_encode_clean(
+    pub(super) fn abi_encode_clean(
         &self,
         value: U256,
         cleanup: Option<AbiWordValidator>,
