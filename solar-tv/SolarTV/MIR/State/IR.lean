@@ -27,7 +27,7 @@ inductive MemoryOp where
   | calldataLoad | calldataSize | calldataCopy | returnDataSize | returnDataCopy | returnDataBytes
 
 inductive SlotOp where
-  | mapping | bytesKey | arrayData | arrayElement (stride : Nat)
+  | mapping | bytesKey | arrayData | arrayElement (stride : Nat) | namespace
 
 inductive StorageBytesOp where
   | validate | load | store | literal (bytes : List Byte) | clear
@@ -38,6 +38,7 @@ inductive ArrayElement where
 inductive MessageOp where
   | raw (opcode : Nat)
   | address (opcode : Nat) (hasValue : Bool)
+  | transfer (revertOnFailure : Bool)
 
 inductive StorageObjectOp where
   | bytes (op : StorageBytesOp)
@@ -109,7 +110,7 @@ inductive Operation where
   | unary (op : Word.Unary) (width : Nat)
   | shift (op : Word.Shift) (width : Nat)
   | wordBinary (op : MIR.WordBinary)
-  | ternary (op : MIR.Ternary)
+  | ternary (op : MIR.Ternary) (checkedModulus : Bool)
   | word | pointerAdd | lowBits (width : Nat) | signExtend (source target : Nat)
   | notEqual | select
   | checked (op : MIR.CheckedOp) (width : Nat) (signed : Bool)
@@ -152,7 +153,8 @@ inductive Terminator where
   | returndata (offset size : Operand)
   | reverted (offset size : Operand)
   | tailCall (callee : Nat) (args : List Operand)
-  | stop | invalid
+  | selfdestruct (beneficiary : Operand)
+  | stop | invalid | revertReturnData
 
 structure Block where
   phis : List Phi

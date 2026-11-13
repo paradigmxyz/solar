@@ -74,13 +74,13 @@ use solar_evmir::op;
 use solar_mir::{
     AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, Function, FunctionId, InstId,
-    InstKind, MirType, Module, RevertKind, RevertReason, Semantics, Terminator, Value, ValueId,
-    memory::EvmMemoryLayout,
+    InstKind, MirType, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
 mod abi;
 mod arrays;
+mod builtins;
 mod frames;
 mod messages;
 mod placement;
@@ -243,6 +243,17 @@ pub trait Host {
     /// Whether storage writes and logs are forbidden in this call frame.
     fn is_static(&self) -> bool {
         false
+    }
+
+    /// Applies SELFDESTRUCT to the current account after publishing its changes.
+    /// The host owns fork-specific balance transfer and deferred deletion.
+    fn destroy(
+        &mut self,
+        beneficiary: U256,
+        pending: PendingChanges<'_>,
+    ) -> Result<(), &'static str> {
+        let _ = (beneficiary, pending);
+        Err("selfdestruct is not modeled by this host")
     }
 }
 
@@ -1238,24 +1249,10 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
                 let words = frame.read_all(args)?;
-                let &[condition] = words.as_slice() else {
-                    return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+                let Some(result) = self.semantic_builtin_words(builtin, &words)? else {
+                    return ControlFlow::Continue(());
                 };
-                let failure = match builtin {
-                    Builtin::Check { is_zero, failure } if condition.is_zero() == *is_zero => {
-                        Some(*failure)
-                    }
-                    Builtin::Check { .. } => None,
-                    _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
-                };
-                if let Some(failure) = failure {
-                    return ControlFlow::Break(Outcome::Revert(match failure {
-                        RevertKind::Panic(code) => panic_data(U256::from(code as u8)),
-                        RevertKind::Reason(RevertReason::Empty) => Vec::new(),
-                        _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
-                    }));
-                }
-                return ControlFlow::Continue(());
+                result
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
             Semantics::DataCopy(data, dest, len) => {
@@ -1853,11 +1850,29 @@ impl<'a> Run<'_, 'a, '_> {
                 self.frame().caller_inst = frame.caller_inst;
                 ControlFlow::Continue(())
             }
+            &Terminator::SelfDestruct { recipient } if self.semantic.is_some() => {
+                let beneficiary = frame.read(recipient)?;
+                self.semantic_destroy(beneficiary)?;
+                ControlFlow::Break(Outcome::Stop)
+            }
             Terminator::SelfDestruct { .. } => {
                 ControlFlow::Break(Outcome::Unsupported("selfdestruct"))
             }
             Terminator::RevertReturndata => {
-                ControlFlow::Break(Outcome::Unsupported("revert_returndata"))
+                if self.semantic.is_none() {
+                    return ControlFlow::Break(Outcome::Unsupported("revert_returndata"));
+                }
+                let data = if self.lacks(op::RETURNDATASIZE) {
+                    Vec::new()
+                } else {
+                    self.world
+                        .as_ref()
+                        .expect("semantic replay has a host")
+                        .effects
+                        .return_data
+                        .clone()
+                };
+                ControlFlow::Break(Outcome::Revert(data))
             }
         }
     }

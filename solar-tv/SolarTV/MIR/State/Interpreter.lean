@@ -77,9 +77,13 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
       let (effect,work) ← external fuel cfg frame opcode args
       match effect with
       | .returned (value,parent) =>
-        match ← assign parent inst.result inst.ty value with
-        | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
-        | _ => .error "MIR message result assignment failed"
+        if (match op with | .transfer true => true | _ => false) && value == some 0 then
+          stop (.reverted parent.returnData) parent
+        else
+          let value := match op with | .transfer true => none | _ => value
+          match ← assign parent inst.result inst.ty value with
+          | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
+          | _ => .error "MIR message result assignment failed"
       | .reverted data => stop (.reverted (failureData data)) frame
       | .invalid => stop .invalid frame
     | .call callee =>
@@ -132,6 +136,14 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
           | _ => .error "MIR call return assignment failed"
     | .stop => stop (.success []) frame
     | .invalid => stop .invalid frame
+    | .revertReturnData =>
+      stop (.reverted (if cfg.available.contains 0x3d then frame.returnData else [])) frame
+    | .selfdestruct beneficiary =>
+      if cfg.fork.atLeast .amsterdam then .error "Amsterdam MIR selfdestruct semantics" else
+      if cfg.environment.isStatic then stop .invalid frame else
+        let beneficiary ← read frame beneficiary
+        let world := EVM.State.destroy cfg.fork frame.world cfg.environment.address (beneficiary.setWidth 160)
+        stop (.success []) {frame with world}
     | .returndata offset size | .reverted offset size =>
       let offset ← read frame offset
       let size ← read frame size
