@@ -10,6 +10,16 @@ Function and contract specs for [Seaport 1.6](https://github.com/ProjectOpenSea/
   one is an error. \`--search DIR\` points it at another tree that keeps Seaport's contract and
   storage names, such as a high-level rewrite.
 
+  \`--define NAME=BODY\` overrides a shorthand of the spec file and \`--rename FROM=TO\` resolves a
+  contract under another name, so a rewrite that stores the reentrancy guard in named variables
+  can use the same specs:
+
+  \`\`\`sh
+  apply_specs.py --seaport . --out OUT --search crates/verify/examples/seaport-highlevel/src \
+    --rename Consideration=ReferenceConsideration \
+    --define SSTORE_GUARD=_reentrancyGuardSstore --define TSTORE_GUARD=_reentrancyGuardTstore
+  \`\`\`
+
 No spec is a loop invariant: solar-verify has to infer those.
 
 ## Running

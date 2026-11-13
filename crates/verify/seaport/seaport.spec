@@ -21,7 +21,14 @@
 #   ST(h)   _orderStatus[h]
 
 @define ST(h) _orderStatus[h]
-@define GUARD ((_tstoreInitialSupport || __raw[0x929eee14] == 0) ? __traw[0x929eee14] != 0 : __raw[0x929eee14] > 1)
+# The guard's storage: the sstore sentinel and the transient word. A rewrite
+# that names them can override these with apply_specs.py --define.
+@define SSTORE_GUARD __raw[0x929eee14]
+@define TSTORE_GUARD __traw[0x929eee14]
+# Transient storage is in use when it was supported at deployment or was
+# activated later (sentinel 0); otherwise the sentinel is 1 when clear.
+@define TSTORE_MODE (_tstoreInitialSupport || SSTORE_GUARD == 0)
+@define GUARD (TSTORE_MODE ? TSTORE_GUARD != 0 : SSTORE_GUARD > 1)
 @define COUNTERS_KEPT forall address a :: _counters[a] == old(_counters[a])
 @define FILLS_KEPT forall bytes32 h :: ST(h).numerator == old(ST(h).numerator) && ST(h).denominator == old(ST(h).denominator)
 @define STATUS_KEPT forall bytes32 h :: ST(h).isValidated == old(ST(h).isValidated) && ST(h).isCancelled == old(ST(h).isCancelled) && ST(h).numerator == old(ST(h).numerator) && ST(h).denominator == old(ST(h).denominator)
