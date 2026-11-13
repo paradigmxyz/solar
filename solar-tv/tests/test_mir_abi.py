@@ -231,12 +231,13 @@ class MirAbiTests(unittest.TestCase):
             world,
         )
 
-    def test_unimplemented_recursive_shapes_remain_explicit(self):
+    def test_recursive_layout_budget_remains_explicit(self):
+        layout = "array<1, " * 34 + "uint256" + ">" * 34
         source = state.module(
-            "v0 = inttoptr i256 128 to ptr<memory>\nv1 = abi_decode [bytes], v0\nret 0"
+            f"v0 = inttoptr i256 128 to ptr<memory>\nv1 = abi_decode [{layout}], v0\nret 0"
         )
         result, _ = self.pair(source, source, fixture=storage.fixture(), status=2)
-        self.assertIn("scalar", result.stderr)
+        self.assertIn("layout limit", result.stderr)
 
     def test_symbolic_words_survive_encoding_and_decoding(self):
         for body, pipeline in (

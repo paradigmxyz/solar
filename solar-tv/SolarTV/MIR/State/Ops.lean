@@ -3,6 +3,7 @@ import SolarTV.MIR.State.Aggregates
 import SolarTV.MIR.State.Frames
 import SolarTV.MIR.State.Layout
 import SolarTV.MIR.State.Abi
+import SolarTV.MIR.State.AbiEncode
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -201,6 +202,20 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
     let result ← abiDecode cfg frame rule function calldata (← readValue frame input)
     match result with
     | .returned (word,next) => assign next inst.result inst.ty word
+    | .reverted data => return .reverted data
+    | .invalid => return .invalid
+  | .abi (.encodeTree mode hasBase hasSelector shapes memorySlices),operands =>
+    let args ← operands.mapM (readValue frame)
+    match ← abiEncodeTree cfg frame mode hasBase hasSelector shapes memorySlices args with
+    | .returned (value,next) => assignValue next inst.result inst.ty value
+    | .reverted data => return .reverted data
+    | .invalid => return .invalid
+  | .abi (.decodeTree shapes calldata),[input] =>
+    match ← abiDecodeTree cfg frame shapes calldata (← readValue frame input) with
+    | .returned (value,next) =>
+      match value with
+      | none => if inst.result.isNone then effect next else .error "ABI decode result arity"
+      | some value => assignValue next inst.result inst.ty value
     | .reverted data => return .reverted data
     | .invalid => return .invalid
   | .abi (.validate rule),[input] =>

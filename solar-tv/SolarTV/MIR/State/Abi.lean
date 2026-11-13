@@ -6,9 +6,9 @@ selector/header store order, including dirty padding. Decoding validates the
 signed input length and word canonicality before normalization. Markers are
 admitted only with decoder provenance, checked by the structural importer and
 independently by replay. Packed encodings retain full-word writes and the trailing
-zero word; hashes admit a merged word or whole-word parts. Recursive reference
-layouts and physical multi-return buffers remain unsupported, not lowered by the
-checker or replaced with an oracle. -/
+zero word; hashes admit a merged word or whole-word parts. Recursive shapes use the separate AbiDecode and AbiEncode models. Physical
+call-return buffers remain unsupported, not lowered by the checker or replaced
+with an oracle. -/
 
 namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution

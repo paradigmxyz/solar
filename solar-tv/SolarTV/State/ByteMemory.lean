@@ -20,9 +20,13 @@ def expand (memory : List Byte) (offset count : Nat) : Except String (List Byte)
 def readBytes (bytes : List Byte) (offset count : Nat) : List Byte :=
   (List.range count).map (fun i => bytes[offset + i]?.getD 0)
 
-def writeBytes (memory : List Byte) (offset : Nat) (bytes : List Byte) : List Byte :=
+def writeBytesSpec (memory : List Byte) (offset : Nat) (bytes : List Byte) : List Byte :=
   memory.mapIdx (fun i old => if offset ≤ i ∧ i < offset + bytes.length then
     bytes[i - offset]?.getD 0 else old)
+
+/-- A bounded splice, retaining bytes beyond the write and never extending memory. -/
+def writeBytes (memory : List Byte) (offset : Nat) (bytes : List Byte) : List Byte :=
+  memory.take offset ++ bytes.take (memory.length-offset) ++ memory.drop (offset+bytes.length)
 
 def wordBytes (word : Word) : List Byte :=
   (List.range 32).map (fun i => (word >>> (8 * (31 - i))).setWidth 8)

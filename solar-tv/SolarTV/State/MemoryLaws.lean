@@ -8,12 +8,41 @@ entire symbolic heap merely to read an untouched allocation-cursor word. -/
 namespace SolarTV.Execution
 open EvmRules
 
+theorem writeBytes_eq_spec (memory bytes : List Byte) (offset : Nat) :
+  writeBytes memory offset bytes = writeBytesSpec memory offset bytes := by
+  apply List.ext_getElem?
+  intro i
+  by_cases hi : i < memory.length
+  · by_cases ho : i < offset
+    · have hm : i < min offset memory.length := by omega
+      simp [writeBytes, writeBytesSpec, List.getElem?_append, hm, Nat.not_le_of_gt ho]
+    · have ho' : offset ≤ i := by omega
+      have hm : offset ≤ memory.length := by omega
+      by_cases hb : i < offset + bytes.length
+      · have hb' : i - offset < bytes.length := by omega
+        have hr : i-offset < memory.length-offset := by omega
+        have hn : i-offset < min (memory.length-offset) bytes.length := by omega
+        simp [writeBytes, writeBytesSpec, List.getElem?_append, hi, ho, ho', hb, hb', hn, Nat.min_eq_left hm]
+      · have hm' : bytes.length ≤ memory.length-offset := by omega
+        have hn : ¬i-offset < min (memory.length-offset) bytes.length := by omega
+        have hx : offset+bytes.length+(i-offset-bytes.length) = i := by omega
+        simp [writeBytes, writeBytesSpec, List.getElem?_append, List.getElem?_take, hi, ho, ho', hb, Nat.min_eq_left hm, Nat.min_eq_right hm', hx]
+        omega
+  · by_cases ho : memory.length < offset
+    · have htake : memory.take offset = memory := List.take_of_length_le (by omega)
+      have hdrop : memory.drop (offset+bytes.length) = [] := List.drop_eq_nil_iff.mpr (by omega)
+      simp [writeBytes, writeBytesSpec, htake, hdrop, Nat.sub_eq_zero_of_le (by omega : memory.length ≤ offset), hi]
+    · have hm : offset ≤ memory.length := by omega
+      have hn : ¬i-offset < min (memory.length-offset) bytes.length := by omega
+      have hx : memory.length ≤ offset+bytes.length+(i-offset-min (memory.length-offset) bytes.length) := by omega
+      simp [writeBytes, writeBytesSpec, List.getElem?_append, hi, Nat.min_eq_left hm, show ¬i<offset by omega, hn, List.getElem?_eq_none hx]
+
 @[simp] theorem wordBytes_length (value : Word) : (wordBytes value).length = 32 := by
   simp [wordBytes]
 
 @[simp] theorem writeBytes_length (memory bytes : List Byte) (offset : Nat) :
     (writeBytes memory offset bytes).length = memory.length := by
-  simp [writeBytes]
+  simp [writeBytes_eq_spec, writeBytesSpec]
 
 theorem readBytes_writeBytes_disjoint (memory bytes : List Byte) (destination source count : Nat)
     (h : destination + bytes.length ≤ source ∨ source + count ≤ destination) :
@@ -23,7 +52,7 @@ theorem readBytes_writeBytes_disjoint (memory bytes : List Byte) (destination so
   intro i hi
   have hi' : i < count := List.mem_range.mp hi
   have outside : ¬ (destination ≤ source + i ∧ source + i < destination + bytes.length) := by omega
-  simp [writeBytes, List.getElem?_mapIdx, outside]
+  simp [writeBytes_eq_spec, writeBytesSpec, List.getElem?_mapIdx, outside]
 
 theorem readBytes_writeBytes_same (memory bytes : List Byte) (offset : Nat)
     (h : offset + bytes.length ≤ memory.length) :
@@ -32,7 +61,7 @@ theorem readBytes_writeBytes_same (memory bytes : List Byte) (offset : Nat)
   · simp [readBytes]
   · intro i hi hj
     have hm : offset + i < memory.length := by omega
-    simp [readBytes, writeBytes, List.getElem?_mapIdx, List.getElem?_eq_getElem hm,
+    simp [readBytes, writeBytes_eq_spec, writeBytesSpec, List.getElem?_mapIdx, List.getElem?_eq_getElem hm,
       Nat.add_sub_cancel_left, List.getElem?_eq_getElem hj] <;> omega
 
 theorem flatten_wordBytes (word : Word) : (BitVec.flattenList (wordBytes word)).setWidth 256 = word := by
