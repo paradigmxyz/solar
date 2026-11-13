@@ -7,10 +7,6 @@ library ArrayMax {
     /// @custom:ensures exists uint256 j :: j < xs.length && xs[j] == m
     function max(uint256[] memory xs) internal pure returns (uint256 m) {
         m = xs[0];
-        /// @custom:invariant 1 <= i && i <= xs.length
-        /// @custom:invariant forall uint256 j :: j < i ==> xs[j] <= m
-        /// @custom:invariant exists uint256 j :: j < i && xs[j] == m
-        /// @custom:decreases xs.length - i
         for (uint256 i = 1; i < xs.length; i++) {
             if (xs[i] > m) {
                 m = xs[i];

@@ -7,11 +7,25 @@ contract Control {
         while (i < n) { i++; }
         return i;
     }
+    /// No invariant is written: inference finds `i <= n`.
     /// @custom:ensures result == n
+    function ok_no_invariant(uint256 n) public pure returns (uint256) {
+        uint256 i = 0;
+        while (i < n) { i++; }
+        return i;
+    }
+    /// Inference cannot prove a false postcondition: the loop exits with `i == n`.
+    /// @custom:ensures result == n + 1
     function bad_no_invariant(uint256 n) public pure returns (uint256) {
         uint256 i = 0;
         while (i < n) { i++; }
         return i;
+    }
+    /// `s == 0` holds on entry but the body does not preserve it, so Houdini drops it and the
+    /// postcondition it would have given fails.
+    /// @custom:ensures result == 0
+    function bad_noninductive_candidate(uint256 n) public pure returns (uint256 s) {
+        for (uint256 i = 0; i < n; i++) { s += i; }
     }
     /// @custom:ensures result <= 10
     function ok_break(uint256 n) public pure returns (uint256 i) {

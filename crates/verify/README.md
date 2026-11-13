@@ -87,8 +87,8 @@ NatSpec tag names are lowercase letters and `-`.
 | contract | `@custom:lock-stable P` | every entry point callable under the lock keeps `P` |
 | struct | `@custom:invariant P` | holds of every value of the struct stored, constructed or read from storage |
 | interface | `@custom:requires` / `ensures` | the contract of an external call: callers prove the requires, the callee's ensures are trusted |
-| statement | `@custom:invariant e` | loop invariant |
-| statement | `@custom:decreases e` | termination measure: stays `>= 0` and strictly decreases each iteration |
+| statement | `@custom:invariant e` | loop invariant (optional: invariants are inferred, see Loops) |
+| statement | `@custom:decreases e` | termination measure: stays `>= 0` and strictly decreases each iteration (optional: one is inferred from the guard) |
 | statement | `@custom:assert e` | proved here, then assumed |
 | statement | `@custom:assume e` | assumed without proof |
 | statement | `@custom:ghost x = e` | ghost update, run before the statement |
@@ -192,6 +192,23 @@ points that stay callable under the lock can write is havocked. View and pure ca
 
 If no execution of a function can return normally, solar-verify warns, so contradictory specs cannot
 verify everything silently.
+
+## Loops
+
+A loop is cut at its head with its invariants: they must hold on entry and after every
+iteration, and are all the loop's exit knows. Writing them is optional. Inference (`src/vc/infer.rs`)
+mines candidates at the head: relations between what the loop writes and what it reads (variables,
+array lengths, values at loop entry, constants in the loop), the function's specs and contract
+invariants, also with a bound replaced by a counter the loop advances (`count == old(count) + n`
+becomes `count == old(count) + i`), and facts from the abstract interpreter. Houdini keeps the
+largest subset that holds on entry and is preserved by the body, running the body in a solver
+scope it then pops. The survivors are then checked like hand-written invariants, so no solver
+answer given during inference is trusted, and a query that times out only drops a candidate. A
+termination measure is picked among the distances the guard's comparisons bound and its
+obligations are checked the same way; a loop without one is verified for partial correctness only.
+
+- `--show-inferred`: print what each loop kept, where it came from, and its measure.
+- `--no-infer`: use the hand-written invariants only.
 
 ## Limits
 

@@ -440,3 +440,35 @@ fn structs() {
 fn vox() {
     check("tests/cases/vox.sol")
 }
+
+/// The loops of the examples carry no invariants: inference finds them, and without it the
+/// postconditions that need them fail.
+#[test]
+fn inferred() {
+    if z3_missing() {
+        return;
+    }
+    let mut out = String::new();
+    for file in ["examples/ArrayMax.sol", "examples/Counter.sol"] {
+        let run = run_verifier(&[
+            "--show-inferred",
+            "--only",
+            if file.contains("Array") { "ArrayMax.max" } else { "Counter.bump" },
+            file,
+        ]);
+        out.push_str(&format!(
+            "$ solar-verify --show-inferred {file}
+{}
+",
+            run.stdout
+        ));
+        let off = run_verifier(&["--no-infer", file]);
+        out.push_str(&format!(
+            "$ solar-verify --no-infer {file}
+{}
+",
+            off.stdout
+        ));
+    }
+    assert_data_eq!(tidy(&out), file!["snapshots/inferred.stdout"]);
+}

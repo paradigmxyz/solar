@@ -155,6 +155,9 @@ pub(crate) struct Program<'a> {
     pub errors: Vec<(Span, String)>,
     /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
     pub ghost_errors: Vec<crate::ghost::Violation>,
+    /// Loop invariant candidates the abstract interpreter found, keyed by the loop statement's
+    /// span; inference checks them like any other candidate (`vc::infer`).
+    pub absint: FxHashMap<Span, Vec<Spec<'a>>>,
 }
 
 impl<'a> Program<'a> {
@@ -1029,6 +1032,7 @@ pub(crate) fn build<'a>(
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
         ghost_errors: vec![],
+        absint: FxHashMap::default(),
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
     for c in &mut program.contracts {

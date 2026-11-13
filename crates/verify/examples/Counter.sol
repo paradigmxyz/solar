@@ -20,9 +20,6 @@ contract Counter {
     /// @custom:ensures count == old(count) + n
     function bump(uint256 n) external {
         require(count + n <= limit, "over");
-        /// @custom:invariant i <= n
-        /// @custom:invariant count == old(count) + i
-        /// @custom:decreases n - i
         for (uint256 i = 0; i < n; i++) {
             count++;
         }

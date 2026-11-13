@@ -23,6 +23,7 @@ use solar_parse::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+mod infer;
 mod sample;
 mod yul;
 
@@ -52,13 +53,17 @@ pub(crate) struct FnReport {
     pub fails: Vec<Failure>,
     pub unsupported: Option<(Span, String)>,
     pub warnings: Vec<String>,
+    /// What inference concluded about each loop of the function (its real run).
+    pub inferred: Vec<infer::Inferred>,
 }
 
+#[derive(Clone)]
 struct Frame {
     rets: Vec<(String, Ty)>,
     exits: Vec<(String, Env)>,
 }
 
+#[derive(Clone)]
 struct LoopCtx {
     breaks: Vec<(String, Env)>,
     conts: Vec<(String, Env)>,
@@ -66,6 +71,8 @@ struct LoopCtx {
 
 pub(crate) struct Opts {
     pub strict: bool,
+    /// Infer loop invariants and termination measures (see `infer`).
+    pub infer: bool,
 }
 
 pub(crate) struct Vc<'p, 'a> {
@@ -137,6 +144,18 @@ pub(crate) struct Vc<'p, 'a> {
     broadcast_on: FxHashSet<FnKey>,
     /// The function being verified, whose proof no broadcast it rests on may assume.
     cur_key: Option<FnKey>,
+    /// Infer loop invariants (`Opts::infer`).
+    infer: bool,
+    /// Nesting depth of inference's trial runs: obligations met inside one are not checked.
+    trial: usize,
+    /// What inference concluded per loop on the real run.
+    inferred: Vec<infer::Inferred>,
+    /// Loop heads of the real run, for the Horn-clause fallback.
+    loop_recs: Vec<infer::LoopRec>,
+    /// Candidates the Horn-clause fallback proposed, per loop span.
+    horn_hints: FxHashMap<Span, Vec<infer::Cand<'p, 'a>>>,
+    /// The function being verified.
+    cur_func: Option<&'p Func<'a>>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -223,6 +242,12 @@ impl<'p, 'a> Vc<'p, 'a> {
             proved: FxHashMap::default(),
             broadcast_on: FxHashSet::default(),
             cur_key: None,
+            infer: o.infer,
+            trial: 0,
+            inferred: vec![],
+            loop_recs: vec![],
+            horn_hints: FxHashMap::default(),
+            cur_func: None,
         }
     }
 
@@ -386,6 +411,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.guard = self.def("g", "Bool", &g);
     }
     fn check(&mut self, phi: &str, kind: &str, span: Span, spec: Option<&Spec<'a>>) {
+        // A trial run of inference only learns which candidates survive.
+        if self.trial > 0 {
+            return;
+        }
         self.checks += 1;
         if self.guard == "false" || phi == "true" {
             return;
@@ -1010,6 +1039,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.cur_key = Some(broadcast::key(f));
         self.broadcast_on.clear();
         self.checks = 0;
+        self.cur_func = Some(f);
+        self.inferred.clear();
+        self.loop_recs.clear();
         let r = self.verify_fn_inner(f);
         self.smt.send("(pop 1)\n");
         FnReport {
@@ -1018,6 +1050,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             fails: std::mem::take(&mut self.fails),
             unsupported: r.err(),
             warnings: std::mem::take(&mut self.warnings),
+            inferred: std::mem::take(&mut self.inferred),
         }
     }
 
@@ -2193,72 +2226,6 @@ impl<'p, 'a> Vc<'p, 'a> {
             return None;
         }
         Some(out)
-    }
-
-    fn exec_loop(
-        &mut self,
-        s: &'a Stmt<'a>,
-        cond: Option<&'a Expr<'a>>,
-        next: Option<&'a Expr<'a>>,
-        body: &'a Stmt<'a>,
-    ) -> R<()> {
-        let invs = self.stmt_specs(s, "invariant");
-        let decs = self.stmt_specs(s, "decreases");
-        for inv in &invs {
-            let v = self.eval_spec(inv.expr)?;
-            self.check(&v.t, "loop invariant not satisfied on entry", inv.span, Some(inv));
-        }
-        for t in self.loop_targets(body, next) {
-            let ty = self.env[&t].ty.clone();
-            let v = self.fresh_var(&t, &ty);
-            self.env.insert(t, v);
-        }
-        for inv in &invs {
-            let v = self.eval_spec(inv.expr)?;
-            self.assume(&v.t);
-        }
-        let d0: Vec<String> =
-            decs.iter().map(|d| self.eval_spec(d.expr).map(|v| v.t)).collect::<R<_>>()?;
-        let c = match cond {
-            Some(c) => self.eval(c)?.t,
-            None => "true".into(),
-        };
-        let (g_head, env_head) = (self.guard.clone(), self.env.clone());
-        self.assume(&c);
-        self.loops.push(LoopCtx { breaks: vec![], conts: vec![] });
-        self.exec_stmt(body)?;
-        let ctx = self.loops.pop().unwrap();
-        let mut st = ctx.conts;
-        st.push((self.guard.clone(), self.env.clone()));
-        let (g, e) = self.merge(st);
-        self.guard = g;
-        self.env = e;
-        if let Some(n) = next {
-            self.eval(n)?;
-        }
-        for inv in &invs {
-            let v = self.eval_spec(inv.expr)?;
-            self.check(&v.t, "loop invariant not preserved by the loop body", inv.span, Some(inv));
-        }
-        for (d, t0) in decs.iter().zip(&d0) {
-            let v = self.eval_spec(d.expr)?;
-            self.check(
-                &format!("(and (<= 0 {t0}) (< {} {t0}))", v.t),
-                "loop does not terminate: decreases clause not decreased",
-                d.span,
-                Some(d),
-            );
-        }
-        // exit
-        self.guard = g_head;
-        self.env = env_head;
-        self.assume(&format!("(not {c})"));
-        let mut exits = ctx.breaks;
-        exits.push((self.guard.clone(), self.env.clone()));
-        let (g, e) = self.merge(exits);
-        self.guard = g;
-        self.env = e;
-        Ok(())
     }
 
     // ---------------------------------------------------------------- lvalues
@@ -3979,6 +3946,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             fails: std::mem::take(&mut self.fails),
             unsupported: r.err(),
             warnings: vec![],
+            inferred: vec![],
         }
     }
 

@@ -45,6 +45,10 @@ struct Cli {
     spec_check: bool,
     spec_check_runs: usize,
     seed: u64,
+    /// `--no-infer`: use hand-written loop invariants only.
+    no_infer: bool,
+    /// `--show-inferred`: report what inference concluded about each loop.
+    show_inferred: bool,
 }
 
 impl Cli {
@@ -81,6 +85,8 @@ fn parse_cli() -> Cli {
         spec_check: false,
         spec_check_runs: 256,
         seed: 0,
+        no_infer: false,
+        show_inferred: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -89,6 +95,8 @@ fn parse_cli() -> Cli {
         }
         match a.as_str() {
             "--strict" => c.strict = true,
+            "--no-infer" => c.no_infer = true,
+            "--show-inferred" => c.show_inferred = true,
             "--timeout" => c.timeout = it.next().and_then(|x| x.parse().ok()).unwrap_or(10_000),
             "--dump-smt" => c.dump_smt = it.next().map(PathBuf::from),
             "--only" => c.only = it.next(),
@@ -111,6 +119,8 @@ fn parse_cli() -> Cli {
                      --spec-check  test the trusted contracts (@custom:trusted bodies, interface\n\
                      \x20          specs, the Math.mulDiv summary) against their code in the file\n\
                      --spec-check-runs N  samples per tested function (default 256); --seed N\n\
+                     --no-infer  use hand-written loop invariants only (no inference)\n\
+                     --show-inferred  print the loop invariants and measures inference proved\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
                      \x20          verification errors instead of (sound) reverting paths\n\n\
                      Imports resolve as with solar and solc: PREFIX=PATH remappings (CONTEXT:PREFIX=PATH\n\
@@ -232,6 +242,12 @@ fn run_parallel(cli: &Cli) -> ! {
                     if cli.strict {
                         cmd.arg("--strict");
                     }
+                    if cli.no_infer {
+                        cmd.arg("--no-infer");
+                    }
+                    if cli.show_inferred {
+                        cmd.arg("--show-inferred");
+                    }
                     if cli.dry_run {
                         cmd.arg("--dry-run");
                     }
@@ -327,7 +343,7 @@ fn main() {
                 total_err += report_ghost(&sess, &program);
                 continue;
             }
-            let opts = vc::Opts { strict: cli.strict };
+            let opts = vc::Opts { strict: cli.strict, infer: !cli.no_infer };
             let mut mk = || {
                 if cli.dry_run {
                     smt::Smt::dry(false)
@@ -401,6 +417,19 @@ fn main() {
                         report(&sess, &format!("unsupported: {msg}"), *sp, &[format!("in {}", rep.name)]);
                         total_err += 1;
                         continue;
+                    }
+                    if cli.show_inferred {
+                        for l in &rep.inferred {
+                            let at = line(&sess, l.span);
+                            for (t, origin) in &l.invariants {
+                                println!("  inferred {} loop at line {at}: invariant {t} ({origin})", rep.name);
+                            }
+                            match &l.measure {
+                                Some(m) => println!("  inferred {} loop at line {at}: terminates, measure {m}", rep.name),
+                                None => println!("  inferred {} loop at line {at}: no termination measure found", rep.name),
+                            }
+                            println!("  inferred {} loop at line {at}: {} of {} candidates kept", rep.name, l.invariants.len(), l.candidates);
+                        }
                     }
                     for w in &rep.warnings {
                         if let Some(n) = w.strip_prefix("note: ") {

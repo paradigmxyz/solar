@@ -1,0 +1,40 @@
+$ solar-verify --show-inferred examples/ArrayMax.sol
+  inferred ArrayMax.max loop at line 10: invariant i >= 1 (guard)
+  inferred ArrayMax.max loop at line 10: invariant i >= entry(i) (guard)
+  inferred ArrayMax.max loop at line 10: invariant i <= xs.length (guard)
+  inferred ArrayMax.max loop at line 10: invariant m >= entry(m) (guard)
+  inferred ArrayMax.max loop at line 10: invariant forall uint256 j :: j < xs.length ==> xs[j] <= m [xs.length := i] (spec)
+  inferred ArrayMax.max loop at line 10: invariant exists uint256 j :: j < xs.length && xs[j] == m (spec)
+  inferred ArrayMax.max loop at line 10: invariant exists uint256 j :: j < xs.length && xs[j] == m [xs.length := i] (spec)
+  inferred ArrayMax.max loop at line 10: invariant xs.length > 0 (spec)
+  inferred ArrayMax.max loop at line 10: invariant xs.length > 0 [xs.length := i] (spec)
+  inferred ArrayMax.max loop at line 10: terminates, measure xs.length - i
+  inferred ArrayMax.max loop at line 10: 9 of 15 candidates kept
+✔ ArrayMax.max (21 obligations)
+verification results:: 1 verified, 0 errors
+
+$ solar-verify --no-infer examples/ArrayMax.sol
+✘ ArrayMax.max (2 of 2 obligations failed)
+✔ ArrayMax.clamp (1 obligations)
+verification results:: 1 verified, 1 errors
+
+$ solar-verify --show-inferred examples/Counter.sol
+  inferred Counter.bump loop at line 23: invariant count >= entry(count) (guard)
+  inferred Counter.bump loop at line 23: invariant count >= entry(i) (guard)
+  inferred Counter.bump loop at line 23: invariant count >= i (guard)
+  inferred Counter.bump loop at line 23: invariant i >= entry(i) (guard)
+  inferred Counter.bump loop at line 23: invariant i <= count (guard)
+  inferred Counter.bump loop at line 23: invariant i <= n (guard)
+  inferred Counter.bump loop at line 23: invariant count == old(count) + n [n := i] (spec)
+  inferred Counter.bump loop at line 23: invariant count <= limit (spec)
+  inferred Counter.bump loop at line 23: terminates, measure n - i
+  inferred Counter.bump loop at line 23: 8 of 15 candidates kept
+✔ Counter.bump (19 obligations)
+verification results:: 1 verified, 0 errors
+
+$ solar-verify --no-infer examples/Counter.sol
+✔ Counter.constructor (2 obligations)
+✔ Counter.increment (2 obligations)
+✘ Counter.bump (2 of 2 obligations failed)
+✔ Counter.max (3 obligations)
+verification results:: 3 verified, 1 errors
