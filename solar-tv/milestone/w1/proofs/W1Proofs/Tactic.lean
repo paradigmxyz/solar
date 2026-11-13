@@ -129,6 +129,22 @@ theorem caller_le_mask (o : Oracle) :
   rw [BitVec.lt_def, BitVec.toNat_setWidth, hm, Nat.mod_eq_of_lt (by omega)]
   omega
 
+/-- The address of a word, as a pass spells it by shifting its high bits out and back
+(`shl 96; shr 96`), as the mask `and` that other passes spell it with, so that both
+spellings of an address check meet. -/
+theorem shr96_shl96 (x : Word) :
+    Evm.shr 96 (Evm.shl 96 x) = Evm.and x 1461501637330902918203684832716283019655932542975 := by
+  have hm : (1461501637330902918203684832716283019655932542975 : Word).toNat = 2 ^ 160 - 1 := rfl
+  unfold Evm.shr Evm.shl Evm.and
+  rw [show (96 : Word).ult 256 = true from rfl, Bool.cond_true, Bool.cond_true,
+    BitVec.ushiftRight_eq', BitVec.shiftLeft_eq']
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, BitVec.toNat_and, hm,
+    Nat.and_two_pow_sub_one_eq_mod, show (96 : Word).toNat = 96 from rfl, Nat.shiftLeft_eq,
+    Nat.shiftRight_eq_div_pow]
+  have h := x.isLt
+  omega
+
 /-- A width test as solar spells it, by shifting out the address bits, as the mask test. -/
 theorem shr160_eq_zero (x : Word) :
     (Evm.shr 160 x = 0) = ¬ (1461501637330902918203684832716283019655932542975 : Word) < x := by
@@ -801,7 +817,7 @@ macro "sym_cond" : tactic => `(tactic|
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
     wordAddComm, wordMulComm, wordAndComm, wordOrComm, wordXorComm, and_mask,
-    mask_and, caller_le_mask, shr160_eq_zero, zero_eq_shr160, and_self, and_true, true_and, and_false, false_and,
+    mask_and, shr96_shl96, caller_le_mask, shr160_eq_zero, zero_eq_shr160, and_self, and_true, true_and, and_false, false_and,
     ite_true, ite_false,
     not_false_eq_true, not_true_eq_false, Classical.not_not, ↓reduceIte, Nat.reduceGT, Nat.reduceLT,
     Nat.reduceEqDiff, Nat.reduceLeDiff, Nat.reduceAdd, Nat.reduceSub, Nat.lt_irrefl,
@@ -809,11 +825,8 @@ macro "sym_cond" : tactic => `(tactic|
 
 /-- A range side condition by `omega` over the offsets' `toNat`s, as `sym_omega` reads
 words, failing without logging so that `simp` leaves an unproved rewrite undone. -/
-macro "sym_mem_disch_core" : tactic => `(tactic| first
-  -- A closed numeral range, as a literal free pointer leaves it: the kernel decides it
-  -- with a smaller proof than omega's.
-  | decide
-  | ((try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.zero_add, BitVec.add_zero] at *)
+macro "sym_mem_disch_core" : tactic => `(tactic|
+  ((try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.zero_add, BitVec.add_zero] at *)
    <;> (try simp -implicitDefEqProofs only [bitvec_to_nat] at *)
    <;> (try simp only [BitVec.toNat_and, toNat_shr, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod,
      natMask] at *)

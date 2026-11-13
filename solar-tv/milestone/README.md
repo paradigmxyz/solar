@@ -54,7 +54,8 @@ module `Runs/<Stage>/Sel<i>` per external function, one `Runs/<Stage>/Other` for
 none of them, and `Runs/<Stage>` combining them by `by_cases`, so that each Lean process (and the
 kernel) checks one function's paths; the run theorems, the stages and their composition are the
 ones an unsplit contract has. `--heartbeats N` and `--rec-depth N` set each run proof's
-`maxHeartbeats` and `maxRecDepth`. negative.sh reads a split run as its cases: unedited, every
+`maxHeartbeats` and `maxRecDepth`, and `--heavy SELECTORS` gives those functions' cases four times the
+heartbeats. negative.sh reads a split run as its cases: unedited, every
 case must check; edited, the first case that fails must fail with its mismatch.
 
 ## Targets
@@ -226,12 +227,12 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
   `permit`, which hashes the EIP-712 struct (192 bytes) and the digest (`\x19\x01`, the domain
   separator and the struct hash: 66 bytes at unaligned offsets), calls the `ecrecover`
   precompile, checks the recovered address and increments the nonce. Stages `stage0 → mir1 → … →
-  mir4 → sched → evm1 → … → evm11`, certified with `--split --rec-depth 8192` (`permit`'s path is
-  one term too deep for the default) and `LEAN_MEMORY=6000` (`permit`'s cases; every other
+  mir4 → sched → evm1 → … → evm11`, certified with `--split --rec-depth 8192 --heavy d505accf` (`permit`'s path
+  is one term too deep and too long for the defaults) and `LEAN_MEMORY=6000` (`permit`'s cases; every other
   function's fits in 3000).
 
 ```sh
-LEAN_MEMORY=6000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/uni_erc20/uni_erc20.sol UniswapV2ERC20 --split --rec-depth 8192 -- -Ogas --evm-version osaka -Zcheck-analyses=false
+LEAN_MEMORY=6000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/uni_erc20/uni_erc20.sol UniswapV2ERC20 --split --rec-depth 8192 --heavy d505accf -- -Ogas --evm-version osaka -Zcheck-analyses=false
 ```
 
 ## Limits

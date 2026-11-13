@@ -3,7 +3,7 @@
 # and checks them, with nothing written by hand for the contract.
 #
 #   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--heartbeats N]
-#       [--split] [--rec-depth N] [-- SOLAR_OPTIONS...]
+#       [--split] [--rec-depth N] [--heavy SELECTORS] [-- SOLAR_OPTIONS...]
 #
 # NAME (default: FILE's base name, lowercase letters, digits and underscores) is the directory
 # solar-tv/milestone/NAME, the Lean library NAME and the namespace SolarTV.Milestone.<Name>.
@@ -17,6 +17,8 @@
 # per external function of the contract and one for none of them, so that the kernel checks one
 # function's paths at a time; the run theorems and their composition are unchanged. --rec-depth N
 # (kept in NAME/rec-depth) is each run proof's maxRecDepth, for paths with deeper terms.
+# --heavy SELECTORS (comma-separated hex, kept in NAME/heavy) gives those functions' cases four
+# times the heartbeats, for a function whose one path is much longer than the others.
 #
 # 1. Copies FILE to NAME/NAME.sol (the source the manifest records), builds solar (unless
 #    CERTIFY_SKIP_BUILD=1; SOLAR picks the binary), checks that its version names the
@@ -52,6 +54,7 @@ loops=
 heartbeats=
 split=
 recdepth=
+heavy=
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name) name=$2; shift 2 ;;
@@ -59,6 +62,7 @@ while [[ $# -gt 0 ]]; do
         --heartbeats) heartbeats=$2; shift 2 ;;
         --split) split=1; shift ;;
         --rec-depth) recdepth=$2; shift 2 ;;
+        --heavy) heavy=$2; shift 2 ;;
         --) shift; options=("$@"); break ;;
         *) die "unknown argument $1" ;;
     esac
@@ -93,6 +97,11 @@ if [[ -n "$recdepth" ]]; then
     echo "$recdepth" > "$dir/rec-depth"
 fi
 recdepth="$(cat "$dir/rec-depth" 2>/dev/null || echo 0)"
+if [[ -n "$heavy" ]]; then
+    [[ "$heavy" =~ ^[0-9a-f]{8}(,[0-9a-f]{8})*$ ]] || die "--heavy $heavy is not a list of selectors"
+    echo "$heavy" > "$dir/heavy"
+fi
+heavy="$(cat "$dir/heavy" 2>/dev/null || true)"
 
 echo "== 1. compile $source:$contract (${options[*]}) and export its stages"
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -155,7 +164,7 @@ echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops" --heartbeats "$heartbeats" --selectors "$selectors" --rec-depth "$recdepth")"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats" --selectors "$selectors" --rec-depth "$recdepth" --heavy "$heavy")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 

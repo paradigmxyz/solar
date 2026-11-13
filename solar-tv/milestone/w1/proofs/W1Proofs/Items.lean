@@ -85,6 +85,23 @@ def effectItem : Machine.Effect → Nat → Option Item
   | .create, 3 => some (.op 0xf0)
   | .create2, 4 => some (.op 0xf5)
   | .log n, arity => if n ≤ 4 ∧ arity = n + 2 then some (.op (0xa0 + n)) else none
+  | .env "origin", 0 => some (.op 0x32)
+  | .env "gasprice", 0 => some (.op 0x3a)
+  | .env "coinbase", 0 => some (.op 0x41)
+  | .env "timestamp", 0 => some (.op 0x42)
+  | .env "number", 0 => some (.op 0x43)
+  | .env "prevrandao", 0 => some (.op 0x44)
+  | .env "gaslimit", 0 => some (.op 0x45)
+  | .env "chainid", 0 => some (.op 0x46)
+  | .env "basefee", 0 => some (.op 0x48)
+  | .env "blobbasefee", 0 => some (.op 0x4a)
+  | .env "blockhash", 1 => some (.op 0x40)
+  | .env "blobhash", 1 => some (.op 0x49)
+  | .env "balance", 1 => some (.op 0x31)
+  | .env "selfbalance", 0 => some (.op 0x47)
+  | .env "extcodesize", 1 => some (.op 0x3b)
+  | .env "extcodehash", 1 => some (.op 0x3f)
+  | .env "codesize", 0 => some (.op 0x38)
   | _, _ => none
 
 /-- The items of an instruction. -/

@@ -10,7 +10,7 @@ namespace SolarTV.Milestone.UniErc20
 
 open Machine SolarTV.Export.UniswapV2ERC20 SolarTV.Milestone.W1
 
-set_option maxHeartbeats 8000000 in
+set_option maxHeartbeats 32000000 in
 set_option maxRecDepth 8192 in
 theorem mir2_run_sel11 (o : Oracle) (call : Call)
     (hsel : EvmRules.Evm.shr 224 (calldataWord call 0) = 0xd505accf) :

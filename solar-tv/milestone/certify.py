@@ -125,6 +125,11 @@ def main():
         help="each run proof's maxRecDepth when given, for terms deeper than the default allows",
     )
     ap.add_argument(
+        "--heavy",
+        default="",
+        help="comma-separated hex selectors whose cases get four times the heartbeats",
+    )
+    ap.add_argument(
         "--selectors",
         default="",
         help="comma-separated hex function selectors: split each run proof into one lemma per "
@@ -151,9 +156,10 @@ def main():
     calls = any(s["calls"] for s in stages)
     hb = int(args.heartbeats) * (4 if calls else 1)
     selectors = [int(x, 16) for x in args.selectors.split(",") if x]
-    opts = f"set_option maxHeartbeats {hb} in\n" + (
-        f"set_option maxRecDepth {args.rec_depth} in\n" if args.rec_depth else ""
-    )
+    heavy = {int(x, 16) for x in args.heavy.split(",") if x}
+    depth = f"set_option maxRecDepth {args.rec_depth} in\n" if args.rec_depth else ""
+    opts = f"set_option maxHeartbeats {hb} in\n" + depth
+    heavy_opts = f"set_option maxHeartbeats {4 * hb} in\n" + depth
 
     def theorem(name, statement, module, imports, doc):
         """The module `Runs/<module>`: `name`'s proof of `statement` (over `o` and `call`) by
@@ -175,7 +181,7 @@ def main():
             write(
                 out / "Runs" / module / f"Sel{i}.lean",
                 header(imports, f"{doc} Calls to the selector 0x{sel:08x}.", ns, opens)
-                + opts
+                + (heavy_opts if sel in heavy else opts)
                 + f"theorem {lemma} (o : Oracle) (call : Call)\n"
                 f"    (hsel : {word} = 0x{sel:08x}) :\n    {statement} := by\n"
                 "  sym_exec\n\n" + ax(lemma) + f"\nend {ns}\n",
