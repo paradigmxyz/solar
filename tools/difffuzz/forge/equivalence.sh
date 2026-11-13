@@ -4,7 +4,7 @@
 # optimized and the reference implementation lay out storage differently, so they are compared
 # by the fuzz and invariant tests instead. Writes one JSON line per check to code/equivalence.jsonl.
 #
-#   tools/difffuzz/forge/equivalence.sh [timeout-seconds]
+#   bash tools/difffuzz/forge/equivalence.sh [timeout-seconds]
 set -uo pipefail
 cd "$(dirname "$0")"
 T=${1:-600}

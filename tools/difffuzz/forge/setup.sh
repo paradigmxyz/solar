@@ -3,7 +3,7 @@
 # variants there: its optimized and reference implementations, each with solc (forge's own
 # 0.8.24) and with the compiler under test.
 #
-#   tools/difffuzz/forge/setup.sh [path/to/solar]
+#   bash tools/difffuzz/forge/setup.sh [path/to/solar]
 set -euo pipefail
 cd "$(dirname "$0")"
 SOLAR=$(realpath "${1:-../../../target/debug/solar}")

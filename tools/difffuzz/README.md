@@ -101,13 +101,13 @@ custom legs above remain only for SolidCore and the MIR and EVM IR interpreters.
   is replayed from the state the calls left; one that agrees there is counted as unreached and
   kept under `forge-unreached/`. So far those have all been dirty padding (CODEGEN-025).
 - `forge/` is a Foundry project over Seaport, pinned at the external suite's revision.
-  `forge/setup.sh [solar]` builds its optimized (assembly) and reference (high-level)
+  `bash forge/setup.sh [solar]` builds its optimized (assembly) and reference (high-level)
   implementations with solc and with the compiler, and `forge test` runs fuzz tests (views,
   order hashing, raw calldata, counters, signed ETH-for-ERC721 orders seeded with
   `basic.spec.ts`'s amounts as fixtures, getters over arbitrary stored words) and an invariant
   test that applies random fills, cancellations and counter bumps to all four builds in lockstep.
   Same-source builds must agree byte for byte; the two implementations must agree on success and
-  return data. `forge/equivalence.sh` checks each implementation's two builds with `forge
+  return data. `bash forge/equivalence.sh` checks each implementation's two builds with `forge
   equivalence` entry point by entry point and writes `code/equivalence.jsonl`.
 
 On the four builds, every fuzz test passes 1,000 runs and the invariant test 64 runs of 32 calls.
