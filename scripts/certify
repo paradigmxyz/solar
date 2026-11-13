@@ -45,7 +45,7 @@
 # default 3000), LEAN_NUM_THREADS (default 1), CARGO_BUILD_JOBS (default 2), CERTIFY_WRAP (a
 # command prefix for every cargo, lake and lean process, such as a job slot limiter),
 # CERTIFY_EXAMPLES (default Certified). Two escape hatches, each reported in the result line and
-# never set in CI: CERTIFY_ALLOW_UNPINNED=1 accepts a SOLIDITY_LEAN_DIR at another commit, and
+# refused when CI or GITHUB_ACTIONS is set: CERTIFY_ALLOW_UNPINNED=1 accepts a SOLIDITY_LEAN_DIR at another commit, and
 # CERTIFY_ALLOW_FOREIGN_SOLAR=1 accepts a SOLAR built from other compiler sources.
 set -euo pipefail
 
@@ -57,6 +57,12 @@ memory="$LEAN_MEMORY"
 examples="${CERTIFY_EXAMPLES:-Certified}"
 read -r -a wrap <<<"${CERTIFY_WRAP:-}"
 caveats=()
+# The escape hatches are for local work only: CI certifies against the pin with its own solar.
+if [[ "${CI:-}" == true || -n "${GITHUB_ACTIONS:-}" ]]; then
+    for var in CERTIFY_ALLOW_UNPINNED CERTIFY_ALLOW_FOREIGN_SOLAR; do
+        [[ -z "${!var:-}" ]] || { echo "certify: error: $var is refused in CI" >&2; exit 1; }
+    done
+fi
 hthms=()
 
 die() { echo "certify: error: $*" >&2; exit 1; }
@@ -224,11 +230,7 @@ moreLeanArgs = ["-M", "$memory"]
 EOF
 fi
 # The generated files may use none of the escapes the kernel does not check.
-banned='\bsorry\b|native_decide|bv_decide|ofReduceBool|ofReduceNat|implemented_by|@\[extern|^\s*(private\s+)?axiom\b|\bunsafe\b|debug\.skipKernelTC'
-if hits="$(grep -rnE "$banned" "$dir" --include='*.lean')"; then
-    echo "$hits" >&2
-    die "the generated files use a construct the kernel does not check (above)"
-fi
+bash "$here/audit.sh" scan "$dir" || die "the generated files of $name fail the scan"
 mkdir -p .lake
 log="$lean_dir/.lake/certify-$name.log"
 mapfile -t stages < <(cd "$examples" && ls "$name/gen/$contract"/*.lean | sed 's|\.lean$||; s|/|.|g')
@@ -244,29 +246,8 @@ for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.As
     tail -n 1 "$log"
 done
 
-# audit OUT MODULE... -- THEOREM...: elaborate a file that imports the modules and prints each
-# theorem's statement and axioms; fail on any axiom beyond the three, and on a theorem missing
-# from the report.
-audit() {
-    local out=$1; shift
-    local file="$lean_dir/.lake/certify-audit-$name.lean" imports=() thms=() report bad
-    while [[ $1 != -- ]]; do imports+=("$1"); shift; done
-    shift
-    thms=("$@")
-    {
-        printf 'import %s\n' "${imports[@]}"
-        printf '#check @%s\n' "${thms[@]}"
-        printf '#print axioms %s\n' "${thms[@]}"
-    } > "$file"
-    report="$(run lake env lean -M "$memory" "$file" 2>&1)" || { echo "$report" >&2; die "the axiom audit does not check"; }
-    echo "$report" > "$out"
-    grep -E "depends on axioms|does not depend on any axioms" "$out"
-    bad="$(grep "depends on axioms" "$out" | sed -E 's/.*depends on axioms: \[(.*)\]/\1/' |
-        tr ',' '\n' | tr -d ' ' | grep -v -x -E 'propext|Classical\.choice|Quot\.sound' || true)"
-    [[ -z "$bad" ]] || die "axioms beyond propext, Classical.choice and Quot.sound: $bad"
-    [[ "$(grep -c -E "depends on axioms|does not depend on any axioms" "$out")" -eq ${#thms[@]} ]] ||
-        die "a theorem is missing from the axiom audit"
-}
+# audit OUT MODULE... -- THEOREM...: tools/certify/audit.sh's axiom audit, failing the run.
+audit() { bash "$here/audit.sh" axioms "$lean_dir" "$@" || die "the axiom audit fails"; }
 mapfile -t thms < <(grep -rhoE '^theorem [A-Za-z0-9_'"'"']+' "$dir/Proofs" | awk '{print $2}' | sort -u |
     sed "s/^/SolarTV.Milestone.$cap./")
 [[ ${#thms[@]} -gt 0 ]] || die "no theorems in $dir/Proofs"
@@ -327,8 +308,8 @@ if [[ -f "$dir/headline" ]]; then
         printf '%s: ' "$module"
         hfile="$examples/${module//.//}.lean"
         [[ -f "$hfile" ]] || hfile="${module//.//}.lean"
-        if [[ -f "$hfile" ]] && hits="$(grep -nE "$banned" "$hfile")"; then
-            echo "$hits" >&2; die "$hfile uses a construct the kernel does not check"
+        if [[ -f "$hfile" ]]; then
+            bash "$here/audit.sh" scan "$hfile" || die "$hfile fails the scan"
         fi
         if ! run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1; then
             grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
@@ -342,6 +323,7 @@ elif [[ $require_headline -eq 1 ]]; then
     die "$dir/headline is missing: solidity-lean states no source or spec theorem for $name"
 else
     echo "no $dir/headline: certifying the backend only"
+    caveats+=("backend only: solidity-lean states no headline theorem for $name")
 fi
 
 echo "== 7. negative tests"
@@ -403,6 +385,6 @@ EOF
 rm -f "$record.refused" "$record.caveats" "$record.headline"
 echo "record: $record"
 if [[ ${#caveats[@]} -gt 0 ]]; then
-    echo "certified with caveats: $(IFS=';'; echo "${caveats[*]}")"
+    echo "certified with caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
 fi
 echo "CERTIFIED $name ($contract): $claim; bytecode $plain"

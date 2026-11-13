@@ -5,10 +5,14 @@
 #   dir="$(tools/certify/checkout.sh)"
 #
 # SOLIDITY_LEAN_DIR names an existing checkout, which must be at the pin unless
-# CERTIFY_ALLOW_UNPINNED=1 (then a line on stderr says so); otherwise the script fetches the pin
+# CERTIFY_ALLOW_UNPINNED=1 (then a line on stderr says so; refused in CI); otherwise the script fetches the pin
 # into target/certify/solidity-lean, a checkout it owns and resets on every run (keeping .lake).
 set -euo pipefail
 
+if [[ "${CI:-}" == true || -n "${GITHUB_ACTIONS:-}" ]] && [[ -n "${CERTIFY_ALLOW_UNPINNED:-}" ]]; then
+    echo "certify: error: CERTIFY_ALLOW_UNPINNED is refused in CI" >&2
+    exit 1
+fi
 root="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../.." && pwd)"
 die() { echo "certify: error: $*" >&2; exit 1; }
 pin="$(tr -d '[:space:]' < "$root/tools/certify/solidity-lean.rev")"
