@@ -37,7 +37,8 @@ use crate::{
     typeck::override_checker::is_fully_implemented,
 };
 use alloy_primitives::hex;
-use serde::ser::{Serialize, SerializeMap, SerializeSeq, SerializeStruct, Serializer};
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde_json::value::RawValue;
 use solar_ast::{self as ast, CommentKind, DocComments, token::TokenLitKind};
 use solar_data_structures::index::IndexVec;
 use solar_interface::{
@@ -157,9 +158,6 @@ struct AheadState {
     taken: usize,
     /// Whether the output is complete, which stops the workers.
     closed: bool,
-    /// The buffers of the sources that the output has copied, for the workers to write the next
-    /// sources into.
-    buffers: Vec<String>,
 }
 
 /// Stops the workers of [`AstJson::render`] when the output ends, or panics.
@@ -176,14 +174,8 @@ enum Slot {
     /// Not started, or failed: the output writes it itself.
     Pending,
     Writing,
-    Written(String),
+    Written(Box<RawValue>),
 }
-
-/// The text that a worker expects the JSON of a source to take per byte of the source: the output
-/// is 15 to 20 times the source in total on OpenZeppelin, seaport, solady and v4-core, and the
-/// median source is 12 to 19 times its size. A worker reserves this much, so that most sources
-/// are written without growing their buffer.
-const AST_JSON_BYTES_PER_SOURCE_BYTE: usize = 16;
 
 impl<'gcx> AstJson<'gcx> {
     /// Returns the AST JSON of the source, or `None` if it has no AST, or if its imports were not
@@ -215,26 +207,23 @@ impl<'gcx> AstJson<'gcx> {
             started: 0,
             taken: 0,
             closed: false,
-            buffers: Vec::new(),
         };
         let ahead = Ahead { order, state: Mutex::new(state), changed: Condvar::new() };
         let ahead = self.ahead.get_or_init(|| ahead);
-        let result = rayon::scope(|scope| {
+        rayon::scope(|scope| {
             for _ in 0..threads {
                 scope.spawn(|_| self.write_ahead(ahead, 2 * threads));
             }
             let _close = Close(ahead);
             write()
-        });
-        ahead.state.lock().unwrap_or_else(PoisonError::into_inner).buffers.clear();
-        result
+        })
     }
 
     /// Writes the sources of `ahead` in order, until the output has them all or ends, and never
     /// more than `window` sources before the one that the output reaches.
     fn write_ahead(&self, ahead: &Ahead, window: usize) {
         loop {
-            let (id, mut buffer) = {
+            let id = {
                 let mut state = ahead.state.lock().unwrap();
                 while !state.closed
                     && state.started < ahead.order.len()
@@ -247,21 +236,14 @@ impl<'gcx> AstJson<'gcx> {
                 };
                 state.started += 1;
                 state.slots[id] = Slot::Writing;
-                (id, state.buffers.pop().unwrap_or_default())
+                id
             };
             let source = Direct(SourceAstJson { json: self, id });
-            let written = panic::catch_unwind(AssertUnwindSafe(|| {
-                let expected = self.gcx.sources[id].file.src.len();
-                buffer.clear();
-                buffer.reserve(expected.saturating_mul(AST_JSON_BYTES_PER_SOURCE_BYTE));
-                // The worker checks that the bytes are UTF-8, so that the output need not.
-                let mut bytes = buffer.into_bytes();
-                serde_json::to_writer(&mut bytes, &source).ok()?;
-                String::from_utf8(bytes).ok()
-            }));
-            let (slot, panic) = match written {
-                Ok(Some(written)) => (Slot::Written(written), None),
-                Ok(None) => (Slot::Pending, None),
+            let raw =
+                panic::catch_unwind(AssertUnwindSafe(|| serde_json::value::to_raw_value(&source)));
+            let (slot, panic) = match raw {
+                Ok(Ok(raw)) => (Slot::Written(raw), None),
+                Ok(Err(_)) => (Slot::Pending, None),
                 Err(panic) => (Slot::Pending, Some(panic)),
             };
             ahead.state.lock().unwrap().slots[id] = slot;
@@ -275,27 +257,20 @@ impl<'gcx> AstJson<'gcx> {
 
     /// Takes the source that [`AstJson::render`] writes ahead, waiting for it if workers are
     /// writing it. Returns `None` if no worker has started it.
-    fn take_ahead(&self, id: SourceId) -> Option<String> {
+    fn take_ahead(&self, id: SourceId) -> Option<Box<RawValue>> {
         let ahead = self.ahead.get()?;
         let mut state = ahead.state.lock().unwrap();
         state.taken += 1;
         ahead.changed.notify_all();
         loop {
             match std::mem::replace(&mut state.slots[id], Slot::Pending) {
-                Slot::Written(written) => return Some(written),
+                Slot::Written(raw) => return Some(raw),
                 Slot::Writing => {
                     state.slots[id] = Slot::Writing;
                     state = ahead.changed.wait(state).unwrap();
                 }
                 Slot::Pending => return None,
             }
-        }
-    }
-
-    /// Gives a buffer of a source that the output has copied back to the workers.
-    fn recycle(&self, buffer: String) {
-        if let Some(ahead) = self.ahead.get() {
-            ahead.state.lock().unwrap_or_else(PoisonError::into_inner).buffers.push(buffer);
         }
     }
 
@@ -321,29 +296,9 @@ impl fmt::Debug for SourceAstJson<'_, '_> {
 impl Serialize for SourceAstJson<'_, '_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self.json.take_ahead(self.id) {
-            Some(written) => {
-                let result = RawJson(&written).serialize(s);
-                self.json.recycle(written);
-                result
-            }
+            Some(raw) => raw.serialize(s),
             None => self.write(s),
         }
-    }
-}
-
-/// JSON that the output copies as it is, like a `RawValue`.
-struct RawJson<'a>(&'a str);
-
-impl Serialize for RawJson<'_> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        // `RawValue::from_string` parses the text, which is too slow on the output thread for the
-        // size of the output. This does what `RawValue::serialize` does instead, so it relies on
-        // the token of serde_json that marks a raw value. `ast_json_matches_across_thread_counts`
-        // and the UI snapshots of several sources fail if that changes.
-        const RAW_VALUE_TOKEN: &str = "$serde_json::private::RawValue";
-        let mut s = s.serialize_struct(RAW_VALUE_TOKEN, 1)?;
-        s.serialize_field(RAW_VALUE_TOKEN, self.0)?;
-        s.end()
     }
 }
 
