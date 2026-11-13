@@ -807,6 +807,22 @@ has no reason to guess that the author meant an address.
 
 Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
 
+### TYPECK-027: NatSpec errors are warnings
+
+Status: intentional.
+
+Difference: `solc` rejects invalid NatSpec with errors: 3881 for a `@param`
+tag that names no parameter, 2604 and 5856 for `@return` tags, 6546 for a tag
+the item does not allow, and 4682, 5142 and 9397 for `@inheritdoc`. `solar`
+reports each as a warning with the same code, so a build that `solc` fails
+only warns. Only the `@custom:solar-` tags of TYPECK-022 are errors.
+
+Rationale: a documentation mistake should not break a build
+([#1281](https://github.com/paradigmxyz/solar/pull/1281)).
+
+Coverage: `tests/ui/natspec/tag_sema.sol` and
+`tests/ui/natspec/tag_returns.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate
