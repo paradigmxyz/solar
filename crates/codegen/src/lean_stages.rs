@@ -36,7 +36,7 @@
 //!
 //! A call of a function that returns several words binds each further result to the value that
 //! reads it, as stack scheduling returns them on the stack and elides MIR's reads of the
-//! multi-return buffer ([`call_projection`]), so those reads are left out of the block. A call
+//! multi-return buffer (`call_projection`), so those reads are left out of the block. A call
 //! whose results escape that protocol is an error. Where codegen also publishes the results to
 //! the callee's return buffer, the call names the buffer, written once codegen fixes it.
 //!
@@ -57,7 +57,7 @@
 //! runs is the manifest's linked at them.
 //!
 //! The words the backend places in memory without MIR showing them are written into the MIR
-//! stages once codegen fixes them ([`backend_words`]), as the MIR interpreter reads them from
+//! stages once codegen fixes them (`backend_words`), as the MIR interpreter reads them from
 //! the backend memory records: the free memory pointer a runtime entry stores when it starts (a
 //! function's `entryHeap`), the heap floor each `heap_floor` of a function reads, where each
 //! `alloc` lives, and the return buffer a call returning several words publishes to, if any.
@@ -901,7 +901,7 @@ fn mir_function(
 
 /// The internal calls of `func` that return several words, with the value each further result
 /// binds, if any, and the reads of the multi-return buffer that bind them, which stack scheduling
-/// elides ([`call_projection`]). A call whose results escape that protocol is an error.
+/// elides (`call_projection`). A call whose results escape that protocol is an error.
 #[expect(clippy::type_complexity)]
 fn multi_returns(
     module: &Module,

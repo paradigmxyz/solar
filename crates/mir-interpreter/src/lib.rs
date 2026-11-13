@@ -186,6 +186,7 @@ fn execution_from(outcome: RunOutcome, effects: Effects) -> Execution {
         RunOutcome::Revert(data) => Outcome::Revert(data),
         RunOutcome::Invalid => Outcome::Halt,
         RunOutcome::ReturndataOutOfBounds => Outcome::ReturndataOutOfBounds,
+        RunOutcome::Undefined => Outcome::Unsupported("fails an assumed fact".into()),
         RunOutcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),
         RunOutcome::Limit(Limit::Depth) => Outcome::Unsupported("nests calls too deeply".into()),
         RunOutcome::Limit(Limit::Memory) => {

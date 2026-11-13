@@ -254,6 +254,13 @@ fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<
             phis.push(json!({"result": result, "type": ty, "incoming": incoming}));
             continue;
         }
+        // assume pred lhs, rhs: a fact a pass relied on, undefined where it fails
+        if let solar_mir::InstKind::Assume { predicate, lhs, rhs, .. } = inst.kind {
+            let operation = json!({"kind": "assume", "predicate": predicate.name(),
+                "args": operands(module, body, &[lhs, rhs])?});
+            instructions.push(json!({"result": null, "type": null, "operation": operation}));
+            continue;
+        }
         let operation = export_operation(module, body, &inst.kind)?;
         instructions.push(json!({"result":result,"type":ty,"operation":operation}));
     }

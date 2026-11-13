@@ -6,7 +6,8 @@ return exposes all live memory and transient storage to its caller. STOP/raw
 RETURN end the transaction, so private memory and transient storage disappear.
 Revert/exception roll back state and expose no memory. No gas placeholders or
 backend image hashes are part of this observation. Model errors on either side
-exclude a proof, including identical nontermination or resource exhaustion. -/
+exclude a proof, including identical nontermination or resource exhaustion. A source
+run that fails an `assume` is undefined and constrains no completed target run. -/
 
 namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
@@ -29,6 +30,7 @@ def observe (result : Result) : Observation :=
     | .success data => ("success",[],data,none,false)
     | .reverted data => ("revert",[],data,none,false)
     | .invalid => ("exception",[],[],none,false)
+    | .undefined => ("undefined",[],[],none,false)
   let accounts := result.world.accounts.map fun a => {a with
     storage := normalizedSlots a.storage
     transient := if keepTransient then normalizedSlots a.transient else []
@@ -39,8 +41,13 @@ def observe (result : Result) : Observation :=
     if keepTransient then ordered (fun a b => a.ule b) result.world.warmAddresses.eraseDups else [],
     if keepTransient then ordered (fun a b => if a.1 == b.1 then a.2.ule b.2 else a.1.ule b.1) result.world.warmSlots.eraseDups else []⟩
 
+/-- The target refines the source: equal observations, unless the source run is undefined (a
+failed `assume`), which any target run that completes refines. An undefined target run observes
+as `undefined`, which no defined source run observes, so it never refines one. -/
 def equivalent (before after : Run) : Prop :=
-  match before,after with | .ok a,.ok b => observe a = observe b | _,_ => False
+  match before,after with
+  | .ok a,.ok b => a.completion = .undefined ∨ observe a = observe b
+  | _,_ => False
 
 instance (a b : Run) : Decidable (equivalent a b) := by
   unfold equivalent
