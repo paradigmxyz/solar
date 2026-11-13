@@ -1,0 +1,13 @@
+case	backend	id	answer	status	seconds	peak_mb	axioms
+N1-source	smt	Counter.increment#1	sat	failed: Counter_increment_1_smt.lean:5:69: error: unable to prove goal, either it is false or you need to provide more facts	1.5	1783	propext sorryAx Classical.choice Quot.sound
+N2-goal	vc_valid	Counter.increment#1	unsat	failed: Counter_increment_1_vc_valid.lean:5:69: error: omega could not prove the goal: a possible counterexample may satisfy	1.6	1764	propext sorryAx Classical.choice Quot.sound
+N2-goal	smt	Counter.increment#1	unsat	failed: Counter_increment_1_smt.lean:5:69: error: unable to prove goal, either it is false or you need to provide more facts	1.6	1782	propext sorryAx Classical.choice Quot.sound
+N3-assert	vc_valid	Counter.increment#1	unsat	failed: Counter_increment_1_vc_valid.lean:5:69: error: omega could not prove the goal: a possible counterexample may satis	1.6	1764	propext sorryAx Classical.choice Quot.sound
+N3-assert	vc_valid	Counter.increment#2	unsat	failed: Counter_increment_2_vc_valid.lean:5:69: error: omega could not prove the goal: a possible counterexample may satis	1.5	1763	propext sorryAx Classical.choice Quot.sound
+N3-assert	smt	Counter.increment#1	unsat	failed: Counter_increment_1_smt.lean:5:69: error: unable to prove goal, either it is false or you need to provide more fac	1.7	1783	propext sorryAx Classical.choice Quot.sound
+N3-assert	smt	Counter.increment#2	unsat	failed: Counter_increment_2_smt.lean:5:69: error: unable to prove goal, either it is false or you need to provide more fac	1.6	1783	propext sorryAx Classical.choice Quot.sound
+N4-withdraw0-negated	smt	Vault.withdraw#0	unsat	failed: Vault_withdraw_0_smt.lean:5:66: error: unable to prove goal. Try providing more hints. Reason: INCOMPLETE AXIOMS: 	2.1	1814	propext sorryAx Classical.choice Quot.sound
+N4-max8-negated	smt	ArrayMax.max#8	unsat	failed: ArrayMax_max_8_smt.lean:5:64: error: unable to prove goal. Try providing more hints. Reason: INCOMPLETE AXIOMS: 	2.6	1831	propext sorryAx Classical.choice Quot.sound
+info-withdraw6-negated	smt	Vault.withdraw#6	unsat	proved	2.2	1819	propext Classical.choice Quot.sound
+N2-goal	-	(all)	-	error: the inputs are not the ones crates/verify/lean/frozen/Counter.sha256 pins	0	-	-
+N3-assert	-	(all)	-	error: the inputs are not the ones crates/verify/lean/frozen/Counter.sha256 pins	0	-	-

@@ -1,0 +1,20 @@
+id	role	answer	status	backend	seconds	peak_mb	axioms
+ArrayMax.max#0	obligation	unsat	proved	vc_valid	1.4	1761	propext Classical.choice Quot.sound
+ArrayMax.max#1	obligation	unsat	proved	vc_valid	1.4	1761	propext Classical.choice Quot.sound
+ArrayMax.max#2	obligation	unsat	proved	vc_valid	1.4	1766	propext Classical.choice Quot.sound
+ArrayMax.max#3	obligation	unsat	proved	vc_valid	1.4	1765	propext Classical.choice Quot.sound
+ArrayMax.max#4	obligation	unsat	proved	vc_valid	1.5	1767	propext Classical.choice Quot.sound
+ArrayMax.max#5	obligation	unsat	proved	vc_valid	1.4	1761	propext Classical.choice Quot.sound
+ArrayMax.max#6	obligation	unsat	proved	vc_valid	2.4	1807	propext Classical.choice Quot.sound
+ArrayMax.max#7	obligation	unsat	proved	vc_valid	2.3	1807	propext Classical.choice Quot.sound
+ArrayMax.max#8	obligation	unsat	proved	smt	3.2	1878	propext Classical.choice Quot.sound
+ArrayMax.max#9	obligation	unsat	proved	smt	3.3	1872	propext Classical.choice Quot.sound
+ArrayMax.max#10	obligation	unsat	proved	smt	2.9	1872	propext Classical.choice Quot.sound
+ArrayMax.max#11	obligation	unsat	proved	vc_valid	2.4	1807	propext Classical.choice Quot.sound
+ArrayMax.max#12	obligation	unsat	proved	vc_valid	7.3	2139	propext Classical.choice Quot.sound
+ArrayMax.max#14	obligation	unsat	proved	vc_valid	24.9	3282	propext Classical.choice Quot.sound
+ArrayMax.max#15	obligation	unsat	proved	vc_valid	9.3	2345	propext Classical.choice Quot.sound
+ArrayMax.clamp#1	obligation	unsat	proved	vc_valid	1.5	1761	propext Classical.choice Quot.sound
+ArrayMaxEntry.max#0	obligation	unsat	proved	vc_valid	1.5	1757	propext Classical.choice Quot.sound
+ArrayMaxEntry.max#2	obligation	unsat	proved	vc_valid	2.0	1772	propext Classical.choice Quot.sound
+ArrayMaxEntry.max#3	obligation	unsat	proved	vc_valid	1.8	1772	propext Classical.choice Quot.sound

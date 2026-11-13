@@ -1,0 +1,64 @@
+id	vacuous	seconds	axioms	note
+Counter.constructor#1	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.constructor#2	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.increment#1	no	1.5	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.increment#2	no	1.5	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#0	no	1.6	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#1	no	1.6	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#2	no	1.8	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#3	no	1.8	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#4	no	1.8	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#6	no	1.8	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.bump#7	no	1.9	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.max#1	no	1.6	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.max#2	no	1.6	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Counter.max#3	no	1.6	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Token.constructor#1	no	1.3	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Token.constructor#2	no	1.3	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Token.mint#1	unknown	61.8	propext sorryAx Classical.choice Quot.sound	Token_mint_1.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: TIMEOUT
+Token.mint#2	unknown	61.8	propext sorryAx Classical.choice Quot.sound	Token_mint_2.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: TIMEOUT
+Token.mint#3	unknown	61.9	propext sorryAx Classical.choice Quot.sound	Token_mint_3.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: TIMEOUT
+Token.mint#4	unknown	61.9	propext sorryAx Classical.choice Quot.sound	Token_mint_4.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: TIMEOUT
+Token.transfer#1	unknown	2.4	propext sorryAx Classical.choice Quot.sound	Token_transfer_1.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Token.transfer#2	unknown	2.2	propext sorryAx Classical.choice Quot.sound	Token_transfer_2.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Token.transfer#3	unknown	2.1	propext sorryAx Classical.choice Quot.sound	Token_transfer_3.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Token.transfer#4	unknown	2.1	propext sorryAx Classical.choice Quot.sound	Token_transfer_4.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Token.transfer#5	unknown	2.1	propext sorryAx Classical.choice Quot.sound	Token_transfer_5.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Token.burn#1	unknown	1.8	propext sorryAx Classical.choice Quot.sound	Token_burn_1.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLETE
+Token.burn#2	unknown	1.7	propext sorryAx Classical.choice Quot.sound	Token_burn_2.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLETE
+Vault.constructor#1	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Vault.constructor#2	no	1.5	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Vault.deposit#0	no	1.8	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+Vault.deposit#2	unknown	2.4	propext sorryAx Classical.choice Quot.sound	Vault_deposit_2.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+Vault.deposit#3	unknown	2.4	propext sorryAx Classical.choice Quot.sound	Vault_deposit_3.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+Vault.deposit#4	unknown	2.2	propext sorryAx Classical.choice Quot.sound	Vault_deposit_4.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+Vault.deposit#5	unknown	2.4	propext sorryAx Classical.choice Quot.sound	Vault_deposit_5.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+Vault.deposit#6	VACUOUS	1.8	propext Classical.choice Quot.sound	hypotheses refuted in kernel
+Vault.deposit#7	VACUOUS	2.2	propext Classical.choice Quot.sound	hypotheses refuted in kernel
+Vault.withdraw#0	unknown	2.1	propext sorryAx Classical.choice Quot.sound	Vault_withdraw_0.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Vault.withdraw#1	unknown	2.3	propext sorryAx Classical.choice Quot.sound	Vault_withdraw_1.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Vault.withdraw#3	unknown	2.2	propext sorryAx Classical.choice Quot.sound	Vault_withdraw_3.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Vault.withdraw#4	unknown	2.2	propext sorryAx Classical.choice Quot.sound	Vault_withdraw_4.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Vault.withdraw#5	unknown	2.2	propext sorryAx Classical.choice Quot.sound	Vault_withdraw_5.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPL
+Vault.withdraw#6	VACUOUS	2.0	propext Classical.choice Quot.sound	hypotheses refuted in kernel
+Vault.withdraw#7	VACUOUS	2.1	propext Classical.choice Quot.sound	hypotheses refuted in kernel
+Vault.withdraw#8	VACUOUS	2.4	propext Classical.choice Quot.sound	hypotheses refuted in kernel
+ArrayMax.max#0	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMax.max#1	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMax.max#2	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMax.max#3	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMax.max#4	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMax.max#5	no	1.4	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMax.max#6	unknown	2.5	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_6.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLET
+ArrayMax.max#7	unknown	2.4	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_7.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLET
+ArrayMax.max#8	unknown	2.4	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_8.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLET
+ArrayMax.max#9	unknown	2.4	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_9.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLET
+ArrayMax.max#10	unknown	2.4	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_10.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+ArrayMax.max#11	unknown	2.5	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_11.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+ArrayMax.max#12	unknown	2.5	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_12.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+ArrayMax.max#14	unknown	2.5	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_14.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+ArrayMax.max#15	unknown	2.4	propext sorryAx Classical.choice Quot.sound	ArrayMax_max_15.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCOMPLE
+ArrayMax.clamp#1	no	1.6	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMaxEntry.max#0	no	1.5	propext sorryAx Classical.choice Quot.sound	cvc5 model: hypotheses satisfiable
+ArrayMaxEntry.max#2	unknown	1.9	propext sorryAx Classical.choice Quot.sound	ArrayMaxEntry_max_2.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCO
+ArrayMaxEntry.max#3	unknown	1.8	propext sorryAx Classical.choice Quot.sound	ArrayMaxEntry_max_3.lean:6:49: error: unable to prove goal. Try providing more hints. Reason: INCO

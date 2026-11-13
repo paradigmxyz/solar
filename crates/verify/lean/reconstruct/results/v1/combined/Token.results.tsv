@@ -1,0 +1,14 @@
+id	role	answer	status	backend	seconds	peak_mb	axioms
+Token.constructor#1	obligation	unsat	proved	vc_valid	1.4	1750	propext Classical.choice Quot.sound
+Token.constructor#2	obligation	unsat	proved	vc_valid	1.4	1751	propext Classical.choice Quot.sound
+Token.mint#1	obligation	unsat	proved	vc_valid	2.0	1790	propext Classical.choice Quot.sound
+Token.mint#2	obligation	unsat	proved	vc_valid	1.9	1786	propext Classical.choice Quot.sound
+Token.mint#3	obligation	unsat	proved	vc_valid	2.0	1799	propext Classical.choice Quot.sound
+Token.mint#4	obligation	unsat	proved	vc_valid	1.9	1789	propext Classical.choice Quot.sound
+Token.transfer#1	obligation	unsat	proved	vc_valid	2.2	1803	propext Classical.choice Quot.sound
+Token.transfer#2	obligation	unsat	proved	vc_valid	2.4	1811	propext Classical.choice Quot.sound
+Token.transfer#3	obligation	unsat	proved	vc_valid	53.6	5181	propext Classical.choice Quot.sound
+Token.transfer#4	obligation	unsat	proved	vc_valid	2.0	1783	propext Classical.choice Quot.sound
+Token.transfer#5	obligation	settled	proved	vc_valid	2.2	1801	propext Classical.choice Quot.sound
+Token.burn#1	obligation	unsat	proved	vc_valid	1.9	1780	propext Classical.choice Quot.sound
+Token.burn#2	obligation	unsat	proved	vc_valid	1.8	1779	propext Classical.choice Quot.sound
