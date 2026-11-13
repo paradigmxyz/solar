@@ -16,7 +16,9 @@ verification results:: 1 verified, 0 errors
 $ solar-verify --no-infer examples/ArrayMax.sol
 ✘ ArrayMax.max (2 of 2 obligations failed)
 ✔ ArrayMax.clamp (1 obligations)
-verification results:: 1 verified, 1 errors
+✔ ArrayMaxEntry.max (3 obligations)
+✔ ArrayMaxEntry.constructor (0 obligations)
+verification results:: 3 verified, 1 errors
 
 $ solar-verify --show-inferred examples/Counter.sol
   inferred Counter.bump loop at line 23: invariant count >= entry(count) (guard)

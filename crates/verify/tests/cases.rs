@@ -372,6 +372,11 @@ fn memory_alias() {
 }
 
 #[test]
+fn mem_call_loop() {
+    check("tests/cases/mem_call_loop.sol")
+}
+
+#[test]
 fn boolkeys() {
     check("tests/cases/boolkeys.sol")
 }
@@ -581,15 +586,9 @@ fn emit_lean_examples() {
     ] {
         assert!(units.contains(&name), "{name} missing from {units:?}");
     }
+    // Without a solver inference keeps no candidate: the loop has only the postconditions.
     let kinds: Vec<_> = specs(&manifests[2], "ArrayMax.max").into_iter().map(|(k, _)| k).collect();
-    for kind in [
-        "loop invariant not satisfied on entry",
-        "loop invariant not preserved by the loop body",
-        "loop does not terminate: decreases clause not decreased",
-        "postcondition not satisfied",
-    ] {
-        assert!(kinds.contains(&kind), "ArrayMax.max: no {kind:?} in {kinds:?}");
-    }
+    assert_eq!(kinds, ["postcondition not satisfied", "postcondition not satisfied"]);
     let kinds: Vec<_> =
         specs(&manifests[1], "Vault.withdraw").into_iter().map(|(k, _)| k).collect();
     assert!(kinds.contains(&"assertion failed"), "{kinds:?}");
@@ -892,4 +891,43 @@ fn emit_lean_source_outside_cwd() {
     assert_eq!(manifest["sources"], serde_json::json!([]));
     assert!(manifest["errors"].to_string().contains("source outside the run's directory"));
     let _ = std::fs::remove_dir_all(&root);
+}
+
+/// With a solver, the invariants and the measure inference finds for ArrayMax's loop are exported
+/// as obligations like any other: initiation, preservation and decrease.
+#[test]
+fn emit_lean_inferred_loop() {
+    if z3_missing() {
+        return;
+    }
+    let dir = scratch("emit-lean-inferred");
+    let out = dir.to_str().unwrap();
+    let run = run_verifier(&[
+        "--timeout",
+        TIMEOUT,
+        "--only",
+        "ArrayMax.max",
+        "--emit-lean",
+        out,
+        "examples/ArrayMax.sol",
+    ]);
+    assert_eq!(run.code, Some(0), "{}\n{}", run.stdout, run.stderr);
+    let manifest = read_manifest(&dir);
+    let unit =
+        manifest["units"].as_array().unwrap().iter().find(|u| u["name"] == "ArrayMax.max").unwrap();
+    let kinds: Vec<&str> = unit["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["role"] == "obligation")
+        .filter_map(|o| o["kind"].as_str())
+        .collect();
+    for prefix in [
+        "inferred loop invariant not satisfied on entry: ",
+        "inferred loop invariant not preserved by the loop body: ",
+        "inferred termination measure not decreased: ",
+    ] {
+        assert!(kinds.iter().any(|k| k.starts_with(prefix)), "no {prefix:?} in {kinds:?}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

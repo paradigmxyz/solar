@@ -592,7 +592,7 @@ mod tests {
         let mut c = Octagon::top();
         c.assume_range("i", &b(0), &b(1));
         let w = a.widen(&c, &[b(0), b(1), b(100)]);
-        let mut w2 = w.clone();
+        let mut w2 = w;
         w2.close();
         assert_eq!(w2.range(&Lin::var("i")), (Some(b(0)), Some(b(1))));
         let mut d = Octagon::top();

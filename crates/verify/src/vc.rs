@@ -113,6 +113,8 @@ pub(crate) struct Vc<'p, 'a> {
     /// While computing what entry points open under the reentrancy lock may write: their external
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
+    /// Calls `loop_targets` found writing a memory reference argument: (callee, argument root).
+    mem_call_writes: std::cell::RefCell<Vec<(String, String)>>,
     pub split_wins: usize,
     ranges: FxHashMap<String, crate::interval::Interval>,
     defs: FxHashMap<String, String>,
@@ -244,6 +246,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             revert_sites: vec![],
             try_call: None,
             lock_modset: std::cell::Cell::new(false),
+            mem_call_writes: Default::default(),
             ranges: Default::default(),
             defs: Default::default(),
             warnings: vec![],
@@ -2180,6 +2183,21 @@ impl<'p, 'a> Vc<'p, 'a> {
         all: &mut bool,
         seen: &mut FxHashSet<String>,
     ) {
+        // A memory object passed by reference: what the callee writes through its parameter the
+        // caller sees through its own name, so a loop that makes the call changes that name.
+        for (i, p) in f.item.header.parameters.iter().enumerate() {
+            if Self::mem_ref_param(p, &f.params[i].1)
+                && self.mem_param_written(f, &f.params[i].0)
+                && let Some(a) = args.get(i)
+            {
+                let roots = walk::root(a);
+                let mut w = self.mem_call_writes.borrow_mut();
+                for r in &roots {
+                    w.push((f.name.clone(), r.clone()));
+                }
+                out.extend(roots);
+            }
+        }
         match self.modset_raw(f, seen) {
             None => *all = true,
             Some(raw) => {

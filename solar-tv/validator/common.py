@@ -66,7 +66,8 @@ def literal(token: str, width: int = 256) -> str:
 def lean_root() -> Path:
     """The paradigmxyz/solidity-lean checkout whose `SolarTV` library the proofs build
     against: `SOLAR_TV_LEAN`, else `.cache/solidity-lean` at the repository root, at the
-    commit `solidity-lean.pin` names. A missing checkout leaves every check inconclusive."""
+    commit `tools/certify/solidity-lean.rev` pins. A missing checkout leaves every check
+    inconclusive."""
     configured = os.getenv("SOLAR_TV_LEAN")
     root = Path(configured) if configured else ROOT.parent / ".cache/solidity-lean"
     if not (root / "lean-toolchain").is_file():

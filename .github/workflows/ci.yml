@@ -544,6 +544,64 @@ jobs:
     with:
       rust-toolchain: nightly
 
+  solar-tv:
+    if: github.event_name != 'schedule'
+    name: MIR and EVM IR translation validation
+    runs-on: depot-ubuntu-latest-8
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          toolchain: stable
+      - name: Install nextest
+        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          tool: nextest@0.9.140
+          checksum: true
+          fallback: none
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: ${{ env.PINNED_SCCACHE_VERSION }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-on-failure: true
+          cache-targets: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/solar-lean/*.tar.zst
+            target/certify/solidity-lean/.lake
+          key: solar-tv-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/certify/solidity-lean.rev') }}
+          restore-keys: |
+            solar-tv-v2-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean
+        run: bash .github/scripts/install_lean.sh
+      - name: Build compiler
+        run: cargo build --locked -p solar-compiler -p solar-tv-replay
+      - name: Test independent replay
+        run: cargo nextest run --locked -p solar-tv-replay -p solar-mir-interpreter -p solar-evmir-interpreter -p solar-evmir
+      - name: Build the pinned SolarTV semantics
+        run: |
+          dir="$(bash tools/certify/checkout.sh)"
+          echo "SOLAR_TV_LEAN=$dir" >> "$GITHUB_ENV"
+          (cd "$dir" && lake build SolarTV)
+      - name: Check real pass outputs and counterexamples
+        run: uv run --locked python -m unittest discover -s solar-tv/tests -v
+      - name: Check counterexample stops and replay
+        run: cargo nextest run --locked -p solar-compiler --test it --run-ignored all -E 'test(solar_tv::)'
+        env:
+          SOLAR: ${{ github.workspace }}/target/debug/solar
+          SOLAR_TV: ${{ github.workspace }}/solar-tv/solar-tv
+
   certify:
     if: github.event_name != 'schedule'
     name: certify Counter
@@ -615,6 +673,7 @@ jobs:
       - fmt
       - deny
       - solsymdiff
+      - solar-tv
       - certify
     steps:
       - name: Decide whether the needed jobs succeeded or failed

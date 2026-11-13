@@ -151,7 +151,21 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.check(&v.t, "loop invariant not satisfied on entry", inv.span, Some(inv));
         }
         let (entry_guard, entry_env) = (self.guard.clone(), self.env.clone());
+        self.mem_call_writes.borrow_mut().clear();
         let targets = self.loop_targets(body, next);
+        // NOTE: a call in the body that writes a memory array passed to it havocs that array at
+        // the head, but the frame of what the call leaves unchanged is then quantified, and the
+        // solver answers unknown where a concrete counterexample exists. Refuse such loops until
+        // the call's writes are modelled precisely.
+        if let Some((callee, arg)) = self.mem_call_writes.borrow_mut().drain(..).next() {
+            return Err((
+                s.span,
+                format!(
+                    "loop calls `{callee}`, which writes the memory array `{arg}` passed to it: \
+                     not supported in a loop yet"
+                ),
+            ));
+        }
         // Inference first runs Houdini's initiation check in the entry state.
         let mut cands = vec![];
         let infer = self.infer && self.guard != "false";
@@ -220,6 +234,11 @@ impl<'p, 'a> Vc<'p, 'a> {
             Some(m) => self.measure_term(m),
             None => None,
         };
+        if decs.is_empty() && m0.is_none() {
+            // Without a termination measure the loop may run until the gas runs out: a
+            // succeeds-if cannot rely on it ever exiting.
+            self.reverts_if("true");
+        }
         let rec_at = self.loop_recs.len();
         self.loops.push(LoopCtx { breaks: vec![], conts: vec![] });
         self.exec_stmt(body)?;

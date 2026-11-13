@@ -198,7 +198,12 @@ fn problem(s: &Script, l: &LoopRec, guard: &str, goal: &str) -> Option<String> {
     let head: Vec<String> = l.vars.iter().map(|v| v.1.clone()).collect();
     let mut macros = BTreeSet::new();
     let mut clauses = String::new();
-    clauses.push_str(&clause(s, &[l.entry_guard.clone()], &app(&l.entry_terms), &mut macros)?);
+    clauses.push_str(&clause(
+        s,
+        std::slice::from_ref(&l.entry_guard),
+        &app(&l.entry_terms),
+        &mut macros,
+    )?);
     clauses.push_str(&clause(
         s,
         &[app(&head), l.back_guard.clone()],

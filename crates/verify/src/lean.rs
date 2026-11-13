@@ -785,6 +785,7 @@ pub(crate) fn write(sess: &Session, dir: &Path, run: Run<'_>) -> Vec<String> {
         errors.push(format!("manifest.json: {e}"));
     }
     // What the manifest leaves out because it differs between checkouts: not part of the export.
+    #[allow(clippy::disallowed_methods)] // The run's own directory, not a compiler source.
     let cwd = std::env::current_dir().ok().and_then(|d| d.canonicalize().ok());
     let info = serde_json::json!({
         "arguments": run.arguments,
@@ -792,8 +793,7 @@ pub(crate) fn write(sess: &Session, dir: &Path, run: Run<'_>) -> Vec<String> {
         "output": dir.display().to_string(),
     });
     let mut text = serde_json::to_string_pretty(&info).expect("run.json serializes");
-    text.push('
-');
+    text.push('\n');
     if let Err(e) = std::fs::write(dir.join("run.json"), text) {
         errors.push(format!("run.json: {e}"));
     }
@@ -802,6 +802,7 @@ pub(crate) fn write(sess: &Session, dir: &Path, run: Run<'_>) -> Vec<String> {
 
 /// `path` relative to the run's canonical working directory, its components joined with `/`,
 /// or `None` when it lies outside that directory.
+#[allow(clippy::disallowed_methods)] // Paths of the run, not sources the compiler loads.
 fn relative(path: &Path) -> Option<String> {
     let cwd = std::env::current_dir().ok()?.canonicalize().ok()?;
     let abs = if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) };
