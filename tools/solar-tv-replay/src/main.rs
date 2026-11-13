@@ -17,6 +17,7 @@ use std::{
 };
 use strum::IntoEnumIterator;
 
+mod deploy;
 mod mir_model;
 mod precompile;
 mod world;
@@ -51,6 +52,21 @@ fn main() {
         let output = match precompile::replay() {
             Ok(observations) => json!({"version": 1, "status": "ok", "observations": observations}),
             Err(reason) => json!({"version": 1, "status": "unsupported", "reason": reason}),
+        };
+        println!("{output}");
+        return;
+    }
+    if std::env::args().nth(1).as_deref() == Some("--deploy") {
+        let mut bytes = Vec::new();
+        let output = match io::stdin().lock().take(8_388_609).read_to_end(&mut bytes) {
+            Ok(_) if bytes.len() > 8_388_608 => {
+                json!({"version": 1, "status": "error", "reason": "deploy request exceeds 8 MiB"})
+            }
+            Ok(_) => match deploy::deploy(&bytes) {
+                Ok(code) => json!({"version": 1, "status": "ok", "deployed": code}),
+                Err(reason) => json!({"version": 1, "status": "error", "reason": reason}),
+            },
+            Err(e) => json!({"version": 1, "status": "error", "reason": e.to_string()}),
         };
         println!("{output}");
         return;
