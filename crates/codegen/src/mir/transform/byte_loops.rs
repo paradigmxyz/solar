@@ -130,6 +130,19 @@
 //! the optional test. Gas builds keep it to skip the overlap test, checks and copy for an empty
 //! range, while size builds mask the panic conditions with `bound != 0` instead.
 //!
+//! # Recording
+//!
+//! With `-Zcheck-analyses`, the matcher reports where each access's length comes from: a load of
+//! the length word in the loop, a load from before it, possibly behind trivial phis of enclosing
+//! loops, the length a fresh allocation stored, or a calldata slice's length field. For the two
+//! lengths from before the loop of a memory buffer, the replacement reads the length word again
+//! where it starts and records the two equal, `assume eq byte_loops, len, mload object`: the loop's
+//! checks compared with a value that earlier passes, such as load forwarding, took for the length,
+//! and the records those passes left in the loop's body go with it. A length the loop reloads is
+//! read once by the replacement itself, and a slice's length field is the slice's, so neither
+//! needs a record. The extra read touches the word the program already read or stored before the
+//! loop, so it expands no memory.
+//!
 //! # Place in the pipeline
 //!
 //! The pass runs on semantic MIR right after `loop-canonicalize`, where checks are still single
@@ -162,11 +175,14 @@
 //! keep the body's unique store origin only when a positive bound or a retained zero-count skip
 //! proves that body executed; an untested possibly-empty copy takes the loop statement's location.
 
-use super::utils::terminator_debug_context;
+use super::{
+    lower_assumes::{record_fact, should_check_analyses},
+    utils::terminator_debug_context,
+};
 use crate::mir::{
-    AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
-    FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module, PanicCode,
-    PtrLocation, RevertKind, Terminator, Value, ValueId,
+    AllocationInitialization, ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp,
+    FactSource, Function, FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module,
+    PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
         MemoryLocation,
@@ -202,18 +218,19 @@ impl MirPass for ByteLoops {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         run_function_pass(module, analyses, |func, analyses| {
-            run_function(func, analyses.runtime_target(gcx).tests_empty_copies())
+            run_function(func, analyses.runtime_target(gcx).tests_empty_copies(), record)
         })
     }
 }
 
-fn run_function(func: &mut Function, tests_empty_copies: bool) -> bool {
+fn run_function(func: &mut Function, tests_empty_copies: bool, record: bool) -> bool {
     let mut changed = false;
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         let Some(plan) = loops.all_loops().find_map(|l| plan(func, l)) else { break };
-        rewrite(func, plan, tests_empty_copies);
+        rewrite(func, plan, tests_empty_copies, record);
         rebuild_predecessors(func);
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         changed = true;
@@ -269,10 +286,27 @@ struct Access {
     /// The length the loop's check compares with, when it is a value from before the loop
     /// rather than a load of the length word.
     len: Option<ValueId>,
+    /// Where the matcher found that length, or `None` when the loop's checks of this access
+    /// compare with no length of its buffer.
+    len_source: Option<LengthSource>,
     /// The element size as a power of two: zero for bytes, five for words.
     shift: u8,
     /// Whether the index adds its offset with unchecked arithmetic, which wraps silently.
     wrapping: bool,
+}
+
+/// Where the length a loop's bounds check compares with comes from, as the matcher accepted it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LengthSource {
+    /// A load of the length word in the loop, which the replacement reads once before it.
+    Reloaded,
+    /// A load of the length word from before the loop, possibly behind trivial phis of
+    /// enclosing loops, as loop-invariant code motion leaves it.
+    Hoisted,
+    /// The length a fresh allocation's block stored, which load forwarding gave the check.
+    Stored,
+    /// A calldata slice's length field.
+    SliceField,
 }
 
 /// How a copy's ranges relate.
@@ -596,15 +630,15 @@ fn calldata_address(func: &Function, lp: &Counted, address: ValueId) -> Option<(
     None
 }
 
-/// Finds the body's range check of `idx` against the buffer's length. Returns the check and,
-/// for a length from before the loop, that length.
+/// Finds the body's range check of `idx` against the buffer's length. Returns the check, for a
+/// length from before the loop that length, and where the length comes from.
 fn bounds_check(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     buffer: Buffer,
     idx: ValueId,
-) -> Option<(InstId, Option<ValueId>)> {
+) -> Option<(InstId, Option<ValueId>, LengthSource)> {
     lp.insts.iter().find_map(|&inst| {
         let condition = array_check(func, inst)?;
         // The loop test `k < bound` itself, when the bound is the buffer's length from before
@@ -612,38 +646,47 @@ fn bounds_check(
         if condition == lp.test
             && idx == lp.counter
             && !lp.descending
-            && outside_length(func, l, buffer, lp.bound)
+            && let Some(source) = outside_length(func, l, buffer, lp.bound)
         {
-            return Some((inst, Some(lp.bound)));
+            return Some((inst, Some(lp.bound), source));
         }
         let (_, &InstKind::Lt(a, len)) = body_def(func, lp, condition)? else { return None };
         if a != idx {
             return None;
         }
-        if outside_length(func, l, buffer, len) {
-            return Some((inst, Some(len)));
+        if let Some(source) = outside_length(func, l, buffer, len) {
+            return Some((inst, Some(len), source));
         }
-        let matches = match buffer {
-            Buffer::Memory(object) => is_length_load(func, len, object),
-            Buffer::Calldata(slice) => slice_length(func, slice, len),
-        };
-        matches.then_some((inst, None))
+        match buffer {
+            Buffer::Memory(object) => {
+                is_length_load(func, len, object).then_some((inst, None, LengthSource::Reloaded))
+            }
+            Buffer::Calldata(slice) => {
+                slice_length(func, slice, len).then_some((inst, None, LengthSource::SliceField))
+            }
+        }
     })
 }
 
-/// Whether `len`, defined before the loop, is the buffer's length: for a memory object, the
-/// length an allocation stored, or a load of the length word that the loop passes hoisted,
-/// possibly behind trivial loop phis; for a calldata slice, its length field.
-fn outside_length(func: &Function, l: &Loop, buffer: Buffer, len: ValueId) -> bool {
+/// Where `len`, defined before the loop, comes from when it is the buffer's length: for a memory
+/// object, a load of the length word that the loop passes hoisted, possibly behind trivial loop
+/// phis, or the length an allocation stored; for a calldata slice, its length field.
+fn outside_length(func: &Function, l: &Loop, buffer: Buffer, len: ValueId) -> Option<LengthSource> {
     if l.defines(func, len) {
-        return false;
+        return None;
     }
     match buffer {
         Buffer::Memory(object) => {
             let source = through_trivial_phis(func, len);
-            is_length_load(func, source, object) || stored_length(func, object) == Some(source)
+            if is_length_load(func, source, object) {
+                Some(LengthSource::Hoisted)
+            } else {
+                (stored_length(func, object) == Some(source)).then_some(LengthSource::Stored)
+            }
         }
-        Buffer::Calldata(slice) => slice_length(func, slice, len),
+        Buffer::Calldata(slice) => {
+            slice_length(func, slice, len).then_some(LengthSource::SliceField)
+        }
     }
 }
 
@@ -751,9 +794,9 @@ fn checked_access(
         return None;
     }
     let (offset, wrapping) = index(func, l, lp, idx, used)?;
-    let (check, len) = bounds_check(func, l, lp, buffer, idx)?;
+    let (check, len, source) = bounds_check(func, l, lp, buffer, idx)?;
     used.push(check);
-    Some(Access { buffer, offset, len, shift: 0, wrapping })
+    Some(Access { buffer, offset, len, len_source: Some(source), shift: 0, wrapping })
 }
 
 /// Accepts `and value, mask` when the mask keeps the leading bytes of a word. Returns the
@@ -959,10 +1002,10 @@ fn destination(
     used: &mut Vec<InstId>,
 ) -> Option<(Access, bool)> {
     let (offset, wrapping) = index(func, l, lp, idx, used)?;
-    let (len, checked) = match bounds_check(func, l, lp, Buffer::Memory(dst), idx) {
-        Some((check, len)) => {
+    let (len, len_source, checked) = match bounds_check(func, l, lp, Buffer::Memory(dst), idx) {
+        Some((check, len, source)) => {
             used.push(check);
-            (len, true)
+            (len, Some(source), true)
         }
         None if offset.is_none() && !lp.descending => {
             // `out[k]` checked against `out.length`, already known to equal the bound.
@@ -971,11 +1014,12 @@ fn destination(
                     !used.contains(&inst) && array_check(func, inst) == Some(lp.test)
                 })?;
             used.push(check);
-            (None, false)
+            (None, None, false)
         }
         None => return None,
     };
-    Some((Access { buffer: Buffer::Memory(dst), offset, len, shift, wrapping }, checked))
+    let access = Access { buffer: Buffer::Memory(dst), offset, len, len_source, shift, wrapping };
+    Some((access, checked))
 }
 
 /// Whether every step of a copy's source that may fail comes before every step of its
@@ -1455,7 +1499,7 @@ fn same_value(func: &Function, a: ValueId, b: ValueId, depth: u32) -> bool {
     }
 }
 
-fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
+fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool, record: bool) {
     let Plan { lp, shape, fresh } = plan;
     if let Some(fresh) = &fresh
         && let InstKind::Alloc { semantics, .. } = &mut func.inst_mut(fresh.alloc).kind
@@ -1479,6 +1523,9 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     // takes the loop statement's location. The loads and stores below keep their own.
     builder.set_debug_context(&generated);
     builder.switch_to_block(lp.preheader);
+    if record {
+        record_lengths(&mut builder, &shape);
+    }
     match shape {
         Shape::Gather { access, width, result, load } => {
             let calldata = matches!(access.buffer, Buffer::Calldata(_));
@@ -1995,6 +2042,34 @@ fn range_fails(
         fails = builder.and(fails, nonzero);
     }
     fails
+}
+
+/// Records, for every access whose checks compare with a length from before the loop that the
+/// matcher took for its memory object's length, a hoisted load or the length its allocation
+/// stored, that the length word holds it where the replacement starts. The loop's own records,
+/// such as the forwarding that gave its check that length, go with its body.
+fn record_lengths(builder: &mut FunctionBuilder<'_>, shape: &Shape) {
+    let accesses = match shape {
+        Shape::Gather { access, .. } | Shape::Scatter { access, .. } => vec![access],
+        Shape::Copy { src, dst, .. } => vec![src, dst],
+    };
+    for access in accesses {
+        let Access {
+            buffer: Buffer::Memory(object),
+            len: Some(len),
+            len_source: Some(LengthSource::Hoisted | LengthSource::Stored),
+            ..
+        } = *access
+        else {
+            continue;
+        };
+        // reread = mload object
+        // assume eq byte_loops, len, reread
+        let reread = builder.load(object, PtrLocation::Memory);
+        let block = builder.current_block();
+        let func = builder.func_mut();
+        record_fact(func, block, FactSource::ByteLoops, AssumePredicate::Eq, len, reread);
+    }
 }
 
 /// Emits the length of the access's buffer, or returns the one the loop compared with.

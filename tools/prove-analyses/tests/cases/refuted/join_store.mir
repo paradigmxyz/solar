@@ -1,0 +1,22 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A false forwarding fact across a join: one predecessor writes the slot the
+// read after the join reads, so the read need not equal the one before.
+@module JoinStore
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = sload 0
+    v3 = ne v0, 0
+    jumpi v3, bb1, bb2
+  bb1:
+    sstore 0, 7
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = sload 0
+    assume eq cse, v2, v1
+    mstore 0, v2
+    returndata 0, 32
+}

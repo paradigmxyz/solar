@@ -1,0 +1,10 @@
+@module Storage
+fn @f(arg0: i256) -> i256 {
+bb0:
+  v0: i256 = sload 0
+  v1: i256 = sload 0
+  v2: i256 = add v0, v1
+  sstore 1, arg0
+  sstore 1, v2
+  ret v2
+}

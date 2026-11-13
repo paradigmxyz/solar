@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A rewrite that changes the function: the callee stops for zero alone, so the code after it
+// runs for every other word, and the check lowering inserts for the fact after the call reverts
+// where the function before returned.
+@module ValidateHaltingCallFalseFact
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    icall @stop_if_zero, v0
+    assume ult sccp, v0, 1
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @stop_if_zero(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    ret
+}

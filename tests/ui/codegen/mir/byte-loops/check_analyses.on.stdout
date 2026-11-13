@@ -1,0 +1,101 @@
+- ; === ROOT/tests/ui/codegen/mir/byte-loops/check_analyses.mir (before byte-loops) ===
++ ; === ROOT/tests/ui/codegen/mir/byte-loops/check_analyses.mir (after byte-loops) ===
+  @module ByteLoopsRecords
+  fn @stored_length(arg0: ptr<memory>) -> ptr<memory> {
+    bb0:
+      v0 = mload arg0
+      v1 = add v0, 31
+      v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v3 = add v2, 32
+      v4 = lt v3, v0
+      icall panic_if<0x41>, v4
+-     v5 = alloc zeroed checked v3
++     v5 = alloc checked v3
+      mstore v5, v0
+      jump bb1
+    bb1:                                            ; preds = bb0
+      mstore v5, v0
+      jump bb2
+    bb2:                                            ; preds = bb1
+-     jump bb3
+-   bb3:                                            ; preds = bb2, bb4
+-     v6 = phi [bb2: 0], [bb4: v17]
++     v21 = mload v5
++     assume eq byte_loops, v0, v21
++     v22 = eq v0, 0
++     jumpi v22, bb5, bb6
++   bb6:                                            ; preds = bb2
++     v23 = ptradd arg0, 32
++     v24 = ptradd v5, 32
++     v25 = ptrtoint ptr<memory> v23 to i256
++     v26 = add v25, v0
++     v27 = ptrtoint ptr<memory> arg0 to i256
++     v28 = ptrtoint ptr<memory> v5 to i256
++     v29 = ptradd v5, v3
++     v30 = ptrtoint ptr<memory> v29 to i256
++     v31 = lt v27, v30
++     v32 = lt v28, v26
++     v33 = and v31, v32
++     v34 = zext i1 v33 to i256
++     v35 = lt v27, 96
++     v36 = zext i1 v35 to i256
++     v37 = or v34, v36
++     v38 = ne v37, 0
++     jumpi v38, bb8, bb7
++   bb7:                                            ; preds = bb6
++     mcopy v24, v23, v0
++     jump bb5
++   bb8:                                            ; preds = bb6
++     v39 = sub v3, 32
++     memory_zero v24, v39
++     v40 = ptradd arg0, 32
++     v41 = ptradd v5, 32
++     v42 = ptrtoint ptr<memory> v40 to i256
++     v43 = ptrtoint ptr<memory> v41 to i256
++     v44 = ptrtoint ptr<memory> arg0 to i256
++     v45 = add v42, v0
++     v46 = add v43, v0
++     v47 = lt v43, v45
++     v48 = lt v44, v46
++     v49 = and v47, v48
++     v50 = zext i1 v49 to i256
++     jumpi v49, bb3, bb9
++   bb9:                                            ; preds = bb8
++     v51 = mload arg0
++     v52 = lt v51, v0
++     icall panic_if<0x32>, v52
++     mcopy v24, v23, v0
++     jump bb5
++   bb3:                                            ; preds = bb4, bb8
++     v6 = phi [bb8: 0], [bb4: v17]
+      v7 = lt v6, v0
+      jumpi v7, bb4, bb5
+-   bb5:                                            ; preds = bb3
+-     v18 = ptrtoint ptr<memory> v5 to i256
+-     v19 = add v18, 32
+-     v20 = add v19, v0
+-     mstore v20, 0
+-     ret v5
+    bb4:                                            ; preds = bb3
+      v8 = mload arg0
+      v9 = lt v6, v8
+      icall panic_if_zero<0x32>, v9
+      v10 = ptradd arg0, v6
+      v11 = ptradd v10, 32
+      v12 = mload v11
+      v13 = byte 0, v12
+      v14 = lt v6, v0
+      icall panic_if_zero<0x32>, v14
+      v15 = ptradd v5, v6
+      v16 = ptradd v15, 32
+      mstore8 v16, v13
+      v17 = checked_add uint256, v6, 1
+      jump bb3
++   bb5:                                            ; preds = bb2, bb3, bb7, bb9
++     v18 = ptrtoint ptr<memory> v5 to i256
++     v19 = add v18, 32
++     v20 = add v19, v0
++     mstore v20, 0
++     ret v5
+  }
+  

@@ -1,0 +1,79 @@
+- ; === ROOT/tests/ui/codegen/mir/egraph/recorded_widths.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/recorded_widths.mir (after egraph) ===
+  @module RecordedWidths
+  fn @divide(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = div v0, 300
+-     ret v1
++     assume ult egraph, v0, 300
++     ret 0
+  }
+  
+  fn @remainder(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr arg0, 248
+-     v1 = mod v0, 256
+-     ret v1
++     assume ult egraph, v0, 256
++     ret v0
+  }
+  
+  fn @mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr arg0, 248
+-     v1 = and v0, 0xffff
+-     ret v1
++     assume ule egraph, v0, 0xffff
++     ret v0
+  }
+  
+  fn @compare(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = lt v0, 256
+-     ret v1
++     assume ult egraph, v0, 256
++     ret true
+  }
+  
+  fn @shifted_out(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = shr v0, 8
+-     ret v1
++     assume ult egraph, v0, 256
++     ret 0
+  }
+  
+  fn @sign_clear(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 127
+-     v1 = signextend 0, v0
+-     ret v1
++     assume ult egraph, v0, 128
++     ret v0
+  }
+  
+  fn @narrow(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = and arg1, 255
+      v2 = shl v0, 8
+      v3 = shl v1, 8
+-     v4 = eq v2, v3
++     v4 = eq v0, v1
++     assume ule egraph, v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     assume ule egraph, v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v4
+  }
+  
+  fn @narrow_type(arg0: i8) -> i1 {
+    bb0:
+      v0 = zext i8 arg0 to i256
+-     v1 = lt v0, 300
+-     ret v1
++     assume ult egraph, v0, 300
++     ret true
+  }
+  

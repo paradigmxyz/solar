@@ -1,0 +1,21 @@
+//@ compile-flags: -Zmir-pipeline=sccp,cse
+// SCCP folds a branch and a comparison, and CSE merges a repeated computation and forwards a
+// stored word to the load after it.
+@module ValidateFold
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = lt 5, 10
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = add v0, 1
+    v3 = add v0, 1
+    sstore v0, v2
+    v4 = sload v0
+    v5 = mul v3, v4
+    mstore 0, v5
+    returndata 0, 32
+  bb2:
+    revert 0, 0
+}

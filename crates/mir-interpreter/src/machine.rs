@@ -7,11 +7,14 @@
 //! and logged. It is a testing oracle, not part of code generation: the UI test runner checks it
 //! against an EVM running the compiled bytecode. The unit tests below also run single functions
 //! on concrete arguments and memory.
+//! [`crate::replay`] also runs typed semantic MIR directly, without implicit backend setup.
+//! It supports checked arithmetic and casts before lowering, with target opcode availability.
 //!
 //! # Model
 //!
 //! Each instruction runs by the [`Semantics`] its operation schema row declares, so the
-//! interpreter lists no operations of its own. Values are 256-bit words. Typed values keep the
+//! interpreter lists no operations of its own. Lowered values are words; semantic products
+//! retain a tree of words and undefined fields. Typed words keep the
 //! clean bits their types promise because every operation computes them as the backend's
 //! instructions do. The schema names opcodes by mnemonic, which the interpreter looks up in the
 //! EVM IR opcode table; pure opcodes compute with the table's word semantics, as the compiler's
@@ -37,7 +40,10 @@
 //! word at `4 + 32 * i`. It also reads calldata, persistent and transient storage, and the context
 //! values its host provides, and records the logs it emits. It makes no calls, so its return data
 //! is always empty. Returning from the dispatch entry stops the transaction, as the backend's
-//! `STOP` does.
+//! `STOP` does. Direct semantic state replay can also execute external messages through
+//! [`Host::message`], with sufficient caller gas and explicit child budgets for creation.
+//! The host owns the resulting journal and outer rollback. Return data is shared across
+//! internal activations; a child message replaces it, including failed and empty calls.
 //!
 //! # Limits
 //!
@@ -56,7 +62,8 @@
 //! runs, so a value used before its definition or a phi missing an edge also ends a run as
 //! unsupported.
 
-use alloy_primitives::{U256, keccak256};
+use crate::values::{self, RuntimeValue};
+use alloy_primitives::{I256, U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{
@@ -65,8 +72,10 @@ use solar_data_structures::{
 };
 use solar_evmir::op;
 use solar_mir::{
-    AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
-    Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
+    ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp, DataRef, Function,
+    FunctionId, InstId, InstKind, MirType, Module, RequireKind, RevertKind, RevertReason,
+    Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -118,10 +127,15 @@ pub(crate) enum Outcome {
     Invalid,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
+    /// Execution reached an `assume` whose fact fails: undefined behaviour, not an outcome.
+    Undefined,
     /// Execution exceeded a limit before it ended.
     Limit(Limit),
     /// Execution reached something the interpreter does not model, named here.
     Unsupported(&'static str),
+    /// With [`Limits::check_widths`], a value of a narrow integer type held a word with bits above
+    /// its width, which breaks MIR's integer invariant: described here.
+    WidthViolated(String),
 }
 
 /// A bound on one execution.
@@ -142,6 +156,9 @@ pub(crate) struct Limits {
     pub(crate) fuel: u64,
     /// Frames that may be live at once, the called function's included.
     pub(crate) depth: usize,
+    /// Whether every value of an integer type narrower than a word that a lowered run computes,
+    /// passes or returns is checked to have zero bits above its width.
+    pub(crate) check_widths: bool,
 }
 
 /// What one execution did.
@@ -163,6 +180,8 @@ pub(crate) struct Effects {
     pub(crate) transient: FxHashMap<U256, U256>,
     /// The events it logged, in order.
     pub(crate) logs: Vec<Log>,
+    /// Return data shared across internal activations, not private SSA locals.
+    pub(crate) return_data: Vec<u8>,
 }
 
 /// Answers what a run reads from its context and cannot know itself.
@@ -172,15 +191,29 @@ pub trait Host {
     /// not model it.
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
 
-    /// Returns the value a persistent storage slot of the running contract holds when the run
-    /// starts, which for a transaction is its value before the transaction.
+    /// Returns the host's current persistent value, overlaid by unpublished local writes.
+    /// A message host publishes pending writes before child entry, so subsequent reads see
+    /// changes committed by that child. Without messages this is the initial value.
     fn storage(&mut self, slot: U256) -> U256;
 
-    /// Returns the value a transient storage slot holds when the run starts: zero for a
-    /// transaction, which starts with empty transient storage.
+    /// Returns the host's current transient value, overlaid by unpublished writes.
+    /// Without messages this is its value when the run starts: zero for a transaction.
     fn transient(&mut self, slot: U256) -> U256 {
         let _ = slot;
         U256::ZERO
+    }
+
+    /// Executes a real child message after publishing tentative caller changes. The caller
+    /// has sufficient gas to forward the requested CALL budget without EIP-150 clipping;
+    /// creation's child gas is an explicit host boundary input. Implementations own the
+    /// resulting world and outer rollback, and must not substitute an arbitrary result.
+    fn message(
+        &mut self,
+        message: ExternalMessage<'_>,
+        pending: PendingChanges<'_>,
+    ) -> Result<MessageOutput, &'static str> {
+        let _ = (message, pending);
+        Err("external messages are not modeled by this host")
     }
 
     /// Returns where the free memory pointer starts: the heap start the backend's layout chose,
@@ -188,6 +221,38 @@ pub trait Host {
     fn free_memory_start(&mut self) -> U256 {
         U256::from(EvmMemoryLayout::HEAP_START)
     }
+
+    /// Whether storage writes and logs are forbidden in this call frame.
+    fn is_static(&self) -> bool {
+        false
+    }
+}
+
+/// A semantic MIR message; no caller bytecode or stack protocol is synthesized.
+#[derive(Debug)]
+pub enum ExternalMessage<'a> {
+    /// CALL, CALLCODE, DELEGATECALL or STATICCALL with explicit requested gas.
+    Call { opcode: u8, gas: U256, address: U256, value: U256, input: &'a [u8] },
+    /// CREATE or CREATE2; the host supplies the explicit child budget.
+    Create { value: U256, salt: Option<U256>, initcode: &'a [u8] },
+}
+
+/// Tentative caller changes since the last message, published before entering its child.
+pub struct PendingChanges<'a> {
+    /// Current persistent writes in the caller's storage context.
+    pub storage: &'a [(U256, U256)],
+    /// Current transient writes in the caller's storage context.
+    pub transient: &'a [(U256, U256)],
+    /// Ordered caller logs preceding the message.
+    pub logs: &'a [Log],
+}
+
+/// A completed child message, with full return/revert data and its scalar result.
+pub struct MessageOutput {
+    /// Success flag for calls, or created address (zero on failure).
+    pub value: U256,
+    /// Empty on exceptions, complete output on success or revert.
+    pub return_data: Vec<u8>,
 }
 
 /// An event a transaction logged.
@@ -301,6 +366,14 @@ impl Memory {
         Ok(())
     }
 
+    fn zero(&mut self, offset: U256, len: U256) -> Result<(), Limit> {
+        let Some(offset) = self.access(offset, len)? else { return Ok(()) };
+        for index in 0..len.to::<u64>() {
+            self.set_byte(offset + index, 0);
+        }
+        Ok(())
+    }
+
     fn copy(&mut self, dest: U256, src: U256, len: U256) -> Result<(), Limit> {
         let Some(dest) = self.access(dest, len)? else { return Ok(()) };
         let bytes = self.read(src, len)?;
@@ -308,6 +381,26 @@ impl Memory {
             self.set_byte(dest + index as u64, byte);
         }
         Ok(())
+    }
+
+    pub(crate) fn from_prefix(prefix: &[u8], size: u64) -> Result<Self, String> {
+        if size > MEMORY_LIMIT || !size.is_multiple_of(32) || prefix.len() as u64 > size {
+            return Err("invalid or oversized replay memory".into());
+        }
+        let mut memory = Self::zeroed();
+        memory.size = size / 32;
+        for (index, &byte) in prefix.iter().enumerate() {
+            memory.set_byte(index as u64, byte);
+        }
+        Ok(memory)
+    }
+
+    pub(crate) fn prefix(&self, count: u64) -> Vec<u8> {
+        (0..count).map(|i| self.byte(i)).collect()
+    }
+
+    pub(crate) fn size_bytes(&self) -> u64 {
+        self.size * 32
     }
 }
 
@@ -343,6 +436,7 @@ impl<'a> Machine<'a> {
             world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
             frames_end: U256::ZERO,
+            semantic: None,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args);
         let effects = run.world.map(|world| world.effects).unwrap_or_default();
@@ -379,6 +473,7 @@ impl<'a> Machine<'a> {
             world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction { calldata, evm_version }),
             frames_end: U256::ZERO,
+            semantic: None,
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[]);
         let outcome = match outcome {
@@ -395,12 +490,64 @@ impl<'a> Machine<'a> {
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
         self.module.functions.get(id)
     }
+
     fn function_id(&self, body: &Function) -> FunctionId {
         self.module
             .functions
             .iter_enumerated()
             .find_map(|(id, function)| std::ptr::eq(function, body).then_some(id))
             .expect("body belongs to module")
+    }
+
+    pub(crate) fn replay(
+        &self,
+        function: FunctionId,
+        args: &[U256],
+        memory: Memory,
+        limits: Limits,
+        evm_version: EvmVersion,
+    ) -> (Outcome, Memory) {
+        let mut run = Run {
+            machine: self,
+            memory,
+            limits,
+            fuel: 0,
+            frames: Vec::new(),
+            world: None,
+            transaction: None,
+            frames_end: U256::ZERO,
+            semantic: Some(evm_version),
+        };
+        let ControlFlow::Break(outcome) = run.execute(function, args);
+        (outcome, run.memory)
+    }
+
+    /// Direct semantic replay with explicit state, without backend entry setup.
+    pub(crate) fn replay_state(
+        &self,
+        function: FunctionId,
+        args: &[U256],
+        memory: Memory,
+        host: &mut dyn Host,
+        transaction: (&[u8], EvmVersion),
+        limits: Limits,
+    ) -> (Outcome, Memory, Effects) {
+        let (calldata, evm_version) = transaction;
+        let mut run = Run {
+            machine: self,
+            memory,
+            limits,
+            fuel: 0,
+            frames: Vec::new(),
+            world: Some(World { host, effects: Effects::default() }),
+            transaction: Some(Transaction { calldata, evm_version }),
+            frames_end: U256::ZERO,
+            semantic: Some(evm_version),
+        };
+        let ControlFlow::Break(outcome) = run.execute(function, args);
+        let effects =
+            kept_effects(&outcome, run.world.expect("state replay keeps its host").effects);
+        (outcome, run.memory, effects)
     }
 }
 
@@ -411,8 +558,8 @@ struct Frame<'a> {
     /// The original callee whose caller publishes its return buffer, across tail calls.
     return_owner: &'a Function,
     caller_inst: Option<InstId>,
-    args: IndexVec<ArgIdx, U256>,
-    values: IndexVec<ValueId, Option<U256>>,
+    args: IndexVec<ArgIdx, RuntimeValue>,
+    values: IndexVec<ValueId, Option<RuntimeValue>>,
     block: BlockId,
     /// The next instruction of `block` to run.
     next: usize,
@@ -424,7 +571,7 @@ impl<'a> Frame<'a> {
     fn new(
         function: FunctionId,
         body: &'a Function,
-        args: IndexVec<ArgIdx, U256>,
+        args: IndexVec<ArgIdx, RuntimeValue>,
         result: Option<ValueId>,
     ) -> Self {
         let values = index_vec![None; body.num_values()];
@@ -447,10 +594,47 @@ impl<'a> Frame<'a> {
         }
         match self.body.value(value) {
             Value::Immediate(immediate) => immediate.as_u256(),
-            Value::Arg(index) => self.args.get(*index).copied(),
-            Value::Inst(_) => self.values[value],
-            Value::Undef(_) | Value::Error(_) => None,
+            Value::Arg(index) => match self.args.get(*index)? {
+                RuntimeValue::Word(word) => Some(*word),
+                _ => None,
+            },
+            Value::Inst(_) => match self.values[value].as_ref()? {
+                RuntimeValue::Word(word) => Some(*word),
+                _ => None,
+            },
+            _ => None,
         }
+    }
+
+    fn value(&self, value: ValueId) -> Option<RuntimeValue> {
+        if value.index() >= self.body.num_values() {
+            return None;
+        }
+        match self.body.value(value) {
+            Value::Immediate(immediate) => immediate.as_u256().map(RuntimeValue::Word),
+            Value::Arg(index) => self.args.get(*index).cloned(),
+            Value::Inst(_) => self.values[value].clone(),
+            Value::Undef(_) => Some(RuntimeValue::Undefined),
+            Value::Error(_) => None,
+        }
+    }
+
+    fn read_value(&self, value: ValueId) -> ControlFlow<Outcome, RuntimeValue> {
+        self.value(value).map_or_else(
+            || ControlFlow::Break(Outcome::Unsupported("value without a definition")),
+            ControlFlow::Continue,
+        )
+    }
+
+    fn read_values(
+        &self,
+        values: &[ValueId],
+    ) -> ControlFlow<Outcome, IndexVec<ArgIdx, RuntimeValue>> {
+        let mut result = IndexVec::new();
+        for &value in values {
+            result.push(self.read_value(value)?);
+        }
+        ControlFlow::Continue(result)
     }
 
     fn read(&self, value: ValueId) -> ControlFlow<Outcome, U256> {
@@ -496,6 +680,8 @@ struct Run<'m, 'a, 't> {
     /// The end of the frames and spill slots of the runtime entries the run entered, which the
     /// backend writes without MIR showing it.
     frames_end: U256,
+    /// Direct semantic function execution, without an implied backend stack layout.
+    semantic: Option<EvmVersion>,
 }
 
 impl<'a> Run<'_, 'a, '_> {
@@ -503,7 +689,24 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(body) = self.machine.body(function) else {
             return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
         };
-        self.call(body, args.iter().copied().collect(), None)?;
+        let args = if self.semantic.is_some() {
+            let mut words = args.iter().copied();
+            let mut args = IndexVec::new();
+            for &ty in &body.params {
+                let value = RuntimeValue::input(self.machine.module, ty, &mut words).map_or_else(
+                    |e| ControlFlow::Break(Outcome::Unsupported(e)),
+                    ControlFlow::Continue,
+                )?;
+                args.push(value);
+            }
+            if words.next().is_some() {
+                return ControlFlow::Break(Outcome::Unsupported("extra flattened MIR argument"));
+            }
+            args
+        } else {
+            args.iter().copied().map(RuntimeValue::Word).collect()
+        };
+        self.call(body, args, None)?;
         loop {
             let frame = self.frame();
             let (function, body, block, next) =
@@ -550,7 +753,7 @@ impl<'a> Run<'_, 'a, '_> {
     fn call(
         &mut self,
         body: &'a Function,
-        args: IndexVec<ArgIdx, U256>,
+        args: IndexVec<ArgIdx, RuntimeValue>,
         result: Option<ValueId>,
     ) -> ControlFlow<Outcome> {
         if self.frames.len() >= self.limits.depth {
@@ -562,6 +765,12 @@ impl<'a> Run<'_, 'a, '_> {
         if body.blocks.is_empty() {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
+        for (index, arg) in args.iter_enumerated() {
+            if let &RuntimeValue::Word(word) = arg {
+                let what = || format!("argument {}", index.index());
+                self.check_word(body, Some(body.arg_ty(index)), word, what)?;
+            }
+        }
         let function = self.machine.function_id(body);
         if let Some(layout) = &self.machine.module.backend_memory {
             if let Some(&end) = layout.frame_ends.get(&function) {
@@ -572,32 +781,124 @@ impl<'a> Run<'_, 'a, '_> {
                 limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
             }
         }
+        if self.semantic.is_some() {
+            self.burn(args.iter().map(RuntimeValue::nodes).sum())?;
+        }
         self.frames.push(Frame::new(function, body, args, result));
         ControlFlow::Continue(())
     }
 
-    /// Returns whether the transaction's EVM version lacks `opcode`, which then halts as an
+    /// Returns whether the execution's EVM version lacks `opcode`, which then halts as an
     /// undefined opcode, as `REVERT` does before Byzantium.
     fn lacks(&self, opcode: u8) -> bool {
-        self.transaction.as_ref().is_some_and(|transaction| {
-            op::definition(opcode).is_some_and(|def| !def.is_available(transaction.evm_version))
-        })
+        self.transaction.as_ref().map(|tx| tx.evm_version).or(self.semantic).is_some_and(
+            |version| op::definition(opcode).is_some_and(|def| !def.is_available(version)),
+        )
     }
 
     fn instruction(&mut self, body: &'a Function, inst: InstId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let instruction = body.inst(inst);
         let mnemonic = instruction.kind.op_def().mnemonic;
-        // Only lowered operations run; the arms below decide the rest.
-        if instruction.unlowered_reason(body).is_some() {
+        // Transactions run lowered operations; direct replay can use scalar semantic operations.
+        if self.semantic.is_none() && instruction.unlowered_reason(body).is_some() {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+        }
+        let frame = self.frames.last().expect("a run always has a frame");
+        if let InstKind::Assume { predicate, lhs, rhs, .. } = instruction.kind {
+            // assume pred lhs, rhs: a fact a pass relied on, undefined where it fails
+            let (lhs, rhs) = (frame.read(lhs)?, frame.read(rhs)?);
+            let holds = match predicate {
+                AssumePredicate::Eq => lhs == rhs,
+                AssumePredicate::Ne => lhs != rhs,
+                AssumePredicate::Ult => lhs < rhs,
+                AssumePredicate::Ule => lhs <= rhs,
+            };
+            return if holds {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(Outcome::Undefined)
+            };
         }
         let Some(semantics) = instruction.kind.semantics() else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
-        let frame = self.frames.last().expect("a run always has a frame");
+        if self.semantic.is_some() {
+            match semantics {
+                Semantics::InsertValue(ty, aggregate, index, value) => {
+                    if let Err(e) = values::widths(self.machine.module, ty) {
+                        return ControlFlow::Break(Outcome::Unsupported(e));
+                    }
+                    let fields = values::fields(self.machine.module, ty).map_or_else(
+                        |e| ControlFlow::Break(Outcome::Unsupported(e)),
+                        ControlFlow::Continue,
+                    )?;
+                    let mut fields = match frame.read_value(aggregate)? {
+                        RuntimeValue::Undefined => vec![RuntimeValue::Undefined; fields.len()],
+                        RuntimeValue::Aggregate(values) if values.len() == fields.len() => values,
+                        _ => {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "MIR aggregate shape mismatch",
+                            ));
+                        }
+                    };
+                    let value = frame.read_value(value)?;
+                    let Some(field) = fields.get_mut(index as usize) else {
+                        return ControlFlow::Break(Outcome::Unsupported("MIR aggregate index"));
+                    };
+                    *field = value;
+                    let value = RuntimeValue::Aggregate(fields);
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("aggregate result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ExtractValue(ty, aggregate, index) => {
+                    if let Err(e) = values::widths(self.machine.module, ty) {
+                        return ControlFlow::Break(Outcome::Unsupported(e));
+                    }
+                    let value = match frame.read_value(aggregate)? {
+                        RuntimeValue::Undefined => RuntimeValue::Undefined,
+                        RuntimeValue::Aggregate(fields) => fields
+                            .get(index as usize)
+                            .cloned()
+                            .ok_or(Outcome::Unsupported("MIR aggregate index"))
+                            .map_or_else(ControlFlow::Break, ControlFlow::Continue)?,
+                        _ => {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "MIR aggregate shape mismatch",
+                            ));
+                        }
+                    };
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("aggregate result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::MakeSlice(_, ptr, len) => {
+                    let value = RuntimeValue::Aggregate(vec![
+                        RuntimeValue::Word(frame.read(ptr)?),
+                        RuntimeValue::Word(frame.read(len)?),
+                    ]);
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("slice result")] = Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Select(condition, yes, no) => {
+                    let value = frame.read_value(if frame.read(condition)?.is_zero() {
+                        no
+                    } else {
+                        yes
+                    })?;
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("select result")] = Some(value);
+                    return ControlFlow::Continue(());
+                }
+                _ => {}
+            }
+        }
         let result = match semantics {
-            Semantics::HeapFloor if self.transaction.is_some() => {
+            Semantics::HeapFloor if self.transaction.is_some() && self.semantic.is_none() => {
                 let function = frame.function;
                 self.machine
                     .module
@@ -620,19 +921,76 @@ impl<'a> Run<'_, 'a, '_> {
                 frame.read(if condition.is_zero() { if_false } else { if_true })?
             }
             Semantics::Opcode(name, operands) => {
-                let operands = frame.read_all(&operands)?;
-                match self.opcode(mnemonic, name, &operands)? {
-                    Some(word) => word,
+                let mut words = frame.read_all(&operands)?;
+                if self.semantic.is_some() {
+                    let opcode = op::from_mnemonic(name);
+                    for (index, (value, word)) in operands.iter().zip(&mut words).enumerate() {
+                        if !matches!(opcode, Some(op::SLT | op::SGT | op::SDIV | op::SMOD))
+                            && !(opcode == Some(op::SAR) && index == 1)
+                        {
+                            continue;
+                        }
+                        let bits =
+                            body.value_ty(*value).and_then(|ty| ty.integer_bits()).unwrap_or(256);
+                        *word = sign_extend(*word, bits);
+                    }
+                }
+                match self.opcode(mnemonic, name, &words)? {
+                    Some(word) => {
+                        if self.semantic.is_some() && name == "clz" {
+                            let bits = body
+                                .value_ty(operands[0])
+                                .and_then(|ty| ty.integer_bits())
+                                .unwrap_or(256);
+                            word - U256::from(256 - bits)
+                        } else {
+                            word
+                        }
+                    }
                     None => return ControlFlow::Continue(()),
                 }
             }
             Semantics::Call(&Callee::Function(id), args) => {
-                let args = frame.read_all(args)?.into_iter().collect();
+                let args = if self.semantic.is_some() {
+                    frame.read_values(args)?
+                } else {
+                    frame.read_all(args)?.into_iter().map(RuntimeValue::Word).collect()
+                };
                 let Some(callee) = self.machine.body(id) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
+                if self.semantic.is_some() && callee.return_components().len() > 1 {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "physical multi-return protocol is not modeled",
+                    ));
+                }
                 self.call(callee, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
+                return ControlFlow::Continue(());
+            }
+            Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
+                let words = frame.read_all(args)?;
+                let &[condition] = words.as_slice() else {
+                    return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+                };
+                let failure = match builtin {
+                    Builtin::Check { is_zero, failure } if condition.is_zero() == *is_zero => {
+                        Some(*failure)
+                    }
+                    Builtin::Check { .. } => None,
+                    Builtin::Require(RequireKind::EmptyString) if condition.is_zero() => {
+                        Some(RevertKind::Reason(RevertReason::Empty))
+                    }
+                    Builtin::Require(RequireKind::EmptyString) => None,
+                    _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+                };
+                if let Some(failure) = failure {
+                    return ControlFlow::Break(Outcome::Revert(match failure {
+                        RevertKind::Panic(code) => panic_data(U256::from(code as u8)),
+                        RevertKind::Reason(RevertReason::Empty) => Vec::new(),
+                        _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+                    }));
+                }
                 return ControlFlow::Continue(());
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
@@ -640,23 +998,99 @@ impl<'a> Run<'_, 'a, '_> {
                 let (dest, len) = (frame.read(dest)?, frame.read(len)?);
                 return self.data_copy(data, dest, len);
             }
-            Semantics::Allocate(size, _) if self.transaction.is_some() => {
+            Semantics::Allocate(size, _)
+                if self.transaction.is_some() && self.semantic.is_none() =>
+            {
                 let size = frame.read(size)?;
                 self.allocate(frame.function, inst, size)?
             }
+            Semantics::FreePointer if self.semantic.is_some() => {
+                limit(self.memory.load(U256::from(EvmMemoryLayout::FMP_SLOT)))?
+            }
+            Semantics::Allocate(size, semantics) if self.semantic.is_some() => {
+                let size = frame.read(size)?;
+                self.semantic_allocate(size, semantics)?
+            }
+            Semantics::MemoryZero(offset, size) if self.semantic.is_some() => {
+                let (offset, size) = (frame.read(offset)?, frame.read(size)?);
+                self.burn_words(size)?;
+                limit(self.memory.zero(offset, size))?;
+                return ControlFlow::Continue(());
+            }
             Semantics::Word(value) => frame.read(value)?,
+            Semantics::PointerAdd(ptr, offset) if self.semantic.is_some() => {
+                frame.read(ptr)?.wrapping_add(frame.read(offset)?)
+            }
             Semantics::LowBits(value, bits @ 1..=256) => {
                 frame.read(value)? & (U256::MAX >> (256 - bits))
             }
             Semantics::NotEqual(a, b) => U256::from(frame.read(a)? != frame.read(b)?),
+            Semantics::SignExtend(value, from @ 1..=256, to @ 1..=256)
+                if self.semantic.is_some() && from <= to =>
+            {
+                sign_extend(frame.read(value)?, from) & (U256::MAX >> (256 - to))
+            }
+            Semantics::Checked(op, kind, a, b) if self.semantic.is_some() => {
+                match checked_arithmetic(op, kind, frame.read(a)?, frame.read(b)?) {
+                    Ok(result) => result,
+                    Err(code) => {
+                        return ControlFlow::Break(Outcome::Revert(panic_data(U256::from(code))));
+                    }
+                }
+            }
             // Sign extensions, checked arithmetic, and builtin calls are semantic operations.
             _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
         };
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
-        self.frame().values[value] = Some(result);
+        let result = if self.semantic.is_some() {
+            let Some(bits @ 1..=256) = body.value_ty(value).and_then(scalar_bits) else {
+                return ControlFlow::Break(Outcome::Unsupported("non-integer replay result"));
+            };
+            result & (U256::MAX >> (256 - bits))
+        } else {
+            result
+        };
+        self.check_width(body, value, result)?;
+        self.frame().values[value] = Some(RuntimeValue::Word(result));
         ControlFlow::Continue(())
+    }
+
+    /// With [`Limits::check_widths`], stops a lowered run when `word`, the value `value` of `body`
+    /// takes, has bits above the width of its integer type. A replay masks every result instead.
+    fn check_width(&self, body: &Function, value: ValueId, word: U256) -> ControlFlow<Outcome> {
+        let what = || match body.value(value) {
+            Value::Inst(inst) => format!("`{}`", body.inst(*inst).kind),
+            Value::Arg(index) => format!("argument {}", index.index()),
+            _ => "a value".to_owned(),
+        };
+        self.check_word(body, body.value_ty(value), word, what)
+    }
+
+    /// Stops a lowered run when `word`, which `what` of `body` takes, has bits above the width of
+    /// `ty`; see [`Self::check_width`].
+    fn check_word(
+        &self,
+        body: &Function,
+        ty: Option<MirType>,
+        word: U256,
+        what: impl FnOnce() -> String,
+    ) -> ControlFlow<Outcome> {
+        if !self.limits.check_widths || self.semantic.is_some() {
+            return ControlFlow::Continue(());
+        }
+        let Some(bits) = ty.and_then(|ty| ty.integer_bits()) else {
+            return ControlFlow::Continue(());
+        };
+        if bits >= 256 || word.bit_len() <= bits as usize {
+            return ControlFlow::Continue(());
+        }
+        let what = what();
+        ControlFlow::Break(Outcome::WidthViolated(format!(
+            "{what} in `@{}` is {word:#x}, which has bits above its type `i{bits}`",
+            body.name
+        )))
     }
 
     /// Runs the opcode the schema names `name` on its operand words, for an instruction with the
@@ -699,7 +1133,7 @@ impl<'a> Run<'_, 'a, '_> {
                 let size = U256::from(self.memory.size * EvmMemoryLayout::WORD_SIZE);
                 // Spills and frame writes MIR does not show may have grown EVM memory up to the
                 // end of the backend's frames, which a transaction needs its layout to know.
-                if self.transaction.is_some() {
+                if self.transaction.is_some() && self.semantic.is_none() {
                     if self.machine.module.backend_memory.is_none() {
                         return ControlFlow::Break(Outcome::Unsupported(
                             "msize without backend layout",
@@ -748,6 +1182,25 @@ impl<'a> Run<'_, 'a, '_> {
         operands: &[U256],
     ) -> ControlFlow<Outcome, Option<U256>> {
         let unsupported = || Outcome::Unsupported(op::mnemonic(opcode).unwrap_or("opcode"));
+        if (matches!(opcode, op::SSTORE | op::TSTORE) || (op::LOG0..=op::LOG4).contains(&opcode))
+            && self.world.as_ref().is_some_and(|world| world.host.is_static())
+        {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
+        if self.semantic.is_some()
+            && self.world.is_some()
+            && matches!(
+                opcode,
+                op::CALL
+                    | op::CALLCODE
+                    | op::DELEGATECALL
+                    | op::STATICCALL
+                    | op::CREATE
+                    | op::CREATE2
+            )
+        {
+            return ControlFlow::Continue(Some(self.external_message(opcode, operands)?));
+        }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
             (op::CALLDATACOPY, &[dest, offset, len]) => {
@@ -760,6 +1213,19 @@ impl<'a> Run<'_, 'a, '_> {
                     .map(|index| calldata_byte(calldata, offset, index))
                     .collect::<Vec<_>>();
                 limit(self.memory.write(dest, &bytes))?;
+                return ControlFlow::Continue(None);
+            }
+            (op::RETURNDATACOPY, &[destination, offset, len]) => {
+                let Some(world) = &self.world else {
+                    return ControlFlow::Break(unsupported());
+                };
+                let data = &world.effects.return_data;
+                if offset > U256::from(data.len()) || len > U256::from(data.len()) - offset {
+                    return ControlFlow::Break(Outcome::ReturndataOutOfBounds);
+                }
+                let bytes = data[offset.to::<usize>()..(offset + len).to::<usize>()].to_vec();
+                self.burn_words(len)?;
+                limit(self.memory.write(destination, &bytes))?;
                 return ControlFlow::Continue(None);
             }
             (op::LOG0..=op::LOG4, &[offset, len, ref topics @ ..]) => {
@@ -801,14 +1267,8 @@ impl<'a> Run<'_, 'a, '_> {
                 world.effects.transient.insert(slot, value);
                 None
             }
-            // The transaction makes no calls, so its return data stays empty.
-            (op::RETURNDATASIZE, &[]) if transaction.is_some() => Some(U256::ZERO),
-            // Copying past the end of the return data halts.
-            (op::RETURNDATACOPY, &[_, offset, len]) if transaction.is_some() => {
-                if !offset.is_zero() || !len.is_zero() {
-                    return ControlFlow::Break(Outcome::ReturndataOutOfBounds);
-                }
-                None
+            (op::RETURNDATASIZE, &[]) if transaction.is_some() => {
+                Some(U256::from(world.effects.return_data.len()))
             }
             _ if HOST_OPCODES.contains(&opcode) => match world.host.read(opcode, operands) {
                 Some(word) => Some(word),
@@ -816,6 +1276,74 @@ impl<'a> Run<'_, 'a, '_> {
             },
             _ => return ControlFlow::Break(unsupported()),
         })
+    }
+
+    /// Evaluates external MIR operands directly. Memory expansion belongs to the caller;
+    /// child execution and journal commit/rollback belong to the explicitly supplied host.
+    fn external_message(&mut self, opcode: u8, args: &[U256]) -> ControlFlow<Outcome, U256> {
+        let world = self.world.as_ref().expect("external messages require a host");
+        let creation = matches!(opcode, op::CREATE | op::CREATE2);
+        let explicit_value = matches!(opcode, op::CALL | op::CALLCODE);
+        let value = if creation {
+            args[0]
+        } else if explicit_value {
+            args[2]
+        } else {
+            U256::ZERO
+        };
+        if world.host.is_static() && (creation || opcode == op::CALL && !value.is_zero()) {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
+        let start = if creation {
+            1
+        } else if explicit_value {
+            3
+        } else {
+            2
+        };
+        let (offset, size) = (args[start], args[start + 1]);
+        if creation
+            && self.semantic.is_some_and(|version| version >= EvmVersion::Shanghai)
+            && size > U256::from(49152)
+        {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
+        let input = limit(self.memory.read(offset, size))?;
+        self.burn_words(size)?;
+        let output = if creation {
+            None
+        } else {
+            let (offset, size) = (args[start + 2], args[start + 3]);
+            limit(self.memory.access(offset, size))?;
+            Some((offset, size))
+        };
+        let message = if creation {
+            ExternalMessage::Create {
+                value,
+                salt: (opcode == op::CREATE2).then(|| args[3]),
+                initcode: &input,
+            }
+        } else {
+            ExternalMessage::Call { opcode, gas: args[0], address: args[1], value, input: &input }
+        };
+        let world = self.world.as_mut().expect("external messages require a host");
+        let storage = world.effects.storage.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
+        let transient = world.effects.transient.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
+        let pending =
+            PendingChanges { storage: &storage, transient: &transient, logs: &world.effects.logs };
+        let result = match world.host.message(message, pending) {
+            Ok(result) => result,
+            Err(reason) => return ControlFlow::Break(Outcome::Unsupported(reason)),
+        };
+        world.effects.storage.clear();
+        world.effects.transient.clear();
+        world.effects.logs.clear();
+        if let Some((offset, size)) = output {
+            let copied = result.return_data.len().min(size.to::<usize>());
+            limit(self.memory.write(offset, &result.return_data[..copied]))?;
+        }
+        world.effects.return_data = result.return_data;
+        ControlFlow::Continue(result.value)
     }
 
     /// Copies `len` bytes of the constant data at `data` to memory at `dest`.
@@ -868,6 +1396,34 @@ impl<'a> Run<'_, 'a, '_> {
             };
         }
         ControlFlow::Break(Outcome::Unsupported("allocation without backend placement"))
+    }
+
+    /// Execute the allocation contract against the caller's explicit memory. Reservation alone
+    /// does not touch the allocated bytes; zeroing does. The FMP update precedes initialization,
+    /// even when an explicitly supplied cursor aliases the FMP word itself.
+    fn semantic_allocate(
+        &mut self,
+        size: U256,
+        semantics: AllocationSemantics,
+    ) -> ControlFlow<Outcome, U256> {
+        let slot = U256::from(EvmMemoryLayout::FMP_SLOT);
+        let pointer = limit(self.memory.load(slot))?;
+        let (next, wrapped) = pointer.overflowing_add(size);
+        if wrapped || next > U256::from(EvmMemoryLayout::MAX_ALLOCATION_END) {
+            return ControlFlow::Break(if semantics.failure == AllocationFailure::Checked {
+                Outcome::Revert(panic_data(U256::from(0x41)))
+            } else {
+                Outcome::Unsupported("infallible allocation validity precondition")
+            });
+        }
+        // mstore 64, next
+        // memory_zero pointer, size  (when zeroed)
+        limit(self.memory.store(slot, next))?;
+        if semantics.initialization == AllocationInitialization::Zeroed {
+            self.burn_words(size)?;
+            limit(self.memory.zero(pointer, size))?;
+        }
+        ControlFlow::Continue(pointer)
     }
 
     /// Publishes the results after the first of a call returning several values the way the
@@ -924,10 +1480,39 @@ impl<'a> Run<'_, 'a, '_> {
                 self.enter(target)
             }
             Terminator::Return { values } => {
+                if self.semantic.is_some() {
+                    let values = frame.read_values(values)?;
+                    self.burn(values.iter().map(RuntimeValue::nodes).sum())?;
+                    let frame = self.frames.pop().expect("a run always has a frame");
+                    if self.frames.is_empty() {
+                        let mut words = Vec::new();
+                        for (value, &ty) in values.iter().zip(body.return_components()) {
+                            if let Err(e) = value.flatten(self.machine.module, ty, &mut words) {
+                                return ControlFlow::Break(Outcome::Unsupported(e));
+                            }
+                        }
+                        return ControlFlow::Break(Outcome::Return(words.into_iter().collect()));
+                    }
+                    if let Some(result) = frame.result {
+                        if values.len() != 1 {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "physical multi-return protocol is not modeled",
+                            ));
+                        }
+                        self.frame().values[result] =
+                            Some(values.into_iter().next().expect("one result"));
+                    }
+                    return ControlFlow::Continue(());
+                }
                 let values = frame.read_all(values)?.into_iter().collect::<SmallVec<_>>();
                 let frame = self.frames.pop().expect("a run always has a frame");
                 if self.frames.is_empty() {
                     return ControlFlow::Break(Outcome::Return(values));
+                }
+                if values.len() > 1 && self.semantic.is_some() {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "aggregate semantic call result",
+                    ));
                 }
                 if values.len() > 1 {
                     let caller_id = self.frames.last().expect("caller").function;
@@ -942,19 +1527,24 @@ impl<'a> Run<'_, 'a, '_> {
                         }
                         for (value, &word) in protocol.extras.iter().zip(&values[1..]) {
                             if let Some(value) = value {
-                                self.frame().values[*value] = Some(word);
+                                self.check_width(
+                                    self.frames.last().expect("caller").body,
+                                    *value,
+                                    word,
+                                )?;
+                                self.frame().values[*value] = Some(RuntimeValue::Word(word));
                             }
                         }
                     } else {
                         self.publish_multi_return(frame.return_owner, &values)?;
                     }
                 }
-                let caller = self.frame();
                 if let Some(result) = frame.result {
                     let Some(&value) = values.first() else {
                         return ControlFlow::Break(Outcome::Unsupported("call without a result"));
                     };
-                    caller.values[result] = Some(value);
+                    self.check_width(self.frames.last().expect("caller").body, result, value)?;
+                    self.frame().values[result] = Some(RuntimeValue::Word(value));
                 }
                 ControlFlow::Continue(())
             }
@@ -974,7 +1564,11 @@ impl<'a> Run<'_, 'a, '_> {
             Terminator::Stop => ControlFlow::Break(Outcome::Stop),
             Terminator::Invalid => ControlFlow::Break(Outcome::Invalid),
             Terminator::TailCall { function, args } => {
-                let args = frame.read_all(args)?.into_iter().collect();
+                let args = if self.semantic.is_some() {
+                    frame.read_values(args)?
+                } else {
+                    frame.read_all(args)?.into_iter().map(RuntimeValue::Word).collect()
+                };
                 let Some(callee) = self.machine.body(*function) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
@@ -1000,7 +1594,7 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(block) = body.blocks.get(target) else {
             return ControlFlow::Break(Outcome::Unsupported("jump to an unknown block"));
         };
-        let mut incoming = SmallVec::<[(ValueId, U256); 8]>::new();
+        let mut incoming = SmallVec::<[(ValueId, RuntimeValue); 8]>::new();
         for &inst in &block.instructions {
             let instruction = body.inst(inst);
             let InstKind::Phi(inputs) = &instruction.kind else { break };
@@ -1009,13 +1603,19 @@ impl<'a> Run<'_, 'a, '_> {
             else {
                 return ControlFlow::Break(Outcome::Unsupported("phi without an input"));
             };
-            let word = frame.read(value)?;
-            incoming.push((result, word));
+            let value = if self.semantic.is_some() {
+                frame.read_value(value)?
+            } else {
+                let word = frame.read(value)?;
+                self.check_width(body, result, word)?;
+                RuntimeValue::Word(word)
+            };
+            incoming.push((result, value));
         }
-        self.burn(incoming.len() as u64)?;
+        self.burn(incoming.iter().map(|(_, v)| v.nodes()).sum())?;
         let frame = self.frame();
         frame.next = incoming.len();
-        for &(result, value) in &incoming {
+        for (result, value) in incoming {
             frame.values[result] = Some(value);
         }
         frame.block = target;
@@ -1030,6 +1630,11 @@ fn kept_effects(outcome: &Outcome, effects: Effects) -> Effects {
         Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop => effects,
         _ => Effects::default(),
     }
+}
+
+/// A memory pointer carries one address word, without validity or provenance assumptions.
+pub(crate) fn scalar_bits(ty: MirType) -> Option<u32> {
+    if matches!(ty, MirType::Ptr(_)) { Some(256) } else { ty.integer_bits() }
 }
 
 /// Returns the calldata word at `offset`, padded with zero bytes past the end.
@@ -1057,6 +1662,91 @@ fn limit<T>(result: Result<T, Limit>) -> ControlFlow<Outcome, T> {
     }
 }
 
+fn sign_extend(value: U256, bits: u32) -> U256 {
+    if bits < 256 && value.bit((bits - 1) as usize) { value | (U256::MAX << bits) } else { value }
+}
+
+fn panic_data(code: U256) -> Vec<u8> {
+    let mut bytes = vec![0x4e, 0x48, 0x7b, 0x71];
+    bytes.extend(code.to_be_bytes::<32>());
+    bytes
+}
+
+fn checked_word(op: CheckedOp, kind: ArithmeticKind, a: U256, b: U256) -> Option<U256> {
+    let bits = match kind {
+        ArithmeticKind::Unsigned(bits) | ArithmeticKind::Signed(bits) => u32::from(bits),
+    };
+    let mask = U256::MAX >> (256 - bits);
+    match kind {
+        ArithmeticKind::Unsigned(_) => {
+            let result = match op {
+                CheckedOp::Add => a.checked_add(b),
+                CheckedOp::Sub => a.checked_sub(b),
+                CheckedOp::Mul => a.checked_mul(b),
+                _ => None,
+            }?;
+            (result & mask == result).then_some(result)
+        }
+        ArithmeticKind::Signed(_) => {
+            let a = I256::from_raw(sign_extend(a, bits));
+            let b = I256::from_raw(sign_extend(b, bits));
+            let result = match op {
+                CheckedOp::Add => a.checked_add(b),
+                CheckedOp::Sub => a.checked_sub(b),
+                CheckedOp::Mul => a.checked_mul(b),
+                _ => None,
+            }?
+            .into_raw();
+            (sign_extend(result & mask, bits) == result).then_some(result & mask)
+        }
+    }
+}
+
+fn checked_arithmetic(op: CheckedOp, kind: ArithmeticKind, a: U256, b: U256) -> Result<U256, u8> {
+    let bits = match kind {
+        ArithmeticKind::Unsigned(bits) | ArithmeticKind::Signed(bits) => u32::from(bits),
+    };
+    let mask = U256::MAX >> (256 - bits);
+    match op {
+        CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul => {
+            checked_word(op, kind, a, b).ok_or(0x11)
+        }
+        CheckedOp::Div | CheckedOp::WrappingDiv | CheckedOp::Rem => {
+            if b.is_zero() {
+                return Err(0x12);
+            }
+            let signed = matches!(kind, ArithmeticKind::Signed(_));
+            if op == CheckedOp::Div && signed && a == U256::ONE << (bits - 1) && b == mask {
+                return Err(0x11);
+            }
+            let opcode = match (signed, op) {
+                (true, CheckedOp::Rem) => op::SMOD,
+                (false, CheckedOp::Rem) => op::MOD,
+                (true, _) => op::SDIV,
+                (false, _) => op::DIV,
+            };
+            let operands =
+                if signed { [sign_extend(a, bits), sign_extend(b, bits)] } else { [a, b] };
+            Ok(op::eval_opcode(opcode, &operands).expect("division opcode") & mask)
+        }
+        CheckedOp::Pow => {
+            let mut result = U256::ONE;
+            let mut base = a;
+            let mut exponent = b;
+            while !exponent.is_zero() {
+                if exponent.bit(0) {
+                    result = checked_word(CheckedOp::Mul, kind, result, base).ok_or(0x11)?;
+                }
+                exponent >>= 1;
+                if !exponent.is_zero() {
+                    base = checked_word(CheckedOp::Mul, kind, base, base).ok_or(0x11)?;
+                }
+            }
+            Ok(result)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1064,7 +1754,7 @@ mod tests {
     use solar_interface::{ColorChoice, Session, source_map::FileName};
     use solar_mir::ResultKind;
 
-    const LIMITS: Limits = Limits { fuel: 10_000, depth: 16 };
+    const LIMITS: Limits = Limits { fuel: 10_000, depth: 16, check_widths: false };
 
     fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
         let name = FileName::Custom("test.mir".into());
@@ -1197,6 +1887,45 @@ fn @storage(arg0: i256) -> i256 {
 
     fn returned(value: u64) -> Outcome {
         Outcome::Return([U256::from(value)].into_iter().collect())
+    }
+
+    #[test]
+    fn integer_widths() {
+        // Lowering legality keeps only `i1` narrow, and every lowered operation with an `i1`
+        // result yields zero or one, so here a caller that skips the check passes two.
+        let source = "@module Widths
+@phase lowered
+fn @flag(arg0: i1) -> i1 {
+  bb0:
+    ret arg0
+}
+";
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, source).unwrap();
+            let id = |name: &str| {
+                module
+                    .iter_functions()
+                    .find(|(_, function)| function.name.symbol.as_str() == name)
+                    .map(|(id, _)| id)
+                    .unwrap()
+            };
+            let run = |name: &str, arg: u64, check_widths: bool| {
+                let limits = Limits { check_widths, ..LIMITS };
+                let machine = Machine::new(&module);
+                machine.run(id(name), &[U256::from(arg)], Memory::zeroed(), None, limits).outcome
+            };
+            // Without the check a run keeps the raw words, as the EVM computes them.
+            assert_eq!(run("flag", 2, false), returned(2));
+            // A value that fits passes it.
+            assert_eq!(run("flag", 1, true), returned(1));
+            assert_eq!(
+                run("flag", 2, true),
+                Outcome::WidthViolated(
+                    "argument 0 in `@flag` is 0x2, which has bits above its type `i1`".into()
+                )
+            );
+        });
     }
 
     #[test]
@@ -1456,5 +2185,24 @@ fn @world(arg0: i256) -> i256 {
             let outcome = machine.run(id, &args, Memory::zeroed(), None, LIMITS).outcome;
             assert_eq!(outcome, Outcome::Unsupported("sload"));
         });
+    }
+
+    #[test]
+    fn checked_replay_word_boundaries() {
+        for bits in [160, 256] {
+            let unsigned = ArithmeticKind::Unsigned(bits);
+            let signed = ArithmeticKind::Signed(bits);
+            let mask = U256::MAX >> (256 - u32::from(bits));
+            let minimum = U256::ONE << (bits - 1);
+            let maximum = minimum - U256::ONE;
+            assert_eq!(checked_word(CheckedOp::Add, unsigned, mask, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Sub, unsigned, U256::ZERO, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Mul, unsigned, mask, U256::from(2)), None);
+            assert_eq!(checked_word(CheckedOp::Add, signed, maximum, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Sub, signed, minimum, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Mul, signed, minimum, mask), None);
+            assert_eq!(checked_word(CheckedOp::Add, signed, mask, U256::ONE), Some(U256::ZERO));
+            assert_eq!(checked_word(CheckedOp::Mul, signed, minimum, U256::ONE), Some(minimum));
+        }
     }
 }

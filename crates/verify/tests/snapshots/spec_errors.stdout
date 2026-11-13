@@ -1,0 +1,5 @@
+✔ SpecErrors.noSeparator (0 obligations)
+✔ SpecErrors.trailing (0 obligations)
+✔ SpecErrors.checkOld (0 obligations)
+✔ SpecErrors.constructor (0 obligations)
+verification results:: 4 verified, 4 errors

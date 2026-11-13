@@ -1,0 +1,4 @@
+error: -Zemit-lean-stages: after MIR pass `lower-evm-shaped` on `LeanStagesLibrary`: in `@g`: bb5: instruction `library_address` has no Lean semantics
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,4 @@
+@module Destruction
+bb0:
+  push 196608
+  selfdestruct

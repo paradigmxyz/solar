@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/mir/lower-assumes/memory_facts.sol:LL:CC
+   │
+LL │         revert Bad(x);
+   ╰╴        ━━━━━━━━━━━━━
+

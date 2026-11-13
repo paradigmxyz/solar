@@ -74,3 +74,20 @@
       revert 0, 64
   }
   
+  fn @heap_store_keeps_hash(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      jump bb1
+    bb1:                                            ; preds = bb0, bb1
+      v1 = phi [bb0: 0], [bb1: v4]
+      v2 = mapping_slot arg1, 3
+-     v3 = sload v2
++     v3 = sload v2 !metadata(storage=symbolic(v2))
+      mstore v0, v3
+      v4 = add v1, 1
+      v5 = lt v4, arg0
+      jumpi v5, bb1, bb2
+    bb2:                                            ; preds = bb1
+      ret v3
+  }
+  

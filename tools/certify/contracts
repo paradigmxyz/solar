@@ -1,0 +1,13 @@
+# The contracts CI certifies, one per line: NAME (the directory Certified/NAME of the pinned
+# solidity-lean checkout, with NAME.sol) and any further scripts/certify options. w1 is not here:
+# its stages and proofs predate the driver's layout (lean_lib W1) and build in solidity-lean's own CI.
+counter --require-headline
+c4
+w4
+masks
+mulx
+bank
+events
+reader
+verify_token
+verify_counter

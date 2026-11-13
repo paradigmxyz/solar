@@ -1,0 +1,68 @@
+- ; === ROOT/tests/ui/codegen/mir/const-fold/recorded_widths.mir (before const-fold) ===
++ ; === ROOT/tests/ui/codegen/mir/const-fold/recorded_widths.mir (after const-fold) ===
+  @module RecordedFolds
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb2, [0x8de62f33 => bb1]
+    bb1:                                            ; preds = bb0
+      tail_call @below
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @below() {
+    bb0:
+      v0 = calldataload 4
+      v1 = and v0, 255
+-     v2 = lt v1, 256
+-     v3 = zext i1 v2 to i256
+-     mstore 0, v3
++     mstore 0, 1
++     assume ult const_fold, v1, 256
+      returndata 0, 32
+  }
+  
+- ; === ROOT/tests/ui/codegen/mir/const-fold/recorded_widths.mir (before lower-assumes) ===
++ ; === ROOT/tests/ui/codegen/mir/const-fold/recorded_widths.mir (after lower-assumes) ===
+  @module RecordedFolds
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb2, [0x8de62f33 => bb1]
+    bb1:                                            ; preds = bb0
+      tail_call @below
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @below() {
+    bb0:
+      v0 = calldataload 4
+      v1 = and v0, 255
+      mstore 0, 1
+-     assume ult const_fold, v1, 256
++     v4 = lt v1, 256
++     v5 = eq v4, false
++     jumpi v5, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v6 = phi [bb2: 0x309000000010000000000000001]
++     v7 = phi [bb2: v1]
++     v8 = phi [bb2: 256]
++     mstore 32, v6 !metadata(memory=scratch)
++     mstore 64, v7 !metadata(memory=scratch)
++     mstore 96, v8 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  

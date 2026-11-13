@@ -1,0 +1,9 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi -Zvalidate-passes-fault=decode
+// The fault moves the wrapper's read of its argument one word on in the version the validator
+// reads: it decodes the word after the argument.
+@module RefutedDecode
+@phase semantic
+fn @echo(arg0: i256) -> i256 [selector=0x10000001, abi_params=[uint256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}

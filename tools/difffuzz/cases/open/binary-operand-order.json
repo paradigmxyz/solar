@@ -1,0 +1,94 @@
+{
+  "contract": {
+    "name": "C",
+    "state": [],
+    "events": [],
+    "errors": [],
+    "ctor": [],
+    "helpers": [],
+    "funcs": [
+      {
+        "name": "f2",
+        "params": [],
+        "returns": [
+          {
+            "U": 32
+          }
+        ],
+        "body": [
+          {
+            "Require": [
+              {
+                "Cmp": [
+                  "Lt",
+                  {
+                    "Bin": [
+                      "Div",
+                      {
+                        "Lit": {
+                          "ty": {
+                            "I": 128
+                          },
+                          "value": "7"
+                        }
+                      },
+                      {
+                        "Lit": {
+                          "ty": {
+                            "I": 128
+                          },
+                          "value": "0"
+                        }
+                      },
+                      {
+                        "I": 128
+                      }
+                    ]
+                  },
+                  {
+                    "Bin": [
+                      "Add",
+                      {
+                        "Lit": {
+                          "ty": {
+                            "I": 128
+                          },
+                          "value": "-2"
+                        }
+                      },
+                      {
+                        "Min": {
+                          "I": 128
+                        }
+                      },
+                      {
+                        "I": 128
+                      }
+                    ]
+                  }
+                ]
+              },
+              null
+            ]
+          }
+        ],
+        "specs": [],
+        "helper": false
+      }
+    ],
+    "invariants": []
+  },
+  "name": "C",
+  "calls": [
+    {
+      "func": "f2",
+      "args": []
+    }
+  ],
+  "divergence": {
+    "legs": "solar-evm/solidcore",
+    "kind": "outcome",
+    "call": 4,
+    "detail": "outcome: revert 0x4e487b710000000000000000000000000000000000000000000000000000000000000012 vs revert 0x4e487b710000000000000000000000000000000000000000000000000000000000000011"
+  }
+}

@@ -39,6 +39,27 @@
 (decl pure at_most_const (Value U256) bool)
 (extern constructor at_most_const at_most_const)
 
+;; The rule relies on `value < bound` (`relied_ult`), `value <= bound` (`relied_ule`) or
+;; `value < 2 ** bits` (`relied_below_bits`, nothing for 256 bits or more), which a width guard
+;; above proved from the definition of `value`. Each returns its last operand unchanged; with
+;; `-Zcheck-analyses` the pass records the fact as an `assume` where it applies the rule. Only a
+;; rule that applies builds its right-hand side, so only its facts are noted.
+(decl relied_ult (Value U256 Value) Value)
+(extern constructor relied_ult relied_ult)
+
+(decl relied_ule (Value U256 Value) Value)
+(extern constructor relied_ule relied_ule)
+
+(decl relied_below_bits (Value U256 Value) Value)
+(extern constructor relied_below_bits relied_below_bits)
+
+;; The same for an alternative a `rewrite` rule builds.
+(decl relied_ult_op (Value U256 Op) Op)
+(extern constructor relied_ult_op relied_ult_op)
+
+(decl relied_ule_op (Value U256 Op) Op)
+(extern constructor relied_ule_op relied_ule_op)
+
 ;; The shift moves every bit `value` can have out of the word.
 (decl pure shifted_out (U256 Value) bool)
 (extern constructor shifted_out shifted_out)

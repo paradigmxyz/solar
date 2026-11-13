@@ -1,0 +1,31 @@
+[package]
+name = "solar-difffuzz"
+description = "Differential fuzzer for Solar's pipeline, solc, and solar-verify"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "solar-difffuzz"
+path = "src/main.rs"
+bench = false
+
+[lints]
+workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-dyn-abi.workspace = true
+alloy-json-abi.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+solar-config.workspace = true
+solar-evmir.workspace = true
+solar-mir-interpreter.workspace = true
+solar-evmir-interpreter.workspace = true
+revm = { version = "33", default-features = false, features = ["std"] }
+num-bigint = "0.4"

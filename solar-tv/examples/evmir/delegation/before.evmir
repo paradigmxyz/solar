@@ -1,0 +1,14 @@
+@module Delegation
+bb0:
+  push 32
+  push 0
+  push 0
+  push 0
+  push 0
+  push 196608
+  push 300000
+  call
+  pop
+  push 32
+  push 0
+  return

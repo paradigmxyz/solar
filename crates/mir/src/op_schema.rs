@@ -30,11 +30,11 @@ use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
 
 use super::{
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationSemantics, ArithmeticKind, BlockId,
-    Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
-    StructId, ValueId, ValueLayout, typing,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationSemantics, ArithmeticKind,
+    AssumePredicate, BlockId, Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize,
+    EffectKind, FactSource, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId,
+    InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart,
+    PtrLocation, RevertKind, Semantics, StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;
@@ -662,6 +662,8 @@ attributes! {
     MemoryObjectKind,
     MemoryObjectLayout,
     PtrLocation,
+    AssumePredicate,
+    FactSource,
 }
 
 opaque_attributes! {
@@ -837,7 +839,7 @@ macro_rules! define_mir_ops {
             }
 
             /// Every operation's mnemonic with its `#[semantics(...)]` declaration as written.
-            pub(crate) const DECLARED_SEMANTICS: &[(&str, &str)] = &[
+            pub const DECLARED_SEMANTICS: &[(&str, &str)] = &[
                 $( ($mnemonic, stringify!($( $( $semantics )+ )?)), )+
             ];
 
@@ -1247,6 +1249,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "insert_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
     #[operand_types(func => None)]
+    #[semantics(insert_value(ty, aggregate, index, value))]
     InsertValue { ty: MirType, aggregate: ValueId, index: u32, value: ValueId },
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
@@ -1254,6 +1257,7 @@ define_mir_ops! {
         phase_category: Some(PhaseCategory::Slice),
     })]
     #[operand_types(func => None)]
+    #[semantics(extract_value(ty, aggregate, index))]
     ExtractValue { ty: MirType, aggregate: ValueId, index: u32 },
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
@@ -1290,6 +1294,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "ptradd", result = Pointer, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::PointerArithmetic))]
     #[operand_types(func => Some(smallvec![typing::pointer(func, *ptr), MirType::I256]))]
+    #[semantics(pointer_add(ptr, offset))]
     PtrAdd(ptr: ValueId, offset: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::CheckedArithmetic))]
@@ -1793,6 +1798,7 @@ define_mir_ops! {
     #[builder(memory_zero, void)]
     #[raw_memory(Write(offset, size))]
     #[operand_types(func => Some(smallvec![typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(memory_zero(offset, size))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
     #[mir_op(
@@ -1820,6 +1826,7 @@ define_mir_ops! {
     )]
     #[builder(fmp)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(free_pointer())]
     Fmp,
     /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
     /// can run this function, which codegen fixes once it has placed the frames and spill slots
@@ -1949,6 +1956,7 @@ define_mir_ops! {
         mnemonic: "make_returndata_slice",
     })]
     #[operand_types(func => Some(smallvec![MirType::Ptr(*location), MirType::I256]))]
+    #[semantics(make_slice(location, ptr, len))]
     MakeSlice {
         /// Pointer to the first element or byte.
         ptr: ValueId,
@@ -2766,5 +2774,21 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     #[semantics(opcode(signextend))]
     SignExtend(byte: ValueId, value: ValueId),
+
+    // Recorded facts
+    /// A fact the `source` pass relied on: `predicate(lhs, rhs)` holds wherever this executes.
+    /// Recorded only with `-Zcheck-analyses`, never read by an analysis, and turned into a
+    /// run-time check by `lower-assumes`; see the `assume` module.
+    #[mir_op(
+        mnemonic = "assume",
+        result = None,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = true,
+        category = None
+    )]
+    #[operand_types(func => None)]
+    Assume { predicate: AssumePredicate, source: FactSource, lhs: ValueId, rhs: ValueId },
 }
 }

@@ -575,6 +575,14 @@ fn display_inst_kind<'a>(
             display_val(*slot, func),
             display_val(*index, func)
         ),
+        InstKind::Assume { predicate, source, lhs, rhs } => write!(
+            f,
+            "assume {} {}, {}, {}",
+            predicate.name(),
+            source.name(),
+            display_val(*lhs, func),
+            display_val(*rhs, func)
+        ),
         InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
             f,
             "{} {}, {}, {}",

@@ -53,6 +53,9 @@ pub struct ContractArtifact {
     /// The [`RuntimeDataFn`] values of this contract and the contracts it embeds in the runtime
     /// bytecode, in ascending order.
     pub runtime_trailers: Vec<Trailer>,
+    /// With `-Zemit-lean-stages`, the program data in the runtime bytecode, such as the creation
+    /// code of a contract it creates: each entry's Lean stage key, offset and length.
+    pub runtime_data: Vec<(String, usize, usize)>,
     /// Captured MIR, built under `-O none` without an explicit pipeline, and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -79,6 +82,8 @@ pub struct ImmutableReference {
     /// against direct calls and is reported as [`Self::LIBRARY_DEPLOY_ADDRESS`], like solc's
     /// IR pipeline.
     pub variable_id: Option<VariableId>,
+    /// The immutable's number in the contract's MIR (`loadimmutable`).
+    pub id: usize,
     /// Byte offset where the placeholder data begins.
     pub start: usize,
     /// Type width encoded by the placeholder.
@@ -809,6 +814,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                     .immutable(reference.id)
                     .variable_id
                     .map(|id| VariableId::from_usize(id.index())),
+                id: reference.id.index(),
                 start: reference.code_offset + 1,
                 type_size: reference.type_size,
             })
@@ -834,6 +840,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_link_references,
             deployment_trailers: artifact.deployment_trailers,
             runtime_trailers: artifact.runtime_trailers,
+            runtime_data: artifact.runtime_data,
             mir,
             final_mir,
             deployment_evm_ir: artifact.deployment_evm_ir,

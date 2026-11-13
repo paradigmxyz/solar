@@ -104,7 +104,7 @@
 ;; sdiv(x, c) => x >> shift.
 ;; Requires: c is constant, c == 2 ** shift and 1 <= shift <= (W - 1), shift < (W - 1), x is known to be <
 ;; (1 << (W - 1)), the target supports shifts.
-(rule (rewrite (Op.SDiv x (iconst c))) (if-let shift (power_of_two_shift c)) (if-let true (u256_lt shift (integer_sign_bit))) (if-let true (below_const x (u256_shl (u256 (integer_sign_bit)) (u256 1)))) (if-let true (has_bitwise_shifting)) (Op.Shr (imm shift) x))
+(rule (rewrite (Op.SDiv x (iconst c))) (if-let shift (power_of_two_shift c)) (if-let true (u256_lt shift (integer_sign_bit))) (if-let true (below_const x (u256_shl (u256 (integer_sign_bit)) (u256 1)))) (if-let true (has_bitwise_shifting)) (relied_ult_op x (u256_shl (u256 (integer_sign_bit)) (u256 1)) (Op.Shr (imm shift) x)))
 
 ;; sdiv((_ << s), c) => sar(shift, (_ << s)).
 ;; Requires: s, c are constants, c == 2 ** shift and 1 <= shift <= (W - 1), shift < (W - 1), shift <= s, the
@@ -113,4 +113,4 @@
 
 ;; (x * c) / c => x.
 ;; Requires: c is a nonzero constant, x is known to be <= (MAX / c).
-(rule (rewrite (Op.Div (mul x (nonzero_const c)) (iconst c))) (if-let true (at_most_const x (u256_div (u256_max) c))) (Op.Add x (imm (u256 0))))
+(rule (rewrite (Op.Div (mul x (nonzero_const c)) (iconst c))) (if-let true (at_most_const x (u256_div (u256_max) c))) (relied_ule_op x (u256_div (u256_max) c) (Op.Add x (imm (u256 0)))))

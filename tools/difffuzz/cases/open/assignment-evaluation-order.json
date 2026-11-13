@@ -1,0 +1,146 @@
+{
+  "contract": {
+    "name": "C",
+    "state": [
+      {
+        "name": "s0",
+        "kind": {
+          "DynArr": {
+            "U": 16
+          }
+        },
+        "public": true
+      }
+    ],
+    "events": [],
+    "errors": [],
+    "ctor": [],
+    "helpers": [],
+    "funcs": [
+      {
+        "name": "f3",
+        "params": [
+          [
+            {
+              "U": 32
+            },
+            "a0"
+          ],
+          [
+            {
+              "I": 8
+            },
+            "a1"
+          ]
+        ],
+        "returns": [
+          "Addr",
+          {
+            "I": 128
+          }
+        ],
+        "body": [
+          {
+            "Assign": [
+              {
+                "Arr": [
+                  "s0",
+                  {
+                    "Lit": {
+                      "ty": {
+                        "U": 256
+                      },
+                      "value": "1"
+                    }
+                  }
+                ]
+              },
+              null,
+              {
+                "Bin": [
+                  "Or",
+                  {
+                    "Bin": [
+                      "Add",
+                      {
+                        "Lit": {
+                          "ty": {
+                            "U": 16
+                          },
+                          "value": "5"
+                        }
+                      },
+                      {
+                        "Lit": {
+                          "ty": {
+                            "U": 16
+                          },
+                          "value": "65535"
+                        }
+                      },
+                      {
+                        "U": 16
+                      }
+                    ]
+                  },
+                  {
+                    "Read": [
+                      {
+                        "Arr": [
+                          "s0",
+                          {
+                            "Lit": {
+                              "ty": {
+                                "U": 256
+                              },
+                              "value": "0"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "U": 16
+                      }
+                    ]
+                  },
+                  {
+                    "U": 16
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "specs": [],
+        "helper": false
+      }
+    ],
+    "invariants": []
+  },
+  "name": "C",
+  "calls": [
+    {
+      "func": "f3",
+      "args": [
+        {
+          "ty": {
+            "U": 32
+          },
+          "value": "0"
+        },
+        {
+          "ty": {
+            "I": 8
+          },
+          "value": "0"
+        }
+      ]
+    }
+  ],
+  "divergence": {
+    "legs": "solar-evm/solidcore",
+    "kind": "outcome",
+    "call": 0,
+    "detail": "outcome: revert Panic(0x11) vs revert Panic(0x32): SolidCore checks the index s0[0] (or s0[1]) before it evaluates the overflowing addition; Solar and solc --via-ir evaluate the addition first."
+  }
+}

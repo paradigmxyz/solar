@@ -47,7 +47,7 @@
 
 ;; a & mask => a.
 ;; Requires: mask is constant, mask is a low-bit mask covering all possible set bits of a.
-(rule 14 (simplify (Op.And a (iconst mask))) (if-let true (mask_covers mask a)) a)
+(rule 14 (simplify (Op.And a (iconst mask))) (if-let true (mask_covers mask a)) (relied_ule a mask a))
 
 ;; clz(_) & mask => clz(_).
 ;; Requires: mask is constant, (mask & 511) == 511.

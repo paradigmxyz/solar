@@ -1513,6 +1513,9 @@ impl Target {
                 Cost::new(40, 24)
             }
             InstKind::ValidateAbi(_) => Cost::new(0, 0),
+            // A recorded fact emits no code until `check-analyses` tests it, after every pass
+            // that prices code, so a checked build optimizes like an unchecked one.
+            InstKind::Assume { .. } => Cost::ZERO,
             InstKind::CheckedBinary { op: CheckedOp::Pow, .. } => Cost::new(300, 128),
             InstKind::CheckedBinary { .. } => Cost::new(30, 20),
             InstKind::AbiEncodePacked { parts, .. } => {
@@ -1555,7 +1558,8 @@ impl Target {
             | InstKind::PtrToInt(_, 256)
             | InstKind::MakeSlice { .. }
             | InstKind::InsertValue { .. }
-            | InstKind::ExtractValue { .. } => 0,
+            | InstKind::ExtractValue { .. }
+            | InstKind::Assume { .. } => 0,
             InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
             InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
             InstKind::MappingSlotBytes(..) => 9,

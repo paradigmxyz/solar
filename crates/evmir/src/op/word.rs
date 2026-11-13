@@ -2,7 +2,8 @@
 //!
 //! [`eval_opcode`] computes what a pure opcode pushes for concrete operands, with the EVM's
 //! wrapping arithmetic, zero divisors, and saturating shifts. Constant folding and the interpreters
-//! share it, so every consumer has one definition of each opcode.
+//! share it, so every consumer has one definition of each opcode. [`smt_opcode`] gives the same
+//! semantics as an SMT-LIB term, for the queries that prove analysis facts.
 
 use crate::op;
 use alloy_primitives::U256;
@@ -41,6 +42,120 @@ pub fn eval_opcode(opcode: u8, operands: &[U256]) -> Option<U256> {
         (op::ISZERO, &[a]) => U256::from(a.is_zero()),
         _ => return None,
     })
+}
+
+/// The SMT-LIB term of a pure EVM opcode over 256-bit bit-vector operands in pop order, with
+/// the same semantics as [`eval_opcode`]: wrapping arithmetic, zero divisors and saturating
+/// shifts. `None` for an opcode it does not model.
+pub fn smt_opcode(opcode: u8, operands: &[&str]) -> Option<String> {
+    let zero = smt_word(U256::ZERO);
+    let one = smt_word(U256::ONE);
+    let bool_word = |condition: String| format!("(ite {condition} {one} {zero})");
+    let shift_limit = smt_word(U256::from(256));
+    Some(match (opcode, operands) {
+        (op::ADD, [a, b]) => format!("(bvadd {a} {b})"),
+        (op::SUB, [a, b]) => format!("(bvsub {a} {b})"),
+        (op::MUL, [a, b]) => format!("(bvmul {a} {b})"),
+        (op::DIV, [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvudiv {a} {b}))"),
+        (op::SDIV, [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvsdiv {a} {b}))"),
+        (op::MOD, [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvurem {a} {b}))"),
+        (op::SMOD, [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvsrem {a} {b}))"),
+        (op::ADDMOD, [a, b, n]) => format!(
+            "(ite (= {n} {zero}) {zero} ((_ extract 255 0) (bvurem (bvadd ((_ zero_extend 1) {a}) ((_ zero_extend 1) {b})) ((_ zero_extend 1) {n}))))"
+        ),
+        (op::MULMOD, [a, b, n]) => format!(
+            "(ite (= {n} {zero}) {zero} ((_ extract 255 0) (bvurem (bvmul ((_ zero_extend 256) {a}) ((_ zero_extend 256) {b})) ((_ zero_extend 256) {n}))))"
+        ),
+        (op::SIGNEXTEND, [size, value]) => {
+            // Shifting the sign byte to the top and back arithmetically extends it.
+            let shift = format!(
+                "(bvsub {} (bvmul {} {size}))",
+                smt_word(U256::from(248)),
+                smt_word(U256::from(8))
+            );
+            format!(
+                "(ite (bvuge {size} {}) {value} (bvashr (bvshl {value} {shift}) {shift}))",
+                smt_word(U256::from(31))
+            )
+        }
+        (op::LT, [a, b]) => bool_word(format!("(bvult {a} {b})")),
+        (op::GT, [a, b]) => bool_word(format!("(bvugt {a} {b})")),
+        (op::SLT, [a, b]) => bool_word(format!("(bvslt {a} {b})")),
+        (op::SGT, [a, b]) => bool_word(format!("(bvsgt {a} {b})")),
+        (op::EQ, [a, b]) => bool_word(format!("(= {a} {b})")),
+        (op::ISZERO, [a]) => bool_word(format!("(= {a} {zero})")),
+        (op::AND, [a, b]) => format!("(bvand {a} {b})"),
+        (op::OR, [a, b]) => format!("(bvor {a} {b})"),
+        (op::XOR, [a, b]) => format!("(bvxor {a} {b})"),
+        (op::NOT, [a]) => format!("(bvnot {a})"),
+        (op::SHL, [shift, value]) => {
+            format!("(ite (bvuge {shift} {shift_limit}) {zero} (bvshl {value} {shift}))")
+        }
+        (op::SHR, [shift, value]) => {
+            format!("(ite (bvuge {shift} {shift_limit}) {zero} (bvlshr {value} {shift}))")
+        }
+        (op::SAR, [shift, value]) => format!(
+            "(ite (bvuge {shift} {shift_limit}) (bvashr {value} {}) (bvashr {value} {shift}))",
+            smt_word(U256::from(255))
+        ),
+        (op::BYTE, [index, value]) => format!(
+            "(ite (bvuge {index} {}) {zero} (bvand (bvlshr {value} (bvmul (bvsub {} {index}) {})) {}))",
+            smt_word(U256::from(32)),
+            smt_word(U256::from(31)),
+            smt_word(U256::from(8)),
+            smt_word(U256::from(0xff))
+        ),
+        _ => return None,
+    })
+}
+
+/// An over-approximation of [`smt_opcode`] for `symbol = opcode(operands)` when the opcode
+/// multiplies, divides or reduces by an operand that is not a constant: an application of an
+/// uninterpreted function, conjoined with laws the exact operation obeys (zero and one operands,
+/// `x % n < n`, `x / n <= x`), and the function's name. Bit-vector division and wide
+/// multiplication are slow to decide; the laws often suffice.
+pub fn smt_opcode_abstract(
+    opcode: u8,
+    operands: &[&str],
+    symbol: &str,
+) -> Option<(String, &'static str)> {
+    let zero = smt_word(U256::ZERO);
+    let one = smt_word(U256::ONE);
+    let constant = |term: &str| term.starts_with('#');
+    let (function, laws) = match (opcode, operands) {
+        (op::MUL, [a, b]) if !constant(a) && !constant(b) => (
+            "umul",
+            format!(
+                "(=> (or (= {a} {zero}) (= {b} {zero})) (= {symbol} {zero})) (=> (= {a} {one}) (= {symbol} {b})) (=> (= {b} {one}) (= {symbol} {a})) (= {symbol} (umul {b} {a}))"
+            ),
+        ),
+        (op::DIV, [a, b]) if !constant(b) => (
+            "udiv",
+            format!(
+                "(=> (= {b} {zero}) (= {symbol} {zero})) (bvule {symbol} {a}) (=> (= {b} {one}) (= {symbol} {a}))"
+            ),
+        ),
+        (op::MOD, [a, b]) if !constant(b) => (
+            "umod",
+            format!(
+                "(=> (= {b} {zero}) (= {symbol} {zero})) (=> (distinct {b} {zero}) (bvult {symbol} {b})) (bvule {symbol} {a}) (=> (bvult {a} {b}) (= {symbol} {a}))"
+            ),
+        ),
+        (op::ADDMOD | op::MULMOD, [a, b, n]) if !constant(n) || !constant(a) || !constant(b) => (
+            if opcode == op::ADDMOD { "addmod3" } else { "mulmod3" },
+            format!(
+                "(=> (= {n} {zero}) (= {symbol} {zero})) (=> (distinct {n} {zero}) (bvult {symbol} {n}))"
+            ),
+        ),
+        _ => return None,
+    };
+    let call = format!("({function} {})", operands.join(" "));
+    Some((format!("(and (= {symbol} {call}) {laws})"), function))
+}
+
+/// The SMT-LIB literal of a 256-bit word.
+pub fn smt_word(value: U256) -> String {
+    format!("#x{value:064x}")
 }
 
 fn div(a: Word, b: Word) -> Word {

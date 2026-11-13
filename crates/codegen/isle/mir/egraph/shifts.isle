@@ -63,7 +63,8 @@
 
 ;; signextend(byte, value) => value.
 ;; Requires: byte is constant, byte < 31 and value is known to fit in 8 * (byte + 1) - 1 bits.
-(rule 4 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (sign_clear byte value)) value)
+(rule 4 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (sign_clear byte value))
+      (relied_below_bits value (u256_add (u256_mul byte (u256 8)) (u256 7)) value))
 
 ;; signextend(_, 0) => 0.
 (rule 3 (simplify (Op.SignExtend _ (and value (zero)))) value)
@@ -96,11 +97,12 @@
 (rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) value) (iconst constant))))
       (if-let true (u256_is_zero (u256_shr shift constant)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) value))
-      value)
+      (relied_ule value (u256_shr shift (u256_max)) value))
 
 ;; value >> shift => 0.
 ;; Requires: shift is constant, shift is at least the known bit width of value.
-(rule 5 (simplify (Op.Shr (iconst shift) value)) (if-let true (shifted_out shift value)) (imm (u256 0)))
+(rule 5 (simplify (Op.Shr (iconst shift) value)) (if-let true (shifted_out shift value))
+      (relied_below_bits value shift (imm (u256 0))))
 
 ;; value >> 0 => value.
 (rule 4 (simplify (Op.Shr (zero) value)) value)

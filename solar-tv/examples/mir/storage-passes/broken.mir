@@ -1,0 +1,9 @@
+; === solar-tv/examples/mir/storage-passes/before.mir (after storage-cse,storage-dse) ===
+@module Storage
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v2 = add v0, v0
+    sstore 1, arg0 !metadata(storage=slot(1))
+    ret v2
+}

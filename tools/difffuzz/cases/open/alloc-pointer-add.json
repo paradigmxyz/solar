@@ -1,0 +1,23 @@
+{
+  "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ncontract C {\n    struct S { uint256 a; uint8 b; }\n    error E(S s);\n\n    function f(uint8 x) external pure {\n        S memory s = S(1, x);\n        revert E(s);\n    }\n}\n",
+  "name": "C",
+  "calls": [
+    {
+      "func": "f",
+      "args": [
+        {
+          "ty": {
+            "U": 8
+          },
+          "value": "7"
+        }
+      ]
+    }
+  ],
+  "divergence": {
+    "legs": "solar/mir",
+    "kind": "invalid-dump",
+    "call": 0,
+    "detail": "the final lowered MIR adds a constant to an alloc pointer with add, which the MIR validator rejects when the dump is parsed back"
+  }
+}

@@ -1,11 +1,11 @@
-insert_value: -
-extract_value: -
+insert_value: insert_value(ty, aggregate, index, value)
+extract_value: extract_value(ty, aggregate, index)
 zext: word(operand0)
 trunc: low_bits(operand0, bits)
 sext: sign_extend(operand0, from_bits, to_bits)
 ptrtoint: low_bits(operand0, bits)
 inttoptr: word(operand0)
-ptradd: -
+ptradd: pointer_add(ptr, offset)
 checked_binary: checked(op, arithmetic, lhs, rhs)
 validate_storage_bytes: -
 load_storage_bytes: -
@@ -44,16 +44,16 @@ ne: not_equal(a, b)
 mload: opcode(match location { Memory => mload, Calldata => calldataload, Storage => sload, Transient => tload })
 mstore: opcode(match location { Memory => mstore, Storage => sstore, Transient => tstore })
 mstore8: opcode(mstore8)
-memory_zero: -
+memory_zero: memory_zero(offset, size)
 msize: opcode(msize)
-fmp: -
+fmp: free_pointer()
 heap_floor: heap_floor()
 alloc: allocate(size, semantics)
 abi_encode: -
 abi_decode: -
 mcopy: opcode(match location { Memory => mcopy, Calldata => calldatacopy, Returndata => returndatacopy })
 calldatasize: opcode(calldatasize)
-make_memory_slice: -
+make_memory_slice: make_slice(location, ptr, len)
 internal_frame_addr: -
 frame_load: -
 frame_store: -
@@ -105,3 +105,4 @@ log: log(offset, size, topics)
 phi: phi(incoming)
 select: select(cond, true_val, false_val)
 signextend: opcode(signextend)
+assume: -

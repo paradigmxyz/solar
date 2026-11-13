@@ -196,7 +196,7 @@
 
 ;; a / d => 0.
 ;; Requires: d is constant, a is known to be < d.
-(rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (imm (u256 0)))
+(rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (relied_ult a d (imm (u256 0))))
 
 ;; 0 / _ => 0.
 (rule 4 (simplify (Op.Div (and a (zero)) _)) a)
@@ -221,7 +221,7 @@
 
 ;; a % m => a.
 ;; Requires: m is constant, a is known to be < m.
-(rule 6 (simplify (Op.Mod a (iconst m))) (if-let true (below_const a m)) a)
+(rule 6 (simplify (Op.Mod a (iconst m))) (if-let true (below_const a m)) (relied_ult a m a))
 
 ;; 0 % _ => 0.
 (rule 5 (simplify (Op.Mod (and a (zero)) _)) a)

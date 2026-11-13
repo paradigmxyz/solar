@@ -1,0 +1,28 @@
+absint: Absint: loop "while (i < n) { i++; }": [
+    "i - n <= 0",
+]
+absint: Absint: loop "for (uint256 i = 1; i < xs.length; i++) {": [
+    "exists uint256 __inv_j :: 0 <= __inv_j && __inv_j < i && xs[__inv_j] == m",
+    "forall uint256 __inv_j :: 0 <= __inv_j && __inv_j < i ==> xs[__inv_j] <= m",
+    "i - xs.length <= 0",
+    "i >= 1",
+]
+absint: Absint: loop "for (uint256 i = 0; i < n; i++) {": [
+    "i - n <= 0",
+    "s - i <= 0",
+    "s - n <= 0",
+    "s <= n",
+]
+absint: Absint: loop "while (i != n) {": []
+absint: Absint: loop "while (i < n) {": [
+    "i - n <= 0",
+]
+absint: Absint: loop "for (uint256 i = 1; i < xs.length; i++) {": [
+    "i - xs.length <= 0",
+    "i >= 1",
+    "xs.length >= 1",
+]
+absint: Absint: loop "for (uint256 i = 1; i < xs.length; i++) {": [
+    "i - xs.length <= 0",
+    "i >= 1",
+]

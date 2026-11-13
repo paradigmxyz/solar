@@ -34,5 +34,8 @@ tempfile.workspace = true
 toml_edit = { workspace = true, features = ["serde"] }
 ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork", version = "0.30.5" }
 
+[dev-dependencies]
+snapbox.workspace = true
+
 [features]
 nightly = []

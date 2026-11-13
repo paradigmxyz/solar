@@ -1,0 +1,401 @@
+#!/usr/bin/env bash
+# Certifies one contract: compiles it with solar, exports every stage, writes the Lean proofs of
+# the stages against the pinned solidity-lean checkout, builds them with lake, audits the axioms
+# of every theorem and runs the negative tests. It fails closed: any step that does not check
+# stops it with an error, and the only success line names what was proved.
+#
+#   scripts/certify FILE.sol [--contract C] [--name NAME] [--loops N] [--no-negatives]
+#                   [--require-headline] [--require-spec] [-- SOLAR_OPTIONS...]
+#
+# CONTRACT defaults to the one contract of FILE with runtime code. NAME (default: FILE's base
+# name in lowercase letters, digits and underscores) is the directory CERTIFIED/NAME of the
+# solidity-lean checkout, its Lean library NAME and the namespace SolarTV.Milestone.<Name>.
+# SOLAR_OPTIONS default to -Ogas --evm-version osaka (kept in CERTIFIED/NAME/options). --loops N
+# (kept in CERTIFIED/NAME/loops) claims that a run's loops make at most N iterations in all; the
+# first stage's end proof checks it. CERTIFIED/NAME/heartbeats, when present, raises the run proofs'
+# maxHeartbeats.
+#
+# Steps:
+# 1. The solidity-lean checkout: SOLIDITY_LEAN_DIR, which must be at the commit in
+#    tools/certify/solidity-lean.rev, else a checkout of that commit in
+#    target/certify/solidity-lean that the driver owns.
+# 2. solar: SOLAR names the binary, else cargo builds this checkout's (CERTIFY_SKIP_BUILD=1
+#    uses target/debug/solar as it is). Its version must name a commit whose compiler sources
+#    are this checkout's committed ones.
+# 3. Compiles CERTIFIED/NAME/NAME.sol with -Zemit-lean-stages, checks that the flag leaves the
+#    runtime bytecode as it is, that it is CERTIFIED/NAME/bytecode.hex when that pin exists, and
+#    the manifest's hashes.
+# 4. tools/certify/certify.py writes CERTIFIED/NAME/Proofs: per pair of consecutive stages a
+#    sym_exec proof, their composition from the first lowered MIR to the final EVM IR, and the
+#    assembly walk of the bytecode against the final EVM IR.
+# 5. Adds the library NAME to the lakefile when missing, builds it one module at a time, and
+#    audits every theorem's axioms (only propext, Classical.choice and Quot.sound) and the
+#    generated files (no sorry, native_decide, bv_decide, ofReduceBool, axiom or extern).
+# 6. solar-verify --dry-run --dump-lean (SOLAR_VERIFY, else built from crates/verify when this
+#    checkout has it) exports the contract's verification conditions; each function it leaves
+#    raw, outside the fragment solidity-lean checks, is printed and recorded as REFUSED
+#    (unproved), never as passing; --require-spec fails on any. When CERTIFIED/NAME/headline exists (lines "MODULE THEOREM": the source-to-bytecode or
+#    spec-to-bytecode theorems solidity-lean states for the contract), builds each MODULE and
+#    audits each THEOREM the same way. --require-headline fails when there is none.
+# 7. tools/certify/negative.sh: edited bytecode and stage artifacts fail with a mismatch, not a
+#    timeout, while unedited controls pass.
+# 8. When CERTIFIED/NAME is committed in solidity-lean, the regenerated files must be the
+#    committed ones, up to the compiler's commit in the manifest.
+#
+# Environment: SOLIDITY_LEAN_DIR, SOLAR, CERTIFY_SKIP_BUILD, LEAN_MEMORY (MB per Lean process,
+# default 3000), LEAN_NUM_THREADS (default 1), CARGO_BUILD_JOBS (default 2), CERTIFY_WRAP (a
+# command prefix for every cargo, lake and lean process, such as a job slot limiter),
+# CERTIFY_EXAMPLES (default Certified). Two escape hatches, each reported in the result line and
+# refused when CI or GITHUB_ACTIONS is set: CERTIFY_ALLOW_UNPINNED=1 accepts a SOLIDITY_LEAN_DIR at another commit, and
+# CERTIFY_ALLOW_FOREIGN_SOLAR=1 accepts a SOLAR built from other compiler sources.
+set -euo pipefail
+
+root="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
+here="$root/tools/certify"
+export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-1}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
+export LEAN_MEMORY="${LEAN_MEMORY:-3000}"
+memory="$LEAN_MEMORY"
+examples="${CERTIFY_EXAMPLES:-Certified}"
+read -r -a wrap <<<"${CERTIFY_WRAP:-}"
+caveats=()
+# The escape hatches are for local work only: CI certifies against the pin with its own solar.
+if [[ "${CI:-}" == true || -n "${GITHUB_ACTIONS:-}" ]]; then
+    for var in CERTIFY_ALLOW_UNPINNED CERTIFY_ALLOW_FOREIGN_SOLAR; do
+        [[ -z "${!var:-}" ]] || { echo "certify: error: $var is refused in CI" >&2; exit 1; }
+    done
+fi
+hthms=()
+
+die() { echo "certify: error: $*" >&2; exit 1; }
+run() { "${wrap[@]}" "$@"; }
+usage="usage: scripts/certify FILE.sol [--contract C] [--name NAME] [--loops N] [--no-negatives] [--require-headline] [--require-spec] [-- SOLAR_OPTIONS...]"
+[[ $# -ge 1 ]] || die "$usage"
+[[ "$1" != -h && "$1" != --help ]] || { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'; exit 0; }
+[[ -f "$1" ]] || die "no such file $1"
+file="$(realpath "$1")"
+shift
+contract=
+name="$(basename "$file" .sol | tr 'A-Z-' 'a-z_')"
+loops=
+negatives=1
+require_headline=0
+require_spec=0
+options=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --contract) contract=$2; shift 2 ;;
+        --name) name=$2; shift 2 ;;
+        --loops) loops=$2; shift 2 ;;
+        --no-negatives) negatives=0; shift ;;
+        --require-headline) require_headline=1; shift ;;
+        --require-spec) require_spec=1; shift ;;
+        --) shift; options=("$@"); break ;;
+        *) die "unknown argument $1; $usage" ;;
+    esac
+done
+[[ "$name" =~ ^[a-z][a-z0-9_]*$ ]] || die "the name $name is not lowercase letters, digits and _"
+[[ -z "$contract" || "$contract" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "the contract $contract is not an identifier"
+[[ -z "$loops" || "$loops" =~ ^[0-9]+$ ]] || die "--loops $loops is not a number"
+cap="$(python3 -c 'import sys; print("".join(p[:1].upper() + p[1:] for p in sys.argv[1].split("_")))' "$name")"
+
+echo "== 1. the pinned solidity-lean checkout"
+pin="$(tr -d '[:space:]' < "$here/solidity-lean.rev")"
+lean_dir="$(bash "$here/checkout.sh")" || exit 1
+head="$(git -C "$lean_dir" rev-parse HEAD)"
+[[ "$head" == "$pin" ]] || caveats+=("solidity-lean at $head, not the pinned $pin")
+[[ -d "$lean_dir/$examples" || ! -e "$lean_dir/$examples" ]] || die "$lean_dir/$examples is not a directory"
+if [[ -f "$lean_dir/lakefile.lean" ]]; then lakefile=lakefile.lean
+elif [[ -f "$lean_dir/lakefile.toml" ]]; then lakefile=lakefile.toml
+else die "$lean_dir has no lakefile"; fi
+echo "solidity-lean $(git -C "$lean_dir" rev-parse HEAD) at $lean_dir"
+dir="$examples/$name"
+committed=0
+git -C "$lean_dir" ls-files --error-unmatch "$dir/bytecode.hex" > /dev/null 2>&1 && committed=1
+cd "$lean_dir"
+mkdir -p "$dir"
+source="$dir/$name.sol"
+[[ "$file" == "$(realpath -m "$source")" ]] || cp "$file" "$source"
+if [[ ${#options[@]} -eq 0 ]]; then
+    if [[ -f "$dir/options" ]]; then mapfile -t options < "$dir/options"; else options=(-Ogas --evm-version osaka); fi
+fi
+printf '%s\n' "${options[@]}" > "$dir/options"
+if [[ -n "$loops" ]]; then
+    if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
+fi
+loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+# CERTIFIED/NAME/heartbeats, when present, is the run proofs' maxHeartbeats (certify.py's
+# --heartbeats), for a contract whose symbolic runs need more than the default: a larger budget
+# can only let a proof pass, never change what it states.
+heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
+[[ "$heartbeats" =~ ^[0-9]+$ ]] || die "$dir/heartbeats is not a number"
+
+echo "== 2. solar"
+if [[ -n "${SOLAR:-}" ]]; then
+    solar="$(realpath "$SOLAR")"
+else
+    if [[ -z "${CERTIFY_SKIP_BUILD:-}" ]]; then
+        (cd "$root" && run cargo build --locked -j "$CARGO_BUILD_JOBS" --bin solar 2>&1 | tail -n 1)
+    fi
+    solar="${CARGO_TARGET_DIR:-$root/target}/debug/solar"
+fi
+[[ -x "$solar" ]] || die "no solar binary at $solar"
+version="$("$solar" --version | sed -n 's/^Commit SHA: //p')"
+[[ "$version" =~ ^[0-9a-f]{40}$ ]] || version="$("$solar" --version | sed -n 's/.*+commit\.\([0-9a-f]\{8\}\).*/\1/p' | head -1)"
+[[ -n "$version" ]] || die "cannot read the compiler commit from $solar --version"
+if ! { git -C "$root" diff --quiet HEAD -- crates Cargo.toml Cargo.lock &&
+    git -C "$root" cat-file -e "$version^{commit}" 2>/dev/null &&
+    git -C "$root" diff --quiet "$version" HEAD -- crates Cargo.toml Cargo.lock; }; then
+    [[ "${CERTIFY_ALLOW_FOREIGN_SOLAR:-}" == 1 ]] ||
+        die "$solar reports commit $version, whose compiler sources are not this checkout's committed ones (touch crates/config/build.rs and rebuild, or CERTIFY_ALLOW_FOREIGN_SOLAR=1)"
+    caveats+=("solar $version, not built from this checkout's compiler sources")
+fi
+echo "solar $version"
+
+echo "== 3. compile $source and export its stages (${options[*]})"
+compile() { "$solar" "$source" "${options[@]}" --emit=bin-runtime "$@"; }
+json="$(compile 2>"$dir/.compile.log")" || { cat "$dir/.compile.log" >&2; die "solar does not compile $source"; }
+rm -f "$dir/.compile.log"
+if [[ -z "$contract" ]]; then
+    contract="$(python3 -c '
+import json, sys
+c = [k.rsplit(":", 1)[1] for k, v in json.loads(sys.argv[1])["contracts"].items() if v.get("bin-runtime")]
+print(c[0] if len(c) == 1 else "")
+' "$json")"
+    [[ -n "$contract" ]] || die "$source has no single contract with runtime code; name one with --contract"
+fi
+bin_runtime() {
+    python3 -c 'import json, sys; print(json.loads(sys.stdin.read())["contracts"][sys.argv[1]]["bin-runtime"])' \
+        "$source:$contract"
+}
+plain="$(bin_runtime <<<"$json")" || die "$source has no contract $contract"
+[[ -n "$plain" ]] || die "$contract has no runtime code"
+rm -rf "$dir/gen"
+if ! exported="$(compile "-Zemit-lean-stages=$dir/gen" 2>"$dir/.export.log" | bin_runtime 2>/dev/null)"; then
+    grep -E '^error' -A3 "$dir/.export.log" >&2 || cat "$dir/.export.log" >&2
+    rm -f "$dir/.export.log"
+    die "the exporter rejects $contract (above): outside the fragment the stages have Lean semantics for"
+fi
+rm -f "$dir/.export.log"
+[[ "$plain" == "$exported" ]] || die "-Zemit-lean-stages changed the bytecode"
+if [[ -f "$dir/bytecode.hex" ]]; then
+    [[ "$plain" == "$(tr -d '[:space:]' < "$dir/bytecode.hex")" ]] ||
+        die "the bytecode is not the pinned $dir/bytecode.hex: $plain"
+else
+    echo "$plain" > "$dir/bytecode.hex"
+fi
+gen="$dir/gen/$contract"
+[[ -f "$gen/manifest.json" ]] || die "the exporter wrote no $gen/manifest.json"
+python3 - "$gen" "$source" "$plain" <<'EOF' || die "the manifest does not match the compiled artifacts"
+import hashlib, json, pathlib, sys
+
+directory, source, bytecode = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+manifest = json.loads((directory / "manifest.json").read_text())
+sha = lambda path: hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+assert [s["path"] for s in manifest["sources"]] == [source], manifest["sources"]
+assert manifest["sources"][0]["sha256"] == sha(source), "source hash"
+assert manifest["bytecode"] == bytecode, "manifest bytecode"
+assert manifest["bytecode_sha256"] == hashlib.sha256(bytes.fromhex(bytecode)).hexdigest()
+for stage in manifest["stages"]:
+    assert stage["sha256"] == sha(directory / stage["file"]), stage["file"]
+print("stages:", ", ".join(f"{s['definition']} ({s['pass']})" for s in manifest["stages"]))
+print("bytecode:", bytecode, "sha256", manifest["bytecode_sha256"])
+EOF
+
+echo "== 4. write the proofs"
+rm -rf "$dir/Proofs" "$dir/Proofs.lean"
+info="$(python3 "$here/certify.py" "$gen" --gen-module "$name.gen.$contract" \
+    --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats")" || die "certify.py cannot write the proofs"
+final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
+echo "$info"
+
+echo "== 5. build and audit the proofs"
+if [[ $lakefile == lakefile.lean ]]; then
+    if ! grep -Eq "^lean_lib («$name»|$name)( |$)" lakefile.lean; then
+        cat >> lakefile.lean <<EOF
+
+-- $name: the stages of $examples/$name/$name.sol's $contract and their kernel proofs, which
+-- solar's scripts/certify writes.
+lean_lib «$name» where
+  srcDir := "$examples"
+  roots := #[\`$name.Proofs]
+  globs := #[.andSubmodules \`$name]
+EOF
+    fi
+elif ! grep -q "^name = \"$name\"$" lakefile.toml; then
+    cat >> lakefile.toml <<EOF
+
+# $name: the stages of $examples/$name/$name.sol's $contract and their kernel proofs, which
+# solar's scripts/certify writes.
+[[lean_lib]]
+name = "$name"
+srcDir = "$examples"
+roots = ["$name.Proofs"]
+globs = ["$name.+"]
+moreLeanArgs = ["-M", "$memory"]
+EOF
+fi
+# The generated files may use none of the escapes the kernel does not check.
+bash "$here/audit.sh" scan "$dir" || die "the generated files of $name fail the scan"
+mkdir -p .lake
+log="$lean_dir/.lake/certify-$name.log"
+mapfile -t stages < <(cd "$examples" && ls "$name/gen/$contract"/*.lean | sed 's|\.lean$||; s|/|.|g')
+mapfile -t runs < <(cd "$examples" && ls "$name"/Proofs/Runs/*.lean | sed 's|\.lean$||; s|/|.|g')
+# One module at a time, so that one Lean process runs at a time: the exported stages, which the
+# proofs import, then the proofs.
+for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "$name.Proofs"; do
+    printf '%s: ' "$module"
+    if ! run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1; then
+        grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
+        die "$module does not check"
+    fi
+    tail -n 1 "$log"
+done
+
+# audit OUT MODULE... -- THEOREM...: tools/certify/audit.sh's axiom audit, failing the run.
+audit() { bash "$here/audit.sh" axioms "$lean_dir" "$@" || die "the axiom audit fails"; }
+mapfile -t thms < <(grep -rhoE '^theorem [A-Za-z0-9_'"'"']+' "$dir/Proofs" | awk '{print $2}' | sort -u |
+    sed "s/^/SolarTV.Milestone.$cap./")
+[[ ${#thms[@]} -gt 0 ]] || die "no theorems in $dir/Proofs"
+printf '%s\n' "${thms[@]}" | grep -qx "$final" || thms+=("$final")
+audit "$lean_dir/.lake/certify-audit-$name.out" "$name.Proofs" -- "${thms[@]}"
+echo "audited ${#thms[@]} theorems"
+claim="$final (backend: first lowered MIR to bytecode)"
+
+echo "== 6. the spec (solar-verify) and the headline theorems"
+# solar-verify's verification conditions as Lean: every function whose conditions fall outside
+# the fragment solidity-lean's checks model is refused, recorded as unproved and never passes.
+spec_status="not checked: no solar-verify"
+refused=()
+verify="${SOLAR_VERIFY:-}"
+if [[ -z "$verify" && -d "$root/crates/verify" ]]; then
+    if [[ -z "${CERTIFY_SKIP_BUILD:-}" ]]; then
+        (cd "$root" && run cargo build --locked -j "$CARGO_BUILD_JOBS" -p solar-verify --bin solar-verify 2>&1 | tail -n 1)
+    fi
+    verify="${CARGO_TARGET_DIR:-$root/target}/debug/solar-verify"
+fi
+if [[ -n "$verify" ]]; then
+    [[ -x "$verify" ]] || die "no solar-verify binary at $verify"
+    spec_dir="$lean_dir/.lake/certify/$name"
+    bash "$here/spec.sh" "$verify" "$source" "$spec_dir" "Certified.$cap.VC" || die "the spec export fails"
+    mapfile -t refused < "$spec_dir/refused"
+    spec_status="exported to $spec_dir/VC.lean"
+    [[ -s "$spec_dir/VC.lean" ]] || spec_status="refused as a whole by solar-verify"
+    for entry in "${refused[@]}"; do echo "REFUSED (unproved) $entry"; done
+    if [[ $require_spec -eq 1 && ${#refused[@]} -gt 0 ]]; then
+        die "${#refused[@]} function(s) of $contract are outside the spec fragment (above)"
+    fi
+elif [[ $require_spec -eq 1 ]]; then
+    die "--require-spec needs solar-verify (SOLAR_VERIFY, or crates/verify in this checkout)"
+fi
+[[ ${#refused[@]} -eq 0 ]] || caveats+=("${#refused[@]} spec function(s) refused, unproved")
+echo "spec: $spec_status"
+if [[ -f "$dir/headline" ]]; then
+    mapfile -t lines < <(grep -vE '^\s*(#|$)' "$dir/headline")
+    [[ ${#lines[@]} -gt 0 ]] || die "$dir/headline names no theorem"
+    hmods=()
+    for line in "${lines[@]}"; do
+        read -r hmod hthm rest <<<"$line"
+        [[ -n "$hmod" && -n "$hthm" && -z "$rest" ]] || die "$dir/headline: '$line' is not MODULE THEOREM"
+        hmods+=("$hmod") hthms+=("$hthm")
+    done
+    mapfile -t umods < <(printf '%s\n' "${hmods[@]}" | sort -u)
+    # The backend proofs need no Mathlib; a headline over SolidCore may, so fetch its build cache
+    # rather than build it.
+    if grep -q '"mathlib"' lake-manifest.json 2>/dev/null && [[ ! -d .lake/packages/mathlib/.lake/build/lib ]]; then
+        run lake exe cache get || die "cannot fetch Mathlib's build cache"
+    fi
+    for module in "${umods[@]}"; do
+        printf '%s: ' "$module"
+        hfile="$examples/${module//.//}.lean"
+        [[ -f "$hfile" ]] || hfile="${module//.//}.lean"
+        if [[ -f "$hfile" ]]; then
+            bash "$here/audit.sh" scan "$hfile" || die "$hfile fails the scan"
+        fi
+        if ! run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1; then
+            grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
+            die "$module does not check"
+        fi
+        tail -n 1 "$log"
+    done
+    audit "$lean_dir/.lake/certify-headline-$name.out" "${umods[@]}" -- "${hthms[@]}"
+    claim="${hthms[*]} (headline) and $final (backend)"
+elif [[ $require_headline -eq 1 ]]; then
+    die "$dir/headline is missing: solidity-lean states no source or spec theorem for $name"
+else
+    echo "no $dir/headline: certifying the backend only"
+    caveats+=("backend only: solidity-lean states no headline theorem for $name")
+fi
+
+echo "== 7. negative tests"
+if [[ $negatives -eq 1 ]]; then
+    bash "$here/negative.sh" "$lean_dir" "$examples" "$name" "$contract"
+else
+    echo "skipped (--no-negatives)"
+    caveats+=("negative tests skipped")
+fi
+
+echo "== 8. the regenerated files are the committed ones"
+if [[ $committed -eq 1 ]]; then
+    # Porcelain paths start at the repository's root, which a package in a subdirectory is not.
+    prefix="$(git rev-parse --show-prefix)"
+    others="$(git status --porcelain -- "$dir" "$lakefile" | grep -v -E " $prefix$gen/(Manifest\.lean|manifest\.json)$" || true)"
+    [[ -z "$others" ]] || { echo "$others" >&2; git diff --stat -- "$dir" "$lakefile" >&2; die "regenerated files differ from solidity-lean's committed ones"; }
+    # Every line but the compiler's version, in either file, must be the committed one; the
+    # options' thread count, which solar takes from the machine and which changes no output,
+    # is compared as N.
+    norm() { grep -v -E '^(def compiler : String := "[^"]*"|  "compiler": "[^"]*",)$' |
+        sed -E 's/threads: [0-9]+/threads: N/'; }
+    changed=
+    for f in "$gen/Manifest.lean" "$gen/manifest.json"; do
+        git show "HEAD:./$f" | norm > .lake/certify-committed
+        norm < "$f" > .lake/certify-regenerated
+        changed+="$(diff .lake/certify-committed .lake/certify-regenerated || true)"
+    done
+    [[ -z "$changed" ]] || { echo "$changed" >&2; die "the manifest differs in more than the compiler's commit"; }
+    echo "every file of $dir regenerates to the committed one"
+else
+    echo "$dir is not committed in solidity-lean"
+fi
+
+# The run's record: what was proved, what was refused, and under which caveats.
+record="$lean_dir/.lake/certify-$name.json"
+printf '%s\n' "${refused[@]}" > "$record.refused"
+printf '%s\n' "${caveats[@]}" > "$record.caveats"
+printf '%s\n' "${hthms[@]}" > "$record.headline"
+python3 - "$record" "$contract" "$name" "$source" "$plain" "$version" "$head" "$final" \
+    "$spec_status" "$negatives" <<'EOF'
+import json, sys
+
+out, contract, name, source, bytecode, solar, lean, final, spec, negatives = sys.argv[1:]
+lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
+json.dump(
+    {
+        "contract": contract,
+        "name": name,
+        "source": source,
+        "bytecode": bytecode,
+        "solar": solar,
+        "solidity_lean": lean,
+        "backend": {"theorem": final, "status": "proved"},
+        "headline": [{"theorem": t, "status": "proved"} for t in lines(".headline")],
+        "spec": {
+            "status": spec,
+            "refused": [
+                {"function": r.split(": ", 1)[0], "reason": r.split(": ", 1)[-1], "status": "refused (unproved)"}
+                for r in lines(".refused")
+            ],
+        },
+        "negative_tests": negatives == "1",
+        "caveats": lines(".caveats"),
+    },
+    open(out, "w"),
+    indent=2,
+)
+EOF
+rm -f "$record.refused" "$record.caveats" "$record.headline"
+echo "record: $record"
+if [[ ${#caveats[@]} -gt 0 ]]; then
+    echo "certified with caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
+fi
+echo "CERTIFIED $name ($contract): $claim; bytecode $plain"

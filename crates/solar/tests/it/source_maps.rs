@@ -29,6 +29,9 @@ fn compile_with(mode: &str, outputs: &str, flags: &[&str]) -> Value {
             mode,
         ])
         .arg(format!("--emit={outputs}"))
+        // Debug builds check analysis facts at run time by default, which changes the code whose
+        // source maps these tests pin.
+        .arg("-Zcheck-analyses=false")
         .args(flags)
         .output()
         .unwrap();

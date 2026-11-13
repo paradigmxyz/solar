@@ -1,0 +1,18 @@
+//@ compile-flags: -Zmir-pipeline=lower-dispatch -Zvalidate-passes-fault=selector
+// The fault swaps the targets of the first two selector cases in the dispatcher the validator
+// reads: a call to `get` would run `set`.
+@module RefutedSelector
+@phase semantic
+fn @get() [selector=0x12345678, abi_wrapper] {
+  bb0:
+    v0 = sload 0
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @set() [selector=0x23456789, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    sstore 0, v0
+    stop
+}

@@ -1,0 +1,293 @@
+; === ROOT/tests/ui/codegen/mir/lower-assumes/widths.sol:Widths ===
+@module Widths
+@phase lowered
+; backend-memory-v1
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb8, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb8, [0x31dc3fb => bb2, 0x18068f44 => bb3, 0x3ae6d342 => bb4, 0x599b0e88 => bb5, 0x780bd3f1 => bb6, 0xe1679c0c => bb7]
+  bb7:                                            ; preds = bb1
+    tail_call @power
+  bb6:                                            ; preds = bb1
+    tail_call @product
+  bb5:                                            ; preds = bb1
+    tail_call @both
+  bb4:                                            ; preds = bb1
+    tail_call @masked
+  bb3:                                            ; preds = bb1
+    tail_call @bounded_power
+  bb2:                                            ; preds = bb1
+    tail_call @divided
+  bb8 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function divided(uint8 a) external pure returns (uint256) [selector 0x031dc3fb]
+fn @divided() {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 36
+    v6 = calldataload 4
+    v7 = gt v6, 255
+    v10 = or v5, v7
+    jumpi v10, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v11 = calldataload 4
+    v9 = and v11, 255
+    mstore 0, 0 !metadata(memory=scratch)
+    v12 = lt v11, 300
+    v13 = eq v12, false
+    jumpi v13, bb4, bb5
+  bb5:                                            ; preds = bb2
+    v14 = ne v9, v11
+    jumpi v14, bb6, bb7
+  bb7:                                            ; preds = bb5
+    returndata 0, 32
+  bb6 [cold]:                                     ; preds = bb5
+    jump bb3
+  bb4 [cold]:                                     ; preds = bb2
+    jump bb3
+  bb3 [cold]:                                     ; preds = bb4, bb6
+    v15 = phi [bb4: 0x30800000000000000020000000b], [bb6: 0x102000000000000000200000009]
+    v16 = phi [bb4: v11], [bb6: v9]
+    v17 = phi [bb4: 300], [bb6: v11]
+    mstore 32, v15 !metadata(memory=scratch)
+    mstore 64, v16 !metadata(memory=scratch)
+    mstore 96, v17 !metadata(memory=scratch)
+    mstore 0, 0xed572b27 !metadata(memory=scratch)
+    revert 28, 100
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function masked(uint8 a) external pure returns (uint256) [selector 0x3ae6d342]
+fn @masked() {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    v4 = calldataload 4
+    v5 = gt v4, 255
+    v8 = or v3, v5
+    jumpi v8, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v9 = calldataload 4
+    v7 = and v9, 255
+    mstore 0, v9
+    v10 = gt v9, 0xffff
+    jumpi v10, bb4, bb5
+  bb5:                                            ; preds = bb2
+    v11 = ne v7, v9
+    jumpi v11, bb6, bb7
+  bb7:                                            ; preds = bb5
+    returndata 0, 32
+  bb6 [cold]:                                     ; preds = bb5
+    jump bb3
+  bb4 [cold]:                                     ; preds = bb2
+    jump bb3
+  bb3 [cold]:                                     ; preds = bb4, bb6
+    v12 = phi [bb4: 0x408000000010000000200000009], [bb6: 0x102000000010000000200000007]
+    v13 = phi [bb4: v9], [bb6: v7]
+    v14 = phi [bb4: 0xffff], [bb6: v9]
+    mstore 32, v12 !metadata(memory=scratch)
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore 96, v14 !metadata(memory=scratch)
+    mstore 0, 0xed572b27 !metadata(memory=scratch)
+    revert 28, 100
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function power(uint8 e) external pure returns (uint256) [selector 0xe1679c0c]
+fn @power() {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 36
+    v6 = calldataload 4
+    v7 = gt v6, 255
+    v10 = or v5, v7
+    jumpi v10, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v11 = calldataload 4
+    v9 = and v11, 255
+    v3 = shl 1, v11
+    mstore 0, v3 !metadata(memory=scratch)
+    v12 = gt v11, 255
+    jumpi v12, bb4, bb5
+  bb5:                                            ; preds = bb2
+    v13 = ne v9, v11
+    jumpi v13, bb6, bb7
+  bb7:                                            ; preds = bb5
+    returndata 0, 32
+  bb6 [cold]:                                     ; preds = bb5
+    jump bb3
+  bb4 [cold]:                                     ; preds = bb2
+    jump bb3
+  bb3 [cold]:                                     ; preds = bb4, bb6
+    v14 = phi [bb4: 0x40800000002000000020000000b], [bb6: 0x102000000020000000200000009]
+    v15 = phi [bb4: v11], [bb6: v9]
+    v16 = phi [bb4: 255], [bb6: v11]
+    mstore 32, v14 !metadata(memory=scratch)
+    mstore 64, v15 !metadata(memory=scratch)
+    mstore 96, v16 !metadata(memory=scratch)
+    mstore 0, 0xed572b27 !metadata(memory=scratch)
+    revert 28, 100
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function bounded_power(uint256 e) external pure returns (uint256) [selector 0x18068f44]
+fn @bounded_power() {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 36
+    jumpi v6, bb1, bb3
+  bb3:                                            ; preds = bb0
+    v7 = calldataload 4
+    v0 = lt v7, 100
+    jumpi v0, bb2, bb1
+  bb2:                                            ; preds = bb3
+    v3 = gt v7, 161
+    v4 = exp 3, v7
+    mstore 0, v4 !metadata(memory=scratch)
+    v8 = zext i1 v3 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb5, bb6
+  bb6:                                            ; preds = bb2
+    returndata 0, 32
+  bb5 [cold]:                                     ; preds = bb2
+    jump bb4
+  bb4 [cold]:                                     ; preds = bb5
+    v10 = phi [bb5: 0x102000000030000000200000003]
+    v11 = phi [bb5: v8]
+    v12 = phi [bb5: 0]
+    mstore 32, v10 !metadata(memory=scratch)
+    mstore 64, v11 !metadata(memory=scratch)
+    mstore 96, v12 !metadata(memory=scratch)
+    mstore 0, 0xed572b27 !metadata(memory=scratch)
+    revert 28, 100
+  bb1 [cold]:                                     ; preds = bb0, bb3
+    revert 0, 0
+}
+
+; function product(uint256 n) external pure returns (uint256 p) [selector 0x780bd3f1]
+fn @product() {
+  bb0:
+    v16 = calldatasize
+    v17 = lt v16, 36
+    jumpi v17, bb6, bb7
+  bb7:                                            ; preds = bb0
+    v18 = calldataload 4
+    jump bb1
+  bb1:                                            ; preds = bb7, bb12
+    v1 = phi [bb7: 1], [bb12: v7]
+    v2 = phi [bb7: 2], [bb12: v14]
+    v3 = lt v18, v2
+    jumpi v3, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v7 = mul v1, v2
+    v9 = div v7, v2
+    v10 = eq v9, v1
+    v8 = eq v2, 0
+    v19 = zext i1 v8 to i256
+    v20 = ne v19, 0
+    jumpi v20, bb9, bb10
+  bb10:                                           ; preds = bb3
+    jumpi v10, bb5, bb4
+  bb4 [cold]:                                     ; preds = bb10
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:                                            ; preds = bb10
+    v14 = add v2, 1
+    v15 = eq v14, 0
+    v21 = zext i1 v15 to i256
+    v22 = ne v21, 0
+    jumpi v22, bb11, bb12
+  bb12:                                           ; preds = bb5
+    jump bb1
+  bb11 [cold]:                                    ; preds = bb5
+    jump bb8
+  bb9 [cold]:                                     ; preds = bb3
+    jump bb8
+  bb8 [cold]:                                     ; preds = bb9, bb11
+    v23 = phi [bb9: 0x102000000040000000300000008], [bb11: 0x10200000004000000050000000f]
+    v24 = phi [bb9: v19], [bb11: v21]
+    v25 = phi [bb9: 0], [bb11: 0]
+    mstore 32, v23 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore 96, v25 !metadata(memory=scratch)
+    mstore 0, 0xed572b27 !metadata(memory=scratch)
+    revert 28, 100
+  bb2:                                            ; preds = bb1
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb6 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function both(bool a, bool b) external pure returns (bool) [selector 0x599b0e88]
+fn @both() {
+  bb0:
+    v3 = calldatasize
+    v4 = lt v3, 68
+    v5 = calldataload 4
+    v6 = gt v5, 1
+    v18 = or v4, v6
+    v7 = calldataload 36
+    v8 = gt v7, 1
+    v19 = or v18, v8
+    jumpi v19, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v21 = calldataload 36
+    v20 = calldataload 4
+    v13 = and v20, 1
+    v15 = and v21, 1
+    v17 = and v20, v21
+    v1 = ne v17, 0
+    v12 = zext i1 v1 to i256
+    mstore 0, v17
+    v22 = gt v13, 1
+    jumpi v22, bb4, bb5
+  bb5:                                            ; preds = bb2
+    v23 = gt v15, 1
+    jumpi v23, bb6, bb7
+  bb7:                                            ; preds = bb5
+    v24 = ne v13, v20
+    jumpi v24, bb8, bb9
+  bb9:                                            ; preds = bb7
+    v25 = ne v15, v21
+    jumpi v25, bb10, bb11
+  bb11:                                           ; preds = bb9
+    v26 = ne v17, v12
+    jumpi v26, bb12, bb13
+  bb13:                                           ; preds = bb11
+    returndata 0, 32
+  bb12 [cold]:                                    ; preds = bb11
+    jump bb3
+  bb10 [cold]:                                    ; preds = bb9
+    jump bb3
+  bb8 [cold]:                                     ; preds = bb7
+    jump bb3
+  bb6 [cold]:                                     ; preds = bb5
+    jump bb3
+  bb4 [cold]:                                     ; preds = bb2
+    jump bb3
+  bb3 [cold]:                                     ; preds = bb4, bb6, bb8, bb10, bb12
+    v27 = phi [bb4: 0x40200000005000000020000000d], [bb6: 0x40200000005000000020000000f], [bb8: 0x10200000005000000020000000d], [bb10: 0x10200000005000000020000000f], [bb12: 0x10200000005000000020000000c]
+    v28 = phi [bb4: v13], [bb6: v15], [bb8: v13], [bb10: v15], [bb12: v12]
+    v29 = phi [bb4: 1], [bb6: 1], [bb8: v20], [bb10: v21], [bb12: v17]
+    mstore 32, v27 !metadata(memory=scratch)
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore 96, v29 !metadata(memory=scratch)
+    mstore 0, 0xed572b27 !metadata(memory=scratch)
+    revert 28, 100
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}

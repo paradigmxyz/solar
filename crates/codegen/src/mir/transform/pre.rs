@@ -116,19 +116,24 @@
 //! Edge splitting does not weaken these rules: split blocks have a single predecessor, so they are
 //! never join targets, and the only instructions they hold are inserted this run and excluded by
 //! rule 1.
+//!
+//! With `-Zcheck-analyses`, load PRE keeps every read it replaces and records
+//! `assume eq load_pre, read, replacement` for `lower-assumes` to test; a read only records still
+//! use is not replaced again.
 
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction,
-        InstructionMetadata, MirType, Module, PtrLocation, StorageAlias, Terminator, Value,
-        ValueId,
+        AssumePredicate, BlockId, EffectKind, FactSource, Function, Immediate, InstId, InstKind,
+        Instruction, InstructionMetadata, MirType, Module, PtrLocation, StorageAlias, Terminator,
+        Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
             Location, LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
             ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg, run_function_pass_with_cfg},
+        transform::lower_assumes::{NonRecordReads, record_fact, should_check_analyses},
         utils as mir_utils,
     },
     target::{Cost, Target},
@@ -177,7 +182,10 @@ impl MirPass for Pre {
                         alias: Rc::clone(analyses.alias()),
                         summaries: Arc::clone(&summaries),
                     };
-                    Eliminator::new(&target, Some(Rc::clone(analyses.cfg())), Some(reads)).run(func)
+                    let mut eliminator =
+                        Eliminator::new(&target, Some(Rc::clone(analyses.cfg())), Some(reads));
+                    eliminator.record = should_check_analyses(gcx.sess);
+                    eliminator.run(func)
                 })
             }
         }
@@ -195,6 +203,11 @@ struct Eliminator<'a> {
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     target: &'a Target,
+    /// Whether forwarding a read records, for `lower-assumes`, that it equals the value that
+    /// replaces it, keeping the read as the evidence.
+    record: bool,
+    /// With `record`, the values only records read, which are not forwarded again.
+    record_reads: Option<NonRecordReads>,
 }
 
 /// State for the read keys: the alias analysis and the call summaries.
@@ -621,7 +634,15 @@ impl LoadWalk {
 
 impl<'a> Eliminator<'a> {
     fn new(target: &'a Target, cfg: Option<Rc<CfgInfo>>, reads: Option<ReadAnalyses>) -> Self {
-        Self { reads, liveness: OnceCell::new(), gas: OnceCell::new(), cfg, target }
+        Self {
+            reads,
+            liveness: OnceCell::new(),
+            gas: OnceCell::new(),
+            cfg,
+            target,
+            record: false,
+            record_reads: None,
+        }
     }
 
     /// Runs PRE to a fixed point under the rewrite budget. Returns whether it changed `func`.
@@ -639,6 +660,7 @@ impl<'a> Eliminator<'a> {
         while rewrites < rewrite_limit {
             self.liveness.take();
             self.gas.take();
+            self.record_reads = self.record.then(|| NonRecordReads::new(func));
             let Some(analysis) = self.compute_analysis(func) else { break };
             locate_cache.clear();
             let mut cx = CandidateCx {
@@ -1289,6 +1311,12 @@ impl<'a> Eliminator<'a> {
     ) {
         let Candidate { target, block, key, result_ty, metadata, insts, mut incoming, insertions } =
             candidate;
+        // Reads only records keep stay as their evidence.
+        let only_records =
+            |value| self.record_reads.as_ref().is_some_and(|reads| reads.only_records(value));
+        if insts.iter().all(|&(_, result)| only_records(result)) {
+            return;
+        }
 
         eliminated_keys.insert((key, target));
 
@@ -1337,7 +1365,27 @@ impl<'a> Eliminator<'a> {
             }
         };
 
-        func.replace_uses(&insts.iter().map(|&(_, result)| (result, replacement)).collect());
+        let replaced: Vec<_> = insts
+            .iter()
+            .map(|&(_, result)| result)
+            .filter(|&result| !only_records(result))
+            .collect();
+        func.replace_uses(&replaced.iter().map(|&result| (result, replacement)).collect());
+        if self.record {
+            // The forwarded reads stay as the evidence of their records.
+            // assume eq load_pre, read, replacement
+            for result in replaced {
+                record_fact(
+                    func,
+                    block,
+                    FactSource::LoadPre,
+                    AssumePredicate::Eq,
+                    result,
+                    replacement,
+                );
+            }
+            return;
+        }
         let removed = insts.iter().map(|&(inst_id, _)| inst_id).collect::<FxHashSet<_>>();
         func.blocks[block].instructions.retain(|inst_id| !removed.contains(inst_id));
     }
