@@ -2225,6 +2225,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         };
         let (g_head, env_head) = (self.guard.clone(), self.env.clone());
         self.assume(&c);
+        if decs.is_empty() {
+            // Without a termination measure the loop may run until the gas runs out: a
+            // succeeds-if cannot rely on it ever exiting.
+            self.reverts_if("true");
+        }
         self.loops.push(LoopCtx { breaks: vec![], conts: vec![] });
         self.exec_stmt(body)?;
         let ctx = self.loops.pop().unwrap();
@@ -2736,7 +2741,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                         Ok(out)
                     }
                     Ty::Opaque => {
-                        // a byte of bytes we do not track (out of range reverts)
+                        // A byte of bytes we do not track; an index past the length reverts.
+                        let len = self.opaque_len(&b.t);
+                        self.panic_unless(
+                            &format!("(and (<= 0 {}) (< {} {len}))", i.t, i.t),
+                            "bytes index may be out of bounds",
+                            idx.span,
+                        );
                         let t = self.decl("byte", &Ty::Uint(8));
                         Ok(Self::val(Ty::Uint(8), t))
                     }
@@ -2745,12 +2756,25 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Member(base, m) => self.member(e, base, m.as_str()),
             ExprKind::Index(base, IndexKind::Range(lo, hi)) => {
-                // a calldata/bytes slice: its contents are not tracked (an out-of-range slice
-                // reverts; ignoring that only adds executions)
-                self.eval(base)?;
-                for x in [lo, hi].into_iter().flatten() {
-                    self.eval(x)?;
-                }
+                // A calldata/bytes slice: its contents are not tracked; it reverts unless
+                // start <= end <= length.
+                let b = self.eval(base)?;
+                let len = match (&b.len, &b.ty) {
+                    (Some(l), _) => l.clone(),
+                    (None, Ty::Opaque) => self.opaque_len(&b.t),
+                    (None, ty) => self.arr_len(ty),
+                };
+                let lo = match lo {
+                    Some(x) => self.eval(x)?.t,
+                    None => "0".into(),
+                };
+                let hi = match hi {
+                    Some(x) => self.eval(x)?.t,
+                    None => len.clone(),
+                };
+                let ok = format!("(and (<= 0 {lo}) (<= {lo} {hi}) (<= {hi} {len}))");
+                self.reverts_if(&format!("(not {ok})"));
+                self.assume(&ok);
                 let t = self.decl("slice", &Ty::Opaque);
                 Ok(Self::val(Ty::Opaque, t))
             }
@@ -3382,12 +3406,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                         // a fresh zeroed memory array of the given length
                         let el = self.ty_of_decl(&a.element);
                         let n = self.eval(argv[0])?;
+                        self.alloc_limit(&n.t, 32);
                         let ty = Ty::Arr(Box::new(el), None);
                         Ok(vec![Var { t: ty.zero(), ty, len: Some(n.t) }])
                     }
                     ast::TypeKind::Elementary(_) => {
                         for a in &argv {
-                            self.eval(a)?;
+                            let n = self.eval(a)?;
+                            self.alloc_limit(&n.t, 1);
                         }
                         let t = self.decl("newbytes", &Ty::Opaque);
                         Ok(vec![Self::val(Ty::Opaque, t)])
@@ -3457,6 +3483,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                             }
                         }
                         if m == "decode" && argv.len() == 2 {
+                            // Decoding reverts on data too short or not of the types' ranges,
+                            // which the untracked bytes do not tell.
+                            self.reverts_if("true");
                             // decoded values are arbitrary values of their types
                             let tys: Vec<&'a Expr<'a>> = match &argv[1].peel_parens().kind {
                                 ExprKind::Tuple(xs) if xs.len() != 1 => xs
@@ -4080,6 +4109,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         let moved = format!("(store {debited} {} (+ (select {debited} {}) {}))", to, to, v.t);
         if m == "transfer" {
             self.reverts_if(&format!("(not {enough})"));
+            // The recipient's code may revert, which reverts the transfer.
+            self.reverts_if("true");
             self.assume(&enough);
             self.bind("__balance", bal.ty.clone(), Self::val(bal.ty, moved));
             Ok(vec![])
@@ -4520,8 +4551,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                     );
                 }
                 // Its body is not executed here, so whether it reverts is known only through
-                // its succeeds-if: without one, the call may revert.
-                if f.succeeds.is_empty() {
+                // its succeeds-if: without one, the call may revert. A callee that can call back
+                // into the function being proved would make that proof rest on itself (and the
+                // recursion need not end), so such a call may revert too.
+                if f.succeeds.is_empty() || self.reaches_current(f) {
                     self.reverts_if("true");
                 } else {
                     let mut ps = vec![];
@@ -4638,7 +4671,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.frames.push(Frame { rets: f.rets.clone(), exits: vec![] });
                 let saved_ph = std::mem::take(&mut self.ph);
                 let saved_loops = std::mem::take(&mut self.loops);
+                // An unchecked block covers only its own statements, not the functions it calls.
+                let saved_unchecked = std::mem::replace(&mut self.unchecked, false);
                 let r = self.exec_fn_body(f, 0);
+                self.unchecked = saved_unchecked;
                 self.ph = saved_ph;
                 self.loops = saved_loops;
                 let fr = self.frames.pop().unwrap();
@@ -4723,6 +4759,73 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok(rets)
+    }
+
+    /// The length of untracked bytes t: a function of the value, as .length reads it.
+    fn opaque_len(&mut self, t: &str) -> String {
+        self.declare_fun("sv_blen", 1, "Int");
+        let l = format!("(sv_blen {t})");
+        if self.bound.is_empty() {
+            self.smt.send(&format!("(assert {})\n", Ty::Uint(256).range(&l).unwrap()));
+        }
+        l
+    }
+
+    /// A memory allocation of n items of size bytes panics when the free memory pointer would
+    /// pass 2^64 (it starts below 2^32, see the assembly model).
+    fn alloc_limit(&mut self, n: &str, size: u32) {
+        let limit = pow2(64) - pow2(32) - BigInt::from(64);
+        let ok = format!("(<= (* {size} {n}) {})", num(&limit));
+        self.reverts_if(&format!("(not {ok})"));
+        self.assume(&ok);
+    }
+
+    /// Whether internal function f is, or can call back into, the function being verified.
+    /// Calls are matched by name alone, over every contract's functions and the modifiers they
+    /// use, which can only find more paths.
+    fn reaches_current(&self, f: &'p Func<'a>) -> bool {
+        let Some((_, cf)) = self.cur_fn.clone() else { return false };
+        f.name == cf || self.calls_reach(self.fn_stmts(f), &cf, &mut FxHashSet::default())
+    }
+
+    fn calls_reach(
+        &self,
+        stmts: Vec<&'a Stmt<'a>>,
+        target: &str,
+        seen: &mut FxHashSet<String>,
+    ) -> bool {
+        let mut calls: Vec<String> = vec![];
+        for s in &stmts {
+            walk::all_stmts(s, &mut |s| {
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| {
+                        if let ExprKind::Call(c, _) = &x.kind {
+                            match &c.kind {
+                                ExprKind::Ident(i) => calls.push(i.as_str().to_string()),
+                                ExprKind::Member(_, m) => calls.push(m.as_str().to_string()),
+                                _ => {}
+                            }
+                        }
+                    })
+                });
+            });
+        }
+        if calls.iter().any(|n| n == target) {
+            return true;
+        }
+        for n in calls {
+            if !seen.insert(n.clone()) {
+                continue;
+            }
+            for c in &self.prog.contracts {
+                for g in c.funcs.iter().chain(c.overridden.iter()).filter(|g| g.name == n) {
+                    if self.calls_reach(self.fn_stmts(g), target, seen) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 }
 

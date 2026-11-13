@@ -26,6 +26,7 @@ library LiveLoop {
     /// @custom:succeeds_if n <= 10
     function ok_loop(uint256 n) internal pure returns (uint256 s) {
         /// @custom:invariant i <= n && s == i
+        /// @custom:decreases n - i
         for (uint256 i; i < n; ++i) { s += 1; }
         if (s > 10) revert E();
     }
@@ -66,4 +67,57 @@ contract LiveCalls {
     function ok_try() external { try i.g() {} catch {} }
     /// @custom:succeeds_if true
     function ok_iface_live() external { i.h(); }
+}
+
+/// Reverts the executor does not see as values: liveness must still count them.
+contract LiveGaps {
+    uint256 n;
+    /// @custom:succeeds_if true
+    function bad_bytes_index(bytes calldata b) external pure returns (bytes1) { return b[0]; }
+    /// @custom:succeeds_if b.length > 0
+    function ok_bytes_index(bytes calldata b) external pure returns (bytes1) { return b[0]; }
+    /// @custom:succeeds_if true
+    function bad_slice(bytes calldata b) external pure returns (uint256) { return b[2:].length; }
+    /// @custom:succeeds_if true
+    function bad_new_array(uint256 k) external pure returns (uint256) { return new uint256[](k).length; }
+    /// @custom:succeeds_if k < 1000
+    function ok_new_array(uint256 k) external pure returns (uint256) { return new uint256[](k).length; }
+    /// @custom:succeeds_if true
+    function bad_decode(bytes calldata b) external pure returns (uint256) { return abi.decode(b, (uint256)); }
+    /// @custom:succeeds_if address(this).balance >= 1
+    function bad_transfer() external { payable(msg.sender).transfer(1); }
+    function _inc(uint8 x) internal pure returns (uint8) { return x + 1; }
+    /// @custom:succeeds_if true
+    function bad_unchecked_callee(uint8 x) external pure returns (uint8) { unchecked { return _inc(x); } }
+    /// @custom:succeeds_if true
+    function ok_unchecked_own(uint8 x) external pure returns (uint8) { unchecked { return x + 1; } }
+}
+
+/// Liveness needs termination: a loop without a decreases clause, and recursion, may never return.
+contract LiveTermination {
+    /// @custom:succeeds_if true
+    function bad_spin() external pure returns (uint256 i) {
+        /// @custom:invariant true
+        for (;;) { i = i; }
+    }
+    /// @custom:succeeds_if true
+    function bad_stuck(uint256 k) external pure returns (uint256 i) {
+        /// @custom:invariant i <= k
+        while (i < k) { i = i; }
+    }
+    /// @custom:succeeds_if true
+    function ok_counted(uint256 k) external pure returns (uint256 i) {
+        /// @custom:invariant i <= k
+        /// @custom:decreases k - i
+        while (i < k) { i = i + 1; }
+    }
+    /// @custom:succeeds_if true
+    /// @custom:ensures true
+    function bad_self(uint256 x) public pure returns (uint256) { return bad_self(x); }
+    /// @custom:succeeds_if true
+    /// @custom:ensures true
+    function bad_ping(uint256 x) public pure returns (uint256) { return bad_pong(x); }
+    /// @custom:succeeds_if true
+    /// @custom:ensures true
+    function bad_pong(uint256 x) public pure returns (uint256) { return bad_ping(x); }
 }
