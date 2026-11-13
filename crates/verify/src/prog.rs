@@ -492,8 +492,9 @@ impl<'s, 'a> Builder<'s, 'a> {
             // `crate::vc::infer` checks like any other.
             if crate::absint::enabled() {
                 let pre: Vec<&'a Expr<'a>> = requires.iter().map(|r: &Spec<'a>| r.expr).collect();
+                let post: Vec<&str> = ensures.iter().map(|e: &Spec<'a>| e.text.as_str()).collect();
                 let mut loops: Vec<_> =
-                    crate::absint::infer_function(f, &pre).into_iter().collect();
+                    crate::absint::infer_function(f, &pre, &post).into_iter().collect();
                 loops.sort_by_key(|(sp, _)| sp.lo());
                 for (sp, texts) in loops {
                     if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {

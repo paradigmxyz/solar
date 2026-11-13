@@ -1,17 +1,17 @@
 //! The octagon abstract domain (Miné, "The Octagon Abstract Domain", HOSC 2006) over
-//! mathematical integers: conjunctions of \`±x ± y <= c\` and \`±x <= c\`, kept as a difference-bound
+//! mathematical integers: conjunctions of `±x ± y <= c` and `±x <= c`, kept as a difference-bound
 //! matrix over the 2n signed forms of the variables and closed with the integer tight closure of
 //! Bagnara, Hill and Zaffanella ("An improved tight closure algorithm for integer octagonal
 //! constraints", VMCAI 2008).
 //!
-//! Variables are named; [\`Lin\`] is a linear form over them. Bounds are exact [\`BigInt\`]s, so
+//! Variables are named; [`Lin`] is a linear form over them. Bounds are exact [`BigInt`]s, so
 //! 256-bit ranges are represented without loss.
 
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 use std::collections::BTreeMap;
 
-/// An upper bound, \`None\` for +∞.
+/// An upper bound, `None` for +∞.
 pub(crate) type Bound = Option<BigInt>;
 
 fn add(a: &Bound, b: &Bound) -> Bound {
@@ -39,7 +39,7 @@ fn floor_half(x: &BigInt) -> BigInt {
     if x.is_negative() { -((-x + BigInt::one()) / 2u32) } else { x / 2u32 }
 }
 
-/// A linear form \`Σ coeff·var + constant\` over named variables.
+/// A linear form `Σ coeff·var + constant` over named variables.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub(crate) struct Lin {
     pub terms: BTreeMap<String, BigInt>,
@@ -97,12 +97,12 @@ pub(crate) type Constraint = (usize, bool, Option<(usize, bool)>, BigInt);
 #[derive(Clone, Debug)]
 pub(crate) struct Octagon {
     names: Vec<String>,
-    /// \`m[i * 2n + j]\` bounds \`V_j - V_i\`, where \`V_2k = x_k\` and \`V_2k+1 = -x_k\`.
+    /// `m[i * 2n + j]` bounds `V_j - V_i`, where `V_2k = x_k` and `V_2k+1 = -x_k`.
     m: Vec<Bound>,
     bottom: bool,
 }
 
-/// The signed form \`V_i\` of variable \`k\` with sign \`positive\`.
+/// The signed form `V_i` of variable `k` with sign `positive`.
 fn form(k: usize, positive: bool) -> usize {
     2 * k + usize::from(!positive)
 }
@@ -137,7 +137,7 @@ impl Octagon {
         self.index(name).is_some()
     }
 
-    /// Adds \`name\` unconstrained, if it is not there yet; returns its index.
+    /// Adds `name` unconstrained, if it is not there yet; returns its index.
     pub(crate) fn add_var(&mut self, name: &str) -> usize {
         if let Some(k) = self.index(name) {
             return k;
@@ -160,7 +160,7 @@ impl Octagon {
         self.names.len() - 1
     }
 
-    /// Removes \`name\` and every constraint on it.
+    /// Removes `name` and every constraint on it.
     pub(crate) fn remove_var(&mut self, name: &str) {
         let Some(k) = self.index(name) else { return };
         let old = self.dim();
@@ -176,7 +176,7 @@ impl Octagon {
         self.m = m;
     }
 
-    /// Drops every constraint on \`name\`, keeping it as an unconstrained variable.
+    /// Drops every constraint on `name`, keeping it as an unconstrained variable.
     pub(crate) fn forget(&mut self, name: &str) {
         let Some(k) = self.index(name) else { return };
         let d = self.dim();
@@ -267,7 +267,7 @@ impl Octagon {
         }
     }
 
-    /// Adds \`V_j - V_i <= c\` and its coherent twin.
+    /// Adds `V_j - V_i <= c` and its coherent twin.
     fn tighten(&mut self, i: usize, j: usize, c: BigInt) {
         let c = Some(c);
         if !le(self.at(i, j), &c) {
@@ -279,7 +279,7 @@ impl Octagon {
         }
     }
 
-    /// The octagonal reading of \`lin <= 0\`: \`(V_j - V_i, bound)\` with \`V_j - V_i <= bound\`.
+    /// The octagonal reading of `lin <= 0`: `(V_j - V_i, bound)` with `V_j - V_i <= bound`.
     fn octagonal(&self, lin: &Lin) -> Option<(usize, usize, BigInt)> {
         let terms: Vec<(usize, &BigInt)> =
             lin.terms.iter().map(|(v, c)| Some((self.index(v)?, c))).collect::<Option<_>>()?;
@@ -299,7 +299,7 @@ impl Octagon {
         }
     }
 
-    /// The least upper bound of \`lin\` this octagon proves (closed octagons only).
+    /// The least upper bound of `lin` this octagon proves (closed octagons only).
     pub(crate) fn upper(&self, lin: &Lin) -> Bound {
         if self.bottom {
             return Some(BigInt::zero());
@@ -341,23 +341,23 @@ impl Octagon {
         best
     }
 
-    /// The interval of \`lin\`.
+    /// The interval of `lin`.
     pub(crate) fn range(&self, lin: &Lin) -> (Option<BigInt>, Option<BigInt>) {
         (self.upper(&lin.neg()).map(|b| -b), self.upper(lin))
     }
 
-    /// Does the octagon prove \`lin <= 0\`?
+    /// Does the octagon prove `lin <= 0`?
     pub(crate) fn entails_le0(&self, lin: &Lin) -> bool {
         self.bottom || self.upper(lin).is_some_and(|b| !b.is_positive())
     }
 
-    /// Does the octagon prove \`a == b\`?
+    /// Does the octagon prove `a == b`?
     pub(crate) fn entails_eq(&self, a: &Lin, b: &Lin) -> bool {
         let d = a.sub(b);
         self.entails_le0(&d) && self.entails_le0(&d.neg())
     }
 
-    /// Meets with \`lin <= 0\` (variables it does not know are added), then closes.
+    /// Meets with `lin <= 0` (variables it does not know are added), then closes.
     pub(crate) fn assume_le0(&mut self, lin: &Lin) {
         if self.bottom {
             return;
@@ -397,14 +397,14 @@ impl Octagon {
         self.close();
     }
 
-    /// \`lo <= var <= hi\`.
+    /// `lo <= var <= hi`.
     pub(crate) fn assume_range(&mut self, var: &str, lo: &BigInt, hi: &BigInt) {
         let v = Lin::var(var);
         self.assume_le0(&v.sub(&Lin::constant(hi.clone())));
         self.assume_le0(&Lin::constant(lo.clone()).sub(&v));
     }
 
-    /// \`var := lin\`, over the octagon before the assignment.
+    /// `var := lin`, over the octagon before the assignment.
     pub(crate) fn assign(&mut self, var: &str, lin: &Lin) {
         if self.bottom {
             return;
@@ -414,7 +414,7 @@ impl Octagon {
         }
         let k = self.add_var(var);
         let one = BigInt::one();
-        // \`x := x + c\`: an exact shift of every constraint on x
+        // `x := x + c`: an exact shift of every constraint on x
         if lin.terms.len() == 1 && lin.terms.get(var) == Some(&one) {
             let c = lin.constant.clone();
             let d = self.dim();
@@ -441,7 +441,7 @@ impl Octagon {
         let x = Lin::var(var);
         let mut facts: Vec<Lin> = vec![];
         let mut bound = |shape: Lin, value: Lin| {
-            // shape(x') <= upper(value), as \`shape - upper <= 0\`
+            // shape(x') <= upper(value), as `shape - upper <= 0`
             if let Some(u) = self.upper(&value) {
                 facts.push(shape.sub(&Lin::constant(u)));
             }
@@ -467,7 +467,7 @@ impl Octagon {
         self.close();
     }
 
-    /// Is every state of \`self\` one of \`other\`? (Both closed.)
+    /// Is every state of `self` one of `other`? (Both closed.)
     pub(crate) fn leq(&self, other: &Self) -> bool {
         if self.bottom {
             return true;
@@ -522,8 +522,8 @@ impl Octagon {
         a
     }
 
-    /// Every finite constraint over \`(x, sign_x, y, sign_y)\` (\`y\` None for a unary one), as
-    /// \`sign_x·x + sign_y·y <= c\`.
+    /// Every finite constraint over `(x, sign_x, y, sign_y)` (`y` None for a unary one), as
+    /// `sign_x·x + sign_y·y <= c`.
     pub(crate) fn constraints(&self) -> Vec<Constraint> {
         let mut out = vec![];
         if self.bottom {
