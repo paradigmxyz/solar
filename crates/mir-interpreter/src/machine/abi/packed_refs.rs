@@ -3,7 +3,10 @@
 //! Memory copies have snapshot semantics; storage copies retain whole dirty
 //! words and header checks. A restored header borrow has no final memory write.
 
-use super::packed::{Piece, word_stores};
+use super::{
+    packed::{Piece, word_stores},
+    packed_arrays::PackedArray,
+};
 use crate::machine::{Outcome, Run, RuntimeValue, limit};
 use alloy_primitives::{U256, keccak256};
 use solar_mir::{AllocationSemantics, Function, PackedPart, PtrLocation, ValueLayout};
@@ -13,6 +16,7 @@ enum Prepared {
     Static(Piece),
     Bytes { location: PtrLocation, source: U256, length: U256, object: bool },
     Storage { slot: U256, header: U256, long: bool, length: U256 },
+    Array(PackedArray),
 }
 
 impl Prepared {
@@ -20,6 +24,7 @@ impl Prepared {
         match self {
             Self::Static(piece) => U256::from(piece.bytes.len()),
             Self::Bytes { length, .. } | Self::Storage { length, .. } => *length,
+            Self::Array(array) => array.bytes,
         }
     }
 }
@@ -92,8 +97,9 @@ impl Run<'_, '_, '_> {
                         Prepared::Bytes { location, source, length, object }
                     }
                 }
-                PackedPart::Array { .. } => {
-                    return ControlFlow::Break(Outcome::Unsupported("packed array layout"));
+                PackedPart::Array { value, element, source, wordwise } => {
+                    let input = self.frame().read_value(*value)?;
+                    Prepared::Array(self.prepare_packed_array(input, element, *source, *wordwise)?)
                 }
             };
             if piece.length() > U256::from(65536) || total + piece.length() > U256::from(65536) {
@@ -126,6 +132,11 @@ impl Run<'_, '_, '_> {
                 return ControlFlow::Continue(U256::from_be_bytes(keccak256(prefix).0));
             }
         }
+        let aligned = prepared.iter().all(|piece| match piece {
+            Prepared::Static(piece) => piece.bytes.len().is_multiple_of(32),
+            Prepared::Array(_) => true,
+            _ => false,
+        });
         let base = if hash {
             limit(self.memory.load(U256::from(64)))?
         } else {
@@ -139,6 +150,7 @@ impl Run<'_, '_, '_> {
         let start = base.wrapping_add(if hash { U256::ZERO } else { U256::from(32) });
         let mut cursor = start;
         let mut pending = Vec::new();
+        let mut work = 2048;
         for piece in prepared {
             match piece {
                 Prepared::Static(piece) => pending.push(piece),
@@ -167,6 +179,9 @@ impl Run<'_, '_, '_> {
                                 limit(self.memory.store(cursor, header & !U256::from(255)))?;
                             }
                         }
+                        Prepared::Array(array) => {
+                            self.write_packed_array(&array, cursor, 33, &mut work, true)?;
+                        }
                         Prepared::Static(_) => unreachable!(),
                     }
                     cursor = cursor.wrapping_add(length);
@@ -174,7 +189,7 @@ impl Run<'_, '_, '_> {
             }
         }
         let end = self.packed_static_segment(cursor, &pending)?;
-        if !hash {
+        if !hash && !aligned {
             limit(self.memory.store(end, U256::ZERO))?;
         }
         if hash {

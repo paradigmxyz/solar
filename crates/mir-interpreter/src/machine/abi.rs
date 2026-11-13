@@ -18,6 +18,7 @@ use std::ops::ControlFlow;
 mod decode;
 mod encode;
 mod packed;
+mod packed_arrays;
 mod packed_refs;
 mod require;
 

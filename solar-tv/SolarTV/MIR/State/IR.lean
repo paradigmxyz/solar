@@ -61,10 +61,6 @@ inductive AbiRule where
   | any | uint (bits : Nat) | left (bits : Nat) | sint (bits : Nat) | boolean | enumeration (bound : Nat)
   deriving BEq
 
-inductive PackedInput where
-  | literal (bytes : List SolarTV.Execution.Byte)
-  | scalar (index size : Nat) (fixedBytes : Bool)
-  | bytes (index location : Nat)
 
 inductive AbiShape where
   | scalar (rule : AbiRule) (function : Bool) (width : Nat)
@@ -78,6 +74,14 @@ inductive AbiEncodeShape where
   | bytes (location : Nat)
   | array (element : AbiEncodeShape) (length : Option Nat) (location : Nat) (blockCopy : Bool)
   | tuple (fields : List AbiEncodeShape)
+
+inductive PackedInput where
+  | literal (bytes : List SolarTV.Execution.Byte)
+  | scalar (index size : Nat) (fixedBytes : Bool)
+  | bytes (index location : Nat)
+
+  | array (index : Nat) (element : AbiEncodeShape) (object : Bool) (location : Nat)
+      (length : Option Nat) (stride : Nat) (wordwise : Bool)
 
 inductive RequireOp where
   | literal (bytes : List Byte)

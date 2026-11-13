@@ -11,9 +11,9 @@ use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
     AbiEncodeMode, AbiParamType, AbiType, AbiWordValidator, AllocationFailure,
     AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee, FrameMode,
-    FrameSlotKind, Function, MemoryObjectKind, MirType, Module, PackedPart, RequireKind,
-    RevertKind, Semantics, Terminator, Value, ValueId, ValueLayout, analysis::CallGraphInfo,
-    memory::EvmMemoryLayout,
+    FrameSlotKind, Function, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
+    PackedArraySource, PackedPart, RequireKind, RevertKind, Semantics, Terminator, Value, ValueId,
+    ValueLayout, analysis::CallGraphInfo, memory::EvmMemoryLayout,
 };
 use std::io::{self, Read};
 
@@ -567,7 +567,23 @@ fn export_operation(
                             shapes.push(json!({"kind":"bytes","index":values.len(),"location":abi_location(location)?}));
                             values.push(*value);
                         }
-                        PackedPart::Array { .. } => return Err("packed array layout".into()),
+                        PackedPart::Array { value, element, source, wordwise } => {
+                            let (object, location, length, stride) = match source {
+                                PackedArraySource::Memory {
+                                    layout: MemoryObjectLayout::DynamicArray { element_words },
+                                } => (true, 0, None, *element_words),
+                                PackedArraySource::Memory {
+                                    layout: MemoryObjectLayout::FixedArray { len, element_words },
+                                } => (true, 0, Some(*len), *element_words),
+                                PackedArraySource::Slice(location) => {
+                                    (false, abi_location(*location)?, None, 1)
+                                }
+                                _ => return Err("packed memory array layout".into()),
+                            };
+                            let element = abi_encode_shape(element, 0, &mut 0)?;
+                            shapes.push(json!({"kind":"array","index":values.len(),"element":element,"object":object,"location":location,"length":length,"stride":stride,"wordwise":wordwise}));
+                            values.push(*value);
+                        }
                     }
                     if total > 65536 {
                         return Err("packed bytes exceed 64 KiB".into());
