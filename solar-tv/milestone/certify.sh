@@ -3,7 +3,7 @@
 # and checks them, with nothing written by hand for the contract.
 #
 #   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--exclude SIG]...
-#       [-- SOLAR_OPTIONS...]
+#       [--heartbeats N] [-- SOLAR_OPTIONS...]
 #
 # NAME (default: FILE's base name, lowercase letters, digits and underscores) is the directory
 # solar-tv/milestone/NAME, the Lean library NAME and the namespace SolarTV.Milestone.<Name>.
@@ -14,7 +14,10 @@
 # bump(uint256), out of every theorem: each assumes the call's selector word is not SIG's, and
 # the stages and their composition hold on that scope only. It is for a function outside the
 # fragment the proofs cover, such as one whose loop runs a number of times the calldata picks,
-# which otherwise fails its proof; the theorems state the exclusion.
+# which otherwise fails its proof; the theorems state the exclusion. --heartbeats N (kept in
+# NAME/heartbeats; default certify.py's 2000000) is each run proof's maxHeartbeats, for a contract
+# whose runs are too long for the default: it changes how long a proof may take, never what it
+# proves, and a proof that still does not finish fails.
 #
 # 1. Copies FILE to NAME/NAME.sol (the source the manifest records), builds solar (unless
 #    CERTIFY_SKIP_BUILD=1; SOLAR picks the binary), checks that its version names the
@@ -40,19 +43,21 @@ export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}" CARGO_BUILD_JOBS="${CARGO_BUILD
 memory="${LEAN_MEMORY:-4500}"
 
 die() { echo "error: $*" >&2; exit 1; }
-[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--exclude SIG]... [-- SOLAR_OPTIONS...]"
+[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--exclude SIG]... [--heartbeats N] [-- SOLAR_OPTIONS...]"
 file="$(realpath "$1")"
 contract=$2
 shift 2
 name="$(basename "$file" .sol | tr 'A-Z-' 'a-z_')"
 options=()
 loops=
+heartbeats=
 excludes=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name) name=$2; shift 2 ;;
         --loops) loops=$2; shift 2 ;;
         --exclude) excludes+=("$2"); shift 2 ;;
+        --heartbeats) heartbeats=$2; shift 2 ;;
         --) shift; options=("$@"); break ;;
         *) die "unknown argument $1" ;;
     esac
@@ -75,6 +80,11 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+if [[ -n "$heartbeats" ]]; then
+    [[ "$heartbeats" =~ ^[1-9][0-9]*$ ]] || die "--heartbeats $heartbeats is not a positive number"
+    echo "$heartbeats" > "$dir/heartbeats"
+fi
+heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
 if [[ ${#excludes[@]} -gt 0 ]]; then printf '%s\n' "${excludes[@]}" > "$dir/exclude"; fi
 excludes=()
 [[ -f "$dir/exclude" ]] && mapfile -t excludes < "$dir/exclude"
@@ -143,7 +153,7 @@ echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops" "${exclude_args[@]}")"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats" "${exclude_args[@]}")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 

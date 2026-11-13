@@ -25,7 +25,7 @@ a failed proof, never by a timeout.
 | Example | spec (Z3) | VCs in Lean | source stage | backend stages | assembly stage | composed |
 | --- | --- | --- | --- | --- | --- | --- |
 | Counter | ✔ all 4 functions | ✔ solar-verify's 14 VCs kernel-checked (not yet Loom, G6) | blocked (B1, G5) | **certified** except `bump`'s two MIR stages (G1) | blocked (B1) | open |
-| Token | ✔ all 4 functions | open | open | not run yet | blocked (B1) | open |
+| Token | ✔ all 4 functions | 12 of 13 VCs kernel-checked; `transfer`'s frame open (G6) | open (G7) | **certified**, every call | blocked (B1) | open |
 | Vault | ✔ all 3 functions | open | open | ✘ exporter rejects it (G3) | open | open |
 | ArrayMax | ✔ both functions | open | open | not run yet; loop (G1) | open | open |
 | struct_slot | ✔ f, g, h; ✘ `bad` as written | open | open (assembly) | not run yet | open | open |
@@ -106,6 +106,79 @@ Negatives, every one failing by a mismatch:
 - binding: the manifest swapped for the `counter` milestone's, one byte of the source, one byte
   of `Stage0.lean` and one byte of the bytecode pin each fail the hash check.
 
+### Token
+
+Backend stages: `SolarTV.Milestone.VerifyToken.verify_token_mir_to_evmir` in
+[solar-tv/milestone/verify_token](../solar-tv/milestone/verify_token), for every oracle,
+
+    Stage (mirSem o) (evmirSem o) stage0 evm12 anyCall
+
+on every call: any calldata, call value and storage, so `mint`, `transfer`, `burn`, the getters
+`balanceOf(address)`, `totalSupply()` and `owner()` and every call that matches no selector, with
+nothing excluded. Nineteen stages, `stage0 → mir1 (place-reads) → mir2 (dce) → mir3
+(spell-width-tests) → mir4 (lower-assumes) → mir5 (evm-inst-schedule) → sched → evm1 … evm12
+(late-word)`, each by `sym_exec`, and `walk_eq` and `decodes` for the final EVM IR against the
+685 bytes of runtime bytecode (sha256 `dc9b3160…5fb252d7`, `-Ogas --evm-version osaka`). Axioms:
+
+    verify_token_mir_to_evmir, stage0_ends, mir1_run … mir5_run, sched_run, evm1_run … evm12_run:
+      [propext, Classical.choice, Quot.sound]
+    walk_eq, decodes: [propext, Quot.sound]
+
+Build (the EVM IR stages' run proofs need four times certify.py's default heartbeats, kept in
+`verify_token/heartbeats`; a heartbeat limit only bounds how long a proof may take):
+
+    CARGO_TARGET_DIR=... LEAN_NUM_THREADS=1 LEAN_MEMORY=3000       solar-tv/milestone/certify.sh crates/verify/examples/Token.sol Token       --name verify_token --heartbeats 8000000
+    solar-tv/milestone/verify-chain/negatives.sh Token
+
+Two of Token's stages needed more of `sym_exec` ([W1Proofs/Tactic.lean](../solar-tv/milestone/w1/proofs/W1Proofs/Tactic.lean)),
+each an equation proved once:
+
+- `block-cse` (`evm8 → evm9`) drops `transfer`'s second `mstore(32, 0)` before the recipient's
+  mapping hash, since word 32 still holds 0. `sym_mem` puts memory in a normal form (expansions
+  outside the stores, stores to disjoint literal words by offset, a store overwritten at its
+  offset dropped: `Mem.store_store_comm`, `Mem.store_store_same`, `Mem.store_expand_comm` and
+  `Mem.expand_comm` in [Machine.lean](../solar-tv/SolarTV/Machine.lean)) in the goal and every
+  hypothesis, so a path whose two programs decided the same overflow check in two memory forms
+  becomes a contradiction. `sym_exec` tries it only on a leaf nothing else closes.
+- `late-word` (`evm11 → evm12`) spells `owner()`'s address mask `and(x, 2^160 - 1)` as
+  `shr(96, shl(96, x))`; `shr96_shl96` rewrites it to the mask.
+
+The committed milestones (`W1Proofs`, `counter`, `w4` and `verify_counter` with its loop proofs)
+still build with both.
+
+Negatives, every one failing by a mismatch:
+
+- backend stages ([negative.sh](../solar-tv/milestone/negative.sh)): the bytecode's first ADD as SUB (the walk evaluates to false); in the final EVM IR the first add
+  as sub and the first sstore's key plus one (each: `sym_exec: the runs end in different results
+  on this path`). NEGATIVES_REST
+- spec ([verify-chain/negatives.sh](../solar-tv/milestone/verify-chain/negatives.sh), mutants in
+  [verify-chain/Token/mutants.py](../solar-tv/milestone/verify-chain/Token/mutants.py)): six code
+  mutants (`mint` adding `amount + 1` to the supply, `transfer` leaving the sender's balance,
+  `transfer` crediting `amount + amount`, `burn` debiting `amount / 2`, `burn` cutting the supply
+  by `amount / 2`, the constructor storing `address(0)` as owner) and seven spec mutants (the
+  invariant as `sumBalances + 1`, `mint` ensuring `+ amount + 1`, `transfer` ensuring the supply
+  grows, `transfer`'s sender clause without `msg.sender != to`, its frame without `a != to`,
+  `burn` ensuring `- amount + 1`, `burn`'s ghost update dropped) each fail solar-verify with a
+  counterexample.
+- `solar-verify mutate`: 11 of 18 killed. Five survive because the specs do not speak of them:
+  `onlyOwner`'s `require` dropped and its `==` as `!=` (no spec says who may mint), `transfer`'s
+  `require` dropped (checked subtraction still reverts) and its `>=` as `>` (no spec says
+  `transfer` succeeds when the balance equals the amount), and `transfer` returning `false`.
+  Two are undecided within mutate's solver limit: `mint`'s and `burn`'s second write dropped.
+- binding: the manifest swapped for the `counter` milestone's, one byte of the source, one byte
+  of `Stage0.lean` and one byte of the bytecode pin each fail the hash check.
+
+VCs in Lean: [discharge.sh](../crates/verify/lean/discharge.sh) proves 12 of Token's 13 required
+obligations in the kernel (constructor 2, `mint` 4, `transfer` 4 of 5, `burn` 2), axioms
+`[propext, Classical.choice, Quot.sound]`. `transfer#3`, the frame clause `forall address a ::
+a != msg.sender && a != to ==> balanceOf[a] == old(balanceOf[a])` through `transfer`'s two
+stores, fails: `vc_valid`'s `omega` finds no proof (a failed proof, not a timeout), so that
+clause rests on Z3 alone.
+
+Not certified for Token: the source stage (G7), the assembly stage under EthLib's EVM (B1), the
+bridge from solar-verify's VCs to SolidCore's Loom `wp` (G6; solidity-lean's VC check covers
+`burn` only), and so the composed theorem.
+
 ## Gaps
 
 Each gap names the stage and the construct, and how the stage fails on it.
@@ -132,6 +205,10 @@ Each gap names the stage and the construct, and how the stage fails on it.
 - **G6** (spec to VCs in Lean): solar-verify's own VCs are kernel-checked for Counter, but over
   SolarVerify's embedding, not SolidCore's Loom `wp`; nothing yet shows the two generators ask
   the same of the source, so the spec does not yet meet the source stage in one theorem.
+- **G7** (source stage, Token). solidity-lean's generic source stage reads solar's first lowered
+  MIR from a solar-tv milestone; its token stage (`ck5/token-stage`) is for another ERC-20
+  (`scripts/refinement/token/token.sol`). verify's Token needs solidity-lean pinned to a solar
+  commit with `verify_token`, after B1.
 - **B1** (solidity-lean `ck5/token-stage`, built here; `ck5/certified-translation` has the
   same pin and `decode_swap`): `Solar/Assemble.lean` does not build against the solar-tv it pins
   (`2144dccb`), whose `dup` and `swap` positions are `Fin 256` (lines 803 and 809 expect

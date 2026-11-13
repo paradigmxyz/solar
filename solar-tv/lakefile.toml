@@ -102,3 +102,12 @@ srcDir = "milestone"
 roots = ["loops.Proofs"]
 globs = ["loops.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# verify_token: the stages of milestone/verify_token/verify_token.sol's Token and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "verify_token"
+srcDir = "milestone"
+roots = ["verify_token.Proofs"]
+globs = ["verify_token.+"]
+moreLeanArgs = ["-M", "3000"]

@@ -128,6 +128,26 @@ theorem caller_le_mask (o : Oracle) :
   rw [BitVec.lt_def, BitVec.toNat_setWidth, hm, Nat.mod_eq_of_lt (by omega)]
   omega
 
+/-- An address mask as `late-word` spells it, by shifting the top 96 bits out and back: the mask. -/
+theorem shr96_shl96 (x : Word) :
+    Evm.shr 96 (Evm.shl 96 x) = Evm.and x 1461501637330902918203684832716283019655932542975 := by
+  unfold Evm.shr Evm.shl Evm.and
+  rw [show (96 : Word).ult 256 = true from rfl, Bool.cond_true, Bool.cond_true,
+    BitVec.ushiftRight_eq', BitVec.shiftLeft_eq']
+  have hm : (1461501637330902918203684832716283019655932542975 : Word) =
+      BitVec.allOnes 256 >>> 96 := by decide
+  have h96 : (96 : Word).toNat = 96 := rfl
+  rw [hm, h96]
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_ushiftRight, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_and,
+    BitVec.getLsbD_allOnes]
+  have h1 : decide (96 + i < 96) = false := by simp
+  rw [h1]
+  by_cases h : 96 + i < 256
+  · simp [h, Nat.add_sub_cancel_left, Bool.and_comm]
+  · simp [h]
+
 /-- A width test as solar spells it, by shifting out the address bits, as the mask test. -/
 theorem shr160_eq_zero (x : Word) :
     (Evm.shr 160 x = 0) = ¬ (1461501637330902918203684832716283019655932542975 : Word) < x := by
@@ -748,11 +768,21 @@ macro "sym_cond" : tactic => `(tactic|
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
     wordAddComm, wordMulComm, wordAndComm, wordOrComm, wordXorComm, and_mask,
-    mask_and, caller_le_mask, shr160_eq_zero, zero_eq_shr160, and_self, and_true, true_and, and_false, false_and,
+    mask_and, caller_le_mask, shr160_eq_zero, zero_eq_shr160, shr96_shl96, and_self, and_true, true_and, and_false, false_and,
     ite_true, ite_false,
     not_false_eq_true, not_true_eq_false, Classical.not_not, ↓reduceIte, Nat.reduceGT, Nat.reduceLT,
     Nat.reduceEqDiff, Nat.reduceLeDiff, Nat.reduceAdd, Nat.reduceSub, Nat.lt_irrefl,
     Bool.false_eq_true, gt_iff_lt, true_or, or_true])
+
+/-- Memory in a normal form: expansions outside the stores, stores to disjoint literal words in
+order of their offsets, and a store overwritten at the same offset dropped. Two runs that write
+the same words in another order, or one that writes a word once more with the value it holds
+(`block-cse` dropping a second `mstore(32, 0)` before a second mapping hash), then agree. Every
+step is an equation on `Mem`, rewriting the goal and every hypothesis, so a path whose two
+programs decided the same condition in two memory forms becomes a contradiction. -/
+macro "sym_mem" : tactic => `(tactic|
+  simp (disch := decide) only [Mem.store_expand_comm, Mem.store_store_same, Mem.expand_expand,
+    Mem.expand_comm, Mem.expand_store, Mem.store_store_comm] at *)
 
 /-- Evaluate and decide conditions until neither changes the goal. -/
 macro "sym_norm" : tactic => `(tactic| repeat (first | sym_eval | sym_cond))
@@ -772,6 +802,13 @@ macro "sym_exec" : tactic => `(tactic| (
     | (exfalso; sym_comm_contra)
     | sym_select
     | sym_agree
+    | (sym_mem <;> first
+        | with_reducible rfl
+        | (exfalso; bv_omega)
+        | (exfalso; sym_omega)
+        | (exfalso; sym_comm_contra)
+        | sym_select
+        | sym_agree)
     | fail "sym_exec: the runs end in different results on this path, or the procedure cannot tell"))
 
 end SolarTV.Milestone.W1

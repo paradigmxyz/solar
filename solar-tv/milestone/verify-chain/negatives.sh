@@ -115,8 +115,9 @@ other="$(ls -d solar-tv/milestone/counter/gen/*/)"
 cp -r "$gen" "$tmp/swapped"
 cp "$other/manifest.json" "$tmp/swapped/manifest.json"
 expect_unbound "swapped manifest" "$tmp/swapped" "$src" "$pin"
-# One byte of the source.
-python3 -c 'import sys; b = bytearray(open(sys.argv[1], "rb").read()); i = b.index(b"+= 1"); b[i + 3] = ord("2"); open(sys.argv[2], "wb").write(b)' "$src" "$tmp/source.sol"
+# One byte of the source: the operand of its first compound addition (Counter's `+= 1` as `+= 2`,
+# Token's `+= amount` as `+= bmount`).
+python3 -c 'import sys; b = bytearray(open(sys.argv[1], "rb").read()); i = b.index(b"+= "); b[i + 3] += 1; open(sys.argv[2], "wb").write(b)' "$src" "$tmp/source.sol"
 expect_unbound "edited source" "$gen" "$tmp/source.sol" "$pin"
 # One byte of the first lowered MIR.
 cp -r "$gen" "$tmp/stage"

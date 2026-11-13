@@ -161,6 +161,50 @@ theorem load_store_same (m : Mem) (offset : Nat) (value : Word) :
   rw [fold_bytes value 32 (by omega)]
   simp
 
+theorem grow_comm (w a b : BitVec 251) :
+    Memory.grow (Memory.grow w a) b = Memory.grow (Memory.grow w b) a := by
+  unfold Memory.grow
+  simp only [BitVec.ult_iff_toNat_lt]
+  repeat' split
+  all_goals first | rfl | (apply BitVec.eq_of_toNat_eq; omega) | omega
+
+/-- A store as the bytes it writes and the words it grows memory to. -/
+theorem store_eq (m : Mem) (a : Nat) (v : Word) :
+    m.store a v = ⟨fun i => if a ≤ i ∧ i < a + 32 then Memory.byte v (i - a) else m.bytes i,
+      Memory.grow m.words (BitVec.ofNat 251 ((a + 32 + 31) / 32))⟩ := rfl
+
+/-- Expansions commute: each grows memory to the larger of its size and the current one. -/
+theorem expand_comm (m : Mem) (o s o' s' : Nat) :
+    (m.expand o s).expand o' s' = (m.expand o' s').expand o s := by
+  unfold expand
+  by_cases h : s = 0 <;> by_cases h' : s' = 0 <;> simp only [h, h', ite_true, ite_false]
+  rw [grow_comm]
+
+/-- A store after an expansion is the store, then the expansion. -/
+theorem store_expand_comm (m : Mem) (o s a : Nat) (v : Word) :
+    (m.expand o s).store a v = (m.store a v).expand o s := by
+  unfold expand
+  by_cases h : s = 0
+  · simp only [h, ite_true]
+  · simp only [h, ite_false, store_eq]
+    rw [grow_comm]
+
+/-- A store over a word a store wrote leaves only the later value. -/
+theorem store_store_same (m : Mem) (a : Nat) (v w : Word) :
+    (m.store a v).store a w = m.store a w := by
+  simp only [store_eq, Memory.grow_idempotent, Mem.mk.injEq, and_true]
+  funext i
+  split <;> simp_all
+
+/-- Stores to disjoint words commute. -/
+theorem store_store_comm (m : Mem) (a b : Nat) (v w : Word) (h : a + 32 ≤ b) :
+    (m.store b w).store a v = (m.store a v).store b w := by
+  simp only [store_eq, Mem.mk.injEq]
+  refine ⟨?_, grow_comm _ _ _⟩
+  funext i
+  by_cases h1 : a ≤ i ∧ i < a + 32 <;> by_cases h2 : b ≤ i ∧ i < b + 32 <;>
+    simp only [h1, h2, ite_false] <;> omega
+
 theorem project_initial : initial.project = Memory.initial [] 0 := by
   unfold project initial Memory.initial
   congr 1
