@@ -379,7 +379,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
     /// Binder symbols of the quantifiers being evaluated: terms mentioning them cannot be named.
     /// (binder symbols are the only ones spelled `|name!N|`, see `quant`).
-    fn y_closed(&self, t: &str) -> bool {
+    pub(super) fn y_closed(&self, t: &str) -> bool {
         self.bound.is_empty() || !t.contains('!')
     }
     /// The env key of raw (or transient) storage: its own name in contract code, `@host.` in
@@ -731,7 +731,52 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// The bytes of a constant byte string: a string or hex literal, its `bytes(..)` or
+    /// `string(..)` conversion, or `abi.encodePacked` of such.
+    fn const_bytes(e: &'a Expr<'a>) -> Option<Vec<u8>> {
+        match &e.peel_parens().kind {
+            ExprKind::Lit(l, None) => match &l.kind {
+                LitKind::Str(_, b, _) => Some(b.as_byte_str().to_vec()),
+                _ => None,
+            },
+            ExprKind::Call(c, args) => match &c.kind {
+                ExprKind::Type(t)
+                    if matches!(
+                        t.kind,
+                        ast::TypeKind::Elementary(
+                            ast::ElementaryType::String | ast::ElementaryType::Bytes
+                        )
+                    ) =>
+                {
+                    let mut xs = args.exprs();
+                    let (Some(x), None) = (xs.next(), xs.next()) else { return None };
+                    Self::const_bytes(x)
+                }
+                ExprKind::Member(b, m)
+                    if matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)
+                        && m.as_str() == "encodePacked" =>
+                {
+                    let mut out = vec![];
+                    for x in args.exprs() {
+                        out.extend(Self::const_bytes(x)?);
+                    }
+                    Some(out)
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
+        // keccak256 of constant bytes (a selector's signature, say) is a constant
+        if let [a] = argv
+            && let Some(b) = Self::const_bytes(a)
+        {
+            let h = alloy_primitives::keccak256(&b);
+            let t = num(&BigInt::from_bytes_be(num_bigint::Sign::Plus, h.as_slice()));
+            return Ok(Var { ty: Ty::Uint(256), t, len: None });
+        }
         let abi_call = |a: &'a Expr<'a>| -> Option<(&'a str, &'a ast::CallArgs<'a>)> {
             if let ExprKind::Call(c2, inner) = &a.kind
                 && let ExprKind::Member(b, m) = &c2.kind
@@ -794,8 +839,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         let f = if packed { "sv_keccak256_packed" } else { "sv_keccak256" };
         self.declare_fun(f, flat.len(), "Int");
         self.ret_bound(f, &ty);
-        self.injective(f, flat.len());
         let t = if flat.is_empty() { f.to_string() } else { format!("({f} {})", flat.join(" ")) };
+        self.injective(f, &flat, &t);
         if self.bound.is_empty() {
             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
         }

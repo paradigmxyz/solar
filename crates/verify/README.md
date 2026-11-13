@@ -266,7 +266,9 @@ produced over code solar-verify did not model.
   (EIP-6780: `selfdestruct` removes code only in the transaction that created it, and then only
   from code that runs it).
 - `keccak256` is injective and its results lie in `[2^128, 2^256)`, so they never collide with
-  small constant slots.
+  small constant slots. Injectivity is stated as ground facts of the hashes a query computes, not
+  as an axiom over all inputs, so that a solver can still find a counterexample. A hash of
+  constant bytes (a selector's signature) is computed.
 - Raw storage slots that assembly reaches are disjoint from the declared state variables, and
   assembly is memory-safe.
 - A library named `Math` with a `mulDiv(x, y, denominator)` and no specs of its own is summarized

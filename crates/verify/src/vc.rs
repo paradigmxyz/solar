@@ -687,28 +687,34 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.smt.send(&format!("(declare-fun {name} ({args}) {ret})\n"));
         }
     }
-    /// Collision resistance of a hash, as injectivity per arity (the usual verifier assumption).
-    fn injective(&mut self, f: &str, arity: usize) {
-        if arity == 0 || !self.declared_funs.insert(format!("{f}/{arity}/inj")) {
+    /// Collision resistance of a hash (the usual verifier assumption), as injectivity: for hash
+    /// term `t = f(a0, .., an)`, the facts `f_inv_i(t) == a_i` through uninterpreted inverses.
+    /// They are ground facts of each term, as for assembly's hashes (`keccak_term`): a quantified
+    /// axiom keeps the solver from building a model, so a false spec came back unknown instead of
+    /// with a counterexample. Ground facts entail the same about the query's terms; a hash inside a
+    /// quantified spec that mentions its binders gets none, and its instances share the facts of
+    /// equal terms in the body.
+    fn injective(&mut self, f: &str, args: &[String], t: &str) {
+        let arity = args.len();
+        if arity == 0 {
             return;
         }
-        let xs: Vec<String> = (0..arity).map(|i| format!("x{i}")).collect();
-        let binders: Vec<String> = xs.iter().map(|x| format!("({x} Int)")).collect();
-        let app = format!("({f} {})", xs.join(" "));
-        let mut s = String::new();
-        for (i, x) in xs.iter().enumerate() {
-            let inv = format!("{f}_inv{arity}_{i}");
-            s.push_str(&format!(
-                "(declare-fun {inv} (Int) Int)
-"
-            ));
-            s.push_str(&format!(
-                "(assert (forall ({}) (! (= ({inv} {app}) {x}) :pattern ({app}))))
-",
-                binders.join(" ")
-            ));
+        let inv = |i: usize| format!("{f}_inv{arity}_{i}");
+        if self.declared_funs.insert(format!("{f}/{arity}/inj")) {
+            let mut d = String::new();
+            for i in 0..arity {
+                d.push_str(&format!("(declare-fun {} (Int) Int)\n", inv(i)));
+            }
+            self.smt.send(&d);
         }
-        self.smt.send(&s);
+        if !(self.bound.is_empty() || self.y_closed(t))
+            || !self.declared_funs.insert(format!("{t}/inj"))
+        {
+            return;
+        }
+        let facts: Vec<String> =
+            args.iter().enumerate().map(|(i, a)| format!("(= ({} {t}) {a})", inv(i))).collect();
+        self.smt.send(&format!("(assert (and {}))\n", facts.join(" ")));
     }
 
     /// |pow2| e = 2^e for 0 <= e < 256, and 2^256 for e >= 256 (only reached as an exponent or
@@ -3806,12 +3812,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let f = format!("sv_{n}");
                         self.declare_fun(&f, flat.len(), "Int");
                         self.ret_bound(&f, &Ty::Uint(256));
-                        self.injective(&f, flat.len());
                         let t = if flat.is_empty() {
                             f.clone()
                         } else {
                             format!("({f} {})", flat.join(" "))
                         };
+                        self.injective(&f, &flat, &t);
                         let ty = Ty::Uint(256);
                         if self.bound.is_empty() {
                             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
@@ -3895,6 +3901,21 @@ impl<'p, 'a> Vc<'p, 'a> {
             ExprKind::Type(t) => {
                 let ty = self.ty_of_decl(t);
                 let v = self.eval(argv[0])?;
+                // bytesM to bytesN (the one conversion to fixed bytes between different widths):
+                // fixed bytes are left-aligned, so it keeps the high bytes or pads on the right
+                if let ast::TypeKind::Elementary(ast::ElementaryType::FixedBytes(n)) = t.kind
+                    && let Ty::Uint(m) = v.ty
+                    && m != n.bytes() as u16 * 8
+                {
+                    let n = n.bytes() as u32 * 8;
+                    let m = m as u32;
+                    let t = if m > n {
+                        format!("(div {} {})", v.t, num(&pow2(m - n)))
+                    } else {
+                        format!("(* {} {})", v.t, num(&pow2(n - m)))
+                    };
+                    return Ok(vec![Self::val(ty, t)]);
+                }
                 Ok(vec![self.cast(ty, v)])
             }
             ExprKind::New(t) => {
