@@ -2,13 +2,19 @@
 # Certifies one contract's backend: compiles it, exports its stages, writes their kernel proofs
 # and checks them, with nothing written by hand for the contract.
 #
-#   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]
+#   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--exclude SIG]...
+#       [-- SOLAR_OPTIONS...]
 #
 # NAME (default: FILE's base name, lowercase letters, digits and underscores) is the directory
 # solar-tv/milestone/NAME, the Lean library NAME and the namespace SolarTV.Milestone.<Name>.
 # SOLAR_OPTIONS default to -Ogas --evm-version osaka and are kept in NAME/options. --loops N
 # (kept in NAME/loops) claims that a run's loops make at most N iterations in all, for a contract
-# whose loops run a fixed number of times; the first stage's end proof checks it.
+# whose loops run a fixed number of times; the first stage's end proof checks it. --exclude SIG
+# (kept in NAME/exclude, one signature a line) leaves the external function SIG, such as
+# bump(uint256), out of every theorem: each assumes the call's selector word is not SIG's, and
+# the stages and their composition hold on that scope only. It is for a function outside the
+# fragment the proofs cover, such as one whose loop runs a number of times the calldata picks,
+# which otherwise fails its proof; the theorems state the exclusion.
 #
 # 1. Copies FILE to NAME/NAME.sol (the source the manifest records), builds solar (unless
 #    CERTIFY_SKIP_BUILD=1; SOLAR picks the binary), checks that its version names the
@@ -34,17 +40,19 @@ export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}" CARGO_BUILD_JOBS="${CARGO_BUILD
 memory="${LEAN_MEMORY:-4500}"
 
 die() { echo "error: $*" >&2; exit 1; }
-[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]"
+[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--exclude SIG]... [-- SOLAR_OPTIONS...]"
 file="$(realpath "$1")"
 contract=$2
 shift 2
 name="$(basename "$file" .sol | tr 'A-Z-' 'a-z_')"
 options=()
 loops=
+excludes=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name) name=$2; shift 2 ;;
         --loops) loops=$2; shift 2 ;;
+        --exclude) excludes+=("$2"); shift 2 ;;
         --) shift; options=("$@"); break ;;
         *) die "unknown argument $1" ;;
     esac
@@ -67,6 +75,9 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+if [[ ${#excludes[@]} -gt 0 ]]; then printf '%s\n' "${excludes[@]}" > "$dir/exclude"; fi
+excludes=()
+[[ -f "$dir/exclude" ]] && mapfile -t excludes < "$dir/exclude"
 
 echo "== 1. compile $source:$contract (${options[*]}) and export its stages"
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -117,11 +128,22 @@ print("stages:", ", ".join(f"{s['definition']} ({s['pass']})" for s in manifest[
 print("bytecode:", bytecode, "sha256", manifest["bytecode_sha256"])
 EOF
 
+exclude_args=()
+for sig in "${excludes[@]}"; do
+    selector="$("$solar" "$source" "${options[@]}" --emit=hashes 2>/dev/null | python3 -c '
+import json, sys
+c = json.load(sys.stdin)["contracts"][sys.argv[1]]["hashes"]
+print(c.get(sys.argv[2], ""))' "$source:$contract" "$sig")"
+    [[ -n "$selector" ]] || die "--exclude $sig: $contract has no external function $sig"
+    echo "excluded: $sig (selector $selector)"
+    exclude_args+=(--exclude "$selector=$sig")
+done
+
 echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops")"
+    --label "$name" --loops "$loops" "${exclude_args[@]}")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 

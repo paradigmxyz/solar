@@ -32,7 +32,9 @@
 #   the same block (an instruction it added or moved), the first two-input phi it added with its
 #   inputs swapped (in live code: when every such phi is on the failure path of a lowered fact,
 #   which never runs, the first test or subtraction it added with its operands swapped), and the
-#   first pure operation as another one (xor as and, add as sub, lt as gt, ...);
+#   first pure operation as another one (xor as and, add as sub, lt as gt, ...), each outside
+#   the functions certify.sh --exclude left out of the proofs (NAME/exclude), whose edits are
+#   no mutants of what the proofs cover;
 # - last MIR stage, against the scheduled EVM IR: the values of its first return of several
 #   words in reverse order, and the first further result a call binds left unbound, when
 #   present.
@@ -335,6 +337,11 @@ try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" 
 # the other way, else the first jump it wrote in place of a branch sent to the branch's other
 # target, else the calldata it reads first at the next word, else its first constant plus one,
 # each in the lines the pass wrote.
+# The names of the external functions certify.sh --exclude left out, from NAME/exclude.
+excluded=()
+if [[ -f "milestone/$name/exclude" ]]; then
+    mapfile -t excluded < <(sed 's/(.*//' "milestone/$name/exclude")
+fi
 mapfile -t passes < <(python3 -c '
 import json, sys
 s = [s for s in json.load(open(sys.argv[1]))["stages"] if s["kind"] == "mir"]
@@ -345,16 +352,24 @@ for pair in "${passes[@]}"; do
     edit "$output-control" "$gen/$output.lean" <<<'pass'
     check "$output-control" "$output" "$proofs/Runs/$output.lean" pass
     for kind in wrote cast phi op; do
-        python3 - "$gen/$input.lean" "$kind" > "$tmp/$output-$kind.py" <<'EOF'
+        python3 - "$gen/$input.lean" "$kind" "${excluded[*]}" > "$tmp/$output-$kind.py" <<'EOF'
 import sys
 print(f"input = open({sys.argv[1]!r}).read()")
 print(f"kind = {sys.argv[2]!r}")
+print(f"excluded = {sys.argv[3].split()!r}")
 print(r'''
 import difflib, re
 before, after = input.splitlines(keepends=True), s.splitlines(keepends=True)
 ops = difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes()
 wrote = [j for tag, _, _, j1, j2 in ops if tag in ("replace", "insert") for j in range(j1, j2)
          if after[j].startswith("  ") and not after[j].lstrip().startswith(("--", "/-", "def "))]
+# The functions certify.sh --exclude left out of the proofs: an edit there is outside their
+# scope, so no mutant.
+fn, fns = None, {}
+for j, line in enumerate(after):
+    if line.strip().startswith("-- @"): fn = line.strip()[len("-- @"):]
+    fns[j] = fn
+wrote = [j for j in wrote if fns[j] not in excluded]
 replaced = {j: before[i1:i2] for tag, i1, i2, j1, j2 in ops if tag == "replace" for j in range(j1, j2)}
 def branch(j, m): return f".branch {m.group(1)} {m.group(3)} {m.group(2)}" if m.group(2) != m.group(3) else None
 def folded(j, m):

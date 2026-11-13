@@ -119,6 +119,14 @@ def main():
         "multiplied by one more than it, a claim the end proof checks",
     )
     ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="SELECTOR=SIGNATURE",
+        help="leave the calls of this external function out of every theorem's scope: "
+        "each run proof assumes the call's selector word is not SELECTOR (hex)",
+    )
+    ap.add_argument(
         "--axioms",
         default="{}",
         help="JSON: theorem name to its expected axiom list, where it is not " + AXIOMS,
@@ -137,6 +145,35 @@ def main():
     (out / "Runs").mkdir(parents=True, exist_ok=True)
     calls = any(s["calls"] for s in stages)
     hb = int(args.heartbeats) * (4 if calls else 1)
+    excluded = []
+    for e in args.exclude:
+        sel, _, sig = e.partition("=")
+        if not re.fullmatch(r"[0-9a-f]{8}", sel) or not sig:
+            raise SystemExit(f"error: --exclude {e} is not SELECTOR=SIGNATURE")
+        excluded.append((int(sel, 16), sig))
+    # A run proof's assumptions: the call's selector word is none of the excluded ones.
+    hyps = "".join(
+        f" (hsel{i} : EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x})"
+        for i, (sel, _) in enumerate(excluded)
+    )
+    scope = "scope" if excluded else "anyCall"
+    lam = "fun call h" if excluded else "fun call _"
+    every = (
+        "every call"
+        if not excluded
+        else "every call but those of " + ", ".join(f"`{sig}`" for _, sig in excluded)
+    )
+
+    def given(h):
+        """The run proofs' assumptions from `h : scope call`."""
+        return "".join(
+            " " + h + ".2" * i + (".1" if i < len(excluded) - 1 else "")
+            for i in range(len(excluded))
+        )
+
+    # Both orientations of each assumption, so that the case split's test of the selector in
+    # either order rewrites to false and the path of an excluded function ends there.
+    prune = "".join(f"  have hsel{i}s := Ne.symm hsel{i}\n" for i in range(len(excluded)))
 
     def write(path, text):
         path.write_text(text)
@@ -157,7 +194,7 @@ def main():
         out / "Runs" / f"{first['module']}.lean",
         header(
             ["W1Proofs.Tactic", "W1Proofs.Axioms", f"{gm}.{first['module']}"],
-            f"The first lowered MIR ends on every call within {first['fuel']} blocks, "
+            f"The first lowered MIR ends on {every} within {first['fuel']} blocks, "
             + (
                 "the number of its blocks"
                 if first["calls"] == 0
@@ -172,9 +209,12 @@ def main():
             opens,
         )
         + f"set_option maxHeartbeats {hb} in\n"
-        f"theorem {ends} (o : Oracle) (call : Call) :\n"
+        f"theorem {ends} (o : Oracle) (call : Call){hyps} :\n"
         f"    ({run_fn(first)} o {first['def']} call {first['fuel']}).isSome = true := by\n"
-        "  sym_exec\n\n" + ax(ends) + f"\nend {ns}\n",
+        + prune
+        + "  sym_exec\n\n"
+        + ax(ends)
+        + f"\nend {ns}\n",
     )
 
     # Each pair of consecutive stages ends in the same result.
@@ -195,15 +235,18 @@ def main():
                     f"{gm}.{b['module']}",
                     f"{gm}.{a['module']}",
                 ],
-                f"{what} end in the same result on every call.",
+                f"{what} end in the same result on {every}.",
                 ns,
                 opens,
             )
             + f"set_option maxHeartbeats {hb} in\n"
-            f"theorem {name} (o : Oracle) (call : Call) :\n"
+            f"theorem {name} (o : Oracle) (call : Call){hyps} :\n"
             f"    {run_fn(a)} o {a['def']} call {a['fuel']} = "
             f"{run_fn(b)} o {b['def']} call {b['fuel']} := by\n"
-            "  sym_exec\n\n" + ax(name) + f"\nend {ns}\n",
+            + prune
+            + "  sym_exec\n\n"
+            + ax(name)
+            + f"\nend {ns}\n",
         )
 
     # Stages and their composition.
@@ -212,23 +255,35 @@ def main():
     evms = [s for s in stages if s["kind"] == "evm"]
     last = stages[-1]
     body = []
-    prev_ends = f"(fun call _ => {ends} o call)"
+    prev_ends = f"({lam} => {ends} o call{given('h')})"
+    if excluded:
+        body.append(
+            "/-- The calls the stages are about: every call whose selector word is none of "
+            + ", ".join(f"`{sel:#010x}` (`{sig}`)" for sel, sig in excluded)
+            + ", whose functions are outside these proofs. -/\n"
+            "def scope : Call → Prop := fun call =>\n  "
+            + " ∧ ".join(
+                f"EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x}"
+                for sel, _ in excluded
+            )
+            + "\n"
+        )
     for a, b in pairs:
         stage = (
             f"theorem stage_{b['def']} (o : Oracle) : Stage ({sem(a)} o) ({sem(b)} o) "
-            f"{a['def']} {b['def']} anyCall :=\n"
+            f"{a['def']} {b['def']} {scope} :=\n"
             f"  stage_of_runs (A := {layer(a)}) (B := {layer(b)}) {a['fuel']} {b['fuel']} "
-            f"{prev_ends}\n    (fun call _ => {b['def']}_run o call)\n"
+            f"{prev_ends}\n    ({lam} => {b['def']}_run o call{given('h')})\n"
         )
         body.append(f"/-- `{b['pass']}`: {a['def']} to {b['def']}. -/\n" + stage)
         if b is not last:
             body.append(
-                f"theorem {b['def']}_ends (o : Oracle) : ∀ call, anyCall call →\n"
+                f"theorem {b['def']}_ends (o : Oracle) : ∀ call, {scope} call →\n"
                 f"    ({run_fn(b)} o {b['def']} call {b['fuel']}).isSome = true :=\n"
                 f"  ends_of_runs (A := {layer(a)}) (B := {layer(b)})\n"
                 f"    (o := o) (p := {a['def']}) (q := {b['def']}) (n := {a['fuel']}) "
                 f"(m := {b['fuel']}) {prev_ends}\n"
-                f"    (fun call _ => {b['def']}_run o call)\n"
+                f"    ({lam} => {b['def']}_run o call{given('h')})\n"
             )
             prev_ends = f"({b['def']}_ends o)"
 
@@ -248,10 +303,10 @@ def main():
     )
     body.append(
         f"/-- Every stage from the first lowered MIR to the final EVM IR, chained by the "
-        f"library's composition, on every call. -/\n"
+        f"library's composition, on {every}. -/\n"
         f"theorem {final} (o : Oracle) : Stage (mirSem o) (evmirSem o) {first['def']} "
-        f"{last['def']} anyCall :=\n"
-        f"  mir_to_evmir o anyCall compilation {steps(mirs[1:])} (stage_{sched['def']} o)\n"
+        f"{last['def']} {scope} :=\n"
+        f"  mir_to_evmir o {scope} compilation {steps(mirs[1:])} (stage_{sched['def']} o)\n"
         f"    {steps(evms)}\n"
     )
     checks = (
@@ -264,8 +319,13 @@ def main():
         "SolarTV.Composition",
     ]
     doc = (
-        f"The backend stages of `{contract}`, each proved on every call (`anyCall`: any "
-        "calldata, call value and storage) under every oracle, and chained from the first "
+        f"The backend stages of `{contract}`, each proved on "
+        + (
+            "every call (`anyCall`: any calldata, call value and storage)"
+            if not excluded
+            else f"{every} (`scope`: any other calldata, any call value and storage)"
+        )
+        + " under every oracle, and chained from the first "
         f"lowered MIR `{first['def']}` to the final EVM IR `{last['def']}`. Fuels are the "
         + (
             "programs' block counts."

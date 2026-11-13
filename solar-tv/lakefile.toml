@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# verify_counter: the stages of milestone/verify_counter/verify_counter.sol's Counter and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "verify_counter"
+srcDir = "milestone"
+roots = ["verify_counter.Proofs"]
+globs = ["verify_counter.+"]
+moreLeanArgs = ["-M", "3000"]
