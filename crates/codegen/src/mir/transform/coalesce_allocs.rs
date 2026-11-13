@@ -167,7 +167,8 @@ fn preserves_group(
         // Immutable access does not observe or move the allocation frontier.
         // Lowering places constructor homes outside the FMP word.
         | EffectKind::ImmutableRead
-        | EffectKind::ImmutableWrite => true,
+        | EffectKind::ImmutableWrite
+        | EffectKind::Coverage => true,
         // `Fmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
         // raw memory range and stay conservative barriers. The object and mapping forms are gone
         // by this point in the pipeline.

@@ -1629,6 +1629,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::log => EffectKind::Log,
             sym::immutable_read => EffectKind::ImmutableRead,
             sym::immutable_write => EffectKind::ImmutableWrite,
+            sym::coverage => EffectKind::Coverage,
             _ => return Err(self.parser.error(format!("unknown effect metadata value `{value}`"))),
         })
     }
@@ -1859,6 +1860,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let value = self.parser.parse_library_ref()?;
                 (InstKind::LibraryAddress(value), Some(MirType::I160))
             }
+            sym::coverage => (InstKind::Coverage(self.parser.parse_uint_as::<u32>()?), None),
             kw::Loadimmutable => {
                 let (id, ty) = self.parse_immutable_ref()?;
                 (InstKind::LoadImmutable(id), Some(ty))

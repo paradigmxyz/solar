@@ -391,10 +391,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<StorageAccess> {
         let condition = self.operand(condition)?.id();
+        let taken = self.coverage_decision(then_expr);
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
-            |this| this.storage_access(then_expr),
+            |this| {
+                this.coverage(taken);
+                this.storage_access(then_expr)
+            },
             |this| this.storage_access(else_expr),
         )?;
         let mut incoming = Vec::with_capacity(2);

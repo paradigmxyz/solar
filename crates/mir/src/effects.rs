@@ -224,7 +224,8 @@ impl InstKind {
             | Self::Log { .. }
             | Self::Phi(..)
             | Self::Select(..)
-            | Self::SignExtend(..) => ControlEffects::NONE,
+            | Self::SignExtend(..)
+            | Self::Coverage(..) => ControlEffects::NONE,
         };
         let kind = self.effect_kind();
         InstructionEffects {
@@ -239,6 +240,7 @@ impl InstKind {
                     | EffectKind::ICall
                     | EffectKind::Create
                     | EffectKind::Log
+                    | EffectKind::Coverage
             ),
             expands_memory: matches!(
                 kind,

@@ -908,6 +908,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let saved = self.snapshot_bindings(function.parameters);
         self.bind_inlined_parameters(function.parameters, values);
         self.inlined_struct_constructors.insert(function_id);
+        self.coverage(Site::Function(function_id));
+        self.coverage(Site::Stmt(Site::key(stmt)));
         // The callee body is always checked, whatever block the call sits in.
         let unchecked = std::mem::replace(&mut self.unchecked, false);
         let result = self.lower_struct_constructor(return_expr, struct_id, *args);

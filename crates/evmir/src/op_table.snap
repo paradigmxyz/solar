@@ -139,6 +139,7 @@
 0xa2 log2             io=4/0 since=homestead gas=1125 +8
 0xa3 log3             io=5/0 since=homestead gas=1500 +8
 0xa4 log4             io=6/0 since=homestead gas=1875 +8
+0xc2 coverage         io=1/0 since=homestead gas=0
 0xe6 dupn             io=? since=amsterdam gas=3
 0xe7 swapn            io=? since=amsterdam gas=3
 0xe8 exchange         io=? since=amsterdam gas=3

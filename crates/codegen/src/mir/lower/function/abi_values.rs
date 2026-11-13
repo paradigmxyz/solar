@@ -106,6 +106,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind
             && let Some(then_selector) = Self::literal_signature_selector(then_expr)
             && let Some(else_selector) = Self::literal_signature_selector(else_expr)
+            // A select has no path to count.
+            && coverage_map(self.cx.gcx).is_none()
         {
             // selector = select(condition, selector(then), selector(else))
             let condition = self.operand(condition)?.id();

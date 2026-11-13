@@ -326,3 +326,6 @@
 
 (decl signextend (Value Value) Value)
 (extractor (signextend byte value) (inst (Op.SignExtend byte value)))
+
+(decl coverage (u32) Value)
+(extractor (coverage id) (inst (Op.Coverage id)))

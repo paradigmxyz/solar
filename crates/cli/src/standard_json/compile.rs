@@ -2,10 +2,11 @@
 
 use super::{
     data::{
-        BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
-        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, MetadataHash,
-        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
-        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
+        BranchCoverageOutput, BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput,
+        ContractOutput, CoverageCountOutput, DebugInfoComponent, DebugSettings, EthdebugOutput,
+        EvmOutput, FunctionCoverageOutput, MetadataHash, MetadataSettings, OffsetLength,
+        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceCoverageOutput,
+        SourceOutput, StandardJsonReadCallback, StatementCoverageOutput, optimizer_settings,
         print_standard_json_stats, strip_json_comments,
     },
     metadata::{Metadata, source_name},
@@ -16,14 +17,17 @@ use crate::{
 };
 use rayon::prelude::*;
 use serde_json::json;
-use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
+use solar_codegen::{
+    ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
+    coverage::{CoverageCount, CoverageMap},
+};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode, RevertStrings, UnstableOpts,
 };
 use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
-    SourceMap,
+    SourceMap, Span,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::{FileLoader, RealFileLoader},
 };
@@ -447,6 +451,16 @@ fn compile(
 
                 gcx.dcx().has_errors()?;
 
+                if let Some(coverage) = solar_codegen::coverage::coverage_map(gcx)
+                    && let Some(sources) = &mut output.sources
+                {
+                    for id in gcx.hir.source_ids() {
+                        if let Some(source) = sources.get_mut(&source_name(gcx, id)) {
+                            source.coverage = Some(source_coverage_output(gcx, coverage, id));
+                        }
+                    }
+                }
+
                 let global_ethdebug = output_selection.global();
                 let ethdebug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
@@ -663,10 +677,59 @@ fn source_outputs_from_compiler<'a, 'gcx>(
         .map(|(id, source)| {
             (
                 source.file.name.display().to_string(),
-                SourceOutput { id: id.index() as u32, ast: None },
+                SourceOutput { id: id.index() as u32, ast: None, coverage: None },
             )
         })
         .collect()
+}
+
+/// Returns the coverage map of the source `id`.
+fn source_coverage_output(
+    gcx: Gcx<'_>,
+    coverage: &CoverageMap,
+    id: solar_sema::hir::SourceId,
+) -> SourceCoverageOutput {
+    let start_pos = gcx.hir.source(id).file.start_pos;
+    let src = |span: Span| {
+        let start = span.lo().0 - start_pos.0;
+        format!("{start}:{}:{}", span.hi().0 - span.lo().0, id.index())
+    };
+    let count = |count: &CoverageCount| match count {
+        CoverageCount::Counter(counter) => CoverageCountOutput::Counter(*counter),
+        CoverageCount::Difference(sub) => CoverageCountOutput::Difference { sub: sub.clone() },
+    };
+    let functions = coverage
+        .source(id)
+        .iter()
+        .map(|function| {
+            let hir_function = gcx.hir.function(function.id);
+            FunctionCoverageOutput {
+                name: hir_function.name_or_kind().to_string(),
+                contract: hir_function
+                    .contract
+                    .map(|contract| gcx.hir.contract(contract).name.to_string()),
+                src: src(hir_function.span),
+                count: count(&function.count),
+                statements: function
+                    .statements
+                    .iter()
+                    .map(|statement| StatementCoverageOutput {
+                        src: src(statement.span),
+                        count: count(&statement.count),
+                    })
+                    .collect(),
+                branches: function
+                    .branches
+                    .iter()
+                    .map(|branch| BranchCoverageOutput {
+                        src: src(branch.span),
+                        paths: branch.paths.iter().map(count).collect(),
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
+    SourceCoverageOutput { functions }
 }
 
 fn make_contract_output<'gcx>(

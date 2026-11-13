@@ -200,7 +200,9 @@ impl Cse {
         {
             self.const_exprs.insert(expr, address);
         }
-        if inst.is_duplicable_push(self.evm_version)
+        // A glued push, such as a coverage counter, must stay a push.
+        if !inst.keeps_with_next()
+            && inst.is_duplicable_push(self.evm_version)
             && let Some(depth) = self.reachable_depth(expr)
         {
             self.emit_dup(depth, expr, inst.metadata);

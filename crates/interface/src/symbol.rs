@@ -1054,6 +1054,7 @@ symbols! {
         constructor_args_base,
         constructor_args_end,
         continuation,
+        coverage,
         creationCode,
         creation_code,
         creation_only,

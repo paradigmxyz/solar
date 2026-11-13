@@ -87,6 +87,9 @@ Options:
       -Zkeep-asts
           Keeps the ASTs after lowering, which the `ast` outputs need and which are dropped otherwise to free memory
 
+      -Zinstrument-coverage
+          Instrument generated code with coverage counters. Each counter is a `PUSHn <id>; 0xC2` probe, which only coverage tools such as Foundry execute; the Standard JSON output maps counters to functions, statements, and branches in each source's `coverage`
+
       -Zhelp
           Print help
 

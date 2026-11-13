@@ -1,0 +1,121 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0,
+      "coverage": {
+        "functions": [
+          {
+            "name": "f",
+            "contract": "A",
+            "src": "17:121:0",
+            "count": 1,
+            "statements": [
+              {
+                "src": "81:20:0",
+                "count": 2
+              },
+              {
+                "src": "92:9:0",
+                "count": 5
+              },
+              {
+                "src": "110:22:0",
+                "count": 6
+              }
+            ],
+            "branches": [
+              {
+                "src": "81:20:0",
+                "paths": [
+                  4,
+                  {
+                    "sub": [
+                      3,
+                      4
+                    ]
+                  }
+                ]
+              },
+              {
+                "src": "117:14:0",
+                "paths": [
+                  8,
+                  {
+                    "sub": [
+                      7,
+                      8
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "free",
+            "src": "142:88:0",
+            "count": 9,
+            "statements": [
+              {
+                "src": "198:16:0",
+                "count": 10
+              },
+              {
+                "src": "219:9:0",
+                "count": 15
+              }
+            ],
+            "branches": [
+              {
+                "src": "198:15:0",
+                "paths": [
+                  14,
+                  {
+                    "sub": [
+                      13,
+                      14
+                    ]
+                  }
+                ]
+              },
+              {
+                "src": "206:6:0",
+                "paths": [
+                  {
+                    "sub": [
+                      11,
+                      12
+                    ]
+                  },
+                  12
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "deployedBytecode": {
+            "opcodes": "CALLVALUE PUSH1 0x13 JUMPI PUSH0 CALLDATALOAD PUSH1 0xE0 SHR DUP1 PUSH4 0xB3DE648B EQ PUSH1 0x17 JUMPI JUMPDEST PUSH0 PUSH0 REVERT JUMPDEST PUSH1 0x24 CALLDATASIZE LT PUSH1 0x57 JUMPI PUSH1 0x4 CALLDATALOAD PUSH1 0x1 COVERAGE PUSH1 0x2 COVERAGE PUSH1 0x1 DUP2 GT PUSH1 0x3 COVERAGE PUSH1 0x4A JUMPI PUSH1 0x6 COVERAGE PUSH1 0x7 COVERAGE PUSH1 0x2 SWAP1 PUSH1 0x43 JUMPI PUSH1 0x8 COVERAGE PUSH1 0x1 JUMPDEST PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN JUMPDEST PUSH1 0x4 COVERAGE PUSH1 0x5 COVERAGE PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN JUMPDEST PUSH0 PUSH0 REVERT "
+          }
+        }
+      }
+    }
+  }
+}

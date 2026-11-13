@@ -1,0 +1,21 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {\n    function f(uint256 x) external pure returns (uint256) {\n        if (x > 1) return x;\n        return x == 0 ? 1 : 2;\n    }\n}\n\nfunction free(bool a, bool b) pure returns (bool) {\n    require(a || b);\n    return a;\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": ["instrument-coverage"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": ["evm.deployedBytecode.opcodes"]
+      }
+    }
+  }
+}

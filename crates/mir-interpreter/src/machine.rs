@@ -612,6 +612,7 @@ impl<'a> Run<'_, 'a, '_> {
                             .free_memory_start()
                     })
             }
+            Semantics::Coverage(_) => return ControlFlow::Continue(()),
             Semantics::Phi(_) => {
                 return ControlFlow::Break(Outcome::Unsupported("phi after other instructions"));
             }

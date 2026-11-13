@@ -247,9 +247,24 @@ impl<'a> Verifier<'a> {
     /// `sub`, and a glued `sub` by the call opcode itself. Anything else carrying the flag has no
     /// rule to check it and is rejected, which keeps a new use of the flag from passing
     /// verification unverified.
+    ///
+    /// Coverage instrumentation glues the counter push to its probe, `push <id>; coverage`, so
+    /// that the instrumenting EVM reads the id from the stack top. Every `coverage` must follow
+    /// such a push.
     fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
         const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
         for (index, inst) in block.instructions.iter().enumerate() {
+            if inst.opcode == op::COVERAGE
+                && !index.checked_sub(1).is_some_and(|prev| {
+                    let prev = &block.instructions[prev];
+                    prev.keeps_with_next() && prev.concrete_immediate().is_some()
+                })
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!("`coverage` must follow a kept immediate push of its counter"),
+                );
+            }
             if !inst.keeps_with_next() {
                 continue;
             }
@@ -268,6 +283,8 @@ impl<'a> Verifier<'a> {
                 op::GAS => "a `sub` kept with the call",
                 op::SUB if CALLS.contains(&next.opcode) => continue,
                 op::SUB => "a call",
+                _ if inst.concrete_immediate().is_some() && next.opcode == op::COVERAGE => continue,
+                _ if inst.concrete_immediate().is_some() => "`coverage`",
                 _ => {
                     self.error_in_block(
                         block_id,

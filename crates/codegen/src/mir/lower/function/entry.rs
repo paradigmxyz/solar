@@ -306,6 +306,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.func().block(self.builder.current_block()).terminator.is_some()
     }
 
+    /// Emits the counter of `site` when coverage instrumentation gave it one and the current block
+    /// is reachable.
+    pub(super) fn coverage(&mut self, site: Site) {
+        if let Some(counter) = coverage_map(self.cx.gcx).and_then(|map| map.counter(site))
+            && !self.is_terminated()
+        {
+            // coverage counter
+            self.builder.coverage(counter);
+        }
+    }
+
+    /// Emits the counters of a two-way decision keyed by `node` once its condition is evaluated,
+    /// and returns the key of the counter that the path taken when the condition holds starts
+    /// with.
+    pub(super) fn coverage_decision<T>(&mut self, node: &T) -> Site {
+        let key = Site::key(node);
+        self.coverage(Site::Decision(key));
+        Site::Taken(key)
+    }
+
     pub(super) fn materialize_default_bindings(&mut self) {
         let mut ids = self
             .default_bindings

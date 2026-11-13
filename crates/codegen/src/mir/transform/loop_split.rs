@@ -28,6 +28,10 @@
 //! those direct exit edges; downstream uses would lose their dominating
 //! definition when the cloned loop bypasses the original loop.
 //!
+//! The main header's exit edge enters the original header, which runs the
+//! header's instructions once more, so a header with a coverage counter is
+//! left alone.
+//!
 //! Profitability: gas mode only, since the loop's code is duplicated; the
 //! loop is bounded in instructions and must hold a guard to fold. Runs in
 //! the lowering pipeline once checked arithmetic has expanded, before the
@@ -125,6 +129,15 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     }
     let loop_insts = l.instructions(func);
     if loop_insts.count() > MAX_LOOP_INSTRUCTIONS {
+        return None;
+    }
+    // The main header's exit runs the original header again, which would count a coverage
+    // counter twice.
+    if func.blocks[l.header]
+        .instructions
+        .iter()
+        .any(|&inst| matches!(func.inst(inst).kind, InstKind::Coverage(_)))
+    {
         return None;
     }
     let defined_in_loop = |value| match func.value(value) {

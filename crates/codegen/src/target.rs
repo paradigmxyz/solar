@@ -627,7 +627,9 @@ impl Target {
                     Cost::ZERO
                 };
         }
-        if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. }) {
+        // A coverage probe's push is refunded by the instrumenting EVM, and its bytes exist only in
+        // coverage builds, so it must not sway optimization decisions.
+        if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. } | Op::Coverage { .. }) {
             return Cost::ZERO;
         }
         if matches!(op, Op::Select { .. }) {
@@ -1541,6 +1543,7 @@ impl Target {
             InstKind::Phi(_) => self.dup(),
             // A select runs the generic emitter.
             InstKind::Select(..) => self.select(),
+            InstKind::Coverage(_) => Cost::ZERO,
             // Every other operation lowers to one opcode and was priced above.
             _ => {
                 debug_assert!(false, "operation without a single opcode is not priced: {kind}");
@@ -1555,7 +1558,8 @@ impl Target {
             | InstKind::PtrToInt(_, 256)
             | InstKind::MakeSlice { .. }
             | InstKind::InsertValue { .. }
-            | InstKind::ExtractValue { .. } => 0,
+            | InstKind::ExtractValue { .. }
+            | InstKind::Coverage(_) => 0,
             InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
             InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
             InstKind::MappingSlotBytes(..) => 9,
@@ -2665,6 +2669,9 @@ mod tests {
         assert_eq!(estimate(InstKind::StorageBytesLoad(value)), (Cost::new(400, 150), 1));
         assert_eq!(estimate(InstKind::StorageBytesStore(value, value)), (Cost::new(500, 180), 1));
         assert_eq!(estimate(InstKind::Zext(value)), (Cost::ZERO, 0));
+        // Coverage probes must not sway optimization decisions.
+        assert_eq!(estimate(InstKind::Coverage(1)), (Cost::ZERO, 0));
+        assert_eq!(target.op(&InstKind::Coverage(1).op(), |_| None), Cost::ZERO);
         assert_eq!(estimate(InstKind::Phi(vec![])), (target.opcode(op::DUP1), 1));
         assert_eq!(estimate(InstKind::Select(value, value, value)), (target.select(), 1));
         let jump = target.label_push() + target.opcode(op::JUMP);

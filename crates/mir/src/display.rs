@@ -524,6 +524,7 @@ fn display_inst_kind<'a>(
                 write!(f, "library_address {id:?}")
             }
         }
+        InstKind::Coverage(id) => write!(f, "coverage {id}"),
         InstKind::LoadImmutable(id) => {
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }

@@ -7,6 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        self.coverage(Site::Stmt(Site::key(stmt)));
         let result = self.lower_stmt_inner(stmt);
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
@@ -200,7 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 result?;
             }
             StmtKind::If(cond, then_stmt, else_stmt) => {
-                self.lower_if(cond, then_stmt, *else_stmt)?;
+                self.lower_if(stmt, cond, then_stmt, *else_stmt)?;
             }
             StmtKind::Switch(switch) => self.lower_switch(switch)?,
             StmtKind::Loop(block, source) => self.lower_loop(*block, *source)?,
@@ -381,6 +382,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
                 let condition = self.operand(condition)?.id();
+                let taken = self.coverage_decision(*then_expr);
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {
@@ -392,7 +394,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_branches(
                     condition,
                     true,
-                    |this| lower_branch(this, then_expr),
+                    |this| {
+                        this.coverage(taken);
+                        lower_branch(this, then_expr)
+                    },
                     |this| lower_branch(this, else_expr),
                 )?;
                 Some(())

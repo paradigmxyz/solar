@@ -66,6 +66,10 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let repeated = optimization.is_size() || block.metadata.hotness.is_cold();
         candidates.clear();
         candidates.extend(block.instructions.iter().enumerate().filter_map(|(at, inst)| {
+            // A glued push, such as a coverage counter, must stay a push.
+            if inst.keeps_with_next() {
+                return None;
+            }
             let materialization = ImmediateMaterialization::with_repeated(
                 evm_version,
                 inst.concrete_immediate()?,

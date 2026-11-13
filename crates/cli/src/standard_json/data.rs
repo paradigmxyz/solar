@@ -312,6 +312,47 @@ pub(super) struct SourceOutput<'a, 'gcx> {
     pub(super) id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) ast: Option<SourceAstJson<'a, 'gcx>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) coverage: Option<SourceCoverageOutput>,
+}
+
+/// The coverage map of a source, with `-Zinstrument-coverage`.
+#[derive(Debug, Serialize)]
+pub(super) struct SourceCoverageOutput {
+    pub(super) functions: Vec<FunctionCoverageOutput>,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct FunctionCoverageOutput {
+    pub(super) name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) contract: Option<String>,
+    pub(super) src: String,
+    pub(super) count: CoverageCountOutput,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(super) statements: Vec<StatementCoverageOutput>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(super) branches: Vec<BranchCoverageOutput>,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct StatementCoverageOutput {
+    pub(super) src: String,
+    pub(super) count: CoverageCountOutput,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct BranchCoverageOutput {
+    pub(super) src: String,
+    pub(super) paths: Vec<CoverageCountOutput>,
+}
+
+/// A counter, or the first counter minus the others.
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub(super) enum CoverageCountOutput {
+    Counter(u32),
+    Difference { sub: Box<[u32]> },
 }
 
 #[derive(Debug, Default, Serialize)]

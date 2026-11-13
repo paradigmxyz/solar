@@ -766,6 +766,7 @@ impl<'m> Run<'_, 'm> {
                 return Err(Outcome::Revert(self.memory.0[range].to_vec()));
             }
             (op::STOP, &[]) => return Err(Outcome::Stop),
+            (op::COVERAGE, &[_]) => Effect::Next,
             (op::INVALID, &[]) => return Err(Outcome::Halt(Halt::Invalid)),
             _ if HOST_OPCODES.contains(&opcode) => match self.host.read(opcode, operands) {
                 Some(value) => Effect::Push(value),

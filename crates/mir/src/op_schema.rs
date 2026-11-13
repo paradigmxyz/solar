@@ -2766,5 +2766,21 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     #[semantics(opcode(signextend))]
     SignExtend(byte: ValueId, value: ValueId),
+
+    // Instrumentation
+    /// Coverage counter probe: `coverage id`, which counts each time control reaches it. The
+    /// backend emits it as `PUSHn id; COVERAGE`. See `solar_codegen::coverage`.
+    #[mir_op(
+        mnemonic = "coverage",
+        result = None,
+        phases = PhaseSet::ALL,
+        effect = Coverage,
+        traits = OpTraits::NONE,
+        side_effects = true,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    #[semantics(coverage(id))]
+    Coverage(id: u32),
 }
 }

@@ -5,13 +5,16 @@ use super::{
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
-use crate::mir::{
-    AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail, CheckedOp,
-    DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
-    LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module,
-    PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value,
-    ValueId, memory::EvmMemoryLayout,
+use crate::{
+    coverage::{Site, coverage_map},
+    mir::{
+        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
+        AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail,
+        CheckedOp, DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId,
+        ImmutableId, InstKind, LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget,
+        MirType, Module, PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload,
+        RevertReason, Value, ValueId, memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
@@ -170,6 +173,7 @@ pub(super) fn lower(
     lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
+    lowerer.coverage(Site::Function(id));
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");

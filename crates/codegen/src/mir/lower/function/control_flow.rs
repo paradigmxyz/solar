@@ -135,12 +135,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_if(
         &mut self,
+        stmt: &'gcx hir::Stmt<'gcx>,
         condition: &'gcx hir::Expr<'gcx>,
         then_stmt: &'gcx hir::Stmt<'gcx>,
         else_stmt: Option<&'gcx hir::Stmt<'gcx>>,
     ) -> Option<()> {
         let condition_span = condition.span;
         let condition = self.operand(condition)?.id();
+        let taken = self.coverage_decision(stmt);
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
@@ -159,6 +161,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(label_span),
             |this| {
                 this.builder.replace_source_span(previous);
+                this.coverage(taken);
                 this.lower_stmt(then_stmt)
             },
             |this| {
@@ -204,6 +207,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             body_blocks.push((case, block));
         }
+        self.coverage(Site::Decision(Site::key(switch)));
         // switch(selector, default_or_merge, cases)
         self.builder.switch(selector, default_block.unwrap_or(merge_block), case_blocks);
 
@@ -220,6 +224,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values = before_values.clone();
             self.storage_refs = before_storage_refs.clone();
             self.builder.switch_to_block(block);
+            self.coverage(Site::Taken(Site::key(case)));
             self.lower_block(case.body)?;
             let terminated = self.is_terminated();
             let exit = self.builder.current_block();
@@ -500,6 +505,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.values.insert(binding, value);
             }
         }
+        self.coverage(Site::Taken(Site::key(returns_clause)));
         self.lower_block(returns_clause.block)?;
         let success_terminated = self.is_terminated();
         let success_exit = self.builder.current_block();
@@ -642,6 +648,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 self.values.insert(binding, value);
             }
+            self.coverage(Site::Taken(Site::key(catch_clause)));
             self.lower_block(catch_clause.block)?;
             let catch_terminated = self.is_terminated();
             let catch_exit = self.builder.current_block();
@@ -744,10 +751,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
         let condition = self.operand(condition)?.id();
+        let taken = self.coverage_decision(then_expr);
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
-            |this| this.lower_ternary_value(then_expr, ty),
+            |this| {
+                this.coverage(taken);
+                this.lower_ternary_value(then_expr, ty)
+            },
             |this| this.lower_ternary_value(else_expr, ty),
         )?;
         match (then_branch.terminated, else_branch.terminated) {
@@ -790,11 +801,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(Word::from_clean(this.builder.imm_bool(!is_and)))
             }
         };
+        let taken = self.coverage_decision(rhs_expr);
+        let rhs = |this: &mut Self| {
+            this.coverage(taken);
+            this.lower_expr(rhs_expr)
+        };
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             is_and,
-            |this| if is_and { this.lower_expr(rhs_expr) } else { short(this) },
-            |this| if is_and { short(this) } else { this.lower_expr(rhs_expr) },
+            |this| if is_and { rhs(this) } else { short(this) },
+            |this| if is_and { short(this) } else { rhs(this) },
         )?;
         let (rhs, short) =
             if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
@@ -816,11 +832,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_ternary(condition, then_expr, else_expr, ty).map(|word| vec![word]);
         };
         let condition = self.operand(condition)?.id();
+        let taken = self.coverage_decision(then_expr);
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
-            |this| this.lower_ternary_components(then_expr, types),
+            |this| {
+                this.coverage(taken);
+                this.lower_ternary_components(then_expr, types)
+            },
             |this| this.lower_ternary_components(else_expr, types),
         )?;
         if !then_branch.terminated

@@ -500,11 +500,13 @@ fn outline_parametric_machine_runs(
     const MAX_PARAMETERS: usize = 8;
 
     let target = module.runtime_target(gcx);
-    let hashes = RunHashes::new(module, |inst| {
-        inst.concrete_immediate().is_none().then(|| MachineInstKey::new(inst))
-    });
+    // A glued push, such as a coverage counter, cannot become a stack argument.
+    let is_parameter =
+        |inst: &Instruction| inst.concrete_immediate().is_some() && !inst.keeps_with_next();
+    let hashes =
+        RunHashes::new(module, |inst| (!is_parameter(inst)).then(|| MachineInstKey::new(inst)));
     let metrics = hashes.metrics(module, |_, inst| {
-        shared_body_effect(inst).map(|effect| (effect, inst.concrete_immediate().is_some()))
+        shared_body_effect(inst).map(|effect| (effect, is_parameter(inst)))
     });
     let groups = repeated_runs(
         module,

@@ -1692,6 +1692,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::StoreImmutable(id, value))
     }
 
+    /// Emits a hit of coverage counter `id`.
+    pub fn coverage(&mut self, id: u32) {
+        self.emit_void_inst(InstKind::Coverage(id))
+    }
+
     /// Emits an extcodecopy instruction.
     pub fn extcodecopy(&mut self, addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst(InstKind::ExtCodeCopy(addr, dest, offset, size))

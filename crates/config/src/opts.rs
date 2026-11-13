@@ -482,6 +482,12 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub keep_asts: bool,
 
+    /// Instrument generated code with coverage counters. Each counter is a `PUSHn <id>; 0xC2`
+    /// probe, which only coverage tools such as Foundry execute; the Standard JSON output maps
+    /// counters to functions, statements, and branches in each source's `coverage`.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub instrument_coverage: bool,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -537,6 +543,7 @@ impl UnstableOpts {
             switch_max_bit_slice_gas_code_growth,
             tune,
             pack_wide_jump_tables,
+            instrument_coverage,
             keep_asts: _,
             ui_testing: _,
             track_diagnostics: _,
@@ -572,6 +579,7 @@ impl UnstableOpts {
         self.switch_max_bit_slice_gas_code_growth = switch_max_bit_slice_gas_code_growth;
         self.tune = tune;
         self.pack_wide_jump_tables = pack_wide_jump_tables;
+        self.instrument_coverage = instrument_coverage;
     }
 }
 

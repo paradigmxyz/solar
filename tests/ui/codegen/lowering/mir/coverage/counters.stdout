@@ -1,0 +1,164 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/counters.sol:Counters ===
+@module Counters
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function branches(uint256 a, bool b) external pure nonZero(a) returns (uint256 r) [selector 0x9b9fe2dd]
+fn @branches(arg0: i256, arg1: i1) -> i256 [selector=0x9b9fe2dd, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    coverage 5
+    coverage 1
+    coverage 2
+    v0 = ne arg0, 0
+    coverage 3
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    coverage 4
+    coverage 6
+    v2 = gt arg0, 10
+    coverage 7
+    jumpi v2, bb3, bb4
+  bb4:                                            ; preds = bb0
+    jump bb5
+  bb3:                                            ; preds = bb0
+    coverage 8
+    jump bb5
+  bb5:                                            ; preds = bb3, bb4
+    v3 = phi [bb3: arg1], [bb4: false]
+    coverage 9
+    jumpi v3, bb6, bb7
+  bb7:                                            ; preds = bb5
+    coverage 12
+    coverage 13
+    jumpi arg1, bb9, bb10
+  bb10:                                           ; preds = bb7
+    jump bb11
+  bb9:                                            ; preds = bb7
+    coverage 14
+    jump bb11
+  bb11:                                           ; preds = bb9, bb10
+    v4 = phi [bb9: i8 2], [bb10: i8 3]
+    v5 = zext i8 v4 to i256
+    jump bb8
+  bb6:                                            ; preds = bb5
+    coverage 10
+    coverage 11
+    jump bb8
+  bb8:                                            ; preds = bb6, bb11
+    v6 = phi [bb6: 1], [bb11: v5]
+    jump bb2
+  bb2:                                            ; preds = bb8
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret v6
+}
+
+; function loops(uint256 n) external [selector 0x3c26d4dc]
+fn @loops(arg0: i256) [selector=0x3c26d4dc, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 15
+    coverage 16
+    coverage 17
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v5]
+    v2 = lt v1, v0
+    coverage 18
+    jumpi v2, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    coverage 22
+    jump bb7
+  bb7:                                            ; preds = bb2, bb10
+    v6 = phi [bb2: v0], [bb10: v8]
+    v7 = phi [bb2: v1], [bb10: v7]
+    coverage 23
+    v8 = checked_sub uint256, v6, 1
+    jump bb9
+  bb9:                                            ; preds = bb7
+    v9 = gt v8, 0
+    coverage 24
+    jumpi v9, bb10, bb11
+  bb11:                                           ; preds = bb9
+    jump bb8
+  bb8:                                            ; preds = bb11
+    ret
+  bb10:                                           ; preds = bb9
+    coverage 25
+    jump bb7
+  bb4:                                            ; preds = bb1
+    coverage 19
+    coverage 20
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = checked_add uint256, v3, v1
+    sstore 0, v4 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    coverage 21
+    v5 = checked_add uint256, v1, 1
+    jump bb1
+  bb12:
+    invalid
+}
+
+; function cases(uint256 a) external pure returns (uint256 r) [selector 0xf09790dd]
+fn @cases(arg0: i256) -> i256 [selector=0xf09790dd, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    coverage 26
+    coverage 27
+    coverage 28
+    coverage 29
+    switch arg0, default bb1, [1 => bb2, 2 => bb3]
+  bb3:                                            ; preds = bb0
+    coverage 31
+    coverage 33
+    jump bb1
+  bb2:                                            ; preds = bb0
+    coverage 30
+    coverage 32
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2, bb3
+    v0 = phi [bb0: 0], [bb2: 7], [bb3: 8]
+    ret v0
+}
+
+; function clauses(Counters c) external pure returns (bool ok) [selector 0xc6e9de8c]
+fn @clauses(arg0: i160) -> i1 [selector=0xc6e9de8c, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    coverage 34
+    coverage 35
+    v0 = gas
+    mstore 0, 0xf09790dd !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v1 = zext i160 arg0 to i256
+    v2 = staticcall v0, v1, 28, 36, 0, 32
+    jumpi v2, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    coverage 37
+    coverage 39
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v3 = returndatasize
+    v4 = lt v3, 32
+    icall revert_if<tuple_data_too_short>, v4
+    v5 = mload 0 !metadata(memory=scratch)
+    coverage 36
+    coverage 38
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v6 = phi [bb1: true], [bb4: false]
+    ret v6
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}

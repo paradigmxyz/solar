@@ -2266,6 +2266,8 @@ impl<'a> Planner<'a> {
                 }
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
             }
+            // `emit` writes the glued `PUSH id; COVERAGE` pair; the stack is unchanged.
+            InstKind::Coverage(_) => sim.steps.push(Step::Inst(inst)),
             InstKind::LoadImmutable(_) | InstKind::HeapFloor => {
                 // A heap floor in a constructor is recomputed from the argument blob.
                 let push = if matches!(kind, InstKind::HeapFloor) { op::PUSH2 } else { op::PUSH32 };

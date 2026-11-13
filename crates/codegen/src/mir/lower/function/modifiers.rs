@@ -114,6 +114,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // argument expressions still form the input frame used by each `_`.
         self.restore_bindings(&context.incoming_returns);
         self.modifiers.push(context);
+        self.coverage(Site::Function(modifier_id));
         let result = self.lower_block(modifier_body);
         self.modifiers.pop();
         result
@@ -159,6 +160,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(modifier.span, "base constructor argument list");
         }
 
+        self.coverage(Site::Function(constructor_id));
         // A base constructor has no returns, so nothing flows out of its frame.
         self.lower_return_frame(constructor.span, |this| {
             if let Some(contract_id) = contract_id {
