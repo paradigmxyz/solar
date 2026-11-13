@@ -232,7 +232,10 @@ fn export_function(module: &Module, id: usize, function: &Function) -> Result<Js
         .iter()
         .map(|block| export_block(module, function, block))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(json!({"id": id, "params": params, "returns": returns, "blocks": blocks}))
+    let return_buffer = (function.return_components().len() > 1).then(|| function.name.to_string());
+    Ok(
+        json!({"id": id, "params": params, "returns": returns, "blocks": blocks,"return_buffer":return_buffer}),
+    )
 }
 
 fn value_type(module: &Module, ty: MirType) -> Result<Json, String> {

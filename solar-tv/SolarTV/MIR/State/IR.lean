@@ -100,6 +100,7 @@ inductive AbiOp where
 structure FunctionPlacement where
   heapFloor : Option EvmRules.Word := none
   frameBase : Option EvmRules.Word := none
+  returnBuffer : Option EvmRules.Word := none
 
 structure Layout where
   code : Option (List SolarTV.Execution.Byte) := none
@@ -173,6 +174,7 @@ structure Function where
   params : List ValueType
   returns : List ValueType
   blocks : List Block
+  returnBuffer : Option String := none
 
 abbrev Functions := List (Nat × Function)
 
@@ -183,6 +185,7 @@ structure Cursor where
   next : Nat := 0
   entered : Bool := false
   predecessor : Option Nat := none
+  returnOwner : Option Nat := none
 
 structure Config where
   fork : Fork

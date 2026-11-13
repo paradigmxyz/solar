@@ -118,7 +118,8 @@ def record(
                     "compiler-generated check messages follow the fixture's debug_reverts setting; user require payloads are already explicit in MIR",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
-                    "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded packed encoding layouts; physical multi-return buffers unsupported",
+                    "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded packed encoding layouts",
+                    "outer returns expose logical components; nested scalar memory-return calls require explicit per-function return-buffer placements; tail calls retain the original return owner; no backend stack-return or placement claim",
                     "packed literals, scalars, byte references and arrays preserve ordered memory effects; limit 2048 parts, array work 2048 and 64 KiB",
                 ]
             )
