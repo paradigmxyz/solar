@@ -991,7 +991,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             let t = pick(&|v| Some(v.t.clone())).unwrap();
             let len = pick(&|v| v.len.clone());
             let sort = first.ty.sort();
-            let t = self.def(&k, &sort, &t);
+            // a binding every state agrees on keeps its term (memory bytes in assembly are
+            // recognised by their canonical terms)
+            let t = if t == first.t { t } else { self.def(&k, &sort, &t) };
             let len = len.map(|l| self.def(&format!("{k}.length"), "Int", &l));
             env.insert(k, Var { ty: first.ty, t, len });
         }
@@ -1389,6 +1391,9 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn exec_fn_body(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
+        if mi == 0 {
+            self.mem_alias_check(f)?;
+        }
         let mods: Vec<&'a ast::Modifier<'a>> = f
             .item
             .header
@@ -3730,16 +3735,237 @@ impl<'p, 'a> Vc<'p, 'a> {
         let outs = std::mem::take(&mut self.storage_param_out);
         let mut k = 0;
         for (i, p) in f.item.header.parameters.iter().enumerate() {
+            if !Self::writes_back(p, &f.params[i].1) {
+                continue;
+            }
+            let v =
+                outs.get(k).cloned().ok_or((span, "internal: storage parameter".to_string()))?;
+            k += 1;
             if p.data_location == Some(ast::DataLocation::Storage) {
-                let v = outs
-                    .get(k)
-                    .cloned()
-                    .ok_or((span, "internal: storage parameter".to_string()))?;
-                k += 1;
                 self.assign(args[i], v)?;
+                continue;
+            }
+            // a memory object passed by reference: the caller's name for it sees the writes
+            match &args[i].peel_parens().kind {
+                ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..) => {
+                    self.assign(args[i], v)?
+                }
+                // a fresh object: nothing of the caller names it
+                ExprKind::New(_) | ExprKind::Array(_) => {}
+                _ if !self.mem_param_written(f, &f.params[i].0) => {}
+                _ => {
+                    return Err((
+                        args[i].span,
+                        format!(
+                            "memory argument `{}` of `{}` may alias a caller object the callee writes",
+                            f.params[i].0, f.name
+                        ),
+                    ));
+                }
             }
         }
         Ok(())
+    }
+
+    /// Memory references are values in this encoding, so two names for one memory object would
+    /// drift apart once either is written. Refuse a function that copies a memory reference into
+    /// another name (`b = a`, `S memory s = xs[i]`, a call passing it that may return it) and
+    /// then writes through either name.
+    fn mem_alias_check(&self, f: &'p Func<'a>) -> R<()> {
+        let Some(body) = &f.item.body else {
+            return Ok(());
+        };
+        let mut mem: FxHashSet<String> = FxHashSet::default();
+        for (p, (n, ty)) in f.item.header.parameters.iter().zip(&f.params) {
+            if Self::mem_ref_param(p, ty) {
+                mem.insert(n.clone());
+            }
+        }
+        for (p, (n, ty)) in f.item.header.returns().iter().zip(&f.rets) {
+            if Self::mem_ref_param(p, ty) {
+                mem.insert(n.clone());
+            }
+        }
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| {
+                if let StmtKind::DeclSingle(v) = &s.kind
+                    && v.data_location == Some(ast::DataLocation::Memory)
+                    && let Some(n) = v.name
+                {
+                    mem.insert(n.as_str().to_string());
+                }
+            });
+        }
+        // the memory names an expression's value may share an object with
+        let sources = |e: &'a Expr<'a>| -> Vec<String> {
+            match &e.peel_parens().kind {
+                ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..) => {
+                    walk::root(e).into_iter().filter(|r| mem.contains(r)).collect()
+                }
+                ExprKind::Call(callee, args) if self.user_call(callee) => {
+                    args.exprs().flat_map(walk::root).filter(|r| mem.contains(r)).collect()
+                }
+                ExprKind::Ternary(_, a, b) => walk::root(a)
+                    .into_iter()
+                    .chain(walk::root(b))
+                    .filter(|r| mem.contains(r))
+                    .collect(),
+                _ => vec![],
+            }
+        };
+        let mut pairs: Vec<(String, String, Span)> = vec![];
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| {
+                if let StmtKind::DeclSingle(v) = &s.kind
+                    && let Some(n) = v.name
+                    && mem.contains(n.as_str())
+                    && let Some(i) = v.initializer.as_deref()
+                {
+                    for r in sources(i) {
+                        pairs.push((n.as_str().to_string(), r, s.span));
+                    }
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| {
+                        if let ExprKind::Assign(l, None, r) = &x.kind
+                            && let ExprKind::Ident(n) = &l.peel_parens().kind
+                            && mem.contains(n.as_str())
+                        {
+                            for src in sources(r) {
+                                pairs.push((n.as_str().to_string(), src, x.span));
+                            }
+                        }
+                    })
+                });
+            });
+        }
+        for (a, b, span) in pairs {
+            if a == b {
+                continue;
+            }
+            for n in [&a, &b] {
+                if self.name_written(body, n) {
+                    return Err((
+                        span,
+                        format!(
+                            "memory reference `{a}` aliases `{b}` and `{n}` is written; aliased memory is not modelled"
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Is the object `n` names written in `body`: a write rooted at it, or any assembly?
+    /// Passing it to a call counts too (the callee may write it), unless the call is
+    /// the alias-creating one itself, which `mem_alias_check` already records.
+    fn name_written(&self, body: &'a ast::Block<'a>, n: &str) -> bool {
+        let mut out = BTreeSet::new();
+        let mut hit = false;
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| {
+                if matches!(s.kind, StmtKind::Assembly(_)) {
+                    hit = true;
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| match &x.kind {
+                        ExprKind::Assign(l, _, _) => out.extend(walk::root(l)),
+                        ExprKind::Unary(op, y) if op.kind.has_side_effects() => {
+                            out.extend(walk::root(y))
+                        }
+                        ExprKind::Delete(y) => out.extend(walk::root(y)),
+                        ExprKind::Call(callee, args) if self.user_call(callee) => {
+                            for a in args.exprs() {
+                                if walk::root(a).iter().any(|r| r == n) {
+                                    hit = true;
+                                }
+                            }
+                            if let ExprKind::Member(b, _) = &callee.peel_parens().kind
+                                && walk::root(b).iter().any(|r| r == n)
+                            {
+                                hit = true;
+                            }
+                        }
+                        _ => {}
+                    })
+                });
+            });
+        }
+        hit || out.contains(n)
+    }
+
+    /// A call that may run user code with a memory argument (not a builtin such as
+    /// abi.encode, keccak256 or require).
+    fn user_call(&self, callee: &'a Expr<'a>) -> bool {
+        match &callee.peel_parens().kind {
+            ExprKind::Ident(i) => self.c.funcs.iter().any(|f| f.name == i.as_str()),
+            ExprKind::Member(b, m) => {
+                let builtin = matches!(&b.peel_parens().kind, ExprKind::Ident(i)
+                    if matches!(i.as_str(), "abi" | "type" | "string" | "bytes" | "block" | "msg" | "tx"));
+                !builtin && !matches!(m.as_str(), "length" | "push" | "pop" | "concat")
+            }
+            _ => false,
+        }
+    }
+
+    /// A parameter whose final value flows back to the caller: a storage pointer, or a memory
+    /// reference (arrays, structs, bytes and strings pass by reference to internal functions).
+    fn writes_back(p: &ast::VariableDefinition<'_>, ty: &Ty) -> bool {
+        p.data_location == Some(ast::DataLocation::Storage) || Self::mem_ref_param(p, ty)
+    }
+
+    fn mem_ref_param(p: &ast::VariableDefinition<'_>, ty: &Ty) -> bool {
+        p.data_location == Some(ast::DataLocation::Memory)
+            && matches!(ty, Ty::Arr(..) | Ty::Struct(_) | Ty::Opaque)
+    }
+
+    /// May the body of `f` change the memory object its parameter `n` refers to? Syntactic and
+    /// conservative: a write rooted at `n`, passing it on to a call, any assembly, or copying the
+    /// reference into another variable (which may then write it) all count.
+    fn mem_param_written(&self, f: &'p Func<'a>, n: &str) -> bool {
+        let Some(body) = &f.item.body else {
+            return true;
+        };
+        let is_n =
+            |e: &Expr<'_>| matches!(&e.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == n);
+        let mut hit = false;
+        let mut out = BTreeSet::new();
+        let mut all = false;
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| {
+                match &s.kind {
+                    StmtKind::Assembly(_) => hit = true,
+                    StmtKind::DeclSingle(v) if v.initializer.as_deref().is_some_and(is_n) => {
+                        hit = true
+                    }
+                    StmtKind::DeclMulti(_, e) if walk::root(e).iter().any(|r| r == n) => hit = true,
+                    StmtKind::Return(Some(e)) if walk::root(e).iter().any(|r| r == n) => hit = true,
+                    _ => {}
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| {
+                        self.effects(x, &mut out, &mut all, &mut FxHashSet::default());
+                        match &x.kind {
+                            ExprKind::Call(callee, args) => {
+                                if args.exprs().any(is_n) {
+                                    hit = true;
+                                }
+                                if let ExprKind::Member(b, _) = &callee.peel_parens().kind
+                                    && is_n(b)
+                                {
+                                    hit = true;
+                                }
+                            }
+                            ExprKind::Assign(_, _, r) if is_n(r) => hit = true,
+                            ExprKind::Ternary(_, a, b) if is_n(a) || is_n(b) => hit = true,
+                            _ => {}
+                        }
+                    })
+                });
+            });
+        }
+        hit || out.contains(n)
     }
 
     fn cast(&mut self, ty: Ty, v: Val) -> Val {
@@ -4600,6 +4826,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                         }
                     }
                 }
+                // memory reference parameters the body may write: the caller's object takes the
+                // callee's final value, known only through the ensures (old(p) is the value
+                // before the call)
+                for (i, p) in f.item.header.parameters.iter().enumerate() {
+                    let (n, ty) = &f.params[i];
+                    if Self::mem_ref_param(p, ty) && self.mem_param_written(f, n) {
+                        let v = self.fresh_var(n, ty);
+                        self.env.insert(n.clone(), v);
+                    }
+                }
                 for (n, ty) in &f.rets {
                     let v = self.fresh_var(n, ty);
                     self.env.insert(n.clone(), v);
@@ -4696,7 +4932,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
             for (i, p) in f.item.header.parameters.iter().enumerate() {
-                if p.data_location == Some(ast::DataLocation::Storage) {
+                if Self::writes_back(p, &f.params[i].1) {
                     out.push(self.env[&f.params[i].0].clone());
                 }
             }
