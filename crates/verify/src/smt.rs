@@ -382,16 +382,30 @@ impl Smt {
         cex: &[(String, String)],
         ms: u64,
     ) -> Option<Res> {
-        let (relaxed, live) = crate::inst::relax(
+        let relaxed = crate::inst::relax(
             &format!("{}{q}(check-sat)\n", self.transcript),
             &format!("{guard} {goal}"),
         )?;
-        let model = self.solve(&format!("{EUF}{relaxed}"), ms)?;
-        let pins = crate::inst::pins(&model, &live)?;
-        match self.euf(q, &pins, cex, ms)? {
-            sat @ Res::Sat(_) => Some(sat),
-            _ => None,
+        let model = self.solve(&format!("{EUF}{}", relaxed.script), ms);
+        if let Some(d) = std::env::var_os("SOLAR_VERIFY_QUANT_DUMP") {
+            let n = self.stats.queries;
+            let d = std::path::Path::new(&d);
+            let _ = std::fs::write(d.join(format!("{n}.relaxed.smt2")), &relaxed.script);
+            let _ = std::fs::write(d.join(format!("{n}.model")), model.as_deref().unwrap_or(""));
+            let _ = std::fs::write(
+                d.join(format!("{n}.query.smt2")),
+                format!("{EUF}{}{q}(check-sat)\n", self.transcript),
+            );
         }
+        let model = model?;
+        // the candidate with zeroed input arrays first, then as the model has it
+        for zero in [true, false] {
+            let Some(pins) = crate::inst::pins(&model, &relaxed, zero) else { continue };
+            if let Some(sat @ Res::Sat(_)) = self.euf(q, &pins, cex, ms) {
+                return Some(sat);
+            }
+        }
+        None
     }
 
     /// The query `q` (its assertions) with `extra` assertions on top, in a fresh z3 with the

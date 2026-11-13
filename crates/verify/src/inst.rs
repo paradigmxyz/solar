@@ -22,12 +22,28 @@ use std::collections::{HashMap, HashSet};
 /// `CAP^(1/n)` candidate terms.
 const CAP: usize = 512;
 
-/// A relaxed script for `script` (a whole transcript with one query, ending in `check-sat`),
-/// with the constants live at its end. `query` is the query's own text (its guard and goal),
-/// whose constants come first among the instances. Commands from popped scopes are left out and
-/// declarations are hoisted ahead of assertions, so an instance may name a constant declared
-/// after its quantifier. `None` when the script does not parse or has no quantifier.
-pub(crate) fn relax(script: &str, query: &str) -> Option<(String, HashSet<String>)> {
+/// A relaxed script and what [`pins`] needs to read its model.
+pub(crate) struct Relaxed {
+    /// The script: declarations, the instantiated assertions, `check-sat`, `get-model` and a
+    /// `get-value` of `terms`.
+    pub script: String,
+    /// The constants live at the end of the script (unquoted).
+    live: HashSet<String>,
+    /// Array constants the script does not define as a term of others (an assumed state rather
+    /// than one computed from it), with their sorts.
+    inputs: Vec<(String, Sexp)>,
+    /// Each ground read `(select .. (select a i0) .. ik)` of an input array down to a scalar: the
+    /// array, the index terms and the read itself. Their values follow in the `get-value`, read
+    /// first and index terms after, in order.
+    reads: Vec<(String, Vec<Sexp>, Sexp)>,
+}
+
+/// A relaxed script for `script` (a whole transcript with one query, ending in `check-sat`).
+/// `query` is the query's own text (its guard and goal), whose constants come first among the
+/// instances. Commands from popped scopes are left out and declarations are hoisted ahead of
+/// assertions, so an instance may name a constant declared after its quantifier. `None` when
+/// the script does not parse or has no quantifier.
+pub(crate) fn relax(script: &str, query: &str) -> Option<Relaxed> {
     let commands = sexp::parse(script).collect::<Result<Vec<_>, _>>().ok()?;
     // Commands of each open scope, outermost first.
     let mut scopes: Vec<Vec<Sexp>> = vec![vec![]];
@@ -58,7 +74,7 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<(String, HashSet<String
     }
 
     // Live constants and their sorts, in declaration order.
-    let mut consts: Vec<(String, String)> = vec![];
+    let mut consts: Vec<(String, Sexp)> = vec![];
     for c in &live {
         let Some(l) = c.as_list() else { continue };
         let sort = match (c.head(), l) {
@@ -67,13 +83,14 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<(String, HashSet<String
             _ => continue,
         };
         let Some(name) = l[1].as_atom() else { continue };
-        consts.push((name.to_string(), sort.to_string()));
+        consts.push((name.to_string(), sort.clone()));
     }
 
     // Candidate integer terms: constants the query names, then numerals used as array indices,
     // then the other constants, latest first.
     let query_atoms: HashSet<String> =
         sexp::parse(query).filter_map(Result::ok).flat_map(|e| atoms(&e)).collect();
+    let is_int = |s: &Sexp| s.as_atom() == Some("Int");
     let mut ints: Vec<Sexp> = vec![];
     let mut seen = HashSet::new();
     let mut add = |t: Sexp, ints: &mut Vec<Sexp>| {
@@ -82,7 +99,7 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<(String, HashSet<String
         }
     };
     for (name, sort) in consts.iter().rev() {
-        if sort == "Int" && query_atoms.contains(name) {
+        if is_int(sort) && query_atoms.contains(name) {
             add(Sexp::Atom(name.clone()), &mut ints);
         }
     }
@@ -95,7 +112,7 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<(String, HashSet<String
         add(Sexp::Atom(n), &mut ints);
     }
     for (name, sort) in consts.iter().rev() {
-        if sort == "Int" {
+        if is_int(sort) {
             add(Sexp::Atom(name.clone()), &mut ints);
         }
     }
@@ -116,26 +133,101 @@ pub(crate) fn relax(script: &str, query: &str) -> Option<(String, HashSet<String
             )
         )
     });
+    let rest: Vec<Sexp> = rest.iter().map(|c| instantiate(c, &ints)).collect();
+
+    // Arrays defined as a term of others, by an assertion `(= a t)`, with the arrays `t` names.
+    let arrays: HashMap<&str, &Sexp> = consts
+        .iter()
+        .filter(|(_, s)| s.head() == Some("Array"))
+        .map(|(n, s)| (n.as_str(), s))
+        .collect();
+    let mut defined: HashMap<String, Vec<String>> = HashMap::new();
+    for c in &rest {
+        if let Some([_, eq]) = c.as_list()
+            && let Some([Sexp::Atom(e), Sexp::Atom(a), t]) = eq.as_list()
+            && e == "="
+            && arrays.contains_key(a.as_str())
+        {
+            let uses = atoms(t).into_iter().filter(|x| arrays.contains_key(x.as_str())).collect();
+            defined.entry(a.clone()).or_insert(uses);
+        }
+    }
+    let inputs: Vec<(String, Sexp)> = consts
+        .iter()
+        .filter(|(n, s)| s.head() == Some("Array") && !defined.contains_key(n))
+        .cloned()
+        .collect();
+    // Scalar reads of any array; a read of a computed array also reads, at the same indices,
+    // each input array it is computed from (its value there, unless a store overrode it).
+    let mut all = vec![];
+    let mut seen = HashSet::new();
+    for c in &rest {
+        scalar_reads(c, &arrays, &mut seen, &mut all);
+    }
+    let mut reads = vec![];
+    let mut seen = HashSet::new();
+    for (a, idx, read) in all {
+        let mut todo = vec![a];
+        let mut visited = HashSet::new();
+        while let Some(x) = todo.pop() {
+            if !visited.insert(x.clone()) {
+                continue;
+            }
+            match defined.get(&x) {
+                Some(uses) => todo.extend(uses.iter().cloned()),
+                None if arrays.get(x.as_str()).is_some_and(|s| depth(s) == idx.len()) => {
+                    let r = if x == read_path(&read).map_or("", |(r, _)| r) {
+                        read.clone()
+                    } else {
+                        idx.iter().fold(Sexp::Atom(x.clone()), |acc, i| {
+                            Sexp::List(vec![Sexp::Atom("select".into()), acc, i.clone()])
+                        })
+                    };
+                    if seen.insert(r.to_string()) {
+                        reads.push((x, idx.clone(), r));
+                    }
+                }
+                None => {}
+            }
+        }
+    }
+
     // Models printed without `let`, so that each value is a closed term.
     let mut out = String::from(
-        "(set-option :pp.min_alias_size 1000000)
-(set-option :pp.max_depth 1000000)
-",
+        "(set-option :pp.min_alias_size 1000000)\n(set-option :pp.max_depth 1000000)\n",
     );
     for c in decls.iter().chain(&rest) {
-        out.push_str(&instantiate(c, &ints).to_string());
+        out.push_str(&c.to_string());
         out.push('\n');
     }
     out.push_str("(check-sat)\n(get-model)\n");
-    let names = consts.into_iter().map(|(n, _)| unquote(&n).to_string()).collect();
-    Some((out, names))
+    let terms: Vec<String> = reads
+        .iter()
+        .flat_map(|(_, idx, read): &(String, Vec<Sexp>, Sexp)| {
+            std::iter::once(read.to_string()).chain(idx.iter().map(ToString::to_string))
+        })
+        .collect();
+    if !terms.is_empty() {
+        out.push_str(&format!("(get-value ({}))\n", terms.join(" ")));
+    }
+    let live = consts.into_iter().map(|(n, _)| unquote(&n).to_string()).collect();
+    Some(Relaxed { script: out, live, inputs, reads })
 }
 
-/// Assertions that fix each of `live`'s constants to its value in `model` (a solver's
-/// `get-model` output, after its `sat`). Values that name the solver's own auxiliary
-/// functions (`as-array`, `k!0`) are left unpinned.
-pub(crate) fn pins(model: &str, live: &HashSet<String>) -> Option<String> {
-    let mut it = sexp::parse(model).filter_map(Result::ok);
+/// Assertions that fix the query's state to a model of the relaxed script (its output, from
+/// `sat` on).
+///
+/// Without `zero`, every live constant gets its value in the model, except values that name
+/// the solver's own auxiliary functions (`as-array`, `k!0`).
+///
+/// With `zero`, each scalar constant gets its value, each input array is the zero array (storage
+/// nobody wrote) except at the reads the script makes of it, which keep their values, and
+/// arrays the script computes from others are left to follow from them. The model picks array
+/// defaults freely, so they often break a quantified invariant that zeros keep, and the solver
+/// settles a quantifier over arrays it is given far more readily than one over arrays it must
+/// build.
+pub(crate) fn pins(output: &str, r: &Relaxed, zero: bool) -> Option<String> {
+    let mut it = sexp::parse(output).filter_map(Result::ok);
     let sat = it.find(|e| e.as_atom().is_some())?;
     if sat.as_atom() != Some("sat") {
         return None;
@@ -143,13 +235,13 @@ pub(crate) fn pins(model: &str, live: &HashSet<String>) -> Option<String> {
     let defs = it.find(|e| e.as_list().is_some())?;
     let mut out = String::new();
     for d in defs.as_list()? {
-        let Some([_, name, Sexp::List(args), _, value]) = d.as_list() else { continue };
+        let Some([_, name, Sexp::List(args), sort, value]) = d.as_list() else { continue };
         if d.head() != Some("define-fun") || !args.is_empty() {
             continue;
         }
         let Some(name) = name.as_atom() else { continue };
         let name = unquote(name);
-        if !live.contains(name) {
+        if !r.live.contains(name) || (zero && sort.head() == Some("Array")) {
             continue;
         }
         if atoms(value).iter().any(|a| a == "as-array" || a == "lambda" || a.contains('!')) {
@@ -157,7 +249,114 @@ pub(crate) fn pins(model: &str, live: &HashSet<String>) -> Option<String> {
         }
         out.push_str(&format!("(assert (= |{name}| {value}))\n"));
     }
+    if !zero {
+        return Some(out);
+    }
+    // Values of the reads and their indices, in the order of the get-value.
+    let mut values = vec![];
+    if !r.reads.is_empty() {
+        let vals = it.find(|e| e.as_list().is_some())?;
+        for pair in vals.as_list()? {
+            let Some([_, v]) = pair.as_list() else { return None };
+            values.push(v.clone());
+        }
+    }
+    let mut values = values.into_iter();
+    let mut points: HashMap<&str, Vec<(Vec<Sexp>, Sexp)>> = HashMap::new();
+    for (a, idx, _) in &r.reads {
+        let leaf = values.next()?;
+        let idx: Vec<Sexp> = idx.iter().map(|_| values.next()).collect::<Option<_>>()?;
+        points.entry(a.as_str()).or_default().push((idx, leaf));
+    }
+    for (a, sort) in &r.inputs {
+        let v = build(sort, points.get(a.as_str()).map_or(&[][..], Vec::as_slice))?;
+        out.push_str(&format!("(assert (= {a} {v}))\n"));
+    }
     Some(out)
+}
+
+/// An index path into an array and the scalar there.
+type Point = (Vec<Sexp>, Sexp);
+
+/// The array of sort `sort` that is zero except at `points` (index paths with their values);
+/// the first value given for a path wins.
+fn build(sort: &Sexp, points: &[Point]) -> Option<Sexp> {
+    let Some([_, _, elem]) = sort.as_list() else { return None };
+    let mut acc = Sexp::List(vec![
+        Sexp::List(vec![Sexp::Atom("as".into()), Sexp::Atom("const".into()), sort.clone()]),
+        zero_of(elem)?,
+    ]);
+    // Stores are applied in reverse, so the first point for an index ends up outermost.
+    let mut groups: Vec<(Sexp, Vec<Point>)> = vec![];
+    for (path, v) in points {
+        let (i, rest) = path.split_first()?;
+        match groups.iter_mut().find(|(j, _)| j == i) {
+            Some((_, g)) => g.push((rest.to_vec(), v.clone())),
+            None => groups.push((i.clone(), vec![(rest.to_vec(), v.clone())])),
+        }
+    }
+    for (i, g) in groups.into_iter().rev() {
+        let v = if elem.head() == Some("Array") { build(elem, &g)? } else { g[0].1.clone() };
+        acc = Sexp::List(vec![Sexp::Atom("store".into()), acc, i, v]);
+    }
+    Some(acc)
+}
+
+/// The zero of a sort: `0`, `false` or a constant array of zeros.
+fn zero_of(sort: &Sexp) -> Option<Sexp> {
+    match sort {
+        Sexp::Atom(s) if s == "Int" => Some(Sexp::Atom("0".into())),
+        Sexp::Atom(s) if s == "Bool" => Some(Sexp::Atom("false".into())),
+        Sexp::List(l) if sort.head() == Some("Array") && l.len() == 3 => Some(Sexp::List(vec![
+            Sexp::List(vec![Sexp::Atom("as".into()), Sexp::Atom("const".into()), sort.clone()]),
+            zero_of(&l[2])?,
+        ])),
+        _ => None,
+    }
+}
+
+/// The reads in `e` of an input array down to a scalar, each once: `(array, indices, read)`.
+fn scalar_reads(
+    e: &Sexp,
+    inputs: &HashMap<&str, &Sexp>,
+    seen: &mut HashSet<String>,
+    out: &mut Vec<(String, Vec<Sexp>, Sexp)>,
+) {
+    let Sexp::List(items) = e else { return };
+    if let Some((a, idx)) = read_path(e)
+        && let Some(sort) = inputs.get(a)
+        && depth(sort) == idx.len()
+        && seen.insert(e.to_string())
+    {
+        out.push((a.to_string(), idx, e.clone()));
+    }
+    for i in items {
+        scalar_reads(i, inputs, seen, out);
+    }
+}
+
+/// `(select .. (select a i0) .. ik)` as `a` and `[i0, .., ik]`.
+fn read_path(e: &Sexp) -> Option<(&str, Vec<Sexp>)> {
+    match e {
+        Sexp::Atom(a) => Some((a, vec![])),
+        Sexp::List(l) => {
+            let [Sexp::Atom(s), inner, i] = &l[..] else { return None };
+            if s != "select" {
+                return None;
+            }
+            let (a, mut idx) = read_path(inner)?;
+            idx.push(i.clone());
+            Some((a, idx))
+        }
+    }
+}
+
+/// How many indices reach a scalar in an array sort.
+fn depth(sort: &Sexp) -> usize {
+    match sort.as_list() {
+        Some([_, _, elem]) if sort.head() == Some("Array") => 1 + depth(elem),
+        _ => 0,
+    }
 }
 
 /// The expression with each quantifier over integers replaced by its instances at `ints`,
@@ -255,9 +454,9 @@ mod tests {
     #[test]
     fn instances_at_ground_terms() {
         let script = "(declare-const a (Array Int Int))\n(push 1)\n(declare-const |gone| Int)\n(pop 1)\n(assert (forall ((x Int)) (! (= (select a x) 0) :pattern ((select a x)))))\n(declare-const |to@1| Int)\n(assert (not (= (select a 7) 0)))\n(check-sat)\n";
-        let (relaxed, live) = relax(script, "(= |to@1| 1)").unwrap();
+        let r = relax(script, "(= |to@1| 1)").unwrap();
         snapbox::assert_data_eq!(
-            relaxed,
+            r.script,
             snapbox::str![[r#"
 (set-option :pp.min_alias_size 1000000)
 (set-option :pp.max_depth 1000000)
@@ -267,23 +466,40 @@ mod tests {
 (assert (not (= (select a 7) 0)))
 (check-sat)
 (get-model)
+(get-value ((select a |to@1|) |to@1| (select a 0) 0 (select a 7) 7))
 
 "#]]
         );
-        let mut live: Vec<_> = live.into_iter().collect();
+        let mut live: Vec<_> = r.live.iter().cloned().collect();
         live.sort();
         assert_eq!(live, ["a", "to@1"]);
     }
 
     #[test]
     fn pins_skip_solver_functions() {
-        let live = ["a", "b", "x"].into_iter().map(String::from).collect();
+        let script = "(declare-const a (Array Int Int))\n(declare-const b (Array Int Int))\n(declare-const x Int)\n(assert (forall ((y Int)) (= (select b y) x)))\n(check-sat)\n";
+        let r = relax(script, "").unwrap();
         let model = "sat\n((define-fun x () Int (- 1))\n (define-fun a () (Array Int Int) ((as const (Array Int Int)) 0))\n (define-fun b () (Array Int Int) (_ as-array k!0))\n (define-fun k!0 ((x!0 Int)) Int 0))\n";
         snapbox::assert_data_eq!(
-            pins(model, &live).unwrap(),
+            pins(model, &r, false).unwrap(),
             snapbox::str![[r#"
 (assert (= |x| (- 1)))
 (assert (= |a| ((as const (Array Int Int)) 0)))
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn pins_zero_arrays_keep_reads() {
+        let script = "(declare-const m (Array Int (Array Int Int)))\n(declare-const n (Array Int (Array Int Int)))\n(declare-const k Int)\n(assert (forall ((s Int)) (= (select (select m 0) s) 0)))\n(assert (= n (store m 0 (select m k))))\n(assert (= (select (select m k) 2) 5))\n(check-sat)\n";
+        let r = relax(script, "").unwrap();
+        let out = "sat\n((define-fun k () Int 3)\n (define-fun m () (Array Int (Array Int Int)) ((as const (Array Int (Array Int Int))) ((as const (Array Int Int)) 20))))\n(((select (select m k) 0) 20) (k 3) (0 0) ((select (select m 0) 0) 0) (0 0) (0 0) ((select (select m k) 2) 5) (k 3) (2 2) ((select (select m 0) 3) 0) (0 0) (3 3) ((select (select m 0) k) 0) (0 0) (k 3))\n";
+        snapbox::assert_data_eq!(
+            pins(out, &r, true).unwrap(),
+            snapbox::str![[r#"
+(assert (= |k| 3))
+(assert (= m (store (store ((as const (Array Int (Array Int Int))) ((as const (Array Int Int)) 0)) 0 (store (store ((as const (Array Int Int)) 0) 3 0) 0 0)) 3 (store (store ((as const (Array Int Int)) 0) 2 5) 0 20))))
 
 "#]]
         );
