@@ -1,0 +1,9 @@
+name = "solar_tv"
+defaultTargets = ["SolarTV"]
+
+[[require]]
+name = "evm_rules"
+path = "../scripts/evm-rules/lean"
+
+[[lean_lib]]
+name = "SolarTV"
