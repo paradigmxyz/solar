@@ -164,8 +164,13 @@ impl Conv {
             [Some("check-sat")] => Ok(".checkSat".into()),
             [Some("declare-const"), Some(x), _] => {
                 let x = quoted(x).ok_or_else(|| format!("unquoted constant: {line}"))?;
-                let s = Sort::parse(&xs[2])
-                    .ok_or_else(|| format!("sort outside the Lean fragment: {line}"))?;
+                // A constant of a sort outside the fragment (such as a nested mapping's
+                // array of arrays) stays a raw line and is left undeclared: an obligation that
+                // mentions it fails as an undeclared symbol, and an unused declaration does not
+                // change whether any obligation has a model.
+                let Some(s) = Sort::parse(&xs[2]) else {
+                    return Ok(format!(".raw {}", lean_str(line)));
+                };
                 self.consts.insert(x.to_string(), s);
                 Ok(format!(".decl {} {}", lean_str(x), s.lean()))
             }
@@ -178,9 +183,52 @@ impl Conv {
 /// The Lean module of a transcript: `script`, its commands, and `transcript`, its bytes.
 pub(crate) fn module(smt: &str, namespace: &str) -> Result<String, String> {
     let mut conv = Conv { consts: HashMap::new() };
+    // Each top-level `(push 1)` … `(pop 1)` is one function's section. A section with a line
+    // outside the fragment is kept as raw lines, which `obligations` reads as nothing: the module
+    // then holds exactly the other sections' obligations, each with the same facts, so a verdict
+    // on the transcript still gives `Valid` of the module, and nothing can be checked of the
+    // section left out. A line outside every section must convert.
+    let lines: Vec<&str> = smt.lines().collect();
     let mut cmds = vec![];
-    for line in smt.lines() {
-        cmds.push(conv.command(line)?);
+    let mut skipped = vec![];
+    let mut i = 0;
+    while i < lines.len() {
+        if lines[i] != "(push 1)" {
+            cmds.push(conv.command(lines[i])?);
+            i += 1;
+            continue;
+        }
+        let mut depth = 0usize;
+        let mut j = i;
+        loop {
+            let Some(l) = lines.get(j) else {
+                return Err(format!("unbalanced (push 1) at line {}", i + 1));
+            };
+            if *l == "(push 1)" {
+                depth += 1;
+            } else if *l == "(pop 1)" {
+                depth -= 1;
+            }
+            j += 1;
+            if depth == 0 {
+                break;
+            }
+        }
+        let saved = conv.consts.clone();
+        match lines[i..j].iter().map(|l| conv.command(l)).collect::<Result<Vec<_>, _>>() {
+            Ok(cs) => cmds.extend(cs),
+            Err(e) => {
+                conv.consts = saved;
+                let name = lines[i..j]
+                    .iter()
+                    .find_map(|l| l.strip_prefix("; ===== "))
+                    .unwrap_or("?")
+                    .to_string();
+                skipped.push(format!("{name}: {e}"));
+                cmds.extend(lines[i..j].iter().map(|l| format!(".raw {}", lean_str(l))));
+            }
+        }
+        i = j;
     }
     if !smt.is_empty() && !smt.ends_with('\n') {
         return Err("the transcript does not end in a newline".into());
@@ -190,6 +238,12 @@ pub(crate) fn module(smt: &str, namespace: &str) -> Result<String, String> {
     out.push_str("import SolidCore.Verify.VC.Term\n\n");
     let _ = writeln!(out, "namespace {namespace}\n");
     out.push_str("open SolidCore.Verify.VC\n\n");
+    for sk in &skipped {
+        let _ = writeln!(out, "-- Left raw, outside the Lean fragment: {}", sk.replace('\n', " "));
+    }
+    if !skipped.is_empty() {
+        out.push('\n');
+    }
     out.push_str("/-- The commands solar-verify sent the solver. -/\n");
     out.push_str("def script : List Cmd := [\n");
     for (i, c) in cmds.iter().enumerate() {
@@ -218,10 +272,30 @@ mod tests {
     }
 
     #[test]
+    fn leaves_a_section_outside_the_fragment_raw() {
+        let smt = "(push 1)\n; ===== C.f\n(declare-const |n@1| (Array Int (Array Int Int)))\n(assert (= (select (select |n@1| 0) 0) 0))\n(check-sat)\n(pop 1)\n(push 1)\n; ===== C.g\n(declare-const |x@2| Int)\n(assert (<= 0 |x@2|))\n(check-sat)\n(pop 1)\n";
+        let m = module(smt, "T").unwrap();
+        assert!(m.contains("-- Left raw, outside the Lean fragment: C.f: undeclared symbol"));
+        assert!(m.contains(".raw \"(assert (= (select (select |n@1| 0) 0) 0))\""));
+        assert!(m.contains(".raw \"(check-sat)\""));
+        assert!(m.contains(".decl \"x@2\" .int"));
+        assert!(m.contains(".checkSat"));
+    }
+
+    #[test]
+    fn keeps_unused_constants_outside_the_fragment_raw() {
+        let smt = "(declare-const |n@1| (Array Int (Array Int Int)))\n(declare-const |x@2| Int)\n(assert (<= 0 |x@2|))\n";
+        let m = module(smt, "T").unwrap();
+        assert!(m.contains(".raw \"(declare-const |n@1| (Array Int (Array Int Int)))\""));
+        assert!(m.contains(".decl \"x@2\" .int"));
+    }
+
+    #[test]
     fn rejects_what_lean_does_not_model() {
         for bad in [
             "(declare-fun f (Int) Int)\n",
-            "(declare-const |b@1| (_ BitVec 8))\n",
+            "(declare-const |b@1| (_ BitVec 8))\n(assert (= |b@1| |b@1|))\n",
+            "(declare-const |n@1| (Array Int (Array Int Int)))\n(assert (= (select (select |n@1| 0) 0) 0))\n",
             "(declare-const |x@1| Int)\n(assert (= (bv2nat |x@1|) 0))\n",
             "(assert (= |y@9| 0))\n",
             "(declare-const |x@1| Int)\n(assert (forall ((|a| Int) (|b| Int)) (= |a| |b|)))\n",
