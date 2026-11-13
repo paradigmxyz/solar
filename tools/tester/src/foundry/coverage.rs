@@ -426,7 +426,7 @@ fn run_leg(config: &TestConfig, leg: &'static Leg) -> LegRun {
             tail.join("\n")
         )));
     }
-    if report.items.is_empty() && report.unparsed_items > 0 {
+    if report.unparsed_items > 0 {
         return finish(Outcome::Failed(format!(
             "forge coverage printed {} item lines that did not parse; the debug report format \
              may have changed",

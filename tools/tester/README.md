@@ -252,9 +252,9 @@ counts. Each compiler leg also prints the same counts against its solc peers:
 `solc-legacy-opt` and `solc-ir-opt`.
 
 Coverage differences never fail the run. A leg fails the run only when forge
-fails without a report, or prints items the runner cannot parse; a leg whose
+fails without a report, or prints any item the runner cannot parse; a leg whose
 tests fail still counts, with status `tests-failed`. A solc leg that hits solc's
-stack-too-deep limit is `skipped`, as are the solc legs of `stack-deep`. The
+stack-too-deep limit is `skipped`, as are the solc legs of `stack-deep` that hit it. The
 mode ignores `SOLAR_FOUNDRY_OPTIMIZATION`, and a project must not set
 `ir_minimum` or `keep_optimizer` in its `[coverage]` config, because forge reads
 those as always on.
@@ -263,3 +263,8 @@ The runner writes one `coverage-<project>.json` per project to
 `SOLAR_FOUNDRY_REPORT_DIR`, or `target/foundry-coverage` by default. It holds
 each leg's status, totals, and differences, and every item with its anchored
 flag and hits in each leg; an item that a leg does not list is `null` there.
+
+Anchor lines name their item by source ID, which differs between builds, so a
+project that compiles in several builds (mixed pragmas) can leave anchors
+unresolved. The runner prints their count and the JSON records it as
+`unresolved_anchors`; distrust the unanchored counts of a leg where it is not 0.
