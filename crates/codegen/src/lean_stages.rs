@@ -43,8 +43,8 @@
 //! Program data after the code, such as the creation code of a contract the runtime code
 //! creates, is copied with `CODECOPY` from the code, its offset and sizes written as
 //! `⟪dataoffset D O⟫` and `⟪datasize D A L⟫` until assembly fixes them ([`write_manifest`]), and
-//! the bytecode the stages are checked against is the code before it. `CREATE` and `CREATE2` take
-//! the new address from the oracle.
+//! the bytecode the stages are checked against is the code before it. The manifest lists where
+//! each entry of it is and its size. `CREATE` and `CREATE2` take the new address from the oracle.
 //!
 //! An immutable is the word the deployment code writes over its placeholder, which MIR's
 //! `loadimmutable` and EVM IR's placeholder push both read. Only a `PUSH32` placeholder holds the
@@ -1528,6 +1528,20 @@ pub fn write_manifest(
             lean,
             "/-- The immutable placeholders: the offset of each one's bytes and their count. -/\n\
              def immutables : List (Nat × Nat) :=\n  {}\n",
+            list(listed)
+        );
+    }
+    if !data.is_empty() {
+        let mut placed = data.to_vec();
+        placed.sort_unstable_by_key(|&(_, offset, _)| offset);
+        let listed =
+            placed.iter().map(|(id, offset, size)| format!("({id}, {offset}, {size})")).collect();
+        let _ = writeln!(
+            lean,
+            "/-- The program data after the code, as assembly placed it: each entry's number, \
+             its offset in the\n\
+             runtime code and its size, in the order of their offsets. -/\n\
+             def data : List (Nat × Nat × Nat) :=\n  {}\n",
             list(listed)
         );
     }

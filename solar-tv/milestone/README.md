@@ -21,6 +21,7 @@ It writes `milestone/NAME/`: `NAME.sol` (the source the manifest records), `opti
 | `NAME.Proofs.Runs.<Stage>` | `<stage>_run` | each pair of consecutive stages ends in the same result on every call (`sym_exec`) |
 | `NAME.Proofs.Stages` | `stage_<stage>`, `NAME_mir_to_evmir` | each a `Stage` of the fuel-free semantics for `anyCall` (any calldata, call value and storage), and their composition from the first lowered MIR to the final EVM IR, for every oracle |
 | `NAME.Proofs.Assembly` | `walk_eq`, `decodes` | the bytecode's linear decoding is the final EVM IR's instructions, each jumped-to block at the next `JUMPDEST`, a transfer to the next block falling through |
+| | `data_follows` | for code with program data after it: the manifest's entries tile the runtime code from the end of the code, at the offsets and of the sizes the stages copy with |
 
 [certify.py](certify.py) writes them from the manifest: fuels are block counts (a loop-free run
 visits each block at most once), times the square of one more than the call sites when the program
@@ -209,12 +210,27 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
 ```
 
+- [code](code/code.sol): `contract Code { function code() external pure returns (bytes memory) {
+  return type(Child).creationCode; } }` for an empty `Child`, 124 bytes of code and the 20 bytes
+  of `Child`'s creation code after them: MIR's `datasize` and `datacopy`, and EVM IR's
+  `CODECOPY` of the data at offset 124, the offset and size assembly fixed, which the manifest
+  lists. Stages `stage0 → mir1 → sched → evm1 → … → evm7` (`lower-assumes`, `stack-schedule`,
+  then `peephole-early` to `stack-reschedule`), all proved for every oracle, so for every code
+  the frame runs: `SolarTV.Milestone.Code.code_mir_to_evmir`, with `data_follows` checking the
+  placement against the bytecode. `peephole-early` folds a sum of two pushes into one push, which
+  `sym_exec` computes back (`foldAdd`). Its negative tests copy from the next byte and copy or
+  store one byte more, in the final EVM IR and the last MIR stage, and move the manifest's entry.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/code/code.sol Code
+```
+
 ## Limits
 
 The scope is the exporter's fragment (anything else is a compile error naming it) and loop-free
 programs. The stage from the final EVM IR to the bytecode under EthLib's semantics is proved per
 contract in solidity-lean; here the walk only shows the decoding. The caller is the oracle's, any
 160-bit address, so a contract that reads `msg.sender`, such as bank, is proved for every caller.
-Hashes are an oracle function of the hashed bytes and the proofs hold for every oracle, KECCAK256 among them, but say nothing about collisions. Two milestone
+The code `CODECOPY` reads is the oracle's too, so the stages agree for any code; `data_follows` ties the offsets and sizes they copy with to the assembled runtime code. MIR numbers the data of creation and runtime code together and the runtime code numbers its own again, so a contract whose MIR copies data the runtime code renumbers is refused. Hashes are an oracle function of the hashed bytes and the proofs hold for every oracle, KECCAK256 among them, but say nothing about collisions. Two milestone
 directories whose contracts share a name export the same `SolarTV.Export.<Contract>` namespace and
 cannot be imported together.

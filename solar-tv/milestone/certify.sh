@@ -17,7 +17,8 @@
 #    when that pin exists (else writes it), and the manifest's hashes.
 # 2. certify.py writes NAME/Proofs: per pair of consecutive stages a sym_exec proof that both
 #    runs end in the same result on every call, the Stages composition from the first lowered
-#    MIR to the final EVM IR, and the assembly walk of the bytecode against the final EVM IR.
+#    MIR to the final EVM IR, and the assembly walk of the bytecode against the final EVM IR,
+#    with, for code that program data follows, the data's placement the manifest lists.
 # 3. Adds the library to lakefile.toml when missing, its Lean processes capped at LEAN_MEMORY
 #    MB (default 4500), builds it one module at a time, and audits the axioms of every
 #    theorem: only propext, Classical.choice and Quot.sound.
@@ -123,6 +124,7 @@ info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$co
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
     --label "$name" --loops "$loops")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
+data="$(python3 -c 'import json, sys; print(int(json.loads(sys.argv[1])["data"]))' "$info")"
 echo "$info"
 
 echo "== 3. build and audit the proofs"
@@ -164,13 +166,14 @@ trap 'rm -f "$audit"' EXIT
     done
     echo "#print axioms SolarTV.Milestone.$cap.walk_eq"
     echo "#print axioms SolarTV.Milestone.$cap.decodes"
+    [[ "$data" -eq 0 ]] || echo "#print axioms SolarTV.Milestone.$cap.data_follows"
 } > "$audit"
 report="$(lake env lean -M "$memory" "$audit" 2>&1)" || { echo "$report" >&2; die "the audit does not check"; }
 echo "$report"
 bad="$(grep "depends on axioms" <<<"$report" | sed -E 's/.*depends on axioms: \[(.*)\]/\1/' |
     tr ',' '\n' | tr -d ' ' | grep -v -x -E 'propext|Classical\.choice|Quot\.sound' || true)"
 [[ -z "$bad" ]] || die "axioms beyond propext, Classical.choice and Quot.sound: $bad"
-[[ "$(grep -c "depends on axioms" <<<"$report")" -eq $((${#modules[@]} + 3)) ]] || die "a theorem is missing from the audit"
+[[ "$(grep -c -E "depends on axioms|does not depend on any axioms" <<<"$report")" -eq $((${#modules[@]} + 3 + data)) ]] || die "a theorem is missing from the audit"
 cd "$root"
 
 echo "== 4. negative tests"

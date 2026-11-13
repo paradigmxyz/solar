@@ -24,27 +24,34 @@ namespace SolarTV.Milestone.W1
 
 open SolarTV.Assembly
 
-/-- The opcode of a stack operation. -/
-def stackItem : EVM.Op → Item
-  | .add => .op 0x01 | .mul => .op 0x02 | .sub => .op 0x03 | .div => .op 0x04
-  | .sdiv => .op 0x05 | .mod => .op 0x06 | .smod => .op 0x07 | .addmod => .op 0x08
-  | .mulmod => .op 0x09 | .exp => .op 0x0a | .signextend => .op 0x0b
-  | .lt => .op 0x10 | .gt => .op 0x11 | .slt => .op 0x12 | .sgt => .op 0x13
-  | .eq => .op 0x14 | .iszero => .op 0x15 | .and => .op 0x16 | .or => .op 0x17
-  | .xor => .op 0x18 | .not => .op 0x19 | .byte => .op 0x1a | .shl => .op 0x1b
-  | .shr => .op 0x1c | .sar => .op 0x1d | .calldatasize => .op 0x36
-  | .returndatasize => .op 0x3d | .pop => .op 0x50
-  | .push value => .push value.toNat
-  | .dup index => .op (0x80 + index.val)
-  | .swap index => .op (0x90 + index.val)
+/-- The opcode of a stack operation, or `none` for one with no one-byte opcode: `EXCHANGE`,
+which takes an immediate, and a `dup` or `swap` past the sixteenth position. -/
+def stackItem : EVM.Op → Option Item
+  | .add => some (.op 0x01) | .mul => some (.op 0x02) | .sub => some (.op 0x03)
+  | .div => some (.op 0x04) | .sdiv => some (.op 0x05) | .mod => some (.op 0x06)
+  | .smod => some (.op 0x07) | .addmod => some (.op 0x08) | .mulmod => some (.op 0x09)
+  | .exp => some (.op 0x0a) | .signextend => some (.op 0x0b)
+  | .lt => some (.op 0x10) | .gt => some (.op 0x11) | .slt => some (.op 0x12)
+  | .sgt => some (.op 0x13) | .eq => some (.op 0x14) | .iszero => some (.op 0x15)
+  | .and => some (.op 0x16) | .or => some (.op 0x17) | .xor => some (.op 0x18)
+  | .not => some (.op 0x19) | .byte => some (.op 0x1a) | .shl => some (.op 0x1b)
+  | .shr => some (.op 0x1c) | .sar => some (.op 0x1d) | .clz => some (.op 0x1e)
+  | .calldatasize => some (.op 0x36) | .returndatasize => some (.op 0x3d)
+  | .pop => some (.op 0x50)
+  | .push value => some (.push value.toNat)
+  | .dup index => if index.val < 16 then some (.op (0x80 + index.val)) else none
+  | .swap index => if index.val < 16 then some (.op (0x90 + index.val)) else none
+  | .exchange _ _ => none
 
-/-- The opcode of a memory instruction. -/
-def memoryItem : EVM.Memory.Op → Item
+/-- The opcode of a memory instruction, or `none` for a stack operation without one. -/
+def memoryItem : EVM.Memory.Op → Option Item
   | .stack op => stackItem op
-  | .load => .op 0x51
-  | .store => .op 0x52
-  | .storeByte => .op 0x53
-  | .size => .op 0x59
+  | .load => some (.op 0x51)
+  | .store => some (.op 0x52)
+  | .storeByte => some (.op 0x53)
+  | .size => some (.op 0x59)
+  | .copy => some (.op 0x5e)
+  | .hash => some (.op 0x20)
 
 /-- The opcode of an effect with its arity, or `none` for one that is no opcode. -/
 def effectItem : Machine.Effect → Nat → Option Item
@@ -82,7 +89,7 @@ def effectItem : Machine.Effect → Nat → Option Item
 
 /-- The items of an instruction. -/
 def instrItems : EVM.Program.Instr → Option (List Item)
-  | .op op => some [memoryItem op]
+  | .op op => (memoryItem op).map ([·])
   | .effect effect arity => (effectItem effect arity).map ([·])
   | .jump target => some [.pushLabel target, .op 0x56]
   | .jumpi target => some [.pushLabel target, .op 0x57]

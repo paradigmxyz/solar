@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# code: the stages of milestone/code/code.sol's Code and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "code"
+srcDir = "milestone"
+roots = ["code.Proofs"]
+globs = ["code.+"]
+moreLeanArgs = ["-M", "3000"]

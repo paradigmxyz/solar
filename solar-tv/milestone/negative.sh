@@ -22,6 +22,10 @@
 #   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
 #   of call and the check of that call's success dropped (a failed call goes on), each when
 #   present;
+# - program data after the code, when present: the first push of a data offset in the final EVM
+#   IR at the next byte and its first push of a data size plus one; in the last MIR stage,
+#   against the scheduled EVM IR, the offset its first CODECOPY copies from at the next byte and
+#   its first word of a data size plus one; and the manifest's first data entry a byte later;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -153,6 +157,8 @@ EOF
 walk_false='(Tactic .decide. proved that the proposition walk bytecode offset 0 items = some stream is false|'
 walk_false+='\(kernel\) application type mismatch id \(Eq.refl true\) argument has type true = true but function has type decide \(walk bytecode offset 0 items = some stream\) = true)'
 mismatch='sym_exec: the runs end in different results on this path'
+# decide +kernel evaluates the program data's placement to false.
+data_false='(Tactic .decide. proved that the proposition dataStart = .* is false|\(kernel\) application type mismatch .* decide \(dataStart = )'
 
 edit bytecode-control "$gen/Bytecode.lean" <<<'pass'
 check bytecode-control Bytecode "$proofs/Assembly.lean" pass
@@ -328,6 +334,55 @@ print(f"old, new = {m.group(0)!r}, {new!r}" if m else "sys.exit(3)")
 print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-call-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/call-check.py"
+
+# Only a program with program data after its code has these cases: the offsets and sizes the
+# stages copy with are the ones the manifest lists, which assembly fixed.
+data_offsets="$(python3 -c 'import json, sys; print(",".join(str(d["offset"]) for d in json.load(open(sys.argv[1])).get("data", [])))' "$gen/manifest.json")"
+data_sizes="$(python3 -c 'import json, sys; print(",".join(str(d["size"]) for d in json.load(open(sys.argv[1])).get("data", [])))' "$gen/manifest.json")"
+if [[ -n "$data_offsets" ]]; then
+# The first push of a program data offset (the code CODECOPY copies from), N, as N + 1, and the
+# first push of a program data size (a length the code copies or stores) plus one.
+for word in offset size; do
+    if [[ $word == offset ]]; then values=$data_offsets; else values=$data_sizes; fi
+    try "$last-data-$word" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" <<EOF
+import re
+values = {$values}
+m = next((m for m in re.finditer(r"\(\.push (0x[0-9a-f]+|\d+)\)\)", s) if int(m.group(1), 0) in values), None)
+if m is None: sys.exit(3)
+print(f"  data $word {m.group(1)} as {int(m.group(1), 0) + 1}")
+s = s[:m.start(1)] + str(int(m.group(1), 0) + 1) + s[m.end(1):]
+EOF
+done
+
+edit "$last_mir-data-control" "$gen/$last_mir.lean" <<<'pass'
+check "$last_mir-data-control" "$last_mir" "$proofs/Runs/Sched.lean" pass
+
+# In the last MIR stage, against the scheduled EVM IR: the code offset its first CODECOPY
+# copies from, a program data offset N, as N + 1, and its first word that is a program data's
+# size (its datasize), N, as N + 1.
+try "$last_mir-codecopy-offset" "$gen/$last_mir.lean" "$last_mir" "$proofs/Runs/Sched.lean" "$mismatch" <<EOF
+import re
+m = re.search(r"\.codecopy \[[^\[\],]*, \.const (\d+),", s)
+if m is None or int(m.group(1)) not in {$data_offsets}: sys.exit(3)
+s = s[:m.start(1)] + str(int(m.group(1)) + 1) + s[m.end(1):]
+EOF
+try "$last_mir-datasize" "$gen/$last_mir.lean" "$last_mir" "$proofs/Runs/Sched.lean" "$mismatch" <<EOF
+import re
+m = next((m for m in re.finditer(r"\.word \d+ \(\.const (\d+)\)", s) if int(m.group(1)) in {$data_sizes}), None)
+if m is None: sys.exit(3)
+s = s[:m.start(1)] + str(int(m.group(1)) + 1) + s[m.end(1):]
+EOF
+
+# The manifest's first program data entry one byte later: the data no longer follows the code.
+edit manifest-control "$gen/Manifest.lean" <<<'pass'
+check manifest-control Manifest "$proofs/Assembly.lean" pass
+try manifest-data-offset "$gen/Manifest.lean" Manifest "$proofs/Assembly.lean" "$data_false" <<'EOF'
+import re
+m = re.search(r"def data : List \(Nat × Nat × Nat\) :=\n  \[\(\d+, (\d+),", s)
+if m is None: sys.exit(3)
+s = s[:m.start(1)] + str(int(m.group(1)) + 1) + s[m.end(1):]
+EOF
+fi
 
 try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" < "$tmp/add-sub.py"
 

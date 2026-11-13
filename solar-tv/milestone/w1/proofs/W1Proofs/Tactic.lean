@@ -367,6 +367,24 @@ theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
 theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
 theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
 
+-- `dup` and `swap` take a `Fin 256`; the exporter writes positions 0 to 15.
+theorem fin256_val_0 : ((0 : Fin 256) : Nat) = 0 := rfl
+theorem fin256_val_1 : ((1 : Fin 256) : Nat) = 1 := rfl
+theorem fin256_val_2 : ((2 : Fin 256) : Nat) = 2 := rfl
+theorem fin256_val_3 : ((3 : Fin 256) : Nat) = 3 := rfl
+theorem fin256_val_4 : ((4 : Fin 256) : Nat) = 4 := rfl
+theorem fin256_val_5 : ((5 : Fin 256) : Nat) = 5 := rfl
+theorem fin256_val_6 : ((6 : Fin 256) : Nat) = 6 := rfl
+theorem fin256_val_7 : ((7 : Fin 256) : Nat) = 7 := rfl
+theorem fin256_val_8 : ((8 : Fin 256) : Nat) = 8 := rfl
+theorem fin256_val_9 : ((9 : Fin 256) : Nat) = 9 := rfl
+theorem fin256_val_10 : ((10 : Fin 256) : Nat) = 10 := rfl
+theorem fin256_val_11 : ((11 : Fin 256) : Nat) = 11 := rfl
+theorem fin256_val_12 : ((12 : Fin 256) : Nat) = 12 := rfl
+theorem fin256_val_13 : ((13 : Fin 256) : Nat) = 13 := rfl
+theorem fin256_val_14 : ((14 : Fin 256) : Nat) = 14 := rfl
+theorem fin256_val_15 : ((15 : Fin 256) : Nat) = 15 := rfl
+
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
 left as it is, so that a stack is only read once its words are computed. A long list literal
@@ -477,6 +495,22 @@ dsimproc_decl foldShr (Evm.shr _ _) := fun e => do
   let some s ← wordLit? s | return .continue
   let some v ← wordLit? v | return .continue
   return .done (← mkNumeral (mkConst ``EvmRules.Word) (if s < 256 then v >>> s else 0))
+
+open Lean Meta Simp in
+/-- See `foldNot`: a sum of two literals, which `peephole-early` folds into one push. -/
+dsimproc_decl foldAdd (Evm.add _ _) := fun e => do
+  let_expr Evm.add a b := e | return .continue
+  let some a ← wordLit? a | return .continue
+  let some b ← wordLit? b | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) ((a + b) % 2 ^ 256))
+
+open Lean Meta Simp in
+/-- See `foldNot`. -/
+dsimproc_decl foldSub (Evm.sub _ _) := fun e => do
+  let_expr Evm.sub a b := e | return .continue
+  let some a ← wordLit? a | return .continue
+  let some b ← wordLit? b | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) ((a + 2 ^ 256 - b) % 2 ^ 256))
 
 open Lean Elab Tactic Meta in
 /-- Case-split on the first `if` of the goal whose condition is closed, as `hc`, with `hcs` its
@@ -707,7 +741,7 @@ dsimproc_decl evmNotLit (Evm.not _) := fun e => do
 /-- The definitional evaluation of both layers. -/
 macro "sym_eval" : tactic => `(tactic|
   dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
-    foldNot, foldShl, foldShr,
+    foldNot, foldShl, foldShr, foldAdd, foldSub,
     MIR.Lowered.Module.run, MIR.Lowered.moduleBlock, MIR.Lowered.segment,
     MIR.Lowered.splitCall, MIR.Lowered.bindResult, MIR.Lowered.bindResults,
     MIR.Lowered.bindExtras, MIR.Lowered.publishResults, MIR.Lowered.publishWords, MIR.Lowered.bindPhis,
@@ -729,7 +763,10 @@ macro "sym_eval" : tactic => `(tactic|
     Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
     fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
     fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15,
+    fin256_val_0, fin256_val_1, fin256_val_2, fin256_val_3, fin256_val_4, fin256_val_5,
+    fin256_val_6, fin256_val_7, fin256_val_8, fin256_val_9, fin256_val_10, fin256_val_11,
+    fin256_val_12, fin256_val_13, fin256_val_14, fin256_val_15])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
