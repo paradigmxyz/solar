@@ -252,7 +252,7 @@ fi
 bash "$here/audit.sh" scan "$dir" || die "the generated files of $name fail the scan"
 mkdir -p .lake
 log="$lean_dir/.lake/certify-$name.log"
-rm -f "$lean_dir/.lake/certify-vacuous-$name"
+rm -f "$lean_dir/.lake/certify-vacuous-$name" "$lean_dir/.lake/certify-$name.json.binding"
 mapfile -t stages < <(cd "$examples" && ls "$name/gen/$contract"/*.lean | sed 's|\.lean$||; s|/|.|g')
 mapfile -t runs < <(cd "$examples" && ls "$name"/Proofs/Runs/*.lean | sed 's|\.lean$||; s|/|.|g')
 # One module at a time, so that one Lean process runs at a time: the exported stages, which the
@@ -414,6 +414,28 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
     audit "$lean_dir/.lake/certify-headline-$name.out" "${umods[@]}" -- "${hthms[@]}"
     e2e_thms=("${hthms[@]}")
     e2e_kind="contract-specific"
+    # Whether each end-to-end theorem is about the freshly exported bytecode: its statement, or
+    # else its proof, must reach (through the definitions it unfolds) a constant of the module
+    # NAME.gen.CONTRACT.Bytecode this run exported. A theorem about a checked-in copy of the code
+    # that never meets the fresh export is reported unbound. The check only reads the
+    # environment, so a failure to run it is reported, never taken as binding.
+    bind="$lean_dir/.lake/certify-bind-$name.lean"
+    {
+        printf 'import Lean\n'
+        printf 'import %s\n' "${umods[@]}" "$name.gen.$contract.Bytecode"
+        cat "$here/bind.lean.in"
+        printf '\nopen Lean in\n#eval show CoreM Unit from do\n  let env ← getEnv\n'
+        printf '  let some i := env.getModuleIdx? %s | return\n' "\`$name.gen.$contract.Bytecode"
+        for t in "${hthms[@]}"; do
+            printf '  IO.println s!"BIND %s {bindsTo env i %s false} {bindsTo env i %s true}"\n' "$t" "\`$t" "\`$t"
+        done
+    } > "$bind"
+    if run lake env lean -M "$memory" "$bind" > "$log" 2>&1; then
+        sed -n 's/^BIND \([^ ]*\) \([a-z]*\) \([a-z]*\)$/\1 \2 \3/p' "$log" > "$lean_dir/.lake/certify-$name.json.binding"
+    else
+        : > "$lean_dir/.lake/certify-$name.json.binding"
+        caveats+=("the binding of the end-to-end theorems to the fresh bytecode was not checked")
+    fi
 elif [[ $require_headline -eq 1 ]]; then
     die "$dir/headline is missing: solidity-lean states no source or spec theorem for $name"
 else
@@ -438,11 +460,11 @@ printf '%s\n' "${e2e_thms[@]}" > "$record.headline"
 python3 - "$record" "$dir/record.json" "$lean_dir/.lake/certify-headline-$name.out" "$contract" "$name" \
     "$source" "$plain" "$version" "$head" "$final" "$mir_status" "$assembly_status" "$spec_status" \
     "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" \
-    "$lean_dir/.lake/certify-audit-$name.out" "$executes" <<'EOF'
+    "$lean_dir/.lake/certify-audit-$name.out" "$executes" "$lean_dir/.lake/certify-$name.json.binding" <<'EOF'
 import json, re, sys
 
 (out, committed, audit_out, contract, name, source, bytecode, solar, lean, final, mir, assembly,
- spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes) = sys.argv[1:]
+ spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes, binding_file) = sys.argv[1:]
 lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
 e2e = lines(".headline")
 text = open(audit_out).read() if e2e else ""
@@ -482,6 +504,20 @@ def premises(ty):
 
 
 stmts = {t: statement(t) for t in e2e}
+binding = {t: "not checked" for t in e2e}
+try:
+    for line in open(binding_file).read().splitlines():
+        t, by_statement, by_proof = line.split()
+        binding[t] = (
+            "statement" if by_statement == "true"
+            else "proof only (the statement names a checked-in copy of the code)" if by_proof == "true"
+            else "none (about a checked-in copy of the code, never the fresh export)"
+        )
+except (OSError, ValueError):
+    pass
+# Headline files also name negative controls (a wrong spec that fails); they bind nothing.
+negative = lambda t: any(w in t.rsplit(".", 1)[-1] for w in ("wrong", "fails", "rejects", "mutant"))
+bound = [t for t in e2e if not negative(t) and binding[t].startswith(("statement", "proof"))]
 # The execution theorem's statement and premises (such as Assemble.EnvOk for environment reads).
 exec_stmt = statement(executes, open(proofs_audit).read()) if executes else None
 try:
@@ -506,11 +542,13 @@ record = {
     "statuses": {
         "equivalence": "not proved: stage refinement only (" + mir + "; assembly " + assembly.split(":")[0] + ")",
         "termination": "not proved",
-        "spec": ("proved (" + e2e_kind + "): " + ", ".join(e2e)) if e2e else "not proved",
+        "spec": ("proved of the fresh bytecode (" + e2e_kind + "): " + ", ".join(bound)) if bound
+        else ("proved only of a checked-in copy of the code: " + ", ".join(e2e)) if e2e else "not proved",
         "resources": "not proved",
         "assumptions": "see hypotheses and assembly_hypotheses",
     },
     "end_to_end_statement": stmts,
+    "binding": binding,
     "hypotheses": {t: premises(s) if s else None for t, s in stmts.items()},
     "refused": [
         {"function": r.split(": ", 1)[0], "reason": r.split(": ", 1)[-1], "status": "refused (unproved)"}
@@ -528,7 +566,7 @@ for path in (out, committed):
         json.dump(record, f, indent=2, ensure_ascii=False)
         f.write("\n")
 EOF
-rm -f "$record.refused" "$record.caveats" "$record.headline"
+rm -f "$record.refused" "$record.caveats" "$record.headline" "$record.binding"
 echo "record: $record and $dir/record.json"
 echo "mir_to_evmir: $mir_status"
 echo "assembly: $assembly_status"

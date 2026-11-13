@@ -1,0 +1,31 @@
+-- Appended by scripts/certify after the imports of a binding check; see scripts/certify step 6.
+open Lean in
+/-- Whether a theorem's statement reaches, through the definitions it unfolds to, a constant of the
+freshly exported bytecode module. -/
+def bindsTo (env : Environment) (tidx : ModuleIdx) (t : Name) (proofs : Bool) : Bool := Id.run do
+  let skip (n : Name) : Bool :=
+    match env.getModuleIdxFor? n with
+    | some i =>
+      let m := env.header.moduleNames[i.toNat]!
+      [`Init, `Std, `Lean, `Mathlib, `EthLib, `EvmYul, `Batteries, `Aesop, `Qq].any (·.isPrefixOf m)
+    | none => false
+  let some ci := env.find? t | return false
+  let mut todo : List Name := ci.type.getUsedConstants.toList ++
+    (match ci with | .thmInfo d => if proofs then d.value.getUsedConstants.toList else [] | _ => [])
+  let mut seen : NameSet := {}
+  let mut steps := 0
+  while steps < 200000 do
+    match todo with
+    | [] => return false
+    | n :: rest =>
+      todo := rest
+      steps := steps + 1
+      if seen.contains n then continue
+      seen := seen.insert n
+      if env.getModuleIdxFor? n == some tidx then return true
+      if skip n then continue
+      match env.find? n with
+      | some (.defnInfo d) => todo := d.value.getUsedConstants.toList ++ todo
+      | some (.thmInfo d) => if proofs then todo := d.value.getUsedConstants.toList ++ todo
+      | _ => pure ()
+  return false
