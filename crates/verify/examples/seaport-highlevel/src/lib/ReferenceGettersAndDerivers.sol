@@ -9,13 +9,18 @@ import {
 
 import { ReferenceConsiderationBase } from "./ReferenceConsiderationBase.sol";
 
+import { ReferenceCalldataReader } from "./ReferenceCalldataReader.sol";
+
 /**
  * @title GettersAndDerivers
  * @author 0age
  * @notice ConsiderationInternal contains pure and internal view functions
  *         related to getting or deriving various values.
  */
-contract ReferenceGettersAndDerivers is ReferenceConsiderationBase {
+contract ReferenceGettersAndDerivers is
+    ReferenceConsiderationBase,
+    ReferenceCalldataReader
+{
     /**
      * @dev Derive and set hashes, reference chainId, and associated domain
      *      separator during deployment.
@@ -232,5 +237,66 @@ contract ReferenceGettersAndDerivers is ReferenceConsiderationBase {
     function _name() internal pure returns (string memory) {
         // Return the name of the contract.
         return _NAME;
+    }
+
+    /**
+     * @dev Derives the hash of the OrderComponents at calldata offset ptr
+     *      with the given counter, as seaport-core does when it decodes them
+     *      with _decodeOrderComponentsAsOrderParameters and hashes them with
+     *      _deriveOrderHash: every field is hashed as the raw calldata word
+     *      (no enum range or address checks), array heads are masked to four
+     *      bytes, and words past the end of calldata read as zero.
+     */
+    function _deriveOrderComponentsHashFromCalldata(uint256 ptr, uint256 counter)
+        internal
+        view
+        returns (bytes32)
+    {
+        unchecked {
+            uint256 offerPtr = _cdPptrOffset(ptr, 0x40);
+            uint256 considerationPtr = _cdPptrOffset(ptr, 0x60);
+
+            uint256[12] memory words;
+            words[0] = uint256(_ORDER_TYPEHASH);
+            words[1] = _cdWord(ptr);
+            words[2] = _cdWord(ptr + 0x20);
+            words[3] = uint256(_hashCalldataItems(offerPtr, 5, _OFFER_ITEM_TYPEHASH));
+            words[4] = uint256(
+                _hashCalldataItems(considerationPtr, 6, _CONSIDERATION_ITEM_TYPEHASH)
+            );
+            for (uint256 i = 5; i < 11; ++i) {
+                words[i] = _cdWord(ptr + (i - 1) * 0x20);
+            }
+            words[11] = counter;
+            return keccak256(abi.encodePacked(words));
+        }
+    }
+
+    /**
+     * @dev Hashes the array whose (masked) length is at calldata offset
+     *      lengthPtr and whose items of itemWords words each follow it: each
+     *      item as the typehash followed by its raw words, then the array as
+     *      the concatenation of the item hashes.
+     */
+    function _hashCalldataItems(
+        uint256 lengthPtr,
+        uint256 itemWords,
+        bytes32 typeHash
+    ) internal pure returns (bytes32) {
+        unchecked {
+            uint256 length = _cdMasked(lengthPtr);
+            bytes32[] memory hashes = new bytes32[](length);
+            uint256[] memory item = new uint256[](itemWords + 1);
+            item[0] = uint256(typeHash);
+            uint256 itemPtr = lengthPtr + 0x20;
+            for (uint256 i; i < length; ++i) {
+                for (uint256 j; j < itemWords; ++j) {
+                    item[j + 1] = _cdWord(itemPtr + j * 0x20);
+                }
+                hashes[i] = keccak256(abi.encodePacked(item));
+                itemPtr += itemWords * 0x20;
+            }
+            return keccak256(abi.encodePacked(hashes));
+        }
     }
 }

@@ -11,6 +11,8 @@ abstract contract SeaportVariants is Test {
         "lib/seaport/optimized-out/Seaport.sol/Seaport.json";
     string internal constant REFERENCE =
         "lib/seaport/reference-out/ReferenceConsideration.sol/ReferenceConsideration.json";
+    /// The rewrite; SEAPORT_B in the environment names another artifact to
+    /// compare with the optimized build, such as REFERENCE.
     string internal constant HIGHLEVEL =
         "ReferenceConsideration.sol:ReferenceConsideration";
     string internal constant CONTROLLER =

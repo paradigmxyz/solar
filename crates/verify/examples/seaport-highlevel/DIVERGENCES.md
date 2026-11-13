@@ -3,8 +3,10 @@
 ## Found and fixed in the rewrite
 
 Each was a difference between Seaport's `reference/` and the optimized
-contracts. Fixed differences found by fuzzing have a test in
-test/Regressions.t.sol.
+contracts. Fixed differences found by fuzzing or `forge equivalence`
+have a test in test/Regressions.t.sol or test/OrderHash.t.sol, which
+passes on the rewrite and fails with `SEAPORT_B` set to Seaport's
+reference build.
 
 - R1 `name()` returned "Consideration"; it returns "Seaport". Found by
   `forge equivalence` on `name()`.
@@ -25,15 +27,26 @@ test/Regressions.t.sol.
 - D1 `incrementCounter` panicked (0x11) when the counter plus
   `blockhash(block.number - 1) >> 128` exceeded 2^256 - 1; the optimized
   code wraps. Found by `testFuzz_incrementCounter`.
+- D2 `getOrderHash` and `cancel` hashed orders through solc's calldata
+  accessors, which revert with no data on an enum out of range or an
+  address with dirty upper bits. The optimized decoder copies the words as
+  they are (head offsets and lengths masked to four bytes, words past the
+  end of calldata read as zero) and hashes them raw. The rewrite now reads
+  calldata the same way (`lib/ReferenceCalldataReader.sol`,
+  `_deriveOrderComponentsHashFromCalldata`); `cancel` still reads the
+  offerer, zone, order type and counter through solc's accessors, as the
+  optimized code does. Found by `forge equivalence` with an offer item of
+  type 6; test `test_D2_getOrderHashOutOfRangeItemType`.
+- D3 `cancel` reverted with `CannotCancelOrder` at the first order the
+  caller could not cancel. The optimized code goes through every order and
+  reverts after the loop, so a later order that solc's accessors reject
+  (an order type out of range) reverts with no data instead. Found by
+  `testFuzz_cancel` against the reference; test
+  `test_D3_cancelRevertsAfterLoop`.
 
 ## Open
 
-- D2 `getOrderHash` and `cancel` take orders whose enum fields (item
-  type, order type) are out of range: the optimized code hashes the raw
-  byte, the solc ABI decoder in the rewrite reverts with no data. Found by
-  `forge equivalence` with an offer item of type 6. The fix is to decode
-  the external structs with `uint8` fields (same ABI and selectors) and
-  check ranges only where the optimized code does.
+- `validate` and every fulfillment and match function: not compared yet.
 
 ## Intentional differences
 
@@ -49,6 +62,10 @@ test/Regressions.t.sol.
 
 ## Tool limits found
 
+- `forge equivalence` ends incomplete on `getOrderHash` ("solver model
+  does not satisfy path constraints involving symbolic Keccak heuristic")
+  and on `cancel` (symbolic depth limit), also with `--max-calldata`
+  down to 420 bytes, so both are checked by differential fuzzing only.
 - `forge equivalence` stops with an incomplete result on symbolic
   BLOCKHASH, so `incrementCounter` is checked by fuzzing only.
 - When a counterexample depends on GAS (the probe call forwards

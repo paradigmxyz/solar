@@ -7,8 +7,8 @@ import { SeaportVariants } from "./Deploy.sol";
 
 /// Runs one call against two Seaport runtimes installed in turn at the same
 /// address, from the same state, and requires the same observable behaviour:
-/// success, return or revert data, logs, and the ordered calls, creations,
-/// value transfers and storage writes the state-diff recorder sees. Gas is
+/// success, return or revert data, logs, the ordered calls, creations and
+/// value transfers, and the net storage changes the state-diff recorder sees. Gas is
 /// not compared. The second runtime's effects are the ones that persist.
 abstract contract Differential is SeaportVariants {
     address internal seaport;
@@ -68,6 +68,7 @@ abstract contract Differential is SeaportVariants {
             assertEq(a.logs[i].topics, b.logs[i].topics, "log topics");
             assertEq(a.logs[i].data, b.logs[i].data, "log data");
         }
+        _assertSameNetWrites(a.accesses, b.accesses);
         Vm.AccountAccess[] memory ea = _effects(a.accesses);
         Vm.AccountAccess[] memory eb = _effects(b.accesses);
         assertEq(ea.length, eb.length, "call count");
@@ -83,7 +84,6 @@ abstract contract Differential is SeaportVariants {
             if (ea[i].kind != _CREATE) {
                 assertEq(ea[i].data, eb[i].data, "call data");
             }
-            _assertSameWrites(ea[i].storageAccesses, eb[i].storageAccesses);
         }
     }
 
@@ -116,25 +116,62 @@ abstract contract Differential is SeaportVariants {
         }
     }
 
-    /// Storage writes in order, with the slot, value and whether the
-    /// frame that made it reverted.
-    function _assertSameWrites(
-        Vm.StorageAccess[] memory a,
-        Vm.StorageAccess[] memory b
-    ) internal pure {
-        uint256 j;
-        uint256 i;
-        while (true) {
-            while (i < a.length && !a[i].isWrite) ++i;
-            while (j < b.length && !b[j].isWrite) ++j;
-            if (i == a.length || j == b.length) break;
-            assertEq(a[i].account, b[j].account, "write account");
-            assertEq(a[i].slot, b[j].slot, "write slot");
-            assertEq(a[i].newValue, b[j].newValue, "write value");
-            assertEq(a[i].reverted, b[j].reverted, "write reverted");
-            ++i;
-            ++j;
+    /// Net storage changes: each slot written in a frame that did not
+    /// revert, with the value it ends with, when that differs from its value
+    /// before the call. The order of writes and writes that restore a value
+    /// are not observable after the call.
+    function _netWrites(Vm.AccountAccess[] memory all)
+        internal
+        pure
+        returns (Vm.StorageAccess[] memory out)
+    {
+        uint256 total;
+        for (uint256 i; i < all.length; ++i) {
+            total += all[i].storageAccesses.length;
         }
-        assertTrue(i == a.length && j == b.length, "write count");
+        out = new Vm.StorageAccess[](total);
+        uint256 n;
+        for (uint256 i; i < all.length; ++i) {
+            Vm.StorageAccess[] memory acc = all[i].storageAccesses;
+            for (uint256 k; k < acc.length; ++k) {
+                if (!acc[k].isWrite || acc[k].reverted) continue;
+                bool found;
+                for (uint256 m; m < n; ++m) {
+                    if (out[m].account == acc[k].account && out[m].slot == acc[k].slot) {
+                        out[m].newValue = acc[k].newValue;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) out[n++] = acc[k];
+            }
+        }
+        uint256 kept;
+        for (uint256 m; m < n; ++m) {
+            if (out[m].newValue != out[m].previousValue) out[kept++] = out[m];
+        }
+        assembly ("memory-safe") {
+            mstore(out, kept)
+        }
+    }
+
+    function _assertSameNetWrites(
+        Vm.AccountAccess[] memory a,
+        Vm.AccountAccess[] memory b
+    ) internal pure {
+        Vm.StorageAccess[] memory wa = _netWrites(a);
+        Vm.StorageAccess[] memory wb = _netWrites(b);
+        assertEq(wa.length, wb.length, "changed slot count");
+        for (uint256 i; i < wa.length; ++i) {
+            bool found;
+            for (uint256 j; j < wb.length; ++j) {
+                if (wa[i].account == wb[j].account && wa[i].slot == wb[j].slot) {
+                    assertEq(wa[i].newValue, wb[j].newValue, "slot value");
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found, "changed slot");
+        }
     }
 }

@@ -10,7 +10,7 @@ contract SimpleFunctionsTest is Differential {
     uint256 internal constant GUARD_SLOT = 0x929eee14;
 
     function setUp() public {
-        _setUpVariants(OPTIMIZED, HIGHLEVEL);
+        _setUpVariants(OPTIMIZED, vm.envOr("SEAPORT_B", HIGHLEVEL));
     }
 
     /// Writes a fuzzed word into each mapping entry the call can read.

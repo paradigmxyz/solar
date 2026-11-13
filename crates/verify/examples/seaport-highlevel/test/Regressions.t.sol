@@ -7,7 +7,7 @@ import { Differential } from "./Differential.sol";
 /// fixed in the rewrite (see DIVERGENCES.md).
 contract RegressionsTest is Differential {
     function setUp() public {
-        _setUpVariants(OPTIMIZED, HIGHLEVEL);
+        _setUpVariants(OPTIMIZED, vm.envOr("SEAPORT_B", HIGHLEVEL));
     }
 
     /// D1: incrementCounter wraps when the counter plus the shifted

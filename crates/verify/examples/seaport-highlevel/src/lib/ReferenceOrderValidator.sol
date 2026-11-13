@@ -575,68 +575,68 @@ contract ReferenceOrderValidator is
      *
      * @param orders The orders to cancel.
      *
-     * @return A boolean indicating whether the supplied orders were
+     * @return cancelled A boolean indicating whether the supplied orders were
      *         successfully cancelled.
      */
     function _cancel(OrderComponents[] calldata orders)
         internal
-        returns (bool)
+        returns (bool cancelled)
     {
-        // Declare variables outside of the loop.
-        OrderStatus storage orderStatus;
-        address offerer;
-        address zone;
+        _assertNonReentrant();
 
-        // Read length of the orders array from memory and place on stack.
+        // Whether any order is a contract order or not the caller's; the
+        // optimized code cancels every order first and reverts after the
+        // loop, so an error in a later order takes precedence.
+        bool anyInvalidCallerOrContractOrder;
+
         uint256 totalOrders = orders.length;
 
-        // Iterate over each order.
-        for (uint256 i = 0; i < totalOrders; ++i) {
-            // Retrieve the order.
+        // Calldata offset of the first head of the orders array, as solc's
+        // decoder computes it.
+        uint256 headsPtr;
+        unchecked {
+            headsPtr = 4 + _cdWord(4) + 0x20;
+        }
+
+        for (uint256 i = 0; i < totalOrders;) {
+            // Solc's access checks the element's offset and each field read
+            // checks its value, as in the optimized code.
             OrderComponents calldata order = orders[i];
+            address offerer = order.offerer;
+            address zone = order.zone;
+            OrderType orderType = order.orderType;
 
-            offerer = order.offerer;
-            zone = order.zone;
-
-            // Ensure caller is either offerer or zone of the order and that the
-            // order is not a contract order.
             if (
-                order.orderType == OrderType.CONTRACT
+                orderType == OrderType.CONTRACT
                     || (msg.sender != offerer && msg.sender != zone)
             ) {
-                revert CannotCancelOrder();
+                anyInvalidCallerOrContractOrder = true;
             }
 
-            // Derive order hash using the order parameters and the counter.
-            bytes32 orderHash = _deriveOrderHash(
-                OrderParameters(
-                    offerer,
-                    zone,
-                    order.offer,
-                    order.consideration,
-                    order.orderType,
-                    order.startTime,
-                    order.endTime,
-                    order.zoneHash,
-                    order.salt,
-                    order.conduitKey,
-                    order.consideration.length
-                ),
-                order.counter
-            );
+            uint256 orderPtr;
+            unchecked {
+                orderPtr = headsPtr + _cdWord(headsPtr + i * 0x20);
+            }
 
-            // Retrieve the order status using the derived order hash.
-            orderStatus = _orderStatus[orderHash];
+            bytes32 orderHash =
+                _deriveOrderComponentsHashFromCalldata(orderPtr, order.counter);
 
-            // Update the order status as not valid and cancelled.
+            OrderStatus storage orderStatus = _orderStatus[orderHash];
             orderStatus.isValidated = false;
             orderStatus.isCancelled = true;
 
-            // Emit an event signifying that the order has been cancelled.
             emit OrderCancelled(orderHash, offerer, zone);
+
+            unchecked {
+                ++i;
+            }
         }
 
-        return true;
+        if (anyInvalidCallerOrContractOrder) {
+            revert CannotCancelOrder();
+        }
+
+        cancelled = true;
     }
 
     /**

@@ -22,8 +22,10 @@ equivalence.
   agree.
 - `test/Differential.sol`: runs one call against two runtimes installed in
   turn at the same address from the same state, and compares success, return
-  or revert data, logs, and the ordered calls, creations and storage writes
-  from forge's state-diff recorder.
+  or revert data, logs, the ordered calls and creations with their data and
+  value, and the net storage changes from forge's state-diff recorder.
+  `SEAPORT_B=<artifact>` compares another build instead of the rewrite,
+  such as Seaport's reference, against which the regression tests fail.
 - `test/*.t.sol`: differential fuzz tests and reduced regressions.
 - `scripts/equiv.sh`: `forge equivalence` per function, optimized against
   the rewrite, in both guard modes. `scripts/mutants.sh`: mutants of the
@@ -45,17 +47,33 @@ scripts/mutants.sh
 
 ## Status
 
-| Function | forge equivalence (tstore, sstore) | differential fuzz |
-|---|---|---|
-| getCounter | equivalent, equivalent | passes |
-| getContractOffererNonce | equivalent, equivalent | passes |
-| getOrderStatus | equivalent, equivalent | passes |
-| information | equivalent, equivalent | passes |
-| name | equivalent, equivalent | passes |
-| __activateTstore | equivalent, equivalent | passes |
-| incrementCounter | incomplete: symbolic BLOCKHASH unsupported | passes (D1 fixed) |
-| getOrderHash, cancel | not equivalent (D2) | not yet |
-| validate, fulfill*, match* | not yet | not yet |
+| Function | forge equivalence (tstore, sstore) | differential fuzz | solar-verify (specs of paradigmxyz/solar#2627) |
+|---|---|---|---|
+| getCounter | equivalent, equivalent | passes | verified |
+| getContractOffererNonce | equivalent, equivalent | passes | verified |
+| getOrderStatus | equivalent, equivalent | passes | verified |
+| information | equivalent, equivalent | passes | verified |
+| name | equivalent, equivalent | passes | verified |
+| __activateTstore | equivalent, equivalent | passes | verified |
+| incrementCounter | incomplete: symbolic BLOCKHASH | passes (D1 fixed) | verified |
+| getOrderHash | incomplete: symbolic keccak | passes (D2 fixed) | verified |
+| cancel | incomplete: depth limit | passes (D2, D3 fixed) | unknown: 6 of 11 obligations time out in the loop |
+| validate, fulfill*, match* | not yet | not yet | not yet |
+
+The specs are applied with
+
+```sh
+python3 ../../seaport/apply_specs.py --seaport . --out OUT --search src \
+  --rename Consideration=ReferenceConsideration \
+  --define SSTORE_GUARD=_reentrancyGuardSstore --define TSTORE_GUARD=_reentrancyGuardTstore
+```
+
+from this directory, and checked with `solar-verify <remappings> --timeout 20000
+--only ReferenceConsideration.<function> src/ReferenceConsideration.sol` in
+OUT. solar-verify proofs are Z3 proofs: none is kernel-checked in Lean yet,
+and none is transported to the optimized code yet. On the optimized code
+the same specs verify only the three getters and `__activateTstore`; the
+rest is unsupported there because of assembly.
 
 `forge equivalence` explores both runtimes symbolically with arbitrary
 storage and compares success, return or revert data, storage, logs and

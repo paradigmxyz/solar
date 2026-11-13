@@ -529,10 +529,9 @@ contract ReferenceConsideration is
     function cancel(OrderComponents[] calldata orders)
         external
         override
-        notEntered
         returns (bool cancelled)
     {
-        // Cancel the orders.
+        // Cancel the orders; _cancel checks the guard first.
         cancelled = _cancel(orders);
     }
 
@@ -567,7 +566,6 @@ contract ReferenceConsideration is
     function incrementCounter()
         external
         override
-        notEntered
         returns (uint256 newCounter)
     {
         // Increment current counter for the supplied offerer.
@@ -575,35 +573,22 @@ contract ReferenceConsideration is
     }
 
     /**
-     * @notice Retrieve the order hash for a given order.
-     *
-     * @param order The components of the order.
+     * @notice Retrieve the order hash for a given order (OrderComponents,
+     *         read from calldata).
      *
      * @return orderHash the order hash.
      */
-    function getOrderHash(OrderComponents calldata order)
+    function getOrderHash(OrderComponents calldata)
         external
         view
         override
         returns (bytes32 orderHash)
     {
-        // Derive order hash by supplying order parameters along with the
-        // counter.
-        orderHash = _deriveOrderHash(
-            OrderParameters(
-                order.offerer,
-                order.zone,
-                order.offer,
-                order.consideration,
-                order.orderType,
-                order.startTime,
-                order.endTime,
-                order.zoneHash,
-                order.salt,
-                order.conduitKey,
-                order.consideration.length
-            ),
-            order.counter
+        // Read the order from calldata as the optimized decoder does, so no
+        // field is validated.
+        uint256 ptr = 4 + _cdMasked(4);
+        orderHash = _deriveOrderComponentsHashFromCalldata(
+            ptr, _cdWord(ptr + 0x140)
         );
     }
 
