@@ -305,15 +305,15 @@ pub(crate) fn scheduled(gcx: Gcx<'_>, program: &ir::Module) -> Result {
     write_stage(gcx, &dir, Stage::scheduled(), &contract, &body)
 }
 
-/// Writes where stack scheduling put each MIR value of a contract's runtime, \`Schedule.json\`:
+/// Writes where stack scheduling put each MIR value of a contract's runtime, `Schedule.json`:
 /// for every function, its entry block in the scheduled EVM IR and whether it is entered with a
 /// return address, and for every MIR block, where its code starts in the scheduled EVM IR (an
 /// EVM IR block number and an instruction index, before the exporter fuses a pushed label
 /// with its jump) and what each word of its entry stack holds, from the bottom of the function's
-/// words to the top: \`"vN"\` for MIR value \`N\`, \`"ret"\` for the return address and \`"junk"\`
+/// words to the top: `"vN"` for MIR value `N`, `"ret"` for the return address and `"junk"`
 /// for a word no later code reads. The cut-point proofs of looping stages read the relation
 /// between a MIR loop header and its scheduled block from it; it is the scheduler's own record
-/// ([\`ScheduleMap\`]), written after the fact, so it changes nothing the scheduler emits, and a
+/// (`ScheduleMap`), written after the fact, so it changes nothing the scheduler emits, and a
 /// wrong entry only fails a proof.
 pub(crate) fn schedule_map(gcx: Gcx<'_>, program: &ir::Module, map: &ScheduleMap) -> Result {
     let Some(contract) = runtime_contract(program) else { return Ok(()) };

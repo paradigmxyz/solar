@@ -79,11 +79,23 @@ dsimproc_decl boolAndLit (_ && _) := fun e => do
   | _, some ``true => return .done a
   | _, _ => return .continue
 
+open Lean Meta Simp in
+/-- A conditional on two numerals being equal, as a MIR value lookup leaves it (`Env.set`
+compares value numbers): the branch the numerals pick. Definitional, since equality of numerals
+decides by evaluation, so `dsimp` keeps the decision instance and the term type-correct. -/
+dsimproc_decl iteNatLit (ite _ _ _) := fun e => do
+  let_expr ite _ c _ a b := e | return .continue
+  let_expr Eq ty x y := c | return .continue
+  unless ty.isConstOf ``Nat do return .continue
+  let some m ← Nat.fromExpr? x | return .continue
+  let some n ← Nat.fromExpr? y | return .continue
+  return .done (if m == n then a else b)
+
 /-- Unfold a segment's step and its cut test. -/
 syntax "seg_eval" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
 macro_rules
   | `(tactic| seg_eval [$ids,*]) => `(tactic|
-      dsimp only [seg_mk, seg_zero, SegRel, $ids,*, finValLit, boolLit, boolAndLit, Nat.reduceBEq, ↓reduceIte, Bool.false_eq_true])
+      dsimp only [seg_mk, seg_zero, SegRel, $ids,*, finValLit, boolLit, boolAndLit, iteNatLit, Nat.reduceBEq, ↓reduceIte, Bool.false_eq_true])
 
 syntax "seg_norm" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
 macro_rules
