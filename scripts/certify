@@ -437,17 +437,18 @@ printf '%s\n' "${caveats[@]}" > "$record.caveats"
 printf '%s\n' "${e2e_thms[@]}" > "$record.headline"
 python3 - "$record" "$dir/record.json" "$lean_dir/.lake/certify-headline-$name.out" "$contract" "$name" \
     "$source" "$plain" "$version" "$head" "$final" "$mir_status" "$assembly_status" "$spec_status" \
-    "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" <<'EOF'
+    "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" \
+    "$lean_dir/.lake/certify-audit-$name.out" "$executes" <<'EOF'
 import json, re, sys
 
 (out, committed, audit_out, contract, name, source, bytecode, solar, lean, final, mir, assembly,
- spec, negatives, e2e_kind, vacuous_file) = sys.argv[1:]
+ spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes) = sys.argv[1:]
 lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
 e2e = lines(".headline")
 text = open(audit_out).read() if e2e else ""
 
 
-def statement(thm):
+def statement(thm, text=text):
     # The audit file's "#check @THM" output, "@THM : TYPE", up to the next report line.
     short = re.escape(thm.rsplit(".", 1)[-1])
     found = re.search(r"^@?\S*" + short + r" :\s*(.*?)(?=^\S|\Z)", text, re.M | re.S)
@@ -481,6 +482,8 @@ def premises(ty):
 
 
 stmts = {t: statement(t) for t in e2e}
+# The execution theorem's statement and premises (such as Assemble.EnvOk for environment reads).
+exec_stmt = statement(executes, open(proofs_audit).read()) if executes else None
 try:
     vacuous = "obligations with refuted hypotheses: " + open(vacuous_file).read().strip()
 except OSError:
@@ -503,6 +506,8 @@ record = {
         for r in lines(".refused")
     ],
     "vacuous": vacuous,
+    "assembly_statement": exec_stmt,
+    "assembly_hypotheses": premises(exec_stmt) if exec_stmt else None,
     "negative_tests": negatives == "1",
     "caveats": lines(".caveats"),
     "backend": {"theorem": final},

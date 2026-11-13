@@ -769,6 +769,7 @@ def main():
                 f"{gm}.Bytecode",
                 "SolidCore.Refinement.Solar.AssembleFast",
                 "SolidCore.Refinement.Solar.EndToEnd",
+                "SolidCore.Refinement.Solar.RunOracle",
             ],
             f"The bytecode of `{contract}` runs as its final EVM IR does, at every gas, by the "
             "assembly checker for code with loops on an inferred certificate the kernel's evaluation "
@@ -809,10 +810,10 @@ def main():
             "  decide\n\n"
             "/-- **The assembly stage at every gas.** -/\n"
             f"theorem assembly (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
-            "    (scope : Call → Prop) (gas : Nat) :\n"
+            f"    (he : cert.reads = true → {A}.EnvOk o) (scope : Call → Prop) (gas : Nat) :\n"
             f"    SolidCore.Refinement.Final.Within (evmirSem o) (SolidCore.Refinement.Final.ethLibWith gas)\n"
             f"      {last['def']} code scope :=\n"
-            f"  {L}.within_of_checkL check_ok o ho scope gas\n\n"
+            f"  {L}.within_of_checkL check_ok o ho scope gas he\n\n"
             "/-- **The first lowered MIR to the exact bytecode at every gas**: every result of the "
             "bytecode, on every call, is\nthe first lowered MIR's or a failure that changes nothing"
             + (
@@ -820,15 +821,34 @@ def main():
                 if "env := true" in cert
                 else ""
             )
+            + (
+                (" and" if "env := true" in cert else ", under every oracle")
+                + " whose reads of the block and the transaction are EthLib's (EnvOk)"
+                if "reads := true" in cert
+                else ""
+            )
             + ". -/\n"
-            f"theorem {executes} (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o) (gas : Nat) :\n"
+            f"theorem {executes} (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
+            f"    (he : cert.reads = true → {A}.EnvOk o) (gas : Nat) :\n"
             f"    SolidCore.Refinement.Final.Within (mirSem o) (SolidCore.Refinement.Final.ethLibWith gas)\n"
             f"      {first['def']} code anyCall :=\n"
             f"  SolidCore.Refinement.Solar.EndToEnd.within_of_checkL ({label}_certified_back o)\n"
-            "    (fun _ _ => trivial) check_ok ho gas\n\n"
+            "    (fun _ _ => trivial) check_ok ho gas he\n\n"
+            "/-- **The first lowered MIR to the exact bytecode, run by run**: for every gas and every "
+            "call there is an oracle,\nmeeting the certificate's constraints (CertOk), under which "
+            "every result of the bytecode is the first\nlowered MIR's or a failure that changes "
+            "nothing; it composes with specifications proved for every\noracle "
+            "(RunOracle.holds_of_withinRun). -/\n"
+            f"theorem {executes}_run :\n"
+            f"    SolidCore.Refinement.Solar.RunOracle.WithinRun mirSem (fun _ => {first['def']}) code anyCall\n"
+            "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
+            f"  SolidCore.Refinement.Solar.RunOracle.withinRun_mir_of_checkL {label}_certified_back\n"
+            "    (fun _ _ => trivial) check_ok\n\n"
             + axioms_check(ns, "check_ok", "[propext, Quot.sound]")
             + "\n"
             + axioms_check(ns, executes)
+            + "\n"
+            + axioms_check(ns, f"{executes}_run")
             + f"\nend {ns}\n"
         )
         write(out / "Execution.lean", ex)
@@ -844,6 +864,7 @@ def main():
             {
                 "final": f"{ns}.{final}",
                 **({"executes": f"{ns}.{executes}"} if executes else {}),
+                **({"executes_run": f"{ns}.{executes}_run"} if executes else {}),
                 "last": last["def"],
                 "first": first["def"],
                 "stages": [s["def"] for s in stages],

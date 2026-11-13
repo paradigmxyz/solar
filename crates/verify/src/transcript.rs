@@ -4,9 +4,15 @@
 //! `--dump-lean FILE` writes the commands solar-verify sent the solver as a Lean `List Cmd`
 //! (`Verify/VC/Term.lean`), and the transcript itself as a string, so that the Lean side
 //! can show that the term prints back to exactly those bytes. Every term must lie in the fragment
-//! the Lean side models: integer, boolean and `(Array Int Int)` constants, the operators of
-//! `applyOp`, and `forall` over one integer. Anything else is an error, never skipped: a term the
-//! Lean side would read differently must not reach it.
+//! the Lean side models: integer, boolean, `(Array Int Int)` and `(Array Int (Array Int Int))`
+//! constants, the operators of `applyOp` (with the constant arrays `((as const S) v)`),
+//! uninterpreted functions from integers to an integer (`declare-fun`), and `forall` over
+//! integers, written as nested quantifiers over one integer each (the Lean side prints them back
+//! as one). Anything else is an error, never skipped: a term the Lean side would read differently
+//! must not reach it. The one exception is an asserted fact with an `!` annotation (a quantified
+//! axiom with a trigger, such as the inverse that makes a hash injective), which stays a raw line:
+//! the Lean side reads it as no fact, so its obligations have fewer facts and are only harder to
+//! refute.
 
 use crate::sexp::{self, Sexp};
 use std::{collections::HashMap, fmt::Write as _};
@@ -16,11 +22,13 @@ const OPS: &[&str] = &[
     "select", "store",
 ];
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Sort {
     Int,
     Bool,
     Arr,
+    /// `(Array Int (Array Int Int))`, a mapping of mappings.
+    Arr2,
 }
 
 impl Sort {
@@ -32,6 +40,14 @@ impl Sort {
                 let names: Vec<&str> = xs.iter().filter_map(Sexp::as_atom).collect();
                 (names == ["Array", "Int", "Int"]).then_some(Self::Arr)
             }
+            Sexp::List(xs)
+                if xs.len() == 3
+                    && xs[0].as_atom() == Some("Array")
+                    && xs[1].as_atom() == Some("Int")
+                    && matches!(Self::parse(&xs[2]), Some(Self::Arr)) =>
+            {
+                Some(Self::Arr2)
+            }
             _ => None,
         }
     }
@@ -41,6 +57,17 @@ impl Sort {
             Self::Int => ".int",
             Self::Bool => ".bool",
             Self::Arr => ".arr",
+            Self::Arr2 => ".arr2",
+        }
+    }
+
+    /// The SMT-LIB sort, as solar-verify writes it.
+    fn smt(self) -> &'static str {
+        match self {
+            Self::Int => "Int",
+            Self::Bool => "Bool",
+            Self::Arr => "(Array Int Int)",
+            Self::Arr2 => "(Array Int (Array Int Int))",
         }
     }
 }
@@ -71,8 +98,21 @@ pub(crate) fn lean_str(s: &str) -> String {
     out
 }
 
+#[derive(Clone)]
 struct Conv {
     consts: HashMap<String, Sort>,
+    /// Uninterpreted functions, by name, with their number of integer arguments.
+    funs: HashMap<String, usize>,
+}
+
+/// Whether a term carries an `!` annotation (a trigger or a name).
+fn annotated(t: &Sexp) -> bool {
+    match t {
+        Sexp::Atom(_) => false,
+        Sexp::List(xs) => {
+            xs.first().and_then(Sexp::as_atom) == Some("!") || xs.iter().any(annotated)
+        }
+    }
 }
 
 impl Conv {
@@ -95,10 +135,24 @@ impl Conv {
                     Some(Sort::Int) => Ok(format!("(.ivar {})", lean_str(name))),
                     Some(Sort::Bool) => Ok(format!("(.bvar {})", lean_str(name))),
                     Some(Sort::Arr) => Ok(format!("(.avar {})", lean_str(name))),
+                    Some(Sort::Arr2) => Ok(format!("(.a2var {})", lean_str(name))),
                     None => Err(format!("undeclared symbol: {a}")),
                 }
             }
             Sexp::List(xs) => {
+                // `((as const S) v)`: the constant array of sort `S`, named by its whole head.
+                if let Some(Sexp::List(h)) = xs.first()
+                    && let [Sexp::Atom(a), Sexp::Atom(c), s] = &h[..]
+                    && a == "as"
+                    && c == "const"
+                {
+                    let (Some(s @ (Sort::Arr | Sort::Arr2)), [_, v]) = (Sort::parse(s), &xs[..])
+                    else {
+                        return Err(format!("constant array outside the Lean fragment: {t}"));
+                    };
+                    let name = format!("(as const {})", s.smt());
+                    return Ok(format!("(.app {} [{}])", lean_str(&name), self.term(v, bound)?));
+                }
                 let head =
                     xs.first().and_then(Sexp::as_atom).ok_or("application without an operator")?;
                 if head == "forall" {
@@ -106,32 +160,50 @@ impl Conv {
                         return Err(format!("forall with a pattern or no body: {t}"));
                     };
                     let bs = binders.as_list().ok_or("forall without binders")?;
-                    let [b] = bs else {
-                        return Err(format!("forall over more than one variable: {t}"));
-                    };
-                    let b = b.as_list().ok_or("bad binder")?;
-                    let (Some(x), Some(Sort::Int)) = (
-                        b.first().and_then(Sexp::as_atom).and_then(quoted),
-                        b.get(1).and_then(Sort::parse),
-                    ) else {
-                        return Err(format!("forall over a non-integer or unquoted variable: {t}"));
-                    };
-                    if b.len() != 2 {
-                        return Err(format!("bad binder: {t}"));
+                    if bs.is_empty() {
+                        return Err(format!("forall without binders: {t}"));
                     }
-                    bound.push(x.to_string());
+                    // `(forall ((x Int) (y Int)) b)` is `(forall ((x Int)) (forall ((y Int)) b))`.
+                    let mut names = vec![];
+                    for b in bs {
+                        let b = b.as_list().ok_or("bad binder")?;
+                        let (Some(x), Some(Sort::Int)) = (
+                            b.first().and_then(Sexp::as_atom).and_then(quoted),
+                            b.get(1).and_then(Sort::parse),
+                        ) else {
+                            return Err(format!(
+                                "forall over a non-integer or unquoted variable: {t}"
+                            ));
+                        };
+                        if b.len() != 2 {
+                            return Err(format!("bad binder: {t}"));
+                        }
+                        names.push(x.to_string());
+                    }
+                    let depth = bound.len();
+                    bound.extend(names.iter().cloned());
                     let body = self.term(body, bound);
-                    bound.pop();
-                    return Ok(format!("(.all {} {})", lean_str(x), body?));
-                }
-                if !OPS.contains(&head) {
-                    return Err(format!("operator outside the Lean fragment: {head}"));
+                    bound.truncate(depth);
+                    let mut out = body?;
+                    for x in names.iter().rev() {
+                        out = format!("(.all {} {out})", lean_str(x));
+                    }
+                    return Ok(out);
                 }
                 let mut args = vec![];
                 for x in &xs[1..] {
                     args.push(self.term(x, bound)?);
                 }
-                Ok(format!("(.app {} [{}])", lean_str(head), args.join(", ")))
+                if OPS.contains(&head) {
+                    return Ok(format!("(.app {} [{}])", lean_str(head), args.join(", ")));
+                }
+                match self.funs.get(head) {
+                    Some(&n) if n == args.len() => {
+                        Ok(format!("(.app {} [{}])", lean_str(head), args.join(", ")))
+                    }
+                    Some(_) => Err(format!("wrong number of arguments: {t}")),
+                    None => Err(format!("operator outside the Lean fragment: {head}")),
+                }
             }
         }
     }
@@ -174,7 +246,37 @@ impl Conv {
                 self.consts.insert(x.to_string(), s);
                 Ok(format!(".decl {} {}", lean_str(x), s.lean()))
             }
-            [Some("assert"), _] => Ok(format!(".assert {}", self.term(&xs[1], &mut vec![])?)),
+            [Some("declare-fun"), Some(f), None, Some("Int")] => {
+                // An uninterpreted function from integers to an integer, named by a plain symbol
+                // that is no operator, printed back byte for byte.
+                let args = xs[2].as_list().unwrap_or(&[]);
+                let n = args.len();
+                let plain = !f.is_empty()
+                    && f.bytes().all(|b| b.is_ascii_alphanumeric() || b"_.$-".contains(&b))
+                    && !f.as_bytes()[0].is_ascii_digit();
+                if n == 0
+                    || !args.iter().all(|a| a.as_atom() == Some("Int"))
+                    || !plain
+                    || OPS.contains(&f)
+                    || self.consts.contains_key(f)
+                    || line != format!("(declare-fun {f} ({}) Int)", vec!["Int"; n].join(" "))
+                {
+                    return Err(format!("declare-fun outside the Lean fragment: {line}"));
+                }
+                if let Some(&m) = self.funs.get(f)
+                    && m != n
+                {
+                    return Err(format!("declare-fun with another arity: {line}"));
+                }
+                self.funs.insert(f.to_string(), n);
+                Ok(format!(".declFun {} {n}", lean_str(f)))
+            }
+            [Some("assert"), _] => match self.term(&xs[1], &mut vec![]) {
+                Ok(t) => Ok(format!(".assert {t}")),
+                // A quantified axiom with a trigger: the Lean side takes it as no fact.
+                Err(_) if annotated(&xs[1]) => Ok(format!(".raw {}", lean_str(line))),
+                Err(e) => Err(e),
+            },
             _ => Err(format!("command outside the Lean fragment: {line}")),
         }
     }
@@ -182,7 +284,7 @@ impl Conv {
 
 /// The Lean module of a transcript: `script`, its commands, and `transcript`, its bytes.
 pub(crate) fn module(smt: &str, namespace: &str) -> Result<String, String> {
-    let mut conv = Conv { consts: HashMap::new() };
+    let mut conv = Conv { consts: HashMap::new(), funs: HashMap::new() };
     // Each top-level `(push 1)` … `(pop 1)` is one function's section. A section with a line
     // outside the fragment is kept as raw lines, which `obligations` reads as nothing: the module
     // then holds exactly the other sections' obligations, each with the same facts, so a verdict
@@ -214,11 +316,11 @@ pub(crate) fn module(smt: &str, namespace: &str) -> Result<String, String> {
                 break;
             }
         }
-        let saved = conv.consts.clone();
+        let saved = conv.clone();
         match lines[i..j].iter().map(|l| conv.command(l)).collect::<Result<Vec<_>, _>>() {
             Ok(cs) => cmds.extend(cs),
             Err(e) => {
-                conv.consts = saved;
+                conv = saved;
                 let name = lines[i..j]
                     .iter()
                     .find_map(|l| l.strip_prefix("; ===== "))
@@ -272,11 +374,24 @@ mod tests {
     }
 
     #[test]
+    fn converts_nested_arrays_functions_and_quantifiers() {
+        let smt = "(declare-const |n@1| (Array Int (Array Int Int)))\n(declare-fun h (Int Int) Int)\n(assert (forall ((|a!2| Int) (|b!3| Int)) (= (select (select |n@1| |a!2|) |b!3|) (h |a!2| 7))))\n(assert (= (select ((as const (Array Int (Array Int Int))) ((as const (Array Int Int)) 0)) 1) ((as const (Array Int Int)) 0)))\n(assert (forall ((x0 Int)) (! (= (h x0 0) x0) :pattern ((h x0 0)))))\n";
+        let m = module(smt, "T").unwrap();
+        assert!(m.contains(".decl \"n@1\" .arr2"));
+        assert!(m.contains(".declFun \"h\" 2"));
+        assert!(m.contains("(.all \"a!2\" (.all \"b!3\" (.app \"=\" [(.app \"select\" [(.app \"select\" [(.a2var \"n@1\"), (.ivar \"a!2\")]), (.ivar \"b!3\")]), (.app \"h\" [(.ivar \"a!2\"), (.num 7)])])))"));
+        assert!(m.contains("(.app \"(as const (Array Int (Array Int Int)))\" [(.app \"(as const (Array Int Int))\" [(.num 0)])])"));
+        assert!(m.contains(
+            ".raw \"(assert (forall ((x0 Int)) (! (= (h x0 0) x0) :pattern ((h x0 0)))))\""
+        ));
+    }
+
+    #[test]
     fn leaves_a_section_outside_the_fragment_raw() {
-        let smt = "(push 1)\n; ===== C.f\n(declare-const |n@1| (Array Int (Array Int Int)))\n(assert (= (select (select |n@1| 0) 0) 0))\n(check-sat)\n(pop 1)\n(push 1)\n; ===== C.g\n(declare-const |x@2| Int)\n(assert (<= 0 |x@2|))\n(check-sat)\n(pop 1)\n";
+        let smt = "(push 1)\n; ===== C.f\n(declare-const |n@1| (Array Int Bool))\n(assert (select |n@1| 0))\n(check-sat)\n(pop 1)\n(push 1)\n; ===== C.g\n(declare-const |x@2| Int)\n(assert (<= 0 |x@2|))\n(check-sat)\n(pop 1)\n";
         let m = module(smt, "T").unwrap();
         assert!(m.contains("-- Left raw, outside the Lean fragment: C.f: undeclared symbol"));
-        assert!(m.contains(".raw \"(assert (= (select (select |n@1| 0) 0) 0))\""));
+        assert!(m.contains(".raw \"(assert (select |n@1| 0))\""));
         assert!(m.contains(".raw \"(check-sat)\""));
         assert!(m.contains(".decl \"x@2\" .int"));
         assert!(m.contains(".checkSat"));
@@ -284,22 +399,27 @@ mod tests {
 
     #[test]
     fn keeps_unused_constants_outside_the_fragment_raw() {
-        let smt = "(declare-const |n@1| (Array Int (Array Int Int)))\n(declare-const |x@2| Int)\n(assert (<= 0 |x@2|))\n";
+        let smt = "(declare-const |n@1| (Array Int Bool))\n(declare-const |x@2| Int)\n(assert (<= 0 |x@2|))\n";
         let m = module(smt, "T").unwrap();
-        assert!(m.contains(".raw \"(declare-const |n@1| (Array Int (Array Int Int)))\""));
+        assert!(m.contains(".raw \"(declare-const |n@1| (Array Int Bool))\""));
         assert!(m.contains(".decl \"x@2\" .int"));
     }
 
     #[test]
     fn rejects_what_lean_does_not_model() {
         for bad in [
-            "(declare-fun f (Int) Int)\n",
+            "(declare-fun f (Int) Bool)\n",
+            "(declare-fun + (Int) Int)\n",
+            "(declare-fun f () Int)\n",
+            "(declare-fun f (Int) Int)\n(assert (= (f 1 2) 0))\n",
+            "(assert (= (g 1) 0))\n",
             "(declare-const |b@1| (_ BitVec 8))\n(assert (= |b@1| |b@1|))\n",
-            "(declare-const |n@1| (Array Int (Array Int Int)))\n(assert (= (select (select |n@1| 0) 0) 0))\n",
+            "(declare-const |n@1| (Array Int Bool))\n(assert (select |n@1| 0))\n",
             "(declare-const |x@1| Int)\n(assert (= (bv2nat |x@1|) 0))\n",
             "(assert (= |y@9| 0))\n",
-            "(declare-const |x@1| Int)\n(assert (forall ((|a| Int) (|b| Int)) (= |a| |b|)))\n",
-            "(declare-const |x@1| Int)\n(assert (forall ((|a| Int)) (! (= |a| |x@1|) :pattern (|x@1|))))\n",
+            "(declare-const |x@1| Int)\n(assert (forall ((|a| Int) (|b| Bool)) (= |a| |a|)))\n",
+            "(declare-const |x@1| Int)\n(assert (forall () (= |x@1| |x@1|)))\n",
+            "(assert (= ((as const (Array Int Bool)) true) ((as const (Array Int Bool)) true)))\n",
             "(declare-const |x@1| Int)\n(assert (= |x@1| 007))\n",
         ] {
             assert!(module(bad, "T").is_err(), "accepted {bad:?}");

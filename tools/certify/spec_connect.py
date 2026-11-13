@@ -79,6 +79,12 @@ def main():
     ap.add_argument("--out", required=True, type=pathlib.Path)
     ap.add_argument("--lean", required=True)
     ap.add_argument("--cwd", default=".")
+    ap.add_argument(
+        "--ghost-fixed",
+        action="store_true",
+        help="state each function's spec with the ghost state unchanged by its calls "
+        "(TreeMeetsFixed), and take that of the ghost step as a premise of _holds",
+    )
     args = ap.parse_args()
 
     probe = PROBE.format(
@@ -174,6 +180,10 @@ def main():
         f"def deployed : List (Nat × Nat) := {deployed}",
         "",
     ]
+    meets = "TreeMeetsFixed" if args.ghost_fixed else "TreeMeets"
+    tactic = "tree_meets_fixed" if args.ghost_fixed else "tree_meets"
+    holds = "holdsFn_of_tree_fixed" if args.ghost_fixed else "holdsFn_of_tree"
+    hstep = " hstep" if args.ghost_fixed else ""
     for i, (name, fid, n, sel, tree) in enumerate(fns):
         out += [
             f"/-- `{name}` as the stage's ABI sees it (only the number of its parameters matters). -/",
@@ -196,12 +206,17 @@ def main():
             f"def {fid}_spec : FnSpec := spec.spec.specs[{i}]'(by decide)",
             "",
             f"/-- `{name}`'s spec holds of its erased tree. -/",
-            f"theorem {fid}_meets : TreeMeets spec {fid}_spec ctx {n} {fid}_tree := by",
-            f"  tree_meets [{fid}_tree, {fid}_spec, spec, {args.bundle}]",
+            f"theorem {fid}_meets : {meets} spec {fid}_spec ctx {n} {fid}_tree := by",
+            f"  {tactic} [{fid}_tree, {fid}_spec, spec, {args.bundle}]",
             "",
             f"/-- **`{name}`'s spec holds of SolidCore's checked contract** on the stage's calls of it. -/",
             f"theorem {fid}_holds {{c : SolidCore.Solidity.TypeCheck.CheckedContract}} (hc : {ns}.contract? = .ok c)",
-            "    (step : GhostStep) :",
+            "    (step : GhostStep)"
+            + (
+                f" (hstep : ∀ call, SolidCore.Verify.VC.stageScope fn_{fid} deployed call → ∀ g, step call g = g) :"
+                if args.ghost_fixed
+                else " :"
+            ),
             f"    HoldsFn (solidCore {ns}.fuel) c (SolidCore.Verify.VC.stageScope fn_{fid} deployed) spec ctxOf step {fid}_spec := by",
             f"  have hshape := {fid}_shape_eq",
             f"  simp only [{fid}_shape?, hc, Option.some.injEq, Prod.mk.injEq] at hshape",
@@ -209,8 +224,8 @@ def main():
             "  obtain ⟨dd, hdd⟩ := Wide.deployedAt_of hdep",
             "  simp only [Option.map_eq_some_iff, Prod.mk.injEq] at hmap",
             "  obtain ⟨f, hf, hlen, hT⟩ := hmap",
-            f"  exact holdsFn_of_tree (fn := fn_{fid}) hdd (by decide) hf (by simpa [fn_{fid}] using hlen) hT",
-            f"    (fun call h => by simp [ctxOf, ctx, h]) (by simpa [fn_{fid}] using {fid}_meets)",
+            f"  exact {holds} (fn := fn_{fid}) (ctx := ctx) hdd (by decide) hf (by simpa [fn_{fid}] using hlen) hT",
+            f"    (fun call h => by simp [ctxOf, ctx, h]){hstep} (by simpa [fn_{fid}] using {fid}_meets)",
             "",
             f"/-- info: '{args.module_name}.{fid}_holds' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
             "#guard_msgs in",

@@ -22,6 +22,8 @@ STACK2 = {
     "mod",
     "lt",
     "gt",
+    "slt",
+    "sgt",
     "eq",
     "and",
     "or",
@@ -75,6 +77,9 @@ def parse_instr(s):
     m = re.fullmatch(r"\.effect \(\.log (\d+)\) (\d+)", s)
     if m:
         return ("log", int(m.group(1)), int(m.group(2)))
+    m = re.fullmatch(r'\.effect \(\.env "(\w+)"\) (\d+)', s)
+    if m:
+        return ("env", m.group(1), int(m.group(2)))
     m = re.fullmatch(r"\.effect \.(\w+) (\d+)", s)
     if m:
         return ("effect", m.group(1), int(m.group(2)))
@@ -273,7 +278,9 @@ def run_block(blocks, turned, rets, b, h, ty):
                 return edges, items, top
             top = max(top, known[0] + 32)
             known, ty = [], [False] + ty[1:]
-        elif tag == "effect" and i[1] in ("callvalue", "calldatasize", "caller"):
+        elif (tag == "effect" and i[1] in ("callvalue", "calldatasize", "caller", "address")) or (
+            tag == "env" and i[1] in ENV_READS and i[2] == 0
+        ):
             h, known, ty = h + 1, [], [False] + ty
         elif tag == "effect" and i[1] in ("calldataload", "sload"):
             known, ty = [], [False] + ty[1:]
@@ -318,6 +325,7 @@ def infer(program_text, code):
         for bl in blocks
         for i in bl
     )
+    reads = any(i[0] == "env" for bl in blocks for i in bl)
     entry = [None] * n
     entry[0] = (0, 0, [])
     for _ in range(4 * n + 8):
@@ -362,6 +370,7 @@ def infer(program_text, code):
         "types": types,
         "rets": rets,
         "env": env,
+        "reads": reads,
         "maxs": [e[1] for e in entry],
     }
 
@@ -383,15 +392,21 @@ def lean_cert(c):
         "    costs := " + str(c["costs"]) + ",\n"
         "    types := [" + types + "],\n"
         "    rets := " + str(c["rets"]) + ",\n"
-        "    env := " + ("true" if c["env"] else "false") + " }"
+        "    env := " + ("true" if c["env"] else "false") + ",\n"
+        "    reads := " + ("true" if c["reads"] else "false") + " }"
     )
     return cert, str(c["maxs"])
 
+
+# The environment reads the checker executes (`Assemble.envRead`): words of EthLib's block and
+# transaction environment of the call, under an oracle that reads them so (`Assemble.EnvOk`).
+ENV_READS = {"origin", "gasprice", "coinbase", "timestamp", "number", "gaslimit", "chainid"}
 
 FRAGMENT_EFFECTS = {
     "callvalue",
     "calldatasize",
     "caller",
+    "address",
     "calldataload",
     "sload",
     "sstore",
@@ -422,6 +437,7 @@ def outside(program_text):
                 or (tag == "stack" and (i[1] == "pop" or need_of(i[1]) is not None))
                 or (tag == "effect" and i[1] in FRAGMENT_EFFECTS)
                 or (tag == "log" and i[1] <= 4)
+                or (tag == "env" and i[1] in ENV_READS and i[2] == 0)
             )
             if not ok:
                 return f"block {b}: {i}"

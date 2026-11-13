@@ -240,6 +240,33 @@ an error naming the jump tables it cannot spell, and the walk refuses it. Two mi
 whose contracts share a name export the same `SolarTV.Export.<Contract>` namespace and cannot be
 imported together.
 
+## Loop invariants from solar-verify
+
+A spec proof of a function that loops (solidity-lean's Contracts/VerifyCounter/Bump.lean, bump's
+loop of crates/verify/examples/Counter.sol) goes through the loop's header in the first lowered
+MIR, and needs an invariant there. None is written by hand: [inferred.py](inferred.py) carries the
+invariants and the measure that `solar-verify --show-inferred` infers for the source loop to the
+header, binding the loop variable and its bound to the operands of the header's `lt` branch, a
+state variable to the phi whose entry input loads its slot and a parameter to its calldata word,
+and adds the frame the compiler keeps around the loop from the MIR alone (storage unchanged, the
+definitions of the values the loop reads, the branches before it, the facts the header checks of
+memory). The proof checks every conjunct on every segment, so a wrong clause or binding fails by
+mismatch. [verify_counter/inferred.sh](verify_counter/inferred.sh) writes Counter's:
+
+```sh
+solar-tv/milestone/verify_counter/inferred.sh target/release/solar-verify     $SOLIDITY_LEAN/Certified/verify_counter/gen/Counter/Stage0.lean     $SOLIDITY_LEAN/Contracts/VerifyCounter/Inferred.lean
+```
+
+Arrays and quantifiers: for a library function over a `uint256[] memory` parameter inlined into
+its caller (ArrayMax.max of crates/verify/examples/ArrayMax.sol, behind `ArrayMaxEntry.max`), the
+array is the memory array whose length word the header checks equals the loop's bound, `xs[e]`
+its word at `xs + 32 + 32 * e`, and `forall`/`exists` clauses over a `uint256` become quantifiers
+over words. The function's one local is the header's one remaining phi; a header phi that steps by
+a constant whenever the loop variable steps by one is an induction pointer, related to the loop
+variable; a load the loop's entry block makes after its last memory write reads the memory the
+loop sees; and a `calldatacopy` before the loop that nothing later overwrites contributes its
+words as the calldata's. [arraymax/inferred.sh](arraymax/inferred.sh) writes ArrayMaxEntry's.
+
 ## Loops: cut points
 
 [certify.sh](certify.sh) certifies a contract whose backend loops through cut points, where the
