@@ -424,8 +424,9 @@ impl<'s, 'a> Builder<'s, 'a> {
             }
             let user_dec = specs.is_some_and(|v| v.iter().any(|(t, _)| t == "decreases"));
             let shape = self.loop_shape(l);
+            let flow = self.loop_flow(l);
             let mut v = vec![];
-            for (tag, text) in crate::infer::candidates(shape.as_ref(), &req, &ens) {
+            for (tag, text) in crate::infer::candidates(shape.as_ref(), &req, &ens, &flow) {
                 if tag == "decreases" && user_dec {
                     continue;
                 }
@@ -437,6 +438,32 @@ impl<'s, 'a> Builder<'s, 'a> {
                 self.inferred.insert(l.span, v);
             }
         }
+    }
+
+    /// The guard and the plain variable copies of a loop's body.
+    fn loop_flow(&self, l: &'a Stmt<'a>) -> crate::infer::Flow {
+        use ast::ExprKind;
+        let (cond, body) = match &l.kind {
+            StmtKind::For { cond, body, .. } => (cond.as_deref(), &**body),
+            StmtKind::While(c, b) => (Some(&**c), &**b),
+            _ => return Default::default(),
+        };
+        let guard = cond.and_then(|c| self.sess.source_map().span_to_snippet(c.span).ok());
+        let ident = |e: &Expr<'_>| match &e.peel_parens().kind {
+            ExprKind::Ident(i) => Some(i.as_str().to_string()),
+            _ => None,
+        };
+        let mut copies = vec![];
+        crate::walk::all_stmts(body, &mut |s| {
+            if let StmtKind::Expr(e) = &s.kind
+                && let ExprKind::Assign(a, None, b) = &e.peel_parens().kind
+                && let (Some(a), Some(b)) = (ident(a), ident(b))
+                && !copies.contains(&(a.clone(), b.clone()))
+            {
+                copies.push((a, b));
+            }
+        });
+        crate::infer::Flow { guard, copies }
     }
 
     /// The counter, bound and step of a loop whose guard compares a variable with a bound.

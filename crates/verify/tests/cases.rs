@@ -397,6 +397,11 @@ fn ghost() {
 }
 
 #[test]
+fn infer_newton() {
+    check("tests/cases/infer_newton.sol")
+}
+
+#[test]
 fn liveness() {
     check("tests/cases/liveness.sol")
 }

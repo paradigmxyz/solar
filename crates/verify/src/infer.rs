@@ -10,6 +10,12 @@
 //! ordinary loop obligations, so a candidate never adds trust: if the survivors do not prove the
 //! function's specs, verification fails at that spec (fail closed).
 //!
+//! Loops without a counter, such as a Newton iteration that runs while its next estimate
+//! improves, get two more families built from each conjunct of a postcondition: the conjunct with
+//! a variable replaced by the one the body copies into it (`z = x` makes the conjunct's fact about
+//! `z` a fact about `x` one iteration earlier), and the guard or the conjunct (the conjunct holds
+//! once the loop is about to stop).
+//!
 //! Candidates are only text. The substitution is token-level, so it can build a candidate that
 //! means something unintended; such a candidate is either not inductive (dropped) or a true
 //! invariant, and in both cases the proof stays sound.
@@ -45,6 +51,7 @@ pub(crate) fn candidates(
     sh: Option<&Shape>,
     requires: &[&str],
     ensures: &[&str],
+    flow: &Flow,
 ) -> Vec<(&'static str, String)> {
     let mut out: Vec<(&'static str, String)> = vec![];
     let mut push = |tag: &'static str, t: String| {
@@ -84,7 +91,61 @@ pub(crate) fn candidates(
     for e in ensures.iter().chain(requires) {
         push("invariant", e.to_string());
     }
+    for e in ensures {
+        for c in conjuncts(e) {
+            push("invariant", c.clone());
+            for (to, from) in &flow.copies {
+                if let Some(t) = subst(&c, to, from, from) {
+                    push("invariant", t);
+                }
+            }
+            if let Some(g) = &flow.guard {
+                push("invariant", format!("({g}) || ({c})"));
+            }
+        }
+    }
     out
+}
+
+/// What inference reads off a loop's body and guard, for loops with or without a counter.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Flow {
+    /// The guard's source text.
+    pub guard: Option<String>,
+    /// Plain copies `a = b` between variables in the body, as (a, b).
+    pub copies: Vec<(String, String)>,
+}
+
+/// The top-level conjuncts of a spec text, when it is a plain conjunction (no implication,
+/// disjunction, conditional or quantifier, whose precedence a textual split could misread).
+fn conjuncts(text: &str) -> Vec<String> {
+    let tt = tokens(text);
+    let tok = |k: usize| &text[tt[k].0..tt[k].1];
+    let next = |k: usize, t: &str| k + 1 < tt.len() && tok(k + 1) == t;
+    let mut parts = vec![];
+    let (mut depth, mut start) = (0i32, 0usize);
+    let mut k = 0;
+    while k < tt.len() {
+        match tok(k) {
+            "(" | "[" => depth += 1,
+            ")" | "]" => depth -= 1,
+            "forall" | "exists" | "?" => return vec![],
+            "|" if next(k, "|") => return vec![],
+            "=" if next(k, "=") && k + 2 < tt.len() && tok(k + 2) == ">" => return vec![],
+            "&" if depth == 0 && next(k, "&") => {
+                parts.push(text[start..tt[k].0].trim().to_string());
+                start = tt[k + 1].1;
+                k += 1;
+            }
+            _ => {}
+        }
+        k += 1;
+    }
+    if parts.is_empty() {
+        return vec![];
+    }
+    parts.push(text[start..].trim().to_string());
+    parts
 }
 
 /// Token spans of `s`: identifiers and numbers (`[A-Za-z0-9_$]+`) and single other characters,
@@ -177,6 +238,7 @@ mod tests {
                 "forall uint256 j :: j < xs.length ==> xs[j] <= m",
                 "exists uint256 j :: j < xs.length && xs[j] == m",
             ],
+            &Flow::default(),
         );
         let inv: Vec<&str> =
             c.iter().filter(|(t, _)| *t == "invariant").map(|(_, x)| x.as_str()).collect();
@@ -185,5 +247,18 @@ mod tests {
         assert!(inv.contains(&"forall uint256 j :: j < i ==> xs[j] <= m"));
         assert!(inv.contains(&"exists uint256 j :: j < i && xs[j] == m"));
         assert!(c.contains(&("decreases", "(xs.length) - i".to_string())));
+    }
+
+    #[test]
+    fn newton_candidates() {
+        let flow = Flow { guard: Some("x < z".into()), copies: vec![("z".into(), "x".into())] };
+        let c = candidates(None, &[], &["z * z <= y && y < (z + 1) * (z + 1)"], &flow);
+        let inv: Vec<&str> =
+            c.iter().filter(|(t, _)| *t == "invariant").map(|(_, x)| x.as_str()).collect();
+        assert!(inv.contains(&"y < (z + 1) * (z + 1)"));
+        assert!(inv.contains(&"y < (x + 1) * (x + 1)"));
+        assert!(inv.contains(&"(x < z) || (z * z <= y)"));
+        assert_eq!(conjuncts("a ==> b && c"), Vec::<String>::new());
+        assert_eq!(conjuncts("(a && b) || c"), Vec::<String>::new());
     }
 }
