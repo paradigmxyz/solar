@@ -627,7 +627,7 @@ pub(crate) fn build<'a>(
         ItemKind::Enum(e) => {
             b.enums.insert(e.name.as_str().to_string(), e.variants.len());
             for (i, v) in e.variants.iter().enumerate() {
-                b.enum_variants.insert(format!("{}.{}", e.name.as_str(), v.as_str()), i);
+                b.enum_variants.insert(format!("{}.{}", e.name.as_str(), v.name.as_str()), i);
             }
         }
         ItemKind::Udvt(u) => {
