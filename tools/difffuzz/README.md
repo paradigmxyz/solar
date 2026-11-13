@@ -120,6 +120,15 @@ intended, are wrapped in `unchecked`; `UniswapV2Pair` and `UniswapV2ERC20` no lo
 their interfaces, and `UniswapV2Factory` no longer redeclares `PairCreated`, which 0.8 rejects as
 duplicate declarations. SafeMath stays, now checked twice.
 
+On the two builds every fuzz test passes 1,000 runs and the invariant test 64 runs of 32 calls,
+with no difference. `forge equivalence` proves the builds equivalent on `getReserves`,
+`price0CumulativeLast`, `kLast`, `approve`, `balanceOf`, `DOMAIN_SEPARATOR`, `allPairsLength` and
+`getPair`. `initialize`, `setFeeTo` and `setFeeToSetter` differ only from a slot whose bits above
+the address are already dirty, which solc keeps and the compiler clears (CODEGEN-025). The rest
+are incomplete within 120 seconds: timeouts (`mint`, `burn`, `skim`), counterexamples that do not
+replay concretely (`swap`, `transfer`, `transferFrom`, `permit`, `createPair`) and a symbolic
+cheatcode selector (`sync`).
+
 ## Divergences
 
 Every divergence is saved under `divergences/` with its legs, kind and call, reduced while it
