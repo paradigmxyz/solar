@@ -2,6 +2,7 @@
 """Apply seaport.spec to a copy of an unmodified Seaport checkout.
 
     apply_specs.py --seaport SEAPORT_DIR --out OUT_DIR [--spec seaport.spec] [--search DIR]...
+        [--define NAME=BODY]... [--rename FROM=TO]...
 
 The copy differs from the checkout only by NatSpec tags added in front of the
 contracts and functions the spec file names. Every target must match exactly
@@ -137,12 +138,28 @@ def main():
     ap.add_argument("--seaport", required=True, type=pathlib.Path)
     ap.add_argument("--out", required=True, type=pathlib.Path)
     ap.add_argument("--spec", type=pathlib.Path, default=HERE / "seaport.spec")
+    ap.add_argument("--define", action="append", default=[], metavar="NAME=BODY",
+                    help="override (or add) a shorthand of the spec file (repeatable)")
+    ap.add_argument("--rename", action="append", default=[], metavar="FROM=TO",
+                    help="resolve the spec file's contract FROM as contract TO (repeatable)")
     ap.add_argument("--search", action="append", metavar="DIR",
                     help="directory, relative to --seaport, whose .sol files the targets resolve "
                          "in (repeatable; default: Seaport's own source roots). Use it for a "
                          "rewrite of Seaport that keeps the same contract and storage names.")
     a = ap.parse_args()
     macros, blocks = parse(a.spec)
+    for d in a.define:
+        name, eq, body = d.partition("=")
+        m = re.match(r"(\w+)(?:\((\w+)\))?$", name.strip())
+        if not eq or not m:
+            die(f"--define {d!r}: expected NAME=BODY or NAME(x)=BODY")
+        macros[m.group(1)] = (m.group(2), body.strip())
+    renames = {}
+    for r in a.rename:
+        old_name, eq, new_name = r.partition("=")
+        if not eq or not old_name.strip().isidentifier() or not new_name.strip().isidentifier():
+            die(f"--rename {r!r}: expected FROM=TO")
+        renames[old_name.strip()] = new_name.strip()
     if a.out.exists():
         shutil.rmtree(a.out)
     shutil.copytree(a.seaport, a.out, symlinks=True,
@@ -152,7 +169,7 @@ def main():
     # Resolve every target first, then insert bottom-up so line numbers hold.
     edits = {}
     for b in blocks:
-        f, ci = find_contract(files, b["contract"])
+        f, ci = find_contract(files, renames.get(b["contract"], b["contract"]))
         tags = [t for tag in b["tags"] for t in expand(tag, macros).split("\n")]
         bad = [t for t in tags if not re.match(r"@custom:[a-z-]+\s", t)]
         if bad:
