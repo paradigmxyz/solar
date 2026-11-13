@@ -152,6 +152,11 @@ heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
 joins=()
 [[ ! -f "$dir/joins" ]] || joins=(--joins)
 [[ "$heartbeats" =~ ^[0-9]+$ ]] || die "$dir/heartbeats is not a number"
+# CERTIFIED/NAME/recdepth, when present, is the cut-point segment proofs' maxRecDepth (certify.py's
+# --recdepth), for stages whose symbolic segments nest deeper than Lean's default; like the
+# heartbeats it can only let a proof pass.
+recdepth="$(cat "$dir/recdepth" 2>/dev/null || true)"
+[[ -z "$recdepth" || "$recdepth" =~ ^[0-9]+$ ]] || die "$dir/recdepth is not a number"
 
 echo "== 2. solar"
 if [[ -n "${SOLAR:-}" ]]; then
@@ -229,7 +234,7 @@ echo "== 4. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 "$here/certify.py" "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops" --heartbeats "$heartbeats" "${joins[@]}")" || die "certify.py cannot write the proofs"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats" "${joins[@]}" ${recdepth:+--recdepth "$recdepth"})" || die "certify.py cannot write the proofs"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 

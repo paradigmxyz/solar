@@ -576,7 +576,7 @@ def stack_term(ws):
     return "[" + ", ".join(ws) + "]"
 
 
-def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
+def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats, recdepth=None):
     """Lean source (after the header) proving the stage from EVM IR program a["def"] to
     b["def"] through the cut points cuts, as LayerSim and Stage."""
     A, B, p = a["def"], b["def"], b["def"]
@@ -655,7 +655,8 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats):
             binders += " (s : State)"
         out.append(
             f"set_option maxHeartbeats {heartbeats} in\n"
-            f"theorem {name} (o : Oracle) (call : Call){binders} :\n"
+            + (f"set_option maxRecDepth {recdepth} in\n" if recdepth else "")
+            + f"theorem {name} (o : Oracle) (call : Call){binders} :\n"
             f"    ∃ k k', {seg_rel}\n"
             f"      (seg (EVM.Program.block o call {A}) {p}_cutA k ({ia}, {stack_term(wa)}, {sa}))\n"
             f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' ({ib}, {stack_term(wb_)}, {sb})) := by\n"
@@ -1146,7 +1147,7 @@ def layer_term(kind):
     return "MIR.Lowered.moduleLayer" if kind == "mir" else "EVM.Program.layer"
 
 
-def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_reach=None):
+def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_reach=None, recdepth=None):
     """Lean (after the header) proving the stage from a["def"] to b["def"] through cut points:
     cuts_a/cuts_b are the cut tests' blocks, rels the relations at pairs of cut points, each a
     dict of src_vars, tgt_vars ([(name, type)]), src and tgt (configuration terms) and conds
@@ -1272,7 +1273,8 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
         args = " ".join(x for x in [binder_text(vs), hyps] if x)
         out.append(
             f"set_option maxHeartbeats {heartbeats} in\n"
-            f"theorem {name} (o : Oracle) (call : Call) {args} :\n"
+            + (f"set_option maxRecDepth {recdepth} in\n" if recdepth else "")
+            + f"theorem {name} (o : Oracle) (call : Call) {args} :\n"
             f"    ∃ k k', {seg_rel}\n"
             f"      (seg ({step_term(a['kind'], A)}) {cut_a} k {r['src']})\n"
             f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' {r['tgt']}) := by\n"
@@ -1671,7 +1673,7 @@ def evm_evm_rels(cuts):
     return [ia for ia, _, _ in cuts], [ib for _, ib, _ in cuts], rels
 
 
-def stage_body(gen, a, b, heartbeats=2000000):
+def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
     """The cut-point proof of the stage from a to b (manifest stages with def, file, kind and
     pass), after the module header, or raise Unsupported."""
     ta = (gen / a["file"]).read_text()
@@ -1724,7 +1726,7 @@ def stage_body(gen, a, b, heartbeats=2000000):
         else:
             tests_a, tests_b, rels = evm_evm_rels(cuts)
             fuel_a, fuel_b = len(ea) + 1, len(eb) + 1
-    return pair_module(a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats, entry_reach)
+    return pair_module(a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats, entry_reach, recdepth)
 
 
 # --- Driver ----------------------------------------------------------------------------------

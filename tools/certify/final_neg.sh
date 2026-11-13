@@ -7,8 +7,9 @@
 #   tools/certify/final_neg.sh LEAN_DIR EXAMPLES NAME CONTRACT HEX
 #
 # Variants: a stale or substituted artifact (one byte of the bytecode changed; another
-# contract's pinned bytecode.hex), the strongest status claimed without a proof of resources, a
-# wrong postcondition, no allowed status, and a proof term that is sorryAx.
+# contract's pinned bytecode.hex), the strongest status claimed without a proof of resources (or,
+# for a certified contract, a wrong gas bound), a wrong
+# postcondition, no allowed status, and a proof term that is sorryAx.
 # CERTIFY_LEAN is the Lean command (default: lake env lean -M 3000); CERTIFY_WRAP a prefix.
 set -euo pipefail
 
@@ -57,7 +58,11 @@ other="$(ls "$lean_dir/$examples"/*/bytecode.hex | grep -v "/$name/bytecode.hex"
 if [[ -n "$other" ]]; then
     variant substituted-artifact "$(tr -d '[:space:]' < "$other")" "pass"
 fi
-variant strongest-without-resources "$hex" 'd["kind"] = "certified"; d["gas"] = "(fun _ => 0)"'
+if grep -q '"kind": "certified"' "$shape"; then
+    variant wrong-gas-bound "$hex" 'd["gas"] = "fun _ => 0"'
+else
+    variant strongest-without-resources "$hex" 'd["kind"] = "certified"; d["gas"] = "fun _ => 0"'
+fi
 variant wrong-post "$hex" 'd["post"] = "fun call obs => obs.success = true"'
 variant no-allowed-status "$hex" 'd["allowed"] = "(fun _ _ => False)"'
 variant sorry-proof "$hex" 'd["proof"] = "sorryAx _ false"'

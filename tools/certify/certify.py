@@ -207,6 +207,7 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
                 a | {"file": a["module"] + ".lean"},
                 b | {"file": b["module"] + ".lean"},
                 int(args.heartbeats),
+                int(args.recdepth) if args.recdepth else None,
             )
         except cutpoints.Unsupported as e:
             raise SystemExit(f"error: no cut points for {a['def']} to {b['def']}: {e}")
@@ -330,6 +331,12 @@ def main():
     ap.add_argument("--proof-module", required=True)
     ap.add_argument("--namespace", required=True)
     ap.add_argument("--label", required=True)
+    ap.add_argument(
+        "--recdepth",
+        default=None,
+        help="each cut-point segment proof's maxRecDepth, for stages whose symbolic "
+        "segments nest deeper than Lean's default",
+    )
     ap.add_argument(
         "--heartbeats",
         default="2000000",
@@ -743,6 +750,12 @@ def main():
     # evaluation of the checker re-derives, composed with the backend stages read backwards.
     executes = None
     outside = asm_cert.outside(last_text)
+    # Memory at offsets the constant-offset checker cannot bound, GAS or CALLDATACOPY: the checker
+    # whose memory operations run at the frame's own gas (AssembleCut.checkC), whose theorems hold at
+    # every gas below 2 ^ 256.
+    dyn = outside is not None or not asm_cert.static_ok(last_text, code)
+    if dyn:
+        outside = asm_cert.outside(last_text, dyn=True)
     if not cut:
         # The execution theorem reads the stages backwards (LABEL_certified_back), which only
         # the cut-point composition writes; loop-free stages compose forwards only.
@@ -757,12 +770,13 @@ def main():
             file=sys.stderr,
         )
     else:
-        cert, maxs = asm_cert.lean_cert(asm_cert.infer(last_text, code))
+        cert, maxs = asm_cert.lean_cert(asm_cert.infer(last_text, code, dyn))
         executes = f"{label}_bytecode"
         A, L = (
             "SolidCore.Refinement.Solar.Assemble",
             "SolidCore.Refinement.Solar.AssembleLoop",
         )
+        C = "SolidCore.Refinement.Solar.AssembleCut"
         ex = header(
             [
                 f"{pm}.Stages",
@@ -770,7 +784,8 @@ def main():
                 "SolidCore.Refinement.Solar.AssembleFast",
                 "SolidCore.Refinement.Solar.EndToEnd",
                 "SolidCore.Refinement.Solar.RunOracle",
-            ],
+            ]
+            + ([C] if dyn else []),
             f"The bytecode of `{contract}` runs as its final EVM IR does, at every gas, by the "
             "assembly checker for code with loops on an inferred certificate the kernel's evaluation "
             "of the checker re-derives; with the backend stages read backwards, every result of the "
@@ -798,11 +813,38 @@ def main():
             "  decide +kernel\n\n"
             "set_option maxRecDepth 100000 in\n"
             "/-- Every block checks within its budget and stack bounds. -/\n"
-            f"theorem blocks_ok : {L}.blocksOkL {last['def']} cert maxs 0 {last['def']}.blocks = true := by\n"
-            "  decide +kernel\n\n"
+            + (
+                f"theorem blocks_ok : {C}.blocksOkC {last['def']} cert maxs 0 {last['def']}.blocks = true := by\n"
+                if dyn
+                else f"theorem blocks_ok : {L}.blocksOkL {last['def']} cert maxs 0 {last['def']}.blocks = true := by\n"
+            )
+            + "  decide +kernel\n\n"
             f"theorem labels_ok : {A}.labelsValid {last['def']} cert code = true :=\n"
             f"  {A}.labelsValid_of_walk walk_ok\n\n"
             "theorem size_ok : code.size < 2 ^ 32 := by decide +kernel\n\n"
+            + ((
+            "/-- The checker with memory at any offset accepts the bytecode for the final EVM IR. -/\n"
+            f"theorem check_ok : {C}.checkC {last['def']} code cert maxs = true := by\n"
+            f"  simp only [{C}.checkC, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
+            "    Bool.true_and]\n"
+            "  decide\n\n"
+            "/-- **The assembly stage, run by run, at every gas below 2 ^ 256**: an oracle meeting the "
+            "certificate's\nconstraints under which every result of the bytecode is the final EVM IR's or "
+            "a failure that changes\nnothing. -/\n"
+            f"theorem assembly (scope : Call → Prop) :\n"
+            f"    {C}.WithinRunLt evmirSem (fun _ => {last['def']}) code scope\n"
+            "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
+            f"  {C}.withinRun_of_checkC check_ok scope\n\n"
+            "/-- **The first lowered MIR to the exact bytecode, run by run, at every gas below 2 ^ 256**: "
+            "for every such\ngas and every call there is an oracle, meeting the certificate's constraints "
+            "(CertOk), under which every\nresult of the bytecode is the first lowered MIR's or a failure "
+            "that changes nothing. -/\n"
+            f"theorem {executes}_run :\n"
+            f"    {C}.WithinRunLt mirSem (fun _ => {first['def']}) code anyCall\n"
+            "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
+            f"  {C}.withinRun_mir_of_checkC {label}_certified_back\n"
+            "    (fun _ _ => trivial) check_ok\n\n"
+            ) if dyn else (
             "/-- The checker of code with loops accepts the bytecode for the final EVM IR. -/\n"
             f"theorem check_ok : {L}.checkL {last['def']} code cert maxs = true := by\n"
             f"  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
@@ -844,9 +886,9 @@ def main():
             "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
             f"  SolidCore.Refinement.Solar.RunOracle.withinRun_mir_of_checkL {label}_certified_back\n"
             "    (fun _ _ => trivial) check_ok\n\n"
+            ))
             + axioms_check(ns, "check_ok", "[propext, Quot.sound]")
-            + "\n"
-            + axioms_check(ns, executes)
+            + ("" if dyn else "\n" + axioms_check(ns, executes))
             + "\n"
             + axioms_check(ns, f"{executes}_run")
             + f"\nend {ns}\n"
@@ -863,7 +905,8 @@ def main():
         json.dumps(
             {
                 "final": f"{ns}.{final}",
-                **({"executes": f"{ns}.{executes}"} if executes else {}),
+                **({"executes": f"{ns}.{executes}"} if executes and not dyn else {}),
+                **({"executes_gas_below": "2^256"} if executes and dyn else {}),
                 **({"executes_run": f"{ns}.{executes}_run"} if executes else {}),
                 "last": last["def"],
                 "first": first["def"],

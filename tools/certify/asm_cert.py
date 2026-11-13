@@ -219,9 +219,13 @@ def ty_swap(ty, i):
     return out
 
 
-def run_block(blocks, turned, rets, b, h, ty):
+def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
     """The run of block b from height h and entry types ty (`AssembleInfer.go`): its edges
-    (target, height, types), its items and the memory it reaches."""
+    (target, height, types), its items and the memory it reaches.
+
+    With `dyn` it mirrors `AssembleCut.checkC` instead: memory operations at any offset and size,
+    GAS and CALLDATACOPY, which run at the frame's own gas and need a memory bound of `DYN_TOP`.
+    A static run that stops at memory it cannot bound appends the block to `bail`."""
     n = len(blocks)
     instrs = blocks[b]
     edges, items, top, known = [], 0, 0, []
@@ -268,13 +272,28 @@ def run_block(blocks, turned, rets, b, h, ty):
             if nd is None:
                 return edges, items, top
             h, known, ty = max(h + nd[1], 0), [], [False] + ty[nd[0] :]
+        elif tag == "store" and dyn:
+            top = DYN_TOP
+            h, known, ty = h - 2, [], ty[2:]
+        elif tag == "load" and dyn:
+            top = DYN_TOP
+            known, ty = [], [False] + ty[1:]
+        elif tag == "effect" and dyn and i[1] == "gas" and i[2] == 0:
+            h, known, ty = h + 1, [], [False] + ty
+        elif tag == "effect" and dyn and i[1] == "calldatacopy" and i[2] == 3:
+            top = DYN_TOP
+            h, known, ty = h - 3, [], ty[3:]
         elif tag == "store":
             if not known:
+                if bail is not None:
+                    bail.append(b)
                 return edges, items, top
             top = max(top, known[0] + 32)
             h, known, ty = h - 2, [], ty[2:]
         elif tag == "load":
             if not known:
+                if bail is not None:
+                    bail.append(b)
                 return edges, items, top
             top = max(top, known[0] + 32)
             known, ty = [], [False] + ty[1:]
@@ -287,10 +306,18 @@ def run_block(blocks, turned, rets, b, h, ty):
         elif tag == "effect" and i[1] == "sstore":
             h, known, ty = h - 2, [], ty[2:]
         elif tag == "effect" and i[1] == "keccak256":
-            top = reach(known, top)
+            if dyn:
+                top = DYN_TOP
+            elif len(known) < 2 and bail is not None:
+                bail.append(b)
+            top = reach(known, top) if not dyn else top
             h, known, ty = h - 1, [], [False] + ty[2:]
         elif tag == "log":
-            top = reach(known, top)
+            if dyn:
+                top = DYN_TOP
+            elif len(known) < 2 and bail is not None:
+                bail.append(b)
+            top = reach(known, top) if not dyn else top
             h, known, ty = h - (i[1] + 2), [], ty[i[1] + 2 :]
         elif tag == "pushLabel":
             h, known, ty = h + 1, [], [True] + ty
@@ -298,7 +325,9 @@ def run_block(blocks, turned, rets, b, h, ty):
             edges += [(t, h - 1, ty[1:]) for t in rets]
             return edges, items, top
         elif tag in ("ret", "revert"):
-            return edges, items - 1, reach(known, top)
+            if not dyn and len(known) < 2 and bail is not None:
+                bail.append(b)
+            return edges, items - 1, top if dyn else reach(known, top)
         else:
             return edges, items - (1 if tag == "stop" else 0), top
         h = max(h, 0)
@@ -310,7 +339,7 @@ def meet(a, b):
     return [x if x == y else None for x, y in zip(a, b)]
 
 
-def infer(program_text, code):
+def infer(program_text, code, dyn=False, bail=None):
     """The certificate's fields and the highest entry heights, as Lean literals' data."""
     blocks = parse_program(program_text)
     n = len(blocks)
@@ -335,7 +364,7 @@ def infer(program_text, code):
             if current is None:
                 continue
             need, high, ty = current
-            edges, _, _ = run_block(blocks, turned, rets, b, need, ty[:need])
+            edges, _, _ = run_block(blocks, turned, rets, b, need, ty[:need], dyn)
             for t, h, tty in edges:
                 if t >= n:
                     continue
@@ -358,13 +387,13 @@ def infer(program_text, code):
     types = [(e[2][: e[0]] + [None] * e[0])[: e[0]] for e in entry]
     costs, top = [], 0
     for b in range(n):
-        _, items, t = run_block(blocks, turned, rets, b, needs[b], types[b])
+        _, items, t = run_block(blocks, turned, rets, b, needs[b], types[b], dyn, bail)
         costs.append((1 if b in labelled else 0) + items)
         top = max(top, t)
     return {
         "offsets": offsets,
         "needs": needs,
-        "top": (top + 31) // 32 * 32,
+        "top": top if top == DYN_TOP else (top + 31) // 32 * 32,
         "turned": turned,
         "costs": costs,
         "types": types,
@@ -387,8 +416,8 @@ def lean_cert(c):
     cert = (
         "{ offsets := [" + ", ".join(hex(o) for o in c["offsets"]) + "],\n"
         "    needs := " + str(c["needs"]) + ",\n"
-        f"    top := {c['top']},\n"
-        "    turned := " + str(c["turned"]) + ",\n"
+        + ("    top := 2 ^ 140,\n" if c["top"] == DYN_TOP else f"    top := {c['top']},\n")
+        + "    turned := " + str(c["turned"]) + ",\n"
         "    costs := " + str(c["costs"]) + ",\n"
         "    types := [" + types + "],\n"
         "    rets := " + str(c["rets"]) + ",\n"
@@ -414,8 +443,21 @@ FRAGMENT_EFFECTS = {
 }
 
 
-def outside(program_text):
-    """The first instruction outside the fragment the assembly checker executes, or None."""
+# The memory bound of a certificate for memory at offsets the checker does not know: every memory a
+# run below 2 ^ 256 gas pays for is at most 2 ^ 140 bytes (AssembleLoop.size_le_of_cost).
+DYN_TOP = 2**140
+
+
+def static_ok(program_text, code):
+    """Whether the checker for constant offsets (checkL) can bound every memory access."""
+    bail = []
+    infer(program_text, code, bail=bail)
+    return not bail
+
+
+def outside(program_text, dyn=False):
+    """The first instruction outside the fragment the assembly checker executes, or None; with
+    `dyn`, outside the fragment of `AssembleCut.checkC` (GAS and CALLDATACOPY besides)."""
     for b, instrs in enumerate(parse_program(program_text)):
         for i in instrs:
             tag = i[0]
@@ -436,6 +478,7 @@ def outside(program_text):
                 or (tag in ("dup", "swap") and i[1] < 16)
                 or (tag == "stack" and (i[1] == "pop" or need_of(i[1]) is not None))
                 or (tag == "effect" and i[1] in FRAGMENT_EFFECTS)
+                or (dyn and tag == "effect" and (i[1], i[2]) in (("gas", 0), ("calldatacopy", 3)))
                 or (tag == "log" and i[1] <= 4)
                 or (tag == "env" and i[1] in ENV_READS and i[2] == 0)
             )
