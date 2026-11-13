@@ -14,7 +14,7 @@ use serde_json::{Map, Value, value::RawValue};
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxIndexMap;
 use solar_interface::diagnostics::SolcDiagnostic;
-use solar_sema::output::{Documentation, StorageLayoutOutput};
+use solar_sema::output::{Documentation, SourceAstJson, StorageLayoutOutput};
 use std::{
     borrow::{Borrow, Cow},
     fmt,
@@ -260,28 +260,29 @@ impl Libraries<'_> {
 /// The solc Standard JSON output. `C` is the serialized form of a contract: [`ContractOutput`], or
 /// its pre-serialized JSON when contracts are serialized in parallel.
 #[derive(Debug, Serialize)]
-pub(super) struct CompilerOutput<'gcx, C = ContractOutput<'gcx>> {
+pub(super) struct CompilerOutput<'gcx, C = ContractOutput<'gcx>, S = SourceOutput<'static, 'static>>
+{
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) sources: Option<FxIndexMap<String, SourceOutput>>,
+    pub(super) sources: Option<FxIndexMap<String, S>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) contracts: FxIndexMap<String, FxIndexMap<String, C>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) ethdebug: Option<EthdebugOutput>,
 }
 
-impl<C> Default for CompilerOutput<'_, C> {
+impl<C, S> Default for CompilerOutput<'_, C, S> {
     fn default() -> Self {
         Self { errors: Vec::new(), sources: None, contracts: FxIndexMap::default(), ethdebug: None }
     }
 }
 
-impl<'gcx> CompilerOutput<'gcx> {
+impl<'gcx, S> CompilerOutput<'gcx, ContractOutput<'gcx>, S> {
     /// Serializes each contract to compact JSON in parallel, dropping it once serialized.
     pub(super) fn serialize_contracts(
         self,
-    ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>>> {
+    ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>, S>> {
         let Self { errors, sources, contracts, ethdebug } = self;
         let (names, outputs) = contracts
             .into_iter()
@@ -307,12 +308,10 @@ impl<'gcx> CompilerOutput<'gcx> {
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct SourceOutput {
+pub(super) struct SourceOutput<'a, 'gcx> {
     pub(super) id: u32,
-    //
-    // Not supported.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ast: Option<CowValue<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) ast: Option<SourceAstJson<'a, 'gcx>>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -457,6 +456,21 @@ impl<'a> OutputSelection<'a> {
         }
 
         flags & OutputSelectionFlags::CONTRACT
+    }
+
+    /// Returns whether the AST of a source is selected, which only the file-level output `""` can.
+    pub(super) fn ast(&self, source: &str) -> bool {
+        [source, "*"].into_iter().any(|source| {
+            let selected = self.0.get(source).and_then(|outputs| outputs.get(""));
+            selected.is_some_and(|flags| flags.contains(OutputSelectionFlags::AST))
+        })
+    }
+
+    /// Returns whether the AST of any source is selected.
+    pub(super) fn requests_ast(&self) -> bool {
+        self.0.values().any(|outputs| {
+            outputs.get("").is_some_and(|flags| flags.contains(OutputSelectionFlags::AST))
+        })
     }
 
     pub(super) fn requests_metadata(&self) -> bool {

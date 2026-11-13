@@ -1,0 +1,31 @@
+//@ filecheck:
+// With `stopAfter: parsing`, an import of a source that cannot be read is a warning, and the AST has
+// the import with the name of the source, and no `sourceUnit`, as in solc.
+// CHECK: "message": "couldn't read dir/missing.sol: File not found.",
+// CHECK: "severity": "warning"
+// CHECK: "nodeType": "ImportDirective"
+// CHECK: "file": "./missing.sol",
+// CHECK-NEXT: "absolutePath": "dir/missing.sol",
+// CHECK: "file": "../up/Missing.sol",
+// CHECK-NEXT: "absolutePath": "up/Missing.sol",
+// CHECK: "unitAlias": "M",
+// CHECK: "file": "lib/Missing.sol",
+// CHECK-NEXT: "absolutePath": "lib/Missing.sol",
+// CHECK: "file": "./x/../Missing.sol",
+// CHECK-NEXT: "absolutePath": "dir/Missing.sol",
+// CHECK: "file": "./Present.sol",
+// CHECK-NEXT: "absolutePath": "dir/Present.sol",
+// CHECK-NOT: "sourceUnit"
+{
+  "language": "Solidity",
+  "settings": {
+    "stopAfter": "parsing",
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

@@ -545,6 +545,74 @@ needs to number its AST.
 
 Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
 
+### TYPECK-025: AST JSON
+
+Status: parity debt for the types of a few expressions; intentional for the
+rest.
+
+Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
+Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
+`solc`: items take the IDs that `immutableReferences`, the storage layout and
+ETHDebug report, source units and imports follow them, and every other node
+takes the next free ID. `internalFunctionIDs` numbers the functions that
+function values reach by source name and position, as `solc` numbers its nodes.
+`solar` reads `contractDependencies`, `usedEvents` and `usedErrors` from the call graph used for
+code generation. The source index in a `src` and the `id` of a source follow the
+order of the sources after sorting them by their imports, where `solc` sorts them
+by name, and the IDs of the nodes that are no items depend on the order in which
+the sources are written.
+
+The attributes of expressions come from the type checker, and differ in these
+cases:
+
+- a builtin function that is the component of a tuple, such as `abi.encode` in
+  `(abi.encode, 2)`, has the kind `internal` and no call options, and
+  `abi.decode` there keeps its parameters, where `solc` gives the kind of the
+  builtin and `function () pure`;
+- `isPure` of `type(L.E)`, `type(L.E).min` and `type(L.E).max` is `true` for an
+  enum `E` that a library or contract `L` declares, where `solc` has `false` for
+  the name `L.E`, which lowering reduces to the type;
+- `solc` types `require` and the functions attached to a type from the call, which
+  `solar` rebuilds from the arguments and the declared receiver;
+- before Byzantium, only the call of an external function with one dynamically
+  encoded return value gets the inaccessible dynamic type; a tuple of returns
+  and a bare `call` keep the types of their components;
+- the names before the last one in the callee of `emit` and `revert`, and in the
+  argument of `type(...)`, take their resolution from name resolution alone.
+
+With `settings.stopAfter` of `parsing`, `solar` writes the parsed AST like `solc`: the nodes
+have no IDs of declarations, types, resolutions or scopes. It also does so for
+`lowering`, which `solc` rejects, since type checking has not run. With `parsing`, an
+import of a file that `solar` cannot read is a warning, where `solc` has no diagnostic, and
+the import keeps its `absolutePath` and has no `sourceUnit`, as in `solc`. A source with a
+construct that the parser of `solar` rejects but `solc` checks only in analysis, such as a
+fixed-point type, a nesting beyond the recursion limit, a `constant` variable without a value
+or an `external` modifier in a place where it is not allowed, fails with an error, where
+`solc` still returns the AST of the source.
+
+Rationale: IDs must agree across the outputs of one compilation, not with
+`solc`. Consumers that look up declarations by ID do not need `solc`'s
+numbering, and the differences of the types do not change what an expression
+refers to.
+
+Coverage: `tests/ui/standard-json/ast/test.jsonc`,
+`tests/ui/standard-json/ast-attached/test.jsonc`,
+`tests/ui/standard-json/ast-enum-values/test.jsonc`,
+`tests/ui/standard-json/ast-ids/test.jsonc`,
+`tests/ui/standard-json/ast-immutables/test.jsonc`,
+`tests/ui/standard-json/ast-import-aliases/test.jsonc`,
+`tests/ui/standard-json/ast-inaccessible/test.jsonc`,
+`tests/ui/standard-json/ast-internal-function-ids/test.jsonc`,
+`tests/ui/standard-json/ast-is-pure/test.jsonc`,
+`tests/ui/standard-json/ast-license/test.jsonc`,
+`tests/ui/standard-json/ast-parse-only/test.jsonc`,
+`tests/ui/standard-json/ast-parse-only-imports/test.jsonc`,
+`tests/ui/standard-json/ast-spans/test.jsonc`,
+`tests/ui/standard-json/ast-tuples/test.jsonc`,
+`tests/ui/standard-json/ast-yul/test.jsonc`,
+`tests/ui/standard-json/ast-yul-hosts/test.jsonc` and
+`tests/ui/cli/emit_ast.sol`.
+
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.
@@ -1162,6 +1230,24 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
   `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
 
+### CODEGEN-026: The heap floor misses slot reads at addresses lowering does not fold
+
+- ID: CODEGEN-026
+- Status: intentional
+- Difference: the `heap-floor` pass recognizes a read of the free memory
+  pointer slot only when lowering has folded its address to `0x40`. A load at
+  an address it does not fold, such as `exp(0x40, 1)`, is a data read at a
+  computed address, as any address known only at runtime must be, so a forged
+  pointer stays unraised. With `mstore(0x00, 0x1111)` and `mstore(0x40, 0)`,
+  returning 32 bytes at `mload(0x40)` gives zero in `solar` (CODEGEN-010) and
+  `0x1111` in `solc`, while the same at `mload(exp(0x40, 1))` gives `0x1111` in
+  both. The next allocation at the unraised pointer can then overwrite
+  compiler frames.
+- Rationale: only assembly that forges the pointer and spells the slot address
+  indirectly reaches it. Proving every such expression equal to `0x40` would
+  need value tracking in a pass that runs before the optimizer folds them.
+- Coverage: `tests/ui/codegen/run-call/assembly/heap_floor_slot_spelling.sol`.
+
 ### CODEGEN-027: A returned calldata word array does not check an assembly-set length
 
 - ID: CODEGEN-027
@@ -1216,6 +1302,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/run-call/bytes-padding/` runs each of these
   sources against each Solidity and assembly use over dirty padding, and
   `tests/foundry/bytes-padding-logs/` covers events.
+
+### CODEGEN-030: A self-store of the free memory pointer slot raises the stored word
+
+- ID: CODEGEN-030
+- Status: intentional
+- Difference: after `mstore(0x40, 3)` and `mstore(0x40, mload(0x40))`, a later
+  data read of the slot, such as `return(0x40, 0x20)`, returns the initial free
+  memory pointer (`0x80`) in `solar` and `3` in `solc`. The `heap-floor` pass
+  counts the load as a pointer read, because the loaded word becomes the pointer
+  again, so it raises the first store (CODEGEN-010).
+- Rationale: only assembly that forges the pointer reaches it. Telling a copy of
+  the slot onto itself from a real pointer read means tracking the word through
+  the second store, which adds pass complexity for no ordinary Solidity.
+- Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
 

@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@ compile-flags: --allow=9207 --allow=5878
 //@ run-call: pick(bool,bytes,bytes) true, 0x616263, 0x => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 //@ run-call: pick(bool,bytes,bytes) false, 0x616263, 0x => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 //@ run-call: chain(uint256) 3 => 0x12771355e46cd47c71ed1721fd5319b383cca3a1f9fce3aa1c8cd3bd37af20d7

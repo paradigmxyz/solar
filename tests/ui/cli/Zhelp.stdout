@@ -110,6 +110,9 @@ Options:
       -Zemit-lean-stages <DIR>
           Write the program after every stage of the backend to DIR as Lean definitions of the `solar-tv` semantics, in a directory per contract: the first lowered MIR, the module after each MIR pass that changes it, the scheduled runtime EVM IR, the program after each EVM IR pass that changes it, the runtime bytecode, and a manifest binding them to the sources, the compiler and its options. Code the semantics cannot represent is an error
 
+      -Zkeep-asts
+          Keeps the ASTs after lowering, which the `ast` outputs need and which are dropped otherwise to free memory
+
       -Zhelp
           Print help
 

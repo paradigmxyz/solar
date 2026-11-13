@@ -36,7 +36,9 @@ compiler-diff --dir /tmp/compiler-repro run
 
 `import-input` needs standard JSON with inline sources. Runs keep the input
 settings except `outputSelection`, which requests ABI, creation and runtime
-bytecode, method identifiers, userdoc, and devdoc. Inputs are content-addressed
+bytecode, method identifiers, userdoc, and devdoc. `run --ast` (also `fuzz`)
+adds the AST of every source (`"": ["ast"]`) for the `ast` check; solc's AST
+export is slow, so it is off by default and part of the job identity. Inputs are content-addressed
 with their target, so repeat imports are harmless. Sources stay inline; names
 such as `../C.sol` never become filesystem paths.
 
@@ -70,7 +72,7 @@ worst by time:
 ## Saved comparisons
 
 ```sh
-# Latest attempt from each compiler, for every attempted compilation.
+# Latest attempt from each compiler, for every compilation in the corpus.
 compiler-diff compare --continue-on-failure
 compiler-diff compare --check abi --policy exact --check userdoc --check devdoc
 # Specific attempt directories or raw standard-JSON output files.
@@ -91,18 +93,19 @@ that matters.
 | `abi --policy exact` | Keep all ABI fields; ignore object-key and ABI-entry order. |
 | `methods` | Compare signature-to-selector maps. |
 | `userdoc`, `devdoc` | Compare parsed JSON structurally, including names and descriptions. |
+| `ast` | Compare `sources.<name>.ast` node by node after renumbering IDs; see [AST comparisons](#ast-comparisons). Needs `run --ast`. |
 
 Both ABI policies expand tuple signatures recursively, keep parameter and
 component order and duplicate entries, and neither guess the meaning of
-user-defined library types nor erase enum/type differences. Bytecode, ASTs, and
+user-defined library types nor erase enum/type differences. Bytecode and
 storage layouts need their own semantic rules, so `compare` skips them. ABI
 agreement does not imply runtime equivalence.
 
 Each check reports `equal`, `different`, `unsupported` (outputs missing on both
 sides), or `error` (failed compilation or malformed output); output missing on
-one side is a difference. Reports exclude unrun corpus entries but count corpus
-size and available and processed pairs, so a partial run cannot pass for full
-coverage. The CLI prints PASS, FAIL, or KNOWN per pair; failures show compiler
+one side is a difference. A compilation that a compiler never ran is an `error`,
+so a partial run (`run --limit`) fails; the report counts corpus size and
+available and processed pairs. The CLI prints PASS, FAIL, or KNOWN per pair; failures show compiler
 commands, versions and hashes, JSON paths, both values, and replay commands. It
 shows five differences per check and shortens large values unless `--full` is
 set; reports keep everything, grouped by comparator and path. The summary gives
@@ -111,10 +114,11 @@ unexpected difference or incomplete check unless `--continue-on-failure` is
 set; either way these exit 1.
 
 Reports and mismatch bundles live in `comparisons/<id>/`, indexed by the local
-DuckDB database. Bundles copy both sides' attempt files and list JSON-pointer
-differences with both values. When both sides exist, a bundle also holds
+DuckDB database. Bundles copy both sides' attempt files (`stdout.txt` is a hard
+link, so do not edit it in place) and list JSON-pointer differences with both
+values. When both sides exist, a bundle also holds
 `compare.sh` and a snapshot of its expectation rules; `sh <bundle>/compare.sh`
-repeats the comparison from the copies, needs this checkout and uv, and writes
+repeats the comparison from the bundle, needs this checkout and uv, and writes
 a new report. Compiler replay scripts use the recorded executable paths, not
 bundled binaries. Standard-JSON compilers may exit 0 with error diagnostics;
 inspect `replay.stdout.txt` or pass the outputs to `compare`, which rejects
@@ -139,6 +143,73 @@ unused rules, even when a comparison stops before reaching them. Nothing is
 accepted by default. Rules match contract paths across inputs; keep rules for
 one corpus in their own file.
 
+## AST comparisons
+
+```sh
+compiler-diff run --ast --compiler 'solc=...' --compiler 'solar=...'
+compiler-diff compare --check ast --continue-on-failure [--ast-rules rules.json]
+```
+
+Node IDs never match between compilers, so the check renames them first. Each
+node's ID becomes the JSON pointer of the node in its output, on each side, and
+every ID-valued field follows: `id`, `referencedDeclaration`,
+`overloadedDeclarations`, `scope`, `sourceUnit`, `linearizedBaseContracts`,
+`contractDependencies`, `baseFunctions`, `baseModifiers`, `usedEvents`,
+`usedErrors`, `functionReturnParameters`, `assignments`, `function`,
+`exportedSymbols`, `externalReferences[].declaration`, the keys of
+`internalFunctionIDs`, and the IDs in `typeIdentifier` of `t_struct`,
+`t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types and in
+`t_module_N`; `typeString` is compared as written. Solc's negative builtin IDs
+stay. The source index at the end of every span (`src`, `nameLocation`, ...)
+becomes the name of the source, since compilers number sources in their own
+order; source IDs themselves are not compared. A reference agrees only if both
+sides point at the node in the same place, so a wrong declaration, a wrong
+builtin, or an ID with no node (shown as `?N@left` or `?N@right`) differs. A
+duplicate, negative or non-integer ID is an error. The sets solc sorts by ID (`contractDependencies`, `baseFunctions`, `baseModifiers`,
+`usedEvents`, `usedErrors`) compare sorted; `linearizedBaseContracts`,
+`overloadedDeclarations` and every other list keep their order.
+
+Paired nodes always share a type and have matching IDs, so their `nodeType` and
+`id` fields are not counted unless one side lacks the ID.
+
+Both ASTs are walked in step. A field that holds child nodes compares only the
+child's `nodeType`; the children are compared in turn. Children are paired by
+position, so a missing statement shows as a length difference of its list and
+the statements after it are compared against their neighbors. Because IDs follow
+position, one missing node also makes every later reference to a node of that
+list differ; look for the first difference in the sampled paths. A node whose
+type differs, or that is missing, is not entered. A field absent on one side, or
+a source without `ast`, is `missing_left` (the reference lacks it) or
+`missing_right`; a missing list item shows as `different` on its list.
+
+The report holds, for each `(nodeType, field)`, the nodes compared, `equal`,
+`different`, `missing_left`, `missing_right` and `ignored`, and for each node
+type the node count of both sides. Node types that the reference has and the
+candidate never emits are `never_emitted`. `report.json` sums them under `ast`
+and keeps nothing per pair; the CLI prints the
+agreement, how many reference nodes were paired (nodes under a missing field or
+list item are not), the never-emitted types and the ten least-equal fields.
+`differences` keeps 20 samples per field with normalized values and pointers;
+the rest are counted as `omitted`, which expectations cannot excuse.
+`difference_groups` counts all differences, sampled or not, by
+`nodeType.field`.
+
+`--ast-rules FILE` lists accepted differences, each with a version (1), the
+`nodeType` (or `*`), the `field`, an `action` and a `reason`:
+
+```json
+[{"version": 1, "nodeType": "FunctionCall", "field": "isPure",
+  "action": "ignore", "reason": "Solar does not track purity; docs/SOLC_DIVERGENCE.md"}]
+```
+
+`ignore` drops the field on both sides; `presence` compares only whether it is
+present. Both skip the nodes below the field. Reports count what each rule
+applied to and list unused rules. No rule applies by default. A rule is a
+permanent, wide exception, so give each an entry in
+[SOLC_DIVERGENCE.md](../../docs/SOLC_DIVERGENCE.md), and keep the file with the
+corpus it applies to. Bundles keep a copy as `ast-rules.json` and `compare.sh`
+passes it.
+
 ## Directory corpora and solc tests
 
 ```sh
@@ -152,7 +223,9 @@ compiler-diff --dir /tmp/solc-suite compare --continue-on-failure
 
 `import-directory` reads `.sol` files recursively, with `--format solc`
 (default) for solc fixtures or `--format solidity` for plain sources. Each file
-is an entry point that pulls in its imports. Identical inputs deduplicate.
+is an entry point that pulls in its imports. Plain sources keep their path
+relative to the imported directory as the source-unit name, so `test/A.t.sol`
+importing `../src/A.sol` resolves to `src/A.sol`. Identical inputs deduplicate.
 Comparisons cover every emitted contract, so no target is needed.
 
 For solc fixtures, the importer splits `==== Source:` sections, loads
