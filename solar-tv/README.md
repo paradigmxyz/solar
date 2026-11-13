@@ -412,20 +412,38 @@ tree independently and flatten its returned leaves. A pointer may be represented
 by its address word after lowering; two explicitly different pointer address
 spaces are rejected. This boundary relation assigns no implicit physical ABI,
 padding or frame addresses. A selected outer function exposes its return
-components logically. Nested lowered calls with several components require an
-explicit `mir_layout.functions.<callee>.return_buffer` placement. They publish
-later components at `buffer + 32*k` and the buffer address at `0x20`, including
-when the call result is unused. Tail calls keep the original callee's buffer.
+components logically. Nested lowered calls with several scalar results require
+an explicit `mir_layout.functions.<callee>.return_buffer` placement. For a single
+logical aggregate or slice, supplying that placement selects the physical
+memory-return convention; without it, the result remains a logical SSA value.
+Publication flattens nested fields in declaration order, with each slice's
+pointer before its length. Later leaves occupy `buffer + 32*k`, followed by the
+buffer address at `0x20`, including when the call result is unused. Empty and
+single-leaf products write no buffer. Typed callers retain their logical first
+component until lowering reconstructs it from the physical words.
+
+Tail calls keep the original callee's buffer. Nested calls may use overlapping
+buffers: returned SSA values are captured before publication, and writes retain
+their order and memory aliases. Only the published extras need defined bits; an
+unused undefined first word is neither stored nor given an invented value.
 This checks the supplied memory-return convention; it does not infer or certify
-the backend's placement or stack-return decisions. Missing placements and
-non-scalar physical components remain inconclusive.
+the backend's placement or stack-return decisions. Missing required placements
+and undefined stored extras remain inconclusive.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/return-buffers/{before,after}.mir \
   --function=f --world solar-tv/examples/mir/return-buffers/world.json
 solar-tv/solar-tv mir solar-tv/examples/mir/return-buffers/{before,broken}.mir \
   --function=f --world solar-tv/examples/mir/return-buffers/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/aggregate-returns/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/aggregate-returns/world.json
 ```
+
+The aggregate example is a real `lower-structs`, `lower-frame-slots`,
+`lower-slices`, `lower-memory-objects` pair. Its broken variant reads a return
+field from the next buffer offset. [Returns.lean](SolarTV/MIR/State/Returns.lean)
+also proves that placed pair and slice publication agree with their expanded
+components for arbitrary values and memory.
 
 Types are limited to depth 32 and 256 nodes, with a whole-model budget of 65,536
 exported type nodes checked before expansion. A boundary admits at most 32 input

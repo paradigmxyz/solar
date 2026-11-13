@@ -112,7 +112,7 @@ def record(
                     "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
                     "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
                     "external frame slots use convention-defined addresses; internal frame slots and address queries use explicit bases indexed by the function's live activation count; missing bases are unsupported; typed address calls require explicit gas",
-                    "external account reads use live state; codecopy/codesize require an explicit code image; constant data ranges must be known and relocation-free; export budget 64 KiB",
+                    "external account reads use live state; codecopy/codesize require an explicit code image; literal data patches use supplied library addresses and deferred copies require linked extents; known data must agree with a supplied image; export budget 64 KiB",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
                     "precompile builtin child gas is supplied by ordered builtin_gas boundary inputs; missing budgets are unsupported; scratch, returndata and child gas failures are retained",
@@ -120,15 +120,15 @@ def record(
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
                     "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded packed encoding layouts",
-                    "outer returns expose logical components; nested scalar memory-return calls require explicit per-function return-buffer placements; tail calls retain the original return owner; no backend stack-return or placement claim",
+                    "outer returns expose logical components; expanded memory returns require explicit per-function return-buffer placements; a placement selects leaf-ordered physical publication for logical aggregates and slices; unplaced single results stay logical; stored extras must be defined; tail calls retain the original return owner; no backend stack-return or placement claim",
                     "packed literals, scalars, byte references and arrays preserve ordered memory effects; limit 2048 parts, array work 2048 and 64 KiB",
                 ]
             )
             if "mir_layout" in fixture:
                 assumptions.extend(
                     [
-                        "explicit MIR link/placement window inputs; declaration tables must match; no claim about backend placement or runtime image correspondence",
-                        "immutable words alias constructor staging memory or read fixed runtime relocations; GAS only samples a single-opcode window after its own charge",
+                        "explicit MIR link/placement window inputs; data, library and immutable declaration tables must match; structural SSA types may lower away; no claim about backend placement or runtime image correspondence",
+                        "scalar immutables alias constructor staging memory or read fixed runtime relocations; narrow staging words are zero-extended; signed runtime values may be sign-extended; typed reads keep carrier bits and fixed-byte padding stays intact; invalid context words are unsupported; GAS only samples a single-opcode window after its own charge",
                     ]
                 )
         else:

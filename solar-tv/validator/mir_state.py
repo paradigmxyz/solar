@@ -526,11 +526,10 @@ def function_body(value, definitions):
     params = "[" + ",".join(f"({value_type(ty)})" for ty in value["params"]) + "]"
     returns = "[" + ",".join(f"({value_type(ty)})" for ty in value["returns"]) + "]"
     blocks = "[" + ",".join(block(b, definitions) for b in value["blocks"]) + "]"
-    buffer = (
-        "none"
-        if value["return_buffer"] is None
-        else f"some {json.dumps(value['return_buffer'])}"
-    )
+    name = value["return_buffer"]
+    if not isinstance(name, str) or not name:
+        raise Unsupported("MIR model lacks return-owner identity")
+    buffer = f"some {json.dumps(name)}"
     return f"({number(value['id'])},⟨{params},{returns},{blocks},{buffer}⟩)"
 
 
