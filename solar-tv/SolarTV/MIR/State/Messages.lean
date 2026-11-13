@@ -66,6 +66,11 @@ def messageArguments (frame : Frame) (op : MessageOp) (operands : List Operand) 
     Except String (Nat × List Word × Frame) := do
   match op,operands with
   | .raw opcode,_ => return (opcode,← operands.mapM (read frame),frame)
+  | .transfer _,[address,amount] =>
+    let address ← read frame address
+    let amount ← read frame amount
+    let gas := if amount == 0 then 2300 else 0
+    return (0xf1,[gas,address,amount,0,0,0,0],frame)
   | .address opcode hasValue,address :: input :: gas :: rest =>
     if rest.length != (if hasValue then 1 else 0) ||
         (opcode != 0xf1 && hasValue) then .error "MIR address-call operand count" else

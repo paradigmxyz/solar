@@ -8,6 +8,7 @@
 
 use super::{Outcome, Run, RuntimeValue, limit};
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_evmir::op;
 use solar_mir::AllocationSemantics;
 use std::ops::ControlFlow;
@@ -66,5 +67,33 @@ impl Run<'_, '_, '_> {
         self.burn_words(length)?;
         limit(self.memory.write(start, &data))?;
         ControlFlow::Continue(pointer)
+    }
+
+    pub(super) fn semantic_destroy(&mut self, beneficiary: U256) -> ControlFlow<Outcome> {
+        if self.semantic.is_some_and(|version| version >= EvmVersion::Amsterdam) {
+            return ControlFlow::Break(Outcome::Unsupported(
+                "Amsterdam MIR selfdestruct semantics",
+            ));
+        }
+        let Some(world) = &mut self.world else {
+            return ControlFlow::Break(Outcome::Unsupported("selfdestruct needs a host"));
+        };
+        if world.host.is_static() {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
+        let storage = world.effects.storage.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
+        let transient = world.effects.transient.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
+        let pending = super::PendingChanges {
+            storage: &storage,
+            transient: &transient,
+            logs: &world.effects.logs,
+        };
+        if let Err(reason) = world.host.destroy(beneficiary, pending) {
+            return ControlFlow::Break(Outcome::Unsupported(reason));
+        }
+        world.effects.storage.clear();
+        world.effects.transient.clear();
+        world.effects.logs.clear();
+        ControlFlow::Continue(())
     }
 }

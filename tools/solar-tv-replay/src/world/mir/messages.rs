@@ -474,4 +474,16 @@ impl<'a> Native<'a> {
             json!({"accounts":accounts,"logs":logs,"warm_addresses":observed_warm,"warm_slots":slots}),
         )
     }
+
+    pub(super) fn destroy(
+        &mut self,
+        beneficiary: U256,
+        pending: PendingChanges<'_>,
+    ) -> Result<(), &'static str> {
+        self.flush(pending);
+        let beneficiary = Address::from_word(beneficiary.into());
+        EvmHost::selfdestruct(&mut self.engine, &self.owner, &beneficiary, false)
+            .map(|_| ())
+            .map_err(|_| "native MIR selfdestruct failed")
+    }
 }

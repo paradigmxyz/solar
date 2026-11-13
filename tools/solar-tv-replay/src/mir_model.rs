@@ -347,7 +347,10 @@ fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<
         }
         Terminator::Stop => json!({"kind":"stop"}),
         Terminator::Invalid => json!({"kind":"invalid"}),
-        _ => return Err("unmodeled direct MIR terminator".into()),
+        Terminator::RevertReturndata => json!({"kind":"revert_return_data"}),
+        Terminator::SelfDestruct { recipient } => {
+            json!({"kind":"selfdestruct","args":operands(module,body,&[*recipient])?})
+        }
     };
     Ok(json!({"phis":phis,"instructions":instructions,"terminator":term}))
 }
@@ -592,6 +595,21 @@ fn export_operation(
             }
             Semantics::Call(Callee::Builtin(Builtin::Check { is_zero, failure }), args) => {
                 json!({"kind":"check","zero":is_zero,"panic":failure_code(*failure)?,"args":operands(module, body,args)?})
+            }
+            Semantics::Call(
+                Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
+                args,
+            ) => {
+                json!({"kind":"checked_modular","name":if matches!(builtin,Builtin::CheckedAddMod){"addmod"}else{"mulmod"},"args":operands(module,body,args)?})
+            }
+            Semantics::Call(Callee::Builtin(Builtin::Erc7201), args) => {
+                json!({"kind":"namespace","args":operands(module,body,args)?})
+            }
+            Semantics::Call(
+                Callee::Builtin(builtin @ (Builtin::Send | Builtin::Transfer)),
+                args,
+            ) => {
+                json!({"kind":"value_transfer","revert":matches!(builtin,Builtin::Transfer),"args":operands(module,body,args)?})
             }
             Semantics::Call(Callee::Builtin(Builtin::Require(kind)), args) => match kind {
                 RequireKind::EmptyString => {

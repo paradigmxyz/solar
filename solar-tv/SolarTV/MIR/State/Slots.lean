@@ -41,4 +41,14 @@ def bytesSlot (cfg : Config) (frame : Frame) (key : Value) (slot : Word) : Excep
   let memory ← expand memory scratch.toNat count.toNat
   return (Keccak.hash (readBytes memory scratch.toNat count.toNat),{frame with memory})
 
+/-- ERC-7201 hashes the byte object, then hashes the decremented digest in scratch. -/
+def namespaceSlot (frame : Frame) (object : Word) : Except String (Word × Frame) := do
+  let memory ← expand frame.memory object.toNat 32
+  let length := readWord memory object.toNat
+  let source := object + 32
+  let memory ← expand memory source.toNat length.toNat
+  let inner := Keccak.hash (readBytes memory source.toNat length.toNat) - 1
+  let (outer,next) ← fixedSlot {frame with memory} [inner]
+  return (outer &&& ~~~(255 : Word),next)
+
 end SolarTV.MIR.State
