@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# uni_getreserves: the stages of milestone/uni_getreserves/uni_getreserves.sol's UniswapV2Pair and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "uni_getreserves"
+srcDir = "milestone"
+roots = ["uni_getreserves.Proofs"]
+globs = ["uni_getreserves.+"]
+moreLeanArgs = ["-M", "3000"]

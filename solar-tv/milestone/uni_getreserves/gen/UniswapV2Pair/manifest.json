@@ -1,0 +1,145 @@
+{
+  "arguments": [
+    "solar-tv/milestone/uni_getreserves/uni_getreserves.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/uni_getreserves/gen"
+  ],
+  "bytecode": "34604f575f3560e01c80630902f1ac03604f576008545f1960901c80821682918360701c1682915f526020528260e01c604052828003605357828003605357828203608d5782810360775760605ff35b5f5ffd5b5050806501030000000160401b5b60205260405260605263ed572b275f526064601cfd5b6d01030000000100000000000000059150906061565b506d0103000000010000000000000002606156",
+  "bytecode_sha256": "157c6955b1f8ad314e19444c127139c3f1d726277de35e37943ea72eb70e7b14",
+  "compiler": "0.8.38+commit.3db3874b.solar.0.3.0-dev",
+  "contract": "UniswapV2Pair",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/uni_getreserves/uni_getreserves.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=solar-tv/milestone/uni_getreserves/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/uni_getreserves/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/uni_getreserves/uni_getreserves.sol",
+      "sha256": "4116d4e235ccbc2bfe410673aa160c88e0ea099b8ee67b84809635f7349bae82"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "f4de33b03f7b72bd1a617e43d5945c7f7cdad90c696ff8995b9d098bc704a32e"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "lower-assumes",
+      "sha256": "98bd18b95ab7e1dfcd2d84dd7b7a2604fd512a4b64f5afdb4bc9192b9bf94c8c"
+    },
+    {
+      "definition": "mir2",
+      "file": "Mir2.lean",
+      "index": 2,
+      "kind": "mir",
+      "pass": "evm-inst-schedule",
+      "sha256": "9583f33b71bbc70b929c95998fd8a1eade983e2698dc4c8dce0fbeb69cf54e83"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "36d5e8a2fb38253c9d5a6afcaad3fbbe480629bbe7ce295c65c42cbb35d199bf"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "peephole-early",
+      "sha256": "dbad8ecb896f20088c755546966f76b55d01697ea9346cc8745e0a1a582e36be"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "f38947e5688ec2169ca26a566fc926b7e7029c6c96386bb048ad8841232c1652"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "compact-pushes",
+      "sha256": "0f0f3293859b237196a74911eee607e9df24ef45d0618e5b1fef034a524df931"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "692a73f71bdb0fd79050090060a45644ccf631eecbfa6aaa5e06d4bc2f2bd39b"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "share-reverts",
+      "sha256": "ac95037bece73b2582b853b2e872461496dcfd42d1c5b29197ed29ad1ba6d097"
+    },
+    {
+      "definition": "evm6",
+      "file": "Evm6.lean",
+      "index": 6,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "018a0133d805af30eb25b86bd0601e8aa4ebdc711bf33f925717364cb258ad2d"
+    },
+    {
+      "definition": "evm7",
+      "file": "Evm7.lean",
+      "index": 7,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "f93986655a818d1eafd27e77ccbeaeff50400e816a48ae58f7fcbace3268dece"
+    },
+    {
+      "definition": "evm8",
+      "file": "Evm8.lean",
+      "index": 8,
+      "kind": "evm",
+      "pass": "block-cse",
+      "sha256": "8edcf7ee5fff3ffbb5f09a697b668a50158264b675d491f7ff105123a0ffac31"
+    },
+    {
+      "definition": "evm9",
+      "file": "Evm9.lean",
+      "index": 9,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "7669dbc4cd459ad5e0421100c90ab14fab3fe69a722ebfe321666a23bfb87b61"
+    },
+    {
+      "definition": "evm10",
+      "file": "Evm10.lean",
+      "index": 10,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "ce740be55a175a8178829835044b0c162d11ece68adb537b9cf1c4c3fbbc8ae7"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "fad77dafae3dd3911b519e3ba17ac07f272aa7f2541489b900262cd5f8df775b"
+    }
+  ]
+}
