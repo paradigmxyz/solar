@@ -1,0 +1,8 @@
+error: invalid ABI word validator
+   ╭▸ ROOT/tests/ui/codegen/mir/abi-validation/invalid_width.mir:LL:CC
+   │
+LL │   validate_abi uint257, arg0
+   ╰╴                      ━
+
+error: aborting due to 1 previous error
+

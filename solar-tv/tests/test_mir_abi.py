@@ -25,7 +25,7 @@ def decode(layout, word=17, *, location="object", length=32, marker=False):
     result = "v2"
     body = prefix + f"v2 = abi_decode [{layout}], {operand}\n"
     if marker:
-        body += "validate_abi v2\n"
+        body += "validate_abi uint192, v2\n"
     if layout == "bool":
         body += "v3 = zext i1 v2 to i256\n"
         result = "v3"
@@ -160,24 +160,27 @@ class MirAbiTests(unittest.TestCase):
             status=1,
         )
 
-    def test_validation_marker_needs_decoder_evidence(self):
+    def test_validation_marker_has_explicit_canonicality(self):
         before = decode("function", 17 << 64, marker=True)
         self.pair(
-            before, before.replace("validate_abi v2\n", ""), fixture=storage.fixture()
+            before,
+            before.replace("validate_abi uint192, v2\n", ""),
+            fixture=storage.fixture(),
         )
-        result, _ = self.pair(
-            state.module("validate_abi 17\nret 0"), state.module("ret 0"), status=2
+        self.pair(
+            state.module("validate_abi uint192, 17\nret 0"), state.module("ret 0")
         )
-        self.assertIn("decoder evidence", result.stderr)
         self.lowered_pair(before, "lower-abi,lower-slices,lower-memory-objects")
 
     def test_unchecked_normalization_cannot_invent_a_revert(self):
         raw = (17 << 64) | 1
-        before = state.module(f"v0 = shr {raw}, 64\nvalidate_abi v0\nret v0")
+        before = state.module(
+            f"validate_abi bytes24, {raw}\nv0 = shr {raw}, 64\nret v0"
+        )
         result, _ = self.pair(
             before, state.module("revert 0, 0"), fixture=storage.fixture(), status=2
         )
-        self.assertIn("ABI evidence", result.stderr)
+        self.assertIn("canonicality obligation", result.stderr)
 
     def test_packed_scalars_literals_and_hashes(self):
         for hash in (False, True):

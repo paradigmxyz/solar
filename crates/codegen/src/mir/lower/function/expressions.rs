@@ -151,8 +151,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()
         {
-            // validate_abi field_value
-            self.builder.validate_abi(value);
+            // The staged memory word is still left-aligned before normalization.
+            // validate_abi bytes24, field_value
+            self.builder.validate_abi(crate::mir::AbiWordValidator::LeftAligned(192), value);
         }
         Some(self.normalize_memory_scalar(field_ty, value))
     }

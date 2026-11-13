@@ -24,7 +24,7 @@
     "store_storage_bytes": "direct_state",
     "store_storage_bytes_literal": "direct_state",
     "clear_storage_words": "direct_state",
-    "validate_abi": "partial_family",
+    "validate_abi": "direct_state",
     "abi_encode_packed": "direct_state",
     "address_call": "partial_family",
     "add": "checked_fragment",

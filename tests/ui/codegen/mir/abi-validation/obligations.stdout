@@ -1,0 +1,17 @@
+- ; === ROOT/tests/ui/codegen/mir/abi-validation/obligations.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/abi-validation/obligations.mir (after none) ===
+  @module AbiObligations
+  fn @obligations(arg0: i256) {
+    bb0:
+      validate_abi uint1, arg0
+      validate_abi uint255, arg0
+      validate_abi uint256, arg0
+      validate_abi int8, arg0
+      validate_abi int256, arg0
+      validate_abi bytes24, arg0
+      validate_abi bytes32, arg0
+      validate_abi bool, arg0
+      validate_abi enum 3, arg0
+      ret
+  }
+  
