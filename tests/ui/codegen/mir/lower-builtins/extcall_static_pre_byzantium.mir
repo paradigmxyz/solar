@@ -1,0 +1,10 @@
+//@ compile-flags: --evm-version homestead -Zmir-pipeline=lower-builtins
+@module StaticCallWithoutStaticCall
+
+// Only a call of a precompile, whose callee keeps no state, can fall back to `CALL`.
+//~? ERROR: a static `extcall` of a callee that is not a precompile needs `STATICCALL`
+fn @arbitrary(arg0: i160, arg1: ptr<memory>) -> i1 {
+  bb0:
+    v0 = extcall static word arg0, arg1
+    ret v0
+}

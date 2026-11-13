@@ -20,8 +20,8 @@
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
-    AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee,
-    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
+    AbiLayout, AbiType, AllocationFailure, ArgIdx, BlockId, Builtin, CallOutput, Callee,
+    ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
     MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
@@ -397,6 +397,10 @@ impl ModRef {
         aa: &AliasAnalysis,
         args: &[ValueId],
     ) {
+        // A creation-only caller reaches the staging stores through the callee's immutable reads.
+        if func.attributes.creation_only && summary.reads(AddressSpace::Immutable) {
+            self.read_any(AddressSpace::Memory);
+        }
         for space in AddressSpace::ALL {
             for write in [false, true] {
                 if !(if write { summary.writes(space) } else { summary.reads(space) }) {
@@ -812,7 +816,7 @@ impl AliasAnalysis {
                 indexed(address) && exact(inst)
             }
             InstKind::Alloc { size, .. } if func.value_u64(size).is_some() => false,
-            InstKind::Fmp | InstKind::SetFmp(..) => false,
+            InstKind::Fmp => false,
             ref kind if Self::is_value_computation(kind) => false,
             _ => exact(inst),
         }) || func
@@ -1143,7 +1147,7 @@ impl AliasAnalysis {
             | InstKind::Keccak256(dest, _)
             | InstKind::Log { offset: dest, .. } => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
-            InstKind::AddressCall { input, .. } => operand != *input,
+            InstKind::ExtCall { input, .. } => *input != Some(operand),
             InstKind::Call { args_offset, ret_offset, .. }
             | InstKind::CallCode { args_offset, ret_offset, .. }
             | InstKind::StaticCall { args_offset, ret_offset, .. }
@@ -1249,6 +1253,7 @@ impl AliasAnalysis {
             | InstKind::StorageArrayDataSlot(..)
             | InstKind::StorageArrayElementSlot { .. } => 1,
             InstKind::MappingSlot(..) => 2,
+            InstKind::ExtCall { policy, .. } if policy.output != CallOutput::None => 1,
             _ => 0,
         };
         if scratch_words != 0 {
@@ -1312,9 +1317,6 @@ impl AliasAnalysis {
             InstKind::Fmp => {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
             }
-            InstKind::SetFmp(_) => {
-                effects.write(Access::Location(Location::Memory(Self::fmp_location())));
-            }
             InstKind::FrameLoad { offset, mode, kind } => {
                 if let Some(location) = Self::frame_location(func, offset, mode, kind) {
                     effects.read(Access::Location(Location::Memory(location)));
@@ -1368,16 +1370,7 @@ impl AliasAnalysis {
                 effects.read_write_any([AddressSpace::Memory]);
             }
             InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
-            | InstKind::ICall {
-                function:
-                    Callee::Builtin(
-                        Builtin::Sha256
-                        | Builtin::Ripemd160
-                        | Builtin::EcRecover
-                        | Builtin::ReturndataBytes,
-                    ),
-                ..
-            } => {
+            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 effects.read_write_any([AddressSpace::Memory]);
             }
             InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
@@ -1486,24 +1479,24 @@ impl AliasAnalysis {
             }
             InstKind::LoadImmutable(id) => {
                 effects.read(Access::Location(Location::Immutable(id)));
+                // Creation code loads the staging word that `lower-immutables` stores to.
+                if func.attributes.creation_only {
+                    effects.read_any(AddressSpace::Memory);
+                }
             }
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
             }
-            InstKind::AddressCall { kind, .. } => {
-                effects.read_any(AddressSpace::Memory);
+            InstKind::ExtCall { policy, input, .. } => {
+                if input.is_some() {
+                    effects.read_any(AddressSpace::Memory);
+                }
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
-                if kind != AddressCallKind::Static {
+                if policy.kind != ExtCallKind::Static {
                     effects.write_any(AddressSpace::Storage);
                     effects.write_any(AddressSpace::Transient);
                 }
-            }
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Send | Builtin::Transfer),
-                ..
-            } => {
-                effects.read_write_any(AddressSpace::SLOTS);
             }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
@@ -2260,12 +2253,8 @@ impl AliasAnalysis {
             | InstKind::InternalFrameAddr(_)
             | InstKind::FrameLoad { .. } => false,
             InstKind::PtrAdd(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
-            InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second))
-            {
-                (_, Some(_)) => indexed(*first),
-                (Some(_), None) => indexed(*second),
-                (None, None) => Self::bounded_sum_base(func, address).is_none(),
-            },
+            InstKind::Add(first, second) if func.value_u64(*second).is_some() => indexed(*first),
+            InstKind::Add(..) => Self::bounded_sum_base(func, address).is_none(),
             InstKind::Sub(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
             InstKind::Select(_, first, second) => indexed(*first) || indexed(*second),
             InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| indexed(value)),
@@ -2321,7 +2310,7 @@ impl AliasAnalysis {
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
         match func.inst(inst).kind {
-            InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+            InstKind::MappingSlotBytes(..) => true,
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
@@ -2522,9 +2511,7 @@ impl AliasAnalysis {
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
             // A constant step back from a bounded address stays at or above the bound less the
             // step, which cannot underflow.
-            InstKind::PtrAdd(base, step)
-            | InstKind::Add(base, step)
-            | InstKind::Add(step, base)
+            InstKind::PtrAdd(base, step) | InstKind::Add(base, step)
                 if let Some(back) = Self::step_back(func, *step) =>
             {
                 bound(*base)?.checked_sub(back)
@@ -2533,10 +2520,6 @@ impl AliasAnalysis {
                 let lower = func
                     .value_u64(*second)
                     .and_then(|offset| bound(*first)?.checked_add(offset))
-                    .or_else(|| {
-                        func.value_u64(*first)
-                            .and_then(|offset| bound(*second)?.checked_add(offset))
-                    })
                     .or_else(|| func.inst(*inst).metadata.alloc_ptr().then(|| bound(*first))?)?;
                 // First establish a useful base. Proving that arbitrary scalar arithmetic
                 // cannot wrap cannot give an address a heap lower bound.

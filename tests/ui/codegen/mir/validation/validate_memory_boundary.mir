@@ -4,12 +4,11 @@
 //~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 //~? ERROR: [fn2] [bb0, inst0] memory zero instruction `memory_zero` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_bytes` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `alloc` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst2] storage slot instruction `mapping_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst3] storage slot instruction `mapping_slot_bytes` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
 //~? ERROR: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
@@ -17,16 +16,16 @@
 //~? ERROR: [fn4] non-word type `slice<memory>` survives the `lowered` phase boundary
 //~? ERROR: [fn5] non-word type `slice<calldata>` survives the `lowered` phase boundary
 //~? ERROR: [fn6] non-word type `slice<returndata>` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst4] `mapping_slot_bytes` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst5] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst6] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst2] `mapping_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst3] `mapping_slot_bytes` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst4] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst5] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn16] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn18] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn18] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn19] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst1] `extcall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn19] [bb0, inst1] `extcall` has incompatible scalar types; use an explicit cast
 @module ValidateMemoryBoundary
 @phase lowered
 fn @slice(arg0: ptr<memory>, arg1: i256) -> i256 {
@@ -48,7 +47,6 @@ fn @memory_zero(arg0: i256, arg1: ptr<memory>) {
 fn @allocation() {
   bb0:
     v0 = fmp
-    set_fmp v0
     v1 = alloc 32
     v2 = mapping_slot v0, v1
     v3 = mapping_slot_bytes v0, v1
@@ -84,10 +82,11 @@ fn @dynamic_deferred(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-//~? ERROR: [fn9] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-fn @unlowered_precompile() -> i256 {
+//~? ERROR: [fn9] non-word type `i160` survives the `lowered` phase boundary
+//~? ERROR: [fn9] [bb0, inst0] builtin instruction `extcall` survives the `lowered` phase boundary
+fn @unlowered_precompile(arg0: ptr<memory>) -> i1 {
   bb0:
-    v0 = icall ecrecover<>, 0, 0, 0, 0
+    v0 = extcall static word i160 1, arg0
     ret v0
 }
 
@@ -147,20 +146,20 @@ fn @unlowered_storage_header(arg0: i256) -> i256 {
     ret arg0
 }
 
-//~? ERROR: [fn18] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-//~? ERROR: [fn18] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn18] [bb0, inst0] builtin instruction `extcall` survives the `lowered` phase boundary
+//~? ERROR: [fn18] [bb0, inst1] builtin instruction `extcall` survives the `lowered` phase boundary
 fn @payable(arg0: i256) {
   bb0:
-    v0 = icall send<>, arg0, 0
-    icall transfer<>, arg0, 0
+    v0 = extcall arg0, gas 0, value 0
+    v1 = extcall arg0, gas 0, value 0
     ret
 }
 
 //~? ERROR: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-//~? ERROR: [fn19] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
+//~? ERROR: [fn19] [bb0, inst1] builtin instruction `extcall` survives the `lowered` phase boundary
 fn @unlowered_address_call(arg0: i256) {
   bb0:
     v0 = icall returndata_bytes<>
-    v1 = address_call arg0, v0
+    v1 = extcall arg0, v0
     ret
 }

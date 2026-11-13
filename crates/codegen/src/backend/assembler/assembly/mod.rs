@@ -6,7 +6,7 @@
 
 use crate::backend::evm::{
     DebugFunction, DebugFunctionExit, DebugSpans,
-    ir::{Data, DataId},
+    ir::{Data, DataId, Metadata},
     op::WORD_BYTES,
 };
 use solar_data_structures::index::IndexVec;
@@ -41,12 +41,20 @@ pub(in crate::backend) struct Program {
     pub(in crate::backend) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
     pub(in crate::backend) data: IndexVec<DataId, Data>,
     pub(in crate::backend) data_refs: IndexVec<DataRefId, crate::backend::evm::ir::DataRef>,
-    pub(in crate::backend) source_spans: Option<Vec<DebugSpans>>,
+    pub(in crate::backend) source_spans: Option<Vec<AsmOrigins>>,
     pub(in crate::backend) function_invokes: Option<Vec<Option<DebugFunction>>>,
     pub(in crate::backend) function_exits: Option<Vec<Option<DebugFunctionExit>>>,
     pub(in crate::backend) modifier_depths: Option<Vec<u32>>,
-    current_source_spans: DebugSpans,
+    current_source_spans: AsmOrigins,
     current_modifier_depth: u32,
+}
+
+/// The source origins of one program instruction.
+#[derive(Clone, Debug, Default)]
+pub(in crate::backend) struct AsmOrigins {
+    pub(in crate::backend) spans: DebugSpans,
+    /// Whether every span holds, instead of one of them.
+    pub(in crate::backend) all: bool,
 }
 
 impl Program {
@@ -56,20 +64,22 @@ impl Program {
             function_invokes: capture.then(Vec::new),
             function_exits: capture.then(Vec::new),
             modifier_depths: capture.then(Vec::new),
-            current_source_spans: DebugSpans::new(),
+            current_source_spans: AsmOrigins::default(),
             current_modifier_depth: 0,
             ..Self::default()
         }
     }
 
     pub(in crate::backend) fn set_source_span(&mut self, span: Option<Span>) {
-        self.current_source_spans.clear();
-        self.current_source_spans.extend(span);
+        self.current_source_spans.spans.clear();
+        self.current_source_spans.spans.extend(span);
+        self.current_source_spans.all = false;
     }
 
-    pub(in crate::backend) fn set_source_spans(&mut self, spans: &[Span]) {
-        self.current_source_spans.clear();
-        self.current_source_spans.extend_from_slice(spans);
+    pub(in crate::backend) fn set_source_origins(&mut self, metadata: &Metadata) {
+        self.current_source_spans.spans.clear();
+        self.current_source_spans.spans.extend(metadata.source_spans());
+        self.current_source_spans.all = metadata.all_source_spans();
     }
 
     pub(in crate::backend) fn set_modifier_depth(&mut self, depth: u32) {

@@ -22,8 +22,8 @@ contract Continued {
     }
 }
 
-//~v ERROR: `@custom:solar-safe` has no property `imaginary`
 /// @custom:solar-safe memory
+//~^ ERROR: `@custom:solar-safe` has no property `imaginary`
 /// imaginary
 contract UnknownProperty {}
 

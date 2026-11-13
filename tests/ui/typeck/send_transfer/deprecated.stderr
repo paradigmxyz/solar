@@ -1,0 +1,88 @@
+warning[9207]: `transfer` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         a.transfer(1);
+   │         ━━━━━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         bool ok = a.send(1);
+   │                   ━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         require(a.send(2));
+   │                 ━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         a.send(3);
+   │         ━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[5878]: failure condition of `send` ignored
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         a.send(3);
+   │         ━━━━━━━━━━
+   │
+   ╰ help: consider using `transfer` instead
+
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         payable(x).send(4);
+   │         ━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[5878]: failure condition of `send` ignored
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         payable(x).send(4);
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: consider using `transfer` instead
+
+warning[9207]: `transfer` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         payable(x).transfer(5);
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         (a.send(6));
+   │          ━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         (a.send)(7);
+   │          ━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[5878]: failure condition of `send` ignored
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/deprecated.sol:LL:CC
+   │
+LL │         (a.send)(7);
+   │         ━━━━━━━━━━━━
+   │
+   ╰ help: consider using `transfer` instead
+

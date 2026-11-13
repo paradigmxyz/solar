@@ -12,8 +12,8 @@ const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
-        expr: &hir::Expr<'_>,
-        elements: &[hir::Expr<'_>],
+        expr: &'gcx hir::Expr<'gcx>,
+        elements: &'gcx [hir::Expr<'gcx>],
     ) -> Option<ValueId> {
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
@@ -46,12 +46,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, element) in elements.iter().enumerate() {
             let source_ty = self.cx.gcx.type_of_expr(element.id)?;
             let value = if source_ty.is_ref_at(DataLocation::Storage) {
-                // A storage element, such as `[flag ? a : b]`, lowers to its slot; copy it out.
-                // element = load_storage_object(element_ty, slot)
-                let slot = self.lower_component(element)?;
-                self.convert_tuple_component(slot, source_ty, element_ty, element.span)?
+                // A storage element, such as `[flag ? a : b]`, is copied out as it is evaluated.
+                self.lower_typed_expr(element, element_ty)?.clean(self, element_ty)
             } else {
-                let value = self.lower_expr(element)?;
+                let value = self.operand(element)?.id();
                 let value = self.coerce_value(value, source_ty, element_ty);
                 self.materialize_memory_copy(element_ty, value, element.span)?
             };
@@ -63,9 +61,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_struct_constructor(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         struct_id: hir::StructId,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         // object = alloc(struct_layout)
         // for field { value = lower_typed(argument); object[field] = value }
@@ -77,7 +75,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let object = self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
-        let arguments = self.lower_call_arguments(
+        let field_ty = |this: &Self, index: usize| {
+            this.cx
+                .gcx
+                .type_of_item(struct_fields[index].into())
+                .with_loc_if_ref(this.cx.gcx, DataLocation::Memory)
+        };
+        let arguments = self.lower_converted_arguments(
             args,
             CallArgumentParams {
                 count: struct_fields.len(),
@@ -87,13 +91,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "struct constructor argument",
             |this, index, argument| {
-                let field_ty = this
-                    .cx
-                    .gcx
-                    .type_of_item(struct_fields[index].into())
-                    .with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
-                let value = this.lower_typed_expr(argument, field_ty)?;
-                let value = this.materialize_memory_copy(field_ty, value, argument.span)?;
+                let field_ty = field_ty(this, index);
+                this.lower_operand(argument, field_ty)
+            },
+            |this, index, operand| {
+                let field_ty = field_ty(this, index);
+                let span = operand.span;
+                let value = this.convert_operand(operand)?.clean(this, field_ty);
+                let value = this.materialize_memory_copy(field_ty, value, span)?;
                 Some(this.encode_memory_scalar(field_ty, value))
             },
         )?;
@@ -105,8 +110,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_tuple(
         &mut self,
-        expr: &hir::Expr<'_>,
-        values: &[Option<&hir::Expr<'_>>],
+        expr: &'gcx hir::Expr<'gcx>,
+        values: &[Option<&'gcx hir::Expr<'gcx>>],
     ) -> Option<ValueId> {
         // object = alloc(tuple_layout, zeroed_if_omitted)
         // for present field { object[field] = value }
@@ -125,7 +130,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_word_struct(fields, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
-            let value = self.lower_expr(value)?;
+            let value = self.operand(value)?.id();
             let value = self.encode_memory_scalar(field_types[index], value);
             self.builder.memory_store_field(object, index as u64, value);
         }
@@ -141,6 +146,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             AllocationSemantics::INTERNAL,
             true,
         )
+    }
+
+    /// Stages raw literal ABI input in the encoder's word form, without an observable allocation.
+    /// Keep initialization explicit until `lower-abi-encode` proves the bytes, then selects
+    /// stores or a program-data copy directly into the output using the data-copy cost model.
+    pub(super) fn lower_call_input_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
+        // object = alloc (32 + padded_length)
+        // mstore object, length
+        let (object, _) = Self::alloc_const_bytes(
+            &mut self.builder,
+            bytes.len(),
+            AllocationSemantics::INTERNAL,
+            false,
+        )?;
+        for (index, chunk) in bytes.chunks(32).enumerate() {
+            // mstore (object + 32 + offset), word
+            let word = self.lower_string_literal_word(chunk);
+            let offset = self.builder.imm(index as u64 * 32);
+            self.builder.memory_store_word(object, offset, word);
+        }
+        Some(object)
     }
 
     pub(super) fn lower_shared_bytes_literal(&mut self, symbol: ByteSymbol) -> Option<ValueId> {
@@ -327,13 +353,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn default_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
         if ty.is_ref_at(DataLocation::Calldata) {
             let zero = self.builder.imm(U256::ZERO);
-            return self.builder.make_slice(zero, zero, PtrLocation::Calldata);
+            let length = self.calldata_static_length(ty);
+            return self.builder.make_slice(zero, length, PtrLocation::Calldata);
         }
         self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm(U256::ZERO))
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
         self.default_object_with_mode(ty, false)
+    }
+
+    /// The length of a calldata reference of type `ty`: the type's own for a static array, else
+    /// zero.
+    pub(super) fn calldata_static_length(&mut self, ty: Ty<'gcx>) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Array(_, length) => self.builder.imm(length),
+            _ => self.builder.imm(U256::ZERO),
+        }
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {

@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
-    memory::EvmMemoryLayout,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MirType, PtrLocation, StorageAlias,
+    Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -16,7 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use std::fmt;
 
 /// A function in the MIR.
@@ -448,6 +448,50 @@ impl Function {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
     }
 
+    /// Whether the expansion of an `extcall` with a word output zeroes the word before the call.
+    ///
+    /// A callee can return less than a word, and the result keeps what the word held. The `sha256`
+    /// and `ripemd160` precompiles write all 32 bytes of a successful call and a failed call
+    /// reverts, so a call of one of them at a constant address skips the clear.
+    #[must_use]
+    pub fn extcall_clears_word(&self, address: ValueId) -> bool {
+        !matches!(self.value_u64(address), Some(2 | 3))
+    }
+
+    /// Visits physical memory ranges used by instructions and terminators.
+    /// Unknown lengths still expose their base to heap-prefix analysis.
+    pub fn for_each_memory_range(&self, mut visit: impl FnMut(ValueId, Option<u64>)) {
+        for inst_id in self.instructions() {
+            self.inst(inst_id)
+                .kind
+                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(self)));
+        }
+        for block in &self.blocks {
+            if let Some(
+                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
+            ) = &block.terminator
+            {
+                visit(*offset, self.value_u64(*size));
+            }
+        }
+    }
+
+    /// Returns where the local region ends, `HEAP_START` up to `internal_frame_size`, if the
+    /// function accesses it at absolute addresses: a constant range with a non-zero size starts
+    /// inside it. A frame the function reaches through `internal_frame_addr` does not count.
+    #[must_use]
+    pub fn absolute_local_end(&self) -> Option<u64> {
+        let end = EvmMemoryLayout::HEAP_START.saturating_add(self.internal_frame_size);
+        let mut named = false;
+        self.for_each_memory_range(|offset, size| {
+            named |= size != Some(0)
+                && self
+                    .value_u64(offset)
+                    .is_some_and(|start| (EvmMemoryLayout::HEAP_START..end).contains(&start));
+        });
+        named.then_some(end)
+    }
+
     /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
     #[must_use]
     pub fn is_fmp_slot_store(&self, id: InstId) -> bool {
@@ -783,18 +827,24 @@ impl Function {
         self.blocks.push(BasicBlock::new())
     }
 
-    /// Allocates a new basic block with the given `cold_hint`, for a copy of a block of another
-    /// function.
-    pub fn alloc_block_hinted(&mut self, cold_hint: bool) -> BlockId {
+    /// Allocates a new basic block with the given `cold_hint`.
+    fn alloc_block_hinted(&mut self, cold_hint: bool) -> BlockId {
         let block = self.alloc_block();
         self.blocks[block].cold_hint = cold_hint;
         block
     }
 
-    /// Allocates a new basic block that copies or splits `like`, or runs only with it, so it keeps
-    /// the block's `cold_hint`.
+    /// Allocates a new basic block that splits `like`, or runs only with it, so it keeps the
+    /// block's `cold_hint`. It starts without a label origin; a copy of `like` uses
+    /// [`Self::alloc_block_copy`].
     pub fn alloc_block_like(&mut self, like: BlockId) -> BlockId {
         self.alloc_block_hinted(self.blocks[like].cold_hint)
+    }
+
+    /// Allocates a new basic block that copies `like`, so it keeps the block's `cold_hint` and
+    /// label origin.
+    pub fn alloc_block_copy(&mut self, like: BlockId) -> BlockId {
+        self.blocks.push(self.blocks[like].new_copy())
     }
 
     /// Allocates a new basic block for the edge from `pred` to `succ`. It runs only when `pred`
@@ -925,6 +975,29 @@ impl Function {
         }
     }
 
+    /// Marks every instruction, terminator and block label that has neither a source origin nor a
+    /// reason for lacking one as [`DebugLocKind::CompilerGenerated`]. Code with an origin, or with
+    /// another kind, stays as it is.
+    ///
+    /// Call it only on a function the compiler synthesizes wholesale, such as a shared helper;
+    /// never on a lowered user function, or on a function after inlining merged user code into it.
+    /// Solc maps such code to its generated `#utility.yul` source (`CompilerContext.h` L178), and
+    /// LLVM gives it `DebugLoc::getCompilerGenerated`.
+    pub fn mark_unlocated_compiler_generated(&mut self) {
+        let mark = |metadata: &mut InstructionMetadata| {
+            if metadata.lacks_debug_location() {
+                metadata.drop_debug_loc(DebugLocKind::CompilerGenerated);
+            }
+        };
+        for block in &mut self.blocks {
+            for &inst in &block.instructions {
+                mark(&mut self.instructions[inst].metadata);
+            }
+            mark(&mut block.terminator_metadata);
+            mark(&mut block.label_metadata);
+        }
+    }
+
     /// Returns true if this function is public or external.
     #[must_use]
     pub fn is_public(&self) -> bool {
@@ -990,6 +1063,9 @@ pub struct FunctionAttributes {
     pub may_return_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub is_function_pointer_dispatcher: bool,
+    /// Whether only deployment runs this function, so its immutable reads load the staging memory
+    /// that its assignments stored to. Set by `lower-immutables`.
+    pub creation_only: bool,
     /// Never clone this function into multiple callers.
     pub no_inline: bool,
     /// Clone this function into every caller where inlining is legal, whatever it costs, as its
@@ -1039,6 +1115,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
+            creation_only: false,
             no_inline: false,
             always_inline: false,
             inline_hint: false,

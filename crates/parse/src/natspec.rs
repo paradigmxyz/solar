@@ -32,11 +32,11 @@ pub fn split_once_ident(content: &str, start: usize, end: usize) -> (&str, usize
     (&content[start..ident_end], ident_end + (rest.len() - rest.trim_ascii_start().len()))
 }
 
-/// Returns the first non-blank word and the position where it starts.
+/// Returns the first non-blank word and the position of the first following non-blank char.
 #[inline]
 pub fn first_word(content: &str, start: usize, end: usize) -> Option<(&str, usize)> {
     let bytes = &content.as_bytes()[start..end];
     let start = start + (bytes.len() - bytes.trim_ascii_start().len());
-    let (word, _) = split_once_ws(content, start, end);
-    if word.is_empty() { None } else { Some((word, start)) }
+    let (word, content_start) = split_once_ws(content, start, end);
+    if word.is_empty() { None } else { Some((word, content_start)) }
 }

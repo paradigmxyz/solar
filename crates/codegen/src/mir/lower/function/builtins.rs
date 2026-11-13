@@ -1,22 +1,22 @@
 //! Builtin call and value lowering.
 
-use super::*;
+use super::{abi_values::lies_in_calldata, *};
 use crate::link::CodeKind;
 use solar_interface::error_code;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
         &mut self,
-        expr: &hir::Expr<'_>,
-        callee: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
+        callee: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
-        call_opts: Option<&hir::CallOptions<'_>>,
+        args: hir::CallArgs<'gcx>,
+        call_opts: Option<&hir::CallOptions<'gcx>>,
         capture_value: bool,
     ) -> Option<CallResult> {
         match builtin {
             Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
-                // result = address_call(receiver, args, opts)
+                // result = extcall(receiver, args, opts)
                 let ExprKind::Member(receiver, _) = callee.kind else {
                     return self.cx.report_unsupported(callee.span, "address call");
                 };
@@ -109,10 +109,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_address_call(
         &mut self,
         call_span: Span,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
-        call_opts: Option<&hir::CallOptions<'_>>,
+        args: hir::CallArgs<'gcx>,
+        call_opts: Option<&hir::CallOptions<'gcx>>,
         capture_returndata: bool,
     ) -> Option<ValueId> {
         self.lower_address_call_result(
@@ -129,14 +129,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_address_call_result(
         &mut self,
         call_span: Span,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
-        call_opts: Option<&hir::CallOptions<'_>>,
+        args: hir::CallArgs<'gcx>,
+        call_opts: Option<&hir::CallOptions<'gcx>>,
         capture_returndata: bool,
     ) -> Option<(ValueId, Option<ValueId>)> {
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
-        let address = self.lower_expr(receiver)?;
+        let address = self.lower_expr(receiver)?.raw_operand();
         let data_span = data.span;
         let data_ty = self.cx.gcx.type_of_expr(data.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
@@ -155,33 +155,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             // An empty input is only read, so it needs no allocation.
             self.zero_slot()
-        } else if is_calldata_bytes(data_ty) {
+        } else if lies_in_calldata(data_ty) {
             // solc copies calldata `bytes` input past the free memory pointer, which the call
             // reads at once, so it stays unreserved, and without checking that it lies within
             // the calldata, so the copy reads zeros past its end.
-            // input = memory_slice(fmp, data.len); calldatacopy(fmp, data.offset, data.len)
-            let slice = self.lower_expr(data)?;
-            let length = self.builder.slice_len(slice);
-            let source = self.builder.slice_ptr(slice);
-            let base = self.builder.fmp();
-            self.builder.copy_heap(base, source, length, PtrLocation::Calldata);
-            self.builder.make_slice(base, length, PtrLocation::Memory)
+            let data = self.operand(data)?.id();
+            self.builder.stage_bytes(data)
         } else {
             // input = materialize_memory(arg)
-            let data = self.lower_typed_expr(data, memory_ty)?;
+            let data = self.lower_typed_expr(data, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, data, data_span)?
         };
         let kind = match builtin {
-            Builtin::AddressCall => AddressCallKind::Call,
-            Builtin::AddressStaticcall => AddressCallKind::Static,
-            Builtin::AddressDelegatecall => AddressCallKind::Delegate,
+            Builtin::AddressCall => ExtCallKind::Call,
+            Builtin::AddressStaticcall => ExtCallKind::Static,
+            Builtin::AddressDelegatecall => ExtCallKind::Delegate,
             _ => unreachable!(),
         };
-        // success = address_call(address, data, gas?, value?)
-        let success = self.builder.address_call(
-            kind,
+        // success = extcall(address, data, gas?, value?)
+        let policy = CallPolicy { kind, output: CallOutput::None };
+        let success = self.builder.extcall(
+            policy,
             address,
-            data,
+            Some(data),
             options.gas,
             options.value_set.then_some(options.value),
         );
@@ -192,28 +188,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_payable_address_call(
         &mut self,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<CallResult> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
-        let address = self.lower_expr(receiver)?;
-        let amount = self.lower_typed_expr(amount, self.cx.gcx.types.uint(256))?;
-        match builtin {
-            Builtin::AddressPayableTransfer => {
-                // transfer(address, amount)
-                self.builder.transfer(address, amount);
-                Some(CallResult::Void)
-            }
-            Builtin::AddressPayableSend => {
-                // success = send(address, amount)
-                Some(CallResult::Value(self.builder.send(address, amount)))
-            }
-            _ => unreachable!(),
+        let address = self.lower_expr(receiver)?.raw_operand();
+        let uint256 = self.cx.gcx.types.uint(256);
+        let amount = self.lower_typed_expr(amount, uint256)?.clean(self, uint256);
+        // gas = amount == 0 ? 2300 : 0
+        let zero = self.builder.imm(0);
+        let stipend = self.builder.imm(2300);
+        let amount_is_zero = self.builder.eq_zero(amount);
+        let gas = self.builder.select(amount_is_zero, stipend, zero);
+        let policy = CallPolicy { kind: ExtCallKind::Call, output: CallOutput::None };
+        // success = extcall address, gas, value amount
+        let success = self.builder.extcall(policy, address, None, Some(gas), Some(amount));
+        if builtin == Builtin::AddressPayableTransfer {
+            // branch success, done, failed
+            // failed: revert_returndata
+            self.builder.revert_returndata_unless(success);
+            Some(CallResult::Void)
+        } else {
+            Some(CallResult::Value(success))
         }
     }
 
-    pub(super) fn low_level_call_builtin(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
+    pub(super) fn low_level_call_builtin(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Builtin> {
         let (callee, _, _) = expr.as_call()?;
         match self.cx.gcx.resolved_builtin(callee) {
             Some(
@@ -227,7 +228,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_low_level_call_values(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
         count: usize,
         first_is_omitted: bool,
@@ -257,7 +258,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_builtin_value(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
     ) -> Option<ValueId> {
         match builtin {
@@ -265,7 +266,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return self.cx.report_unsupported(expr.span, "address balance");
                 };
-                let receiver = self.lower_expr(receiver)?;
+                let receiver = self.lower_expr(receiver)?.raw_operand();
                 Some(self.builder.balance(receiver))
             }
             Builtin::ContractCreationCode
@@ -301,7 +302,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return self.cx.report_unsupported(expr.span, "environment builtin");
                 };
-                let address = self.lower_expr(receiver)?;
+                let address = self.lower_expr(receiver)?.raw_operand();
                 match builtin {
                     Builtin::AddressCodehash => {
                         // value = extcodehash(address)
@@ -329,7 +330,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 match self.is_external_function_value(receiver) {
                     true => {
-                        let value = self.lower_expr(receiver)?;
+                        let value = self.operand(receiver)?.id();
                         Some(self.external_function_address(value))
                     }
                     false => self.cx.report_unsupported(expr.span, "function address"),
@@ -357,7 +358,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     None => match self.is_external_function_value(receiver) {
                         true => {
                             // selector = (function & 0xffffffff) << 224
-                            let value = self.lower_expr(receiver)?;
+                            let value = self.operand(receiver)?.id();
                             let mask = self.builder.imm(u32::MAX);
                             let selector = self.builder.and(value, mask);
                             let shift = self.builder.imm(224);
@@ -398,12 +399,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 else {
                     return self.cx.report_unsupported(expr.span, "fixed-bytes length");
                 };
-                match receiver.peel_parens().kind {
-                    ExprKind::Ident(_) => {}
-                    _ => {
-                        self.lower_expr(receiver)?;
-                    }
-                }
+                self.lower_discarded_expr(receiver)?;
                 Some(self.builder.imm(u64::from(size.bytes())))
             }
             Builtin::ArrayLength => {
@@ -412,7 +408,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 match (&receiver.kind, self.cx.gcx.resolved_builtin(receiver)) {
                     (ExprKind::Member(address, _), Some(Builtin::AddressCode)) => {
-                        let address = self.lower_expr(address)?;
+                        let address = self.lower_expr(address)?.raw_operand();
                         Some(self.builder.extcodesize(address))
                     }
                     _ => {
@@ -479,7 +475,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn type_limit(
         &self,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         span: Span,
         maximum: bool,
     ) -> Option<U256> {
@@ -520,7 +516,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.and(address, mask)
     }
 
-    pub(super) fn is_external_function_value(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_external_function_value(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         if let ExprKind::CallOptions(callee, _) = expr.peel_parens().kind {
             return self.is_external_function_value(callee);
         }
@@ -533,7 +529,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_solidity_unit_builtin_call(
         &mut self,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<()> {
         // if assert && !condition { panic(Assert) }
         // if require && !condition { revert(payload_or_empty) }
@@ -543,14 +539,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match builtin {
             Builtin::Assert => {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
-                let condition = self.lower_expr(condition)?;
+                let condition = self.operand(condition)?.id();
                 let invalid = self.builder.eq_zero(condition);
                 self.builder.panic_if(invalid, PanicCode::Assert);
             }
             Builtin::Require => {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition = required.first()?;
-                let condition = self.lower_expr(condition)?;
+                let condition = self.operand(condition)?.id();
                 // The message is evaluated regardless of the condition, like a function call
                 // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
@@ -582,7 +578,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::Selfdestruct => {
                 let address = &self.builtin_args::<1>(builtin, &args)?[0];
-                let address = self.lower_expr(address)?;
+                let address = self.lower_expr(address)?.raw_operand();
                 self.builder.selfdestruct(address);
             }
             _ => {
@@ -598,9 +594,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_solidity_value_builtin_call(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         match builtin {
             Builtin::Keccak256 => {
@@ -632,7 +628,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let span = value.span;
-                let value = self.lower_typed_expr(value, memory_ty)?;
+                let value = self.lower_typed_expr(value, memory_ty)?.clean(self, memory_ty);
                 let value = self.materialize_memory_argument(memory_ty, value, span)?;
                 Some(self.builder.keccak256_bytes(value))
             }
@@ -651,7 +647,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
             Builtin::Blockhash | Builtin::Blobhash => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
-                let value = self.lower_expr(value)?;
+                let value = self.operand(value)?.id();
                 Some(match builtin {
                     Builtin::Blockhash => self.builder.blockhash(value),
                     Builtin::Blobhash => self.builder.blobhash(value),
@@ -684,19 +680,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         "codegen expected UDVT wrap to return a user-defined value type",
                     );
                 };
-                self.lower_typed_expr(value, underlying)
+                Some(self.lower_typed_expr(value, underlying)?.clean(self, underlying))
             }
             Builtin::UdvtUnwrap => {
                 let value = self.builtin_args::<1>(builtin, &args)?.first()?;
-                let TyKind::Udvt(underlying, _) = self.cx.gcx.type_of_expr(value.id)?.kind else {
+                let TyKind::Udvt(..) = self.cx.gcx.type_of_expr(value.id)?.kind else {
                     return report_error(
                         self.cx.gcx,
                         expr.span,
                         "codegen expected UDVT unwrap to receive a user-defined value type",
                     );
                 };
-                let value = self.lower_expr(value)?;
-                Some(self.normalize_dirty_scalar(value, underlying))
+                Some(self.operand(value)?.id())
             }
             Builtin::Selfdestruct
             | Builtin::Require
@@ -717,11 +712,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+    fn lower_erc7201(&mut self, args: hir::CallArgs<'gcx>) -> Option<ValueId> {
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
         let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
         let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let value = self.lower_typed_expr(argument, memory_ty)?;
+        let value = self.lower_typed_expr(argument, memory_ty)?.clean(self, memory_ty);
         let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
         // slot = erc7201(value)
         Some(self.builder.emit_inst(
@@ -733,7 +728,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_yul_unit_builtin_call(
         &mut self,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<()> {
         macro_rules! lower {
             ($method:ident($($arg:ident),* $(,)?)) => {{
@@ -801,7 +796,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_yul_value_builtin_call(
         &mut self,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         macro_rules! lower {
             ($method:ident($($arg:ident),* $(,)?)) => {{
@@ -1014,7 +1009,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builtin_arg_exprs(builtin, args)
     }
 
-    fn validate_builtin_arity(&self, builtin: Builtin, args: &hir::CallArgs<'_>) -> bool {
+    fn validate_builtin_arity(&self, builtin: Builtin, args: &hir::CallArgs<'gcx>) -> bool {
         let Some(exprs) = self.builtin_arg_exprs(builtin, args) else {
             return false;
         };
@@ -1039,7 +1034,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_args<const N: usize>(
         &mut self,
         builtin: Builtin,
-        args: &hir::CallArgs<'_>,
+        args: &hir::CallArgs<'gcx>,
     ) -> Option<[ValueId; N]> {
         let exprs = self.builtin_args::<N>(builtin, args)?;
         // Yul builtins take raw words, so they have no declared parameter types to convert to.
@@ -1055,7 +1050,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // narrow local dirtied by inline assembly is cleaned here, before any semantic
                 // check such as the zero-modulus panic observes it.
                 match parameters.get(index) {
-                    Some(&parameter) => this.lower_typed_expr(expr, parameter),
+                    Some(&parameter) => {
+                        Some(this.lower_typed_expr(expr, parameter)?.clean(this, parameter))
+                    }
                     None => this.lower_yul_word_expr(expr),
                 }
             },
@@ -1067,14 +1064,4 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.cx.gcx.dcx().emit_err(span, format!("unsupported builtin call `{}`", builtin.name()));
         None
     }
-}
-
-/// Whether `ty` is `bytes` in calldata, as a reference or a slice.
-fn is_calldata_bytes(ty: Ty<'_>) -> bool {
-    let ty = match ty.kind {
-        TyKind::Slice(inner) => inner,
-        _ => ty,
-    };
-    ty.is_ref_at(DataLocation::Calldata)
-        && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
 }

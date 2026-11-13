@@ -7,11 +7,11 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
-    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
-    MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module, PackedArraySource,
-    PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId,
-    memory::EvmMemoryLayout,
+    AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail, CheckedOp,
+    DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module,
+    PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value,
+    ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
@@ -27,7 +27,7 @@ use solar_sema::{
     hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };
-use std::{fmt::Display, sync::Arc};
+use std::{convert::Infallible, fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
@@ -45,6 +45,9 @@ mod raw_scalars;
 mod statements;
 mod storage_values;
 mod values;
+mod word;
+
+use word::Word;
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -111,6 +114,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
+    let declaration_span = mir.declaration_span;
     if !expose_selector {
         mir.selector = None;
     }
@@ -163,7 +167,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     // solc tags a function's entry under the function definition.
-    lowerer.builder.set_entry_label_span(hir_function.span);
+    lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -174,11 +178,11 @@ pub(super) fn lower(
         lowerer.lower_state_initializers(contract_id)?;
     }
     if let Some(body) = hir_function.body {
-        lowerer.lower_function_body(hir_function.modifiers, body)?;
+        lowerer.lower_function_body(hir_function.modifiers, body, hir_function.span)?;
     }
     if !lowerer.is_terminated() {
         // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(hir_function.span);
+        lowerer.builder.replace_source_span(declaration_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
@@ -192,6 +196,7 @@ pub(super) fn lower_synthetic_constructor(
 ) -> Option<Function> {
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
+    mir.declaration_span = span;
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.builder.set_entry_label_span(span);
     lowerer.lower_implicit_base_constructors(contract_id)?;
@@ -214,13 +219,16 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
-    dirty_values: FxHashSet<ValueId>,
+    /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
+    /// range check.
+    unchecked_calldata_slices: FxHashSet<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
-    parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
+    /// The pure struct constructors being inlined.
+    inlined_struct_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
     /// being constructed, in evaluation order.
     base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
@@ -268,13 +276,66 @@ struct CallArgumentParams<'a> {
     reverse: bool,
 }
 
-/// An operand of an ABI encoding after lowering.
-enum AbiOperand<'gcx> {
-    /// A value to encode, with its ABI type.
-    Ready((ValueId, AbiType)),
-    /// A storage array or struct that the encoder reads after every operand ran, as solc does.
-    /// `ty` is the memory type it copies to.
-    Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
+/// An operand lowered at the type of its own expression, before its consumer converts it.
+///
+/// A storage aggregate is its slot, so a consumer that converts after its later operands ran, as
+/// via-IR does, copies it then.
+struct Lowered<'gcx> {
+    value: LoweredValue,
+    /// The type of the expression, or `None` for a literal that was built at its target type.
+    source: Option<Ty<'gcx>>,
+    /// The type the consumer converts it to.
+    target: Ty<'gcx>,
+    span: Span,
+}
+
+enum LoweredValue {
+    Word(Word),
+    /// A `bytes` or `string` literal bound to a memory target, which the consumer allocates when
+    /// it converts the operand, as via-IR's `convert` does.
+    BytesLiteral(ByteSymbol),
+}
+
+impl Lowered<'_> {
+    /// Whether the operand is a storage reference, which a consumer that converts late copies
+    /// only after its later operands ran.
+    fn waits(&self) -> bool {
+        self.source.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+    }
+
+    /// Whether converting the operand allocates a memory copy of it.
+    fn copies(&self) -> bool {
+        self.waits()
+            || matches!(self.value, LoweredValue::BytesLiteral(_))
+            || (self.source.is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))
+                && self.target.is_ref_at(DataLocation::Memory))
+    }
+}
+
+/// An operand that was converted, or that waits for its later operands. `L` is a third kind of
+/// operand that only some consumers produce.
+enum Step<'gcx, T, L = Infallible> {
+    Done(T),
+    Wait(Lowered<'gcx>),
+    Literal(L),
+}
+
+/// Constant call input, which needs no source-level memory object: the encoder materializes it.
+struct CallInputLiteral {
+    bytes: ByteSymbol,
+    span: Span,
+}
+
+/// An operand of an ABI encoding after lowering: the value to encode with its ABI type, a storage
+/// reference that the encoder reads after every operand ran, or constant call input.
+type AbiOperand<'gcx> = Step<'gcx, (ValueId, AbiType), CallInputLiteral>;
+
+/// The signature of `abi.encodeWithSignature` after lowering.
+enum SignatureOperand {
+    /// A selector known at once.
+    Selector(ValueId),
+    /// A `bytes` or `string` value, hashed after the other arguments ran.
+    Bytes(ValueId, PtrLocation),
 }
 
 struct LoopTargets {
@@ -309,7 +370,6 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
-    parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
 }
@@ -482,16 +542,10 @@ fn internal_function_pointer_id(index: usize) -> u64 {
 
 enum CallResult {
     Void,
+    /// A canonical value.
     Value(ValueId),
-}
-
-impl CallResult {
-    fn value(self) -> Option<ValueId> {
-        match self {
-            Self::Void => None,
-            Self::Value(value) => Some(value),
-        }
-    }
+    /// The result of an internal call, which can carry raw bits.
+    Word(Word),
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -504,13 +558,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
-            dirty_values: FxHashSet::default(),
+            unchecked_calldata_slices: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
-            parameters: Vec::new(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
+            inlined_struct_constructors: FxHashSet::default(),
             base_args: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),
@@ -526,6 +580,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lazy_helper(
         &mut self,
         name: Symbol,
+        build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
+    ) -> Option<FunctionId> {
+        self.lazy_helper_with(name, true, build)
+    }
+
+    /// Like [`Self::lazy_helper`], for a helper that no source construct lacks: `generated` is
+    /// false when `build` lowers user code, which keeps its own origins.
+    fn lazy_helper_with(
+        &mut self,
+        name: Symbol,
+        generated: bool,
         build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
     ) -> Option<FunctionId> {
         // if name in helpers { return helpers[name] }
@@ -550,6 +615,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         function.name = self.cx.module.function(id).name;
+        if generated {
+            function.mark_unlocated_compiler_generated();
+        }
         *self.cx.module.function_mut(id) = function;
         Some(id)
     }
@@ -598,6 +666,78 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Lowers `args` and converts them with `finish`. A storage reference whose `waits` entry, by
+    /// evaluation order, is set waits until every argument is lowered, as via-IR converts a
+    /// call's arguments; any other operand is converted as soon as it is lowered.
+    fn lower_converted_arguments<T>(
+        &mut self,
+        args: hir::CallArgs<'gcx>,
+        params: CallArgumentParams<'_>,
+        span: Span,
+        error: &'static str,
+        mut lower: impl FnMut(&mut Self, usize, &'gcx hir::Expr<'gcx>) -> Option<Lowered<'gcx>>,
+        mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        let waits = self.operands_wait(args.exprs());
+        let mut position = 0;
+        let mut waited = false;
+        let steps =
+            self.lower_call_arguments(args, params, span, error, |this, index, argument| {
+                let operand = lower(this, index, argument)?;
+                position += 1;
+                // Once an operand waits, every later copy waits behind it, so the copies allocate
+                // in argument order.
+                if (waited && operand.copies()) || (waits[position - 1] && operand.waits()) {
+                    waited = true;
+                    Some(Step::Wait(operand))
+                } else {
+                    finish(this, index, operand).map(Step::Done)
+                }
+            })?;
+        self.finish_steps(steps, finish)
+    }
+
+    /// Lowers `count` operands and converts them with `finish`, as
+    /// [`Self::lower_converted_arguments`] does.
+    fn lower_converted_operands<T>(
+        &mut self,
+        waits: &[bool],
+        count: usize,
+        mut lower: impl FnMut(&mut Self, usize) -> Option<Lowered<'gcx>>,
+        mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        let mut waited = false;
+        let steps = (0..count)
+            .map(|index| {
+                let operand = lower(self, index)?;
+                if (waited && operand.copies()) || (waits[index] && operand.waits()) {
+                    waited = true;
+                    Some(Step::Wait(operand))
+                } else {
+                    finish(self, index, operand).map(Step::Done)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.finish_steps(steps, finish)
+    }
+
+    /// Converts the operands that waited, in order.
+    fn finish_steps<T>(
+        &mut self,
+        steps: Vec<Step<'gcx, T>>,
+        mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        steps
+            .into_iter()
+            .enumerate()
+            .map(|(index, step)| match step {
+                Step::Done(value) => Some(value),
+                Step::Wait(operand) => finish(self, index, operand),
+                Step::Literal(never) => match never {},
+            })
+            .collect()
+    }
+
     fn lower_argument_exprs<'a, T, I>(
         &mut self,
         params: CallArgumentParams<'_>,
@@ -626,16 +766,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_call_options(
         &mut self,
-        options: Option<&hir::CallOptions<'_>>,
+        options: Option<&hir::CallOptions<'gcx>>,
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<LoweredCallOptions> {
         // for option { gas/value = lower(option.value) }
         let mut lowered = self.default_call_options();
+        let uint256 = self.cx.gcx.types.uint(256);
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
-                    self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
+                    self.lower_typed_expr(&option.value, uint256)?.clean(self, uint256);
                 match option.name.name {
                     kw::Gas => lowered.gas = Some(option_value),
                     sym::value if allow_value => {
@@ -673,7 +814,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// silently drops the overflow check instead of wrapping or panicking, so the type must be
     /// present whenever the expression is well-formed.
     #[track_caller]
-    fn assert_operand_ty_registered(&self, expr: &hir::Expr<'_>) {
+    fn assert_operand_ty_registered(&self, expr: &'gcx hir::Expr<'gcx>) {
         debug_assert!(
             self.cx.gcx.type_of_expr(expr.id).is_some() || self.cx.gcx.dcx().has_errors().is_err(),
             "operator expression has no registered type: {:?}",
@@ -681,27 +822,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
     }
 
-    fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    /// Lowers `expr` to its value at its carrier type, and whether it may hold bits above its type.
+    ///
+    /// This is the only function that lowers an expression. Take the value with
+    /// [`Self::operand`], or hand the word to a sink that copies it, [`Self::bind_word`] or
+    /// [`Self::store_word`].
+    pub(super) fn lower_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Word> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = self.lower_expr_inner(expr).map(|value| {
-            if !self.in_inline_assembly
-                && !self.dirty_values.contains(&value)
-                && let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
-                && ty.is_value_type()
-                && let ty @ MirType::Int(_) = types::TypeLowerer::mir_type(ty)
-            {
-                self.builder.cast(value, ty)
-            } else {
-                value
-            }
-        });
+        let result = self.lower_expr_inner(expr).map(|word| word.into_native(self, expr));
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
     }
 
-    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    /// Returns the operand of `expr` when it converts a value to its own type.
+    pub(super) fn equal_type_conversion<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a hir::Expr<'a>> {
+        let ExprKind::Call(callee, args) = &expr.kind else { return None };
+        let hir::CallArgsKind::Unnamed([argument]) = args.kind else { return None };
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        (expressions::is_type_conversion(self.cx.gcx, callee)
+            && ty.is_value_type()
+            && Some(ty) == self.cx.gcx.type_of_expr(argument.id))
+        .then_some(argument)
+    }
+
+    fn lower_expr_inner(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Word> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
         // `lower_constant_variable`.
@@ -732,24 +881,49 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(expr.span, "fractional value");
             }
             if let Some(value) = self.lower_const_value(value, expr.span) {
-                return Some(value);
+                return Some(Word::from_clean(value));
             }
+        }
+        // A storage aggregate is its slot, whatever expression names it; its consumer converts it.
+        if !self.in_inline_assembly
+            && (matches!(
+                expr.kind,
+                ExprKind::Ident(_)
+                    | ExprKind::Member(..)
+                    | ExprKind::Index(..)
+                    | ExprKind::Ternary(..)
+            ) || matches!(&expr.kind, ExprKind::Call(callee, arguments)
+                if arguments.is_empty()
+                    && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0))
+                || matches!(expr.kind, ExprKind::Assign(_, None, rhs)
+                if self.cx.gcx.type_of_expr(rhs.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))))
+            && self
+                .cx
+                .gcx
+                .type_of_expr(expr.id)
+                .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+        {
+            return Some(Word::from_clean(self.require_storage_access(expr)?.slot));
         }
         match &expr.kind {
             ExprKind::Lit(lit) if self.in_inline_assembly => {
-                Some(self.builder.imm(lit.kind.yul_word()?))
+                Some(Word::from_clean(self.builder.imm(lit.kind.yul_word()?)))
             }
-            ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
-            ExprKind::Array(elements) => self.lower_array(expr, elements),
+            ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span).map(Word::from_clean),
+            ExprKind::Array(elements) => self.lower_array(expr, elements).map(Word::from_clean),
             ExprKind::Ident(_) => {
                 if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
-                    return self.lower_builtin_value(expr, builtin);
+                    return self.lower_builtin_value(expr, builtin).map(Word::from_clean);
                 }
                 if let Some(value) = self.lower_internal_function_value(expr) {
-                    return Some(value);
+                    return Some(Word::from_clean(value));
                 }
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                let value = self.load_variable(id, expr.span)?;
+                let word = self.load_binding_word(id, expr.span)?;
+                if word.is_raw() {
+                    return Some(word);
+                }
+                let value = word.clean(self, self.cx.gcx.type_of_item(id.into()));
                 if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
@@ -757,9 +931,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
-                    Some(self.builder.slice_ptr(value))
+                    Some(Word::from_clean(self.builder.slice_ptr(value)))
                 } else {
-                    Some(value)
+                    Some(word)
                 }
             }
             ExprKind::Binary(lhs, op, rhs) => {
@@ -801,20 +975,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     None
                 };
-                let mut lhs = match lhs_word {
-                    Some(word) => word,
+                let lhs_value = match lhs_word {
+                    Some(word) => Word::from_clean(word),
                     None => self.lower_expr(lhs)?,
                 };
-                if let Some(ty) = lhs_ty {
-                    lhs = self.normalize_dirty_scalar(lhs, ty);
-                }
-                let mut rhs = match rhs_word {
-                    Some(word) => word,
+                let rhs_value = match rhs_word {
+                    Some(word) => Word::from_clean(word),
                     None => self.lower_expr(rhs)?,
                 };
-                if let Some(ty) = rhs_ty {
-                    rhs = self.normalize_dirty_scalar(rhs, ty);
+                // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id);
+                if let Some(ty) = expr_ty
+                    && let Some(word) =
+                        self.raw_bitwise(op.kind, (lhs, lhs_value), (rhs, rhs_value), ty)
+                {
+                    return Some(word);
                 }
+                let lhs = lhs_value.clean(self, lhs_ty?);
+                let rhs = rhs_value.clean(self, rhs_ty?);
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
                         if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
@@ -828,7 +1006,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     _ => (lhs, rhs),
                 };
-                let expr_ty = self.cx.gcx.type_of_expr(expr.id);
                 let lhs_is_literal =
                     lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
                 let rhs_is_literal =
@@ -880,22 +1057,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     (lhs, rhs)
                 };
                 let result = self.binary(op.kind, lhs, rhs, ty);
-                Some(if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
-                    self.clean_fixed_bytes(result, bytes)
-                } else {
-                    result
-                })
+                Some(Word::from_clean(
+                    if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
+                        self.clean_fixed_bytes(result, bytes)
+                    } else {
+                        result
+                    },
+                ))
+            }
+            // An equal-type conversion passes its operand through.
+            ExprKind::Call(..) if let Some(argument) = self.equal_type_conversion(expr) => {
+                self.lower_expr(argument)
             }
             ExprKind::Call(callee, args) => {
                 let (callee, call_opts) = callee.split_call_options();
-                self.lower_call(expr, callee, *args, call_opts, true)?.value()
+                match self.lower_call(expr, callee, *args, call_opts, true)? {
+                    CallResult::Void => None,
+                    CallResult::Value(value) => Some(Word::from_clean(value)),
+                    CallResult::Word(word) => Some(word),
+                }
             }
             ExprKind::CallOptions(callee, options) => {
-                let value = self.lower_expr(callee)?;
+                let value = self.operand(callee)?.id();
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
                 }
-                Some(value)
+                Some(Word::from_clean(value))
             }
             ExprKind::Unary(op, value) => {
                 self.assert_operand_ty_registered(expr);
@@ -904,19 +1091,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
                     let place = self.resolve_lvalue_place(value)?;
-                    let ty = self.cx.gcx.type_of_expr(value.id);
-                    let old = self.load_lvalue_place(&place)?;
-                    let old = ty.map_or(old, |ty| self.normalize_dirty_scalar(old, ty));
+                    let ty = self.cx.gcx.type_of_expr(value.id)?;
+                    let old = self.load_place_word(&place)?;
+                    let old_value = old.clean(self, ty);
                     let one = self.builder.imm(1);
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
                     } else {
                         BinOpKind::Sub
                     };
-                    let new = self.binary(kind, old, one, ty);
+                    let new = self.binary(kind, old_value, one, Some(ty));
                     self.store_lvalue_place(&place, new)?;
+                    // The expression's value is the new one for a prefix operator and the old
+                    // one, raw bits included, for a postfix operator.
                     return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
-                        new
+                        Word::from_clean(new)
                     } else {
                         old
                     });
@@ -928,15 +1117,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let ty = self.cx.gcx.type_of_expr(value.id);
-                let value = self.lower_expr(value)?;
-                let value = ty.map_or(value, |ty| self.normalize_dirty_scalar(value, ty));
-                Some(self.unary(op.kind, value, self.cx.gcx.type_of_expr(expr.id)))
+                let value = self.operand(value)?.id();
+                Some(Word::from_clean(self.unary(
+                    op.kind,
+                    value,
+                    self.cx.gcx.type_of_expr(expr.id),
+                )))
             }
             ExprKind::Assign(lhs, op, rhs) => {
                 let compound_op = op.map(|op| op.kind);
                 if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
-                    return self.report_unsupported_udvt_operator(expr.span);
+                    return self.report_unsupported_udvt_operator(expr.span).map(Word::from_clean);
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
                     let access = self.require_storage_access(rhs)?;
@@ -944,7 +1135,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         return self.cx.report_unsupported(lhs.span, "storage reference target");
                     };
                     self.storage_refs.insert(id, access);
-                    return Some(access.slot);
+                    return Some(Word::from_clean(access.slot));
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
@@ -957,27 +1148,47 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
                     .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
                     .flatten();
+                let mut place = None;
                 let rhs_value = if let Some(word) = fixed_bytes_literal {
-                    word
+                    Word::from_clean(word)
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
-                    self.lower_typed_expr(rhs, memory_rhs_ty)?
+                    if self.may_write_state(lhs) {
+                        // The place, and any index it evaluates, runs before the copy.
+                        let operand = self.lower_operand(rhs, memory_rhs_ty)?;
+                        place = Some(self.resolve_lvalue_place(lhs)?);
+                        Word::from_clean(self.convert_operand(operand)?.clean(self, memory_rhs_ty))
+                    } else {
+                        Word::from_clean(
+                            self.lower_typed_expr(rhs, memory_rhs_ty)?.clean(self, memory_rhs_ty),
+                        )
+                    }
                 } else if compound_op.is_some_and(|op| {
                     !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
                 }) {
                     self.lower_typed_expr(rhs, lhs_ty)?
+                } else if compound_op.is_none() && rhs_ty.is_value_type() {
+                    self.lower_typed_expr(rhs, rhs_ty)?
                 } else {
-                    self.lower_expr(rhs)?
+                    Word::from_clean(self.operand(rhs)?.id())
                 };
                 // The literal word above is already the place's type, so the
                 // conversion below must not widen or shift it a second time.
                 let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
                 if let Some(kind) = compound_op {
                     let place = self.resolve_lvalue_place(lhs)?;
-                    let lhs_value = self.load_lvalue_place(&place)?;
-                    let lhs_value = self.normalize_dirty_scalar(lhs_value, lhs_ty);
-                    let rhs_value = self.normalize_dirty_scalar(rhs_value, rhs_ty);
+                    let lhs_word = self.load_place_word(&place)?;
+                    // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
+                    if self.cx.gcx.user_operator(expr.id).is_none()
+                        && let Some(word) =
+                            self.raw_bitwise(kind, (lhs, lhs_word), (rhs, rhs_value), lhs_ty)
+                    {
+                        self.store_word(&place, word, Some(lhs_ty), lhs_ty)?;
+                        return Some(word);
+                    }
+                    let rhs_value = rhs_value.clean(self, lhs_ty);
+                    let lhs_value = lhs_word.clean(self, lhs_ty);
                     let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
                     let value = if let Some(bytes) = fixed_bytes {
                         self.clean_fixed_bytes(value, bytes)
@@ -985,8 +1196,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.coerce_value(value, lhs_ty, lhs_ty)
                     };
                     self.store_lvalue_place(&place, value)?;
-                    return Some(value);
+                    return Some(Word::from_clean(value));
                 }
+                if lhs_ty.is_value_type() && rhs_ty.is_value_type() {
+                    // The assigned value keeps its raw bits when the target is a raw carrier.
+                    let carried = if rhs_ty == lhs_ty {
+                        rhs_value
+                    } else {
+                        let value = rhs_value.clean(self, rhs_ty);
+                        Word::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
+                    };
+                    let place = self.resolve_lvalue_place(lhs)?;
+                    self.store_word(&place, carried, Some(rhs_ty), lhs_ty)?;
+                    return Some(carried);
+                }
+                let rhs_value = rhs_value.clean(self, rhs_ty);
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
@@ -1002,29 +1226,56 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
-                self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
-                Some(value)
+                let place = match place {
+                    Some(place) => place,
+                    None => self.resolve_lvalue_place(lhs)?,
+                };
+                self.store_lvalue_place_with_source(&place, value, Some(rhs_ty))?;
+                // The value of an assignment to a storage aggregate is its storage reference.
+                if let LValuePlace::Storage { access, .. } = place
+                    && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+                        ty.is_ref_at(DataLocation::Storage)
+                            && self.types.memory_layout(ty).is_some()
+                    })
+                {
+                    return Some(Word::from_clean(access.slot));
+                }
+                Some(Word::from_clean(value))
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 self.lower_ternary(cond, then_expr, else_expr, ty)
             }
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
-            ExprKind::Tuple(values) => self.lower_tuple(expr, values),
-            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
+            ExprKind::Tuple(values) => self.lower_tuple(expr, values).map(Word::from_clean),
+            ExprKind::Member(receiver, name) => {
+                self.lower_member(expr, receiver, *name).map(Word::from_clean)
+            }
             ExprKind::YulMember(..) => {
                 let place = self.resolve_lvalue_place(expr)?;
-                self.load_lvalue_place(&place)
+                self.load_lvalue_place(&place).map(Word::from_clean)
             }
-            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
-            ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
-            ExprKind::Payable(value) => self.lower_expr(value),
+            ExprKind::Index(receiver, index) => {
+                self.lower_index(expr, receiver, *index).map(Word::from_clean)
+            }
+            ExprKind::Slice(receiver, start, end) => {
+                self.lower_slice(expr, receiver, *start, *end).map(Word::from_clean)
+            }
+            // `payable(x)` of an `address payable` passes `x` through.
+            ExprKind::Payable(value)
+                if self.cx.gcx.type_of_expr(value.id) == self.cx.gcx.type_of_expr(expr.id) =>
+            {
+                self.lower_expr(value)
+            }
+            ExprKind::Payable(value) => {
+                self.operand(value).map(|value| Word::from_clean(value.id()))
+            }
             _ if self.cx.gcx.dcx().has_errors().is_err() => None,
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }
     }
 
-    fn report_unsupported_udvt_operator(&self, span: Span) -> Option<ValueId> {
+    fn report_unsupported_udvt_operator<T>(&self, span: Span) -> Option<T> {
         self.cx
             .gcx
             .dcx()
@@ -1112,10 +1363,16 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .zip(gcx.hir.function(function_id).parameters)
                     .map(|(((argument, &source), &target), &parameter)| {
                         let carrier = state.scalar_carrier(gcx, parameter);
-                        if source == target {
+                        // A parameter that is not a raw carrier is read as a clean value, so
+                        // the word is cleaned even when it travels as a full word. Equal layouts
+                        // need not mean equal types: a user-defined value type shares the layout
+                        // of its underlying type, and the raw-flow analysis links only equal
+                        // types.
+                        let raw = state.is_raw_scalar(gcx, parameter);
+                        if source == target && (raw || carrier != MirType::I256) {
                             raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
                         } else {
-                            reinterpret_word(&mut builder, argument, source, target, carrier)
+                            reinterpret_word(&mut builder, argument, source, target, carrier, raw)
                         }
                     })
                     .collect::<Vec<_>>();
@@ -1133,7 +1390,14 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         if source == target {
                             raw_scalars::cast_carrier(builder, value, target, ty)
                         } else {
-                            reinterpret_word(builder, value, source, target, ty)
+                            reinterpret_word(
+                                builder,
+                                value,
+                                source,
+                                target,
+                                ty,
+                                ty == MirType::I256,
+                            )
                         }
                     };
                     let result = if let (MirType::Struct(source), MirType::Struct(target)) =
@@ -1168,6 +1432,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             // panic(InvalidInternalFunction)
             builder.panic(PanicCode::InvalidInternalFunction);
         }
+        function.mark_unlocated_compiler_generated();
         *module.function_mut(dispatcher) = function;
     }
 }
@@ -1206,16 +1471,17 @@ fn reinterpret_word(
     source: crate::mir::ValueLayout,
     target: crate::mir::ValueLayout,
     carrier: MirType,
+    raw: bool,
 ) -> ValueId {
     // word = zext | sext | ptrtoint value to i256
-    // word = canonical(target, word), unless the carrier is a raw word
+    // word = canonical(target, word), unless `raw`
     // value = trunc | ne 0 | inttoptr word to carrier
     let word = raw_scalars::cast_carrier(builder, value, source, MirType::I256);
-    // A raw word carrier passes the bits on as a direct call would: the receiver cleans them where
+    // A raw word passes the bits on as a direct call would: the receiver cleans them where
     // Solidity reads the value, and its assembly sees them as they are. Internal function pointers
     // are small identifiers: the ABI's left-aligned cleanup of external function words does not
     // apply to them.
-    let word = if carrier == MirType::I256 || target == crate::mir::ValueLayout::Function {
+    let word = if raw || target == crate::mir::ValueLayout::Function {
         word
     } else {
         AbiWordValidator::from_layout(target)

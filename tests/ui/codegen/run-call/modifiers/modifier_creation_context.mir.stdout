@@ -1,0 +1,125 @@
+; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_creation_context.sol:A ===
+@module A
+; constructor() mod1 [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    icall @f2
+    icall @f1
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret
+}
+
+; function f1() public mod2 [selector 0xc27fc305]
+fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall @f3
+    jumpi false, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = or v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb5
+  bb5:                                            ; preds = bb2
+    jump bb4
+  bb4:                                            ; preds = bb5, bb3
+    jump bb1
+  bb1:                                            ; preds = bb4
+    ret
+}
+
+; function f2() public [selector 0x9942ec6f]
+fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = or v0, 32
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret
+}
+
+; function f3() public virtual [selector 0xaaf05f3d]
+fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function getData() public view returns (uint256 r) [selector 0x3bc5de30]
+fn @getData() -> i256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_creation_context.sol:C ===
+@module C
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    icall @f4
+    icall @f1
+    jump bb3
+  bb3:                                            ; preds = bb0
+    jump bb2
+  bb2:                                            ; preds = bb3
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret
+}
+
+; function f3() public override [selector 0xaaf05f3d]
+fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = or v0, 768
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret
+}
+
+; function f4() public [selector 0xc3f90202]
+fn @f4() [selector=0xc3f90202, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = or v0, 0x4000
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret
+}
+
+; function f1() public mod2 [selector 0xc27fc305]
+fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall @f3
+    jumpi false, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = or v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb5
+  bb5:                                            ; preds = bb2
+    jump bb4
+  bb4:                                            ; preds = bb5, bb3
+    jump bb1
+  bb1:                                            ; preds = bb4
+    ret
+}
+
+; function f2() public [selector 0x9942ec6f]
+fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = or v0, 32
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret
+}
+
+; function getData() public view returns (uint256 r) [selector 0x3bc5de30]
+fn @getData() -> i256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}

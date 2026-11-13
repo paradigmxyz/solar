@@ -1,0 +1,37 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "Constructor.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "Constructor.sol": {
+      "Early": {
+        "evm": {
+          "bytecode": {
+            "sourceMap": "181:58:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;209:5;;;;;;;;83;;218::::1;;;;;;;;;;;;;;;;;161;;231:1:::2;;:5;;;;;;;;;;;;;;;;;227:9;;171:6:::1;;;;;;;;;;;;94:147:::0;;;;;;;-1:-1:-1;;;;;;;;;;181:58:0;;;;;;;"
+          }
+        }
+      },
+      "Late": {
+        "evm": {
+          "bytecode": {
+            "sourceMap": "328:58:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;365:5;;;;;;;;83;;353;;;;;;;;;;;;;;;;;308;;378:1:::2;;:5;;;;;;;;;;;;;;;;;374:9;;318:6:::0;;;;;;;;;;;;242:146;;;;;;;-1:-1:-1;;;;;;;;;;328:58:0;;;;;;;"
+          }
+        }
+      }
+    }
+  }
+}

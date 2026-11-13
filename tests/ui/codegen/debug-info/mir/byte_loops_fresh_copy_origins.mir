@@ -1,0 +1,45 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=byte-loops -Zdump=mir -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module ByteLoopFreshCopyOrigins
+
+// The empty-count skip proves the old store ran on both bulk-copy paths. The overlap
+// guards and late zeroing run when the loop statement starts, so they take its location,
+// not the store's.
+// CHECK-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
+// CHECK: + [[EMPTY:v[0-9]+]] = eq {{v[0-9]+}}, 0 !metadata(span=1..5){{$}}
+// CHECK: + mcopy {{.*}} !metadata(span=50..60)
+// CHECK: + memory_zero {{.*}} !metadata(span=1..5){{$}}
+// CHECK: + mcopy {{.*}} !metadata(span=50..60)
+fn @copy(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = mload arg0
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = alloc zeroed checked v3
+    mstore v4, v0
+    jump bb1 !metadata(span=1..5)
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v18]
+    v6 = lt v5, v0
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = mload arg0
+    v8 = lt v5, v7
+    icall panic_if_zero<0x32>, v8
+    v9 = ptradd arg0, v5
+    v10 = ptradd v9, 32
+    v11 = mload v10
+    v12 = byte 0, v11
+    v13 = mload v4
+    v14 = lt v5, v13
+    icall panic_if_zero<0x32>, v14
+    v15 = ptradd v4, v5
+    v16 = ptradd v15, 32
+    mstore8 v16, v12 !metadata(span=50..60)
+    v18 = add v5, 1
+    jump bb1
+  bb3:
+    ret v4
+}

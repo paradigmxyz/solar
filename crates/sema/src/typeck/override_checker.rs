@@ -25,7 +25,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{
-    Ident, Span,
+    Ident, Span, Symbol,
     diagnostics::{Applicability, DiagCtxt},
     error_code,
 };
@@ -34,6 +34,11 @@ use std::{cmp, collections::BTreeSet};
 pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     let checker = OverrideChecker::new(gcx, contract_id);
     checker.check();
+}
+
+/// Returns `true` if the contract implements every function it declares or inherits.
+pub(crate) fn is_fully_implemented(gcx: Gcx<'_>, contract_id: ContractId) -> bool {
+    OverrideChecker::new(gcx, contract_id).unimplemented_functions().is_empty()
 }
 
 type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
@@ -65,6 +70,14 @@ impl OverrideProxy {
 
     fn name(self, gcx: Gcx<'_>) -> Option<Ident> {
         gcx.item_name_opt(self.into_item_id())
+    }
+
+    /// Returns the name, or the kind of a function without one, such as `fallback`.
+    fn name_or_kind(self, gcx: Gcx<'_>) -> Symbol {
+        match self {
+            Self::Function(id) => gcx.hir.function(id).name_or_kind(),
+            Self::Variable(id) => gcx.hir.variable(id).name.unwrap().name,
+        }
     }
 
     fn into_item_id(self) -> hir::ItemId {
@@ -443,7 +456,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 error_code!(4520),
                 format!(
                     "duplicate contract found in override list of `{}`",
-                    overriding.name(self.gcx).unwrap()
+                    overriding.name_or_kind(self.gcx)
                 ),
             );
         }
@@ -917,21 +930,16 @@ impl<'gcx> OverrideChecker<'gcx> {
         diag.emit();
     }
 
-    fn check_abstract_definitions(&self) {
+    /// Returns the functions of the linearized bases that the contract does not implement, and
+    /// the bases that declare them.
+    fn unimplemented_functions(&self) -> Vec<(OverrideProxy, ContractId)> {
         let contract = self.contract();
-
-        if contract.is_abstract() || contract.kind.is_interface() {
-            return;
-        }
-
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
         for &f_id in &override_index(self.gcx).unimplemented_functions {
             let f = self.gcx.hir.function(f_id);
             let Some(base_id) = f.contract else { continue };
-            if f.kind.is_constructor()
-                || f.name.is_none()
-                || !contract.linearized_bases.contains(&base_id)
+            if f.kind.is_constructor() || f.is_yul || !contract.linearized_bases.contains(&base_id)
             {
                 continue;
             }
@@ -941,7 +949,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let impl_base = self.gcx.hir.contract(impl_base_id);
                 impl_base.functions().any(|impl_f_id| {
                     let impl_f = self.gcx.hir.function(impl_f_id);
-                    if impl_f.body.is_none() || impl_f.name.is_none() {
+                    if impl_f.body.is_none() {
                         return false;
                     }
                     let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
@@ -953,6 +961,17 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
         }
 
+        unimplemented
+    }
+
+    fn check_abstract_definitions(&self) {
+        let contract = self.contract();
+
+        if contract.is_abstract() || contract.kind.is_interface() {
+            return;
+        }
+
+        let unimplemented = self.unimplemented_functions();
         let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
             let sig = self.signature(proxy);
@@ -971,7 +990,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 format!(
                     "unimplemented {} `{}` defined in `{}`",
                     proxy.ast_node_name(self.gcx),
-                    proxy.name(self.gcx).unwrap(),
+                    proxy.name_or_kind(self.gcx),
                     base_name
                 ),
             );

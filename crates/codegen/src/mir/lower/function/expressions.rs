@@ -13,7 +13,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns the bytes of a `string` or `bytes` value that the constant evaluator folds, such as
     /// a literal, a conversion of one, or a constant.
-    pub(super) fn constant_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
+    pub(super) fn constant_bytes(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<ByteSymbol> {
         match self.cx.gcx.const_eval().eval_expr(expr) {
             Ok(ConstValue::Bytes(bytes, _)) => Some(*bytes),
             _ => None,
@@ -23,7 +23,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_fixed_bytes_literal(
         &mut self,
         ty: Ty<'gcx>,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<ValueId> {
         let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind else {
             return None;
@@ -55,8 +55,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_member(
         &mut self,
-        expr: &hir::Expr<'_>,
-        receiver: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver: &'gcx hir::Expr<'gcx>,
         name: Ident,
     ) -> Option<ValueId> {
         if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(function_id) = self.cx.gcx.resolved_function(expr)
         {
             // value = address(receiver) << 32 | selector(function)
-            let address = self.lower_expr(receiver)?;
+            let address = self.operand(receiver)?.id();
             let address_shift = self.builder.imm(32);
             let address = self.builder.shl(address, address_shift);
             let selector = self.cx.gcx.function_selector(function_id).0;
@@ -108,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(expr.span, "struct field");
         };
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
-        let object = self.lower_expr(receiver)?;
+        let object = self.operand(receiver)?.id();
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && self.builder.func().value_slice_location(object) == Some(PtrLocation::Calldata)
         {
@@ -159,7 +159,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_array_length(
         &mut self,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         receiver_ty: Ty<'gcx>,
         span: Span,
         what: &'static str,
@@ -183,7 +183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => self.cx.report_unsupported(span, what),
                 };
             }
-            let object = self.lower_expr(receiver)?;
+            let object = self.operand(receiver)?.id();
             return match self.builder.func().value_ty(object) {
                 Some(MirType::MEMPTR) => {
                     // length = object.len
@@ -192,7 +192,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => self.cx.report_unsupported(span, what),
             };
         }
-        let object = self.lower_expr(receiver)?;
+        let object = self.operand(receiver)?.id();
         if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
             // length = slice.len
             return Some(self.builder.slice_len(object));
@@ -207,13 +207,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn type_of_expr_or_variable(&self, expr: &hir::Expr<'_>) -> Option<Ty<'gcx>> {
+    pub(super) fn type_of_expr_or_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
         self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             self.cx.gcx.resolved_variable(expr).map(|id| self.cx.gcx.type_of_item(id.into()))
         })
     }
 
-    pub(super) fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
+    pub(super) fn normalize_byte_value(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        value: ValueId,
+    ) -> ValueId {
         let Some(ty) = self.cx.gcx.type_of_expr(expr.id) else { return value };
         self.normalize_byte_type(ty, value)
     }
@@ -290,11 +294,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let suffix = if unchecked { "_unchecked" } else { "" };
         let name = helper_name(kw::Constant, format_args!("{}{suffix}", id.index()));
         // fn @constant_N[_unchecked]() -> T { value = <initializer>; ret value }
-        let helper = self.lazy_helper(name, |this, function| {
+        let helper = self.lazy_helper_with(name, false, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.unchecked = unchecked;
             lowerer.builder.replace_source_span(initializer.span);
-            let value = lowerer.lower_typed_expr(initializer, ty)?;
+            let value = lowerer.lower_typed_expr(initializer, ty)?.clean(&mut lowerer, ty);
             lowerer.builder.set_return_type(mir_ty);
             lowerer.builder.ret([value]);
             Some(())

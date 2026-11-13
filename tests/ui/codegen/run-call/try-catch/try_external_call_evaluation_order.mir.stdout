@@ -1,0 +1,105 @@
+; === ROOT/tests/ui/codegen/run-call/try-catch/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget ===
+@module TryExternalCallEvaluationOrderTarget
+; function ping(uint256) external payable returns (uint256) [selector 0x773acdef]
+fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}
+
+; === ROOT/tests/ui/codegen/run-call/try-catch/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
+@module TryExternalCallEvaluationOrder
+@data
+  TryExternalCallEvaluationOrderTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/try-catch/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget"
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0
+    v1 = fmp
+    datacopy TryExternalCallEvaluationOrderTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 1, v5 !metadata(storage=slot(1))
+    ret
+}
+
+; function receiver() internal returns (TryExternalCallEvaluationOrderTarget)
+fn @receiver() -> i160 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 1 !metadata(storage=slot(1))
+    v4 = trunc i256 v3 to i160
+    ret v4
+}
+
+; function gasOpt() internal returns (uint256)
+fn @gasOpt() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = gas
+    ret v3
+}
+
+; function valueOpt() internal returns (uint256)
+fn @valueOpt() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
+    sstore 0, v2 !metadata(storage=slot(0))
+    ret 0
+}
+
+; function arg() internal returns (uint256)
+fn @arg() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
+    sstore 0, v2 !metadata(storage=slot(0))
+    ret 7
+}
+
+; function f() external returns (uint256) [selector 0x26121ff0]
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @receiver
+    v1 = gas
+    v2 = icall @gasOpt
+    v3 = icall @valueOpt
+    v4 = icall @arg
+    mstore 0, 0x773acdef !metadata(memory=scratch)
+    mstore 32, v4 !metadata(memory=scratch)
+    v5 = zext i160 v0 to i256
+    v6 = call v2, v5, v3, 28, 36, 0, 32
+    jumpi v6, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    v11 = sload 0 !metadata(storage=slot(0))
+    ret v11
+  bb1:                                            ; preds = bb0
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = sload 0 !metadata(storage=slot(0))
+    ret v10
+  bb3:
+    ret 0
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}

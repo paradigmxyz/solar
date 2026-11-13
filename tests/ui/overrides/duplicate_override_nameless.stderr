@@ -1,0 +1,8 @@
+error[4520]: duplicate contract found in override list of `fallback`
+   ╭▸ ROOT/tests/ui/overrides/duplicate_override_nameless.sol:LL:CC
+   │
+LL │     fallback() external override(A, A) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

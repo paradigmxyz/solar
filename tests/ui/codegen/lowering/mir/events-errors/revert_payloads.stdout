@@ -1,0 +1,30 @@
+; === ROOT/tests/ui/codegen/lowering/mir/events-errors/revert_payloads.sol:RevertPayloads ===
+@module RevertPayloads
+; function assert_panic(bool ok) public pure [selector 0x727ee374]
+fn @assert_panic(arg0: i1) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq arg0, false
+    icall panic_if<0x1>, v0
+    ret
+}
+
+; function require_message(bool ok) public pure [selector 0x79cfb63f]
+fn @require_message(arg0: i1) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    ret
+}
+
+; function revert_message() public pure [selector 0x0900437f]
+fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<short_string>, false, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+; function revert_hex_message() public pure [selector 0x36440c33]
+fn @revert_hex_message() [selector=0x36440c33, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<short_string>, false, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    invalid
+}

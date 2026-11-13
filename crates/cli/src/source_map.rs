@@ -36,7 +36,9 @@ impl SourceMapEncoder {
     pub(crate) fn encode(&self, gcx: Gcx<'_>, bytecode: &[u8], debug_info: &DebugInfo) -> String {
         let function_entries = debug_info
             .instructions(bytecode)
-            .filter(|instruction| instruction.location.function_invoke.is_some())
+            .filter(|instruction| {
+                instruction.location.function_invoke.is_some_and(|function| !function.dispatched)
+            })
             .map(|instruction| instruction.offset)
             .collect::<FxHashSet<_>>();
         let files = gcx.sess.source_map().files();
@@ -63,7 +65,7 @@ impl SourceMapEncoder {
         // choosing one origin here would attribute other callers to an unrelated
         // source statement. This applies to sharing in both MIR and EVM IR.
         // NOTE: An incoming transfer may be optimized into a zero-byte fallthrough.
-        // Its checkpoint is then unavailable; keep the shared location unknown
+        // Its location is then gone; keep the shared location unknown
         // (-1, -1, -1) rather than changing codegen to manufacture a source stop.
         let location = match instruction.location.source_spans {
             [span] => Some(*span),
@@ -75,12 +77,13 @@ impl SourceMapEncoder {
             Some((source.data.start as i64, source.data.len() as i64, source_id.index() as i64))
         });
         let (start, length, source) = location.unwrap_or((-1, -1, -1));
-        // Legacy `i`/`o` markers describe internal jumps, not external returns.
-        let is_jump = matches!(instruction.opcode, op::JUMP | op::JUMPI);
-        let enters_function = instruction.location.function_invoke.is_some()
-            || static_jump_target(bytecode, previous, instruction)
-                .and_then(|target| u32::try_from(target).ok())
-                .is_some_and(|target| function_entries.contains(&target));
+        // Legacy `i`/`o` markers describe internal calls, which solc marks on a `JUMP` into the
+        // callee. The dispatcher's jumps and the jump into a constructor are not calls: the
+        // function they enter ends in a halt, so no `o` follows.
+        let is_jump = instruction.opcode == op::JUMP;
+        let enters_function = static_jump_target(bytecode, previous, instruction)
+            .and_then(|target| u32::try_from(target).ok())
+            .is_some_and(|target| function_entries.contains(&target));
         let jump = if is_jump && enters_function {
             b'i'
         } else if is_jump && instruction.location.function_exit == Some(DebugFunctionExit::Return) {

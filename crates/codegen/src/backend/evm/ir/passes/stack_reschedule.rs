@@ -88,15 +88,20 @@
 //! as with other size optimizations. A run that ends in a label push keeps it last, so the jump
 //! after the run still sees its target pushed right before it. Runs end at every other instruction,
 //! including `GAS`, calls, other branches and an instruction glued to the next one. Performed
-//! operations and the original pushes keep their debug metadata, function events included, while
-//! the new stack operations carry none, which is marked as intentionally dropped, and the origins
-//! and events of the replaced stack operations move to the run's last instruction. Debug metadata
+//! operations and the original pushes keep their debug metadata, while the new stack operations
+//! carry none, which is marked as intentionally dropped, and the origins of the replaced stack
+//! operations go with them. The function entry of a run without a guard moves to its first
+//! instruction and its exit to its last; a run with one keeps them where they are. Debug metadata
 //! decides nothing, so requesting it leaves the code unchanged.
 //!
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
 
-use super::{EvmPass, block_layout::terminator_kind, utils::is_split_point};
+use super::{
+    EvmPass,
+    block_layout::terminator_kind,
+    utils::{RunEvents, is_split_point},
+};
 use crate::{
     backend::evm::{
         CodegenState,
@@ -112,6 +117,7 @@ use solar_data_structures::{
     map::{FxBuildHasher, FxHashMap},
     sync::RwLock,
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::{
     collections::{BinaryHeap, hash_map::Entry},
@@ -1261,6 +1267,8 @@ fn emit(
         (0..summary.entry).map(|depth| Word::Entry(depth as u8)).collect();
     let mut performed = 0u32;
     let mut instructions = Vec::with_capacity(moves.len());
+    // The index in `instructions` of each placed original.
+    let mut slots = vec![0; run.len()];
     placed.clear_to(run.len());
     for &step in moves {
         match step {
@@ -1284,6 +1292,7 @@ fn emit(
                 let position = operation_info.position;
                 let original = &run[position];
                 placed.insert(position);
+                slots[position] = instructions.len();
                 instructions.push(match operation_info.swapped {
                     Some(opcode) if swapped && opcode != original.opcode => {
                         Instruction::opcode(opcode).with_metadata(original.metadata.clone())
@@ -1293,6 +1302,7 @@ fn emit(
                 // A branch's operation is its push, followed by its `JUMPI`.
                 if original.is_encoded_push() {
                     placed.insert(position + 1);
+                    slots[position + 1] = instructions.len();
                     instructions.push(run[position + 1].clone());
                 }
             }
@@ -1303,6 +1313,7 @@ fn emit(
                 match originals.iter().copied().find(|&position| !placed.contains(position)) {
                     Some(position) => {
                         placed.insert(position);
+                        slots[position] = instructions.len();
                         instructions.push(run[position].clone());
                     }
                     None => {
@@ -1313,7 +1324,7 @@ fn emit(
                             first
                                 .clone()
                                 .with_metadata(Default::default())
-                                .with_source_debug(&first.metadata),
+                                .with_debug_loc(&first.metadata),
                         );
                     }
                 }
@@ -1322,7 +1333,7 @@ fn emit(
             Move::Stack(stack_op) => {
                 apply(&mut stack, stack_op);
                 let mut inst = Instruction::stack_op(stack_op);
-                inst.metadata.mark_debug_info_dropped();
+                inst.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 instructions.push(inst);
             }
         }
@@ -1333,12 +1344,44 @@ fn emit(
         return None;
     }
     // NOTE: The replaced stack operations, and pushes the schedule makes fewer times, have no
-    // counterpart in the new order. Their origins and function events move to the run's last
-    // instruction, so the run as a whole keeps every event it had.
-    if let Some(last) = instructions.last_mut() {
+    // counterpart in the new order. Their origins go with them. Where the run executes straight
+    // through, its function entry moves to the first instruction of the schedule and its exit to
+    // the last, wherever the reorder put the instructions that carried them.
+    // NOTE: A run that passes through a guard is not straight-line: a path that aborts at the guard
+    // never runs what follows it. Its events stay with the instructions that carry them. Those of
+    // a replaced instruction stay on its side of the guards: its entry goes to the first
+    // instruction after the same guard, which runs first on that path, and its exit to the next
+    // original that the schedule keeps on that side.
+    if run.iter().all(|inst| inst.as_evm_opcode() != Some(op::JUMPI)) {
+        RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
+    } else {
+        let guards = |instructions: &[Instruction]| {
+            instructions.iter().filter(|inst| inst.as_evm_opcode() == Some(op::JUMPI)).count()
+        };
         for (position, inst) in run.iter().enumerate() {
-            if !placed.contains(position) {
-                last.metadata.absorb_debug_info(&inst.metadata);
+            if placed.contains(position) {
+                continue;
+            }
+            let side = guards(&run[..position]);
+            if let Some(function) = inst.metadata.function_invoke()
+                && let Some(first) = instructions
+                    .iter_mut()
+                    .scan(0, |seen, inst| {
+                        let first = *seen == side;
+                        *seen += usize::from(inst.as_evm_opcode() == Some(op::JUMPI));
+                        Some((first, inst))
+                    })
+                    .find_map(|(first, inst)| first.then_some(inst))
+                && first.metadata.function_invoke().is_none()
+            {
+                first.metadata.set_function_invoke(function);
+            }
+            if let Some(exit) = inst.metadata.function_exit()
+                && let Some(next) = (position + 1..run.len()).find(|&next| placed.contains(next))
+                && guards(&instructions[..slots[next]]) == side
+                && instructions[slots[next]].metadata.function_exit().is_none()
+            {
+                instructions[slots[next]].metadata.set_function_exit(exit);
             }
         }
     }

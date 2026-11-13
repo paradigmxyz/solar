@@ -297,7 +297,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             _ => instruction.kind.clone(),
         };
         let mut copy = Instruction::new(kind, instruction.result_ty);
-        copy.metadata.copy_debug_context(&instruction.metadata);
+        copy.metadata.preserve_debug_loc(&instruction.metadata);
         let (copy, copy_value) = func.alloc_value_inst(copy);
         copies.insert(value, copy_value);
         rewritten.push(copy);
@@ -365,10 +365,14 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
 
 /// Raises the slot's word to the heap floor before `before`, or before the block's terminator.
 fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
-    let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_default();
+    // NOTE: The clamp is part of leaving through this terminator, so it takes the terminator's
+    // location.
+    let metadata = before
+        .map(|inst| func.inst(inst).metadata.clone())
+        .unwrap_or_else(|| func.blocks[block].terminator_metadata.debug_context());
     let emit = |kind, ty| {
         let mut instruction = Instruction::new(kind, ty);
-        instruction.metadata.copy_debug_context(&metadata);
+        instruction.metadata.preserve_debug_loc(&metadata);
         instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
         instruction
     };
@@ -397,7 +401,7 @@ fn floor_max(
 ) -> ([InstId; 3], ValueId) {
     let emit = |func: &mut Function, kind, ty| {
         let mut instruction = Instruction::new(kind, Some(ty));
-        instruction.metadata.copy_debug_context(metadata);
+        instruction.metadata.preserve_debug_loc(metadata);
         func.alloc_value_inst(instruction)
     };
     // floor = heap_floor
@@ -1537,7 +1541,6 @@ impl<'a> PointerUses<'a> {
             InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address) => {
                 Effect::Replaces
             }
-            InstKind::SetFmp(_) => Effect::Replaces,
             InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
             // The compiler's own pointer reads and allocations, and the builtins and semantic
             // operations whose lowering may allocate or encode at the pointer.

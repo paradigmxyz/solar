@@ -20,9 +20,10 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
-        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
-        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
+        AbiLayout, AbiType, BlockId, Builtin, CallOutput, CallPolicy, Callee, CheckedOp, Function,
+        FunctionAttributes, Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op,
+        Terminator, ValueId, analysis::AddressSpace, immutable::immutable_push_type_size,
+        memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -671,13 +672,7 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
     ) -> Option<ValueId> {
         let (Op::Eq { a, b } | Op::Ne { a, b }) = *op else { return None };
-        if immediate(a) == Some(U256::ZERO) {
-            Some(b)
-        } else if immediate(b) == Some(U256::ZERO) {
-            Some(a)
-        } else {
-            None
-        }
+        (immediate(b) == Some(U256::ZERO)).then_some(a)
     }
 
     /// Cost of `ne x, 0` as a value, excluding its operand, and whether it is lowered as
@@ -1376,7 +1371,8 @@ impl Target {
     /// the sixteen words a `DUP` or `SWAP` reaches, leaving headroom for operand staging. A
     /// hot-leaf clone inside a loop body also keeps the loop's carried words resident through
     /// every join it adds; at ten words, two of the Base64 decoder's four lookups stayed calls
-    /// that drained every carried word, and twelve took 15% off decoding.
+    /// that drained every carried word, and twelve took 15% off decoding. A single-block clone
+    /// never reaches deeper than its call, so the inline loop exempts it.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
     /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
@@ -1422,7 +1418,7 @@ impl Target {
             | InstKind::Zext(_) => Cost::ZERO,
             InstKind::PtrAdd(..) => self.opcode(op::ADD),
             InstKind::Fmp | InstKind::FrameLoad { .. } => self.opcode(op::MLOAD),
-            InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
+            InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
             // Bump the free-memory pointer past the allocation.
             InstKind::Alloc { .. } => self.opcodes(&[op::MLOAD, op::ADD, op::MSTORE]),
             // Reserve the buffer, store the selector, produce the slice, store every argument's
@@ -1510,13 +1506,6 @@ impl Target {
                 function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
                 ..
             } => Cost::new(32, 9),
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160),
-                ..
-            } => Cost::new(800, 64),
-            InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
-                Cost::new(900, 100)
-            }
             InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
                 Cost::new(24, 8)
             }
@@ -1535,13 +1524,11 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::AddressCall { .. } => Cost::new(720, 12),
+            InstKind::ExtCall { policy, address, .. } => {
+                self.extcall(*policy, func.extcall_clears_word(*address))
+            }
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
-            }
-            InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
-            InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
-                Cost::new(740, 20)
             }
             InstKind::Call { .. }
             | InstKind::CallCode { .. }
@@ -1608,6 +1595,17 @@ impl Target {
     /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
     pub(crate) fn select_stack_ops(&self) -> Cost {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
+
+    /// Estimated code of an `extcall`, as `lower-builtins` expands it, excluding the staging
+    /// of its input: the call with its gas and ranges, and for a word output the clear that the
+    /// expansion emits first when `clears_word` says so.
+    pub(crate) fn extcall(&self, policy: CallPolicy, clears_word: bool) -> Cost {
+        let mut cost = Cost::new(720, 12);
+        if policy.output == CallOutput::Word && clears_word {
+            cost += self.push(U256::ZERO).times(2) + self.opcode(op::MSTORE);
+        }
+        cost
     }
 
     /// Estimated code of an operation that hashes a storage slot, as the opcode sequence
@@ -1713,7 +1711,7 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Immediate, Instruction, PtrLocation, Value};
+    use crate::mir::{ExtCallKind, Immediate, Instruction, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1835,6 +1833,26 @@ mod tests {
                 assert_eq!(target.op_has_variable_gas(&kind.op()), version >= EvmVersion::Berlin);
             }
         }
+    }
+
+    #[test]
+    fn address_calls_price_their_policy() {
+        let target = Target::with(
+            EvmVersion::Cancun,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let price = |output, clears_word| {
+            target.extcall(CallPolicy { kind: ExtCallKind::Static, output }, clears_word)
+        };
+        let call = price(CallOutput::None, false);
+        assert_eq!(call, Cost::new(720, 12));
+        // A word output that a callee may leave short is zeroed before the call.
+        assert_eq!(price(CallOutput::Word, false), call);
+        assert_eq!(
+            price(CallOutput::Word, true),
+            call + target.push(U256::ZERO).times(2) + target.opcode(op::MSTORE)
+        );
     }
 
     #[test]

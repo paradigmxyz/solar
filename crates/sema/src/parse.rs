@@ -14,7 +14,11 @@ use solar_interface::{
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
 };
 use solar_parse::{Lexer, Parser, unescape};
-use std::{fmt, path::Path, sync::Arc};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use thread_local::ThreadLocal;
 
 /// Builder for parsing sources into a [`Compiler`](crate::Compiler).
@@ -278,13 +282,18 @@ impl<'gcx> ParsingContext<'gcx> {
             let imports_len = sources[id].imports.len();
             let ast = self.parse_one(&file, arena, |item_id, _, import| {
                 let _guard = trace_span!("resolve_import").entered();
-                let Some(import_file) = self.resolve_import_directive(import, parent) else {
-                    return;
-                };
-                sources.add_import(id, item_id, import_file, false);
+                match self.resolve_import_directive(import, parent) {
+                    Ok(import_file) => {
+                        sources.add_import(id, item_id, import_file, false);
+                    }
+                    Err(name) => {
+                        sources[id].unresolved_imports.extend(name.map(|name| (item_id, name)))
+                    }
+                }
             });
             if ast.is_none() {
                 sources[id].imports.truncate(imports_len);
+                sources[id].unresolved_imports.clear();
             }
             sources[id].ast = ast;
         }
@@ -352,13 +361,18 @@ impl<'gcx> ParsingContext<'gcx> {
         scope: &rayon::Scope<'scope>,
     ) {
         let mut imports = Vec::new();
+        let mut unresolved = Vec::new();
         let mut discovered = Vec::new();
         let parent = parent_path(&file);
         let (ast, diagnostics) = self.dcx().defer(|| {
             self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
                 let _guard = trace_span!("resolve_import").entered();
-                let Some(import_file) = self.resolve_import_directive(import, parent) else {
-                    return;
+                let import_file = match self.resolve_import_directive(import, parent) {
+                    Ok(import_file) => import_file,
+                    Err(name) => {
+                        unresolved.extend(name.map(|name| (item_id, name)));
+                        return;
+                    }
                 };
                 imports.push((item_id, import_file.clone()));
 
@@ -383,6 +397,7 @@ impl<'gcx> ParsingContext<'gcx> {
             for (import_item_id, import_file) in imports {
                 sources.add_import(id, import_item_id, import_file, false);
             }
+            sources[id].unresolved_imports = unresolved;
         }
     }
 
@@ -417,13 +432,17 @@ impl<'gcx> ParsingContext<'gcx> {
         let parent = parent_path(file);
         let items =
             ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
-        items
-            .iter_enumerated()
-            .filter_map(move |(id, item)| self.resolve_import(item, parent).map(|file| (id, file)))
+        items.iter_enumerated().filter_map(move |(id, item)| {
+            self.resolve_import(item, parent).ok().map(|file| (id, file))
+        })
     }
 
-    fn resolve_import(&self, item: &ast::Item<'_>, parent: &Path) -> Option<Arc<SourceFile>> {
-        let ast::ItemKind::Import(import) = &item.kind else { return None };
+    fn resolve_import(
+        &self,
+        item: &ast::Item<'_>,
+        parent: &Path,
+    ) -> Result<Arc<SourceFile>, Option<PathBuf>> {
+        let ast::ItemKind::Import(import) = &item.kind else { return Err(None) };
         self.resolve_import_directive(import, parent)
     }
 
@@ -431,30 +450,37 @@ impl<'gcx> ParsingContext<'gcx> {
         &self,
         import: &ast::ImportDirective<'_>,
         parent: &Path,
-    ) -> Option<Arc<SourceFile>> {
+    ) -> Result<Arc<SourceFile>, Option<PathBuf>> {
         self.resolve_import_path(&import.path, parent)
     }
 
+    /// Resolves an import path. A failure has the name of the source that the path refers to, if
+    /// the compilation stops after parsing: then it only warns, and the AST has the import.
     fn resolve_import_path(
         &self,
         import_path: &ast::StrLit,
         parent: &Path,
-    ) -> Option<Arc<SourceFile>> {
+    ) -> Result<Arc<SourceFile>, Option<PathBuf>> {
         let span = import_path.span;
         let path_str = import_path.value.as_str();
         let (path_bytes, any_error) =
             unescape::parse_string_literal(path_str, unescape::StrKind::Str, span, self.sess);
         if any_error {
-            return None;
+            return Err(None);
         }
         let Some(path) = path_from_bytes(&path_bytes[..]) else {
             self.dcx().emit_err(span, "import path is not a valid UTF-8 string");
-            return None;
+            return Err(None);
         };
-        self.file_resolver
-            .resolve_file(path, Some(parent))
-            .map_err(self.map_resolve_error_with(Some(span)))
-            .ok()
+        self.file_resolver.resolve_file(path, Some(parent)).map_err(|e| {
+            if self.sess.stop_after(CompilerStage::Parsing) {
+                self.dcx().warn(e.to_string()).span(span).emit();
+                Some(self.file_resolver.import_unit_name(path, parent))
+            } else {
+                self.map_resolve_error_with(Some(span))(e);
+                None
+            }
+        })
     }
 
     fn map_resolve_error(&self) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {
@@ -655,10 +681,10 @@ impl<'ast> Sources<'ast> {
             // the first back edge from the root, so the root order decides
             // whether a base contract's source still precedes its derived
             // contract's. solc roots its DFS in name order (`m_sources` is an
-            // ordered map); match it so cycles are cut identically.
-            let mut roots: Vec<SourceId> = self.sources.indices().collect();
-            roots.sort_unstable_by(|&a, &b| {
-                self.sources[a].file.name.cmp(&self.sources[b].file.name)
+            // ordered map by raw name bytes); match it so cycles are cut identically.
+            let mut roots = self.sources.indices().collect::<Vec<_>>();
+            roots.sort_by(|&a, &b| {
+                self.sources[a].file.name.cmp_source_unit_name(&self.sources[b].file.name)
             });
             for id in roots {
                 self.topo_order(id, &mut order, &mut map, &mut seen);
@@ -728,6 +754,10 @@ pub struct Source<'ast> {
     /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
     /// source.
     pub imports: Vec<(ast::ItemId, SourceId)>,
+    /// The imports that could not be resolved, with the names of the sources they refer to.
+    ///
+    /// Only for a compilation that stops after parsing, which warns about them.
+    pub unresolved_imports: Vec<(ast::ItemId, PathBuf)>,
     /// The AST.
     ///
     /// `None` if:
@@ -751,7 +781,7 @@ impl fmt::Debug for Source<'_> {
 impl Source<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new() }
+        Self { file, ast: None, imports: Vec::new(), unresolved_imports: Vec::new() }
     }
 
     fn count_contracts(&self) -> usize {

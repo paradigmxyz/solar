@@ -172,6 +172,45 @@ contract EventsTest {
         require(count == 9);
     }
 
+    function test_EmitDirtyIndexed() public {
+        vm.recordLogs();
+        events.emitDirtyIndexed();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 4);
+        require(logs[0].topics[1] == bytes32(uint256(0x1b)));
+        require(logs[0].topics[2] == bytes32(uint256(uint160(0x1234567890123456789012345678901234567890))));
+        require(logs[0].topics[3] == bytes32(uint256(1)));
+        require(
+            keccak256(logs[0].data)
+                == keccak256(abi.encode(bytes32(bytes4(0xdeadbeef))))
+        );
+    }
+
+    function test_EmitDirtyData() public {
+        vm.recordLogs();
+        events.emitDirtyData();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(
+            keccak256(logs[0].data)
+                == keccak256(
+                    abi.encode(
+                        uint256(0x1b),
+                        uint256(uint160(0x1234567890123456789012345678901234567890)),
+                        uint256(1),
+                        bytes32(bytes4(0xdeadbeef)),
+                        int256(-3)
+                    )
+                )
+        );
+    }
+
+    function test_EmitDirtyIndexedChoice() public {
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x21));
+        events.emitDirtyIndexedChoice();
+    }
+
     function test_EmitLateStorage() public {
         vm.recordLogs();
         events.emitLateStorage();
@@ -181,5 +220,62 @@ contract EventsTest {
             abi.decode(logs[0].data, (uint256[], uint256, uint256));
         require(values.length == 1 && values[0] == 7);
         require(late == 9 && count == 3);
+    }
+
+    function test_EmitLateIndexed() public {
+        vm.recordLogs();
+        events.emitLateIndexed();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 4);
+        require(logs[0].topics[1] == keccak256(abi.encodePacked(uint256(7))));
+        require(logs[0].topics[2] == keccak256(abi.encode(uint256(9))));
+        require(logs[0].topics[3] == bytes32(uint256(3)));
+    }
+
+    function test_EmitLateIndexedText() public {
+        vm.recordLogs();
+        events.emitLateIndexedText();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics[1] == keccak256("after"));
+        require(logs[0].topics[2] == bytes32(uint256(3)));
+    }
+
+    function test_EmitStagedBytes() public {
+        vm.recordLogs();
+        events.emitStagedBytes("hello");
+        events.emitStagedBytesSlice("hello");
+        events.emitStagedMemoryBytes("hello");
+        events.emitStagedText("hello");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 4);
+        require(logs[0].topics[1] == keccak256("hello"));
+        require(logs[1].topics[1] == keccak256("el"));
+        require(logs[2].topics[1] == keccak256("hello"));
+        require(logs[3].topics[1] == keccak256("hello"));
+    }
+
+    function test_EmitStagedPair() public {
+        vm.recordLogs();
+        events.emitStagedPair(Events.Pair(1, 2));
+        events.emitStagedMemoryPair(1, 2);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 2);
+        require(logs[0].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+        require(logs[1].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+    }
+
+    function test_EmitStagedMixed() public {
+        vm.recordLogs();
+        events.emitStagedMixed(Events.Pair(1, 2), "one", "data", "two");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 4);
+        require(logs[0].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+        require(logs[0].topics[2] == keccak256("one"));
+        require(logs[0].topics[3] == keccak256("two"));
+        (bytes memory data, uint256 count) = abi.decode(logs[0].data, (bytes, uint256));
+        require(keccak256(data) == keccak256("data") && count == 7);
     }
 }

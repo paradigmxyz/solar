@@ -282,7 +282,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
             "abstract contract Base {\n",
             "    /** @notice Shared documentation.\n",
             "\n",
-            "@notice Second paragraph. */\n",
+            "Second paragraph. */\n",
             "    function documented(uint256 value)\n",
             "        public\n",
             "        pure\n",

@@ -1,0 +1,259 @@
+; === ROOT/tests/ui/codegen/run-call/external-calls/empty_code_external_call.sol:EmptyCodeTarget ===
+@module EmptyCodeTarget
+; function noop() external [selector 0x5dfc2e4a]
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/empty_code_external_call.sol:EmptyCodeLibrary ===
+@module EmptyCodeLibrary
+@library
+@immutables
+  library_deploy_address: address
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    storeimmutable library_deploy_address, v0
+    ret
+}
+
+; function noop() external [selector 0x5dfc2e4a]
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/empty_code_external_call.sol:EmptyCodeCalls ===
+@module EmptyCodeCalls
+; function direct() external [selector 0x222b1407]
+fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
+
+; function pointer() external [selector 0x2f5f3b3c]
+fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
+
+; function libraryCall() external [selector 0x239b86e9]
+fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v0 = gas
+    v1 = extcodesize 0x1111111111111111111111111111111111111111
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
+
+; function tryDirect() external [selector 0x45eca8af]
+fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    ret
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function tryPointer() external [selector 0xce20ef7a]
+fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v3, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    ret
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function tryStatic() external view [selector 0x54f223e3]
+fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v1 = extcodesize 0
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = staticcall v0, 0, 28, 4, 0, 0
+    jumpi v3, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    ret
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function trySelf() external returns (bool) [selector 0xf948cf5e]
+fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    ret false
+  bb1:                                            ; preds = bb0
+    ret true
+  bb3:
+    ret false
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function lowLevel() external returns (bool success) [selector 0x5e4fa723]
+fn @lowLevel() -> i1 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = gas
+    v1 = extcall i160 0, ptr<memory> 96, gas v0
+    ret v1
+}
+
+; function selfCall() external returns (bool) [selector 0x8dae0159]
+fn @selfCall() -> i1 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, 28, 4, 0, 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret true
+}
+
+; function noop() external [selector 0x5dfc2e4a]
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/empty_code_external_call.sol:EmptyCodeTryFactory ===
+@module EmptyCodeTryFactory
+@data
+  EmptyCodeTryConstructor_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/external-calls/empty_code_external_call.sol:EmptyCodeTryConstructor"
+
+; function deploy() external [selector 0x775c300c]
+fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = datasize EmptyCodeTryConstructor_creation_code_0
+    v1 = fmp
+    datacopy EmptyCodeTryConstructor_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/empty_code_external_call.sol:EmptyCodeTryConstructor ===
+@module EmptyCodeTryConstructor
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    ret
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function noop() external [selector 0x5dfc2e4a]
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}

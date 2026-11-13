@@ -1,0 +1,108 @@
+; === ROOT/tests/ui/codegen/run-call/storage-arrays/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
+@module StorageDynamicArrayFromFixed
+@types
+  struct0: {i256, i8, i8}
+
+; function assign() external returns (uint256 len, Action first, Action second) [selector 0x12ae6397]
+fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[uint256, enum<6, uint8>, enum<6, uint8>]] {
+  bb0:
+    v0 = alloc 64
+    v1 = lt i8 4, i8 6
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    mstore v0, 4
+    v3 = lt i8 5, i8 6
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    v5 = ptradd v0, 32
+    mstore v5, 5
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = gt v6, 2
+    jumpi v7, bb1, bb2
+  bb1:                                            ; preds = bb0
+    v8 = ne 2, 0
+    v9 = zext i1 v8 to i256
+    v10 = add v9, 0
+    v11 = shr v6, 5
+    v12 = and v6, 31
+    v13 = ne v12, 0
+    v14 = zext i1 v13 to i256
+    v15 = add v11, v14
+    clear_storage_words 0, v10, v15
+    jump bb2
+  bb2:                                            ; preds = bb0, bb1
+    sstore 0, 2 !metadata(storage=slot(0))
+    v16 = storage_array_data_slot 0
+    v17 = ne 2, 0
+    v18 = zext i1 v17 to i256
+    v19 = add v18, 0
+    jump bb3
+  bb3:                                            ; preds = bb2, bb8
+    v20 = phi [bb2: 0], [bb8: v41]
+    v21 = lt v20, v19
+    jumpi v21, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v42 = sload 0 !metadata(storage=slot(0))
+    v43 = sload 0 !metadata(storage=slot(0))
+    v44 = gt v43, 0
+    v45 = eq v44, false
+    icall panic_if<0x32>, v45
+    v46 = storage_array_data_slot 0
+    v47 = sload v46 !metadata(storage=symbolic(v46))
+    v48 = shr v47, 0
+    v49 = trunc i256 v48 to i8
+    v50 = lt v49, i8 6
+    v51 = eq v50, false
+    icall panic_if<0x21>, v51
+    v52 = lt v49, i8 6
+    v53 = eq v52, false
+    icall panic_if<0x21>, v53
+    v54 = sload 0 !metadata(storage=slot(0))
+    v55 = gt v54, 1
+    v56 = eq v55, false
+    icall panic_if<0x32>, v56
+    v57 = storage_array_data_slot 0
+    v58 = sload v57 !metadata(storage=symbolic(v57))
+    v59 = shr v58, 8
+    v60 = trunc i256 v59 to i8
+    v61 = lt v60, i8 6
+    v62 = eq v61, false
+    icall panic_if<0x21>, v62
+    v63 = lt v60, i8 6
+    v64 = eq v63, false
+    icall panic_if<0x21>, v64
+    v65 = insert_value struct0, undef struct0, 0, v42
+    v66 = insert_value struct0, v65, 1, v49
+    v67 = insert_value struct0, v66, 2, v60
+    ret v67
+  bb4:                                            ; preds = bb3
+    v22 = mul v20, 32
+    v23 = sub 2, v22
+    v24 = lt v23, 32
+    v25 = select v24, v23, 32
+    jump bb6
+  bb6:                                            ; preds = bb4, bb7
+    v26 = phi [bb4: 0], [bb7: v39]
+    v27 = phi [bb4: 0], [bb7: v38]
+    v28 = lt v26, v25
+    jumpi v28, bb7, bb8
+  bb8:                                            ; preds = bb6
+    v40 = add v16, v20
+    sstore v40, v27 !metadata(storage=symbolic(v40))
+    v41 = add v20, 1
+    jump bb3
+  bb7:                                            ; preds = bb6
+    v29 = add v22, v26
+    v30 = shl v29, 5
+    v31 = ptradd v0, v30
+    v32 = mload v31
+    v33 = lt v32, 6
+    v34 = eq v33, false
+    icall panic_if<0x21>, v34
+    v35 = and v32, 255
+    v36 = mul v26, 8
+    v37 = shl v35, v36
+    v38 = or v37, v27
+    v39 = add v26, 1
+    jump bb6
+}

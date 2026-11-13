@@ -1,0 +1,177 @@
+; === ROOT/tests/ui/codegen/run-call/tuples/multi_return_projection_reads.sol:C ===
+@module C
+@types
+  struct0: {i160, i160, i160, i160}
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 128
+    mstore v0, 10
+    v1 = ptradd v0, 32
+    mstore v1, 11
+    v2 = ptradd v0, 64
+    mstore v2, 12
+    v3 = caller
+    v4 = zext i160 v3 to i256
+    v5 = ptradd v0, 96
+    mstore v5, v4
+    v6 = mapping_slot 1, 0
+    jump bb1
+  bb1:                                            ; preds = bb0, bb6
+    v7 = phi [bb0: 0], [bb6: v15]
+    v8 = lt v7, 4
+    jumpi v8, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret
+  bb2:                                            ; preds = bb1
+    v9 = add v6, v7
+    v10 = lt v7, 4
+    jumpi v10, bb4, bb5
+  bb5:                                            ; preds = bb2
+    sstore v9, 0 !metadata(storage=symbolic(v9))
+    jump bb6
+  bb4:                                            ; preds = bb2
+    v11 = shl v7, 5
+    v12 = ptradd v0, v11
+    v13 = mload v12
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore v9, v14 !metadata(storage=symbolic(v9))
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v15 = add v7, 1
+    jump bb1
+}
+
+; function f(uint256 p) public view returns (uint256) [selector 0xb3de648b]
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @resolve, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = extract_value struct0, v0, 3
+    v5 = caller
+    v6 = ne v4, v5
+    jumpi v6, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v7 = zext i160 v3 to i256
+    v8 = shl v7, 16
+    v9 = zext i160 v2 to i256
+    v10 = shl v9, 8
+    v11 = or v8, v10
+    v12 = zext i160 v1 to i256
+    v13 = or v11, v12
+    ret v13
+  bb1:                                            ; preds = bb0
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function g(uint256 p) public view returns (address) [selector 0xe420264a]
+fn @g(arg0: i256) -> i160 [selector=0xe420264a, view, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = icall @resolve, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = extract_value struct0, v0, 3
+    v5 = origin
+    v6 = eq v4, v5
+    jumpi v6, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v7 = phi [bb1: v1], [bb2: v4]
+    ret v7
+}
+
+; function h(uint256 p, uint256 k) public returns (uint256) [selector 0xa61510ae]
+fn @h(arg0: i256, arg1: i256) -> i256 [selector=0xa61510ae, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 128
+    mstore v0, arg1
+    v1 = checked_add uint256, arg1, 1
+    v2 = ptradd v0, 32
+    mstore v2, v1
+    v3 = checked_add uint256, arg1, 2
+    v4 = ptradd v0, 64
+    mstore v4, v3
+    v5 = checked_add uint256, arg1, 3
+    v6 = ptradd v0, 96
+    mstore v6, v5
+    v7 = icall @resolve, arg0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = extract_value struct0, v7, 2
+    v11 = extract_value struct0, v7, 3
+    v12 = lt 3, 4
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v0, 96
+    v15 = mload v14
+    v16 = icall @mix, 7, v10, v15
+    v17 = ne v9, i160 0
+    jumpi v17, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v18 = zext i160 v8 to i256
+    v19 = checked_add uint256, v16, v18
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v20 = phi [bb1: v19], [bb2: v16]
+    ret v20
+}
+
+; function resolve(uint256 p) private view returns (address, address, address, address)
+fn @resolve(arg0: i256) -> struct0 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = lt 0, 4
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = sload v0 !metadata(storage=symbolic(v0))
+    v4 = trunc i256 v3 to i160
+    v5 = lt 1, 4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = add v0, 1
+    v8 = sload v7 !metadata(storage=offset(v0, 1))
+    v9 = trunc i256 v8 to i160
+    v10 = lt 2, 4
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = add v0, 2
+    v13 = sload v12 !metadata(storage=offset(v0, 2))
+    v14 = trunc i256 v13 to i160
+    v15 = lt 3, 4
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = add v0, 3
+    v18 = sload v17 !metadata(storage=offset(v0, 3))
+    v19 = trunc i256 v18 to i160
+    v20 = insert_value struct0, undef struct0, 0, v4
+    v21 = insert_value struct0, v20, 1, v9
+    v22 = insert_value struct0, v21, 2, v14
+    v23 = insert_value struct0, v22, 3, v19
+    ret v23
+}
+
+; function mix(uint256 x, address y, uint256 z) private returns (uint256)
+fn @mix(arg0: i256, arg1: i160, arg2: i256) -> i256 {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = checked_add uint256, v0, arg0
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = checked_mul uint256, arg0, 0x10000
+    v3 = zext i160 arg1 to i256
+    v4 = checked_mul uint256, v3, 256
+    v5 = checked_add uint256, v2, v4
+    v6 = checked_add uint256, v5, arg2
+    ret v6
+}

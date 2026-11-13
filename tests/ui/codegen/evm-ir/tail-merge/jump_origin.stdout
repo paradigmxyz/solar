@@ -4,22 +4,27 @@
   bb0:
     push 11 !metadata(span=1..5)
 -   push 22
--   push 33 !metadata(span=11..15)
--   push 44 !metadata(span=16..20)
--   push 55 !metadata(span=21..25)
+-   push 33
+-   push 44
+-   push 55
 -   revert !metadata(span=26..30)
-+   jump bb2
++   jump bb3 !metadata(span=26..30)
   bb1:
     push 99 !metadata(span=41..45)
-+   jump bb2 !metadata(spans=[31..35, 36..40])
-+ bb2:
-    push 22 !metadata(spans=[31..35, 36..40])
--   push 33 !metadata(span=46..50)
--   push 44 !metadata(span=51..55)
--   push 55 !metadata(span=56..60)
--   revert !metadata(span=61..65)
-+   push 33 !metadata(spans=[11..15, 46..50])
-+   push 44 !metadata(spans=[16..20, 51..55])
-+   push 55 !metadata(spans=[21..25, 56..60])
-+   revert !metadata(spans=[26..30, 61..65])
+-   push 22 !metadata(compiler_generated)
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb3 !metadata(compiler_generated)
+  bb2:
+    push 77 !metadata(span=71..75)
+-   push 22 !metadata(span=76..80)
++   jump bb3 !metadata(span=76..80)
++ bb3:
++   push 22
+    push 33
+    push 44
+    push 55
+    revert
   

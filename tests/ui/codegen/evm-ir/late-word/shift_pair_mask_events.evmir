@@ -1,0 +1,18 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=late-word
+@module ShiftPairMaskEvents
+
+// The window runs straight through once, so its function entry moves to the first instruction of
+// the replacement. The copy of the shift count, which the first shift takes, does not repeat it.
+bb0:
+  push 4
+  calldataload
+  push 0
+  not
+  push 96 !metadata(span=1..3, invoke=first@1..10)
+  shr
+  and !metadata(span=4..6)
+  push 0
+  mstore
+  push 32
+  push 0
+  return

@@ -1,0 +1,57 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_body_gather.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_body_gather.evmir (after outline) ===
+  @module SharedBodyGather
+  bb0:
++   push bb3 !metadata(all=[1..5, 6..10])
++   jump bb2 !metadata(all=[1..5, 6..10])
++ bb1:
++   push bb4 !metadata(all=[6..10, 1..5])
++   jump bb2 !metadata(all=[6..10, 1..5])
++ bb2 [ret=0, inputs=1, outputs=0]:
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
+    push 1 !metadata(all=[1..5, 6..10])
+-   pop !metadata(all=[11..15, 16..20])
++   pop !metadata(spans=[11..15, 16..20, 21..25, 26..30])
++   jump !metadata(spans=[11..15, 16..20, 21..25, 26..30])
++ bb3 [continuation]:
+    jump bb1 !metadata(span=31..35)
+- bb1:
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
+-   push 1 !metadata(all=[6..10, 1..5])
+-   pop !metadata(all=[21..25, 26..30])
++ bb4 [continuation]:
+    stop !metadata(span=36..40)
+  

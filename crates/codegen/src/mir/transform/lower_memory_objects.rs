@@ -206,7 +206,6 @@ fn coalesce_constant_allocations(func: &mut Function) {
                         continue;
                     }
                     InstKind::Add(lhs, rhs) if func.value_u64(rhs).is_some() => member(lhs),
-                    InstKind::Add(lhs, rhs) if func.value_u64(lhs).is_some() => member(rhs),
                     InstKind::PtrToInt(base, 256) => member(base).map(|(owner, _)| (owner, true)),
                     _ => None,
                 };
@@ -304,7 +303,6 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
                 return false;
             }
             let inst = inst.clone();
-            builder.set_debug_context(&inst.metadata);
             let mut kind = inst.kind;
             // integer_operand = ptrtoint pointer_operand to i256
             kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));

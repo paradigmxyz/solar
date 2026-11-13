@@ -7,7 +7,7 @@ use super::{
     Immediate, InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias,
     Terminator, Value, ValueId,
 };
-use crate::{Builtin, Callee, RequireKind, analysis::CfgInfo};
+use crate::{Builtin, CallOutput, Callee, ExtCallKind, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{
@@ -362,6 +362,9 @@ fn display_function_attributes(
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
         }
+        if func.attributes.creation_only {
+            write_function_attribute(f, &mut first, "creation_only")?;
+        }
         if func.attributes.always_inline {
             write_function_attribute(f, &mut first, "always_inline")?;
         }
@@ -459,14 +462,23 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
-        InstKind::AddressCall { address, input, gas, value, .. } => {
-            write!(
-                f,
-                "{} {}, {}",
-                kind.mnemonic(),
-                display_val(*address, func),
-                display_val(*input, func)
-            )?;
+        InstKind::ExtCall { policy, address, input, gas, value } => {
+            write!(f, "{}", kind.mnemonic())?;
+            let flags = [
+                match policy.kind {
+                    ExtCallKind::Call => None,
+                    ExtCallKind::Static => Some("static"),
+                    ExtCallKind::Delegate => Some("delegate"),
+                },
+                (policy.output == CallOutput::Word).then_some("word"),
+            ];
+            for flag in flags.into_iter().flatten() {
+                write!(f, " {flag}")?;
+            }
+            write!(f, " {}", display_val(*address, func))?;
+            if let Some(input) = input {
+                write!(f, ", {}", display_val(*input, func))?;
+            }
             if let Some(gas) = gas {
                 write!(f, ", gas {}", display_val(*gas, func))?;
             }
@@ -606,14 +618,9 @@ fn display_inst_kind<'a>(
         InstKind::ICall { function: Callee::Builtin(builtin), args } => {
             write!(f, "icall ")?;
             match builtin {
-                Builtin::Sha256 => write!(f, "sha256<>")?,
-                Builtin::Ripemd160 => write!(f, "ripemd160<>")?,
-                Builtin::EcRecover => write!(f, "ecrecover<>")?,
                 Builtin::Erc7201 => write!(f, "erc7201<>")?,
                 Builtin::CheckedAddMod => write!(f, "checked_addmod<>")?,
                 Builtin::CheckedMulMod => write!(f, "checked_mulmod<>")?,
-                Builtin::Send => write!(f, "send<>")?,
-                Builtin::Transfer => write!(f, "transfer<>")?,
                 Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
                 Builtin::Check { is_zero, failure } => {
                     let name = match failure {
@@ -835,7 +842,8 @@ fn display_metadata<'a>(
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
             MetadataField::Spans(metadata) => write!(
                 f,
-                "spans=[{}]",
+                "{}=[{}]",
+                if metadata.all_source_spans() { "all" } else { "spans" },
                 metadata.source_spans().format_with(", ", |f, span| write!(
                     f,
                     "{}..{}",

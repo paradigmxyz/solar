@@ -4,8 +4,8 @@
 // other `@custom:` tags stay documentation.
 
 /// @custom:solar-saef
+//~^ ERROR: unknown tag `@custom:solar-saef`
 /// @custom:unrelated
-//~^^ ERROR: unknown tag `@custom:solar-saef`
 contract Test {
     function f(bytes memory b) public pure returns (uint256 x) {
         /// @custom:solar-inline always

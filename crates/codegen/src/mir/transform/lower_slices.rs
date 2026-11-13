@@ -9,7 +9,9 @@
 //! declared type.
 //!
 //! The pass is required and runs after `lower-memory-objects` and before `lower-alloc`; the
-//! backend accepts no slice value.
+//! backend accepts no slice value. Builtins that consume slices must run through `lower-builtins`
+//! first: replacing their slices with pointers would lose the lengths, and memory slices could
+//! then be mistaken for objects with length headers. Reject such consumers before any edits.
 //!
 //! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
 //! slice parameter becomes a pointer and a length word. A returned slice whose producer is a real
@@ -24,7 +26,7 @@
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    MirType, Module, PhaseCategory, PtrLocation, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
@@ -46,7 +48,24 @@ impl MirPass for LowerSlices {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        if module.functions.iter().any(|func| {
+            func.instructions().any(|inst| {
+                let kind = &func.inst(inst).kind;
+                kind.op_def().phase_category == Some(PhaseCategory::Builtin)
+                    && kind
+                        .operands()
+                        .iter()
+                        .any(|&operand| func.value_slice_location(operand).is_some())
+            })
+        }) {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-slices` requires lowered builtin slice operands; run `lower-builtins` first")
+                    .emit(),
+            );
+            return false;
+        }
         // NOTE: Rewriting a projection of a lowered memory object into a load is not reported
         // as a change on its own.
         analyses.note_unreported_module_edit();
@@ -62,7 +81,7 @@ enum ParamRepr {
 
 /// Allocates an instruction of type `ty` and its result value, returning both.
 fn new_inst(func: &mut Function, kind: InstKind, ty: MirType) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
+    func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_loc_dropped())
 }
 
 /// Allocates a word-typed instruction and its result value, returning both.
@@ -165,7 +184,7 @@ impl LowerSlices {
                         MirType::Slice(location),
                     );
                     for id in [ia, ib, ila, ilb, isp, isl, ims] {
-                        func.inst_mut(id).metadata.copy_debug_context(&context);
+                        func.inst_mut(id).metadata.preserve_debug_loc(&context);
                     }
                     out.extend([ia, ib, ila, ilb, isp, isl, ims]);
                     replacements.insert(old, new_slice);
@@ -212,7 +231,7 @@ impl LowerSlices {
                 // NOTE: Predecessor projections can run on edges that skip the join. Only the
                 // replacement phis and reconstruction inherit the original phi's location.
                 for id in [ptr_phi, len_phi, make] {
-                    func.inst_mut(id).metadata.copy_debug_context(&context);
+                    func.inst_mut(id).metadata.preserve_debug_loc(&context);
                 }
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);

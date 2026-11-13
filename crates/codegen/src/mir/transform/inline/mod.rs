@@ -32,10 +32,12 @@
 //! guarded loop with no other exit receive the trip-count weight. These are
 //! estimates, never legality facts.
 //!
-//! Callees with phis need a stack estimate: backward liveness gives the callee's
-//! peak live words and the caller words surviving the call, and their sum must fit
-//! twelve words, leaving headroom for operand staging. This bounds spills but does
-//! not promise the scheduler emits none.
+//! Clones of callees with several blocks, when the callee has phis or the call sits
+//! in a loop, need a stack estimate: backward liveness gives the callee's peak live
+//! words and the caller words surviving the call, and their sum must fit twelve
+//! words, leaving headroom for operand staging. This bounds spills but does not
+//! promise the scheduler emits none. A single-block clone needs no estimate: the
+//! call it replaces holds the same caller words and a return address.
 //!
 //! A callee documented `@custom:solar-inline always` skips every profitability test, the stack
 //! estimate below included: each call where cloning is legal is cloned, while the module's
@@ -70,8 +72,8 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, InstId,
-        InstKind, Instruction, MirModuleTarget, MirPhase, MirType, Module, PtrLocation,
-        StorageAlias, Terminator, Value, ValueId,
+        InstKind, Instruction, InstructionMetadata, MirModuleTarget, MirPhase, MirType, Module,
+        PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
@@ -85,6 +87,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 mod all_sites;
@@ -278,13 +281,6 @@ impl MirInliner {
 
         let call_graph = CallGraphInfo::new(module);
         let mut call_counts = call_counts(module, &call_graph);
-        // Keep the initial candidate set stable as inlining removes call sites.
-        let memory_wrappers = module
-            .functions
-            .iter_enumerated()
-            .filter(|&(id, func)| call_counts[id] > 0 && is_memory_wrapper(func))
-            .map(|(id, func)| (id, scalar_stack_peak(func)))
-            .collect::<FxHashMap<_, _>>();
 
         let entries = module.external_entries();
         let mut summaries = self.summarize_module(module, &entries);
@@ -380,11 +376,13 @@ impl MirInliner {
                     continue;
                 }
 
+                // A single-block clone holds no more words than its call, which adds a return
+                // address.
                 if !always
+                    && summary.block_count > 1
                     && let Some(peak) = (summary.has_phi || site.loop_depth > 0)
                         .then_some(summary.phi_stack_peak)
                         .flatten()
-                        .or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
                     let liveness =
@@ -1034,8 +1032,7 @@ fn summarize_function(
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Check { .. }
-                            | Builtin::Require(_)
-                            | Builtin::Transfer,
+                            | Builtin::Require(_),
                         ),
                     ..
                 } => {
@@ -1264,8 +1261,8 @@ fn is_check_wrapper(func: &Function) -> bool {
     let call = match block.instructions.as_slice() {
         [call] => *call,
         [negation, call]
-            if matches!(func.inst(*negation).kind, InstKind::Eq(lhs, rhs)
-                if func.value_u64(lhs) == Some(0) || func.value_u64(rhs) == Some(0)) =>
+            if matches!(func.inst(*negation).kind, InstKind::Eq(_, zero)
+                if func.value_u64(zero) == Some(0)) =>
         {
             *call
         }
@@ -1518,16 +1515,13 @@ fn direct_dispatch_target(
         let Value::Inst(condition) = dispatcher.value(*condition) else {
             continue;
         };
-        let InstKind::Eq(lhs, rhs) = dispatcher.inst(*condition).kind else {
+        let InstKind::Eq(arg, value) = dispatcher.inst(*condition).kind else {
             continue;
         };
-        let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
-            matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
-                && dispatcher.value_ty(arg) == Some(MirType::I256)
-                && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
-                    == Some(selector)
-        });
-        if matches_selector {
+        if matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
+            && dispatcher.value_ty(arg) == Some(MirType::I256)
+            && dispatcher.value_u256(value) == Some(selector)
+        {
             return direct_dispatch_case_target(module, dispatcher, *then_block);
         }
     }
@@ -1657,10 +1651,14 @@ fn inline_call_impl(
         );
     }
 
-    // object_arg = inttoptr raw_arg
-    // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
     // the callee's pointer parameters. Materialize the zero-cost cast at the cloned entry.
+    // The cast is inliner glue, so it takes the call site's location, like LLVM giving inlined
+    // code without a location the call's (`fixupLineNumbers` in `InlineFunction.cpp`) and
+    // rustc's `callsite.source_info` for glue (`inline_call` in `inline.rs`).
+    let call_metadata = caller.inst(call_inst).metadata.debug_context();
+    // object_arg = inttoptr raw_arg !metadata(call)
+    // jump cloned_entry(object_arg)
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
@@ -1668,9 +1666,9 @@ fn inline_call_impl(
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
-            let (inst, value) = caller.alloc_value_inst(
-                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_info_dropped(),
-            );
+            let mut view = Instruction::new(InstKind::IntToPtr(*arg), Some(ty));
+            view.metadata.preserve_debug_loc(&call_metadata);
+            let (inst, value) = caller.alloc_value_inst(view);
             argument_views.push(inst);
             *arg = value;
         }
@@ -1705,14 +1703,14 @@ fn inline_call_impl(
         caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
+    cloner.call = Some(call_metadata.clone());
     let cloned_entry = cloner.clone_blocks(continuation)?;
     // cloned_entry: object argument casts; cloned callee body
     cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
 
     // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
-    cloner.caller.blocks[call_block].terminator_metadata =
-        cloner.caller.inst(call_inst).metadata.debug_context();
+    cloner.caller.blocks[call_block].terminator_metadata = call_metadata.clone();
 
     let mut replacements = FxHashMap::default();
     if returns > 0 {
@@ -1730,6 +1728,7 @@ fn inline_call_impl(
             callee.return_components(),
             caller_is_external,
             caller_frame_prefix,
+            &call_metadata,
         )?;
     }
 
@@ -1750,7 +1749,9 @@ fn inline_literal_call(
     args: Box<[ValueId]>,
     result: ValueId,
 ) -> Option<()> {
+    let call = caller.inst(caller.blocks[block].instructions[index]).metadata.debug_context();
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    cloner.call = Some(call);
     let mut instructions = Vec::new();
     // object = icall @literal
     //   => object = alloc size
@@ -1760,7 +1761,8 @@ fn inline_literal_call(
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
-        instruction.metadata.copy_debug_context(&source.metadata);
+        instruction.metadata = source.metadata.without_operand_facts();
+        cloner.adopt_call_loc(&mut instruction.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
             // object = alloc size
             //   => object = alloc size !metadata(preserves_fmp)
@@ -1818,6 +1820,8 @@ struct InlineCloner<'a> {
     block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
     external_exit: bool,
+    /// The location of the call being inlined, or none for a dispatch route.
+    call: Option<InstructionMetadata>,
 }
 
 impl<'a> InlineCloner<'a> {
@@ -1838,12 +1842,28 @@ impl<'a> InlineCloner<'a> {
             block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
             external_exit: false,
+            call: None,
+        }
+    }
+
+    /// Gives code the callee generated for itself the call's location. The inlined copy runs for
+    /// this call only, so it has a source the shared helper never had, like LLVM's
+    /// `fixupLineNumbers` for a callee without debug info.
+    fn adopt_call_loc(&self, metadata: &mut InstructionMetadata) {
+        if let Some(call) = &self.call
+            && call.source_spans().next().is_some()
+            && metadata.source_spans().next().is_none()
+            && metadata.debug_loc_kind() == DebugLocKind::CompilerGenerated
+        {
+            metadata.preserve_debug_loc(call);
         }
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
         for block in self.callee.blocks.iter() {
-            self.block_map.push(self.caller.alloc_block_hinted(block.cold_hint));
+            let mut copy = block.new_copy();
+            self.adopt_call_loc(&mut copy.label_metadata);
+            self.block_map.push(self.caller.blocks.push(copy));
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
@@ -1852,7 +1872,8 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                instruction.metadata.copy_debug_context(&inst.metadata);
+                instruction.metadata = inst.metadata.without_operand_facts();
+                self.adopt_call_loc(&mut instruction.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -1879,8 +1900,9 @@ impl<'a> InlineCloner<'a> {
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
             // cloned_block: cloned_terminator !metadata(callee block)
             self.caller.blocks[caller_block].terminator = Some(term);
-            self.caller.blocks[caller_block].terminator_metadata =
-                block.terminator_metadata.clone();
+            let mut metadata = block.terminator_metadata.clone();
+            self.adopt_call_loc(&mut metadata);
+            self.caller.blocks[caller_block].terminator_metadata = metadata;
         }
 
         Some(self.block_map[BlockId::ENTRY])
@@ -2006,7 +2028,7 @@ fn build_return_values(
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
         let (phi, value) = caller.alloc_value_inst(
-            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_info_dropped(),
+            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_loc_dropped(),
         );
         caller.blocks[continuation].instructions.insert(index, phi);
         values.push(value);
@@ -2021,6 +2043,7 @@ fn insert_return_buffer_stores(
     return_tys: &[MirType],
     caller_is_external: bool,
     caller_frame_prefix: u64,
+    call_metadata: &InstructionMetadata,
 ) -> Option<()> {
     debug_assert_eq!(values.len(), return_tys.len());
     if values.len() < 2 {
@@ -2032,6 +2055,8 @@ fn insert_return_buffer_stores(
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);
         builder.switch_to_block(continuation);
+        // The buffer stores are inliner glue, so they take the call site's location, as above.
+        builder.set_debug_context(call_metadata);
         let mut stored_values = Vec::with_capacity(return_tys.len());
         for (index, (&value, &ty)) in values.iter().zip(return_tys).enumerate() {
             if let MirType::Slice(_) = ty {

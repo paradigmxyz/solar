@@ -46,12 +46,11 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use solar_interface::Span;
 use solar_sema::Gcx;
 
 mod stack;
-pub(super) use stack::{
-    MAX_STACK_DEPTH, StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops,
-};
+pub(super) use stack::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops};
 
 mod switch;
 
@@ -156,6 +155,9 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    /// The span of the contract definition, which backend code without a MIR instruction of its
+    /// own is attributed to.
+    contract_span: Option<Span>,
     display_debug_info: bool,
     /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
     run_pipeline: bool,
@@ -224,6 +226,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            contract_span: None,
             display_debug_info: false,
             run_pipeline: true,
             allocation_sites: FxHashMap::default(),
@@ -351,6 +354,35 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub fn set_capture_debug_info(&mut self, capture: bool) {
         self.capture_debug_info = capture || crate::debugify::enabled(self.gcx);
         self.display_debug_info = capture;
+    }
+
+    /// Sets the span of the contract definition, the origin of the code that no MIR instruction
+    /// owns.
+    pub fn set_contract_span(&mut self, span: Span) {
+        self.contract_span = Some(span);
+    }
+
+    /// Emits code that no MIR instruction owns under the origin of the contract definition.
+    ///
+    /// solc compiles the code that wraps the constructor and the runtime in the `LocationSetter` of
+    /// the contract (`ContractCompiler::compileContract`, `compileConstructor`,
+    /// `appendInitAndConstructorCode` and `packIntoContractCreator`), so each instruction maps to
+    /// the contract's range.
+    pub(super) fn emit_with_contract_origin(&mut self, emit: impl FnOnce(&mut Self)) {
+        self.emit_with_origin(self.contract_span, emit);
+    }
+
+    /// Emits code under `span` while debug information is captured, then restores the origin that
+    /// was in force. Without a span the code keeps the current origin.
+    pub(super) fn emit_with_origin(&mut self, span: Option<Span>, emit: impl FnOnce(&mut Self)) {
+        let Some(span) = span.filter(|span| self.capture_debug_info && !span.is_dummy()) else {
+            return emit(self);
+        };
+        let origin = self.asm.debug_origin();
+        self.asm.set_source_span(Some(span));
+        self.asm.set_modifier_depth(0);
+        emit(self);
+        self.asm.set_debug_origin(origin);
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.

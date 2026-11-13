@@ -1,0 +1,120 @@
+; === ROOT/tests/ui/codegen/run-call/tuples/mixed_storage_tuple.sol:C ===
+@module C
+@types
+  struct0: {i256, i256}
+  struct1: {i8, i8, i8, i8}
+
+; function setUp() external [selector 0x0a9254e4]
+fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc 32
+    mstore v0, 7
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    v6 = mload v0
+    sstore v5, v6 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v7 = alloc 32
+    mstore v7, 8
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = gt v8, 0xffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add v8, 1
+    v11 = storage_array_data_slot 0
+    v12 = add v11, v8
+    v13 = mload v7
+    sstore v12, v13 !metadata(storage=symbolic(v12))
+    sstore 0, v10 !metadata(storage=slot(0))
+    ret
+}
+
+; function f() internal view returns (uint, S storage)
+fn @f() -> struct0 [view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = storage_array_data_slot 0
+    v4 = insert_value struct0, undef struct0, 0, 1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+; function test_g() external returns (uint, uint) [selector 0xc51b800f]
+fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @f
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = gt v3, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = storage_array_data_slot 0
+    v7 = add v6, 1
+    v8 = alloc checked 32
+    v9 = sload v2 !metadata(storage=symbolic(v2))
+    mstore v8, v9
+    v10 = mload v8
+    sstore v7, v10 !metadata(storage=offset(v6, 1))
+    sstore 1, v1 !metadata(storage=slot(1))
+    v11 = sload 1 !metadata(storage=slot(1))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = gt v12, 1
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = storage_array_data_slot 0
+    v16 = add v15, 1
+    v17 = sload v16 !metadata(storage=offset(v15, 1))
+    v18 = insert_value struct0, undef struct0, 0, v11
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
+}
+
+; function test_h() external returns (uint) [selector 0xeafd81e0]
+fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @f
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    sstore v2, 42 !metadata(storage=symbolic(v2))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = gt v3, 0
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = storage_array_data_slot 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = checked_add uint256, v1, v7
+    ret v8
+}
+
+; function mapping_reference() external returns (uint8, uint8, uint8, uint8) [selector 0xc5744cb1]
+fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8, uint8]] {
+  bb0:
+    v0 = mapping_slot 1, 2
+    sstore v0, 42 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot 2, 3
+    sstore v1, 21 !metadata(storage=symbolic(v1))
+    v2 = mapping_slot 1, 2
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = trunc i256 v3 to i8
+    v5 = mapping_slot 2, 2
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = trunc i256 v6 to i8
+    v8 = mapping_slot 1, 3
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = trunc i256 v9 to i8
+    v11 = mapping_slot 2, 3
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = trunc i256 v12 to i8
+    v14 = insert_value struct1, undef struct1, 0, v4
+    v15 = insert_value struct1, v14, 1, v7
+    v16 = insert_value struct1, v15, 2, v10
+    v17 = insert_value struct1, v16, 3, v13
+    ret v17
+}

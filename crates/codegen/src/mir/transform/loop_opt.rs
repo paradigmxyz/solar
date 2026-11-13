@@ -59,6 +59,7 @@
 //! four. Size mode therefore rewrites a factor's checks only while every loop around them stays
 //! within [`Target::LOOP_CARRY_BUDGET`] with the bound.
 
+use super::utils::terminator_debug_context;
 use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
@@ -81,6 +82,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::{cmp::Reverse, rc::Rc};
 
 /// Function pass for loop-invariant code motion.
@@ -474,12 +476,14 @@ impl LoopOptimizer {
         visiting.clear();
         let ordered = self.topological_sort_instructions(func, selected, visiting);
 
+        let hoisted_loc = terminator_debug_context(func, preheader, DebugLocKind::Dropped);
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
             if let Some(block) = ctx.loop_block(inst_id) {
                 func.blocks[block].instructions.retain(|&id| id != inst_id);
+                func.inst_mut(inst_id).metadata.preserve_debug_loc(&hoisted_loc);
                 func.blocks[preheader].instructions.push(inst_id);
                 self.hoisted += 1;
             }
@@ -811,10 +815,13 @@ impl LoopOptimizer {
         let aa = &self.alias;
         let load = Location::Immutable(load_id);
         loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id]
-                .instructions
-                .iter()
-                .any(|&inst_id| aa.instruction_mod_ref(func, inst_id).may_write(aa, load))
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                let effects = aa.instruction_mod_ref(func, inst_id);
+                // `lower-immutables` turned an assignment in creation code into a store to the
+                // staging word, which the immutable's location no longer names.
+                effects.may_write(aa, load)
+                    || (func.attributes.creation_only && effects.writes_space(AddressSpace::Memory))
+            })
         })
     }
 
@@ -1151,14 +1158,14 @@ fn reduce_product_checks(
     }
     let uses = super::egraph::use_counts(func);
     let mut limits = FxHashMap::default();
+    let hoisted_loc = terminator_debug_context(func, preheader, DebugLocKind::Dropped);
     for &(block, inst, x, y, zero) in &checks {
-        let context = func.inst(inst).metadata.debug_context();
         let limit = *limits.entry(y).or_insert_with(|| {
             // preheader: zero = eq y, 0
             //            limit = sub (div MAX, y), (zext zero)
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(preheader);
-            builder.set_debug_context(&context);
+            builder.set_debug_context(&hoisted_loc);
             let zero = match zero {
                 Some(zero) if outside(builder.func(), zero) => zero,
                 _ => builder.eq_zero(y),
@@ -1176,7 +1183,7 @@ fn reduce_product_checks(
         }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
-        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        overflows.metadata.preserve_debug_loc(&func.inst(inst).metadata);
         let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
         let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
         let position = position.expect("the check is in its block");
@@ -1220,12 +1227,10 @@ fn product_check(
     exact: ValueId,
 ) -> Option<(ValueId, ValueId, ValueId)> {
     let def = |value| func.value_inst_kind(value);
-    let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
-    let divisor = match (func.value_u256(l), func.value_u256(r)) {
-        (None, Some(zero)) if zero.is_zero() => l,
-        (Some(zero), None) if zero.is_zero() => r,
-        _ => return None,
-    };
+    let InstKind::Eq(divisor, zero) = *def(zero_test)? else { return None };
+    if func.value_u256(divisor).is_some() || !func.value_u256(zero)?.is_zero() {
+        return None;
+    }
     let InstKind::Eq(l, r) = *def(exact)? else { return None };
     [(l, r), (r, l)].into_iter().find_map(|(quotient, other)| {
         let &InstKind::Div(product, by) = def(quotient)? else { return None };
@@ -1265,11 +1270,9 @@ fn reassociate_invariant_offsets(
     let readers = super::egraph::use_counts(func);
     // The sum `outer = (x + y) + c` with its single-reader inner sum, as `(x, c, outer, inner, y)`.
     let split = |outer: InstId| {
-        let InstKind::Add(first, second) = func.inst(outer).kind else { return None };
-        let (sum, c) = [(first, second), (second, first)]
-            .into_iter()
-            .find(|&(sum, c)| func.value_u256(c).is_some() && func.value_u256(sum).is_none())?;
+        let InstKind::Add(sum, c) = func.inst(outer).kind else { return None };
         let Value::Inst(inner) = *func.value(sum) else { return None };
+        func.value_u256(c)?;
         let InstKind::Add(a, b) = func.inst(inner).kind else { return None };
         (readers[sum] == 1
             && func.value_ty(sum) == Some(MirType::I256)
@@ -1364,8 +1367,13 @@ fn reassociate_invariant_offsets(
     let mut rewritten = 0;
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
+        // Hoisted and shared by every site, so it takes the preheader's location, as above.
         let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        sum.metadata.preserve_debug_loc(&terminator_debug_context(
+            func,
+            preheader,
+            DebugLocKind::Dropped,
+        ));
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {

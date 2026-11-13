@@ -1,0 +1,83 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-builtins/extcall.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-builtins/extcall.mir (after lower-builtins) ===
+  @module ExtCallExpansion
+  fn @hash_object(arg0: ptr<memory>) -> i1 {
+    bb0:
+-     v0 = extcall static word i160 2, arg0
+-     ret v0
++     v1 = ptradd arg0, 32
++     v2 = mload arg0
++     v3 = gas
++     v4 = staticcall v3, 2, v1, v2, 0, 32
++     ret v4
+  }
+  
+  fn @hash_slice(arg0: slice<memory>) -> i1 {
+    bb0:
+-     v0 = extcall static word i160 3, arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = gas
++     v4 = staticcall v3, 3, v1, v2, 0, 32
++     ret v4
+  }
+  
+  fn @recover(arg0: slice<memory>) -> i1 {
+    bb0:
+-     v0 = extcall static word i160 1, arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     mstore 0, 0 !metadata(memory=scratch)
++     v3 = gas
++     v4 = staticcall v3, 1, v1, v2, 0, 32
++     ret v4
+  }
+  
+  fn @unknown_callee(arg0: i160, arg1: slice<memory>) -> i1 {
+    bb0:
+-     v0 = extcall word arg0, arg1
+-     ret v0
++     v1 = extract_value slice<memory>, arg1, 0
++     v2 = extract_value slice<memory>, arg1, 1
++     mstore 0, 0 !metadata(memory=scratch)
++     v3 = gas
++     v4 = zext i160 arg0 to i256
++     v5 = call v3, v4, 0, v1, v2, 0, 32
++     ret v5
+  }
+  
+  fn @send(arg0: i160, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+-     v0 = extcall arg0, gas arg2, value arg1
+-     ret v0
++     v1 = zext i160 arg0 to i256
++     v2 = call arg2, v1, arg1, 0, 0, 0, 0
++     ret v2
+  }
+  
+  fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
+    bb0:
+-     v0 = extcall arg0, arg1, value arg2
+-     ret v0
++     v1 = ptradd arg1, 32
++     v2 = mload arg1
++     v3 = gas
++     v4 = zext i160 arg0 to i256
++     v5 = call v3, v4, arg2, v1, v2, 0, 0
++     ret v5
+  }
+  
+  fn @bare_delegate(arg0: i160, arg1: ptr<memory>) -> i1 {
+    bb0:
+-     v0 = extcall delegate arg0, arg1
+-     ret v0
++     v1 = ptradd arg1, 32
++     v2 = mload arg1
++     v3 = gas
++     v4 = zext i160 arg0 to i256
++     v5 = delegatecall v3, v4, v1, v2, 0, 0
++     ret v5
+  }
+  

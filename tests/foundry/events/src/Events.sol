@@ -138,14 +138,69 @@ contract Events {
         emit DynamicData(id, data, "a literal string that is longer than a single word", count);
     }
 
+    event DirtyIndexed(uint8 indexed a, address indexed b, bool indexed c, bytes4 d);
+    event DirtyData(uint8 a, address b, bool c, bytes4 d, int8 e);
+    event DirtyIndexedChoice(Choice indexed choice);
+
+    // The dirty words and the expected logs below come from `solc --via-ir`.
+    function emitDirtyIndexed() external {
+        uint8 a;
+        address b;
+        bool c;
+        bytes4 d;
+        assembly {
+            a := 0xabcd1b
+            b := or(0x1234567890123456789012345678901234567890, shl(160, 0xabcd))
+            c := 0x100
+            d := or(shl(224, 0xdeadbeef), 0xabcdef)
+        }
+        emit DirtyIndexed(a, b, c, d);
+    }
+
+    function emitDirtyData() external {
+        uint8 a;
+        address b;
+        bool c;
+        bytes4 d;
+        int8 e;
+        assembly {
+            a := 0xabcd1b
+            b := or(0x1234567890123456789012345678901234567890, shl(160, 0xabcd))
+            c := 0x100
+            d := or(shl(224, 0xdeadbeef), 0xabcdef)
+            e := 0xabcdfd
+        }
+        emit DirtyData(a, b, c, d, e);
+    }
+
+    function emitDirtyIndexedChoice() external {
+        Choice choice;
+        assembly {
+            choice := 0x101
+        }
+        emit DirtyIndexedChoice(choice);
+    }
+
     struct Late {
         uint256 value;
     }
 
     event LateStorage(uint256[] values, Late late, uint256 count);
+    event LateIndexed(uint256[] indexed values, Late indexed late, uint256 indexed count);
+    event LateIndexedText(string indexed text, uint256 indexed count);
 
     uint256[] internal lateValues;
     Late internal late;
+    string internal lateText = "before";
+
+    // Indexed storage topics are hashed after the indexed arguments that follow them ran.
+    function emitLateIndexed() public {
+        emit LateIndexed(lateValues, late, writeLate());
+    }
+
+    function emitLateIndexedText() public {
+        emit LateIndexedText(lateText, writeLate());
+    }
 
     // The data reads the storage array and struct after the last argument ran, as solc does.
     function emitLateStorage() public {
@@ -155,6 +210,45 @@ contract Events {
     function writeLate() internal returns (uint256) {
         lateValues.push(7);
         late.value = 9;
+        lateText = "after";
         return 3;
+    }
+
+    event StagedBytes(bytes indexed value);
+    event StagedText(string indexed value);
+    event StagedPair(Pair indexed value);
+
+    // Indexed hash inputs are staged at the free memory pointer, never reserved.
+    function emitStagedBytes(bytes calldata value) public {
+        emit StagedBytes(value);
+    }
+
+    function emitStagedBytesSlice(bytes calldata value) public {
+        emit StagedBytes(value[1:3]);
+    }
+
+    function emitStagedMemoryBytes(bytes memory value) public {
+        emit StagedBytes(value);
+    }
+
+    function emitStagedText(string calldata value) public {
+        emit StagedText(value);
+    }
+
+    function emitStagedPair(Pair calldata value) public {
+        emit StagedPair(value);
+    }
+
+    function emitStagedMemoryPair(uint256 first, uint256 second) public {
+        Pair memory value = Pair(first, second);
+        emit StagedPair(value);
+    }
+
+    event StagedMixed(Pair indexed pair, bytes indexed one, bytes data, bytes indexed two, uint256 count);
+
+    function emitStagedMixed(Pair calldata pair, bytes calldata one, bytes calldata data, bytes calldata two)
+        public
+    {
+        emit StagedMixed(pair, one, data, two, 7);
     }
 }

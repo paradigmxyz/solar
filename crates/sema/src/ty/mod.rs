@@ -31,6 +31,7 @@ use solar_interface::{
 };
 use std::{
     any::Any,
+    cell::RefCell,
     fmt,
     ops::ControlFlow,
     sync::{
@@ -43,7 +44,7 @@ use thread_local::ThreadLocal;
 pub use crate::natspec::NatSpecView;
 
 mod print;
-pub(crate) use print::TySolcPrinter;
+pub(crate) use print::{Component, TySolcPrinter};
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
@@ -103,6 +104,37 @@ pub struct TypeckResults<'gcx> {
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
     pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
+    /// What the AST JSON reads back, recorded only when the ASTs are kept.
+    pub(crate) ast: AstFacts<'gcx>,
+    /// The spans of expression statements that have no effect, reported after type checking.
+    pub(crate) no_effect_stmts: Vec<Span>,
+}
+
+/// The purity of the expressions that [`TypeckResults::is_pure_in`] has worked out.
+pub(crate) type PureMemo = RefCell<FxHashMap<hir::ExprId, bool>>;
+
+/// What type checking records for the AST JSON, which the writer cannot read back from the HIR.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AstFacts<'gcx> {
+    /// The expressions that are lvalues in solc's sense, where it takes more than their kind to
+    /// tell: members, and tuples that are written to.
+    pub(crate) lvalues: FxHashSet<hir::ExprId>,
+    /// The type solc gives an expression where it differs from the type of type checking: the
+    /// common type of the operands of a comparison or a logical operation.
+    pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    pub(crate) yul_references: Vec<YulReference>,
+}
+
+/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+#[derive(Clone, Copy, Debug)]
+pub struct YulReference {
+    /// The span of the identifier, with its suffix.
+    pub span: Span,
+    /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
+    pub suffix: Option<Symbol>,
+    /// The variable the identifier names.
+    pub declaration: hir::VariableId,
 }
 
 /// The target selected for a call callee expression.
@@ -202,6 +234,21 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn user_operator(&self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.user_operators.get(&id).copied()
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],
+    /// if the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.ast.solc_tys.get(&id).copied()
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(&self, span: Span) -> &[YulReference] {
+        let references = &self.ast.yul_references;
+        let start = references.partition_point(|r| r.span.lo() < span.lo());
+        let len = references[start..].partition_point(|r| r.span.hi() <= span.hi());
+        &references[start..start + len]
     }
 }
 
@@ -631,6 +678,12 @@ impl<'gcx> Gcx<'gcx> {
         self.resolved_expr(expr)?.as_function()
     }
 
+    /// Returns the state mutability that evaluating an expression requires, as the view and pure
+    /// checker infers it: `NonPayable` or `Payable` when the expression can write state.
+    pub fn expr_state_mutability(self, expr: &'gcx hir::Expr<'gcx>) -> StateMutability {
+        crate::typeck::view_pure_checker::expr_mutability(self, expr)
+    }
+
     /// Returns the builtin selected for an expression, if available.
     #[inline]
     pub fn resolved_builtin(self, expr: &hir::Expr<'_>) -> Option<Builtin> {
@@ -759,7 +812,8 @@ impl<'gcx> Gcx<'gcx> {
         crate::natspec::references(self, item)
     }
 
-    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    /// Resolves a contract name, or a path such as `M.Base`, within a source's scope for NatSpec
+    /// `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
         self.natspec_contract_in_source((name, source))
     }
@@ -783,6 +837,11 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
     }
 
+    /// Returns whether the type-checked expression is a compile-time constant.
+    pub(crate) fn is_pure(self, memo: &PureMemo, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_pure_in(self, Some(memo), expr))
+    }
+
     /// Returns the user-defined operator function this operator expression
     /// resolves to, if any.
     #[inline]
@@ -790,7 +849,30 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.user_operator(id)
     }
 
+    /// Returns whether the type-checked expression is an lvalue, in solc's sense, if the ASTs are
+    /// kept.
+    #[inline]
+    pub fn is_lvalue(self, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_lvalue(expr))
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`], if
+    /// the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.typeck_results.get()?.solc_ty(id)
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(self, span: Span) -> &'gcx [YulReference] {
+        self.typeck_results.get().map_or(&[], |results| results.yul_references(span))
+    }
+
     /// Returns the contracts whose base slot is a constant integer, with the base slot.
+    pub(crate) fn typeck_no_effect_stmts(self) -> &'gcx [Span] {
+        self.typeck_results.get().map_or(&[], |results| &results.no_effect_stmts)
+    }
+
     pub(crate) fn typeck_base_slots(self) -> &'gcx [(hir::ContractId, &'gcx hir::Expr<'gcx>)] {
         self.typeck_results.get().map_or(&[], |results| &results.base_slots)
     }
@@ -1354,7 +1436,11 @@ impl<'gcx> Gcx<'gcx> {
                     }
                     hir::UsingEntryKind::Functions(functions) => {
                         for &function in functions {
-                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
+                            let Some(name) =
+                                entry.name.or_else(|| self.item_name_opt(function).map(|n| n.name))
+                            else {
+                                continue;
+                            };
                             self.add_attached_function(
                                 ty,
                                 function,
@@ -1393,7 +1479,7 @@ impl<'gcx> Gcx<'gcx> {
         if let TyKind::Fn(function_ty) = fn_ty.kind
             && let Some(&self_ty) = function_ty.parameters.first()
             && ty.convert_implicit_to(self_ty, self)
-            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && let Some(name) = name.or_else(|| self.item_name_opt(function).map(|n| n.name))
             && seen.insert((name, function))
         {
             members.push(members::Member::with_attached_function(name, fn_ty, function));
@@ -1598,6 +1684,25 @@ impl<'gcx> Gcx<'gcx> {
             functions.insert(function);
         }
         functions
+    }
+
+    /// Returns the functions that function values of the given contract can reach, which solc
+    /// calls its internal dispatch targets: those that code generation dispatches to, and those a
+    /// call names in parentheses.
+    ///
+    /// Creation code reaches a subset of what the runtime code reaches.
+    pub fn contract_internal_dispatch_targets(
+        self,
+        id: hir::ContractId,
+    ) -> DenseBitSet<hir::FunctionId> {
+        let items = self.interface_items(id);
+        let mut targets = items.deployed.internal_dispatch_targets.clone();
+        for &function in
+            items.creation.parenthesized_targets.iter().chain(&items.deployed.parenthesized_targets)
+        {
+            targets.insert(function);
+        }
+        targets
     }
 
     /// Returns the contracts whose bytecode is referenced by the given contract.
@@ -1945,20 +2050,23 @@ pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
 }
 
-/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+/// Resolves a contract name, or a path such as `M.Base` through an import namespace, within a
+/// source's scope for NatSpec `@inheritdoc`.
 pub(crate) fn natspec_contract_in_source(
     gcx: _,
     key: NatSpecContractKey
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
-    gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(Ident { name, span: Span::DUMMY })
-        .and_then(|decls| {
-            decls.iter().find_map(|decl| match decl.res {
-                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                _ => None,
-            })
-        })
+    let segments = name
+        .as_str()
+        .split('.')
+        .map(|segment| Ident::with_dummy_span(Symbol::intern(segment)))
+        .collect::<SmallVec<[_; 2]>>();
+    let resolutions = gcx.source_path_resolutions(&segments, source_id, None)?;
+    resolutions.last()?.iter().find_map(|res| match res {
+        hir::Res::Item(hir::ItemId::Contract(id)) => Some(*id),
+        _ => None,
+    })
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.

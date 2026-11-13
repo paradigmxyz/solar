@@ -57,8 +57,8 @@
 (decl abiencodepacked (Unit bool) Value)
 (extractor (abiencodepacked parts hash) (inst (Op.AbiEncodePacked parts hash)))
 
-(decl addresscall (AddressCallKind Value Value OptionValue OptionValue) Value)
-(extractor (addresscall kind address input gas value) (inst (Op.AddressCall kind address input gas value)))
+(decl extcall (CallPolicy Value OptionValue OptionValue OptionValue) Value)
+(extractor (extcall policy address input gas value) (inst (Op.ExtCall policy address input gas value)))
 
 (decl add (Value Value) Value)
 (extractor (add a b) (inst (Op.Add a b)))
@@ -152,9 +152,6 @@
 
 (decl fmp () Value)
 (extractor (fmp) (inst (Op.Fmp)))
-
-(decl setfmp (Value) Value)
-(extractor (setfmp value) (inst (Op.SetFmp value)))
 
 (decl heapfloor () Value)
 (extractor (heapfloor) (inst (Op.HeapFloor)))

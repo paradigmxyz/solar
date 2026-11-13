@@ -1,0 +1,177 @@
+; === ROOT/tests/ui/codegen/run-call/external-calls/transfer_send.sol:GasReceiver ===
+@module GasReceiver
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/transfer_send.sol:RevertReceiver ===
+@module RevertReceiver
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    mstore 0, 0xdeadbeef00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/transfer_send.sol:TransferSend ===
+@module TransferSend
+@types
+  struct0: {i256, i256, i256}
+
+@data
+  GasReceiver_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/external-calls/transfer_send.sol:GasReceiver"
+  RevertReceiver_creation_code_1: creation_code "ROOT/tests/ui/codegen/run-call/external-calls/transfer_send.sol:RevertReceiver"
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize GasReceiver_creation_code_0
+    v1 = fmp
+    datacopy GasReceiver_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = datasize RevertReceiver_creation_code_1
+    v7 = fmp
+    datacopy RevertReceiver_creation_code_1, v7, v6
+    v8 = create 0, v7, v6
+    v9 = ne v8, i160 0
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v10 = zext i160 v8 to i256
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 1, v11 !metadata(storage=slot(1))
+    ret
+}
+
+; function sendValue() external payable returns (bool) [selector 0x27c845dc]
+fn @sendValue() -> i1 [selector=0x27c845dc, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq 1, 0
+    v3 = select v2, 0x8fc, 0
+    v4 = extcall v1, gas v3, value 1
+    ret v4
+}
+
+; function transferValue() external payable [selector 0x2d9ed8d5]
+fn @transferValue() [selector=0x2d9ed8d5, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = trunc i256 v0 to i160
+    v2 = eq 1, 0
+    v3 = select v2, 0x8fc, 0
+    v4 = extcall v1, gas v3, value 1
+    jumpi v4, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
+
+; function sendZero() external returns (bool) [selector 0xe857d88b]
+fn @sendZero() -> i1 [selector=0xe857d88b, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0, 0
+    v1 = select v0, 0x8fc, 0
+    v2 = extcall i160 0xbeef, gas v1, value 0
+    ret v2
+}
+
+; function sendInsufficient() external returns (bool) [selector 0x244c33f1]
+fn @sendInsufficient() -> i1 [selector=0x244c33f1, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 1, 0
+    v1 = select v0, 0x8fc, 0
+    v2 = extcall i160 0xbeef, gas v1, value 1
+    ret v2
+}
+
+; function balances() external payable returns (uint256 before_, uint256 middle, uint256 after_) [selector 0x7bb98a68]
+fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = balance v1
+    v3 = eq 1, 0
+    v4 = select v3, 0x8fc, 0
+    v5 = extcall i160 0xbeef, gas v4, value 1
+    v6 = eq v5, false
+    icall revert_if<empty>, v6
+    v7 = address
+    v8 = zext i160 v7 to i256
+    v9 = balance v8
+    v10 = eq 1, 0
+    v11 = select v10, 0x8fc, 0
+    v12 = extcall i160 0xbeef, gas v11, value 1
+    jumpi v12, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v13 = address
+    v14 = zext i160 v13 to i256
+    v15 = balance v14
+    v16 = insert_value struct0, undef struct0, 0, v2
+    v17 = insert_value struct0, v16, 1, v9
+    v18 = insert_value struct0, v17, 2, v15
+    ret v18
+}
+
+; function sendRevertData() external returns (bytes4 data) [selector 0x2acce81c]
+fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = trunc i256 v0 to i160
+    v2 = eq 0, 0
+    v3 = select v2, 0x8fc, 0
+    v4 = extcall v1, gas v3, value 0
+    returndatacopy 0, 0, 4 !metadata(memory=scratch)
+    v5 = mload 0 !metadata(memory=scratch)
+    ret v5
+}
+
+; function transferOutOfGas() external payable [selector 0xb3a4387c]
+fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq 1, 0
+    v3 = select v2, 0x8fc, 0
+    v4 = extcall v1, gas v3, value 1
+    jumpi v4, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
+
+; function transferInsufficient() external [selector 0x44d19381]
+fn @transferInsufficient() [selector=0x44d19381, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq 1, 0
+    v1 = select v0, 0x8fc, 0
+    v2 = extcall i160 0xbeef, gas v1, value 1
+    jumpi v2, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    ret
+}
