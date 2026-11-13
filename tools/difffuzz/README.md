@@ -98,6 +98,11 @@ counted in `summary.json` instead:
 
 - **Gas.** A call that reads gas, or runs out of it on either EVM, may differ in anything:
   the compilers do not promise gas parity, and the interpreters do not model gas.
+- **Documented compiler differences.** Between Solar's and solc's bytecode only, a contract
+  with inline assembly (raw bits and memory layout: CODEGEN-001, -009, -010, -012, -025 in
+  docs/SOLC_DIVERGENCE.md), one that reads compiled code (`type(C).runtimeCode`) or one with
+  internal function types (pointer values are code offsets). Solar's own legs and SolidCore
+  are still compared.
 
 These need a look before they are classified, and `cases/` records the ones found so far:
 
@@ -121,3 +126,7 @@ These need a look before they are classified, and `cases/` records the ones foun
   pipeline's order (solidity-lean's EVAL_ORDER_DESIGN.md) and checks the index first. Under
   this order no refinement from SolidCore to the compiler's bytecode can hold for such a
   function; the source semantics and the compiler must pick the same order.
+- `binary-operand-order.json`: `require((int128(7) / int128(0)) < (int128(-2) + type(int128).min));`.
+  The compiler and solc `--via-ir` revert with `Panic(0x12)`: they evaluate the left operand
+  first. SolidCore and solc's legacy pipeline revert with `Panic(0x11)`: they evaluate the right
+  operand first. Same cause as the case above, for binary operators.

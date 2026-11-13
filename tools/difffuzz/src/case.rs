@@ -318,9 +318,38 @@ pub(crate) fn run(cli: &Cli, case: &Case, dir: &Path) -> Outcome {
             }
         }
     }
+    if let Some(why) = known_difference(&case.source()) {
+        for d in &mut out.divergences {
+            if d.legs == "solar-evm/solc-evm" && d.accepted.is_none() {
+                d.accepted = Some(why.into());
+            }
+        }
+    }
     out.stats.divergences = out.divergences.len() as u64;
     out.solc_artifact = Some(solc);
     out
+}
+
+/// Code whose Solar and solc bytecode may differ by design (docs/SOLC_DIVERGENCE.md).
+///
+/// Only the comparison with solc is waived: Solar's own legs still have to agree.
+pub(crate) fn known_difference(src: &str) -> Option<&'static str> {
+    if src.contains(".runtimeCode") || src.contains(".creationCode") {
+        return Some("bytecode: the code reads compiled bytecode");
+    }
+    if src.contains("assembly") {
+        return Some("assembly: raw bits and memory layout differ by design");
+    }
+    // A function type is written `function(`; a declaration names the function first.
+    let internal_fn = src.match_indices("function(").any(|(at, _)| {
+        let rest = &src[at..];
+        let end = rest.find([';', '{']).unwrap_or(rest.len());
+        rest[..end].contains(") internal")
+    });
+    if internal_fn {
+        return Some("internal function pointers are code offsets");
+    }
+    None
 }
 
 /// Saves a case that diverged, reduced when asked; returns where it went.
@@ -438,4 +467,17 @@ pub(crate) fn replay(cli: &Cli, path: &Path) {
         std::process::exit(1);
     }
     let _ = hex::encode([]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::known_difference;
+
+    #[test]
+    fn known_differences() {
+        assert!(known_difference("contract C { function f() internal {} }").is_none());
+        assert!(known_difference("struct E { function() internal returns (uint) cb; }").is_some());
+        assert!(known_difference("bytes32 h = keccak256(type(M).runtimeCode);").is_some());
+        assert!(known_difference("function f() { assembly { x := 1 } }").is_some());
+    }
 }
