@@ -17,8 +17,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod coverage;
 mod external;
 
+pub use coverage::run_coverage_suite;
 pub use external::run_external_suite;
 
 // ============================================================================
@@ -347,6 +349,18 @@ fn forge_available() -> bool {
     Command::new("forge").arg("--version").output().is_ok()
 }
 
+/// The directory `SOLAR_FOUNDRY_REPORT_DIR` names, relative to the workspace root if not absolute.
+fn report_dir() -> Option<PathBuf> {
+    let dir = PathBuf::from(std::env::var_os("SOLAR_FOUNDRY_REPORT_DIR")?);
+    Some(if dir.is_absolute() { dir } else { workspace_root().join(dir) })
+}
+
+/// The output of `forge --version`, if forge runs.
+fn forge_version() -> Option<String> {
+    let output = Command::new("forge").arg("--version").output().ok()?;
+    output.status.success().then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
 /// Returns whether this forge accepts `--no-lint`, which older releases reject.
 fn forge_supports_no_lint() -> bool {
     static SUPPORTED: OnceLock<bool> = OnceLock::new();
@@ -591,13 +605,9 @@ fn write_runtime_report(
     solar_runs: &[(Option<OptLevel>, CompilerRun)],
     solc_run: Option<&CompilerRun>,
 ) {
-    let Some(report_dir) = std::env::var_os("SOLAR_FOUNDRY_REPORT_DIR") else {
+    let Some(report_dir) = report_dir() else {
         return;
     };
-
-    let report_dir = PathBuf::from(report_dir);
-    let report_dir =
-        if report_dir.is_absolute() { report_dir } else { workspace_root().join(report_dir) };
     fs::create_dir_all(&report_dir).expect("failed to create Foundry report directory");
 
     let mut rerun_env = serde_json::Map::new();
@@ -613,12 +623,7 @@ fn write_runtime_report(
             rerun_env.insert(name.into(), value.into());
         }
     }
-    let forge_version = Command::new("forge")
-        .arg("--version")
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned());
+    let forge_version = forge_version();
     let report = serde_json::json!({
         "forge_version": forge_version,
         "project": {

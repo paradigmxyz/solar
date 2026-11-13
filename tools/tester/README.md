@@ -205,3 +205,66 @@ Environment variables:
   the unoptimized Solar leg can run projects that need solc's optimizer to
   compile. Without it, the default suite runs all three levels and the external
   suite follows each project's own settings.
+
+## Foundry coverage parity
+
+`cargo tq foundry-coverage [project]` measures `forge coverage` across a matrix
+of compilers and settings, so coverage parity between the compiler and solc can
+be tracked and regressions caught. It is local-only like the external suite and
+never runs in CI. `project` is an in-repo project under `tests/foundry` or an
+external project from `foundry-external`; without it, every in-repo project
+runs. Set `SOLAR_FOUNDRY_COVERAGE_EXTERNAL=1` to add every external project that
+runs tests. External projects reuse the checkouts, pinned solc versions, test
+fixes, skips, and prebuild profiles of `foundry-external`, and
+`SOLAR_FOUNDRY_EXTERNAL_MANIFEST` applies as well.
+
+Each project runs `forge coverage --report debug` in seven legs:
+
+| Leg               | Compiler | Settings                           |
+| ----------------- | -------- | ---------------------------------- |
+| `solc-legacy`     | solc     | forge's default: optimizer off     |
+| `solc-legacy-opt` | solc     | optimizer on, runs 200             |
+| `solc-ir-min`     | solc     | `--ir-minimum`                     |
+| `solc-ir-opt`     | solc     | `viaIR` and optimizer on, runs 200 |
+| `solar-none`      | compiler | optimizer off                      |
+| `solar-gas`       | compiler | optimizer on, runs 200             |
+| `solar-size`      | compiler | optimizer on, runs 1               |
+
+Forge disables the optimizer and `viaIR` for coverage. The optimized legs run
+`forge coverage --keep-optimizer` and set `FOUNDRY_OPTIMIZER`,
+`FOUNDRY_OPTIMIZER_RUNS`, and `FOUNDRY_VIA_IR`. A forge whose
+`forge coverage --help` lacks `--keep-optimizer` skips those legs with a message.
+Fuzz and invariant limits are fixed and equal across legs (16 fuzz runs, 4
+invariant runs of depth 16), and external projects keep their fixed fuzz seed.
+Fuzzed code can still hit different counts per compiler, because forge's fuzz
+dictionary reads constants from the bytecode. Legs of one project run in
+parallel, except for projects with prebuild profiles.
+
+The debug report lists every coverage item with its hits, then the anchors per
+contract. An item is keyed by source path, kind (with branch and path IDs, or
+the function name), and byte range. An item without an anchor in a leg has no
+debug info there, and an anchored item with no hits was never reached. The
+printed summary gives, for each leg, its items, anchored items, and hit items,
+and against `solc-legacy` the items solc anchors that the leg does not, the
+items solc hits that the leg does not, and the items both hit with different
+counts. Each compiler leg also prints the same counts against its solc peers:
+`solar-none` against `solc-ir-min`, and `solar-gas` and `solar-size` against
+`solc-legacy-opt` and `solc-ir-opt`.
+
+Coverage differences never fail the run. A leg fails the run only when forge
+fails without a report, or prints any item the runner cannot parse; a leg whose
+tests fail still counts, with status `tests-failed`. A solc leg that hits solc's
+stack-too-deep limit is `skipped`, as are the solc legs of `stack-deep` that hit it. The
+mode ignores `SOLAR_FOUNDRY_OPTIMIZATION`, and a project must not set
+`ir_minimum` or `keep_optimizer` in its `[coverage]` config, because forge reads
+those as always on.
+
+The runner writes one `coverage-<project>.json` per project to
+`SOLAR_FOUNDRY_REPORT_DIR`, or `target/foundry-coverage` by default. It holds
+each leg's status, totals, and differences, and every item with its anchored
+flag and hits in each leg; an item that a leg does not list is `null` there.
+
+Anchor lines name their item by source ID, which differs between builds, so a
+project that compiles in several builds (mixed pragmas) can leave anchors
+unresolved. The runner prints their count and the JSON records it as
+`unresolved_anchors`; distrust the unanchored counts of a leg where it is not 0.
