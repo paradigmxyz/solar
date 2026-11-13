@@ -1,0 +1,61 @@
+//@ compile-flags: -Zmir-pipeline=lower-frame-slots
+@module ValidateFrameSlots
+
+// Reject unsupported slot shapes before lowering can assert or discard an offset.
+fn @slice_load() {
+  bb0:
+    v0 = frame_load multi_return, memory, 0
+    //~? ERROR: [fn0] [bb0, inst0] multi-return frame slot requires a word at offset zero
+    stop
+}
+
+fn @slice_store(arg0: slice<memory>) {
+  bb0:
+    frame_store multi_return, memory, 0, arg0
+    //~? ERROR: [fn1] [bb0, inst0] multi-return frame slot requires a word at offset zero
+    stop
+}
+
+fn @offset_load() {
+  bb0:
+    v0 = frame_load multi_return, word, 1
+    //~? ERROR: [fn2] [bb0, inst0] multi-return frame slot requires a word at offset zero
+    stop
+}
+
+fn @offset_store() {
+  bb0:
+    frame_store multi_return, word, 1, 7
+    //~? ERROR: [fn3] [bb0, inst0] multi-return frame slot requires a word at offset zero
+    stop
+}
+
+fn @external_overflow() {
+  bb0:
+    v0 = frame_load scratch, word, 18446744073709551615
+    //~? ERROR: [fn4] [bb0, inst0] frame slot offset overflows u64
+    stop
+}
+
+fn @internal_overflow() {
+  bb0:
+    frame_store internal_frame, word, 18446744073709551615, 7
+    //~? ERROR: [fn5] [bb0, inst0] frame slot offset overflows u64
+    stop
+}
+
+fn @wrong_load_type() {
+  bb0:
+    v0: i8 = frame_load scratch, word, 0
+    //~? ERROR: [fn6] [bb0, inst0] `frame_load` has incompatible scalar types; use an explicit cast
+    stop
+}
+
+fn @valid_slots() {
+  bb0:
+    v0 = frame_load multi_return, word, 0
+    frame_store multi_return, word, 0, v0
+    v1 = frame_load scratch, memory, 1
+    frame_store scratch, memory, 1, v1
+    stop
+}

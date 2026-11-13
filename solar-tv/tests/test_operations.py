@@ -370,6 +370,8 @@ class OperationTests(unittest.TestCase):
             "abi_decode",
             "mcopy",
             "internal_frame_addr",
+            "frame_load",
+            "frame_store",
             "constructor_args_base",
             "constructor_args_end",
             "datacopy",
@@ -384,8 +386,6 @@ class OperationTests(unittest.TestCase):
             self.assertEqual(inventory["mir"][name], "direct_state")
         for name in (
             "icall",
-            "frame_load",
-            "frame_store",
             "address_call",
             "validate_abi",
             "gas",
