@@ -127,7 +127,9 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .unary op width,[a] => value frame (widenBits (MIR.unary op (wordBits width a)))
   | .shift op width,[amount,v] => value frame (widenBits (MIR.shift op (wordBits width v) (wordBits width amount)))
   | .wordBinary op,[a,b] => value frame (MIR.wordBinary op a b)
-  | .ternary op,[a,b,c] => value frame (MIR.ternary op a b c)
+  | .ternary op checked,[a,b,c] =>
+    if checked && c == 0 then return .reverted (.panic 0x12)
+    else value frame (MIR.ternary op a b c)
   | .word,[a] => value frame a
   | .freePointer,[] => freePointer frame
   | .allocate zeroed checked,[size] => allocate frame size zeroed checked
@@ -153,6 +155,9 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
     let (word,next) ← fixedSlot frame [slot]
     value next (word + index * BitVec.ofNat 256 stride)
   | .slot .bytesKey,_ => .error "bytes mapping needs typed operands"
+  | .slot .namespace,[object] =>
+    let (word,next) ← namespaceSlot frame object
+    value next word
   | .external _,_ => .error "external instruction requires MIR machine context"
   | .call _,_ => .error "internal call requires MIR machine context"
   | .pointerAdd,[pointer,offset] => value frame (pointer + offset)

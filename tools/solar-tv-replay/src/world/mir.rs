@@ -76,6 +76,14 @@ impl Host for Context<'_> {
             _ => None,
         }
     }
+
+    fn destroy(
+        &mut self,
+        beneficiary: U256,
+        pending: PendingChanges<'_>,
+    ) -> Result<(), &'static str> {
+        self.native.destroy(beneficiary, pending)
+    }
 }
 
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {

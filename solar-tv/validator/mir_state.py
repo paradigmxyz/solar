@@ -127,7 +127,7 @@ def operation(value, definitions):
             expression = ".comparison .eq 256"
             args = [*args, {"kind": "constant", "value": "0", "type": {"bits": 256}}]
         elif name in {"addmod", "mulmod"}:
-            expression = f".ternary .{name}"
+            expression = f".ternary .{name} false"
         elif name in {
             "mload",
             "mstore",
@@ -240,6 +240,15 @@ def operation(value, definitions):
             "[" + ",".join("true" if x else "false" for x in value["functions"]) + "]"
         )
         expression = f".abi (.encode {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} {functions})"
+    elif kind == "checked_modular":
+        name = value["name"]
+        if name not in {"addmod", "mulmod"}:
+            raise Unsupported("unknown modular arithmetic builtin")
+        expression = f".ternary .{name} true"
+    elif kind == "namespace":
+        expression = ".slot .namespace"
+    elif kind == "value_transfer":
+        expression = f".external (.transfer {'true' if value['revert'] else 'false'})"
     elif kind == "require_literal":
         data = ",".join(number(byte, 256) for byte in value["bytes"])
         expression = f".abi (.require (.literal [{data}]))"
@@ -425,6 +434,10 @@ def block(value, definitions):
     kind = term["kind"]
     if kind in {"stop", "invalid"}:
         end = "." + kind
+    elif kind == "revert_return_data":
+        end = ".revertReturnData"
+    elif kind == "selfdestruct":
+        end = f".selfdestruct {operand(term['args'][0])}"
     elif kind == "jump":
         end = f".jump {number(term['target'])}"
     elif kind == "branch":

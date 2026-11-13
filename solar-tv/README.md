@@ -460,6 +460,16 @@ dynamic messages and recursive custom-error arguments. `require(false, "")`
 returns `Error(string)` with an empty string, not an empty revert. Passing checks
 evaluate their arguments but do not read the referenced payload objects.
 
+Checked `addmod` and `mulmod` panic on a zero modulus; their nonzero cases use
+full-width modular arithmetic. ERC-7201 namespace hashing retains the input
+reads and scratch write. Send and transfer execute real children with the
+2,300-gas stipend, including out-of-gas and storage-sentry failures. Transfer and
+`revert_returndata` preserve the failed call's complete revert bytes.
+
+MIR `selfdestruct` applies fork-specific account lifetime and balance effects,
+including Cancun's preservation of existing accounts, and rejects static writes.
+Amsterdam's changed destruction semantics remain unsupported in this path.
+
 Packed encodings accept literals and scalars; packed hashes require at most one
 merged word or whole-word parts. Reference packed inputs and physical call-return
 buffers remain unsupported. `validate_abi` needs decoder provenance or canonical
