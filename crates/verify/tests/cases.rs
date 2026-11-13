@@ -362,6 +362,16 @@ fn asm() {
 }
 
 #[test]
+fn asm_memory_paths() {
+    check("tests/cases/asm_memory_paths.sol")
+}
+
+#[test]
+fn memory_alias() {
+    check("tests/cases/memory_alias.sol")
+}
+
+#[test]
 fn broadcast() {
     check("tests/cases/broadcast.sol")
 }
@@ -372,6 +382,11 @@ fn control() {
 }
 
 #[test]
+fn created() {
+    check("tests/cases/created.sol")
+}
+
+#[test]
 fn eth() {
     check("tests/cases/eth.sol")
 }
@@ -379,6 +394,11 @@ fn eth() {
 #[test]
 fn features() {
     check("tests/cases/features.sol")
+}
+
+#[test]
+fn fnptr() {
+    check("tests/cases/fnptr.sol")
 }
 
 #[test]
@@ -417,8 +437,8 @@ fn rewrites() {
 }
 
 #[test]
-fn shared_names() {
-    check("tests/cases/shared_names.sol")
+fn slots() {
+    check("tests/cases/slots.sol")
 }
 
 #[test]

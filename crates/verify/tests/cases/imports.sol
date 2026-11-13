@@ -2,10 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "./auxiliary/imports/Base.sol";
+import "./auxiliary/imports/Words.sol";
 import {Bounded} from "shapes/Bounded.sol";
 
-/// Code from a relative import (a base contract, a struct and a file-level constant) and from a
-/// remapped one (a library).
+/// Code from a relative import (a base contract, a struct, a file-level constant that two files
+/// define alike, and a free function) and from a remapped one (a library).
 contract Imports is Base {
     /// @custom:ensures result == x + 1
     function ok_baseHelper(uint256 x) external pure returns (uint256 result) {
@@ -40,5 +41,15 @@ contract Imports is Base {
     function ok_inheritedState(uint256 x) external {
         require(x < LIMIT && total < LIMIT);
         total += x;
+    }
+
+    /// @custom:ensures result <= x
+    function ok_freeFunction(uint256 x) external pure returns (uint256 result) {
+        result = halve(x);
+    }
+
+    /// @custom:ensures result < LIMIT
+    function bad_freeFunction(uint256 x) external pure returns (uint256 result) {
+        result = halve(x);
     }
 }

@@ -54,7 +54,8 @@ Imports resolve as with `solar` and solc, so a project needs no flattening: pass
 `PREFIX=PATH` (or `CONTEXT:PREFIX=PATH`), and `--base-path PATH` and `--include-path PATH` (`-I`).
 In a Foundry project, `solar-verify $(cat remappings.txt) src/Vault.sol` reads the project's
 remappings. Names resolve as if the files were flattened, so an import that renames or
-namespaces (`{A as B}`, `* as M`, `"a.sol" as M`) and a name two files define are errors.
+namespaces (`{A as B}`, `* as M`, `"a.sol" as M`) and a name two files define are errors, except
+a file-level constant two files define with the same type and initializer.
 Contracts from imported files are not verified, but the functions a verified contract inherits
 from them are, as its own. `mutate` takes the same options, and verifies each mutant, and compiles
 it with solc for TCE, at the file's own path.
@@ -186,7 +187,23 @@ it may write, assume its ensures. Functions without a contract are inlined, so r
 contract. Loops are cut at their invariants.
 
 An external call may reenter any public function, so the contract invariants must hold before it,
-and storage is havocked across it. Under a `@custom:reentrancy-guard` lock, only what the entry
+and storage is havocked across it. A call to an address the function itself created (`new C`, or
+`create`/`create2` of `type(C).creationCode` read as `add(p, 32)` and `mload(p)`) runs C's code,
+or none where the creation failed: when that code (the constructors and state initializers, or the
+called function with its modifiers and every function it calls) makes no external call, creation
+or call through a pointer, neither the creation nor the call can reenter, so neither havocs. The
+target must be proved to be that address, the called function must match by name and parameter
+types, and any other external call in between forgets what the created addresses hold.
+
+A high-level call returns only from an address with code (the compiler checks for code, or the
+return data comes back short), so after it the target is not 0; `msg.sender` and `this` are not 0
+either. A contract that creates contracts has the ghost `__created` (`mapping(address => bool)`):
+the addresses it deployed with a contract of the program whose code can never remove itself (no
+`selfdestruct`, `delegatecall` or `callcode` in it, its bases or any library). A creation
+(`new`, `create`, `create2`) returns 0 or an address outside `__created`, since it succeeds only
+where there is no code, and adds it when its code is permanent; `new` never returns 0. Specs read
+it, so an invariant such as `getPair[a][b] != address(0) ==> __created[getPair[a][b]]` makes a
+new pair differ from every pair stored. Under a `@custom:reentrancy-guard` lock, only what the entry
 points that stay callable under the lock can write is havocked. View and pure calls and
 `.transfer` havoc nothing.
 
@@ -196,17 +213,38 @@ verify everything silently.
 ## Limits
 
 Supported: value types, enums, structs, nested mappings, storage and memory dynamic arrays,
-modifiers, inheritance (across imported files too), libraries and `using for`, internal, interface and
-low-level calls, try/catch, tuples, `unchecked`, casts, units, `keccak256`, `abi.encode` and typed
-`abi.decode`, ETH balances of this contract, and transient storage.
+modifiers, inheritance (across imported files too), libraries and `using for`, free (file-level)
+functions, internal, interface and low-level calls, internal function pointers, try/catch, tuples,
+`unchecked`, casts, units, `keccak256`, `abi.encode` and typed `abi.decode`, ETH balances of this
+contract, and transient storage.
+
+Free functions are called as internal library functions. An internal function pointer holds 0 or
+the tag of a function the code names as a value (`f = inc`, `L.f`, a free function); tags are
+symbolic, distinct and nonzero, so nothing depends on how the compiler numbers functions. A call
+through a pointer must be shown to hold 0 (Solidity panics) or the tag of a function of its arity,
+else the function is not modelled: a pointer from storage, or one assembly computed, fails closed.
+Each target the path allows runs as an internal call, so a call writes what its targets may write.
+Copying a pointer in assembly (`outFn := inFn`, the cast Seaport reuses code with) is modelled
+exactly, and a call through the copy is accepted only when the target's parameter and return
+types are the pointer's: a cast that reinterprets a value (a `MemoryPointer` as a struct) is not
+modelled.
 
 Inline assembly runs in the same executor with EVM word semantics, `sload`/`sstore` over raw
 storage, and memory at constant offsets. `sload(p.slot)` and `sstore(p.slot, v)` work on a local
 storage pointer `p` to a struct whose fields pack into one slot (`examples/struct_slot.sol`).
+`x.slot` of a state variable that fills whole slots (a mapping, a dynamic array, a 32-byte value)
+is a symbolic slot below 2^128, distinct from the others, so a proof holds for any layout; its
+`x.offset` is 0. `sload` and `sstore` at that slot reach `x` itself, and at `keccak256(key . slot)`
+(nested for nested mappings) the mapping's entry, when the key is a `uint256`, `bytes32` or
+address and the value one whole word; a key outside the key type's range names a raw slot.
+Any other address built from a `.slot` is not modelled. A raw `sstore` may write every variable
+whose `.slot` assembly reads anywhere, so a call summarized by its contract havocs them. An enum
+assigned in assembly must be shown to get one of its variants, and `byte` takes a symbolic index.
 
 Not supported: Yul `for` loops, memory at symbolic offsets, `.slot` and `.offset` of anything else,
-`do`/`while` loops, imports that rename or namespace, storage pointers chosen by conditionals, function
-pointers, the code of other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to
+`do`/`while` loops, imports that rename or namespace, storage pointers chosen by conditionals,
+function pointer casts that reinterpret a value, external function pointers, assembly `return`,
+the code of other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to
 broadcast lemmas). Unsupported constructs are reported as errors, never skipped, so a ✔ is never
 produced over code solar-verify did not model.
 
@@ -220,6 +258,9 @@ produced over code solar-verify did not model.
   (see Testing assumptions).
 - Other contracts reach this contract's storage only through its public functions: no
   `delegatecall` into it.
+- No code is ever deployed at the zero address, and code a contract cannot remove itself stays
+  (EIP-6780: `selfdestruct` removes code only in the transaction that created it, and then only
+  from code that runs it).
 - `keccak256` is injective and its results lie in `[2^128, 2^256)`, so they never collide with
   small constant slots.
 - Raw storage slots that assembly reaches are disjoint from the declared state variables, and

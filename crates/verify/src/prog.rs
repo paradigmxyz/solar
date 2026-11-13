@@ -16,6 +16,10 @@ use solar_parse::{
     },
 };
 
+/// The library that holds the file-level (free) functions of every file: they are called and
+/// verified as internal library functions. The name is no Solidity identifier.
+pub(crate) const FREE: &str = "<free>";
+
 pub(crate) struct Spec<'a> {
     pub expr: &'a Expr<'a>,
     pub text: String,
@@ -167,7 +171,7 @@ impl<'a> Program<'a> {
     pub(crate) fn using_fns(&self, f: &str, nargs: usize) -> Vec<(&Contract<'a>, &Func<'a>)> {
         self.contracts
             .iter()
-            .filter(|c| c.kind == ContractKind::Library)
+            .filter(|c| c.kind == ContractKind::Library && c.name != FREE)
             .flat_map(|c| {
                 c.funcs
                     .iter()
@@ -177,9 +181,12 @@ impl<'a> Program<'a> {
             .collect()
     }
     pub(crate) fn using_fn(&self, f: &str, nargs: usize) -> Option<(&Contract<'a>, &Func<'a>)> {
-        self.contracts.iter().filter(|c| c.kind == ContractKind::Library).find_map(|c| {
-            c.funcs.iter().find(|g| g.name == f && g.params.len() == nargs + 1).map(|g| (c, g))
-        })
+        self.contracts
+            .iter()
+            .filter(|c| c.kind == ContractKind::Library && c.name != FREE)
+            .find_map(|c| {
+                c.funcs.iter().find(|g| g.name == f && g.params.len() == nargs + 1).map(|g| (c, g))
+            })
     }
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
         self.contracts.iter().find(|c| c.name == name)
@@ -274,6 +281,11 @@ impl<'s, 'a> Builder<'s, 'a> {
                 Box::new(self.ty(&a.element)),
                 a.size.as_deref().and_then(|e| array_size(&self.const_sizes, e)),
             ),
+            TypeKind::Function(f) if f.visibility() != Some(ast::Visibility::External) => {
+                let params = f.parameters.iter().map(|v| self.ty(&v.ty)).collect();
+                let rets = f.returns().iter().map(|v| self.ty(&v.ty)).collect();
+                Ty::Fn(Box::new((params, rets)))
+            }
             TypeKind::Function(_) => Ty::Opaque,
             TypeKind::Custom(p) => {
                 let n = p.last().as_str().to_string();
@@ -580,6 +592,8 @@ pub(crate) fn build<'a>(
     let mut lib_asm = false;
     let mut order = vec![];
     let mut imported = FxHashSet::default();
+    // file-level functions, and whether each comes from an imported file
+    let mut free_fns: Vec<(&'a ast::Item<'a>, &'a ItemFunction<'a>, bool)> = vec![];
     let collect_names = |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>| match &it.kind {
         ItemKind::Enum(e) => {
             b.enums.insert(e.name.as_str().to_string(), e.variants.len());
@@ -610,8 +624,18 @@ pub(crate) fn build<'a>(
         .flat_map(|(index, unit)| unit.items.iter().map(move |item| (item, index != last)));
     for (it, from_import) in items_of {
         collect_names(&mut b, it);
+        if let ItemKind::Function(f) = &it.kind {
+            free_fns.push((it, f, from_import));
+            for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
+                crate::walk::all_stmts(st, &mut |x| {
+                    lib_asm |= matches!(x.kind, StmtKind::Assembly(_))
+                });
+            }
+        }
         if let ItemKind::Variable(v) = &it.kind
             && let Some(n) = v.name
+            // a constant two files repeat alike (the loader checked they read alike)
+            && !file_consts.iter().any(|(m, _)| m == n.as_str())
         {
             file_consts.push((n.as_str().to_string(), v));
         }
@@ -708,12 +732,19 @@ pub(crate) fn build<'a>(
             base_args: FxHashMap::default(),
         };
         let mut has_asm = false;
+        // whether the contract's code creates contracts (`new C`; assembly may too)
+        let mut creates = false;
         for cn in &lin {
             for sub in items[cn].1.body.iter() {
                 if let ItemKind::Function(f) = &sub.kind {
                     for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
                         crate::walk::all_stmts(st, &mut |x| {
-                            has_asm |= matches!(x.kind, StmtKind::Assembly(_))
+                            has_asm |= matches!(x.kind, StmtKind::Assembly(_));
+                            crate::walk::stmt_exprs(x, &mut |e| {
+                                crate::walk::sub_exprs(e, &mut |e| {
+                                    creates |= matches!(e.kind, ast::ExprKind::New(_))
+                                })
+                            });
                         });
                     }
                 }
@@ -920,6 +951,20 @@ pub(crate) fn build<'a>(
                 ghost_decl: None,
                 transient: false,
             });
+            if creates || has_asm || lib_asm {
+                // the addresses this contract deployed with code that can never be removed
+                // (see `Vc::created`): each holds code, so no later creation lands there
+                con.state.push(StateVar {
+                    name: "__created".into(),
+                    ty: Ty::Map(Box::new(Ty::Addr), Box::new(Ty::Bool)),
+                    init: None,
+                    constant: false,
+                    immutable: false,
+                    ghost: true,
+                    ghost_decl: None,
+                    transient: false,
+                });
+            }
             if con.kind == ContractKind::Contract
                 && !con.funcs.iter().any(|f| f.name == "constructor")
             {
@@ -1011,6 +1056,45 @@ pub(crate) fn build<'a>(
         }
         for (i, sp) in inherit {
             con.funcs[i].ensures.push(sp);
+        }
+        contracts.push(con);
+    }
+    if !free_fns.is_empty() {
+        let mut con = Contract {
+            name: FREE.into(),
+            kind: ContractKind::Library,
+            state: vec![],
+            funcs: vec![],
+            modifiers: FxHashMap::default(),
+            invariants: vec![],
+            lock_stable: vec![],
+            lock: None,
+            lock_expr: None,
+            groups: vec![],
+            broadcast_use: vec![],
+            overridden: vec![],
+            lin: vec![FREE.into()],
+            base_ctors: vec![],
+            imported: free_fns.iter().all(|(_, _, imp)| *imp),
+            base_args: FxHashMap::default(),
+        };
+        for (it, f, _) in &free_fns {
+            con.funcs.push(b.func(FREE, it, f));
+        }
+        for (n, v) in &file_consts {
+            if v.mutability == Some(ast::VarMut::Constant) {
+                let ty = b.ty(&v.ty);
+                con.state.push(StateVar {
+                    name: n.clone(),
+                    ty,
+                    init: v.initializer.as_deref(),
+                    constant: true,
+                    immutable: false,
+                    ghost: false,
+                    ghost_decl: None,
+                    transient: false,
+                });
+            }
         }
         contracts.push(con);
     }

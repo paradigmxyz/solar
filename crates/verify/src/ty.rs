@@ -14,6 +14,9 @@ pub(crate) enum Ty {
     Arr(Box<Self>, Option<u64>),
     /// strings, bytes and anything we do not reason about precisely
     Opaque,
+    /// an internal function pointer: its parameter and return types. Its value is 0 when unset,
+    /// else the symbolic tag of a function referenced as a value (`Vc::fn_tag`).
+    Fn(Box<(Vec<Self>, Vec<Self>)>),
     /// integer literal / mathematical integer (spec mode)
     Lit,
 }
@@ -80,6 +83,14 @@ impl Ty {
                 None => format!("{}[]", e.name()),
             },
             Self::Opaque => "opaque".into(),
+            Self::Fn(sig) => {
+                let names = |ts: &[Self]| ts.iter().map(Self::name).collect::<Vec<_>>().join(",");
+                if sig.1.is_empty() {
+                    format!("function({})", names(&sig.0))
+                } else {
+                    format!("function({}) returns ({})", names(&sig.0), names(&sig.1))
+                }
+            }
             Self::Lit => "int".into(),
         }
     }
