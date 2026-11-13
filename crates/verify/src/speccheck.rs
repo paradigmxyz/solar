@@ -598,7 +598,7 @@ fn compile(name: &str, src: &str) -> Result<FxHashMap<String, Vec<u8>>, String> 
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(name);
     std::fs::write(&path, src).map_err(|e| e.to_string())?;
-    let opts = solar_cli::CompileOpts {
+    let mut opts = solar_cli::CompileOpts {
         input: vec![path.to_string_lossy().to_string()],
         emit: vec![solar_cli::config::CompilerOutput::Bin],
         out_dir: Some(dir.clone()),
@@ -607,6 +607,10 @@ fn compile(name: &str, src: &str) -> Result<FxHashMap<String, Vec<u8>>, String> 
         no_warnings: true,
         ..Default::default()
     };
+    // The harness observes what the code does. Checks of source `@custom:ensures` clauses at run
+    // time (`-Zcheck-analyses`, on by default in debug builds) would revert where a trusted
+    // function breaks its spec, which hides the violation.
+    opts.unstable.check_analyses = Some(false);
     // The compiler keeps its session in thread-local state: give it a thread of its own.
     let ok = std::thread::spawn(move || solar_cli::run_compiler_args(opts).is_ok())
         .join()
