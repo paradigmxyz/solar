@@ -991,7 +991,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             let t = pick(&|v| Some(v.t.clone())).unwrap();
             let len = pick(&|v| v.len.clone());
             let sort = first.ty.sort();
-            let t = self.def(&k, &sort, &t);
+            // a binding every state agrees on keeps its term (memory bytes in assembly are
+            // recognised by their canonical terms)
+            let t = if t == first.t { t } else { self.def(&k, &sort, &t) };
             let len = len.map(|l| self.def(&format!("{k}.length"), "Int", &l));
             env.insert(k, Var { ty: first.ty, t, len });
         }

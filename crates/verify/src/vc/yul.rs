@@ -7,7 +7,10 @@
 //! normalise to one canonical term and keccak inputs assembled from byte slices of memory come out
 //! as plain arithmetic, e.g. keccak256 over owner || seed is keccak(32, owner * 2^96 + seed).
 //!
-//! Memory is modelled per assembly block with concrete offsets only: byte -> (word, byte index).
+//! Memory is modelled per assembly block with concrete offsets only. Each byte is a binding of the
+//! path state (env key `__ym<hex offset>`, see `mkey`), so branches, `leave` and loops merge memory
+//! as they merge variables. A byte written as part of a word is bound to its canonical byte term,
+//! which `Yc::canon` maps back to (word, byte index) so whole words read back as the word.
 //! Reading memory the block did not write gives a fresh word (sound: unknown). A Solidity memory
 //! struct referenced in assembly is a pointer to a region holding its fields as ABI words. Raw
 //! storage (sload/sstore) is the ghost state variable __raw : mapping(uint256 => uint256), assumed
@@ -160,7 +163,8 @@ fn numeral(s: &S) -> Option<BigInt> {
 
 /// Per-block context of the Yul executor.
 struct Yc<'a> {
-    mem: BTreeMap<u64, (usize, u8)>,
+    /// canonical byte terms of the words written to memory: term -> (word, byte index)
+    canon: FxHashMap<String, (usize, u8)>,
     words: Vec<String>,
     /// Solidity memory structs used as pointers: name, base, byte length
     regions: Vec<(String, u64, u64)>,
@@ -184,6 +188,26 @@ const REGION_BASE: u64 = 1 << 32;
 /// model address of the free memory pointer's target (see Yc::fmp)
 const FREE_BASE: u64 = 1 << 36;
 const FREE_LEN: u64 = 1 << 20;
+
+/// The env key of memory byte `off` (model address) in an assembly block.
+fn mkey(off: u64) -> String {
+    format!("{MEM_KEY}{off:x}")
+}
+
+/// The model address of a memory byte's env key.
+fn mkey_off(k: &str) -> Option<u64> {
+    u64::from_str_radix(k.strip_prefix(MEM_KEY)?, 16).ok()
+}
+
+const MEM_KEY: &str = "__ym";
+
+/// A memory byte as the block bound it.
+enum Byte {
+    /// byte `from` of word `id`
+    Of(usize, u8),
+    /// any other term (merged bytes, ite of the branches' bytes), a value in [0, 256)
+    Term(String),
+}
 
 fn unsupported<T>(span: Span, what: impl Into<String>) -> R<T> {
     Err((span, what.into()))
@@ -611,9 +635,42 @@ impl<'p, 'a> Vc<'p, 'a> {
         cx.words.push(val);
         let id = cx.words.len() - 1;
         for i in 0..n {
-            cx.mem.insert(off + i, (id, from + i as u8));
+            let t = self.byte_term(cx, id, from + i as u8);
+            self.env.insert(mkey(off + i), Var { ty: Ty::Uint(8), t, len: None });
         }
         Ok(())
+    }
+
+    /// The canonical term of byte `b` (0 is the most significant) of word `id`.
+    fn byte_term(&mut self, cx: &mut Yc<'a>, id: usize, b: u8) -> String {
+        let w = cx.words[id].clone();
+        let sh = pow2(8 * (31 - b as u32));
+        let t = match self.y_konst(&w) {
+            Some(k) => num(&((k / &sh) % BigInt::from(256))),
+            None if b == 31 => format!("(mod {w} 256)"),
+            None if b == 0 => format!("(div {w} {})", num(&sh)),
+            None => format!("(mod (div {w} {}) 256)", num(&sh)),
+        };
+        cx.canon.entry(t.clone()).or_insert((id, b));
+        t
+    }
+
+    fn mem_byte(&self, cx: &Yc<'a>, off: u64) -> Option<Byte> {
+        let v = self.env.get(&mkey(off))?;
+        Some(match cx.canon.get(&v.t) {
+            Some(&(id, b)) => Byte::Of(id, b),
+            None => Byte::Term(v.t.clone()),
+        })
+    }
+
+    /// Forget memory bytes [lo, hi): later reads give fresh words.
+    fn mem_forget(&mut self, lo: u64, hi: u64) {
+        self.env.retain(|k, _| mkey_off(k).is_none_or(|o| o < lo || o >= hi));
+    }
+
+    /// Drop the block's memory bindings when it ends.
+    fn mem_drop(&mut self) {
+        self.env.retain(|k, _| mkey_off(k).is_none());
     }
     /// The big-endian value of memory bytes [off, off + len).
     fn mem_read(&mut self, cx: &mut Yc<'a>, span: Span, off: u64, len: u64) -> R<Lin> {
@@ -623,12 +680,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         // unwritten bytes: fresh words, kept so later reads agree
         let mut i = off;
         while i < off + len {
-            if cx.mem.contains_key(&i) {
+            if self.env.contains_key(&mkey(i)) {
                 i += 1;
                 continue;
             }
             let mut j = i;
-            while j < off + len && j - i < 32 && !cx.mem.contains_key(&j) {
+            while j < off + len && j - i < 32 && !self.env.contains_key(&mkey(j)) {
                 j += 1;
             }
             let w = self.y_fresh(span, "mload")?;
@@ -636,16 +693,28 @@ impl<'p, 'a> Vc<'p, 'a> {
             let id = cx.words.len() - 1;
             let k = j - i;
             for b in 0..k {
-                cx.mem.insert(i + b, (id, (32 - k + b) as u8));
+                let t = self.byte_term(cx, id, (32 - k + b) as u8);
+                self.env.insert(mkey(i + b), Var { ty: Ty::Uint(8), t, len: None });
             }
             i = j;
         }
         let mut acc = Lin::k(BigInt::zero());
         let mut i = off;
         while i < off + len {
-            let (id, from) = cx.mem[&i];
+            let (id, from) = match self.mem_byte(cx, i).unwrap() {
+                Byte::Of(id, from) => (id, from),
+                Byte::Term(t) => {
+                    let after = off + len - i - 1;
+                    acc = acc.add(&self.y_lin(&t).scale(&pow2(8 * after as u32)), 1);
+                    i += 1;
+                    continue;
+                }
+            };
             let mut j = i + 1;
-            while j < off + len && (j - i) < 32 && cx.mem[&j] == (id, from + (j - i) as u8) {
+            while j < off + len
+                && (j - i) < 32
+                && matches!(self.mem_byte(cx, j), Some(Byte::Of(id2, f2)) if id2 == id && f2 == from + (j - i) as u8)
+            {
                 j += 1;
             }
             let to = from as u64 + (j - i);
@@ -701,14 +770,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                         "assembly copies data into memory outside the scratch space or free memory",
                     );
                 }
-                for i in o..o + n {
-                    cx.mem.remove(&i);
-                }
+                self.mem_forget(o, o + n);
                 Ok(())
             }
             (Some(o), _) if (FREE_BASE..FREE_BASE + FREE_LEN).contains(&o) => {
                 // into free memory, of unknown length: all of free memory from o is unknown
-                cx.mem.retain(|k, _| *k < o || *k >= FREE_BASE + FREE_LEN);
+                self.mem_forget(o, FREE_BASE + FREE_LEN);
                 Ok(())
             }
             _ => unsupported(
@@ -745,7 +812,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             );
         }
         let mut cx = Yc::new();
-        self.y_block(&mut cx, &a.block)
+        let r = self.y_block(&mut cx, &a.block);
+        self.mem_drop();
+        r
     }
 
     fn y_block(&mut self, cx: &mut Yc<'a>, b: &'a yul::Block<'a>) -> R<()> {
@@ -1704,7 +1773,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                     // memory we do not track (behind a Solidity pointer): an arbitrary word
                     return one(self.y_fresh(span, "mload")?);
                 };
-                if off == 0x40 && cx.fmp.is_none() && !(0x40..0x60).any(|i| cx.mem.contains_key(&i))
+                if off == 0x40
+                    && cx.fmp.is_none()
+                    && !(0x40..0x60).any(|i| self.env.contains_key(&mkey(i)))
                 {
                     // the free memory pointer: below 2^32 (memory that large costs more gas than
                     // a block has), and the memory past it is free
@@ -1922,7 +1993,7 @@ impl<'p, 'a> Vc<'p, 'a> {
 impl<'a> Yc<'a> {
     fn new() -> Self {
         Yc {
-            mem: BTreeMap::new(),
+            canon: FxHashMap::default(),
             words: vec![],
             regions: vec![],
             funcs: vec![],

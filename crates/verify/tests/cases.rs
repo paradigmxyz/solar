@@ -362,6 +362,11 @@ fn asm() {
 }
 
 #[test]
+fn asm_memory_paths() {
+    check("tests/cases/asm_memory_paths.sol")
+}
+
+#[test]
 fn broadcast() {
     check("tests/cases/broadcast.sol")
 }
