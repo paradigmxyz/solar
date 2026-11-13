@@ -83,10 +83,16 @@ def sem(stage):
 
 
 def axioms_check(namespace, name, axioms=AXIOMS):
-    return (
-        f"/-- info: '{namespace}.{name}' depends on axioms: {axioms} -/\n"
-        f"#guard_msgs in\n#print axioms {name}\n"
+    info = f"info: '{namespace}.{name}' depends on axioms: {axioms}"
+    # Lean wraps a message wider than its format width (120) across lines; compare such a message
+    # up to whitespace, which still pins its axioms. Shorter ones stay exact, so the existing
+    # milestones regenerate unchanged.
+    guard = (
+        "#guard_msgs (whitespace := lax) in"
+        if len(info) - len("info: ") > 120
+        else "#guard_msgs in"
     )
+    return f"/-- {info} -/\n{guard}\n#print axioms {name}\n"
 
 
 def header(imports, doc, namespace, opens):

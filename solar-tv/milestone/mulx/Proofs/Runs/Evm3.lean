@@ -10,7 +10,7 @@ namespace SolarTV.Milestone.Mulx
 
 open Machine SolarTV.Export.Main SolarTV.Milestone.W1
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 8000000 in
 theorem evm3_run (o : Oracle) (call : Call) :
     EVM.Program.run o evm2 call 8 = EVM.Program.run o evm3 call 8 := by
   sym_exec

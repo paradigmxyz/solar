@@ -67,6 +67,11 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+# NAME/heartbeats, when present, is the run proofs' maxHeartbeats (certify.py's --heartbeats), for a
+# contract whose symbolic runs need more than the default: a larger budget can only let a proof
+# pass, never change what it states.
+heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
+[[ "$heartbeats" =~ ^[0-9]+$ ]] || die "$dir/heartbeats is not a number"
 
 echo "== 1. compile $source:$contract (${options[*]}) and export its stages"
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -121,7 +126,7 @@ echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops")"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 
@@ -167,6 +172,8 @@ trap 'rm -f "$audit"' EXIT
 } > "$audit"
 report="$(lake env lean -M "$memory" "$audit" 2>&1)" || { echo "$report" >&2; die "the audit does not check"; }
 echo "$report"
+# Lean wraps a long axiom list onto lines that start with a space: join them back.
+report="$(awk '/^ /{printf "%s", $0; next} NR > 1 {print ""} {printf "%s", $0} END {print ""}' <<<"$report")"
 bad="$(grep "depends on axioms" <<<"$report" | sed -E 's/.*depends on axioms: \[(.*)\]/\1/' |
     tr ',' '\n' | tr -d ' ' | grep -v -x -E 'propext|Classical\.choice|Quot\.sound' || true)"
 [[ -z "$bad" ]] || die "axioms beyond propext, Classical.choice and Quot.sound: $bad"
@@ -180,7 +187,11 @@ echo "== 5. the regenerated files are the committed ones"
 if git ls-files --error-unmatch "$dir/bytecode.hex" > /dev/null 2>&1; then
     others="$(git status --porcelain -- "$dir" solar-tv/lakefile.toml | grep -v -E " $gen/(Manifest\.lean|manifest\.json)$" || true)"
     [[ -z "$others" ]] || { echo "$others" >&2; die "regenerated files differ from the committed ones"; }
-    changed="$(git diff -U0 HEAD -- "$gen/Manifest.lean" "$gen/manifest.json" | grep '^[-+] ' | grep -v compiler || true)"
+    # Every changed line but the compiler's version, in either file: a definition such as
+    # Manifest.lean's bytecodeSha256 is one line that starts with "def", not with a space.
+    changed="$(git diff -U0 HEAD -- "$gen/Manifest.lean" "$gen/manifest.json" |
+        grep -E '^[-+]' | grep -v -E '^(\+\+\+|---) ' |
+        grep -v -E '^[-+](def compiler : String := "[^"]*"|  "compiler": "[^"]*",)$' || true)"
     [[ -z "$changed" ]] || { echo "$changed" >&2; die "the manifest differs in more than the compiler's commit"; }
     git checkout -q -- "$gen/Manifest.lean" "$gen/manifest.json"
     echo "every file of $dir regenerates to the committed one"
