@@ -81,6 +81,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
             "warm_addresses",
             "memory",
             "creation_gas",
+            "builtin_gas",
             "mir_layout",
         },
         "world",
@@ -107,6 +108,14 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         raise Unsupported("creation child gas exceeds 30000000")
     if kind != "mir" and creation_gas:
         raise Unsupported("creation_gas is an explicit MIR boundary input")
+    builtin_gas = value.get("builtin_gas", [])
+    if not isinstance(builtin_gas, list) or len(builtin_gas) > 128:
+        raise Unsupported("builtin_gas requires up to 128 child budgets")
+    builtin_gas = [int(_number(gas, 64)) for gas in builtin_gas]
+    if any(gas > 30_000_000 for gas in builtin_gas):
+        raise Unsupported("builtin child gas exceeds 30000000")
+    if kind != "mir" and builtin_gas:
+        raise Unsupported("builtin_gas is an explicit MIR boundary input")
     symbols = {}
 
     def word(value):
@@ -217,6 +226,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         "fuel": fuel,
         "memory": {"data": memory_data, "size": memory_size},
         "creation_gas": creation_gas,
+        "builtin_gas": builtin_gas,
     }
     if "mir_layout" in value:
         if kind != "mir":
@@ -402,6 +412,7 @@ def replay_input(fixture: dict) -> dict:
         "warm_addresses",
         "memory",
         "creation_gas",
+        "builtin_gas",
         "mir_layout",
     }
     return {key: value for key, value in fixture.items() if key in keys}

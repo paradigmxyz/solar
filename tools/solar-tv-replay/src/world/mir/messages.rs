@@ -30,6 +30,7 @@ pub(super) struct Native<'a> {
     environment: TxEnv,
     owner: Address,
     creation_index: usize,
+    builtin_index: usize,
     unsupported: Rc<RefCell<Option<&'static str>>>,
     checkpoint: StateCheckpoint,
     child_gas_spent: u64,
@@ -135,6 +136,7 @@ impl<'a> Native<'a> {
             environment: context::transaction(request, input)?,
             owner,
             creation_index: 0,
+            builtin_index: 0,
             child_gas_spent: 0,
             unsupported,
         })
@@ -470,9 +472,9 @@ impl<'a> Native<'a> {
         } else {
             Vec::new()
         };
-        Ok(
-            json!({"accounts":accounts,"logs":logs,"warm_addresses":observed_warm,"warm_slots":slots}),
-        )
+        let boundary_budgets = keep_transient.then_some([self.creation_index, self.builtin_index]);
+        Ok(json!({"accounts":accounts,"logs":logs,"warm_addresses":observed_warm,
+            "warm_slots":slots,"boundary_budgets":boundary_budgets}))
     }
 
     pub(super) fn destroy(
@@ -485,5 +487,11 @@ impl<'a> Native<'a> {
         EvmHost::selfdestruct(&mut self.engine, &self.owner, &beneficiary, false)
             .map(|_| ())
             .map_err(|_| "native MIR selfdestruct failed")
+    }
+
+    pub(super) fn builtin_gas(&mut self) -> Option<U256> {
+        let budget = *self.input.builtin_gas.get(self.builtin_index)?;
+        self.builtin_index += 1;
+        Some(U256::from(budget))
     }
 }

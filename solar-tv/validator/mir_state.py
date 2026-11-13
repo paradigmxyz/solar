@@ -249,6 +249,15 @@ def operation(value, definitions):
         expression = ".slot .namespace"
     elif kind == "value_transfer":
         expression = f".external (.transfer {'true' if value['revert'] else 'false'})"
+    elif kind == "precompile_builtin":
+        tag = {
+            "sha256": ".hash false",
+            "ripemd160": ".hash true",
+            "ecrecover": ".recover",
+        }.get(value["name"])
+        if tag is None:
+            raise Unsupported("unknown precompile builtin")
+        expression = f".external ({tag})"
     elif kind == "require_literal":
         data = ",".join(number(byte, 256) for byte in value["bytes"])
         expression = f".abi (.require (.literal [{data}]))"
@@ -530,7 +539,8 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
     ]
     env = world.environment_expression(fixture)
     external = any(
-        inst["operation"]["kind"] == "address_call"
+        inst["operation"]["kind"]
+        in {"address_call", "value_transfer", "precompile_builtin"}
         or (
             inst["operation"]["kind"] == "opcode"
             and inst["operation"]["name"]
@@ -546,7 +556,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         solar, version, fixture, timeout, replay, root_is_mir=True
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
-    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'}⟩\n"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']}⟩\n"
     boundary_inputs = []
     for index, ty in enumerate(params):
         for path, leaf in leaf_paths(ty):
@@ -565,7 +575,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
         f"let journal : Execution.Journal := ⟨accounts,accounts,[{','.join(world.warm_addresses(fixture, version))}],[{','.join(f'({a},{k.removeprefix("$")})' for a, k in fixture['warm_slots'])}],[],0⟩\n"
         f"let memory : List Execution.Byte := {fixture['memory']['data']} ++ List.replicate {fixture['memory']['size'] - len(fixture['memory']['data'])} 0\n"
-        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0⟩"
+        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0,0⟩"
     )
     return Program(
         (

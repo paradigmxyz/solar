@@ -34,6 +34,7 @@ def difference(before: str, after: str) -> str:
                 ("returndata", "Live return data changed"),
                 ("warm_addresses", "Live account access warmth changed"),
                 ("warm_slots", "Live storage access warmth changed"),
+                ("boundary_budgets", "Boundary gas budget consumption changed"),
                 ("logs", "Emitted logs changed"),
             ):
                 if a.get(key) != b.get(key):

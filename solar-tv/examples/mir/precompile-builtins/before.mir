@@ -1,0 +1,9 @@
+@module BuiltinHashes
+fn @f() -> i256 {
+bb0:
+    jump bb1
+bb1:
+    v0 = inttoptr i256 128 to ptr<memory>
+    v1 = icall sha256<>, v0
+    ret v1
+}

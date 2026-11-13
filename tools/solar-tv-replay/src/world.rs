@@ -30,6 +30,8 @@ pub(super) struct Input {
     mir_layout: Option<serde_json::Value>,
     #[serde(default)]
     creation_gas: Vec<u64>,
+    #[serde(default)]
+    builtin_gas: Vec<u64>,
     compiler: String,
     address: String,
     caller: String,

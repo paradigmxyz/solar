@@ -448,6 +448,19 @@ fn export_operation(
             Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
                 json!({"kind":"returndata_bytes","args":[]})
             }
+            Semantics::Call(
+                Callee::Builtin(
+                    builtin @ (Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover),
+                ),
+                args,
+            ) => {
+                let name = match builtin {
+                    Builtin::Sha256 => "sha256",
+                    Builtin::Ripemd160 => "ripemd160",
+                    _ => "ecrecover",
+                };
+                json!({"kind":"precompile_builtin","name":name,"args":operands(module,body,args)?})
+            }
             Semantics::HeapFloor => {
                 json!({"kind":"layout","query":"heap_floor","function":body.name.to_string(),"args":[]})
             }
