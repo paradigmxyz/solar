@@ -603,6 +603,29 @@ def generate(stage0_text, sol, inferred_text, function, stage0_name, namespace, 
             x, y = y, x
         frame.append(f"{x} < {y}" if int(m[2]) == b else f"{y} ≤ {x}")
 
+    # The facts the path to the loop assumes ('assume') of a value the loop or the blocks after it
+    # read: an exit that checks such a value again is stuck unless the frame keeps the fact, so a
+    # proof that the loop ends needs it.
+    after, todo = set(), [s for b in loop for s in succ[b] if s not in loop]
+    while todo:
+        b = todo.pop()
+        if b in after or b in loop:
+            continue
+        after.add(b)
+        todo += succ[b]
+    later = set(reads)
+    for b in after:
+        for ins in blocks[b][1] + [blocks[b][2]]:
+            later |= {int(n) for n in re.findall(r"\.value (\d+)", ins)}
+    later = {v for v in later - inside if v in defs and defs[v][-1] not in after}
+    for a in dict.fromkeys([a for a, _ in reversed(path)] + [pre]):
+        for ins in blocks[a][1]:
+            m = re.fullmatch(r"\.assume false \.eq \[\.value (\d+), \.const (\w+)\]", ins)
+            if m and int(m[1]) in later:
+                fact = f"env {m[1]} = ({m[2]} : {WORD})"
+                if fact not in frame:
+                    frame.append(fact)
+
     # A calldata copy before the loop, which neither its block's rest nor the loop overwrites:
     # its words are the calldata's.
     for b in dict.fromkeys([a for a, _ in reversed(path)] + [pre]):
