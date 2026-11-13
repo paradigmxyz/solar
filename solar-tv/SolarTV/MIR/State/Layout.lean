@@ -41,6 +41,12 @@ def deferredAllocate (cfg : Config) (frame : Frame) (function : String) (site : 
       else pure frame.memory
     return .returned (some address,{frame with memory})
 
+/-- A signed runtime relocation may be extended; constructor staging keeps the carrier bits. -/
+def immutableWord (word : Word) (width : Nat) (signed : Bool) : Except String Word :=
+  let low := (word.setWidth width).setWidth 256
+  if word == low || (signed && word == (low.setWidth width).signExtend 256) then .ok word
+  else .error "non-canonical immutable context value"
+
 def layoutOperation (cfg : Config) (frame : Frame) (op : ContextOp) (args : List Word) (activation : Nat := 0) : Step := do
   let result (word : Word) := Except.ok (Outcome.returned (some word,frame))
   match op,args with
@@ -55,12 +61,15 @@ def layoutOperation (cfg : Config) (frame : Frame) (op : ContextOp) (args : List
     let size := size + addend
     result (BitVec.ofNat 256 (if aligned then size/32*32 else size))
   | .library id,[] => result (← required (layoutBinding cfg.layout.libraries id) "missing library relocation")
-  | .immutableRead id,[] =>
+  | .immutableRead id width signed,[] =>
     match layoutBinding cfg.layout.immutableSlots id with
     | some address =>
       let memory ← expand frame.memory address 32
-      return .returned (some (readWord memory address),{frame with memory})
-    | none => result (← required (layoutBinding cfg.layout.immutableValues id) "missing immutable relocation")
+      let word ← immutableWord (readWord memory address) width false
+      return .returned (some word,{frame with memory})
+    | none =>
+      let word ← required (layoutBinding cfg.layout.immutableValues id) "missing immutable relocation"
+      result (← immutableWord word width signed)
   | .immutableStore id,[word] =>
     let address ← required (layoutBinding cfg.layout.immutableSlots id) "immutable write requires constructor staging"
     let memory ← expand frame.memory address 32

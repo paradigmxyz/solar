@@ -5,7 +5,7 @@
 //! cannot be written. No backend is invoked and no missing input defaults to zero.
 //! GAS is admitted only as a single-opcode sampling window, not a priced MIR body.
 
-use super::{Outcome, PlacementRead, Run, limit};
+use super::{Outcome, PlacementRead, Run, limit, sign_extend};
 use alloy_primitives::U256;
 use solar_mir::{
     AllocationInitialization, AllocationSemantics, Function, ImmutableId, InstId, Terminator,
@@ -67,10 +67,11 @@ impl Run<'_, '_, '_> {
         id: ImmutableId,
         value: Option<U256>,
     ) -> ControlFlow<Outcome, U256> {
-        if !matches!(self.machine.module.immutable_type(id), ValueLayout::UInt(size) if size.bits()==256)
-        {
-            return ControlFlow::Break(Outcome::Unsupported("non-word immutable representation"));
+        let layout = self.machine.module.immutable_type(id);
+        if layout.immutable_encoding().is_none() {
+            return ControlFlow::Break(Outcome::Unsupported("non-scalar immutable representation"));
         }
+        let bits = layout.mir_type().integer_bits().expect("scalar immutable");
         let slot = self
             .world
             .as_mut()
@@ -80,14 +81,16 @@ impl Run<'_, '_, '_> {
                 limit(self.memory.store(slot, word))?;
                 return ControlFlow::Continue(word);
             }
-            return limit(self.memory.load(slot));
+            let word = limit(self.memory.load(slot))?;
+            return immutable_word(word, bits, false);
         }
         if value.is_some() {
             return ControlFlow::Break(Outcome::Unsupported(
                 "immutable write requires constructor staging",
             ));
         }
-        self.placement(PlacementRead::ImmutableValue(id.index()))
+        let word = self.placement(PlacementRead::ImmutableValue(id.index()))?;
+        immutable_word(word, bits, matches!(layout, ValueLayout::Int(_)))
     }
 
     pub(super) fn gas_window(&self, body: &Function, inst: InstId) -> bool {
@@ -96,5 +99,15 @@ impl Run<'_, '_, '_> {
         }
         matches!(&body.blocks[solar_mir::BlockId::ENTRY].terminator,
             Some(Terminator::Return {values}) if values.as_slice()==body.inst(inst).result().as_slice())
+    }
+}
+
+/// Runtime signed relocations may be sign-extended; staging stores use the SSA carrier.
+fn immutable_word(word: U256, bits: u32, signed: bool) -> ControlFlow<Outcome, U256> {
+    let low = word & (U256::MAX >> (256 - bits));
+    if word == low || signed && word == sign_extend(low, bits) {
+        ControlFlow::Continue(word)
+    } else {
+        ControlFlow::Break(Outcome::Unsupported("non-canonical immutable context value"))
     }
 }
