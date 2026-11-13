@@ -1230,6 +1230,24 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
   `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
 
+### CODEGEN-026: The heap floor misses slot reads at addresses lowering does not fold
+
+- ID: CODEGEN-026
+- Status: intentional
+- Difference: the `heap-floor` pass recognizes a read of the free memory
+  pointer slot only when lowering has folded its address to `0x40`. A load at
+  an address it does not fold, such as `exp(0x40, 1)`, is a data read at a
+  computed address, as any address known only at runtime must be, so a forged
+  pointer stays unraised. With `mstore(0x00, 0x1111)` and `mstore(0x40, 0)`,
+  returning 32 bytes at `mload(0x40)` gives zero in `solar` (CODEGEN-010) and
+  `0x1111` in `solc`, while the same at `mload(exp(0x40, 1))` gives `0x1111` in
+  both. The next allocation at the unraised pointer can then overwrite
+  compiler frames.
+- Rationale: only assembly that forges the pointer and spells the slot address
+  indirectly reaches it. Proving every such expression equal to `0x40` would
+  need value tracking in a pass that runs before the optimizer folds them.
+- Coverage: `tests/ui/codegen/run-call/assembly/heap_floor_slot_spelling.sol`.
+
 ### CODEGEN-027: A returned calldata word array does not check an assembly-set length
 
 - ID: CODEGEN-027
@@ -1284,6 +1302,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/run-call/bytes-padding/` runs each of these
   sources against each Solidity and assembly use over dirty padding, and
   `tests/foundry/bytes-padding-logs/` covers events.
+
+### CODEGEN-030: A self-store of the free memory pointer slot raises the stored word
+
+- ID: CODEGEN-030
+- Status: intentional
+- Difference: after `mstore(0x40, 3)` and `mstore(0x40, mload(0x40))`, a later
+  data read of the slot, such as `return(0x40, 0x20)`, returns the initial free
+  memory pointer (`0x80`) in `solar` and `3` in `solc`. The `heap-floor` pass
+  counts the load as a pointer read, because the loaded word becomes the pointer
+  again, so it raises the first store (CODEGEN-010).
+- Rationale: only assembly that forges the pointer reaches it. Telling a copy of
+  the slot onto itself from a real pointer read means tracking the word through
+  the second store, which adds pass complexity for no ordinary Solidity.
+- Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
 
