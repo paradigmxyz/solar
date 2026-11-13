@@ -1,4 +1,5 @@
 //! solar-verify: Verus-style deductive verification for Solidity, built on Solar.
+mod absint;
 mod broadcast;
 mod bvlower;
 mod ghost;
@@ -49,6 +50,8 @@ struct Cli {
     no_infer: bool,
     /// `--show-inferred`: report what inference concluded about each loop.
     show_inferred: bool,
+    /// `--infer-absint`: also take abstract interpretation's facts as inference candidates.
+    infer_absint: bool,
 }
 
 impl Cli {
@@ -87,6 +90,7 @@ fn parse_cli() -> Cli {
         seed: 0,
         no_infer: false,
         show_inferred: false,
+        infer_absint: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -97,6 +101,7 @@ fn parse_cli() -> Cli {
             "--strict" => c.strict = true,
             "--no-infer" => c.no_infer = true,
             "--show-inferred" => c.show_inferred = true,
+            "--infer-absint" => c.infer_absint = true,
             "--timeout" => c.timeout = it.next().and_then(|x| x.parse().ok()).unwrap_or(10_000),
             "--dump-smt" => c.dump_smt = it.next().map(PathBuf::from),
             "--only" => c.only = it.next(),
@@ -121,6 +126,8 @@ fn parse_cli() -> Cli {
                      --spec-check-runs N  samples per tested function (default 256); --seed N\n\
                      --no-infer  use hand-written loop invariants only (no inference)\n\
                      --show-inferred  print the loop invariants and measures inference proved\n\
+                     --infer-absint  also take loop facts abstract interpretation finds (octagons,\n\
+                     \x20          array segments) as inference candidates, checked like the rest\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
                      \x20          verification errors instead of (sound) reverting paths\n\n\
                      Imports resolve as with solar and solc: PREFIX=PATH remappings (CONTEXT:PREFIX=PATH\n\
@@ -136,6 +143,9 @@ fn parse_cli() -> Cli {
     if c.files.is_empty() {
         eprintln!("usage: solar-verify [--strict] FILE.sol...");
         std::process::exit(2);
+    }
+    if c.infer_absint {
+        absint::enable();
     }
     c
 }
@@ -247,6 +257,9 @@ fn run_parallel(cli: &Cli) -> ! {
                     }
                     if cli.show_inferred {
                         cmd.arg("--show-inferred");
+                    }
+                    if cli.infer_absint {
+                        cmd.arg("--infer-absint");
                     }
                     if cli.dry_run {
                         cmd.arg("--dry-run");

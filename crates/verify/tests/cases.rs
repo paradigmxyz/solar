@@ -477,3 +477,37 @@ fn inferred() {
     }
     assert_data_eq!(tidy(&out), file!["snapshots/inferred.stdout"]);
 }
+
+/// Loops whose facts the abstract interpreter finds (`--infer-absint`), and writes, calls and
+/// wraparound that must keep it from claiming them.
+#[test]
+fn absint() {
+    check("tests/cases/absint.sol")
+}
+
+/// The invariants the abstract interpreter proposes per loop, before any solver: after a write
+/// to an array, a call that replaces it or a wrapping increment, the facts they break are gone.
+#[test]
+fn absint_candidates() {
+    let out = Command::new(env!("CARGO_BIN_EXE_solar-verify"))
+        .args(["--dry-run", "--infer-absint", "tests/snapshots/absint_candidates.sol"])
+        .env("NO_COLOR", "1")
+        .env("SOLAR_VERIFY_DEBUG", "1")
+        .output()
+        .expect("run solar-verify");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let mut keep = false;
+    let mut lines = vec![];
+    for l in stderr.lines() {
+        if l.starts_with("absint: ") {
+            keep = true;
+        }
+        if keep {
+            lines.push(l);
+        }
+        if l == "]" {
+            keep = false;
+        }
+    }
+    assert_data_eq!(tidy(&lines.join("\n")), file!["snapshots/absint_candidates.stderr"]);
+}

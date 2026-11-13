@@ -204,6 +204,7 @@ struct Builder<'s, 'a> {
     contract_names: Vec<String>,
     stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
     block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    absint: FxHashMap<Span, Vec<Spec<'a>>>,
     const_sizes: FxHashMap<String, u64>,
     /// Spans of the doc comments some statement carries.
     seen_docs: Vec<Span>,
@@ -487,6 +488,24 @@ impl<'s, 'a> Builder<'s, 'a> {
                 self.walk_stmt_docs(s);
             }
             orphans = self.attach_tails(b);
+            // `--infer-absint`: the abstract interpreter's facts become inference candidates, which
+            // `crate::vc::infer` checks like any other.
+            if crate::absint::enabled() {
+                let pre: Vec<&'a Expr<'a>> = requires.iter().map(|r: &Spec<'a>| r.expr).collect();
+                let mut loops: Vec<_> =
+                    crate::absint::infer_function(f, &pre).into_iter().collect();
+                loops.sort_by_key(|(sp, _)| sp.lo());
+                for (sp, texts) in loops {
+                    if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
+                        let at = self.sess.source_map().span_to_snippet(sp).unwrap_or_default();
+                        let head = at.lines().next().unwrap_or_default();
+                        eprintln!("absint: {cname}: loop {head:?}: {texts:#?}");
+                    }
+                    let specs: Vec<Spec<'a>> =
+                        texts.iter().filter_map(|t| self.parse_spec(t, sp)).collect();
+                    self.absint.insert(sp, specs);
+                }
+            }
             use ast::StateMutability::*;
             if (is_spec || matches!(f.header.state_mutability(), Pure | View))
                 && let [s] = &b.stmts[..]
@@ -571,6 +590,7 @@ pub(crate) fn build<'a>(
         decl_stmts: Default::default(),
         contract_names: vec![],
         stmt_specs: FxHashMap::default(),
+        absint: FxHashMap::default(),
         block_tail: FxHashMap::default(),
         const_sizes: FxHashMap::default(),
         seen_docs: vec![],
@@ -1032,7 +1052,7 @@ pub(crate) fn build<'a>(
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
         ghost_errors: vec![],
-        absint: FxHashMap::default(),
+        absint: b.absint,
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
     for c in &mut program.contracts {
