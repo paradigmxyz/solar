@@ -197,6 +197,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             let (kept, m) = self.houdini(cands, &measures, &invs, cond, next, body, &entry_env)?;
             cands = kept;
             measure = m;
+            // A loop that lowers its bound instead of raising the other side (Newton's iteration
+            // `while (x < z) { z = x; ... }`): the bound alone, tried only when no distance
+            // decreases, so that a loop with a distance measure queries nothing more.
+            if self.bound_measures && measure.is_none() && decs.is_empty() {
+                let bounds = Self::bound_measures(cond);
+                if !bounds.is_empty() {
+                    let (kept, m) =
+                        self.houdini(cands, &bounds, &invs, cond, next, body, &entry_env)?;
+                    cands = kept;
+                    measure = m;
+                }
+            }
         }
         // The real run: every survivor and the measure are ordinary obligations from here on.
         if !cands.is_empty() {
@@ -550,6 +562,30 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 _ => {}
             }
+        }
+        out
+    }
+
+    /// Measures from the bounds of the guard's comparisons alone: `b` for `a < b` and
+    /// `a <= b`, `a` for `a > b` and `a >= b`; conjuncts each give theirs.
+    fn bound_measures(cond: Option<&'a Expr<'a>>) -> Vec<Measure<'a>> {
+        let mut out = vec![];
+        let Some(c) = cond else { return out };
+        let mut stack = vec![c];
+        while let Some(e) = stack.pop() {
+            let ExprKind::Binary(a, op, b) = &e.peel_parens().kind else { continue };
+            let (a, b): (&'a Expr<'a>, &'a Expr<'a>) = (a, b);
+            let hi = match op.kind {
+                BinOpKind::And => {
+                    stack.push(b);
+                    stack.push(a);
+                    continue;
+                }
+                BinOpKind::Lt | BinOpKind::Le => b,
+                BinOpKind::Gt | BinOpKind::Ge => a,
+                _ => continue,
+            };
+            out.push(Measure { lo: None, hi: Some(hi), off: 0, text: expr_text(hi) });
         }
         out
     }

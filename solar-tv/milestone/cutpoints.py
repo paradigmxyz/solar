@@ -657,10 +657,10 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats, recdepth=None):
             f"set_option maxHeartbeats {heartbeats} in\n"
             + (f"set_option maxRecDepth {recdepth} in\n" if recdepth else "")
             + f"theorem {name} (o : Oracle) (call : Call){binders} :\n"
-            f"    ∃ k k', {seg_rel}\n"
+            f"    ∃ k, {seg_rel}\n"
             f"      (seg (EVM.Program.block o call {A}) {p}_cutA k ({ia}, {stack_term(wa)}, {sa}))\n"
-            f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' ({ib}, {stack_term(wb_)}, {sb})) := by\n"
-            f"  refine ⟨{fuel_a}, {fuel_b}, ?_⟩\n"
+            f"      (seg (EVM.Program.block o call {B}) {p}_cutB {fuel_b} ({ib}, {stack_term(wb_)}, {sb})) := by\n"
+            f"  refine ⟨{fuel_a}, ?_⟩\n"
             f"  sym_seg [{unf}] [{', '.join(mks)}]\n\n"
         )
     cases = []
@@ -672,9 +672,9 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats, recdepth=None):
         )
     out.append(
         f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
-        f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+        f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k, {seg_rel}\n"
         f"      (seg (EVM.Program.block o call {A}) {p}_cutA k x)\n"
-        f"      (seg (EVM.Program.block o call {B}) {p}_cutB k' x') := by\n"
+        f"      (seg (EVM.Program.block o call {B}) {p}_cutB {fuel_b} x') := by\n"
         f"  intro P mem x x' holds\n"
         f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
         f"  rcases mem with {' | '.join(['rfl'] * len(starts))}\n"
@@ -694,7 +694,17 @@ def evm_pair(a, b, cuts, fuel_a, fuel_b, heartbeats, recdepth=None):
         f"  cut := {p}_cutA\n  cut' := {p}_cutB\n"
         f"  Rel call := fun x x' => ∃ P ∈ {p}_rels call, P x x'\n"
         f"  start _ _ := ⟨_, List.Mem.head _, rfl, rfl⟩\n"
-        f"  sim call _ := CutPoint.Sim.of_each ({p}_segments o call)\n\n"
+        f"  sim call _ := CutPoint.Sim.of_each fun P m x x' h =>\n"
+        f"    match {p}_segments o call P m x x' h with | ⟨k, s⟩ => ⟨k, {fuel_b}, s⟩\n\n"
+    )
+    out.append(
+        f"/-- Every segment of `{B}` takes at most {fuel_b} steps: the bound that carries a loop's\n"
+        f"ranking certificate on `{A}` to a step bound on `{B}` (`CutPoint.ends_within_sim_start`). -/\n"
+        f"theorem {p}_bounded (o : Oracle) (call : Call) :\n"
+        f"    CutPoint.BoundedSim (EVM.Program.block o call {A}) {p}_cutA\n"
+        f"      (EVM.Program.block o call {B}) {p}_cutB Agree\n"
+        f"      (fun x x' => ∃ P ∈ {p}_rels call, P x x') {fuel_b} :=\n"
+        f"  fun x x' ⟨P, m, h⟩ => {p}_segments o call P m x x' h\n\n"
     )
     return "".join(out)
 
@@ -1275,10 +1285,10 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
             f"set_option maxHeartbeats {heartbeats} in\n"
             + (f"set_option maxRecDepth {recdepth} in\n" if recdepth else "")
             + f"theorem {name} (o : Oracle) (call : Call) {args} :\n"
-            f"    ∃ k k', {seg_rel}\n"
+            f"    ∃ k, {seg_rel}\n"
             f"      (seg ({step_term(a['kind'], A)}) {cut_a} k {r['src']})\n"
-            f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' {r['tgt']}) := by\n"
-            f"  refine ⟨{fuel_a}, {fuel_b}, ?_⟩\n"
+            f"      (seg ({step_term(b['kind'], B)}) {cut_b} {fuel_b} {r['tgt']}) := by\n"
+            f"  refine ⟨{fuel_a}, ?_⟩\n"
             f"  sym_seg [{unf}] [{', '.join(seg_mks(r))}]\n\n"
             + ("\x00" if chunked else "")
         )
@@ -1304,9 +1314,9 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
             out.append("".join(seg_texts[k * CHUNK : k * CHUNK + len(g)]))
             out.append(
                 f"theorem {p}_segments{k} (o : Oracle) (call : Call) :\n"
-                f"    ∀ P ∈ {p}_rels{k} call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+                f"    ∀ P ∈ {p}_rels{k} call, ∀ x x', P x x' → ∃ k, {seg_rel}\n"
                 f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
-                f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
+                f"      (seg ({step_term(b['kind'], B)}) {cut_b} {fuel_b} x') := by\n"
                 f"  intro P mem x x' holds\n"
                 f"  simp only [{p}_rels{k}, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
                 f"  rcases mem with {' | '.join(['rfl'] * len(g))}\n"
@@ -1322,9 +1332,9 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
             )
         out.append(
             f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
-            f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+            f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k, {seg_rel}\n"
             f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
-            f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
+            f"      (seg ({step_term(b['kind'], B)}) {cut_b} {fuel_b} x') := by\n"
             f"  intro P mem x x' holds\n"
             f"  unfold {p}_rels at mem\n"
             + "".join(steps)
@@ -1333,9 +1343,9 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
     else:
         out.append(
             f"theorem {p}_segments (o : Oracle) (call : Call) :\n"
-            f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k k', {seg_rel}\n"
+            f"    ∀ P ∈ {p}_rels call, ∀ x x', P x x' → ∃ k, {seg_rel}\n"
             f"      (seg ({step_term(a['kind'], A)}) {cut_a} k x)\n"
-            f"      (seg ({step_term(b['kind'], B)}) {cut_b} k' x') := by\n"
+            f"      (seg ({step_term(b['kind'], B)}) {cut_b} {fuel_b} x') := by\n"
             f"  intro P mem x x' holds\n"
             f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
             f"  rcases mem with {' | '.join(['rfl'] * len(allrels))}\n"
@@ -1356,7 +1366,17 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
         f"  cut := {cut_a}\n  cut' := {cut_b}\n"
         f"  Rel call := fun x x' => ∃ P ∈ {p}_rels call, P x x'\n"
         f"  start _ _ := ⟨_, {mem_of(0)}, rfl, rfl⟩\n"
-        f"  sim call _ := CutPoint.Sim.of_each ({p}_segments o call)\n\n"
+        f"  sim call _ := CutPoint.Sim.of_each fun P m x x' h =>\n"
+        f"    match {p}_segments o call P m x x' h with | ⟨k, s⟩ => ⟨k, {fuel_b}, s⟩\n\n"
+    )
+    out.append(
+        f"/-- Every segment of `{B}` takes at most {fuel_b} steps: the bound that carries a loop's\n"
+        f"ranking certificate on `{A}` to a step bound on `{B}` (`CutPoint.ends_within_sim_start`). -/\n"
+        f"theorem {p}_bounded (o : Oracle) (call : Call) :\n"
+        f"    CutPoint.BoundedSim ({step_term(a['kind'], A)}) {cut_a}\n"
+        f"      ({step_term(b['kind'], B)}) {cut_b} Agree\n"
+        f"      (fun x x' => ∃ P ∈ {p}_rels call, P x x') {fuel_b} :=\n"
+        f"  fun x x' ⟨P, m, h⟩ => {p}_segments o call P m x x' h\n\n"
     )
     return "".join(out)
 
@@ -1761,7 +1781,7 @@ def write_proofs(directory, name, contract, heartbeats=2000000):
         module = b["file"][: -len(".lean")]
         (runs / f"{module}.lean").write_text(
             "-- Generated by solar-tv/milestone/cutpoints.py; do not edit.\n"
-            "import W1Proofs.Segment\nimport W1Proofs.Stage\n"
+            "import W1Proofs.Segment\nimport W1Proofs.Stage\nimport SolarTV.Termination\n"
             f"import {name}.gen.{contract}.{a['file'][: -len('.lean')]}\n"
             f"import {name}.gen.{contract}.{module}\n\n"
             f"/-! `{b['pass']}`: {a['def']} and {b['def']} simulated through cut points. -/\n\n"

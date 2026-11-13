@@ -63,6 +63,9 @@ struct Cli {
     lean_spec_bytecode_sha256: String,
     /// `--infer-absint`: also take abstract interpretation's facts as inference candidates.
     infer_absint: bool,
+    /// `--infer-bound-measures`: when no distance a loop's guard bounds decreases, also try the
+    /// bound alone as the measure.
+    infer_bound_measures: bool,
 }
 
 impl Cli {
@@ -109,6 +112,7 @@ fn parse_cli() -> Cli {
         lean_spec_compiler: String::new(),
         lean_spec_bytecode_sha256: String::new(),
         infer_absint: false,
+        infer_bound_measures: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -120,6 +124,7 @@ fn parse_cli() -> Cli {
             "--no-infer" => c.no_infer = true,
             "--show-inferred" => c.show_inferred = true,
             "--infer-absint" => c.infer_absint = true,
+            "--infer-bound-measures" => c.infer_bound_measures = true,
             "--timeout" => c.timeout = it.next().and_then(|x| x.parse().ok()).unwrap_or(10_000),
             "--dump-smt" => c.dump_smt = it.next().map(PathBuf::from),
             "--dump-lean" => c.dump_lean = it.next().map(PathBuf::from),
@@ -162,6 +167,8 @@ fn parse_cli() -> Cli {
                      --show-inferred  print the loop invariants and measures inference proved\n\
                      --infer-absint  also take loop facts abstract interpretation finds (octagons,\n\
                      \x20          array segments) as inference candidates, checked like the rest\n\
+                     --infer-bound-measures  when no distance a loop's guard bounds decreases, also\n\
+                     \x20          try the bound alone as its termination measure (b for a < b)\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
                      \x20          verification errors instead of (sound) reverting paths\n\n\
                      Imports resolve as with solar and solc: PREFIX=PATH remappings (CONTEXT:PREFIX=PATH\n\
@@ -295,6 +302,9 @@ fn run_parallel(cli: &Cli) -> ! {
                     if cli.infer_absint {
                         cmd.arg("--infer-absint");
                     }
+                    if cli.infer_bound_measures {
+                        cmd.arg("--infer-bound-measures");
+                    }
                     if cli.dry_run {
                         cmd.arg("--dry-run");
                     }
@@ -407,7 +417,11 @@ fn main() {
                 total_err += report_ghost(&sess, &program);
                 continue;
             }
-            let opts = vc::Opts { strict: cli.strict, infer: !cli.no_infer };
+            let opts = vc::Opts {
+                strict: cli.strict,
+                infer: !cli.no_infer,
+                bound_measures: cli.infer_bound_measures,
+            };
             let mut mk = || {
                 if cli.dry_run {
                     smt::Smt::dry(false)

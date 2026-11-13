@@ -864,7 +864,12 @@ fn check_target<'p, 'a>(
 ) -> Result<Stats<'p, 'a>, String> {
     let f = t.spec_fn;
     let smt = Smt::new(o.timeout, false).map_err(|e| format!("could not start z3: {e}"))?;
-    let mut v = vc::Vc::new(program, t.host, smt, &vc::Opts { strict: false, infer: true });
+    let mut v = vc::Vc::new(
+        program,
+        t.host,
+        smt,
+        &vc::Opts { strict: false, infer: true, bound_measures: false },
+    );
     let invs: Vec<&'p Spec<'a>> =
         if t.invariants { t.host.invariants.iter().collect() } else { vec![] };
     let pre_specs: Vec<&'p Spec<'a>> = f.requires.iter().chain(invs.iter().copied()).collect();

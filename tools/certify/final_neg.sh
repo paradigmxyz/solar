@@ -9,7 +9,9 @@
 # Variants: a stale or substituted artifact (one byte of the bytecode changed; another
 # contract's pinned bytecode.hex), the strongest status claimed without a proof of resources (or,
 # for a certified contract, a wrong gas bound), a wrong
-# postcondition, no allowed status, and a proof term that is sorryAx.
+# postcondition, no allowed status, a dropped environment premise, and a proof term that is
+# sorryAx. For a contract with no specification (kind compiled): the strongest status claimed
+# with a vacuous one, a gas bound below the proof's, and a postcondition on a compiled statement.
 # CERTIFY_LEAN is the Lean command (default: lake env lean -M 3000); CERTIFY_WRAP a prefix.
 set -euo pipefail
 
@@ -58,13 +60,24 @@ other="$(ls "$lean_dir/$examples"/*/bytecode.hex | grep -v "/$name/bytecode.hex"
 if [[ -n "$other" ]]; then
     variant substituted-artifact "$(tr -d '[:space:]' < "$other")" "pass"
 fi
-if grep -q '"kind": "certified"' "$shape"; then
-    variant wrong-gas-bound "$hex" 'd["gas"] = "fun _ => 0"'
+if grep -q '"kind": "compiled"' "$shape"; then
+    # No specification: the strongest status cannot be claimed with a made-up one, and the gas
+    # bound is the proof's.
+    variant strongest-with-vacuous-spec "$hex" 'd["kind"] = "certified"; d["allowed"] = "fun _ _ => True"; d["post"] = "fun _ _ => True"'
+    variant wrong-gas-bound "$hex" 'd["gas"] = "fun _ => 1"'
+    variant spec-on-compiled "$hex" 'd["post"] = "fun call obs => obs.success = true"'
 else
-    variant strongest-without-resources "$hex" 'd["kind"] = "certified"; d["gas"] = "fun _ => 0"'
+    if grep -q '"kind": "certified"' "$shape"; then
+        variant wrong-gas-bound "$hex" 'd["gas"] = "fun _ => 0"'
+    else
+        variant strongest-without-resources "$hex" 'd["kind"] = "certified"; d["gas"] = "fun _ => 0"'
+    fi
+    variant wrong-post "$hex" 'd["post"] = "fun call obs => obs.success = true"'
+    variant no-allowed-status "$hex" 'd["allowed"] = "(fun _ _ => False)"'
+    if grep -q '"env": \[ *"' "$shape" || python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("env") else 1)' "$shape"; then
+        variant dropped-env-premise "$hex" 'd["env"] = []'
+    fi
 fi
-variant wrong-post "$hex" 'd["post"] = "fun call obs => obs.success = true"'
-variant no-allowed-status "$hex" 'd["allowed"] = "(fun _ _ => False)"'
 variant sorry-proof "$hex" 'd["proof"] = "sorryAx _ false"'
 [[ $fails -eq 0 ]] || die "$fails variant(s) of the published statement checked"
 echo "final_neg: every variant refused"

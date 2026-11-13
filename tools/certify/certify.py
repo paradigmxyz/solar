@@ -232,6 +232,7 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
             "W1Proofs.Segment",
             "W1Proofs.Stage",
             "W1Proofs.Axioms",
+            "SolarTV.Termination",
             f"{gm}.{b['module']}",
             f"{gm}.{a['module']}",
         ]

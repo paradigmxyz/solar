@@ -75,6 +75,8 @@ pub(crate) struct Opts {
     pub strict: bool,
     /// Infer loop invariants and termination measures (see `infer`).
     pub infer: bool,
+    /// Also try a guard's bound alone as a loop's measure when no distance decreases.
+    pub bound_measures: bool,
 }
 
 pub(crate) struct Vc<'p, 'a> {
@@ -163,6 +165,8 @@ pub(crate) struct Vc<'p, 'a> {
     raw_enums: FxHashSet<String>,
     /// Infer loop invariants (`Opts::infer`).
     infer: bool,
+    /// `Opts::bound_measures`.
+    bound_measures: bool,
     /// Nesting depth of inference's trial runs: obligations met inside one are not checked.
     trial: usize,
     /// What inference concluded per loop on the real run.
@@ -277,6 +281,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             slot_taken: yul::slot_taken(prog),
             raw_enums: FxHashSet::default(),
             infer: o.infer,
+            bound_measures: o.bound_measures,
             trial: 0,
             inferred: vec![],
             loop_recs: vec![],

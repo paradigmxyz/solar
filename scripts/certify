@@ -39,9 +39,13 @@
 #    audits each THEOREM the same way. --require-headline fails when there is none.
 # 6b. When CERTIFIED/NAME/shape.json exists, tools/certify/final.py writes CERTIFIED/NAME/Final.lean:
 #    the published statement, fixed by the driver from shape.json and the bytecode this run
-#    compiled (exact hex equality with the fresh export, then Shapes.Certified or
-#    Shapes.Functional of it against the checked source), with the proof shape.json names as its
-#    term. The module is built and its theorem's axioms audited; --require-final fails without it.
+#    compiled (exact byte equality with the fresh export, then Shapes.Certified,
+#    Shapes.Functional or, for a contract with no specification, Shapes.Compiled of it against the
+#    checked source), with the proof shape.json names as its term. When shape.json has a generic
+#    block, tools/certify/shape_gen.py first writes that proof (CERTIFIED/NAME/Shape.lean) from this
+#    run's export: the generic source check, the backend stages, the final EVM IR's fuel and the
+#    loop checker on an inferred certificate. The module is built and its theorem's axioms
+#    audited; --require-final fails without it.
 # 7. tools/certify/negative.sh: edited bytecode and stage artifacts fail with a mismatch, not a
 #    timeout, while unedited controls pass; with shape.json, tools/certify/final_neg.sh: stale or
 #    substituted bytecode, the strongest status without resources, a wrong postcondition, no
@@ -471,6 +475,10 @@ final_record="$lean_dir/.lake/certify-$name.json.final"
 rm -f "$final_record"
 final_thm=
 if [[ -f "$dir/shape.json" ]]; then
+    if python3 -c 'import json,sys; sys.exit(0 if "generic" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
+        python3 "$here/shape_gen.py" "$dir/shape.json" --name "$name" --certified "$examples" \
+            --out "$dir/Shape.lean" || die "shape_gen.py cannot write the proof of the published statement"
+    fi
     final_thm="$(python3 "$here/final.py" "$dir/shape.json" --name "$name" --contract "$contract" \
         --hex "$plain" --out "$dir/Final.lean" --record "$final_record")" || die "final.py cannot write the published statement"
     bash "$here/audit.sh" scan "$dir/Final.lean" || die "$dir/Final.lean fails the scan"

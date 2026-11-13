@@ -88,18 +88,28 @@ run the driver on Counter.
 
 A contract with `Certified/NAME/shape.json` gets one published theorem,
 `Certified.NAME.Final.final` in `Certified/NAME/Final.lean`, which [final.py](final.py) writes:
-its statement `Statement` is fixed by the driver from `shape.json` (the checked source, the
-declared valid calls, the allowed statuses, the specification, named environment assumptions and,
-for the strongest status, the gas bound) and from the runtime bytecode this run compiled, never
-from a proof module. The statement binds the freshly exported bytecode to that hex by exact
-equality, decided by the kernel, and states solidity-lean's `Shapes.Certified` (equivalence at
-every gas, termination with an allowed status, the specification, and resources: the source's
-result from a proved gas bound on) or `Shapes.Functional` (the first three) of it. The proof
-module named in `shape.json` supplies only a term the kernel must accept at that type, and the
-theorem's axioms are audited (only `propext`, `Classical.choice` and `Quot.sound`).
+its statement `Statement` is fixed by the driver from `shape.json` (the checked source, or a source
+semantics and program below it, the declared valid calls, the allowed statuses, the specification,
+named environment assumptions and the gas bound) and from the runtime bytecode this run compiled,
+never from a proof module. The statement binds the freshly exported bytecode to those bytes by
+exact equality, decided by the kernel, and states one of solidity-lean's shapes of it:
+`Shapes.Certified` (equivalence at every gas, termination with an allowed status, the
+specification, and resources: the source's result from a proved gas bound on),
+`Shapes.Functional` (the first three) or `Shapes.Compiled` (equivalence with the gas bound,
+termination and resources, for a contract with no specification: never the strongest status). The
+proof module named in `shape.json` supplies only a term the kernel must accept at that type, and
+the theorem's axioms are audited (only `propext`, `Classical.choice` and `Quot.sound`).
+
+For a contract whose source stage is the generic check, `shape.json`'s `generic` block makes
+[shape_gen.py](shape_gen.py) write that proof module, `Certified/NAME/Shape.lean`, from this run's
+export: it applies `Shapes.compiled` (or `compiled0`) to the source check, the backend stages, the
+last stage's fuel and the loop checker on a certificate [asm_cert.py](asm_cert.py) infers, adds
+the triples a specified contract names, and proves that the checker rejects the bytecode with a
+jump target moved, an SSTORE dropped and an unsupported opcode.
 
 The record's statuses (`equivalence`, `termination`, `spec`, `resources`, `assumptions`,
 `excluded`, `strongest`) come from that statement; `CERTIFIED` is printed only for
 `Shapes.Certified`. [final_neg.sh](final_neg.sh) checks that variants fail: stale or substituted
-bytecode, the strongest status without resources, a wrong postcondition, no allowed status and a
-`sorryAx` proof.
+bytecode, the strongest status without resources or with a vacuous specification, a wrong gas
+bound, a wrong postcondition, no allowed status, a dropped environment premise and a `sorryAx`
+proof.
