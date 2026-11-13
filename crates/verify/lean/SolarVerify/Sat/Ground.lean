@@ -1,4 +1,5 @@
 import Lean
+import SolarVerify.Discharge.Search
 /-!
 A leaf for the discharge search: hypotheses without free variables are decided by kernel
 evaluation.
@@ -71,3 +72,7 @@ elab "vc_ground" : tactic => withMainContext do
   throwError "vc_ground: no closed hypothesis is false"
 
 end SolarVerify.Sat
+
+/-- The discharge search's leaf tries `vc_ground` before `omega` in any file that imports this
+module; Lean tries the newest rule first and falls back to `omega` when it fails. -/
+macro_rules | `(tactic| vc_leaf) => `(tactic| vc_ground)

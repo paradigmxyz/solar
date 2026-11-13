@@ -166,7 +166,7 @@ def findIteCond : TacticM (Option Expr) := withMainContext do
     if !ldecl.isImplementationDetail then tys := tys.push ldecl.type
   for ty in tys do
     let ty ← instantiateMVars ty
-    if let some e := ty.find? (fun e => e.isAppOfArity `ite 5 && !(e.getArg! 1).hasLooseBVars) then
+    if let some e := ty.find? (fun e => (e.isAppOfArity `ite 5 || e.isAppOfArity ``SolarVerify.Discharge.qite 4) && !(e.getArg! 1).hasLooseBVars) then
       return some (e.getArg! 1)
   return none
 
@@ -237,6 +237,15 @@ elab "vc_defs" : tactic => do
   iffToEq
   evalTactic (← `(tactic| subst_vars))
 
+/-- The leaf of the search: closes a quantifier-free goal `False` or fails. It is `omega` here;
+another module adds a procedure with
+`macro_rules | `(tactic| vc_leaf) => `(tactic| my_tactic)`, and Lean then tries the rules from
+the last one added back to `omega`, taking the first that closes the goal. Whatever a rule does,
+`discharge.sh` still checks the axioms of every proof. -/
+syntax "vc_leaf" : tactic
+
+macro_rules | `(tactic| vc_leaf) => `(tactic| omega)
+
 /-- Pushes negations in, turns implications into disjunctions and Booleans into propositions,
 and folds constants. -/
 macro "vc_norm" : tactic => `(tactic| simp -failIfUnchanged only [Classical.not_forall, not_exists, not_imp,
@@ -244,7 +253,7 @@ macro "vc_norm" : tactic => `(tactic| simp -failIfUnchanged only [Classical.not_
   gt_iff_lt, true_and, and_true, false_and, and_false, true_or, or_true, false_or, or_false,
   not_true_eq_false, not_false_eq_true, eq_self_iff_true, iff_self, true_implies, false_implies,
   implies_true, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true', Bool.not_eq_eq_eq_not,
-  Bool.not_true, Bool.not_false, decide_eq_true_eq, SolarVerify.Discharge.decide_any_eq_true, SolarVerify.Discharge.qdec_eq_true, decide_eq_false_iff_not, Bool.and_true,
+  Bool.not_true, Bool.not_false, decide_eq_true_eq, SolarVerify.Discharge.decide_any_eq_true, SolarVerify.Discharge.qdec_eq_true, SolarVerify.Discharge.ite_eq_qite, SolarVerify.Discharge.qite_true, SolarVerify.Discharge.qite_false, Bool.not_eq_false, Bool.and_eq_false_iff, Bool.or_eq_false_iff, decide_eq_false_iff_not, Bool.and_true,
   Bool.true_and, Bool.and_false, Bool.false_and, Bool.or_true, Bool.true_or, Bool.or_false,
   Bool.false_or, Bool.true_eq_false, Bool.false_eq_true, SolarVerify.Discharge.true_eq_iff,
   SolarVerify.Discharge.false_eq_iff] at *)
@@ -268,11 +277,73 @@ def simpCase (stx : Syntax) : TacticM Unit := withMainContext do
   | (none, _) => replaceMainGoal []
   | (some (_, g), _) => replaceMainGoal [g]
 
+/-- Proves a condition from the context without splitting on it: a conjunction part by part, a
+`∀ x : Int` by instantiating every quantified hypothesis at a fresh `x`, an `∃ x : Int` at a
+witness or an integer the context applies a function to, and the rest by `assumption` or
+`omega`. A condition that guards a loop's next state restates the invariant the context already
+has; proving it avoids a split whose negative case unfolds every quantifier again. -/
+partial def provePos (fuel : Nat) : TacticM Unit := withMainContext do
+  if fuel = 0 then throwError "vc_prove: depth exhausted"
+  let t ← whnfR (← instantiateMVars (← getMainTarget))
+  if t.isAppOfArity ``And 2 then
+    evalTactic (← `(tactic| constructor))
+    let gs ← getGoals
+    for g in gs do
+      setGoals [g]
+      provePos (fuel - 1)
+    setGoals []
+  else if t.isForall && t.bindingDomain! == mkConst ``Int && !(← isProp t.bindingDomain!) then
+    let (x, g) ← (← getMainGoal).intro1P
+    replaceMainGoal [g]
+    withMainContext do
+      let mut g ← getMainGoal
+      for ldecl in (← getLCtx) do
+        if ldecl.isImplementationDetail then continue
+        let ty ← instantiateMVars ldecl.type
+        if let .forallE _ d _ _ := ty then
+          if d == mkConst ``Int && (← isProp ty) then
+            let v := mkApp ldecl.toExpr (.fvar x)
+            let vty ← instantiateMVars (← whnfR (← inferType v))
+            let (_, g') ← (← g.assert (← mkFreshUserName `inst) vty v).intro1P
+            g := g'
+      replaceMainGoal [g]
+    evalTactic (← `(tactic| omega))
+  else if t.isAppOfArity ``Exists 2 && (t.getArg! 0) == mkConst ``Int then
+    let mut cands := (← witnesses)
+    for ldecl in (← getLCtx) do
+      if ldecl.isImplementationDetail then continue
+      for e in localApps (← instantiateMVars ldecl.type) do
+        for a in e.getAppArgs do
+          if !a.hasLooseBVars && (← inferType a) == mkConst ``Int && !cands.contains a then
+            cands := cands.push a
+    for c in cands do
+      let s ← saveState
+      try
+        let cStx ← Term.exprToSyntax c
+        evalTactic (← `(tactic| refine ⟨$cStx, ?_⟩))
+        provePos (fuel - 1)
+        return
+      catch _ => s.restore
+    throwError "vc_prove: no witness"
+  else
+    evalTactic (← `(tactic| first | assumption | omega))
+
+/-- Proves the goal with `provePos`. -/
+elab "vc_prove_pos" : tactic => provePos 8
+
 /-- Splits on the condition of one `if`, simplifying each case; fails when there is none. -/
 def splitIte : TacticM Unit := do
   let some c ← findIteCond | throwError "no conditional"
   let hcI := mkIdent (← mkFreshUserName `hc)
   let cStx ← Term.exprToSyntax c
+  -- a quantified condition the context implies: take the case where it holds, and no other
+  if hasQuantifier c then
+    let s ← saveState
+    try
+      evalTactic (← `(tactic| have $hcI : $cStx := by vc_prove_pos))
+      simpCase (← `(tactic| simp only [↓reduceIte, SolarVerify.Discharge.ite_pos $hcI, SolarVerify.Discharge.qite_pos $hcI]))
+      return
+    catch _ => s.restore
   evalTactic (← `(tactic| by_cases $hcI : $cStx))
   let gs ← getGoals
   let mut out := []
@@ -280,9 +351,9 @@ def splitIte : TacticM Unit := do
   for (g, pos) in gs.zip [true, false] do
     setGoals [g]
     if pos then
-      simpCase (← `(tactic| simp only [$hcI:ident, ↓reduceIte, SolarVerify.Discharge.ite_pos $hcI]))
+      simpCase (← `(tactic| simp only [↓reduceIte, SolarVerify.Discharge.ite_pos $hcI, SolarVerify.Discharge.qite_pos $hcI]))
     else
-      simpCase (← `(tactic| simp only [$hcI:ident, ↓reduceIte, SolarVerify.Discharge.ite_neg $hcI]))
+      simpCase (← `(tactic| simp only [↓reduceIte, SolarVerify.Discharge.ite_neg $hcI, SolarVerify.Discharge.qite_neg $hcI]))
     out := out ++ (← getGoals)
   setGoals out
 
@@ -325,7 +396,7 @@ partial def search (seen : Std.HashSet (Expr × Expr)) (fuel : Nat) : TacticM Un
       else
         clearQuantified
         congruence
-        try evalTactic (← `(tactic| omega)) catch e => do evalTactic (← `(tactic| trace_state)); throw e
+        evalTactic (← `(tactic| vc_leaf))
   setGoals []
 
 end SolarVerify.Discharge
