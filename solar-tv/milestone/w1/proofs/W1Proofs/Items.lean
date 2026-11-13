@@ -75,6 +75,7 @@ def effectItem : Machine.Effect → Nat → Option Item
   -- deployment code fills with the immutable.
   | .immutable _, 0 => some (.push 0)
   | .codecopy, 3 => some (.op 0x39)
+  | .extcodecopy, 4 => some (.op 0x3c)
   | .create, 3 => some (.op 0xf0)
   | .create2, 4 => some (.op 0xf5)
   | .log n, arity => if n ≤ 4 ∧ arity = n + 2 then some (.op (0xa0 + n)) else none
@@ -95,6 +96,7 @@ def instrItems : EVM.Program.Instr → Option (List Item)
   | .ret => some [.op 0xf3]
   | .revert => some [.op 0xfd]
   | .invalid => some [.op 0xfe]
+  | .selfdestruct => some [.op 0xff]
 
 /-- The items of a list of instructions. -/
 def instrsItems : List EVM.Program.Instr → Option (List Item)

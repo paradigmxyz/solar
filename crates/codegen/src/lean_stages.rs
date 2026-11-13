@@ -541,6 +541,7 @@ const EFFECTS: &[(&str, usize, bool, bool)] = &[
     ("codecopy", 3, false, false),
     ("create", 3, true, true),
     ("create2", 4, true, true),
+    ("extcodecopy", 4, false, false),
 ];
 
 /// The external calls by mnemonic, as the Lean `Effect.call` of the `CallKind` of the same
@@ -1030,6 +1031,10 @@ fn mir_terminator(
             format!(".revert ({}) ({})", operand(*offset)?, operand(*size)?)
         }
         Terminator::Stop => ".stop".to_string(),
+        // selfdestruct recipient: ends the frame as `stop` does, the world recording it
+        Terminator::SelfDestruct { recipient } => {
+            format!(".selfdestruct ({})", operand(*recipient)?)
+        }
         Terminator::Invalid => ".invalid".to_string(),
         Terminator::TailCall { function, args } => {
             let args = mir_call_args(module, func, *function, args)?;
@@ -1099,11 +1104,17 @@ const EVM_EFFECTS: &[(&str, usize)] = &[
     ("codecopy", 3),
     ("create", 3),
     ("create2", 4),
+    ("extcodecopy", 4),
 ];
 
 /// The Lean halts by mnemonic.
-const HALTS: &[(&str, &str)] =
-    &[("stop", "stop"), ("return", "ret"), ("revert", "revert"), ("invalid", "invalid")];
+const HALTS: &[(&str, &str)] = &[
+    ("stop", "stop"),
+    ("return", "ret"),
+    ("revert", "revert"),
+    ("invalid", "invalid"),
+    ("selfdestruct", "selfdestruct"),
+];
 
 /// The Lean term of an EVM IR program.
 fn evm_program(program: &ir::Module) -> Result<String, String> {

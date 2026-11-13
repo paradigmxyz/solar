@@ -43,6 +43,9 @@ inductive Instr where
   an index past the table is an exceptional halt. -/
   | jumpTable (targets : List Nat)
   | stop | ret | revert | invalid
+  /-- `SELFDESTRUCT` to the beneficiary on top of the stack, which ends the frame as `stop`
+  does (`destroyed`). -/
+  | selfdestruct
 
 structure Program where
   blocks : List (List Instr)
@@ -157,6 +160,10 @@ def exec (o : Oracle) (call : Call) (b : Nat) :
   | .ret :: _, stack, s => .inl (output s stack false)
   | .revert :: _, stack, s => .inl (output s stack true)
   | .invalid :: _, _, s => .inl (.invalid, s)
+  | .selfdestruct :: _, stack, s =>
+    match stack with
+    | beneficiary :: _ => .inl (.stop, destroyed s beneficiary)
+    | [] => .inl (.invalid, s)
 
 def block (o : Oracle) (call : Call) (p : Program) :
     Nat × Stack × State → Option ((Halt × State) ⊕ (Nat × Stack × State))

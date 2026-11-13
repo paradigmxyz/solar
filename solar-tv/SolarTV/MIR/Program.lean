@@ -90,6 +90,8 @@ inductive Terminator where
   | revert (offset size : Operand)
   | stop
   | invalid
+  /-- A `SELFDESTRUCT` to the beneficiary, which ends the frame as `stop` does (`destroyed`). -/
+  | selfdestruct (beneficiary : Operand)
   /-- The first case whose operand equals the key, else the default. -/
   | switch (key : Operand) (default : Nat) (cases : List (Operand × Nat))
   /-- Control moves to the callee's entry for good, binding its parameters to the arguments. -/
@@ -225,6 +227,7 @@ def block (o : Oracle) (call : Call) (f : Function) :
           | .revert offset size => some (.inl (halt s (offset.eval env) (size.eval env) true))
           | .stop => some (.inl (.stop, s))
           | .invalid => some (.inl (.invalid, s))
+          | .selfdestruct beneficiary => some (.inl (.stop, destroyed s (beneficiary.eval env)))
           | .switch key default cases =>
             some (.inr (b, switchTarget env (key.eval env) default cases, env, s))
           | .tailCall _ _ => none
@@ -265,6 +268,7 @@ theorem run_straight (o : Oracle) (call : Call) (insts : List Inst) (term : Term
         | .revert offset size => some (halt s (offset.eval env) (size.eval env) true)
         | .stop => some (.stop, s)
         | .invalid => some (.invalid, s)
+        | .selfdestruct beneficiary => some (.stop, destroyed s (beneficiary.eval env))
         | .switch key default cases =>
           iterate (block o call ⟨[⟨[], insts, term⟩], [], none⟩) n
             (0, switchTarget env (key.eval env) default cases, env, s)
@@ -392,6 +396,7 @@ def segment (o : Oracle) (call : Call) (m : Module) (stack : List Return) (fn b 
       | .revert offset size => some (.inl (halt s (offset.eval env) (size.eval env) true))
       | .stop => some (.inl (.stop, s))
       | .invalid => some (.inl (.invalid, s))
+      | .selfdestruct beneficiary => some (.inl (.stop, destroyed s (beneficiary.eval env)))
 
 /-- One step of a module: a block entered, or the rest of a block after a return; its end, or
 the next frame. -/

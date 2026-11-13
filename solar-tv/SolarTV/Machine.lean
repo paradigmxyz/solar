@@ -230,6 +230,8 @@ inductive Event where
   /-- A contract creation: its value (and `CREATE2`'s salt), the creation code and the state the
   new contract may reenter. -/
   | create (operands : List Word) (code : List Memory.Byte) (storage transient : Word → Word)
+  /-- A `SELFDESTRUCT` that ends the frame, with the beneficiary its balance goes to. -/
+  | selfdestruct (beneficiary : Word)
 
 structure State where
   memory : Mem
@@ -281,6 +283,8 @@ inductive Effect where
   `PUSH32` placeholder it fills). -/
   | immutable (id : Nat)
   | codecopy | create | create2
+  /-- `EXTCODECOPY`: the code of an account, as the oracle reads it (`extcodeByte`). -/
+  | extcodecopy
 
 /-- The size of the return data the world's last call left. -/
 abbrev returndataSize (o : Oracle) (world : List Event) : Word := o.env "returndatasize" world []
@@ -312,6 +316,17 @@ def called (o : Oracle) (kind : CallKind) (s : State) (memory : Mem) (outOffset 
 /-- Byte `i` of the frame's code, the oracle's environment read `code` of `i` in the empty world. -/
 def codeByte (o : Oracle) (i : Nat) : Memory.Byte :=
   (o.env "code" [] [BitVec.ofNat 256 i]).setWidth 8
+
+/-- Byte `i` of the code of the account at `address`, the oracle's environment read `extcode`
+of the address and `i` in the world so far, since calls and creations can change it. -/
+def extcodeByte (o : Oracle) (world : List Event) (address : Word) (i : Nat) : Memory.Byte :=
+  (o.env "extcode" world [address, BitVec.ofNat 256 i]).setWidth 8
+
+/-- The state a `SELFDESTRUCT` to `beneficiary` ends the frame in: the world records it, and
+moving the balance or deleting the account is the world's. Storage stays the frame's, which
+holds from the Cancun fork on (EIP-6780) for an account not created in the same transaction. -/
+def destroyed (s : State) (beneficiary : Word) : State :=
+  { s with world := s.world ++ [.selfdestruct beneficiary] }
 
 /-- A contract creation with the operands its new contract sees (value, and `CREATE2`'s salt)
 and its creation code at `offset`: the new address (the low 160 bits of the oracle's result,
@@ -367,6 +382,10 @@ def Effect.apply (o : Oracle) (call : Call) : Effect → List Word → State →
     let memory := s.memory.write dest.toNat size.toNat (fun i => codeByte o (offset.toNat + i))
     some (none, { s with memory })
   | .create, [value, offset, size], s => some (created o s [value] offset size)
+  | .extcodecopy, [account, dest, offset, size], s =>
+    let memory := s.memory.write dest.toNat size.toNat
+      (fun i => extcodeByte o s.world account (offset.toNat + i))
+    some (none, { s with memory })
   | .create2, [value, offset, size, salt], s => some (created o s [value, salt] offset size)
   | .gas, [], s =>
     let world := s.world ++ [.read "gas"]
@@ -398,7 +417,7 @@ inductive Halt where
 def logs (s : State) : List (List Nat × List Nat) :=
   s.world.filterMap fun
     | .log topics data => some (topics.map BitVec.toNat, data.map BitVec.toNat)
-    | .call .. | .read _ | .create .. => none
+    | .call .. | .read _ | .create .. | .selfdestruct _ => none
 
 def storageOf (s : State) : Nat → Nat := fun slot => (s.storage (BitVec.ofNat 256 slot)).toNat
 

@@ -258,6 +258,11 @@ variable (o : Oracle) (call : Call) (s : State)
     Effect.apply o call .codecopy [dest, offset, size] s =
       let memory := s.memory.write dest.toNat size.toNat (fun i => codeByte o (offset.toNat + i))
       some (none, { s with memory }) := rfl
+@[defeq] theorem apply_extcodecopy (account dest offset size : Word) :
+    Effect.apply o call .extcodecopy [account, dest, offset, size] s =
+      let memory := s.memory.write dest.toNat size.toNat
+        (fun i => extcodeByte o s.world account (offset.toNat + i))
+      some (none, { s with memory }) := rfl
 @[defeq] theorem apply_create (value offset size : Word) :
     Effect.apply o call .create [value, offset, size] s = some (created o s [value] offset size) :=
   rfl
@@ -720,8 +725,8 @@ macro "sym_eval" : tactic => `(tactic|
     apply_mstore, apply_mstore8, apply_msize, apply_sload, apply_sstore, apply_tload,
     apply_tstore, apply_calldatasize, apply_callvalue, apply_caller, apply_address,
     apply_returndatasize, apply_keccak256, apply_log0, apply_log1, apply_log2, apply_log3,
-    apply_log4, logged, apply_gas, apply_immutable, apply_codecopy, apply_create,
-    apply_create2, created, apply_env, apply_calldatacopy, apply_mcopy,
+    apply_log4, logged, apply_gas, apply_immutable, apply_codecopy, apply_extcodecopy,
+    apply_create, apply_create2, created, destroyed, apply_env, apply_calldatacopy, apply_mcopy,
     apply_returndatacopy, apply_call, apply_callcode, apply_delegatecall,
     apply_staticcall, called, returndataSize, BitVec.reduceToNat,
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
