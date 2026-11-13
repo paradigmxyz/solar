@@ -27,11 +27,15 @@ if [[ -n "${SOLIDITY_LEAN_DIR:-}" ]]; then
     fi
 else
     dir="$root/target/certify/solidity-lean"
-    if [[ ! -d "$dir/.git" ]]; then
+    # A .git that is not a repository of its own (such as one a cache restored hollow) would let
+    # git walk up to the enclosing checkout: start that one afresh.
+    if [[ "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" != "$dir" ]]; then
+        rm -rf "$dir/.git"
         mkdir -p "$dir"
         git -C "$dir" init -q
         git -C "$dir" remote add origin https://github.com/paradigmxyz/solidity-lean.git
     fi
+    [[ "$(git -C "$dir" rev-parse --show-toplevel)" == "$dir" ]] || die "$dir is not a git checkout of its own"
     if ! git -C "$dir" cat-file -e "$pin^{commit}" 2>/dev/null; then
         git -C "$dir" fetch -q --depth 1 origin "$pin" >&2 || die "cannot fetch solidity-lean $pin"
     fi

@@ -605,6 +605,13 @@ fn compile(name: &str, src: &str) -> Result<FxHashMap<String, Vec<u8>>, String> 
         threads: 1.into(),
         // The harness's own warnings (wrappers that could be view) say nothing about the file.
         no_warnings: true,
+        // Test the code as written: run-time checks of the compiler's own facts would also test
+        // the trusted function's `@custom:ensures` and revert where it fails, which a debug
+        // build turns on by default.
+        unstable: solar_cli::config::UnstableOpts {
+            check_analyses: Some(false),
+            ..Default::default()
+        },
         ..Default::default()
     };
     // The compiler keeps its session in thread-local state: give it a thread of its own.
