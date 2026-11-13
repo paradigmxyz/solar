@@ -34,9 +34,10 @@
 //! to emit for it.
 
 use crate::{
-    AbiEncodeMode, AbiLayout, AbiParamLayout, AddressCallKind, AllocationSemantics, ArithmeticKind,
-    BlockId, Callee, CheckedOp, DataRef, FrameMode, FrameSlotKind, ImmutableId, InstKind,
-    LogTopics, MirType, PackedPart, PtrLocation, ValueId, ValueLayout,
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiWordValidator, AddressCallKind,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, FrameMode,
+    FrameSlotKind, ImmutableId, InstKind, LogTopics, MirType, PackedPart, PtrLocation, ValueId,
+    ValueLayout,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -129,8 +130,8 @@ pub enum Semantics<'a> {
     AbiEncode(AbiEncodeMode, Option<ValueId>, Option<ValueId>, &'a [ValueId], &'a AbiLayout),
     /// Decode a semantic ABI tuple.
     AbiDecode(ValueId, &'a AbiParamLayout),
-    /// Demand a decoder-established ABI validation dependency.
-    ValidateAbi(ValueId),
+    /// Demand an explicit canonicality obligation, without adding a runtime guard.
+    ValidateAbi(AbiWordValidator, ValueId),
     /// Encode packed scalar and reference parts, optionally hashing their bytes.
     Packed(&'a [PackedPart], bool),
 }
@@ -407,8 +408,11 @@ pub(super) mod declare {
     }
 
     /// Validation dependency, not an unchecked no-op.
-    pub(crate) fn validate_abi(value: &ValueId) -> Semantics<'static> {
-        Semantics::ValidateAbi(*value)
+    pub(crate) fn validate_abi(
+        validator: &AbiWordValidator,
+        value: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::ValidateAbi(*validator, *value)
     }
 
     /// Packed ABI encoding or hashing.

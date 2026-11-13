@@ -124,7 +124,7 @@ impl InstKind {
             | Self::StorageArrayLoad { .. }
             | Self::StorageBytesStore(..)
             | Self::StorageBytesStoreLiteral { .. }
-            | Self::ValidateAbi(..)
+            | Self::ValidateAbi { .. }
             | Self::ICall {
                 function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
                 ..

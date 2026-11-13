@@ -1019,7 +1019,7 @@ impl InstKind {
     pub const fn mnemonic(&self) -> &'static str {
         match self {
             Self::CheckedBinary { op, .. } => op.name(),
-            Self::ValidateAbi(_) => "validate_abi",
+            Self::ValidateAbi { .. } => "validate_abi",
             Self::AbiEncodePacked { hash, .. } => {
                 if *hash {
                     "keccak256_packed"

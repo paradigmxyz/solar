@@ -368,6 +368,7 @@ class OperationTests(unittest.TestCase):
             "alloc",
             "abi_encode",
             "abi_decode",
+            "validate_abi",
             "mcopy",
             "internal_frame_addr",
             "frame_load",
@@ -387,7 +388,6 @@ class OperationTests(unittest.TestCase):
         for name in (
             "icall",
             "address_call",
-            "validate_abi",
             "gas",
         ):
             self.assertEqual(inventory["mir"][name], "partial_family")

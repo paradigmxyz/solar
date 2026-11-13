@@ -1,0 +1,4 @@
+error: [fn0] [bb0, inst0] `validate_abi` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 1 previous error
+

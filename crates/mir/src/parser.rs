@@ -42,7 +42,7 @@ use super::{
     MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
     Value, ValueId,
 };
-use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
+use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize, ValueLayout};
 use smallvec::SmallVec;
 use solar_ast::{
     Arena, StateMutability,
@@ -1060,6 +1060,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         layout
     }
 
+    fn parse_abi_validator(&mut self) -> PResult<'sess, AbiWordValidator> {
+        let name = self.parser.parse_ident()?;
+        let validator = if name == kw::Enum {
+            AbiWordValidator::EnumRange(self.parser.parse_uint_as()?)
+        } else if let Some(bits) =
+            name.as_str().strip_prefix("uint").and_then(|bits| bits.parse().ok())
+        {
+            AbiWordValidator::Unsigned(bits)
+        } else {
+            let ty = self.parse_value_layout_from_ident(name)?;
+            AbiWordValidator::from_layout(ty)
+                .or(match ty {
+                    ValueLayout::UInt(_) => Some(AbiWordValidator::Unsigned(256)),
+                    ValueLayout::Int(_) => Some(AbiWordValidator::SignExtend(31)),
+                    ValueLayout::FixedBytes(_) => Some(AbiWordValidator::LeftAligned(256)),
+                    _ => None,
+                })
+                .ok_or_else(|| self.parser.error("ABI validation requires a scalar word"))?
+        };
+        if !validator.is_well_formed() {
+            return Err(self.parser.error("invalid ABI word validator"));
+        }
+        Ok(validator)
+    }
+
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
@@ -1746,7 +1771,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(mode.result_type()),
                 )
             }
-            sym::validate_abi => inst!(ValidateAbi(value)),
+            sym::validate_abi => {
+                let validator = self.parse_abi_validator()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::ValidateAbi { validator, value }, None)
+            }
             sym::abi_decode => {
                 let layout = self.parse_abi_param_layout()?;
                 self.parser.expect(TokenKind::Comma)?;

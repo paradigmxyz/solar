@@ -521,33 +521,11 @@ fn export_operation(
                     json!({"kind":"abi_decode_tree","shapes":shapes,"calldata":calldata,"args":operands(module,body,&[data])?})
                 }
             }
-            Semantics::ValidateAbi(value) => {
-                let Value::Inst(origin) = *body.value(value) else {
-                    return Err("ABI marker lacks decoder evidence".into());
-                };
-                // validate_abi (shr raw, 64) retains the raw function word's obligation.
-                // This is evidence, not a synthesized guard: a dirty word is unsupported.
-                if let Some(Semantics::Opcode("shr", shift_args)) =
-                    body.inst(origin).kind.semantics()
-                    && let [shift, raw] = shift_args.as_slice()
-                    && body.value(*shift).as_immediate().and_then(|v| v.as_u256())
-                        == Some(alloy_primitives::U256::from(64))
-                {
-                    json!({"kind":"validate_abi","rule":{"kind":"left","bits":192,"function":false},"args":operands(module,body,&[value,*raw])?})
-                } else {
-                    let Some(Semantics::AbiDecode(_, layout)) = body.inst(origin).kind.semantics()
-                    else {
-                        return Err("ABI marker lacks decoder evidence".into());
-                    };
-                    let mut rule = abi_rule(layout)?;
-                    if rule.is_null() {
-                        return Err("ABI marker requires a scalar decoder".into());
-                    }
-                    if rule["function"] == true {
-                        rule = json!({"kind":"uint","bits":192,"function":false});
-                    }
-                    json!({"kind":"validate_abi","rule":rule,"args":operands(module,body,&[value])?})
+            Semantics::ValidateAbi(validator, value) => {
+                if !validator.is_well_formed() {
+                    return Err("invalid ABI word validator".into());
                 }
+                json!({"kind":"validate_abi","rule":abi_validator(Some(validator)),"args":operands(module,body,&[value])?})
             }
             Semantics::Packed(parts, hash) => {
                 if parts.len() > 2048 {

@@ -233,10 +233,8 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation 
     | .invalid => return .invalid
   | .abi (.validate rule),[input] =>
     let word ← read frame input
-    if !abiCanonical rule word then .error "invalid decoder ABI evidence" else effect frame
-  | .abi (.validate rule),[_,raw] =>
-    let word ← read frame raw
-    if !abiCanonical rule word then .error "invalid decoder ABI evidence" else effect frame
+    abiObligation rule word
+    effect frame
   | .abi (.packed parts hash),_ =>
     let args ← inst.operands.mapM (readValue frame)
     match ← abiPackedValues cfg frame parts hash args with

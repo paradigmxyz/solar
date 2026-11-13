@@ -978,9 +978,9 @@ impl<'a> Run<'_, 'a, '_> {
                     }
                     return ControlFlow::Continue(());
                 }
-                Semantics::ValidateAbi(value) => {
+                Semantics::ValidateAbi(validator, value) => {
                     let word = frame.read(value)?;
-                    self.semantic_validate_abi(body, value, word)?;
+                    self.semantic_validate_abi(validator, word)?;
                     return ControlFlow::Continue(());
                 }
                 Semantics::Packed(parts, hash) => {

@@ -1,0 +1,25 @@
+@module AbiValidation
+fn @f(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = or v0, 0x110000000000000000
+    mstore 128, 32
+    mstore 160, v1
+    v5 = mload 128
+    v7 = add v5, 160
+    v8 = slt v5, 32
+    jumpi v8, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v9 = mload 160
+    v10 = shl v9, 192
+    v11 = ne v10, 0
+    v12 = or v11, false
+    v13 = zext i1 v12 to i256
+    v14 = shr v9, 64
+    jump bb3
+  bb3:                                            ; preds = bb2
+    validate_abi uint192, v14
+    ret v14
+  bb1 [cold]:                                     ; preds = bb0, bb2
+    revert 0, 0
+}

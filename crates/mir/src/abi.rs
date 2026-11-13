@@ -534,4 +534,15 @@ impl AbiWordValidator {
             Self::SignExtend(_) | Self::EnumRange(_) => None,
         }
     }
+
+    /// Whether this rule has a printable word representation and bounded shifts.
+    /// Unsigned obligations also admit non-byte widths, as boolean mask proofs do.
+    pub fn is_well_formed(self) -> bool {
+        match self {
+            Self::Unsigned(bits) => (1..=256).contains(&bits),
+            Self::LeftAligned(bits) => (8..=256).contains(&bits) && bits.is_multiple_of(8),
+            Self::SignExtend(byte_index) => byte_index < 32,
+            Self::Bool | Self::EnumRange(_) => true,
+        }
+    }
 }

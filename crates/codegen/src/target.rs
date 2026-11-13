@@ -1517,7 +1517,7 @@ impl Target {
             InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
                 Cost::new(40, 24)
             }
-            InstKind::ValidateAbi(_) => Cost::new(0, 0),
+            InstKind::ValidateAbi { .. } => Cost::new(0, 0),
             InstKind::CheckedBinary { op: CheckedOp::Pow, .. } => Cost::new(300, 128),
             InstKind::CheckedBinary { .. } => Cost::new(30, 20),
             InstKind::AbiEncodePacked { parts, .. } => {

@@ -51,8 +51,8 @@
 (decl storageclearwords (Value Value Value) Value)
 (extractor (storageclearwords operand0 operand1 operand2) (inst (Op.StorageClearWords operand0 operand1 operand2)))
 
-(decl validateabi (Value) Value)
-(extractor (validateabi operand0) (inst (Op.ValidateAbi operand0)))
+(decl validateabi (AbiWordValidator Value) Value)
+(extractor (validateabi validator value) (inst (Op.ValidateAbi validator value)))
 
 (decl abiencodepacked (Unit bool) Value)
 (extractor (abiencodepacked parts hash) (inst (Op.AbiEncodePacked parts hash)))

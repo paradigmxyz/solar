@@ -968,6 +968,11 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
+                    InstKind::ValidateAbi { validator, .. } => {
+                        if !validator.is_well_formed() {
+                            self.emit_at_inst("invalid ABI word validator", block, id);
+                        }
+                    }
                     InstKind::AbiDecode { layout, .. } => {
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {

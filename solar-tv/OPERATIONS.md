@@ -8,9 +8,9 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 10 | 0 |
+| Some forms checked | 9 | 0 |
 | Explicit-world entry execution | 0 | 51 |
-| Direct typed MIR state execution | 65 | 0 |
+| Direct typed MIR state execution | 66 | 0 |
 | Missing | 0 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
@@ -168,8 +168,11 @@ Decoders preserve signed length checks, canonicality, enum rejection and
 function-word normalization. Reference inputs retain their declared memory,
 calldata or storage semantics. Nested layouts have depth/node/work limits;
 malformed input reverts, while exceeding a model budget is unsupported.
-Validation markers require decoder provenance or canonical raw function-word
-evidence; unproven evidence is unsupported, never turned into a new guard.
+Validation markers carry an explicit canonicality rule and operand. Unsigned
+widths, sign extension, fixed-byte padding, booleans and enum ranges are checked
+on the reached path, including through phis and calls. False obligations are
+unsupported, never assumed true or turned into a new guard. Raw external-function
+padding (`bytes24`) and normalized function bits (`uint192`) are distinct facts.
 Packed encodings admit literals, scalar words, byte references and word arrays,
 including fixed/nested layouts with explicit strides. Object headers and slice
 lengths are resolved before allocation, payload copies preserve aliasing and
@@ -182,7 +185,7 @@ Root runtime reentry and general backend layout correspondence remain unsupporte
 
 ## Partially admitted MIR families
 
-These ten inventory entries still have restrictions beyond the common
+These nine inventory entries still have restrictions beyond the common
 work/memory limits. Their existing executable forms are tested; the restrictions
 are not erased by the zero `Missing` count.
 
@@ -191,7 +194,6 @@ are not erased by the zero `Missing` count.
 | `address_call`, `call`, `callcode`, `staticcall`, `delegatecall` | Explicit requested child gas and real fixture children | No general caller pricing or implicit-gas forwarding; caller gas must avoid clipping | [Address calls](tests/test_mir_address_calls.py), [messages](tests/test_mir_messages.py) |
 | `create`, `create2` | Explicit ordered child budgets, initcode execution and journal rollback | Budgets are inputs, not a derivation from caller work | [Messages and creation](tests/test_mir_messages.py) |
 | `icall` | Direct/dispatcher calls, typed products, aggregate/slice return buffers and builtin recipes | General call-site pricing and backend placement/stack-return correspondence | [Calls](tests/test_mir_calls.py), [aggregate returns](tests/test_mir_aggregate_returns.py), [return buffers](tests/test_mir_return_buffers.py), [builtins](tests/test_mir_builtins.py) |
-| `validate_abi` | Decoder or canonical raw function-word evidence | Other provenance is unsupported; no synthetic runtime guard is inserted | [ABI](tests/test_mir_abi.py) |
 | `gas` | One-opcode window with an explicit pre-op budget | General MIR caller gas | [Layout windows](tests/test_mir_layout.py) |
 
 The world fixture is an explicit assumption. Declared symbolic slots, typed MIR

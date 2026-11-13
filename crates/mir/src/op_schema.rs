@@ -30,11 +30,11 @@ use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
 
 use super::{
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
-    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
-    StructId, ValueId, ValueLayout, typing,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AbiWordValidator, AddressCallKind,
+    AllocationSemantics, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind,
+    Semantics, StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;
@@ -652,6 +652,7 @@ attributes! {
     u64,
     LibraryId,
     AbiEncodeMode,
+    AbiWordValidator,
     AllocationSemantics,
     DataRef,
     DataSize,
@@ -1337,8 +1338,8 @@ define_mir_ops! {
     #[mir_op(mnemonic = "validate_abi", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::AbiValidation))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
-    #[semantics(validate_abi(operand0))]
-    ValidateAbi(operand0: ValueId),
+    #[semantics(validate_abi(validator, value))]
+    ValidateAbi { validator: AbiWordValidator, value: ValueId },
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::packed_types(func, parts)))]

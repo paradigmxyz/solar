@@ -409,10 +409,16 @@ Correctness properties belong in operation semantics or verified analysis
 results. They must not depend on retaining optional source/debug metadata.
 EVM rewrites choose the same instructions with or without debug capture, then
 carry representable function events onto retained operations or drop them.
-`validate_abi` keeps a source ABI validation obligation explicit in the operand
-graph, including unused calldata struct fields. ABI lowering discharges it only
-when entry decoding or a typed internal body supplies the validation contract.
-This obligation round-trips through MIR text and cannot cross the lowered boundary. Keep genuine layout proofs and allocation
+`validate_abi validator, value` keeps a source ABI validation obligation explicit
+in the operand graph, including unused calldata struct fields. Its rule specifies
+unsigned width (`uintN`), sign extension (`intN`), left-aligned padding (`bytesN`),
+`bool`, or an enum bound (`enum N`). Raw external-function words use `bytes24`;
+normalized function values use `uint192`. A clean normalized value does not prove
+the discarded padding was clean. ABI lowering discharges the marker only when
+entry decoding or a typed internal body supplies the validation contract. The
+checker must establish canonicality on each reached path; the marker neither
+assumes it nor adds a runtime guard. This obligation round-trips through MIR text
+and cannot cross the lowered boundary. Keep genuine layout proofs and allocation
 semantics explicit; do not discard them as mere optimization hints.
 
 ### LLVM and MLIR lessons

@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationSemantics, BlockId, CalldataTail,
-    FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
-    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
-    Terminator, Value, ValueId,
+    AbiEncodeMode, AbiWordValidator, AddressCallKind, AllocationFailure, AllocationSemantics,
+    BlockId, CalldataTail, FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId,
+    InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout,
+    MemoryRegion, MirType, PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason,
+    StorageAlias, StructId, Terminator, Value, ValueId,
 };
 use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
@@ -1463,10 +1463,11 @@ impl<'a> FunctionBuilder<'a> {
         self.cast(value, MirType::I256)
     }
 
-    /// Preserve a source ABI validation obligation until interface lowering discharges it.
-    pub fn validate_abi(&mut self, value: ValueId) {
-        // validate_abi value
-        self.emit_void_inst(InstKind::ValidateAbi(value));
+    /// Preserve a source ABI canonicality obligation until interface lowering discharges it.
+    /// This records the required representation, not a runtime check or an assumed fact.
+    pub fn validate_abi(&mut self, validator: AbiWordValidator, value: ValueId) {
+        // validate_abi validator, value
+        self.emit_void_inst(InstKind::ValidateAbi { validator, value });
     }
 
     /// Builds the body of `load_storage_bytes(slot) -> bytes`, the helper shared by storage

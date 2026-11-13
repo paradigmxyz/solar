@@ -673,6 +673,9 @@ fn display_inst_kind<'a>(
         InstKind::AbiDecode { data, layout } => {
             write!(f, "abi_decode {layout}, {}", display_val(*data, func))
         }
+        InstKind::ValidateAbi { validator, value } => {
+            write!(f, "validate_abi {validator}, {}", display_val(*value, func))
+        }
         InstKind::ICall { function: Callee::Function(function), args } => {
             write!(f, "icall {}", display_function_ref(*function, module))?;
             if !args.is_empty() {

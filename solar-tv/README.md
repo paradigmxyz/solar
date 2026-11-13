@@ -577,9 +577,34 @@ storage bytes keep ordered header reads, overlapping copies and dirty word tails
 Hashes may borrow and restore a memory object's header. Packed arrays retain
 padded and cleaned leaves, declared memory strides, nested memory rows and
 wordwise calldata reads when ranges wrap. Array work is capped at 2,048 nodes.
-Physical call-return buffers need the explicit convention above. `validate_abi` needs decoder
-provenance or canonical raw-word evidence; absent evidence is inconclusive, not
-a fabricated runtime guard.
+Physical call-return buffers need the explicit convention above.
+
+### ABI canonicality obligations
+
+`validate_abi uint8, value` records the required representation explicitly. The
+checker proves it at the reached program point, including through phis and calls.
+Rules cover unsigned widths, sign extension, fixed-byte padding, booleans and enum
+ranges. A false obligation is inconclusive; it is never an assumed fact or a
+fabricated runtime revert. Raw external-function padding uses `bytes24`; its
+normalized value uses `uint192`. Checking the normalized value cannot justify
+removing the raw padding check.
+
+The kernel-checked discharge rule is in
+[MIR/Transforms/AbiValidation.lean](SolarTV/MIR/Transforms/AbiValidation.lean).
+This example runs actual ABI conversion passes. Its `i1` input selects a clean
+function word or one with a dirty padding bit; the kernel exhausts both values.
+The padding-equivalence and unsigned-shift lemmas apply to every 256-bit word.
+Its broken version skips the function-word padding rejection:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-validation/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/abi-validation/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-validation/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/abi-validation/world.json
+```
+
+Both interpreters replay a counterexample: malformed input reverts before the
+rewrite but returns successfully afterward.
 
 The packed-array example uses a two-word memory stride. Its broken rewrite
 copies the gap between elements instead of the second element:
