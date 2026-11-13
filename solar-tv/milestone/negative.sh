@@ -12,16 +12,17 @@
 # on unedited copies, which must pass. The edits are found in the artifacts, not written per
 # contract:
 #
-# - bytecode: the first ADD opcode (else LT, else EQ) of the linear decoding as another opcode;
+# - bytecode: the first ADD opcode (else LT, else EQ) of the linear decoding as another opcode,
+#   its first CALLVALUE as PUSH0, and the slot its first KECCAK256 hashes moved;
 # - final EVM IR: its first add as sub, the key N its first sstore pushes as N + 1, and its call
-#   value check dropped (the call goes on instead of reverting), its jump to the Panic(0x11) block
-#   of the overflow check dropped, its first log dropped, the signature topic of its first log
-#   plus one, the data offset of its first log at the next word, its first keccak256 (a mapping
-#   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
-#   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
-#   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), each when
-#   present;
+#   value check dropped (the call goes on instead of reverting, or a guard reads the value as
+#   0), its jump to the Panic(0x11) block of the overflow check dropped, its first log dropped,
+#   the signature topic of its first log plus one, the data offset of its first log at the next
+#   word, its first keccak256 (a mapping slot) as an add, the key that hash reads plus one (every
+#   mapping key moved, zero or not), the mapping slot it reads plus one, its first mul as add,
+#   and its first range test of a narrow product (`push 2^k - 1; dup n; gt`) as `push 0`, its
+#   first external call as another kind of call and the check of that call's success dropped
+#   (a failed call goes on), each when present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -157,8 +158,9 @@ mismatch='sym_exec: the runs end in different results on this path'
 edit bytecode-control "$gen/Bytecode.lean" <<<'pass'
 check bytecode-control Bytecode "$proofs/Assembly.lean" pass
 
-# The first ADD of the linear decoding as SUB, else LT as GT, else EQ as SUB (not equal).
-try bytecode-opcode "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" <<'EOF'
+# The bytecode's linear decoding (ops, the offset of each instruction) and put(offset, byte),
+# which writes one byte in both of the module's spellings of the bytecode.
+cat > "$tmp/bytecode.py" <<'EOF'
 import re
 body = re.search(r"def bytecode : List Nat :=\n  \[(.*?)\]", s, re.S)
 code = [int(b, 16) for b in re.findall(r"0x[0-9a-f]+", body.group(1))]
@@ -166,17 +168,51 @@ ops, pc = [], 0
 while pc < len(code):
     ops.append(pc)
     pc += 1 + (code[pc] - 0x5f if 0x60 <= code[pc] <= 0x7f else 0)
+def put(offset, new):
+    global s
+    print(f"  bytecode offset {offset}: 0x{code[offset]:02x} as 0x{new:02x}")
+    code[offset] = new
+    rows = [", ".join("0x%02x" % b for b in code[i:i + 16]) for i in range(0, len(code), 16)]
+    hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
+    s = s[:body.start(1)] + ",\n   ".join(rows) + s[body.end(1):]
+    s = s.replace(hex_old, hex_old[:2 * offset] + "%02x" % new + hex_old[2 * offset + 2:])
+EOF
+
+# The first ADD of the linear decoding as SUB, else LT as GT, else EQ as SUB (not equal).
+cat "$tmp/bytecode.py" - > "$tmp/bytecode-opcode.py" <<'EOF'
 offset = next((pc for want in (0x01, 0x10, 0x14) for pc in ops if code[pc] == want), None)
 if offset is None: sys.exit(3)
-old = code[offset]
-new = {0x01: 0x03, 0x10: 0x11, 0x14: 0x03}[old]
-print(f"  bytecode offset {offset}: 0x{old:02x} as 0x{new:02x}")
-code[offset] = new
-rows = [", ".join("0x%02x" % b for b in code[i:i + 16]) for i in range(0, len(code), 16)]
-s = s[:body.start(1)] + ",\n   ".join(rows) + s[body.end(1):]
-hex_old = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', s).group(1)
-s = s.replace(hex_old, hex_old[:2 * offset] + "%02x" % new + hex_old[2 * offset + 2:])
+put(offset, {0x01: 0x03, 0x10: 0x11, 0x14: 0x03}[code[offset]])
 EOF
+try bytecode-opcode "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" \
+    < "$tmp/bytecode-opcode.py"
+
+# The first CALLVALUE as PUSH0: the call value read as zero, so the check of a function that
+# takes no value, where the dispatcher reads it first, lets a call with value through.
+cat "$tmp/bytecode.py" - > "$tmp/bytecode-callvalue.py" <<'EOF'
+offset = next((pc for pc in ops if code[pc] == 0x34), None)
+if offset is None: sys.exit(3)
+put(offset, 0x5f)
+EOF
+try bytecode-no-callvalue "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" \
+    < "$tmp/bytecode-callvalue.py"
+
+# The slot the first KECCAK256 hashes moved, one byte either way: the push before its
+# `PUSH1 0x20; MSTORE`, PUSH1 N as PUSH1 N + 1 and PUSH0 as PC (its own offset, another slot).
+cat "$tmp/bytecode.py" - > "$tmp/bytecode-slot.py" <<'EOF'
+hashes = [i for i, pc in enumerate(ops) if code[pc] == 0x20]
+if not hashes: sys.exit(3)
+slot = None
+for a, b, c in zip(ops, ops[1:], ops[2:hashes[0]]):
+    if code[b:b + 2] == [0x60, 0x20] and code[c] == 0x52 and (
+            code[a] == 0x5f or (code[a] == 0x60 and code[a + 1] < 0xff)):
+        slot = a
+if slot is None: sys.exit(3)
+if code[slot] == 0x5f: put(slot, 0x58)
+else: put(slot + 1, code[slot + 1] + 1)
+EOF
+try bytecode-mapping-slot "$gen/Bytecode.lean" Bytecode "$proofs/Assembly.lean" "$walk_false" \
+    < "$tmp/bytecode-slot.py"
 
 edit "$last-control" "$gen/$last.lean" <<<'pass'
 check "$last-control" "$last" "$proofs/Runs/$last.lean" pass
@@ -196,11 +232,18 @@ s = s[:m.start(1)] + new + s[m.end(1):]
 EOF
 try "$last-sstore-key" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/sstore.py"
 
-# The dispatcher's call value check dropped: the value is popped instead of reverting on it.
+# The dispatcher's call value check dropped: the value is popped instead of reverting on it, or,
+# where the dispatcher joins it into one guard with the calldata checks (`callvalue; or`), read
+# as zero, so that a call with value passes the guard.
 python3 - "$gen/$last.lean" > "$tmp/callvalue.py" <<'EOF'
 import re, sys
-m = re.search(r"\.effect \.callvalue 0,\n     \.jumpi \d+,", open(sys.argv[1]).read())
-print(f"old, new = {m.group(0)!r}, '.effect .callvalue 0,\\n     .op (.stack .pop),'" if m else "sys.exit(3)")
+text = open(sys.argv[1]).read()
+m = re.search(r"\.effect \.callvalue 0,\n     \.jumpi \d+,", text)
+new = ".effect .callvalue 0,\n     .op (.stack .pop),"
+if m is None:
+    m = re.search(r"\.effect \.callvalue 0,\n     \.op \(\.stack \.or\),", text)
+    new = ".op (.stack (.push 0)),\n     .op (.stack .or),"
+print(f"old, new = {m.group(0)!r}, {new!r}" if m else "sys.exit(3)")
 print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-callvalue-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/callvalue.py"

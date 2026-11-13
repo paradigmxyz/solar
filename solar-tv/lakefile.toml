@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# vault: the stages of milestone/vault/vault.sol's Vault and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "vault"
+srcDir = "milestone"
+roots = ["vault.Proofs"]
+globs = ["vault.+"]
+moreLeanArgs = ["-M", "3000"]

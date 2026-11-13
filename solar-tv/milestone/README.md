@@ -32,8 +32,9 @@ Run axioms are pinned with `#axioms_within` ([W1Proofs/Axioms.lean](w1/proofs/W1
 only `propext`, `Classical.choice` and `Quot.sound`), the stages' and the composition's with
 `#print axioms`, both under `#guard_msgs`, and certify.sh audits every theorem's axioms again.
 [negative.sh](negative.sh) then edits the artifacts where they have the code (the bytecode's first
-`ADD`, else `LT` or `EQ`; the final EVM IR's first `add`, the key its first `sstore` pushes plus
-one, its call value check, its overflow check, its first log, the signature topic and the data
+`ADD`, else `LT` or `EQ`, its first `CALLVALUE` and the slot its first `KECCAK256` hashes; the
+final EVM IR's first `add`, the key its first `sstore` pushes plus one, its call value check (a jump
+on it, or its part of a joined guard), its overflow check, its first log, the signature topic and the data
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
 `keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
 first `mul`, its first range test of a narrow product, the kind of its first external call and
@@ -207,6 +208,25 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [vault](vault/vault.sol): `contract Vault { mapping(address => uint256) balances; function
+  deposit() external payable { balances[msg.sender] += msg.value; } function balanceOf(address
+  who) external view returns (uint256) { return balances[who]; } }`, 200 bytes of runtime bytecode.
+  `deposit` is payable: it adds `CALLVALUE` to the caller's `keccak256` slot under the `Panic(0x11)`
+  overflow check. `balanceOf` is not: the dispatcher joins its call value check into one guard with
+  the calldata length and address checks (`calldatasize < 36 | callvalue | x >> 160`), so a call
+  with value reverts. Stages `stage0 → mir1 → … → mir5 → sched → evm1 → … → evm7` (`place-reads`,
+  `dce`, `spell-width-tests`, `dce`, `lower-assumes`, `stack-schedule`, then `peephole-early` to
+  `terminal-layout`, `tail-merge` among them) and `evm7 → bytecode`, all proved for every call value,
+  calldata, storage and oracle: `SolarTV.Milestone.Vault.vault_mir_to_evmir`. `peephole-early` tests
+  the masked address against the argument with `sub` where the scheduler wrote `eq; iszero`. Its
+  negative tests read the guard's call value as zero in the final EVM IR and the bytecode
+  (`CALLVALUE` as `PUSH0`), and move the mapping's slot (`0` as `1` in the final EVM IR, the bytecode's
+  `PUSH0` as `PC`).
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/vault/vault.sol Vault
 ```
 
 ## Limits
