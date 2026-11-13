@@ -919,7 +919,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 value
             };
-            let phi = self.merge_value_phi(vec![(preheader, value)]);
+            let phi = self.merge_local_phi(id, vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
@@ -1025,6 +1025,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
+            self.annotate_phi(id, phi);
             if self.unchecked_calldata_slices.contains(&value) {
                 self.unchecked_calldata_slices.insert(phi);
             }
@@ -1063,7 +1064,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
                 .collect::<Vec<_>>();
             let value = self
-                .merge_incoming_values(incoming)
+                .merge_incoming_values(id, incoming)
                 .unwrap_or_else(|| header_phis.get(&id).copied().unwrap_or(before_value));
             merged.insert(id, value);
         }
@@ -1132,12 +1133,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
                     (true, false, _, value) | (false, true, value, _) => value,
                     (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                    (false, false, Some(lhs), Some(rhs)) => {
-                        Some(self.merge_value_phi(vec![
-                            (then_branch.block, lhs),
-                            (else_branch.block, rhs),
-                        ]))
-                    }
+                    (false, false, Some(lhs), Some(rhs)) => Some(self.merge_local_phi(
+                        id,
+                        vec![(then_branch.block, lhs), (else_branch.block, rhs)],
+                    )),
                     _ => then_value.or(else_value),
                 };
             if let Some(value) = value {
@@ -1166,19 +1165,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .map(|value| (state.block, value))
                 })
                 .collect::<Vec<_>>();
-            if let Some(value) = self.merge_incoming_values(incoming) {
+            if let Some(value) = self.merge_incoming_values(id, incoming) {
                 before.insert(id, value);
             }
         }
         before
     }
 
-    fn merge_incoming_values(&mut self, incoming: Vec<(BlockId, ValueId)>) -> Option<ValueId> {
+    fn merge_incoming_values(
+        &mut self,
+        id: VariableId,
+        incoming: Vec<(BlockId, ValueId)>,
+    ) -> Option<ValueId> {
         match incoming.as_slice() {
             [] => None,
             [(_, value)] => Some(*value),
             [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => Some(*first),
-            _ => Some(self.merge_value_phi(incoming)),
+            _ => Some(self.merge_local_phi(id, incoming)),
         }
     }
 
@@ -1190,6 +1193,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.unchecked_calldata_slices.insert(value);
         }
         value
+    }
+
+    /// Merges the local `id`; see [`Self::annotate_phi`].
+    fn merge_local_phi(&mut self, id: VariableId, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
+        let phi = self.merge_value_phi(incoming);
+        self.annotate_phi(id, phi);
+        phi
+    }
+
+    /// Binds the local `id` to `value` and records the assignment.
+    pub(super) fn assign_local(&mut self, id: VariableId, value: ValueId) {
+        self.values.insert(id, value);
+        self.note_assignment(id, value);
+    }
+
+    /// Records that the statement being lowered stored `value` in the local `id`, in the current
+    /// block.
+    pub(super) fn note_assignment(&mut self, id: VariableId, value: ValueId) {
+        let block = self.builder.current_block();
+        self.assignments.insert((id, block), (value, self.builder.debug_context()));
+    }
+
+    /// Records, on the jump that ends each incoming block of `phi`, which merges the local `id`,
+    /// the assignment that stored the incoming value there: the last one to `id` in that block, if
+    /// it stored that value.
+    ///
+    /// NOTE: The scheduler can then give the copy of a phi operand the span of its assignment: the
+    /// assignment runs in the block before the jump, so a copy on the unconditional edge runs
+    /// exactly when it does.
+    pub(super) fn annotate_phi(&mut self, id: VariableId, phi: ValueId) {
+        let Value::Inst(inst) = *self.builder.func().value(phi) else { return };
+        let InstKind::Phi(incoming) = &self.builder.func().inst(inst).kind else { return };
+        for (block, value) in incoming.clone() {
+            if let Some((assigned, origin)) = self.assignments.get(&(id, block))
+                && *assigned == value
+            {
+                self.builder.add_edge_assignment(block, value, origin.clone());
+            }
+        }
     }
 
     pub(super) fn merge_storage_ref_states(

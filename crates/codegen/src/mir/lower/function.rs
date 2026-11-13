@@ -9,9 +9,9 @@ use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
     AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail, CheckedOp,
     DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
-    LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module,
-    PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value,
-    ValueId, memory::EvmMemoryLayout,
+    InstructionMetadata, LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType,
+    Module, PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason,
+    Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
@@ -219,6 +219,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
+    /// The last assignment to each local in each block, as its value and source context, for the
+    /// phis that merge the local ([`Self::annotate_phi`]).
+    assignments: FxHashMap<(VariableId, BlockId), (ValueId, InstructionMetadata)>,
     /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
     /// range check.
     unchecked_calldata_slices: FxHashSet<ValueId>,
@@ -558,6 +561,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
+            assignments: FxHashMap::default(),
             unchecked_calldata_slices: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),

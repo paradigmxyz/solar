@@ -437,8 +437,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.set_terminator_origin(func, block);
-        for step in terminator {
-            self.emit_stackified_step(func_id, func, step, cold);
+        let edge_origins = match plan.exit {
+            Exit::Jump(_) => self.edge_assignment_origins(func, block, terminator),
+            _ => Vec::new(),
+        };
+        for (index, step) in terminator.iter().enumerate() {
+            if let Some(&Some(origin)) = edge_origins.get(index) {
+                let terminator_origin = self.asm.debug_origin();
+                self.set_origins(origin);
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(terminator_origin);
+            } else {
+                self.emit_stackified_step(func_id, func, step, cold);
+            }
         }
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
@@ -647,6 +658,51 @@ impl<'gcx> EvmCodegen<'gcx> {
             let metadata = &func.blocks[block].terminator_metadata;
             self.set_origins(metadata);
         }
+    }
+
+    /// Picks, for each of the `steps` that `block` runs before it jumps on, the source context of
+    /// the assignment whose value the step copies, if any.
+    ///
+    /// NOTE: The steps are the code of an edge that leaves `block` unconditionally, so they run
+    /// exactly once per execution of `block`. The assignments in
+    /// [`InstructionMetadata::edge_assignments`] ran in `block`, so the copy of the value of one
+    /// runs exactly when the assignment does and may carry its span, as a copy carries the
+    /// location of the instruction it replaces. An edge out of a block that branches keeps the
+    /// origin of its terminator: its code runs on one arm only. The planner does not record which
+    /// phi a step serves, so each push of a constant takes the assignment of the value it pushes,
+    /// and each other copy takes the next assignment in order. That pairing is arbitrary where
+    /// several copies look alike, but every step of the edge runs when the assignments do, and
+    /// each assignment keeps one instruction.
+    fn edge_assignment_origins<'f>(
+        &self,
+        func: &'f Function,
+        block: BlockId,
+        steps: &[Step],
+    ) -> Vec<Option<&'f InstructionMetadata>> {
+        let metadata = &func.blocks[block].terminator_metadata;
+        if !self.capture_debug_info || metadata.edge_assignments().is_empty() {
+            return Vec::new();
+        }
+        let mut assignments = (metadata.edge_assignments().iter())
+            .map(|assignment| (assignment.value, &assignment.origin))
+            .collect::<Vec<_>>();
+        let mut picked = vec![None; steps.len()];
+        for (pick, step) in picked.iter_mut().zip(steps) {
+            if let &Step::Materialize(value) = step
+                && let Some(index) = assignments.iter().position(|&(stored, _)| stored == value)
+            {
+                *pick = Some(assignments.remove(index).1);
+            }
+        }
+        for (pick, step) in picked.iter_mut().zip(steps) {
+            if pick.is_none()
+                && !assignments.is_empty()
+                && matches!(step, Step::Stack(StackOp::Dup(_)) | Step::Reload(_))
+            {
+                *pick = Some(assignments.remove(0).1);
+            }
+        }
+        picked
     }
 
     /// Attributes the push of a retained constant to `origins`, the combined origin of its readers
