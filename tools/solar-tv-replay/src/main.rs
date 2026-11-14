@@ -17,6 +17,7 @@ use std::{
 };
 use strum::IntoEnumIterator;
 
+mod evm_model;
 mod mir_model;
 mod precompile;
 mod world;
@@ -41,6 +42,14 @@ struct Request {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--evm-model") {
+        let output = match evm_model::export() {
+            Ok(model) => json!({"version":1,"status":"ok","model":model}),
+            Err(reason) => json!({"version":1,"status":"unsupported","reason":reason}),
+        };
+        println!("{output}");
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--mir-model") {
         let output = match mir_model::export() {
             Ok(model) => json!({"version":1,"status":"ok","model":model}),

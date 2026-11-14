@@ -63,6 +63,9 @@ Options:
       -Zsolar-tv=<DIR>
           Run solar-tv on changed MIR and EVM IR after each pass. Keep counterexamples and inconclusive pairs in this directory
 
+      -Zsolar-tv-capture
+          Capture changed pass inputs and regions without checking them. Requires solar-tv
+
       -Zvalidate-ir=<BOOL>
           Validate MIR and EVM IR after each pass. Enabled by default in debug builds. Accepts `true` or `false`
 

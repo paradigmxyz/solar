@@ -150,7 +150,9 @@ def record(
             assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
         else:
             assumptions.append(
-                "complete acyclic EVM region to terminal outcomes; no dynamic or escaping labels; no PC/CODESIZE; sufficient gas"
+                "cyclic source graph correspondence for every step bound and initial projected state; no fixed unrolling or termination assumption; no dynamic/escaping labels or physical gas claim"
+                if program and program.scope == "cyclic-region"
+                else "complete acyclic EVM region to terminal outcomes; no dynamic or escaping labels; no PC/CODESIZE; sufficient gas"
                 if program and program.scope == "region"
                 else "one opcode window; explicit valid label transfers; no PC/CODESIZE"
             )
@@ -206,6 +208,11 @@ def record(
         ),
         "assumptions": assumptions,
         "inputs": sources,
+        **(
+            {"import_correspondence": [side.import_evidence for side in result.pair]}
+            if result.pair and any(side.import_evidence for side in result.pair)
+            else {}
+        ),
         "evidence": "kernel-proof"
         if result.status == "verified"
         else "kernel-and-rust-replay"

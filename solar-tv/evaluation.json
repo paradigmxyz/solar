@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "solady-weth",
+      "archive": "testdata/projects/solady-0.1.26.json.gz",
+      "sha256": "c11acaeeacb1e3b2fbf8d30751a8a1ed946ba5dd2bc83c59fdc987418e70da1a",
+      "source": "src/tokens/WETH.sol",
+      "contract": "WETH"
+    },
+    {
+      "name": "openzeppelin-erc20-mock",
+      "archive": "testdata/projects/openzeppelin-5.6.1.json.gz",
+      "sha256": "32e09e2f7476ae918a7a576c7f3c70e50dca5ba630e656846d00ace3666a8093",
+      "source": "contracts/mocks/token/ERC20Mock.sol",
+      "contract": "ERC20Mock"
+    },
+    {
+      "name": "morpho-blue",
+      "archive": "testdata/projects/morpho-blue-1.0.0.json.gz",
+      "sha256": "00c2209827e5d5c705847cccdbb10e36101b2d800f2cb30fe3ee5773dcc26a00",
+      "source": "src/Morpho.sol",
+      "contract": "Morpho"
+    }
+  ]
+}

@@ -14,8 +14,9 @@ use std::{
     fmt::Display,
     fs,
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
+    sync::Mutex,
 };
 
 mod evm;
@@ -26,6 +27,7 @@ pub(crate) use mir::MirSnapshot;
 struct Snapshot<'a> {
     directory: &'a Path,
     before: String,
+    captured: Mutex<Option<PathBuf>>,
 }
 
 struct Region {
@@ -37,7 +39,7 @@ struct Region {
 impl<'a> Snapshot<'a> {
     fn capture(gcx: Gcx<'a>, cached: bool, text: impl Display) -> Option<Self> {
         let directory = gcx.sess.opts.unstable.solar_tv.as_deref()?;
-        (!cached).then(|| Self { directory, before: text.to_string() })
+        (!cached).then(|| Self { directory, before: text.to_string(), captured: Mutex::new(None) })
     }
 
     fn check(
@@ -74,6 +76,18 @@ impl<'a> Snapshot<'a> {
                 .emit()
         };
         fs::create_dir_all(self.directory).map_err(io_error)?;
+        if gcx.sess.opts.unstable.solar_tv_capture {
+            let record = serde_json::json!({
+                "version": 1, "status": "captured", "layer": layer,
+                "pass": pass, "module": module.to_string(), "target": gcx.sess.opts.evm_version.to_string(),
+                "rejection": rejection,
+                "region": region.map(|r| serde_json::json!({
+                    "kind": r.kind, "name": r.name, "stack_height": r.height,
+                })),
+                "whole_pass": false,
+            });
+            return self.capture_pair(layer, &after, &record).map_err(io_error);
+        }
         let pair = tempfile::Builder::new()
             .prefix(&format!("{layer}-"))
             .tempdir_in(std::path::absolute(self.directory).map_err(io_error)?)
@@ -218,6 +232,27 @@ impl<'a> Snapshot<'a> {
         } else {
             Err(gcx.dcx().err(message).note(diagnostic).note(saved).emit())
         }
+    }
+}
+
+impl Snapshot<'_> {
+    /// Store module text once per pass, with an explicit unchecked region stream.
+    /// Captures are not audit successes and never enter verification totals.
+    fn capture_pair(&self, layer: &str, after: &str, record: &serde_json::Value) -> io::Result<()> {
+        let mut captured = self.captured.lock().unwrap();
+        if captured.is_none() {
+            let root = self.directory.join("captures");
+            fs::create_dir_all(&root)?;
+            let pair = tempfile::Builder::new().prefix(layer).tempdir_in(root)?;
+            fs::write(pair.path().join(format!("before.{layer}")), &self.before)?;
+            fs::write(pair.path().join(format!("after.{layer}")), after)?;
+            *captured = Some(pair.keep());
+        }
+        let path = captured.as_ref().expect("captured pair initialized");
+        let mut file =
+            fs::OpenOptions::new().create(true).append(true).open(path.join("regions.jsonl"))?;
+        serde_json::to_writer(&mut file, record)?;
+        file.write_all(b"\n")
     }
 }
 

@@ -424,6 +424,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "DIR"))]
     pub solar_tv: Option<PathBuf>,
 
+    /// Capture changed pass inputs and regions without checking them. Requires solar-tv.
+    #[cfg_attr(feature = "clap", arg(long, requires = "solar_tv"))]
+    pub solar_tv_capture: bool,
+
     /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
     /// Accepts `true` or `false`.
     #[cfg_attr(
@@ -558,6 +562,7 @@ impl UnstableOpts {
             debugify: _,
             debugify_output: _,
             solar_tv: _,
+            solar_tv_capture: _,
             validate_ir: _,
             time_passes: _,
             forget_gcx: _,

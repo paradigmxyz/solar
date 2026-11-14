@@ -1,0 +1,15 @@
+@module Countdown
+bb0 [stack=1]:
+  dup 1
+  iszero
+  jumpi bb2, bb1
+bb1:
+  push 1
+  swap 1
+  sub
+  jump bb0
+bb2:
+  pop
+  stop
+bb99:
+  stop
