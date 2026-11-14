@@ -46,6 +46,10 @@ contract Export {
         return count;
     }
 
+    /// A dynamic `bytes` parameter: exported as its ABI head word, which no spec reads.
+    /// @custom:ensures count == old(count)
+    function call(address to, bytes calldata data, uint256 k) external view {}
+
     /// @custom:ensures forall uint256 i :: i < items.length ==> items[i] == old(items[i])
     /// @custom:ensures exists address a :: balances[a] > 0 <==> result
     /// @custom:ensures flags[who][k] ==> sq(k) >= k

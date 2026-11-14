@@ -23,7 +23,11 @@ export NAME.gen.C.Bytecode, so a stale or substituted artifact fails the binding
 
 shape.json keys (Lean terms without tactics or commands):
   kind      "certified" (Shapes.Certified: equivalence, termination, spec, resources),
-            "functional" (Shapes.Functional: the first three) or
+            "functional" (Shapes.Functional: the first three),
+            "open_functional" (Shapes.OpenFunctional, Verify/ShapeOpen.lean: the first three with
+            the bytecode run among any admitted other accounts and the source in every admitted
+            open world, for contracts that call others; needs env_ok, wide and admit, and its
+            allowed and post read the world) or
             "compiled" (Shapes.Compiled: equivalence with the gas bound, termination with any
             status and resources, for a contract with no specification; allowed and post absent)
   contract  the checked source, `Except _ CheckedContract` (such as M.contract?)
@@ -44,6 +48,12 @@ shape.json keys (Lean terms without tactics or commands):
   spec      what the specification is, or why there is none (recorded verbatim)
   env       list of named `Prop` assumptions, premises of the statement
   spec_modules  modules defining valid/allowed/post/env (reviewed inputs, not proofs)
+  env_ok    (open_functional) `TargetEnv → Prop`: the admitted accounts beside the contract
+  wide      (open_functional) `World → Prop`: the worlds a result may be explained by
+  admit     (open_functional) `World → Prop`: the worlds termination and the spec speak of;
+            a result only a wide world explains is reported as Shapes.Unadmitted
+  allowed_vacuity  (open_functional) why the allowed statuses reject nothing (then NonVacuous
+            states the specification's half only)
   sem, prog (instead of contract and fuel) a source semantics and program below SolidCore, such as
             the first lowered MIR under an oracle; the statement then has no checked contract
   proof_module, proof  the module and the term of type `∀ env…, ∃ c, contract = .ok c ∧ Shape`
@@ -81,6 +91,18 @@ def expr(shape, key):
 
 def statuses(kind, spec=None, bound=False, vacuity=None):
     """What the kernel-checked statement of each kind proves, obligation by obligation."""
+    if kind == "open_functional":
+        st = statuses("functional", spec, bound, vacuity)
+        st["equivalence"] = ("proved (published statement, Shapes.OpenFunctional): in every admitted "
+            "environment of other accounts, at every gas below 2^256, every result of the exact "
+            "bytecode on a valid call is the source's in some admitted open world, or a failure that "
+            "changes nothing, or a result only a world outside the admitted ones explains "
+            "(Shapes.Unadmitted, reported, outside the specification's guarantee)")
+        st["termination"] = st["termination"].replace("the source ends on every valid call",
+            "the source ends on every valid call in every admitted world")
+        st["spec"] = st["spec"].replace("of every source result on a valid call",
+            "of every source result on a valid call in every admitted world")
+        return st
     res = kind in ("certified", "compiled")
     weak = "" if vacuity is None else f" (not shown non-vacuous: {vacuity})"
     if kind == "compiled":
@@ -132,8 +154,16 @@ def main():
     a = ap.parse_args()
     shape = json.load(open(a.shape))
     kind = shape.get("kind")
-    if kind not in ("certified", "functional", "compiled"):
-        fail("shape.json: kind must be certified, functional or compiled")
+    if kind not in ("certified", "functional", "compiled", "open_functional"):
+        fail("shape.json: kind must be certified, functional, compiled or open_functional")
+    opened = kind == "open_functional"
+    if opened and "sem" in shape:
+        fail("shape.json: kind open_functional states a checked source (contract and fuel)")
+    if not opened:
+        for k in ("env_ok", "wide", "admit", "allowed_vacuity"):
+            if k in shape:
+                fail(f"shape.json: {k} is for kind open_functional only")
+    allowed_vac = None
     if not re.fullmatch(r"[0-9a-f]+", a.hex) or len(a.hex) % 2:
         fail("--hex is not the lowercase hex of the bytecode")
     for k in ("name", "contract"):
@@ -148,7 +178,7 @@ def main():
         exists = ""
     else:
         contract, fuel = expr(shape, "contract"), expr(shape, "fuel")
-        source = f"(_root_.SolidCore.Refinement.solidCore ({fuel})) c"
+        source = f"({fuel}) c" if opened else f"(_root_.SolidCore.Refinement.solidCore ({fuel})) c"
         exists = f"∃ c, {contract} = .ok c ∧\n      "
     valid = expr(shape, "valid")
     ns = f"Certified.{a.name}.Final"
@@ -170,10 +200,16 @@ def main():
                 fail('shape.json: spec_export must be {"ctx": ..., "step": ...}')
             post = (f"_root_.SolidCore.Refinement.Shapes.bundlePost _root_.{export_ns}.{a.contract} "
                     f"({expr(se, 'ctx')}) ({expr(se, 'step')})")
+            if opened:
+                post = f"fun _ => {post}"
             bound_spec = True
         else:
             post = expr(shape, "post")
+        if opened and isinstance(shape.get("allowed_vacuity"), str) and shape["allowed_vacuity"].strip():
+            allowed_vac = shape["allowed_vacuity"].strip()
         for k, v in (("allowed", allowed), ("post", post)):
+            if k == "allowed" and allowed_vac is not None:
+                continue
             if TRIVIAL.match(v) and not (isinstance(shape.get("vacuity"), str) and shape["vacuity"].strip()):
                 fail(f"shape.json: {k} is trivially true ({v!r}): it must reject something, or "
                      "vacuity must say why it does not")
@@ -187,6 +223,9 @@ def main():
             fail(f"shape.json: kind {kind} needs nonvacuous (a proof that the specification and the "
                  "allowed statuses reject something) or vacuity (why that is not shown)")
         spec_args = f" ({allowed}) ({post})"
+        if opened:
+            spec_args = (f" ({expr(shape, 'env_ok')}) ({expr(shape, 'wide')}) ({expr(shape, 'admit')})"
+                         f" ({valid}) ({allowed}) ({post})")
     env = shape.get("env", [])
     if not isinstance(env, list):
         fail("shape.json: env must be a list")
@@ -202,20 +241,33 @@ def main():
         fail("shape.json: the proof module cannot be the statement or the final module")
     shape_t = {"certified": "_root_.SolidCore.Refinement.Shapes.Certified",
                "functional": "_root_.SolidCore.Refinement.Shapes.Functional",
-               "compiled": "_root_.SolidCore.Refinement.Shapes.Compiled"}[kind]
+               "compiled": "_root_.SolidCore.Refinement.Shapes.Compiled",
+               "open_functional": "_root_.SolidCore.Refinement.Shapes.OpenFunctional"}[kind]
     gas = f" ({expr(shape, 'gas')})" if kind in ("certified", "compiled") else ""
     export = f"_root_.SolarTV.Export.{a.contract}"
     premises = "".join(f"({e}) →\n    " for e in env)
     binders = " ".join(f"_h{i}" for i in range(len(env)))
     term = f"{proof} {binders}".strip()
     imports = ["Verify.Shapes", *(["Verify.ShapeGeneric"] if kind == "compiled" else []),
+               *(["Verify.ShapeOpen"] if opened else []),
                *(["Verify.ShapeBundle", f"{a.name}.gen.{a.contract}.Spec"] if bound_spec else []),
                f"{a.name}.gen.{a.contract}.Bytecode", *spec_mods]
     lines = [f"import {m}" for m in dict.fromkeys(imports)]
     byte_list = ",".join(("\n   " if i % 16 == 0 and i else "") + " " + hex(b) for i, b in enumerate(bytes.fromhex(a.hex))).strip()
     call_t, obs_t = "_root_.SolarTV.Call", "_root_.SolarTV.Observable"
     nonvac_def = nonvac_conj = ""
-    if nonvac is not None:
+    if nonvac is not None and opened:
+        allowed_half = "" if allowed_vac is not None else f""" ∧
+    (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ obs.success = false ∧
+      ∀ (W : _root_.SolidCore.Refinement.World), ({expr(shape, 'admit')}) W → ¬ ({allowed}) W call obs)"""
+        nonvac_def = f"""
+/-- The specification is not vacuous: some valid call has a result it rejects in every world
+{"(the allowed statuses reject nothing: " + allowed_vac + ")" if allowed_vac is not None else "and some valid call has a revert no admitted world allows"}. -/
+def NonVacuous : Prop :=
+  (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ∀ (W : _root_.SolidCore.Refinement.World), ¬ ({post}) W call obs){allowed_half}
+"""
+        nonvac_conj = f"_root_.{ns}.NonVacuous ∧\n    "
+    elif nonvac is not None:
         nonvac_def = f"""
 /-- The specification and the allowed statuses are not vacuous: some valid call has a result the
 specification rejects, and some valid call has a revert the allowed statuses reject. -/
@@ -254,7 +306,7 @@ def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩
 def Statement : Prop :=
   _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧
     {nonvac_conj}({premises}{exists}{shape_t} {source} _root_.{ns}.code
-        ({valid}){spec_args}{gas})
+        {"" if opened else "(" + valid + ")"}{spec_args}{gas})
 
 set_option maxRecDepth 100000 in
 theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes :=
@@ -280,6 +332,10 @@ theorem {ns}.final : _root_.{ns}.Statement :=
     open(a.out, "w").write(final_text)
     stmt = " ".join(stmt_text.split("def Statement : Prop :=", 1)[1].split("set_option maxRecDepth 100000 in\ntheorem bound")[0].split())
     strongest = kind == "certified" and bound_spec and vacuity is None
+    st_rec = statuses(kind, shape.get("spec"), bound_spec, vacuity)
+    if allowed_vac is not None:
+        st_rec["termination"] += f" (the allowed statuses reject nothing: {allowed_vac})"
+        st_rec["vacuity"] += f"; the allowed statuses: none rejected ({allowed_vac})"
     if a.record:
         json.dump(
             {
@@ -290,11 +346,12 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                 "statement": stmt,
                 "nonvacuous": (f"{ns}.NonVacuous" if nonvac is not None else None),
                 "vacuity": vacuity,
+                "allowed_vacuity": allowed_vac,
                 "spec_bound_to_export": (f"{export_ns}.{a.contract}" if bound_spec else None),
                 "assumptions": env,
                 "excluded": shape.get("excluded", []),
                 "spec": shape.get("spec"),
-                "statuses": statuses(kind, shape.get("spec"), bound_spec, vacuity),
+                "statuses": st_rec,
                 "strongest": strongest,
             },
             open(a.record, "w"),

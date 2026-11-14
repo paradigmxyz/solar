@@ -12,7 +12,7 @@ open SolidCore.Spec
 /-- What the specs were exported from and are about. -/
 def manifest : Manifest :=
   { source := "tests/snapshots/lean_export.sol",
-    sourceSha256 := "2a96b8a65f9b1b3fb66b0ded9d712639f11d1922cef275332a8a20ecd33ee073",
+    sourceSha256 := "f91cbfc36a817db63c67620c967fbba7e93d2a1e95df7a9927f79033a392a9fd",
     compiler := "",
     options := [],
     bytecodeSha256 := "" }
@@ -52,6 +52,15 @@ def Export : Bundle where
         (.bin .eq (.load (.entry (.slot 2) (.env .sender)) (.lit 0) 32 (.uint 256)) (.bin .add (.old (.load (.entry (.slot 2) (.env .sender)) (.lit 0) 32 (.uint 256))) (.arg 0))),
         (.bin .eq (.ghost "total" []) (.bin .add (.old (.ghost "total" [])) (.lit 1))),
         (.bin .eq (.ret 0) (.load (.slot 1) (.lit 0) 32 (.uint 256)))],
+      succeedsIf := [] },
+    { name := "Export.call",
+      selector := 0x4ae00041,
+      params := [.address, (.uint 256), (.uint 256)],
+      rets := [],
+      payable := false,
+      requires := [],
+      ensures := [
+        (.bin .eq (.load (.slot 1) (.lit 0) 32 (.uint 256)) (.old (.load (.slot 1) (.lit 0) 32 (.uint 256))))],
       succeedsIf := [] },
     { name := "Export.probe",
       selector := 0xe357a605,

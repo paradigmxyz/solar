@@ -764,7 +764,29 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
                 continue;
             }
             let mut params = vec![];
-            for v in f.item.header.parameters.vars.iter() {
+            for (i, v) in f.item.header.parameters.vars.iter().enumerate() {
+                // A dynamic `bytes` or `string` parameter is exported as its ABI head word (the
+                // offset of its data, any uint256), so the call still decodes; its contents are not
+                // in the spec language, so a spec that reads the parameter is refused.
+                if matches!(
+                    v.ty.kind,
+                    TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                ) {
+                    if let Some((pn, _)) = f.params.get(i)
+                        && f.requires
+                            .iter()
+                            .chain(&f.ensures)
+                            .chain(&f.succeeds)
+                            .any(|s| mentions(s, pn))
+                    {
+                        return Err((
+                            v.span,
+                            format!("a spec reads dynamic parameter `{pn}`: not exported"),
+                        ));
+                    }
+                    params.push("(.uint 256)".to_string());
+                    continue;
+                }
                 params.push(abi_ty(program, v, v.span)?);
             }
             let mut rets = vec![];
@@ -930,6 +952,8 @@ fn mentions(s: &Spec<'_>, name: &str) -> bool {
 fn abi_name<'a>(p: &Program<'a>, v: &'a ast::VariableDefinition<'a>) -> Option<String> {
     Some(match &v.ty.kind {
         TypeKind::Elementary(ElementaryType::FixedBytes(n)) => format!("bytes{}", n.bytes()),
+        TypeKind::Elementary(ElementaryType::Bytes) => "bytes".into(),
+        TypeKind::Elementary(ElementaryType::String) => "string".into(),
         _ => match crate::vc::ty_of(p, &v.ty) {
             Ty::Bool => "bool".into(),
             Ty::Uint(n) => format!("uint{n}"),
