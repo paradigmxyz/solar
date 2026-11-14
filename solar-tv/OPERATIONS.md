@@ -100,8 +100,9 @@ the journal and byte memory; their SSA environments are separate and width-typed
 Real inlining and allocation-lowering pairs exercise generated helpers, with
 broken-call and object-aliasing counterexamples. External call families, creation
 and return-data operations execute real fixture children through the shared message boundary and independent native message API.
-CALL assumes sufficient caller gas to avoid clipping its requested amount; CREATE
-uses explicit child gas budgets. Native replay never lowers the MIR caller. Live
+Explicit caller boundary budgets price forwarding and creation; without them,
+CALL requires an explicit request and sufficient caller gas to avoid clipping,
+while CREATE uses explicit child budgets. Native replay never lowers the MIR caller. Live
 returndata, access warmth and account lifetime flags are preserved at internal
 returns. Child gas and nested work limits remain real, not assumed successful.
 Products retain their nested fields and undefined components; insertion,
@@ -140,11 +141,11 @@ must match the slot, and convention-relative offsets must fit in `u64`.
 Deferred allocations use explicit static-address or FMP-backed site bindings;
 extents must match the IR and initialization touches the actual bytes. No
 captured backend memory records are imported as semantic evidence.
-Typed address calls support memory objects and slices with explicit gas for CALL,
+Typed address calls support memory objects and slices for CALL,
 STATICCALL and DELEGATECALL. Object headers are read before the message; slices
 need no header or allocation. Returndata objects copy exactly the live buffer,
-without clearing reserved padding or consuming the buffer. Implicit gas still
-requires caller pricing and is unsupported.
+without clearing reserved padding or consuming the buffer. Implicit gas requires
+an explicit caller budget and EIP-150; it forwards the cap after boundary charges.
 External balance/code reads preserve address truncation and access warmth;
 code introspection sees original delegation designators, not their targets.
 Constant `datacopy` executes known bytes and patches library addresses. Deferred
@@ -205,9 +206,15 @@ for admitted forks, limits, observables and gas policies.
 
 ## Remaining work
 
+Acyclic multi-block EVM regions now follow changed successors and shared tails
+through terminal outcomes, with symbolic live-in stacks and memory. Internal
+labels and stack layouts need not correspond. Loops, dynamic/escaping labels,
+priced region transfers and stateful region operations remain unsupported. See
+the [region examples](README.md#multi-block-evm-ir-regions).
+
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
-   Generalize direct MIR message proofs beyond explicit CREATE budgets and
-   the no-clipping CALL precondition; model root reentry through MIR entry semantics.
+   Derive general MIR message budgets from priced execution rather than supplied
+   boundary inputs; model root reentry through MIR entry semantics.
 2. Add transaction admission and EIP-7702 authorization processing, beyond
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout

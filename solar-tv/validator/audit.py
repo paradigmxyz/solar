@@ -150,7 +150,9 @@ def record(
             assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
         else:
             assumptions.append(
-                "one opcode window; explicit valid label transfers; no PC/CODESIZE"
+                "complete acyclic EVM region to terminal outcomes; no dynamic or escaping labels; no PC/CODESIZE; sufficient gas"
+                if program and program.scope == "region"
+                else "one opcode window; explicit valid label transfers; no PC/CODESIZE"
             )
             if program:
                 assumptions.append(f"entry stack height {program.interface[1]}")

@@ -913,12 +913,10 @@ Reports identify the function or stable block label and incoming height. Both
 module and region hashes are retained. A verified region is a local proof, not a
 claim that the entire pass or contract was verified (`whole_pass: false`). ABI and
 function interface changes, new/deleted functions, shared declaration changes,
-unknown stack heights and changed window boundaries remain unsupported. In
-particular, replacing a revert block with a jump to shared revert code needs a
-larger region; it is not reported as a wrong-code counterexample.
-If a neighboring block also changes, stack-position correspondence is unknown,
-so that window is unsupported too. This avoids blaming a valid stack reshuffle
-that spans several blocks.
+unknown entry stack heights remain unsupported. When successors or adjacent
+blocks change, the hook selects the larger region described below instead of
+assuming that stack positions correspond at the old window boundary. This
+allows shared revert code and stack reshuffles spanning several blocks.
 
 You can select a region when replaying full snapshots:
 
@@ -930,12 +928,53 @@ solar-tv/solar-tv evmir before.evmir after.evmir --window bb7 --stack-height 3
 The standalone window proof assumes the specified incoming height. The pass hook
 derives it from the original and edited CFGs; a maximum bound is insufficient.
 Successor labels denote the same boundaries on both sides. No instructions are
-cut out of a block. Layout changes and shared-tail transformations remain
-unsupported; structured transfers are also unsupported under gas policies.
-Full context is limited to 1 MiB per file, and each selected region keeps the
-128 KiB and 512-line limits. Unrelated EVM bodies are not copied into the proof.
+cut out of a block. Single-block windows do not admit layout changes or shared
+tails; the multi-block mode below follows their successors instead. Structured
+transfers remain unsupported under gas policies.
+Full context is limited to 1 MiB per file. Selected windows and MIR functions keep
+the 128 KiB and 512-line limits; multi-block expansion has the budgets below.
+Unrelated EVM bodies are not copied into the proof.
 For a complete physical `JUMPI; STOP` block, the untaken path executes `STOP`;
 it is not an invented edge to the next block.
+
+### Multi-block EVM IR regions
+
+Use `--region` to execute an entire reachable acyclic CFG through its terminal
+outcomes. Internal labels may disappear or be added, shared tails execute with
+their incoming stack and memory, and stack reshuffles may cross block boundaries.
+Only the entry height must agree. Terminal success/revert bytes and exceptions
+are observable; intermediate stack positions are not artificial outputs.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/cfg-region/{before,after}.evmir \
+  --region bb0 --stack-height 0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/tail-region/{before,after}.evmir \
+  --region bb0 --stack-height 0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/tail-region/{before,broken}.evmir \
+  --region bb0 --stack-height 0
+```
+
+These are real `cfg-simplify` and `tail-merge` outputs. The broken shared tail
+returns 23 where the original returns 22; the Lean kernel checks that witness
+and the native interpreter independently follows the original modules' CFGs.
+Reports retain the entry, height and before/after block sets, alongside replay
+commands and `whole_pass: false`.
+
+The pass hook selects regions when labels, successors or adjacent blocks change;
+isolated edits can still use smaller windows. Unrelated unreachable blocks need
+not fit the model. Manual entry heights are explicit assumptions; the hook proves
+a fixed height in both original and edited CFGs. Internal joins may have different
+heights on different paths. Physical conditional continuations and structured
+jump fallthroughs retain the temporary stack growth of their lowering.
+
+[Region.lean](SolarTV/EVMIR/Region.lean) composes the existing instruction semantics;
+it does not add an instruction interpreter or obtain observations from native
+replay. The importer expands at most 256 block visits, 2,048 instructions and
+128 blocks per path. Loops require invariants and remain inconclusive. Dynamic
+or escaping labels, layout-observing instructions, stateful operations and priced
+gas regions remain unsupported. Memory uses the existing constant-access
+256-byte projection. No whole-pass or arbitrary-world claim follows from a
+verified region.
 
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
