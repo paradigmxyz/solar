@@ -241,9 +241,16 @@ impl<'a> Native<'a> {
         let creation = matches!(message, ExternalMessage::Create { .. });
         match message {
             ExternalMessage::Call { opcode, gas, address, value, input } => {
-                if gas > U256::from(30_000_000) {
+                if gas.is_some_and(|gas| gas > U256::from(30_000_000)) {
                     return Err(MessageError::Unsupported(
                         "MIR requested child gas exceeds 30000000",
+                    ));
+                }
+                if gas.is_none()
+                    && (available.is_none() || !self.engine.feature(EvmFeatures::EIP150))
+                {
+                    return Err(MessageError::Unsupported(
+                        "implicit address-call gas requires caller pricing",
                     ));
                 }
                 let target = Address::from_word(address.into());
@@ -310,11 +317,12 @@ impl<'a> Native<'a> {
                 native.value = value;
                 native.code = code;
                 native.input = Bytes::copy_from_slice(input);
-                let mut forwarded = gas.to::<u64>();
+                let mut forwarded = gas.map(|gas| gas.to::<u64>()).unwrap_or_default();
                 if let Some(available) = available {
                     let remaining = available.checked_sub(charge).ok_or(MessageError::OutOfGas)?;
                     if self.engine.feature(EvmFeatures::EIP150) {
-                        forwarded = forwarded.min(params.call_stipend_reduction(remaining));
+                        let cap = params.call_stipend_reduction(remaining);
+                        forwarded = if gas.is_some() { forwarded.min(cap) } else { cap };
                     } else if forwarded > remaining {
                         return Err(MessageError::OutOfGas);
                     }

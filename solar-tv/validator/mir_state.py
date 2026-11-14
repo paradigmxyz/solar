@@ -352,7 +352,7 @@ def operation(value, definitions):
         opcode = number(definitions[name]["opcode"], 256)
         return (
             f"some {opcode}",
-            f".external (.address {opcode} {'true' if value['value'] else 'false'})",
+            f".external (.address {opcode} {'true' if value['gas'] else 'false'} {'true' if value['value'] else 'false'})",
             args,
         )
     elif kind == "returndata_bytes":

@@ -248,6 +248,11 @@ pub trait Host {
         memory: (u64, u64),
     ) -> Result<MessageOutput, MessageError> {
         let _ = memory;
+        if matches!(message, ExternalMessage::Call { gas: None, .. }) {
+            return Err(MessageError::Unsupported(
+                "implicit address-call gas requires caller pricing",
+            ));
+        }
         self.message(message, pending).map_err(MessageError::Unsupported)
     }
 
@@ -319,8 +324,9 @@ pub enum PlacementRead<'a> {
 /// A semantic MIR message; no caller bytecode or stack protocol is synthesized.
 #[derive(Debug)]
 pub enum ExternalMessage<'a> {
-    /// CALL, CALLCODE, DELEGATECALL or STATICCALL with explicit requested gas.
-    Call { opcode: u8, gas: U256, address: U256, value: U256, input: &'a [u8] },
+    /// CALL, CALLCODE, DELEGATECALL or STATICCALL. An absent request forwards the
+    /// EIP-150 cap and requires a host that prices the caller's message boundary.
+    Call { opcode: u8, gas: Option<U256>, address: U256, value: U256, input: &'a [u8] },
     /// CREATE or CREATE2; the host supplies the explicit child budget.
     Create { value: U256, salt: Option<U256>, initcode: &'a [u8] },
 }
@@ -1093,15 +1099,10 @@ impl<'a> Run<'_, 'a, '_> {
                     return self.semantic_frame_store(address, kind, value);
                 }
                 Semantics::AddressCall(name, address, input, gas, value) => {
-                    let Some(gas) = gas else {
-                        return ControlFlow::Break(Outcome::Unsupported(
-                            "implicit address-call gas requires caller pricing",
-                        ));
-                    };
+                    let gas = if let Some(gas) = gas { Some(frame.read(gas)?) } else { None };
                     let value =
                         if let Some(value) = value { Some(frame.read(value)?) } else { None };
-                    let (address, input, gas) =
-                        (frame.read(address)?, frame.read_value(input)?, frame.read(gas)?);
+                    let (address, input) = (frame.read(address)?, frame.read_value(input)?);
                     let opcode = op::from_mnemonic(name).expect("schema message opcode");
                     let result = self.semantic_address_call(opcode, address, input, gas, value)?;
                     self.frame().values[instruction.result().expect("address call result")] =
@@ -1501,7 +1502,10 @@ impl<'a> Run<'_, 'a, '_> {
                     | op::CREATE2
             )
         {
-            return ControlFlow::Continue(Some(self.external_message(opcode, operands)?));
+            let creation = matches!(opcode, op::CREATE | op::CREATE2);
+            let (args, gas) =
+                if creation { (operands, None) } else { (&operands[1..], Some(operands[0])) };
+            return ControlFlow::Continue(Some(self.external_message(opcode, args, gas)?));
         }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
@@ -1610,14 +1614,19 @@ impl<'a> Run<'_, 'a, '_> {
 
     /// Evaluates external MIR operands directly. Memory expansion belongs to the caller;
     /// child execution and journal commit/rollback belong to the explicitly supplied host.
-    fn external_message(&mut self, opcode: u8, args: &[U256]) -> ControlFlow<Outcome, U256> {
+    fn external_message(
+        &mut self,
+        opcode: u8,
+        args: &[U256],
+        gas: Option<U256>,
+    ) -> ControlFlow<Outcome, U256> {
         let world = self.world.as_ref().expect("external messages require a host");
         let creation = matches!(opcode, op::CREATE | op::CREATE2);
         let explicit_value = matches!(opcode, op::CALL | op::CALLCODE);
         let value = if creation {
             args[0]
         } else if explicit_value {
-            args[2]
+            args[1]
         } else {
             U256::ZERO
         };
@@ -1627,9 +1636,9 @@ impl<'a> Run<'_, 'a, '_> {
         let start = if creation {
             1
         } else if explicit_value {
-            3
-        } else {
             2
+        } else {
+            1
         };
         let (offset, size) = (args[start], args[start + 1]);
         if creation
@@ -1655,7 +1664,7 @@ impl<'a> Run<'_, 'a, '_> {
                 initcode: &input,
             }
         } else {
-            ExternalMessage::Call { opcode, gas: args[0], address: args[1], value, input: &input }
+            ExternalMessage::Call { opcode, gas, address: args[0], value, input: &input }
         };
         let world = self.world.as_mut().expect("external messages require a host");
         let storage = world.effects.storage.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();

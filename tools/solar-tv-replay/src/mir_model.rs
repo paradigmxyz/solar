@@ -439,10 +439,10 @@ fn export_operation(
                 frame_operation(module, body, offset, mode, kind, Some(value))?
             }
             Semantics::AddressCall(name, address, input, gas, value) => {
-                let gas = gas.ok_or("implicit address-call gas requires caller pricing")?;
-                let mut args = vec![address, input, gas];
+                let mut args = vec![address, input];
+                args.extend(gas);
                 args.extend(value);
-                json!({"kind":"address_call","name":name,"value":value.is_some(),"args":operands(module,body,&args)?})
+                json!({"kind":"address_call","name":name,"gas":gas.is_some(),"value":value.is_some(),"args":operands(module,body,&args)?})
             }
             Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
                 json!({"kind":"returndata_bytes","args":[]})
