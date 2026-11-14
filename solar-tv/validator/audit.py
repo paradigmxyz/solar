@@ -103,7 +103,7 @@ def record(
                     "direct typed MIR SSA execution; no backend lowering or implicit frame/FMP setup",
                     "listed symbolic storage cells and typed function arguments universally quantified",
                     "explicit initial byte memory; normal function returns expose memory and transient storage",
-                    "semantic effects; sufficient gas; no physical EVM gas or stack-layout claim",
+                    "semantic effects; abstract MIR instructions unpriced; physical message gas only at explicit boundaries; no backend stack-layout claim",
                     "direct typed internal calls and tail calls; model call depth limit 128",
                     "logical product/slice values; boundary leaves in declaration order; pointer-to-word erasure only at the boundary; distinct pointer spaces remain distinct",
                     "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",

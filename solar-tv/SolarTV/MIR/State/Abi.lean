@@ -35,7 +35,7 @@ def abiObligation (rule : AbiRule) (word : Word) : Except String Unit :=
   simp only [abiCanonical, decide_eq_true_eq, BitVec.toNat_and]
   exact Nat.lt_of_le_of_lt Nat.and_le_right bound
 
-@[simp] theorem canonical_uint_shift (bits shift : Nat) (word : Word)
+@[simp↓] theorem canonical_uint_shift (bits shift : Nat) (word : Word)
     (bound : 256 ≤ bits + shift) :
     abiCanonical (.uint bits) (word >>> shift) = true := by
   simp only [abiCanonical, decide_eq_true_eq]

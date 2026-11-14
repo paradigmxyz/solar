@@ -19,9 +19,11 @@ theorem unproved_abi_obligation (rule : AbiRule) (word : Word)
     abiObligation rule word = .error "unproved ABI canonicality obligation" := by
   simp [abiObligation, uncanonical]
 
-/-- A wrapping shift tests exactly the padding bits discarded by a left-aligned ABI word. -/
+/-- A wrapping shift tests exactly the padding bits discarded by a left-aligned ABI word.
+Zero uses the executor's canonical `ofNat` form so matching does not unfold scalar data. -/
 @[simp] theorem shift_zero_iff_padding (word : Word) (bits : Nat) (bound : bits ≤ 256) :
-    word <<< bits = 0 ↔ word &&& BitVec.ofNat 256 (2^(256-bits)-1) = 0 := by
+    word <<< bits = BitVec.ofNat 256 0 ↔
+      word &&& BitVec.ofNat 256 (2^(256-bits)-1) = BitVec.ofNat 256 0 := by
   have exponent : 256 = (256-bits)+bits := by omega
   have maskBound : 2^(256-bits)-1 < 2^256 := by
     have h := Nat.pow_le_pow_right (n:=2) (by decide) (show 256-bits ≤ 256 by omega)
