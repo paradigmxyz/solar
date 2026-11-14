@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "message_gas": [
+    6400
+  ],
+  "accounts": [
+    {
+      "address": 262144,
+      "nonce": 1,
+      "code": "0x5a5f5260205ff3"
+    }
+  ]
+}

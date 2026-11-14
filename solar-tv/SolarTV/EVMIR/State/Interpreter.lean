@@ -203,14 +203,10 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       let outOffset := (values[if explicitValue then 5 else 4]?.getD 0).toNat
       let outSize := (values[if explicitValue then 6 else 5]?.getD 0).toNat
       let destination := b.setWidth 160
-      let base := if cfg.fork.atLeast .berlin && world.warmAddresses.contains destination then 100 else info.base
-      let valueCharge := if explicitValue && value != 0 then 9000 else 0
-      let newAccount := if kind == .call && dead world destination &&
-          (!cfg.fork.atLeast .spuriousDragon || value != 0) then 25000 else 0
       let (code, resolution, entered) := executionCode cfg.fork world destination
       if cfg.unknownCode == some code.address then .error "MIR root runtime code is unknown" else
       if frame.environment.isStatic && kind == .call && value != 0 then stepFailed world else
-        withMemory world frame (base + valueCharge + newAccount + resolution) inputOffset inputSize fun frame =>
+        withMemory world frame (callBoundaryCharge cfg world ⟨kind,destination,value,[]⟩ opcode resolution 0 0) inputOffset inputSize fun frame =>
           withMemory world frame 0 outOffset outSize fun frame =>
             .ok (.call ⟨kind, destination, value, readBytes frame.memory inputOffset inputSize⟩
               outOffset outSize a.toNat code entered {frame with stack := rest, pc := frame.pc + 1})
@@ -219,8 +215,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       if frame.environment.isStatic then stepFailed world
       else if cfg.fork.atLeast .shanghai && size > 49152 then stepExhausted world
       else
-        let perWord := (if cfg.fork.atLeast .shanghai then 2 else 0) + if opcode = 0xf5 then 6 else 0
-        withMemory world frame (info.base + perWord * ((size + 31) / 32)) b.toNat size fun frame =>
+        withMemory world frame (createBoundaryCharge cfg (opcode = 0xf5) size 0 0) b.toNat size fun frame =>
           .ok (.create (if opcode = 0xf5 then some (values[3]?.getD 0) else none) a
             (readBytes frame.memory b.toNat size) world {frame with stack := rest, pc := frame.pc + 1})
     | 0xff =>

@@ -135,6 +135,8 @@ pub(crate) enum Outcome {
     Stop,
     /// Execution reached `INVALID` or an opcode the EVM version lacks.
     Invalid,
+    /// An explicitly priced message boundary exhausted its caller budget.
+    OutOfGas,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
     /// Execution exceeded a limit before it ended.
@@ -237,6 +239,18 @@ pub trait Host {
         Err("external messages are not modeled by this host")
     }
 
+    /// Executes a message with the caller's active memory extents, in bytes.
+    /// Hosts may price this boundary without assigning prices to abstract MIR.
+    fn message_with_memory(
+        &mut self,
+        message: ExternalMessage<'_>,
+        pending: PendingChanges<'_>,
+        memory: (u64, u64),
+    ) -> Result<MessageOutput, MessageError> {
+        let _ = memory;
+        self.message(message, pending).map_err(MessageError::Unsupported)
+    }
+
     /// Returns where the free memory pointer starts: the heap start the backend's layout chose,
     /// which programs can observe only by exposing an address.
     fn free_memory_start(&mut self) -> U256 {
@@ -327,6 +341,14 @@ pub struct MessageOutput {
     pub value: U256,
     /// Empty on exceptions, complete output on success or revert.
     pub return_data: Vec<u8>,
+}
+
+/// Failure to execute an explicitly supplied message boundary.
+pub enum MessageError {
+    /// The caller could not pay the boundary's EVM charges.
+    OutOfGas,
+    /// Missing evidence or an operation the host does not model.
+    Unsupported(&'static str),
 }
 
 /// An event a transaction logged.
@@ -1614,8 +1636,9 @@ impl<'a> Run<'_, 'a, '_> {
             && self.semantic.is_some_and(|version| version >= EvmVersion::Shanghai)
             && size > U256::from(49152)
         {
-            return ControlFlow::Break(Outcome::Invalid);
+            return ControlFlow::Break(Outcome::OutOfGas);
         }
+        let memory_before = self.memory.size_bytes();
         let input = limit(self.memory.read(offset, size))?;
         self.burn_words(size)?;
         let output = if creation {
@@ -1639,9 +1662,16 @@ impl<'a> Run<'_, 'a, '_> {
         let transient = world.effects.transient.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
         let pending =
             PendingChanges { storage: &storage, transient: &transient, logs: &world.effects.logs };
-        let result = match world.host.message(message, pending) {
+        let result = match world.host.message_with_memory(
+            message,
+            pending,
+            (memory_before, self.memory.size_bytes()),
+        ) {
             Ok(result) => result,
-            Err(reason) => return ControlFlow::Break(Outcome::Unsupported(reason)),
+            Err(MessageError::Unsupported(reason)) => {
+                return ControlFlow::Break(Outcome::Unsupported(reason));
+            }
+            Err(MessageError::OutOfGas) => return ControlFlow::Break(Outcome::OutOfGas),
         };
         world.effects.storage.clear();
         world.effects.transient.clear();

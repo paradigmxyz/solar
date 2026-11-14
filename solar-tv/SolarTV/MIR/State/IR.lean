@@ -207,6 +207,7 @@ structure Config where
   layout : Layout := {}
   builtinGas : List Nat := []
   debugReverts : Bool := false
+  messageGas : Option (List Nat) := none
 
 structure Frame where
   world : Journal
@@ -216,6 +217,7 @@ structure Frame where
   returnData : List Byte := []
   creationIndex : Nat := 0
   builtinIndex : Nat := 0
+  messageGas : List Nat := []
 
 /-- A caller continuation owns its SSA snapshot, not a private copy of execution memory. -/
 structure Continuation where
@@ -229,6 +231,7 @@ inductive Completion where
   | success (data : List Byte)
   | reverted (data : List Byte)
   | invalid
+  | outOfGas
 
 structure Result where
   completion : Completion
@@ -237,6 +240,7 @@ structure Result where
   returnData : List Byte := []
   creationIndex : Nat := 0
   builtinIndex : Nat := 0
+  messageGas : List Nat := []
 
 abbrev Run := Except String Result
 abbrev Step := Except String (Outcome (Option Word × Frame))

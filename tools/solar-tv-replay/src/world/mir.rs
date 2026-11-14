@@ -7,7 +7,7 @@ use serde_json::json;
 use solar_config::EvmVersion;
 use solar_evmir::op;
 use solar_mir_interpreter::{
-    ExternalMessage, Host, MessageOutput, Options, PendingChanges, PlacementRead,
+    ExternalMessage, Host, MessageError, MessageOutput, Options, PendingChanges, PlacementRead,
     replay::{StateInput, StateOutcome, run_state},
 };
 use std::{collections::BTreeMap, str::FromStr};
@@ -41,12 +41,13 @@ impl Host for Context<'_> {
     fn transient(&mut self, slot: U256) -> U256 {
         self.native.transient(slot)
     }
-    fn message(
+    fn message_with_memory(
         &mut self,
         message: ExternalMessage<'_>,
         pending: PendingChanges<'_>,
-    ) -> Result<MessageOutput, &'static str> {
-        self.native.message(message, pending)
+        memory: (u64, u64),
+    ) -> Result<MessageOutput, MessageError> {
+        self.native.message_with_memory(message, pending, memory)
     }
     fn is_static(&self) -> bool {
         self.static_permission
@@ -109,6 +110,11 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         })
         || input.block.hashes.len() > 256
         || input.blob_hashes.len() > 64
+        || input.message_gas.as_ref().is_some_and(|budgets| {
+            budgets.len() > 128
+                || budgets.iter().any(|&g| g > 30_000_000)
+                || !input.creation_gas.is_empty()
+        })
         || input.creation_gas.len() > 128
         || input.creation_gas.iter().any(|&gas| gas > 30_000_000)
         || input.builtin_gas.len() > 128
@@ -189,6 +195,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             }
             StateOutcome::Success(data) => ("success", Vec::new(), data, None, false),
             StateOutcome::Revert(data) => ("revert", Vec::new(), data, None, false),
+            StateOutcome::OutOfGas => ("out-of-gas", Vec::new(), Vec::new(), None, false),
             StateOutcome::Invalid => ("exception", Vec::new(), Vec::new(), None, false),
             StateOutcome::Unsupported(reason) => return Err(reason),
         };
