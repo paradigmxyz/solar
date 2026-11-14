@@ -20,6 +20,11 @@ leaves. It then writes OUT.lean, which states for each function F:
 * `F_holds`: F's spec holds of SolidCore's checked contract on the stage's calls of F
   (`SolidCore.Spec.holdsFn_of_tree`).
 
+With --tree-only it writes only `deploy_eq`, `fn_F`, `F_tree`, `F_erase_eq` and `F_spec`: the
+erased tree and the exported spec, for a proof written over them by hand (such as one with
+succeeds-if conditions, or one whose hash premise is scoped to the slots a call touches), and it
+refuses no function the generic stage erases.
+
 Nothing in the module is trusted: each theorem is checked by the kernel when the module builds,
 and a function whose shape, tree or spec does not check fails the build. A function the generic
 stage does not erase, or a spec with succeeds-if conditions, is refused here (exit 1) and listed
@@ -155,6 +160,11 @@ def main():
         "constructor's Keccak-256 hashes; with --import for its module",
     )
     ap.add_argument("--import", dest="imports", action="append", default=[])
+    ap.add_argument(
+        "--tree-only",
+        action="store_true",
+        help="write only the trees, their erasure checks and the specs (no _meets, no _holds)",
+    )
     args = ap.parse_args()
     only = {x for x in args.only.split(",") if x}
 
@@ -209,7 +219,7 @@ def main():
             refused.append(f"{name}: outside the generic source stage")
             continue
         n, nsi, sel = int(parts[2]), int(parts[3]), int(parts[4])
-        if nsi != 0:
+        if nsi != 0 and not args.tree_only:
             refused.append(f"{name}: succeeds-if conditions are not proved yet")
             continue
         if n > 8:
@@ -223,7 +233,7 @@ def main():
         # The spec's own mapping reads (frame clauses, invariants) need their slots apart too.
         lits = (set(slots[0]) | spec_slots[0]) - (set(slots[1]) | spec_slots[1])
         slots = (sorted(lits), sorted(set(slots[1]) | spec_slots[1]))
-        if (slots[0] or slots[1]) and not args.ghost_fixed:
+        if (slots[0] or slots[1]) and not args.ghost_fixed and not args.tree_only:
             refused.append(
                 f"{name}: reads mappings, which tree_meets_map proves only with --ghost-fixed"
             )
@@ -319,6 +329,10 @@ def main():
             f"/-- `{name}`'s exported spec. -/",
             f"def {fid}_spec : FnSpec := spec.spec.specs[{i}]'(by decide)",
             "",
+        ]
+        if args.tree_only:
+            continue
+        out += [
             f"/-- `{name}`'s spec holds of its erased tree. -/",
             f"theorem {fid}_meets{hyp} : {meets} spec {fid}_spec ctx {n} {fid}_tree := by",
             proof,
@@ -372,7 +386,7 @@ def main():
     out += [f"end {args.module_name}", ""]
     args.out.write_text("\n".join(out).replace("`", chr(96)))
     for _, name, fid, *_ in fns:
-        print(f"{args.module_name}.{fid}_holds")
+        print(f"{args.module_name}.{fid}_{'tree' if args.tree_only else 'holds'}")
 
 
 if __name__ == "__main__":
