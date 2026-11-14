@@ -128,10 +128,26 @@ postcondition, no allowed status, a dropped environment premise, a `sorryAx` pro
 specifications (with no witness, a `sorryAx` witness, or a proof the kernel accepts), and a proof
 module that declares the statement's names, aliases its name or rewrites its command by a macro.
 
-The checker replays through the toolchain's leanchecker every module of the published closure
-except the toolchain's own and those of the upstream lake packages (Mathlib, Batteries, Aesop,
-ImportGraph, Qq, Plausible, ProofWidgets, LeanSearchClient), which are trusted by their directory
-under .lake/packages; the run does not check those packages' oleans against the manifest's
-revisions. The proof builds in a mount namespace where all of HOME is read-only but the package's
+The checker replays through the toolchain's leanchecker, in every run and with nothing skipped for an
+earlier one, every module of the published closure, the toolchain's and the upstream lake packages'
+(Mathlib, Batteries, Aesop, ImportGraph, Qq, Plausible, ProofWidgets, LeanSearchClient) included.
+`CERTIFY_REPLAY_TRUST_UPSTREAM=1` skips those, trusted by their directory under the toolchain and
+.lake/packages; the run then records a provenance caveat with their number, which blocks the strongest
+status. The proof builds in a mount namespace where all of HOME is read-only but the package's
 .lake, and what later steps read is fingerprinted before and after it; a toolchain or package
 altered before the run is not detected.
+
+Every replay is accounted for module by module ([replay.py](replay.py)): the closure must be exactly
+the modules leanchecker replayed in this run (`leanchecker --verbose` exits 0 and reports replaying
+each, and each olean is unchanged since it was planned), plus, with `CERTIFY_REPLAY_TRUST_UPSTREAM=1`,
+those trusted by directory, which the driver decides again from the toolchain's lib/lean and the
+packages' roots, never from the checker's mark alone. Any module left over fails the run. The receipt
+(the closure's size, each module replayed with its olean's digest, any trusted by directory) is the
+record's `replay` and its status `statuses.replay`; the run prints every module it replayed.
+
+The driver checks every producer's exit status: a list read from a command goes through `capture`
+([inputs.sh](inputs.sh)), never `mapfile < <(...)` or a pipe into `while read`, both of which
+discard it, so a producer that prints plausible output and then fails stops the run. The run's
+inputs are checked before use (the solar options, the loops file, the runtime bytecode and its pin,
+solar-verify's exports with [export_check.py](export_check.py), the published statement's record),
+and [test.sh](test.sh) has a negative case for each.

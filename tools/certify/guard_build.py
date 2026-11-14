@@ -6,6 +6,11 @@
         the header imports of the package's sources under ROOT, less those reachable from MINUS,
         and with --deny-statements less every module any Certified/*/Statement.lean reaches and
         every statement and final module but the TARGETs
+    guard_build.py packages ROOT TARGET...
+        print, one per line and sorted, the modules outside the package (its lake packages', not
+        the toolchain's Init, Std, Lean or Lake) that the package modules reachable from the
+        TARGETs import: what the driver builds before any sandboxed step, since the sandbox may
+        write only the package's own build directory
     guard_build.py snap LIBDIR OUT
         record the SHA-256 of every file under LIBDIR in OUT
     guard_build.py check LIBDIR SNAP ALLOW
@@ -168,6 +173,22 @@ elif cmd == "order":
     visit(target)
     with open(out, "w") as fh:
         fh.write("".join(m + "\n" for m in order))
+elif cmd == "packages":
+    root, *targets = sys.argv[2:]
+    if not targets:
+        sys.exit("guard_build.py packages: no targets")
+    inside, outside = set(), set()
+    for t in targets:
+        reach = closure(root, t)
+        if not reach:
+            sys.exit(f"guard_build.py packages: {t} is not a module of the package under {root}")
+        inside |= reach
+    for m in inside:
+        path = next(p for p in (os.path.join(root, d, *m.split(".")) + ".lean" for d in srcdirs(root))
+                    if os.path.isfile(p))
+        outside |= {d for d in header_imports(path) if d not in inside}
+    toolchain = ("Init", "Std", "Lean", "Lake")
+    print("\n".join(sorted(m for m in outside if m.split(".", 1)[0] not in toolchain and m not in toolchain)))
 elif cmd == "snap":
     lib, out = sys.argv[2:]
     with open(out, "w") as fh:

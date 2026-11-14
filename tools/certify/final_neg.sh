@@ -96,7 +96,10 @@ EOF
     fi
     # The variant's own modules (those compiled into its overlay) through the kernel; the rest of
     # the closure is the package's, replayed by the main run.
-    mapfile -t vmods < <(awk -v w="$olean/" '$1 == "MODULE" && index($3, w) == 1 { print $2 }' "$d/check.out")
+    local vlist vmods=()
+    vlist="$(awk -v w="$olean/" '$1 == "MODULE" && index($3, w) == 1 { print $2 }' "$d/check.out")" ||
+        die "cannot list the modules of the variant $label"
+    [[ -z "$vlist" ]] || mapfile -t vmods <<<"$vlist"
     if [[ ${#vmods[@]} -gt 0 ]] && ! lean_in "$olean" leanchecker "${vmods[@]}" > "$d/replay.out" 2>&1; then
         echo "$label: refused by the kernel replay ($(grep -m1 -E 'kernel|error' "$d/replay.out" | cut -c1-160))"
         return

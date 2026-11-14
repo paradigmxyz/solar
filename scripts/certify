@@ -87,9 +87,15 @@ if [[ "${CI:-}" == true || -n "${GITHUB_ACTIONS:-}" ]]; then
     done
 fi
 hthms=()
+# CERTIFY_WRAP prefixes the builds (a job slot limiter); the checker and the kernel replay never run
+# through it, and a run with one set says so.
+[[ -z "${CERTIFY_WRAP:-}" ]] || caveats+=("provenance: the builds ran through CERTIFY_WRAP=${CERTIFY_WRAP}")
 
 die() { echo "certify: error: $*" >&2; exit 1; }
 run() { "${wrap[@]}" "$@"; }
+# capture, tree_diff and the checks of the run's inputs: every producer's exit status is checked.
+# shellcheck source=tools/certify/inputs.sh
+source "$here/inputs.sh"
 
 # guarded LOG SPEC CMD...: CMD (a build, or a frontend that may run code of an untrusted module) in
 # tools/certify/sandbox.sh, output to LOG. SPEC names the modules the step may rebuild, as
@@ -102,11 +108,38 @@ run() { "${wrap[@]}" "$@"; }
 # lean process of a sandboxed step in a further sandbox that may write only its own outputs), put
 # first on PATH for every sandboxed step, so that no module's code can write another's olean.
 iso_bin=
+# resolve_toolchain: the toolchain directory, found once per run (from the lean lake runs), which
+# must be the toolchain tools/certify/toolchain.sha256 records (a digest of every file's SHA-256).
+# The driver runs lean and leanchecker by absolute path from it, never as lake env finds them:
+# lake env puts each workspace package's .lake/build/bin first on PATH, and a lakefile runs code
+# when lake evaluates it, so a binary planted there could stand in for either.
+toolchain=
+resolve_toolchain() {
+    [[ -z "$toolchain" ]] || return 0
+    local dir tc
+    dir="$(cd "$(dirname "$(readlink -f "$(cd "$lean_dir" && lake env which lean)")")/.." && pwd)" ||
+        die "cannot find the toolchain"
+    tc="$(cd "$dir" && find . -type f | sort | xargs -d '\n' sha256sum | sha256sum | cut -c1-64)" ||
+        die "cannot digest the toolchain at $dir"
+    [[ "$tc" == "$(tr -d '[:space:]' < "$here/toolchain.sha256")" ]] ||
+        die "the toolchain at $dir is not the one tools/certify/toolchain.sha256 records"
+    [[ -x "$dir/bin/lean" && -x "$dir/bin/leanchecker" ]] || die "the toolchain at $dir has no bin/lean and bin/leanchecker"
+    toolchain=$dir
+}
+# no_planted_bins: a build bin directory in the checkout or its path dependencies (outside the
+# upstream packages) holds executables lake env would run before the toolchain's; the driver runs
+# lean and leanchecker by absolute path anyway, and such a directory fails the run.
+no_planted_bins() {
+    local found
+    found="$(find "$lean_dir" -path "$lean_dir/.lake/packages" -prune -o -type d -path '*/.lake/build/bin' -print)" ||
+        die "cannot search $lean_dir for build bin directories"
+    [[ -z "$found" ]] || die "the checkout has executables lake env would run before the toolchain's: $(head -3 <<<"$found" | tr '\n' ' ')"
+}
 iso_setup() {
     [[ -n "$iso_bin" ]] && return
     local tcroot
-    tcroot="$(cd "$(dirname "$(readlink -f "$(cd "$lean_dir" && lake env which lean)")")/.." && pwd)" ||
-        die "cannot find the toolchain"
+    resolve_toolchain
+    tcroot=$toolchain
     export CERTIFY_REAL_LEAN="$tcroot/bin/lean" CERTIFY_ISO_DIR="$lean_dir/.lake/build/.iso" CERTIFY_ISO_RO="$lean_dir/.lake/build"
     iso_bin="$(bash "$here/sysroot.sh" "$tcroot" "$lean_dir/.lake/certify-sysroot")" || die "cannot set up the isolated lean"
 }
@@ -190,13 +223,21 @@ mkdir -p "$dir"
 source="$dir/$name.sol"
 [[ "$file" == "$(realpath -m "$source")" ]] || cp "$file" "$source"
 if [[ ${#options[@]} -eq 0 ]]; then
-    if [[ -f "$dir/options" ]]; then mapfile -t options < "$dir/options"; else options=(-Ogas --evm-version osaka); fi
+    if [[ -f "$dir/options" ]]; then
+        mapfile -t options < "$dir/options"
+        check_options "$dir/options" "${options[@]}"
+    else
+        options=(-Ogas --evm-version osaka)
+    fi
 fi
+# Checked before anything is written or compiled: one option per line, each a flag or its value.
+check_options "the solar options" "${options[@]}"
 printf '%s\n' "${options[@]}" > "$dir/options"
 if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
-loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
+if [[ -e "$dir/loops" ]]; then loops="$(cat "$dir/loops")" || die "cannot read $dir/loops"; else loops=0; fi
+check_number "$dir/loops" "$loops"
 # CERTIFIED/NAME/heartbeats, when present, is the run proofs' maxHeartbeats (certify.py's
 # --heartbeats), for a contract whose symbolic runs need more than the default: a larger budget
 # can only let a proof pass, never change what it states.
@@ -217,7 +258,8 @@ if [[ -n "${SOLAR:-}" ]]; then
     solar="$(realpath "$SOLAR")"
 else
     if [[ -z "${CERTIFY_SKIP_BUILD:-}" ]]; then
-        (cd "$root" && run cargo build --locked -j "$CARGO_BUILD_JOBS" --bin solar 2>&1 | tail -n 1)
+        (cd "$root" && run cargo build --locked -j "$CARGO_BUILD_JOBS" --bin solar 2>&1 | tail -n 1) ||
+            die "cargo cannot build solar"
     fi
     solar="${CARGO_TARGET_DIR:-$root/target}/debug/solar"
 fi
@@ -225,8 +267,9 @@ fi
 # The compiler must be an executable the toolchain linked, never a script that could forward
 # --version to one binary and compile with another.
 [[ "$(head -c 4 "$solar" | od -An -tx1 | tr -d ' \n')" == 7f454c46 ]] || die "$solar is not an ELF executable"
-version="$("$solar" --version | sed -n 's/^Commit SHA: //p')"
-[[ "$version" =~ ^[0-9a-f]{40}$ ]] || version="$("$solar" --version | sed -n 's/.*+commit\.\([0-9a-f]\{8\}\).*/\1/p' | head -1)"
+version_out="$("$solar" --version)" || die "$solar --version fails"
+version="$(sed -n 's/^Commit SHA: //p' <<<"$version_out")"
+[[ "$version" =~ ^[0-9a-f]{40}$ ]] || version="$(sed -n 's/.*+commit\.\([0-9a-f]\{8\}\).*/\1/p' <<<"$version_out" | sed -n 1p)"
 [[ -n "$version" ]] || die "cannot read the compiler commit from $solar --version"
 if ! { git -C "$root" diff --quiet HEAD -- crates Cargo.toml Cargo.lock &&
     git -C "$root" cat-file -e "$version^{commit}" 2>/dev/null &&
@@ -248,14 +291,15 @@ echo "solar $version"
 # file hashed from disk, untracked and ignored files counted), except for the outputs the driver
 # writes under Certified/*/; final's closure is checked again below against this contract's own.
 generated='^Certified/[a-z][a-z0-9_]*/(Statement\.lean|Final\.lean|record\.json|options|loops|\.compile\.log|Shape\.lean|VC\.lean|VC/.*|Discharge\.lean|Discharge/.*|SpecConnect\.lean|gen/.*|Proofs/.*)$'
-dirty="$(python3 "$here/clean_tree.py" "$lean_dir" --allow "$generated")" || true
+tree_diff dirty "clean_tree.py on the solidity-lean checkout" python3 "$here/clean_tree.py" "$lean_dir" --allow "$generated"
 [[ -z "$dirty" ]] ||
     caveats+=("provenance: the solidity-lean checkout is not its commit: $(head -5 <<<"$dirty" | tr '\n' ';')")
 # The driver and the compiler sources of this checkout, the same way.
-driver_dirty="$(python3 "$here/clean_tree.py" "$root" --prefix scripts --prefix tools/certify --prefix crates --prefix Cargo.toml --prefix Cargo.lock)" || true
+tree_diff driver_dirty "clean_tree.py on the solar checkout" \
+    python3 "$here/clean_tree.py" "$root" --prefix scripts --prefix tools/certify --prefix crates --prefix Cargo.toml --prefix Cargo.lock
 [[ -z "$driver_dirty" ]] ||
     caveats+=("provenance: the solar checkout (driver or compiler sources) is not its commit $(git -C "$root" rev-parse HEAD): $(head -5 <<<"$driver_dirty" | tr '\n' ';')")
-solar_sha="$(sha256sum "$solar" | cut -c1-64)"
+solar_sha="$(sha256sum "$solar" | cut -c1-64)" || die "cannot digest $solar"
 # Only a compiler this run built counts: a binary named by SOLAR or kept by CERTIFY_SKIP_BUILD is a
 # caveat whatever digest the runner records for it (CERTIFY_SOLAR_SHA256 is the runner's word).
 if [[ -n "${SOLAR:-}" || -n "${CERTIFY_SKIP_BUILD:-}" ]]; then
@@ -272,9 +316,13 @@ if [[ "${CERTIFY_CLEAN_BUILD:-}" == 1 ]]; then
     # build directories, lake's configuration cache, and every file the driver kept (the replay
     # cache among them), so that every module is compiled and replayed again from its source; the
     # upstream git-pinned packages under .lake/packages stay trusted by directory.
-    while IFS= read -r -d '' b; do rm -rf "$b"; done < <(find "$lean_dir" -path "$lean_dir/.lake/packages" -prune -o -type d -path '*/.lake/build' -print0 -prune)
+    find "$lean_dir" -path "$lean_dir/.lake/packages" -prune -o -type d -path '*/.lake/build' -prune -exec rm -rf {} + ||
+        die "cannot remove the build directories of $lean_dir"
     rm -rf "$lean_dir/.lake/build" "$lean_dir/.lake/config"
-    find "$lean_dir/.lake" -maxdepth 1 -name 'certify*' -exec rm -rf {} +
+    # A fresh checkout has no .lake yet: nothing of the driver's to remove.
+    if [[ -d "$lean_dir/.lake" ]]; then
+        find "$lean_dir/.lake" -maxdepth 1 -name 'certify*' -exec rm -rf {} + || die "cannot remove the driver's files in $lean_dir/.lake"
+    fi
     mkdir -p "$lean_dir/.lake/build"
     # The path dependencies (vendor/, committed and checked above) build here, before any module of
     # the run's own proofs exists, since the sandboxed steps may write the package's build only.
@@ -287,32 +335,61 @@ echo "solar sha256 $solar_sha"
 
 echo "== 3. compile $source and export its stages (${options[*]})"
 compile() { "$solar" "$source" "${options[@]}" --emit=bin-runtime "$@"; }
-json="$(compile 2>"$dir/.compile.log")" || { cat "$dir/.compile.log" >&2; die "solar does not compile $source"; }
+# solar's status is checked on its own, never through a pipe: output it printed before failing
+# counts for nothing.
+status=0
+json="$(compile 2>"$dir/.compile.log")" || status=$?
+if [[ $status -ne 0 ]]; then cat "$dir/.compile.log" >&2; die "solar does not compile $source (exit $status)"; fi
 rm -f "$dir/.compile.log"
 if [[ -z "$contract" ]]; then
     contract="$(python3 -c '
 import json, sys
 c = [k.rsplit(":", 1)[1] for k, v in json.loads(sys.argv[1])["contracts"].items() if v.get("bin-runtime")]
 print(c[0] if len(c) == 1 else "")
-' "$json")"
+' "$json")" || die "cannot read solar's output for $source as its JSON"
     [[ -n "$contract" ]] || die "$source has no single contract with runtime code; name one with --contract"
 fi
+# bin_runtime WHAT: the runtime bytecode of the contract in solar's JSON on stdin, failing with
+# WHAT when the output is not JSON, has no such contract, or has no bin-runtime string for it.
 bin_runtime() {
-    python3 -c 'import json, sys; print(json.loads(sys.stdin.read())["contracts"][sys.argv[1]]["bin-runtime"])' \
-        "$source:$contract"
+    python3 -c '
+import json, sys
+what, key = sys.argv[1], sys.argv[2]
+try:
+    out = json.loads(sys.stdin.read())
+except ValueError as e:
+    sys.exit(f"certify: error: {what} is not JSON: {e}")
+contracts = out.get("contracts") if isinstance(out, dict) else None
+if not isinstance(contracts, dict) or key not in contracts:
+    sys.exit(f"certify: error: {what} has no contract {key}")
+v = contracts[key].get("bin-runtime") if isinstance(contracts[key], dict) else None
+if v is None:
+    sys.exit(f"certify: error: {what} has no runtime bytecode (bin-runtime) for {key}")
+if not isinstance(v, str):
+    sys.exit(f"certify: error: {what} has a bin-runtime for {key} that is not a string")
+print(v)
+' "$1" "$source:$contract"
 }
-plain="$(bin_runtime <<<"$json")" || die "$source has no contract $contract"
-[[ -n "$plain" ]] || die "$contract has no runtime code"
+plain="$(bin_runtime "solar's output" <<<"$json")" || die "$source has no contract $contract with runtime bytecode (above)"
+check_hex "the runtime bytecode solar emits for $contract" "$plain"
 rm -rf "$dir/gen"
-if ! exported="$(compile "-Zemit-lean-stages=$dir/gen" 2>"$dir/.export.log" | bin_runtime 2>/dev/null)"; then
+status=0
+exported_json="$(compile "-Zemit-lean-stages=$dir/gen" 2>"$dir/.export.log")" || status=$?
+if [[ $status -ne 0 ]]; then
     grep -E '^error' -A3 "$dir/.export.log" >&2 || cat "$dir/.export.log" >&2
     rm -f "$dir/.export.log"
-    die "the exporter rejects $contract (above): outside the fragment the stages have Lean semantics for"
+    die "the exporter rejects $contract (exit $status, above): outside the fragment the stages have Lean semantics for"
 fi
 rm -f "$dir/.export.log"
+exported="$(bin_runtime "solar's output with -Zemit-lean-stages" <<<"$exported_json")" ||
+    die "the export of $contract has no runtime bytecode (above)"
+check_hex "the runtime bytecode solar emits for $contract with -Zemit-lean-stages" "$exported"
 [[ "$plain" == "$exported" ]] || die "-Zemit-lean-stages changed the bytecode"
-if [[ -f "$dir/bytecode.hex" ]]; then
-    [[ "$plain" == "$(tr -d '[:space:]' < "$dir/bytecode.hex")" ]] ||
+if [[ -e "$dir/bytecode.hex" ]]; then
+    [[ -f "$dir/bytecode.hex" ]] || die "$dir/bytecode.hex is not a file"
+    pinned="$(tr -d '[:space:]' < "$dir/bytecode.hex")" || die "cannot read $dir/bytecode.hex"
+    check_hex "the pinned $dir/bytecode.hex" "$pinned"
+    [[ "$plain" == "$pinned" ]] ||
         die "the bytecode is not the pinned $dir/bytecode.hex: $plain"
 else
     echo "$plain" > "$dir/bytecode.hex"
@@ -340,7 +417,10 @@ rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 "$here/certify.py" "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
     --label "$name" --loops "$loops" --heartbeats "$heartbeats" "${joins[@]}" ${recdepth:+--recdepth "$recdepth"})" || die "certify.py cannot write the proofs"
-final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
+final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")" ||
+    die "certify.py's output names no final theorem"
+ident_re="^[A-Za-z_][A-Za-z0-9_.']*$"
+[[ "$final" =~ $ident_re ]] || die "certify.py names the final theorem '$final', which is not a Lean name"
 echo "$info"
 
 echo "== 5. build and audit the proofs"
@@ -378,8 +458,20 @@ bash "$here/audit.sh" scan "$dir" || die "the generated files of $name fail the 
 mkdir -p .lake
 log="$lean_dir/.lake/certify-$name.log"
 rm -f "$lean_dir/.lake/certify-vacuous-$name" "$lean_dir/.lake/certify-$name.json.binding"
-mapfile -t stages < <(cd "$examples" && ls "$name/gen/$contract"/*.lean | sed 's|\.lean$||; s|/|.|g')
-mapfile -t runs < <(cd "$examples" && ls "$name"/Proofs/Runs/*.lean | sed 's|\.lean$||; s|/|.|g')
+# lean_modules DIR: the module of each .lean file directly in $examples/DIR, sorted; fails when
+# DIR is missing.
+lean_modules() {
+    local f
+    [[ -d "$examples/$1" ]] || { echo "certify: error: no directory $examples/$1" >&2; return 1; }
+    for f in "$examples/$1"/*.lean; do
+        [[ -f "$f" ]] || continue
+        f="${f#"$examples/"}"
+        f="${f%.lean}"
+        printf '%s\n' "${f//\//.}"
+    done
+}
+capture_nonempty stages "the list of $contract's exported stages ($dir/gen/$contract)" lean_modules "$name/gen/$contract"
+capture_nonempty runs "the list of the run proofs ($dir/Proofs/Runs)" lean_modules "$name/Proofs/Runs"
 # One module at a time, so that one Lean process runs at a time: the exported stages, which the
 # proofs import, then the proofs.
 # The execution proof, when certify.py writes one (the final EVM IR inside the assembly checker's
@@ -395,8 +487,16 @@ for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.As
     tail -n 1 "$log"
 done
 
-mapfile -t thms < <(grep -rhoE '^theorem [A-Za-z0-9_'"'"']+' "$dir/Proofs" | awk '{print $2}' | sort -u |
-    sed "s/^/SolarTV.Milestone.$cap./")
+# proof_theorems: the theorems $dir/Proofs declares, qualified; none is an empty list (grep's 1),
+# and grep failing otherwise fails the run.
+proof_theorems() {
+    local hits status=0
+    hits="$(grep -rhoE '^theorem [A-Za-z0-9_'"'"']+' "$dir/Proofs")" || status=$?
+    [[ $status -le 1 ]] || return "$status"
+    [[ -n "$hits" ]] || return 0
+    awk '{print $2}' <<<"$hits" | sort -u | sed "s/^/SolarTV.Milestone.$cap./"
+}
+capture thms "the list of the theorems of $dir/Proofs" proof_theorems
 [[ ${#thms[@]} -gt 0 ]] || die "no theorems in $dir/Proofs"
 printf '%s\n' "${thms[@]}" | grep -qx "$final" || thms+=("$final")
 audit "$lean_dir/.lake/certify-audit-$name.out" "$name.Proofs" -- "${thms[@]}"
@@ -413,7 +513,40 @@ fi
 e2e_thms=()
 e2e_kind=""
 
+# prebuild_packages TARGET...: the modules of the lake packages (the manifest's, at its pinned
+# revisions) that the package modules reachable from the TARGETs import, built now, before any
+# module of the run's own statement or proofs is built, and outside the sandbox, which may write
+# only the package's own build directory. The packages' modules are not trusted for being built
+# here: every module of the published closure is replayed through the kernel below.
+prebuild_packages() {
+    local mods
+    capture mods "the list of the package modules $* import" python3 "$here/guard_build.py" packages "$lean_dir" "$@"
+    [[ ${#mods[@]} -gt 0 ]] || return 0
+    printf 'lake packages (%s modules imported): ' "${#mods[@]}"
+    (cd "$lean_dir" && lake "-KleanMemory=$memory" build "${mods[@]/#/+}" > "$lean_dir/.lake/certify-packages-$name.log" 2>&1) ||
+        { grep -E '^error' -A8 "$lean_dir/.lake/certify-packages-$name.log" | head -40 >&2; die "the lake packages $* import do not build"; }
+    tail -n 1 "$lean_dir/.lake/certify-packages-$name.log"
+}
+
 echo "== 6. the spec (solar-verify) and the headline theorems"
+# What the headline and the published statement import from the lake packages, built first.
+pre_targets=()
+if [[ -f "$dir/headline" || -f "$dir/spec" ]]; then
+    capture pre_lines "the theorems $dir/headline names" entries $( [[ -f "$dir/headline" ]] && echo "$dir/headline" ) $( [[ -f "$dir/spec" ]] && echo "$dir/spec" )
+    for line in "${pre_lines[@]}"; do read -r m _ <<<"$line"; pre_targets+=("$m"); done
+fi
+if [[ -f "$dir/shape.json" ]]; then
+    capture pre_shape "the modules $dir/shape.json names" \
+        python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json"
+    pre_targets+=("${pre_shape[@]}")
+fi
+[[ $require_spec -eq 0 ]] || pre_targets+=(Verify.VC.Discharge)
+if [[ ${#pre_targets[@]} -gt 0 ]]; then
+    if grep -q '"mathlib"' "$lean_dir/lake-manifest.json" 2>/dev/null && [[ ! -d "$lean_dir/.lake/packages/mathlib/.lake/build/lib" ]]; then
+        (cd "$lean_dir" && run lake exe cache get) || die "cannot fetch Mathlib's build cache"
+    fi
+    prebuild_packages "${pre_targets[@]}"
+fi
 # solar-verify's verification conditions as Lean: every function whose conditions fall outside
 # the fragment solidity-lean's checks model is refused, recorded as unproved and never passes.
 spec_status="not checked: no solar-verify"
@@ -429,6 +562,7 @@ if [[ -n "$verify" ]]; then
     [[ -x "$verify" ]] || die "no solar-verify binary at $verify"
     spec_dir="$lean_dir/.lake/certify/$name"
     bash "$here/spec.sh" "$verify" "$source" "$spec_dir" "Certified.$cap.VC" || die "the spec export fails"
+    [[ -f "$spec_dir/refused" ]] || die "spec.sh wrote no record of the refused functions ($spec_dir/refused)"
     mapfile -t refused < "$spec_dir/refused"
     spec_status="exported to .lake/certify/$name/VC.lean"
     [[ -s "$spec_dir/VC.lean" ]] || spec_status="refused as a whole by solar-verify"
@@ -485,11 +619,13 @@ open SolidCore.Verify.VC
         # contract and solar-verify's spec bundle, tools/certify/spec_connect.py writes NAME.SpecConnect,
         # whose F_holds state each function's spec of SolidCore's contract on the stage's calls.
         if [[ -f "$dir/spec-connect" ]]; then
-            read -r core_mod core_ns spec_mod spec_bundle rest < <(grep -vE '^\s*(#|$)' "$dir/spec-connect" | head -n 1)
+            capture sc_lines "the entries of $dir/spec-connect" entries "$dir/spec-connect"
+            read -r core_mod core_ns spec_mod spec_bundle rest <<<"${sc_lines[0]:-}"
             [[ -n "${spec_bundle:-}" && -z "${rest:-}" ]] || die "$dir/spec-connect is not CORE_MODULE NAMESPACE SPEC_MODULE BUNDLE"
-            mapfile -t holds < <(python3 "$here/spec_connect.py" --core-module "$core_mod" --namespace "$core_ns"                 --spec-module "$spec_mod" --bundle "$spec_bundle" --module-name "$name.SpecConnect"                 --out "$dir/SpecConnect.lean" --lean "${wrap[*]} lake env lean -M $memory" --cwd "$lean_dir"; echo "exit $?")
-            [[ "${holds[-1]}" == "exit 0" ]] || die "spec_connect.py refuses functions of $contract (above)"
-            unset 'holds[-1]'
+            capture holds "spec_connect.py, which refuses functions of $contract (above)," python3 "$here/spec_connect.py" \
+                --core-module "$core_mod" --namespace "$core_ns" --spec-module "$spec_mod" --bundle "$spec_bundle" \
+                --module-name "$name.SpecConnect" --out "$dir/SpecConnect.lean" --lean "${wrap[*]} lake env lean -M $memory" \
+                --cwd "$lean_dir"
             [[ ${#holds[@]} -gt 0 ]] || die "spec_connect.py connects no function of $contract"
             bash "$here/audit.sh" scan "$dir/SpecConnect.lean" || die "$dir/SpecConnect.lean fails the scan"
             printf '%s: ' "$name.SpecConnect"
@@ -499,7 +635,9 @@ open SolidCore.Verify.VC
             spec_status+="; source spec holds of SolidCore (generic, not yet of the bytecode): ${holds[*]}"
         fi
         [[ -f "$dir/spec" ]] || die "--require-spec: $dir/spec is missing: solidity-lean discharges no VC of $name against its bytecode"
-        spec_status+="; composed with the bytecode by $(grep -vE '^\s*(#|$)' "$dir/spec" | awk '{print $2}' | paste -sd' ')"
+        spec_theorems() { entries "$dir/spec" | awk '{print $2}'; }
+        capture_nonempty spec_thms "the theorems $dir/spec names" spec_theorems
+        spec_status+="; composed with the bytecode by ${spec_thms[*]}"
     fi
 elif [[ $require_spec -eq 1 ]]; then
     die "--require-spec needs solar-verify (SOLAR_VERIFY, or crates/verify in this checkout)"
@@ -507,7 +645,10 @@ fi
 [[ ${#refused[@]} -eq 0 ]] || caveats+=("${#refused[@]} spec function(s) refused, unproved")
 echo "spec: $spec_status"
 if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
-    mapfile -t lines < <(cat "$dir/headline" "$dir/spec" 2>/dev/null | grep -vE '^\s*(#|$)')
+    hfiles=()
+    [[ ! -f "$dir/headline" ]] || hfiles+=("$dir/headline")
+    [[ ! -f "$dir/spec" ]] || hfiles+=("$dir/spec")
+    capture lines "the theorems $dir/headline names" entries "${hfiles[@]}"
     [[ ${#lines[@]} -gt 0 ]] || die "$dir/headline names no theorem"
     hmods=()
     for line in "${lines[@]}"; do
@@ -515,7 +656,8 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
         [[ -n "$hmod" && -n "$hthm" && -z "$rest" ]] || die "$dir/headline: '$line' is not MODULE THEOREM"
         hmods+=("$hmod") hthms+=("$hthm")
     done
-    mapfile -t umods < <(printf '%s\n' "${hmods[@]}" | sort -u)
+    sort_unique() { printf '%s\n' "$@" | sort -u; }
+    capture umods "the list of the headline modules" sort_unique "${hmods[@]}"
     # The backend proofs need no Mathlib; a headline over SolidCore may, so fetch its build cache
     # rather than build it.
     if grep -q '"mathlib"' lake-manifest.json 2>/dev/null && [[ ! -d .lake/packages/mathlib/.lake/build/lib ]]; then
@@ -575,7 +717,8 @@ echo "== 6b. the published statement"
 # fresh export to $plain by exact equality, and the axiom audit admits only propext,
 # Classical.choice and Quot.sound. The statuses come from the statement's kind alone.
 final_record="$lean_dir/.lake/certify-$name.json.final"
-rm -f "$final_record"
+replay_receipt="$lean_dir/.lake/certify-$name.json.replay"
+rm -f "$final_record" "$replay_receipt"
 final_thm=
 if [[ -f "$dir/shape.json" ]]; then
     if python3 -c 'import json,sys; sys.exit(0 if "generic" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
@@ -590,15 +733,22 @@ if [[ -f "$dir/shape.json" ]]; then
         "$verify" --emit-lean-spec "$dir/gen/$contract/Spec.lean" --lean-spec-module "Certified.$name.gen.$contract.Spec" \
             "$source" > "$log" 2>&1 || { cat "$log" >&2; die "solar-verify cannot export the specification of $source"; }
         [[ -s "$dir/gen/$contract/Spec.lean" ]] || die "solar-verify wrote no specification for $source"
+        # The whole module, of this run's source: truncated or stale fails here, before Lean reads it.
+        python3 "$here/export_check.py" spec "$dir/gen/$contract/Spec.lean" "Certified.$name.gen.$contract.Spec" \
+            --source "$source" --contract "$contract" || die "the exported specification of $source is not whole"
         bash "$here/audit.sh" scan "$dir/gen/$contract/Spec.lean" || die "the exported specification fails the scan"
     fi
     # The checked SolidCore source AST, when shape.json names it, must be the front end's AST of
     # this run's source (tools/certify/source_bind.sh), else the run fails.
     rm -f "$lean_dir/.lake/certify-$name.json.source"
     if python3 -c 'import json,sys; sys.exit(0 if "source_ast" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
-        read -r sfile sns scontract < <(python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["source_ast"]; print(a["file"], a["namespace"], a["contract"])' "$dir/shape.json")
+        capture sa_lines "the source_ast of $dir/shape.json" \
+            python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["source_ast"]; print(a["file"], a["namespace"], a["contract"])' "$dir/shape.json"
+        read -r sfile sns scontract srest <<<"${sa_lines[0]:-}"
+        [[ ${#sa_lines[@]} -eq 1 && -n "${scontract:-}" && -z "${srest:-}" ]] ||
+            die "$dir/shape.json's source_ast is not one FILE NAMESPACE CONTRACT"
         bash "$here/source_bind.sh" "$lean_dir" "$source" "$sfile" "$sns" "$scontract" > "$log" 2>&1 ||
-            { cat "$log" >&2; die "the checked source AST of $name is not this run's source"; }
+            { cat "$log" >&2; die "the checked source AST of $name cannot be bound to this run's source (above)"; }
         cat "$log"
         sed -n 's/^source: //p' "$log" > "$lean_dir/.lake/certify-$name.json.source"
     fi
@@ -606,8 +756,12 @@ if [[ -f "$dir/shape.json" ]]; then
     final_thm="$(python3 "$here/final.py" "$dir/shape.json" --name "$name" --contract "$contract" \
         --hex "$plain" --out "$dir/Final.lean" --statement-out "$dir/Statement.lean" --record "$final_record")" ||
         die "final.py cannot write the published statement"
+    # Its record is where the statuses come from: missing, empty or malformed fails the run.
+    check_final_record "$final_record"
     bash "$here/audit.sh" scan "$dir/Final.lean" "$dir/Statement.lean" || die "the published statement fails the scan"
-    mapfile -t fmods < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json")
+    capture_nonempty fmods "the modules $dir/shape.json names" \
+        python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json"
+    for module in "${fmods[@]}"; do [[ -n "$module" ]] || die "$dir/shape.json names an empty module"; done
     for module in "${fmods[@]}"; do
         mfile="${module//.//}.lean"
         [[ -f "$mfile" ]] || mfile="$examples/${module//.//}.lean"
@@ -624,16 +778,15 @@ if [[ -f "$dir/shape.json" ]]; then
     # Building the proof runs its code (commands, macros, tactics) as this user. It builds in its
     # own PID namespace and a private mount namespace where all of $HOME is read-only (the
     # toolchain, elan's proxies, this checkout, the package's sources, lakefile and .lake but its
-    # build directory, the lake packages, the replay cache), with a private /tmp. The
+    # build directory, the lake packages), with a private /tmp. The
     # oleans of the statement's closure, lake's configuration cache, the toolchain, the driver and
-    # the cache are fingerprinted before and after it (in this process's memory), and no module of
+    # what the driver wrote are fingerprinted before and after it (in this process's memory), and no module of
     # the package may take a toolchain root's name: any difference fails the run.
-    toolchain="$(cd "$(dirname "$(readlink -f "$(lake env which lean)")")/.." && pwd)"
-    # The toolchain must be the one tools/certify/toolchain.sha256 records (a digest of every
-    # file's SHA-256), so that nothing an earlier run executed has changed it.
-    tc="$(cd "$toolchain" && find . -type f | sort | xargs -d '\n' sha256sum | sha256sum | cut -c1-64)"
-    [[ "$tc" == "$(tr -d '[:space:]' < "$here/toolchain.sha256")" ]] ||
-        die "the toolchain at $toolchain is not the one tools/certify/toolchain.sha256 records"
+    # The toolchain must be the one tools/certify/toolchain.sha256 records, so that nothing an
+    # earlier run executed has changed it (resolve_toolchain); the checker and the replay run its
+    # lean and leanchecker by absolute path, never through CERTIFY_WRAP.
+    resolve_toolchain
+    no_planted_bins
     # The upstream packages the checker trusts without replay, resolved now, before any code of the
     # proof runs: each package's directory and the module roots it may provide.
     CERTIFY_TRUSTED_ROOTS=
@@ -642,27 +795,37 @@ if [[ -f "$dir/shape.json" ]]; then
         CERTIFY_TRUSTED_ROOTS+="$pdir=${pkg#*:};"
     done
     export CERTIFY_TRUSTED_ROOTS
-    # The replay cache lives for this run only: a cache left by an earlier run (or planted in the
-    # checkout) could name the key of a module whose olean holds a declaration the kernel never
-    # checked, and oleans are deterministic, so every module of final's closure outside the
-    # upstream packages is replayed in every run.
-    cache="$lean_dir/.lake/certify-replayed-v2"
-    rm -f "$cache"
-    touch "$cache"
+    # No replay cache: a cache left by an earlier run (or planted in the checkout) could name a
+    # module whose olean holds a declaration the kernel never checked, so every module of final's
+    # closure outside the upstream packages is replayed in every run (below). The cache earlier
+    # drivers kept is removed so that nothing reads it.
+    rm -f "$lean_dir/.lake/certify-replayed-v2"
+    # closure_oleans MODULE: the olean of every module of MODULE's closure, one per line; fails
+    # when the checker fails or lists none, so that a fingerprint never covers an empty closure.
+    closure_oleans() {
+        local listing
+        listing="$(lake env "$toolchain/bin/lean" --run "$here/check_final.lean" --closure "$1")" || return 1
+        awk '$1 == "MODULE" { print $3 }' <<<"$listing" | grep . || return 1
+    }
+    # fingerprint_files: what the fingerprint covers, each producer's status checked (a group
+    # piped on would report only its last command's).
+    fingerprint_files() {
+        closure_oleans "$name.Statement" || return 1
+        find "$toolchain" "$here" -type f || return 1
+        if [[ -d "$lean_dir/.lake/config" ]]; then
+            find "$lean_dir/.lake/config" -type f -name 'lakefile.olean*' ! -name '*.lock' || return 1
+        fi
+        echo "$lean_dir/lakefile.lean"; echo "$lean_dir/lake-manifest.json"; echo "$lean_dir/lean-toolchain"
+        # What the driver wrote before the build and reads after it.
+        for f in "$final_record" "$lean_dir/.lake/certify-$name.json.binding" "$lean_dir/.lake/certify-vacuous-$name"                 "$lean_dir/.lake/certify-$name.json.source" "$dir/Statement.lean" "$dir/Final.lean"                 "$lean_dir/.lake/certify-headline-$name.out" "$lean_dir/.lake/certify-audit-$name.out"; do
+            if [[ -e "$f" ]]; then echo "$f"; fi
+        done
+        printf '%s\n' "$root/scripts/certify"
+    }
     fingerprint() {
-        {
-            run lake env lean --run "$here/check_final.lean" --closure "$name.Statement" | awk '$1 == "MODULE" { print $3 }'
-            find "$toolchain" "$here" -type f
-            find "$lean_dir/.lake/config" -type f -name 'lakefile.olean*' ! -name '*.lock'
-            echo "$lean_dir/lakefile.lean"; echo "$lean_dir/lake-manifest.json"; echo "$lean_dir/lean-toolchain"
-            # What the driver wrote before the build and reads after it.
-            for f in "$final_record" "$lean_dir/.lake/certify-$name.json.binding" "$lean_dir/.lake/certify-vacuous-$name"                 "$lean_dir/.lake/certify-$name.json.source" "$dir/Statement.lean" "$dir/Final.lean"                 "$lean_dir/.lake/certify-headline-$name.out" "$lean_dir/.lake/certify-audit-$name.out"; do
-                if [[ -e "$f" ]]; then echo "$f"; fi
-            done
-            printf '%s
-' "$root/scripts/certify" "$cache"
-        } | sort -u | xargs -d '
-' sha256sum | sha256sum
+        local files
+        files="$(fingerprint_files)" || return 1
+        sort -u <<<"$files" | xargs -r -d '\n' sha256sum | sha256sum
     }
     before="$(fingerprint)" || die "cannot fingerprint the statement's closure"
     printf '%s: ' "$name.Final"
@@ -672,21 +835,24 @@ if [[ -f "$dir/shape.json" ]]; then
     # anything it imports) can then never rewrite another module, whatever the statements on disk.
     python3 "$here/guard_build.py" order "$lean_dir" "$lean_dir/.lake/certify-order" "$name.Final" -- "$name.Statement" ||
         die "cannot order the modules of the proof of $name"
-    while read -r m <&3; do
+    capture_nonempty order "the build order of the proof of $name" cat "$lean_dir/.lake/certify-order"
+    [[ "${order[-1]}" == "$name.Final" ]] || die "the build order of the proof of $name does not end with $name.Final"
+    for m in "${order[@]}"; do
         if ! guarded "$log" "=$m" lake "-KleanMemory=$memory" build "$m"; then
             grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
             die "$name.Final does not check ($m): the proof is not of the published statement"
         fi
-    done 3< "$lean_dir/.lake/certify-order"
+    done
     tail -n 1 "$log"
     after="$(fingerprint)" || die "cannot fingerprint the statement's closure"
-    [[ "$before" == "$after" ]] || die "building the proof of $name changed the statement's closure, the toolchain, the driver or the replay cache"
+    [[ "$before" == "$after" ]] || die "building the proof of $name changed the statement's closure, the toolchain or the driver"
     # The build ran in its own PID namespace, so nothing it started outlives it; as a second line,
     # the oleans of final's whole closure are fingerprinted now and again after the checker, the
     # replay and the audit have read them.
     closure_fp() {
-        run lake env lean --run "$here/check_final.lean" --closure "$name.Final" | awk '$1 == "MODULE" { print $3 }' |
-            sort -u | xargs -d '\n' sha256sum | sha256sum
+        local files
+        files="$(closure_oleans "$name.Final")" || return 1
+        sort -u <<<"$files" | xargs -r -d '\n' sha256sum | sha256sum
     }
     closure_before="$(closure_fp)" || die "cannot fingerprint final's closure"
     for r in Init Std Lean Lake; do
@@ -697,7 +863,8 @@ if [[ -f "$dir/shape.json" ]]; then
     # exactly the statement module's Statement, that module does not import the proof module, and
     # final's axioms are the three admitted.
     proof_mod="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proof_module"])' "$dir/shape.json")"
-    if ! run lake env lean --run "$here/check_final.lean" "$name" "$proof_mod" > "$log" 2>&1; then
+    no_planted_bins
+    if ! lake env "$toolchain/bin/lean" --run "$here/check_final.lean" "$name" "$proof_mod" > "$log" 2>&1; then
         cat "$log" >&2
         die "the checker refuses the published statement of $name"
     fi
@@ -745,43 +912,44 @@ PYEOF
     [[ -z "$unbound" ]] ||
         caveats+=("provenance: final's closure imports modules whose sources are not committed: $(head -5 <<<"$unbound" | tr '\n' ';')")
     # An olean can hold a declaration the kernel never checked (a proof module may add one with the
-    # kernel check switched off), so every module of final's closure that this package built is
-    # replayed through the kernel by the toolchain's leanchecker; the toolchain and the upstream
-    # git-pinned packages (Mathlib and its dependencies) are not replayed.
-    # A module replayed by an earlier run is not replayed again when its key matches: the SHA-256
-    # of its olean together with the keys of its imports (so a change anywhere below it replays it).
-    cache="$lean_dir/.lake/certify-replayed-v2"
-    touch "$cache"
-    mapfile -t todo < <(python3 - "$log" "$cache" <<'PYEOF'
-import hashlib, sys
-log, cache = sys.argv[1:]
-done = set(open(cache).read().split())
-key = {}
-for line in open(log):
-    if not line.startswith("MODULE "):
-        continue
-    _, mod, path, kind, *imports = line.split()
-    h = hashlib.sha256(open(path, "rb").read()).hexdigest()
-    key[mod] = hashlib.sha256((h + "".join(key[i] for i in sorted(imports))).encode()).hexdigest()
-    if kind == "replay" and key[mod] not in done:
-        print(mod, key[mod])
-PYEOF
-)
-    all="$(grep -c '^MODULE .* replay' "$log" || true)"
-    [[ "$all" -gt 0 ]] || die "the checker names no module of $name.Final to replay"
-    printf 'kernel replay of %s modules (%s replayed by an earlier run): ' "$all" "$((all - ${#todo[@]}))"
-    if [[ ${#todo[@]} -gt 0 ]]; then
-        if ! run lake env leanchecker $(printf '%s
-' "${todo[@]}" | cut -d' ' -f1) > "$log.replay" 2>&1; then
-            tail -20 "$log.replay" >&2
-            die "the kernel replay of $name.Final's closure fails"
-        fi
-        printf '%s
-' "${todo[@]}" | cut -d' ' -f2 >> "$cache"
-    fi
-    echo ok
+    # kernel check switched off), so every module of final's closure, the toolchain's and the
+    # upstream packages' included, is replayed through the kernel by the toolchain's leanchecker in
+    # this run, nothing skipped for an earlier run or trusted for its directory, and accounted for
+    # module by module (tools/certify/replay.py): leanchecker must exit 0 and report replaying each,
+    # their oleans must be unchanged, and any module left over fails the run.
+    # CERTIFY_REPLAY_TRUST_UPSTREAM=1 (local work only) skips the toolchain and the upstream
+    # packages, trusted by their directory (decided again from the toolchain's lib/lean and
+    # CERTIFY_TRUSTED_ROOTS, never from the checker's mark alone); that is a provenance caveat
+    # naming how many, which blocks the strongest status.
+    replay_plan="$lean_dir/.lake/certify-$name.replay-plan"
+    include_trusted=(--include-trusted)
+    [[ "${CERTIFY_REPLAY_TRUST_UPSTREAM:-}" != 1 ]] || include_trusted=()
+    python3 "$here/replay.py" plan "$log" "$replay_plan" --syslib "$toolchain/lib/lean" \
+        --require "$name.Final" --require "$name.Statement" --require "$proof_mod" ${include_trusted[@]+"${include_trusted[@]}"} ||
+        die "cannot account for the closure of $name.Final"
+    capture_nonempty replay_mods "the modules of $name.Final's closure to replay" awk '$1 == "replay" { print $2 }' "$replay_plan"
+    replay_status=0
+    no_planted_bins
+    # In batches, each one leanchecker process, all in this run; the first failing batch stops it.
+    # leanchecker replays a batch's modules in parallel, so CERTIFY_REPLAY_BATCH (default 400)
+    # bounds its memory; it changes nothing that is replayed.
+    batch="${CERTIFY_REPLAY_BATCH:-400}"
+    [[ "$batch" =~ ^[1-9][0-9]*$ ]] || die "CERTIFY_REPLAY_BATCH is not a positive number: $batch"
+    : > "$log.replay"
+    for ((i = 0; i < ${#replay_mods[@]}; i += batch)); do
+        lake env "$toolchain/bin/leanchecker" --verbose "${replay_mods[@]:i:batch}" >> "$log.replay" 2>&1 ||
+            { replay_status=$?; break; }
+    done
+    python3 "$here/replay.py" account "$replay_plan" "$log.replay" "$replay_status" "$replay_receipt" \
+        --checker "$toolchain/bin/leanchecker" --toolchain "$toolchain" ||
+        die "the kernel replay of $name.Final's closure is not accounted for"
+    trusted_n="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["trusted_count"])' "$replay_receipt")" ||
+        die "cannot read the replay receipt $replay_receipt"
+    [[ "$trusted_n" == 0 ]] ||
+        caveats+=("provenance: $trusted_n modules of the published closure trusted by directory, not replayed in this run (CERTIFY_REPLAY_TRUST_UPSTREAM=1)")
     audit "$lean_dir/.lake/certify-final-$name.out" "$name.Final" -- "$final_thm"
-    [[ "$(closure_fp)" == "$closure_before" ]] || die "final's closure changed while it was checked"
+    closure_after="$(closure_fp)" || die "cannot fingerprint final's closure"
+    [[ "$closure_after" == "$closure_before" ]] || die "final's closure changed while it was checked"
     echo "published: $final_thm"
 elif [[ $require_final -eq 1 ]]; then
     die "--require-final: $dir/shape.json is missing: no published statement for $name"
@@ -792,7 +960,7 @@ fi
 
 echo "== 7. negative tests"
 if [[ $negatives -eq 1 ]]; then
-    bash "$here/negative.sh" "$lean_dir" "$examples" "$name" "$contract"
+    bash "$here/negative.sh" "$lean_dir" "$examples" "$name" "$contract" || die "a negative test of $name fails (above)"
     if [[ -f "$dir/shape.json" ]]; then
         CERTIFY_LEAN="lake env lean -M $memory" bash "$here/final_neg.sh" "$lean_dir" "$examples" "$name" "$contract" "$plain" ||
             die "a variant of the published statement checks"
@@ -805,6 +973,10 @@ fi
 # The run's record: each status, the end-to-end theorems' statements, what was refused, and
 # under which caveats.
 record="$lean_dir/.lake/certify-$name.json"
+if [[ -f "$dir/shape.json" ]]; then
+    check_final_record "$final_record"
+    [[ -s "$replay_receipt" ]] || die "no receipt of the kernel replay of $name.Final's closure ($replay_receipt)"
+fi
 printf '%s\n' "${refused[@]}" > "$record.refused"
 printf '%s\n' "${caveats[@]}" > "$record.caveats"
 printf '%s\n' "${e2e_thms[@]}" > "$record.headline"
@@ -812,12 +984,12 @@ python3 - "$record" "$dir/record.json" "$lean_dir/.lake/certify-headline-$name.o
     "$source" "$plain" "$version" "$head" "$final" "$mir_status" "$assembly_status" "$spec_status" \
     "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" \
     "$lean_dir/.lake/certify-audit-$name.out" "$executes" "$lean_dir/.lake/certify-$name.json.binding" \
-    "$final_record" <<'EOF'
+    "$final_record" "$replay_receipt" <<'EOF'
 import json, re, sys
 
 (out, committed, audit_out, contract, name, source, bytecode, solar, lean, final, mir, assembly,
  spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes, binding_file,
- final_file) = sys.argv[1:]
+ final_file, replay_file) = sys.argv[1:]
 lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
 e2e = lines(".headline")
 text = open(audit_out).read() if e2e else ""
@@ -892,9 +1064,26 @@ if final:
                                "0x1000, the block and transaction of Target.message")
     provenance = [c for c in open(sys.argv[1] + ".caveats").read().splitlines() if c.startswith("provenance:")]
     statuses["provenance"] = "; ".join(c[len("provenance: "):] for c in provenance) or "clean"
-    statuses["strongest"] = bool(final.get("strongest")) and not provenance and all(
+    # The kernel replay's receipt: every module of the closure replayed in this run or trusted by
+    # directory, none unaccounted for (the run fails before this otherwise).
+    try:
+        replay = json.load(open(replay_file))
+    except (OSError, ValueError):
+        replay = None
+    # The strongest status needs the whole closure replayed in this run: none trusted.
+    replay_ok = bool(replay) and replay.get("unaccounted") == [] and replay.get("replayed_count", 0) > 0 and (
+        replay["closure"] == replay["replayed_count"]) and replay["trusted_count"] == 0
+    statuses["replay"] = (
+        f"all {replay['closure']} modules of the published closure replayed by leanchecker in this run; 0 unaccounted"
+        if replay_ok else
+        f"{replay['replayed_count']} of {replay['closure']} modules of the published closure replayed in this run; "
+        f"{replay['trusted_count']} trusted by directory, not replayed "
+        f"({', '.join(f'{k}: {len(v)}' for k, v in replay['trusted'].items()) or 'none'})"
+        if replay else "not accounted for")
+    statuses["strongest"] = bool(final.get("strongest")) and not provenance and replay_ok and all(
         v.startswith(("proved", "not applicable")) for v in final["statuses"].values())
 else:
+    replay = None
     statuses = {
         "equivalence": "not proved: stage refinement only (" + mir + "; assembly " + assembly.split(":")[0] + ")",
         "termination": "not proved",
@@ -931,6 +1120,7 @@ record = {
     # nothing), and nothing here proves termination or gas bounds yet.
     "statuses": statuses,
     "final": final,
+    "replay": replay if final else None,
     "end_to_end_statement": stmts,
     "binding": binding,
     "hypotheses": {t: premises(s) if s else None for t, s in stmts.items()},
@@ -955,6 +1145,7 @@ for path in (out, committed):
         f.write("\n")
 EOF
 rm -f "$record.refused" "$record.caveats" "$record.headline" "$record.binding"
+check_run_record "$record"
 echo "record: $record and $dir/record.json"
 echo "mir_to_evmir: $mir_status"
 python3 -c 'import json,sys; print("assembly: " + json.load(open(sys.argv[1]))["assembly"])' "$record"
@@ -962,7 +1153,9 @@ echo "vc: $spec_status"
 if [[ ${#e2e_thms[@]} -gt 0 ]]; then echo "end_to_end: proved ($e2e_kind): ${e2e_thms[*]}"; else echo "end_to_end: not proved"; fi
 python3 -c 'import json,sys; c=json.load(open(sys.argv[1]))["caveats"]; c and print("caveats: " + "; ".join(c))' "$record"
 python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["statuses"]; print("statuses: " + ", ".join(k + " " + str(s[k]) for k in ("equivalence", "termination", "spec", "resources", "vacuity", "source", "strongest") if k in s))' "$record"
-strongest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["statuses"]["strongest"])' "$record")"
+strongest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["statuses"]["strongest"])' "$record")" ||
+    die "cannot read the strongest status from $record"
+[[ "$strongest" == True || "$strongest" == False ]] || die "$record's strongest status is '$strongest'"
 # CERTIFIED needs equivalence, termination, spec and resources together, from the published
 # statement the kernel checked (kind certified); any other run reports what it checked instead.
 if [[ "$strongest" == "True" ]]; then

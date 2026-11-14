@@ -25,8 +25,10 @@ fi
 if [[ -f lakefile.lean ]]; then lakefile=lakefile.lean; else lakefile=lakefile.toml; fi
 # Porcelain paths start at the repository's root, which a package in a subdirectory is not.
 prefix="$(git rev-parse --show-prefix)"
-others="$(git status --porcelain -- "$dir" "$lakefile" |
-    grep -v -E " $prefix($gen/(Manifest\.lean|manifest\.json)|$dir/record\.json)$" || true)"
+porcelain="$(git status --porcelain -- "$dir" "$lakefile")" || die "git status fails on $dir"
+# grep -v exits 1 when every line is one of the regenerated files: nothing else changed.
+others="$(grep -v -E " $prefix($gen/(Manifest\.lean|manifest\.json)|$dir/record\.json)$" <<<"$porcelain")" ||
+    [[ $? -eq 1 ]] || die "cannot read git status on $dir"
 [[ -z "$others" ]] || { echo "$others" >&2; git diff --stat -- "$dir" "$lakefile" >&2; die "regenerated files differ from solidity-lean's committed ones"; }
 # Every line but the compiler's version, in either file, must be the committed one; the options'
 # thread count, which solar takes from the machine and which changes no output, is compared as N.
@@ -36,7 +38,7 @@ changed=
 for f in "$gen/Manifest.lean" "$gen/manifest.json"; do
     git show "HEAD:./$f" | norm > .lake/certify-committed
     norm < "$f" > .lake/certify-regenerated
-    changed+="$(diff .lake/certify-committed .lake/certify-regenerated || true)"
+    changed+="$(diff .lake/certify-committed .lake/certify-regenerated)" || [[ $? -eq 1 ]] || die "cannot compare $f"
 done
 rm -f .lake/certify-committed .lake/certify-regenerated
 [[ -z "$changed" ]] || { echo "$changed" >&2; die "the manifest differs in more than the compiler's commit"; }

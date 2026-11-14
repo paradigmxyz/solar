@@ -461,11 +461,14 @@ try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" 
 # the other way, else the first jump it wrote in place of a branch sent to the branch's other
 # target, else the calldata it reads first at the next word, else its first constant plus one,
 # each in the lines the pass wrote.
-mapfile -t passes < <(python3 -c '
+passes_out="$(python3 -c '
 import json, sys
 s = [s for s in json.load(open(sys.argv[1]))["stages"] if s["kind"] == "mir"]
 for a, b in zip(s, s[1:]): print(a["file"][:-5], b["file"][:-5])
-' "$gen/manifest.json")
+' "$gen/manifest.json")" ||
+    { echo "error: cannot list the MIR passes of $gen/manifest.json" >&2; exit 1; }
+passes=()
+[[ -z "$passes_out" ]] || mapfile -t passes <<<"$passes_out"
 for pair in "${passes[@]}"; do
     read -r input output <<<"$pair"
     edit "$output-control" "$gen/$output.lean" <<<'pass'

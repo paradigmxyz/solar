@@ -13,11 +13,27 @@ ones included (outside the .lake/ build directories, which the driver treats on 
 DIR) are the outputs the driver writes and are not reported. With --paths FILE (one path relative
 to DIR per line) only those paths are checked, and with --prefix P (repeatable) only paths under P, each of which must be a committed, unchanged file.
 """
-import os, re, subprocess, sys
+import os, re, subprocess, sys, traceback
+
+
+# Exit 0 clean, 1 with the differences listed, 2 on any error (an uncaught exception included),
+# so that the driver never reads a failure as a clean tree.
+def fail(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(2)
+
+
+def _crash(kind, value, tb):
+    traceback.print_exception(kind, value, tb)
+    sys.stderr.flush()
+    os._exit(2)
+
+
+sys.excepthook = _crash
 
 args = sys.argv[1:]
 if not args:
-    sys.exit("usage: clean_tree.py DIR [--allow REGEX] [--paths FILE]")
+    fail("usage: clean_tree.py DIR [--allow REGEX] [--paths FILE]")
 top, allow, paths, prefixes = args[0], None, None, []
 i = 1
 while i < len(args):
@@ -28,7 +44,7 @@ while i < len(args):
     elif args[i] == "--paths":
         paths = [p for p in open(args[i + 1]).read().splitlines() if p]; i += 2
     else:
-        sys.exit("clean_tree.py: unknown argument " + args[i])
+        fail("clean_tree.py: unknown argument " + args[i])
 env = dict(os.environ, GIT_NO_REPLACE_OBJECTS="1", GIT_OPTIONAL_LOCKS="0")
 for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
           "GIT_REPLACE_REF_BASE", "GIT_GRAFT_FILE", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT"):
@@ -40,7 +56,7 @@ def git(*a, inp=None):
 bad = []
 top = os.path.realpath(top)
 if os.path.realpath(git("rev-parse", "--show-toplevel").decode().strip()) != top:
-    sys.exit("clean_tree.py: %s is not the top of a git checkout" % top)
+    fail("clean_tree.py: %s is not the top of a git checkout" % top)
 if git("for-each-ref", "refs/replace/").strip():
     bad.append("replace refs: " + " ".join(l.split()[-1] for l in git("for-each-ref", "refs/replace/").decode().splitlines()))
 common = git("rev-parse", "--git-common-dir").decode().strip()
