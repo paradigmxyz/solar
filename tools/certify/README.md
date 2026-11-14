@@ -107,9 +107,31 @@ last stage's fuel and the loop checker on a certificate [asm_cert.py](asm_cert.p
 the triples a specified contract names, and proves that the checker rejects the bytecode with a
 jump target moved, an SSTORE dropped and an unsupported opcode.
 
-The record's statuses (`equivalence`, `termination`, `spec`, `resources`, `assumptions`,
-`excluded`, `strongest`) come from that statement; `CERTIFIED` is printed only for
-`Shapes.Certified`. [final_neg.sh](final_neg.sh) checks that variants fail: stale or substituted
-bytecode, the strongest status without resources or with a vacuous specification, a wrong gas
-bound, a wrong postcondition, no allowed status, a dropped environment premise and a `sorryAx`
-proof.
+The statement is its own module, `NAME.Statement`, which never imports the proof module, and
+`NAME.Final` only proves it. [check_final.lean](check_final.lean), which imports nothing but Lean,
+reads the built environments and requires `final`'s type to be exactly `NAME.Statement`'s
+`Statement`, that module not to import the proof module, and `final`'s axioms to be `propext`,
+`Classical.choice` and `Quot.sound`: no name, alias, notation or macro of the proof module changes
+what is stated. The strongest status needs the specification from solar-verify's export of the
+run's source (`spec_export`: the driver writes it as `NAME.gen.C.Spec` and the statement reads it
+with `Shapes.bundlePost`) and a non-vacuity witness in the statement (`NonVacuous`: a valid call
+with a result the specification rejects, and one with a revert the allowed statuses reject). A
+statement with a declared `vacuity` is recorded below the strongest status. When `shape.json`
+names the checked source AST (`source_ast`), [source_bind.sh](source_bind.sh) regenerates it from
+the run's source with the pinned solc and fails on any difference.
+
+The record's statuses (`equivalence`, `termination`, `spec`, `resources`, `vacuity`, `source`,
+`environment`, `assumptions`, `excluded`, `strongest`) come from that statement; `CERTIFIED` is
+printed only for the strongest. [final_neg.sh](final_neg.sh) checks that variants fail: stale or
+substituted bytecode, the strongest status without resources, a wrong gas bound, a wrong
+postcondition, no allowed status, a dropped environment premise, a `sorryAx` proof, vacuous
+specifications (with no witness, a `sorryAx` witness, or a proof the kernel accepts), and a proof
+module that declares the statement's names, aliases its name or rewrites its command by a macro.
+
+The checker replays through the toolchain's leanchecker every module of the published closure
+except the toolchain's own and those of the upstream lake packages (Mathlib, Batteries, Aesop,
+ImportGraph, Qq, Plausible, ProofWidgets, LeanSearchClient), which are trusted by their directory
+under .lake/packages; the run does not check those packages' oleans against the manifest's
+revisions. The proof builds in a mount namespace where all of HOME is read-only but the package's
+.lake, and what later steps read is fingerprinted before and after it; a toolchain or package
+altered before the run is not detected.

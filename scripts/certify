@@ -90,6 +90,56 @@ hthms=()
 
 die() { echo "certify: error: $*" >&2; exit 1; }
 run() { "${wrap[@]}" "$@"; }
+
+# guarded LOG SPEC CMD...: CMD (a build, or a frontend that may run code of an untrusted module) in
+# tools/certify/sandbox.sh, output to LOG. SPEC names the modules the step may rebuild, as
+# "TARGET... [-- MINUS...]" (those reachable from the TARGETs by the package's import lines, less
+# those reachable from the MINUS modules; empty for none), computed before the step and never from
+# its output. The package's oleans are snapshotted before and checked after
+# (tools/certify/guard_build.py): any other olean changed fails the run and is removed, so that
+# nothing an untrusted module wrote survives into a later step or run.
+# iso_bin: the bin directory, made once per run, whose lean is tools/certify/lean_iso.sh (each
+# lean process of a sandboxed step in a further sandbox that may write only its own outputs), put
+# first on PATH for every sandboxed step, so that no module's code can write another's olean.
+iso_bin=
+iso_setup() {
+    [[ -n "$iso_bin" ]] && return
+    local tcroot
+    tcroot="$(cd "$(dirname "$(readlink -f "$(cd "$lean_dir" && lake env which lean)")")/.." && pwd)" ||
+        die "cannot find the toolchain"
+    export CERTIFY_REAL_LEAN="$tcroot/bin/lean" CERTIFY_ISO_DIR="$lean_dir/.lake/build/.iso" CERTIFY_ISO_RO="$lean_dir/.lake/build"
+    iso_bin="$(bash "$here/sysroot.sh" "$tcroot" "$lean_dir/.lake/certify-sysroot")" || die "cannot set up the isolated lean"
+}
+
+guarded() {
+    local glog=$1 spec=$2 snap="$lean_dir/.lake/certify-guard.snap" allow="$lean_dir/.lake/certify-guard.allow" status=0
+    shift 2
+    if [[ -n "$spec" ]]; then
+        # shellcheck disable=SC2086
+        python3 "$here/guard_build.py" allow "$lean_dir" "$allow" $spec || die "cannot list the modules of the step"
+    else
+        : > "$allow"
+    fi
+    python3 "$here/guard_build.py" snap "$lean_dir/.lake/build/lib/lean" "$snap" || die "cannot snapshot the package build"
+    iso_setup
+    run env PATH="$iso_bin:$PATH" bash "$here/sandbox.sh" "$lean_dir/.lake/build" "$@" > "$glog" 2>&1 || status=$?
+    python3 "$here/guard_build.py" check "$lean_dir/.lake/build/lib/lean" "$snap" "$allow" ||
+        die "a sandboxed step changed oleans of modules it may not build (removed, rebuilt from source next run)"
+    return $status
+}
+
+# audit OUT MODULE... -- THEOREM...: tools/certify/audit.sh's axiom audit, failing the run. Its
+# Lean frontend imports the audited modules, whose initializers run: in the sandbox, guarded.
+audit() {
+    local snap="$lean_dir/.lake/certify-guard.snap"
+    python3 "$here/guard_build.py" snap "$lean_dir/.lake/build/lib/lean" "$snap" || die "cannot snapshot the package build"
+    iso_setup
+    CERTIFY_WRAP="${wrap[*]} env PATH=$iso_bin:$PATH bash $here/sandbox.sh $lean_dir/.lake/build" bash "$here/audit.sh" axioms "$lean_dir" "$@" ||
+        die "the axiom audit fails"
+    : > "$lean_dir/.lake/certify-guard.allow"
+    python3 "$here/guard_build.py" check "$lean_dir/.lake/build/lib/lean" "$snap" "$lean_dir/.lake/certify-guard.allow" ||
+        die "the axiom audit changed the package build (removed, rebuilt from source next run)"
+}
 usage="usage: scripts/certify FILE.sol [--contract C] [--name NAME] [--loops N] [--no-negatives] [--require-headline] [--require-spec] [--require-final] [-- SOLAR_OPTIONS...]"
 [[ $# -ge 1 ]] || die "$usage"
 [[ "$1" != -h && "$1" != --help ]] || { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'; exit 0; }
@@ -171,7 +221,10 @@ else
     fi
     solar="${CARGO_TARGET_DIR:-$root/target}/debug/solar"
 fi
-[[ -x "$solar" ]] || die "no solar binary at $solar"
+[[ -x "$solar" && -f "$solar" ]] || die "no solar binary at $solar"
+# The compiler must be an executable the toolchain linked, never a script that could forward
+# --version to one binary and compile with another.
+[[ "$(head -c 4 "$solar" | od -An -tx1 | tr -d ' \n')" == 7f454c46 ]] || die "$solar is not an ELF executable"
 version="$("$solar" --version | sed -n 's/^Commit SHA: //p')"
 [[ "$version" =~ ^[0-9a-f]{40}$ ]] || version="$("$solar" --version | sed -n 's/.*+commit\.\([0-9a-f]\{8\}\).*/\1/p' | head -1)"
 [[ -n "$version" ]] || die "cannot read the compiler commit from $solar --version"
@@ -183,6 +236,54 @@ if ! { git -C "$root" diff --quiet HEAD -- crates Cargo.toml Cargo.lock &&
     caveats+=("solar $version, not built from this checkout's compiler sources")
 fi
 echo "solar $version"
+
+# Provenance: what the run starts from. Each doubt is a caveat that starts with "provenance:", and
+# the strongest status needs none: a checkout with changes outside the outputs the driver
+# regenerates, a solar binary this run did not build whose digest is not the recorded one
+# (CERTIFY_SOLAR_SHA256, from PINS.md), and a build directory this run did not rebuild from source
+# (CERTIFY_CLEAN_BUILD=1 removes the package's build directory first, so that every module of the
+# package is compiled again from its source; the upstream packages stay trusted by directory).
+# The checkout is compared file by file with the tree of its HEAD (tools/certify/clean_tree.py:
+# replacement objects off, replace refs and grafts refused, index flags reported, every committed
+# file hashed from disk, untracked and ignored files counted), except for the outputs the driver
+# writes under Certified/*/; final's closure is checked again below against this contract's own.
+generated='^Certified/[a-z][a-z0-9_]*/(Statement\.lean|Final\.lean|record\.json|options|loops|\.compile\.log|Shape\.lean|VC\.lean|VC/.*|Discharge\.lean|Discharge/.*|SpecConnect\.lean|gen/.*|Proofs/.*)$'
+dirty="$(python3 "$here/clean_tree.py" "$lean_dir" --allow "$generated")" || true
+[[ -z "$dirty" ]] ||
+    caveats+=("provenance: the solidity-lean checkout is not its commit: $(head -5 <<<"$dirty" | tr '\n' ';')")
+# The driver and the compiler sources of this checkout, the same way.
+driver_dirty="$(python3 "$here/clean_tree.py" "$root" --prefix scripts --prefix tools/certify --prefix crates --prefix Cargo.toml --prefix Cargo.lock)" || true
+[[ -z "$driver_dirty" ]] ||
+    caveats+=("provenance: the solar checkout (driver or compiler sources) is not its commit $(git -C "$root" rev-parse HEAD): $(head -5 <<<"$driver_dirty" | tr '\n' ';')")
+solar_sha="$(sha256sum "$solar" | cut -c1-64)"
+# Only a compiler this run built counts: a binary named by SOLAR or kept by CERTIFY_SKIP_BUILD is a
+# caveat whatever digest the runner records for it (CERTIFY_SOLAR_SHA256 is the runner's word).
+if [[ -n "${SOLAR:-}" || -n "${CERTIFY_SKIP_BUILD:-}" ]]; then
+    if [[ "${CERTIFY_SOLAR_SHA256:-}" == "$solar_sha" ]]; then
+        caveats+=("provenance: solar was not built by this run (its digest $solar_sha is the runner's recorded CERTIFY_SOLAR_SHA256)")
+    else
+        caveats+=("provenance: solar was not built by this run and its digest $solar_sha is not the recorded CERTIFY_SOLAR_SHA256")
+    fi
+elif [[ -n "${CERTIFY_SOLAR_SHA256:-}" && "${CERTIFY_SOLAR_SHA256}" != "$solar_sha" ]]; then
+    caveats+=("provenance: the solar this run built has digest $solar_sha, not the recorded CERTIFY_SOLAR_SHA256")
+fi
+if [[ "${CERTIFY_CLEAN_BUILD:-}" == 1 ]]; then
+    # Everything compiled or cached in the checkout goes: the package's and its path dependencies'
+    # build directories, lake's configuration cache, and every file the driver kept (the replay
+    # cache among them), so that every module is compiled and replayed again from its source; the
+    # upstream git-pinned packages under .lake/packages stay trusted by directory.
+    while IFS= read -r -d '' b; do rm -rf "$b"; done < <(find "$lean_dir" -path "$lean_dir/.lake/packages" -prune -o -type d -path '*/.lake/build' -print0 -prune)
+    rm -rf "$lean_dir/.lake/build" "$lean_dir/.lake/config"
+    find "$lean_dir/.lake" -maxdepth 1 -name 'certify*' -exec rm -rf {} +
+    mkdir -p "$lean_dir/.lake/build"
+    # The path dependencies (vendor/, committed and checked above) build here, before any module of
+    # the run's own proofs exists, since the sandboxed steps may write the package's build only.
+    (cd "$lean_dir" && run lake "-KleanMemory=$memory" build EvmYul EvmInteraction 2>&1 | tail -n 1) ||
+        die "cannot build the path dependencies of $lean_dir"
+else
+    caveats+=("provenance: the starting build directory is trusted, not rebuilt from source (CERTIFY_CLEAN_BUILD=1)")
+fi
+echo "solar sha256 $solar_sha"
 
 echo "== 3. compile $source and export its stages (${options[*]})"
 compile() { "$solar" "$source" "${options[@]}" --emit=bin-runtime "$@"; }
@@ -243,6 +344,10 @@ final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' 
 echo "$info"
 
 echo "== 5. build and audit the proofs"
+# Nothing this run checks may come from a compiled module it did not compile: the package's
+# compiled forms of this contract's modules (its proofs, generated stages, statement and published
+# proof) are removed with their traces, so that each is built again from the source this run wrote.
+rm -rf "$lean_dir/.lake/build/lib/lean/$name" "$lean_dir/.lake/build/ir/$name"
 if [[ $lakefile == lakefile.lean ]]; then
     if ! grep -Eq "^lean_lib («$name»|$name)( |$)" lakefile.lean; then
         cat >> lakefile.lean <<EOF
@@ -283,15 +388,13 @@ execution=()
 [[ -f "$dir/Proofs/Execution.lean" ]] && execution=("$name.Proofs.Execution")
 for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "${execution[@]}" "$name.Proofs"; do
     printf '%s: ' "$module"
-    if ! run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1; then
+    if ! guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module"; then
         grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
         die "$module does not check"
     fi
     tail -n 1 "$log"
 done
 
-# audit OUT MODULE... -- THEOREM...: tools/certify/audit.sh's axiom audit, failing the run.
-audit() { bash "$here/audit.sh" axioms "$lean_dir" "$@" || die "the axiom audit fails"; }
 mapfile -t thms < <(grep -rhoE '^theorem [A-Za-z0-9_'"'"']+' "$dir/Proofs" | awk '{print $2}' | sort -u |
     sed "s/^/SolarTV.Milestone.$cap./")
 [[ ${#thms[@]} -gt 0 ]] || die "no theorems in $dir/Proofs"
@@ -346,7 +449,7 @@ if [[ -n "$verify" ]]; then
         fi
         bash "$here/audit.sh" scan "$dir/VC.lean" || die "the exported conditions fail the scan"
         printf '%s: ' "$name.VC"
-        run lake "-KleanMemory=$memory" build "$name.VC" > "$log" 2>&1 || { tail -40 "$log" >&2; die "$name.VC does not check"; }
+        guarded "$log" "$name.VC" lake "-KleanMemory=$memory" build "$name.VC" || { tail -40 "$log" >&2; die "$name.VC does not check"; }
         tail -n 1 "$log"
         # How many obligations the script has and which are vacuous (their hypotheses refuted),
         # by evaluation: the count only sizes the generated modules, whose proof fails when it is
@@ -358,7 +461,7 @@ open SolidCore.Verify.VC
 #eval IO.println s!"COUNT {(obligations Certified.%s.VC.script).length}"
 #eval IO.println s!"VACUOUS {((List.range (obligations Certified.%s.VC.script).length).filter (fun i => vacuousAt Certified.%s.VC.script i))}"
 '             "$name.VC" "$cap" "$cap" "$cap" > "$probe"
-        run lake env lean -M "$memory" "$probe" > "$log" 2>&1 || { tail -40 "$log" >&2; die "cannot count the obligations of $name.VC"; }
+        guarded "$log" "" lake env lean -M "$memory" "$probe" || { tail -40 "$log" >&2; die "cannot count the obligations of $name.VC"; }
         count="$(sed -n 's/^COUNT //p' "$log")"
         vacuous="$(sed -n 's/^VACUOUS //p' "$log")"
         [[ "$count" =~ ^[0-9]+$ ]] || die "cannot count the obligations of $name.VC"
@@ -370,7 +473,7 @@ open SolidCore.Verify.VC
         mapfile -t parts < <(cd "$examples" && ls "$name"/Discharge/Part*.lean 2>/dev/null | sed 's|\.lean$||; s|/|.|g' | sort -V)
         for module in "${parts[@]}" "$name.Discharge"; do
             printf '%s: ' "$module"
-            run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1 || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check: the conditions are not discharged"; }
+            guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check: the conditions are not discharged"; }
             tail -n 1 "$log"
         done
         audit "$lean_dir/.lake/certify-vc-$name.out" "$name.Discharge" -- "Certified.$cap.VC.script_valid"
@@ -390,7 +493,7 @@ open SolidCore.Verify.VC
             [[ ${#holds[@]} -gt 0 ]] || die "spec_connect.py connects no function of $contract"
             bash "$here/audit.sh" scan "$dir/SpecConnect.lean" || die "$dir/SpecConnect.lean fails the scan"
             printf '%s: ' "$name.SpecConnect"
-            run lake "-KleanMemory=$memory" build "$name.SpecConnect" > "$log" 2>&1 || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$name.SpecConnect does not check"; }
+            guarded "$log" "$name.SpecConnect" lake "-KleanMemory=$memory" build "$name.SpecConnect" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$name.SpecConnect does not check"; }
             tail -n 1 "$log"
             audit "$lean_dir/.lake/certify-spec-$name.out" "$name.SpecConnect" -- "${holds[@]}"
             spec_status+="; source spec holds of SolidCore (generic, not yet of the bytecode): ${holds[*]}"
@@ -425,7 +528,7 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
         if [[ -f "$hfile" ]]; then
             bash "$here/audit.sh" scan "$hfile" || die "$hfile fails the scan"
         fi
-        if ! run lake "-KleanMemory=$memory" build "$module" > "$log" 2>&1; then
+        if ! guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module"; then
             grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
             die "$module does not check"
         fi
@@ -450,7 +553,7 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
                 "$t" "\`$name.gen.$contract" "\`$t" "\`$name.gen.$contract" "\`$t"
         done
     } > "$bind"
-    if run lake env lean -M "$memory" "$bind" > "$log" 2>&1; then
+    if guarded "$log" "" lake env lean -M "$memory" "$bind"; then
         sed -n 's/^BIND \([^ ]*\) \([a-z]*\) \([a-z]*\)$/\1 \2 \3/p' "$log" > "$lean_dir/.lake/certify-$name.json.binding"
     else
         : > "$lean_dir/.lake/certify-$name.json.binding"
@@ -479,9 +582,31 @@ if [[ -f "$dir/shape.json" ]]; then
         python3 "$here/shape_gen.py" "$dir/shape.json" --name "$name" --certified "$examples" \
             --out "$dir/Shape.lean" || die "shape_gen.py cannot write the proof of the published statement"
     fi
+    # A specification from solar-verify's export: written fresh from the source in this run, as
+    # NAME.gen.CONTRACT.Spec, the bundle the statement's postcondition reads (Shapes.bundlePost).
+    if python3 -c 'import json,sys; sys.exit(0 if "spec_export" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
+        [[ -n "$verify" && -x "$verify" ]] || die "shape.json takes its specification from solar-verify's export, and there is no solar-verify"
+        rm -f "$dir/gen/$contract/Spec.lean"
+        "$verify" --emit-lean-spec "$dir/gen/$contract/Spec.lean" --lean-spec-module "Certified.$name.gen.$contract.Spec" \
+            "$source" > "$log" 2>&1 || { cat "$log" >&2; die "solar-verify cannot export the specification of $source"; }
+        [[ -s "$dir/gen/$contract/Spec.lean" ]] || die "solar-verify wrote no specification for $source"
+        bash "$here/audit.sh" scan "$dir/gen/$contract/Spec.lean" || die "the exported specification fails the scan"
+    fi
+    # The checked SolidCore source AST, when shape.json names it, must be the front end's AST of
+    # this run's source (tools/certify/source_bind.sh), else the run fails.
+    rm -f "$lean_dir/.lake/certify-$name.json.source"
+    if python3 -c 'import json,sys; sys.exit(0 if "source_ast" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
+        read -r sfile sns scontract < <(python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["source_ast"]; print(a["file"], a["namespace"], a["contract"])' "$dir/shape.json")
+        bash "$here/source_bind.sh" "$lean_dir" "$source" "$sfile" "$sns" "$scontract" > "$log" 2>&1 ||
+            { cat "$log" >&2; die "the checked source AST of $name is not this run's source"; }
+        cat "$log"
+        sed -n 's/^source: //p' "$log" > "$lean_dir/.lake/certify-$name.json.source"
+    fi
+    rm -f "$dir/Final.lean" "$dir/Statement.lean"
     final_thm="$(python3 "$here/final.py" "$dir/shape.json" --name "$name" --contract "$contract" \
-        --hex "$plain" --out "$dir/Final.lean" --record "$final_record")" || die "final.py cannot write the published statement"
-    bash "$here/audit.sh" scan "$dir/Final.lean" || die "$dir/Final.lean fails the scan"
+        --hex "$plain" --out "$dir/Final.lean" --statement-out "$dir/Statement.lean" --record "$final_record")" ||
+        die "final.py cannot write the published statement"
+    bash "$here/audit.sh" scan "$dir/Final.lean" "$dir/Statement.lean" || die "the published statement fails the scan"
     mapfile -t fmods < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json")
     for module in "${fmods[@]}"; do
         mfile="${module//.//}.lean"
@@ -489,13 +614,174 @@ if [[ -f "$dir/shape.json" ]]; then
         [[ -f "$mfile" ]] || die "shape.json names $module, which is not in $lean_dir"
         bash "$here/audit.sh" scan "$mfile" || die "$mfile fails the scan"
     done
-    printf '%s: ' "$name.Final"
-    if ! run lake "-KleanMemory=$memory" build "$name.Final" > "$log" 2>&1; then
+    # The statement first, before any code of the proof module runs.
+    printf '%s: ' "$name.Statement"
+    if ! guarded "$log" "$name.Statement" lake "-KleanMemory=$memory" build "$name.Statement"; then
         grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
-        die "$name.Final does not check: the proof is not of the published statement"
+        die "$name.Statement does not check"
     fi
     tail -n 1 "$log"
+    # Building the proof runs its code (commands, macros, tactics) as this user. It builds in its
+    # own PID namespace and a private mount namespace where all of $HOME is read-only (the
+    # toolchain, elan's proxies, this checkout, the package's sources, lakefile and .lake but its
+    # build directory, the lake packages, the replay cache), with a private /tmp. The
+    # oleans of the statement's closure, lake's configuration cache, the toolchain, the driver and
+    # the cache are fingerprinted before and after it (in this process's memory), and no module of
+    # the package may take a toolchain root's name: any difference fails the run.
+    toolchain="$(cd "$(dirname "$(readlink -f "$(lake env which lean)")")/.." && pwd)"
+    # The toolchain must be the one tools/certify/toolchain.sha256 records (a digest of every
+    # file's SHA-256), so that nothing an earlier run executed has changed it.
+    tc="$(cd "$toolchain" && find . -type f | sort | xargs -d '\n' sha256sum | sha256sum | cut -c1-64)"
+    [[ "$tc" == "$(tr -d '[:space:]' < "$here/toolchain.sha256")" ]] ||
+        die "the toolchain at $toolchain is not the one tools/certify/toolchain.sha256 records"
+    # The upstream packages the checker trusts without replay, resolved now, before any code of the
+    # proof runs: each package's directory and the module roots it may provide.
+    CERTIFY_TRUSTED_ROOTS=
+    for pkg in mathlib:Mathlib batteries:Batteries aesop:Aesop importGraph:ImportGraph Qq:Qq plausible:Plausible proofwidgets:ProofWidgets LeanSearchClient:LeanSearchClient; do
+        pdir="$(realpath -e "$lean_dir/.lake/packages/${pkg%%:*}")" || die "no package ${pkg%%:*} under .lake/packages"
+        CERTIFY_TRUSTED_ROOTS+="$pdir=${pkg#*:};"
+    done
+    export CERTIFY_TRUSTED_ROOTS
+    # The replay cache lives for this run only: a cache left by an earlier run (or planted in the
+    # checkout) could name the key of a module whose olean holds a declaration the kernel never
+    # checked, and oleans are deterministic, so every module of final's closure outside the
+    # upstream packages is replayed in every run.
+    cache="$lean_dir/.lake/certify-replayed-v2"
+    rm -f "$cache"
+    touch "$cache"
+    fingerprint() {
+        {
+            run lake env lean --run "$here/check_final.lean" --closure "$name.Statement" | awk '$1 == "MODULE" { print $3 }'
+            find "$toolchain" "$here" -type f
+            find "$lean_dir/.lake/config" -type f -name 'lakefile.olean*' ! -name '*.lock'
+            echo "$lean_dir/lakefile.lean"; echo "$lean_dir/lake-manifest.json"; echo "$lean_dir/lean-toolchain"
+            # What the driver wrote before the build and reads after it.
+            for f in "$final_record" "$lean_dir/.lake/certify-$name.json.binding" "$lean_dir/.lake/certify-vacuous-$name"                 "$lean_dir/.lake/certify-$name.json.source" "$dir/Statement.lean" "$dir/Final.lean"                 "$lean_dir/.lake/certify-headline-$name.out" "$lean_dir/.lake/certify-audit-$name.out"; do
+                if [[ -e "$f" ]]; then echo "$f"; fi
+            done
+            printf '%s
+' "$root/scripts/certify" "$cache"
+        } | sort -u | xargs -d '
+' sha256sum | sha256sum
+    }
+    before="$(fingerprint)" || die "cannot fingerprint the statement's closure"
+    printf '%s: ' "$name.Final"
+    # shellcheck disable=SC2016
+    # The modules the proof brings in beyond the statement are built one at a time, each in its
+    # own guarded step that may change that module's olean only: a module (the proof module or
+    # anything it imports) can then never rewrite another module, whatever the statements on disk.
+    python3 "$here/guard_build.py" order "$lean_dir" "$lean_dir/.lake/certify-order" "$name.Final" -- "$name.Statement" ||
+        die "cannot order the modules of the proof of $name"
+    while read -r m <&3; do
+        if ! guarded "$log" "=$m" lake "-KleanMemory=$memory" build "$m"; then
+            grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
+            die "$name.Final does not check ($m): the proof is not of the published statement"
+        fi
+    done 3< "$lean_dir/.lake/certify-order"
+    tail -n 1 "$log"
+    after="$(fingerprint)" || die "cannot fingerprint the statement's closure"
+    [[ "$before" == "$after" ]] || die "building the proof of $name changed the statement's closure, the toolchain, the driver or the replay cache"
+    # The build ran in its own PID namespace, so nothing it started outlives it; as a second line,
+    # the oleans of final's whole closure are fingerprinted now and again after the checker, the
+    # replay and the audit have read them.
+    closure_fp() {
+        run lake env lean --run "$here/check_final.lean" --closure "$name.Final" | awk '$1 == "MODULE" { print $3 }' |
+            sort -u | xargs -d '\n' sha256sum | sha256sum
+    }
+    closure_before="$(closure_fp)" || die "cannot fingerprint final's closure"
+    for r in Init Std Lean Lake; do
+        [[ ! -e "$lean_dir/.lake/build/lib/lean/$r" && ! -e "$lean_dir/.lake/build/lib/lean/$r.olean" ]] ||
+            die "the build left a module named like the toolchain's $r in the package's build"
+    done
+    # The checker reads the compiled environments with nothing but Lean imported: final's type is
+    # exactly the statement module's Statement, that module does not import the proof module, and
+    # final's axioms are the three admitted.
+    proof_mod="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proof_module"])' "$dir/shape.json")"
+    if ! run lake env lean --run "$here/check_final.lean" "$name" "$proof_mod" > "$log" 2>&1; then
+        cat "$log" >&2
+        die "the checker refuses the published statement of $name"
+    fi
+    grep -v '^MODULE ' "$log"
+    # Every module of final's closure that is not upstream must come from a committed, unchanged
+    # source, or be one of this contract's own modules: an untracked, ignored or edited file
+    # (another contract's generated module among them) imported by the statement or its proof is
+    # a provenance caveat.
+    unbound="$(python3 - "$log" "$lean_dir" "$name" "$here/clean_tree.py" <<'PYEOF'
+import os, re, subprocess, sys, tempfile
+log, top, name, ct = sys.argv[1:]
+need = {}
+out = []
+for line in open(log):
+    if not line.startswith("MODULE "):
+        continue
+    _, mod, path, kind, *_ = line.split()
+    if kind != "replay" or mod == name or mod.startswith(name + "."):
+        continue
+    marker = "/.lake/build/lib/lean/"
+    if marker not in path:
+        out.append("no source for " + mod); continue
+    pkg = path.split(marker)[0]
+    rel = mod.replace(".", "/") + ".lean"
+    lf = os.path.join(pkg, "lakefile.lean")
+    dirs = ["", "Certified", "Certified/w1", "tv"] + (re.findall(r'srcDir\s*:=\s*"([^"]+)"', open(lf).read()) if os.path.isfile(lf) else [])
+    src = next((c for c in (os.path.join(pkg, d, rel) for d in dirs) if os.path.isfile(c)), None)
+    if src is None:
+        out.append("no source for " + mod); continue
+    repo = subprocess.run(["git", "-C", os.path.dirname(src), "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+    if not repo:
+        out.append("not in a git checkout: " + mod); continue
+    need.setdefault(os.path.realpath(repo), []).append(os.path.relpath(os.path.realpath(src), os.path.realpath(repo)))
+for repo, paths in need.items():
+    with tempfile.NamedTemporaryFile("w", delete=False) as f:
+        f.write("\n".join(sorted(set(paths))) + "\n")
+    r = subprocess.run([sys.executable, ct, repo, "--paths", f.name], capture_output=True, text=True)
+    os.unlink(f.name)
+    out += r.stdout.splitlines()
+    if r.returncode not in (0, 1):
+        out.append("cannot check " + repo)
+print("\n".join(out))
+PYEOF
+)" || die "cannot check the sources of final's closure"
+    [[ -z "$unbound" ]] ||
+        caveats+=("provenance: final's closure imports modules whose sources are not committed: $(head -5 <<<"$unbound" | tr '\n' ';')")
+    # An olean can hold a declaration the kernel never checked (a proof module may add one with the
+    # kernel check switched off), so every module of final's closure that this package built is
+    # replayed through the kernel by the toolchain's leanchecker; the toolchain and the upstream
+    # git-pinned packages (Mathlib and its dependencies) are not replayed.
+    # A module replayed by an earlier run is not replayed again when its key matches: the SHA-256
+    # of its olean together with the keys of its imports (so a change anywhere below it replays it).
+    cache="$lean_dir/.lake/certify-replayed-v2"
+    touch "$cache"
+    mapfile -t todo < <(python3 - "$log" "$cache" <<'PYEOF'
+import hashlib, sys
+log, cache = sys.argv[1:]
+done = set(open(cache).read().split())
+key = {}
+for line in open(log):
+    if not line.startswith("MODULE "):
+        continue
+    _, mod, path, kind, *imports = line.split()
+    h = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    key[mod] = hashlib.sha256((h + "".join(key[i] for i in sorted(imports))).encode()).hexdigest()
+    if kind == "replay" and key[mod] not in done:
+        print(mod, key[mod])
+PYEOF
+)
+    all="$(grep -c '^MODULE .* replay' "$log" || true)"
+    [[ "$all" -gt 0 ]] || die "the checker names no module of $name.Final to replay"
+    printf 'kernel replay of %s modules (%s replayed by an earlier run): ' "$all" "$((all - ${#todo[@]}))"
+    if [[ ${#todo[@]} -gt 0 ]]; then
+        if ! run lake env leanchecker $(printf '%s
+' "${todo[@]}" | cut -d' ' -f1) > "$log.replay" 2>&1; then
+            tail -20 "$log.replay" >&2
+            die "the kernel replay of $name.Final's closure fails"
+        fi
+        printf '%s
+' "${todo[@]}" | cut -d' ' -f2 >> "$cache"
+    fi
+    echo ok
     audit "$lean_dir/.lake/certify-final-$name.out" "$name.Final" -- "$final_thm"
+    [[ "$(closure_fp)" == "$closure_before" ]] || die "final's closure changed while it was checked"
     echo "published: $final_thm"
 elif [[ $require_final -eq 1 ]]; then
     die "--require-final: $dir/shape.json is missing: no published statement for $name"
@@ -602,7 +888,12 @@ if final:
     statuses = dict(final["statuses"])
     statuses["assumptions"] = final["assumptions"] or "none beyond the statement's scope"
     statuses["excluded"] = final["excluded"]
-    statuses["strongest"] = all(v.startswith("proved") for v in final["statuses"].values())
+    statuses["environment"] = ("fixed, not quantified: one frame, caller 0x2000, the contract at "
+                               "0x1000, the block and transaction of Target.message")
+    provenance = [c for c in open(sys.argv[1] + ".caveats").read().splitlines() if c.startswith("provenance:")]
+    statuses["provenance"] = "; ".join(c[len("provenance: "):] for c in provenance) or "clean"
+    statuses["strongest"] = bool(final.get("strongest")) and not provenance and all(
+        v.startswith(("proved", "not applicable")) for v in final["statuses"].values())
 else:
     statuses = {
         "equivalence": "not proved: stage refinement only (" + mir + "; assembly " + assembly.split(":")[0] + ")",
@@ -613,6 +904,16 @@ else:
         "assumptions": "see hypotheses and assembly_hypotheses",
         "strongest": False,
     }
+try:
+    source_ast = open(out + ".source").read().strip() or None
+except OSError:
+    source_ast = None
+statuses["source"] = source_ast or "not bound: the checked SolidCore source AST is not regenerated from the source in this run"
+if final:
+    # The published statement is about running the exact bytes (Target.runWith), so execution is
+    # proved there; the Proofs/ walk alone may only decode.
+    assembly = ("executed: inside the published statement " + final["theorem"]
+                + " (Shapes.Equiv and Resources over Target.runWith of the exact bytes); Proofs/: " + assembly)
 record = {
     "contract": contract,
     "name": name,
@@ -637,11 +938,15 @@ record = {
         {"function": r.split(": ", 1)[0], "reason": r.split(": ", 1)[-1], "status": "refused (unproved)"}
         for r in lines(".refused")
     ],
-    "vacuous": vacuous,
+    "vacuous": (final["statuses"].get("vacuity", "not checked") if final else "not checked: no published statement"),
+    "vc_vacuous": vacuous,
+    "source_ast": source_ast,
     "assembly_statement": exec_stmt,
     "assembly_hypotheses": premises(exec_stmt) if exec_stmt else None,
     "negative_tests": negatives == "1",
-    "caveats": lines(".caveats"),
+    # The published statement proves execution of the exact bytes, so the decoding caveat of the
+    # Proofs/ walk does not apply to a contract that has one.
+    "caveats": [c for c in lines(".caveats") if not (final and c.startswith("assembly decoded"))],
     "backend": {"theorem": final},
 }
 for path in (out, committed):
@@ -652,13 +957,11 @@ EOF
 rm -f "$record.refused" "$record.caveats" "$record.headline" "$record.binding"
 echo "record: $record and $dir/record.json"
 echo "mir_to_evmir: $mir_status"
-echo "assembly: $assembly_status"
+python3 -c 'import json,sys; print("assembly: " + json.load(open(sys.argv[1]))["assembly"])' "$record"
 echo "vc: $spec_status"
 if [[ ${#e2e_thms[@]} -gt 0 ]]; then echo "end_to_end: proved ($e2e_kind): ${e2e_thms[*]}"; else echo "end_to_end: not proved"; fi
-if [[ ${#caveats[@]} -gt 0 ]]; then
-    echo "caveats: $(printf '%s; ' "${caveats[@]}" | sed 's/; $//')"
-fi
-python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["statuses"]; print("statuses: " + ", ".join(k + " " + str(s[k]) for k in ("equivalence", "termination", "spec", "resources", "strongest")))' "$record"
+python3 -c 'import json,sys; c=json.load(open(sys.argv[1]))["caveats"]; c and print("caveats: " + "; ".join(c))' "$record"
+python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["statuses"]; print("statuses: " + ", ".join(k + " " + str(s[k]) for k in ("equivalence", "termination", "spec", "resources", "vacuity", "source", "strongest") if k in s))' "$record"
 strongest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["statuses"]["strongest"])' "$record")"
 # CERTIFIED needs equivalence, termination, spec and resources together, from the published
 # statement the kernel checked (kind certified); any other run reports what it checked instead.

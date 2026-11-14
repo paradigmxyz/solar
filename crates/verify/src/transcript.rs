@@ -271,6 +271,9 @@ impl Conv {
                 self.funs.insert(f.to_string(), n);
                 Ok(format!(".declFun {} {n}", lean_str(f)))
             }
+            // An information query after an unknown answer: it asserts nothing, so no
+            // obligation reads it (a raw line).
+            [Some("get-info"), _] => Ok(format!(".raw {}", lean_str(line))),
             [Some("assert"), _] => match self.term(&xs[1], &mut vec![]) {
                 Ok(t) => Ok(format!(".assert {t}")),
                 // A quantified axiom with a trigger: the Lean side takes it as no fact.
@@ -395,6 +398,15 @@ mod tests {
         assert!(m.contains(".raw \"(check-sat)\""));
         assert!(m.contains(".decl \"x@2\" .int"));
         assert!(m.contains(".checkSat"));
+    }
+
+    #[test]
+    fn keeps_information_queries_raw_inside_a_section() {
+        let smt = "(push 1)\n; ===== C.f\n(declare-const |x@1| Int)\n(assert (<= 0 |x@1|))\n(check-sat)\n(get-info :reason-unknown)\n(pop 1)\n";
+        let m = module(smt, "T").unwrap();
+        assert!(!m.contains("Left raw"));
+        assert!(m.contains(".decl \"x@1\" .int"));
+        assert!(m.contains(".raw \"(get-info :reason-unknown)\""));
     }
 
     #[test]
