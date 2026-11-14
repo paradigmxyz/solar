@@ -86,10 +86,11 @@
 //! The target must have `CLZ` (Osaka). The cone lies in one block: a scan written with branches
 //! is found once if-conversion has made it straight-line. A scan that narrows the word to more
 //! than eight bits before a table would need more classes than the pass tries. A value is proved
-//! only when its result for zero has a form. The instructions evaluated for one function in one
-//! run of the pass are bounded, at many times what the proofs of a library's scans take, so that
-//! code with hundreds of values that pass the probes cannot make the pass slow: the values left
-//! when the bound is reached keep their code.
+//! only when its result for zero has a form. The instructions one function evaluates in one run
+//! of the pass are bounded by [`PROOF_WORK`], about what the proof of a library's scan takes,
+//! and each rewrite earns that much again, so that a function with many scans keeps them while
+//! values that pass the probes and fail their proofs cost a function at most that bound: the
+//! values left when it is reached keep their code.
 //!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
@@ -122,9 +123,11 @@ const MAX_CONE: usize = 256;
 const MAX_SCAN: usize = 96;
 /// The leading bits a class may fix: a scan narrows its word to a byte before a table.
 const WINDOW: u32 = 8;
-/// Bound on the instructions evaluated for one function in one run of the pass, over all its
-/// inputs, probes and proofs. The proof of a library's scan evaluates 10 to 50 thousand.
-const MAX_WORK: u32 = 1 << 20;
+/// The instructions one function may evaluate in one run of the pass before its first rewrite,
+/// and again after each rewrite, over all its inputs, probes and proofs. The proof of a library's
+/// scan evaluates 10 to 50 thousand, so a function takes the scans it has, while values that
+/// pass the probes and fail their proofs spend at most this much of a function's time.
+const PROOF_WORK: u32 = 1 << 16;
 
 pub(crate) struct BitScan;
 
@@ -243,7 +246,7 @@ fn run_function(func: &mut Function, target: &Target) -> bool {
     }
     let mut index = Index::default();
     let mut changed = false;
-    let work = Cell::new(MAX_WORK);
+    let work = Cell::new(PROOF_WORK);
     for (block, input) in inputs {
         changed |= rewrite_scans(func, target, &mut index, &work, block, input);
     }
@@ -396,6 +399,8 @@ fn rewrite_scans(
             if let Some(inserted) = rewrite(func, target, index, block, &cone, root, scan) {
                 tried.extend(inserted);
                 rewritten = true;
+                // A rewrite earns the work of the next proof.
+                work.set(work.get().saturating_add(PROOF_WORK));
                 break;
             }
         }
