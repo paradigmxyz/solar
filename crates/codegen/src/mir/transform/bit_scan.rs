@@ -85,10 +85,11 @@
 //!
 //! The target must have `CLZ` (Osaka). The cone lies in one block: a scan written with branches
 //! is found once if-conversion has made it straight-line. A scan that narrows the word to more
-//! than eight bits before a table would need more classes than the pass tries. The instructions
-//! evaluated for one input are bounded, at several times what the proofs of a library's scans
-//! take, so that code with hundreds of values that pass the probes cannot make the pass slow:
-//! the values left when the bound is reached keep their code.
+//! than eight bits before a table would need more classes than the pass tries. A value is proved
+//! only when its result for zero has a form. The instructions evaluated for one function in one
+//! run of the pass are bounded, at many times what the proofs of a library's scans take, so that
+//! code with hundreds of values that pass the probes cannot make the pass slow: the values left
+//! when the bound is reached keep their code.
 //!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
@@ -121,9 +122,9 @@ const MAX_CONE: usize = 256;
 const MAX_SCAN: usize = 96;
 /// The leading bits a class may fix: a scan narrows its word to a byte before a table.
 const WINDOW: u32 = 8;
-/// Bound on the instructions evaluated for one input, over all its probes and proofs. The
-/// proof of a library's scan evaluates 10 to 50 thousand, and an input has a scan or two.
-const MAX_WORK: u32 = 1 << 18;
+/// Bound on the instructions evaluated for one function in one run of the pass, over all its
+/// inputs, probes and proofs. The proof of a library's scan evaluates 10 to 50 thousand.
+const MAX_WORK: u32 = 1 << 20;
 
 pub(crate) struct BitScan;
 
@@ -242,8 +243,9 @@ fn run_function(func: &mut Function, target: &Target) -> bool {
     }
     let mut index = Index::default();
     let mut changed = false;
+    let work = Cell::new(MAX_WORK);
     for (block, input) in inputs {
-        changed |= rewrite_scans(func, target, &mut index, block, input);
+        changed |= rewrite_scans(func, target, &mut index, &work, block, input);
     }
     index.apply(func);
     changed
@@ -294,18 +296,25 @@ impl Index {
             let old = std::mem::take(&mut func.blocks[block].instructions);
             let instructions = &mut func.blocks[block].instructions;
             for inst in old {
-                let before = index.inserted.get(&inst).into_iter().flatten();
-                for inst in before.chain([&inst]) {
-                    if !index.removed.contains(inst) {
-                        instructions.push(*inst);
-                    }
-                }
+                index.emit(inst, instructions);
             }
         }
     }
 }
 
 impl BlockIndex {
+    /// Pushes `inst` unless a rewrite removed it, after the instructions rewrites put before it.
+    /// A rewrite of one input can replace an instruction that a rewrite of another input put in,
+    /// so those go first too, before what they precede.
+    fn emit(&self, inst: InstId, instructions: &mut Vec<InstId>) {
+        for &before in self.inserted.get(&inst).into_iter().flatten() {
+            self.emit(before, instructions);
+        }
+        if !self.removed.contains(&inst) {
+            instructions.push(inst);
+        }
+    }
+
     /// Records `inst` as a reader of its operands.
     fn read(&mut self, func: &Function, inst: InstId) {
         func.inst(inst).kind.visit_operands(|operand| {
@@ -356,6 +365,7 @@ fn rewrite_scans(
     func: &mut Function,
     target: &Target,
     index: &mut Index,
+    work: &Cell<u32>,
     block: BlockId,
     input: ValueId,
 ) -> bool {
@@ -363,7 +373,6 @@ fn rewrite_scans(
     // Each instruction is tried once: a rewrite changes the cone, which is then built again.
     let mut tried = FxHashSet::default();
     let one_bit = is_lowest_bit(func, input);
-    let work = &Cell::new(MAX_WORK);
     loop {
         // The values left untried when the work runs out keep their code.
         if work.get() == 0 {
@@ -525,6 +534,10 @@ impl<'a> Cone<'a> {
         let mut scratch = vec![vec![None; root + 1]; WINDOW as usize];
         self.evaluate(func, needed, Word::Known(U256::ZERO), Class::ZERO, &mut scratch[0]);
         let Some(Word::Known(zero)) = scratch[0][root] else { return None };
+        // A value without a form for its zero result keeps its code, so it is not proved.
+        if !has_clz_form(leading_zeros, zero) {
+            return None;
+        }
         // The candidates of an input of one bit have been tried on each of its values.
         if one_bit {
             return Some(Scan { leading_zeros, zero });
@@ -899,4 +912,12 @@ fn rewrite(
     index.removed.extend(removed);
     index.inserted.entry(root_inst).or_default().extend(inserted.iter().copied());
     Some(inserted)
+}
+
+/// Whether a scan that is `zero` for zero has a `CLZ` form; see [`rewrite`].
+fn has_clz_form(leading_zeros: bool, zero: U256) -> bool {
+    match leading_zeros {
+        false => zero.is_zero() || zero == U256::from(256) || zero == U256::MAX,
+        true => zero == U256::from(255) || zero == U256::from(256),
+    }
 }
