@@ -1,0 +1,105 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline,cfg-simplify,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline,cfg-simplify,dce
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+@module AllocatingLeaf
+
+// A shared helper that bumps the free-memory pointer stays shared in gas mode, even when it
+// returns a plain word rather than `ptr<memory>`. Size mode still inlines and removes it.
+// CHECK-LABEL: fn @first() -> i256
+// GAS-NEXT: bb0:
+// GAS-NEXT: v0 = icall @new_builder
+// SIZE: - {{.*}}icall @new_builder
+fn @first() -> i256 [selector=0x01020304] {
+  bb0:
+    v0 = icall @new_builder
+    ret v0
+}
+
+// CHECK-LABEL: fn @second() -> i256
+// GAS-NEXT: bb0:
+// GAS-NEXT: v0 = icall @new_builder
+// SIZE: - {{.*}}icall @new_builder
+fn @second() -> i256 [selector=0x01020305] {
+  bb0:
+    v0 = icall @new_builder
+    ret v0
+}
+
+fn @new_builder() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    ret v0
+}
+
+// A semantic `alloc` returning an integer word is treated the same way.
+// CHECK-LABEL: fn @alloc_first() -> i256
+// GAS-NEXT: bb0:
+// GAS-NEXT: v0 = icall @alloc_word
+// SIZE: - {{.*}}icall @alloc_word
+fn @alloc_first() -> i256 [selector=0x01020306] {
+  bb0:
+    v0 = icall @alloc_word
+    ret v0
+}
+
+// CHECK-LABEL: fn @alloc_second() -> i256
+// GAS-NEXT: bb0:
+// GAS-NEXT: v0 = icall @alloc_word
+// SIZE: - {{.*}}icall @alloc_word
+fn @alloc_second() -> i256 [selector=0x01020307] {
+  bb0:
+    v0 = icall @alloc_word
+    ret v0
+}
+
+fn @alloc_word() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A sole-use allocating helper still inlines and disappears in both modes.
+// CHECK-LABEL: fn @single_caller() -> i256
+// CHECK: - {{.*}}icall @single_builder
+fn @single_caller() -> i256 [selector=0x01020308] {
+  bb0:
+    v0 = icall @single_builder
+    ret v0
+}
+
+fn @single_builder() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    ret v0
+}
+
+// Scratch-space stores do not touch the free-memory-pointer slot, so shared tiny leaves still
+// inline in gas mode.
+// CHECK-LABEL: fn @scratch_first(arg0: i256) -> i256
+// CHECK: - {{.*}}icall @write_scratch, arg0
+fn @scratch_first(arg0: i256) -> i256 [selector=0x01020309] {
+  bb0:
+    v0 = icall @write_scratch, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @scratch_second(arg0: i256) -> i256
+// CHECK: - {{.*}}icall @write_scratch, arg0
+fn @scratch_second(arg0: i256) -> i256 [selector=0x0102030a] {
+  bb0:
+    v0 = icall @write_scratch, arg0
+    ret v0
+}
+
+fn @write_scratch(arg0: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    ret arg0
+}

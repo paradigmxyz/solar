@@ -1,0 +1,89 @@
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/allocating_leaf_runtime.sol:AllocatingLeaf ===
+@module AllocatingLeaf
+@phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x16595ead => bb3, 0x40f7fec4 => bb4, 0x9c7efff0 => bb5]
+  bb5:                                            ; preds = bb2
+    tail_call @pairB
+  bb4:                                            ; preds = bb2
+    tail_call @pairA
+  bb3:                                            ; preds = bb2
+    tail_call @lone
+  bb1 [cold]:                                     ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function pairA(uint256 x) external pure returns (uint256, uint256) [selector 0x40f7fec4]
+fn @pairA() {
+  bb0:
+    v15 = calldataload 4
+    v0 = icall @newBuilder
+    v1 = icall @newBuilder
+    mstore v0, v15
+    v11 = add v15, 1
+    v12 = eq v11, 0
+    jumpi v12, bb2, bb1
+  bb1:                                            ; preds = bb0
+    mstore v1, v11
+    v7 = mload v0
+    mstore 0, v7 !metadata(memory=scratch)
+    mstore 32, v11 !metadata(memory=scratch)
+    returndata 0, 64
+  bb2 [cold]:                                     ; preds = bb0
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+; function pairB(uint256 x) external pure returns (uint256, uint256) [selector 0x9c7efff0]
+fn @pairB() {
+  bb0:
+    v15 = calldataload 4
+    v0 = icall @newBuilder
+    v1 = icall @newBuilder
+    mstore v0, v15
+    v11 = add v15, 1
+    v12 = eq v11, 0
+    jumpi v12, bb2, bb1
+  bb1:                                            ; preds = bb0
+    mstore v1, v11
+    v7 = mload v0
+    mstore 0, v7 !metadata(memory=scratch)
+    mstore 32, v11 !metadata(memory=scratch)
+    returndata 0, 64
+  bb2 [cold]:                                     ; preds = bb0
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+; function lone(uint256 x) external pure returns (uint256) [selector 0x16595ead]
+fn @lone() {
+  bb0:
+    v9 = calldataload 4
+    v2 = mload 64
+    mstore v2, v9
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+; function newBuilder() pure returns (Builder b)
+fn @newBuilder() -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    ret v0
+}
