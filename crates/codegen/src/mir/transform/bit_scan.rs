@@ -86,10 +86,11 @@
 //! The target must have `CLZ` (Osaka). The cone lies in one block: a scan written with branches
 //! is found once if-conversion has made it straight-line. A scan that narrows the word to more
 //! than eight bits before a table would need more classes than the pass tries. A value is proved
-//! only when its result for zero has a form. The instructions evaluated for one function in one
-//! run of the pass are bounded, at many times what the proofs of a library's scans take, so that
-//! code with hundreds of values that pass the probes cannot make the pass slow: the values left
-//! when the bound is reached keep their code.
+//! only when its result for zero has a form. The instructions one function evaluates in one run
+//! of the pass are bounded by [`PROOF_WORK`], about what the proof of a library's scan takes,
+//! and each rewrite earns that much again, so that a function with many scans keeps them while
+//! values that pass the probes and fail their proofs cost a function at most that bound: the
+//! values left when it is reached keep their code.
 //!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
@@ -122,9 +123,11 @@ const MAX_CONE: usize = 256;
 const MAX_SCAN: usize = 96;
 /// The leading bits a class may fix: a scan narrows its word to a byte before a table.
 const WINDOW: u32 = 8;
-/// Bound on the instructions evaluated for one function in one run of the pass, over all its
-/// inputs, probes and proofs. The proof of a library's scan evaluates 10 to 50 thousand.
-const MAX_WORK: u32 = 1 << 20;
+/// The instructions one function may evaluate in one run of the pass before its first rewrite,
+/// and again after each rewrite, over all its inputs, probes and proofs. The proof of a library's
+/// scan evaluates 10 to 50 thousand, so a function takes the scans it has, while values that
+/// pass the probes and fail their proofs spend at most this much of a function's time.
+const PROOF_WORK: u32 = 1 << 16;
 
 pub(crate) struct BitScan;
 
@@ -243,7 +246,7 @@ fn run_function(func: &mut Function, target: &Target) -> bool {
     }
     let mut index = Index::default();
     let mut changed = false;
-    let work = Cell::new(MAX_WORK);
+    let work = Cell::new(PROOF_WORK);
     for (block, input) in inputs {
         changed |= rewrite_scans(func, target, &mut index, &work, block, input);
     }
@@ -373,6 +376,15 @@ fn rewrite_scans(
     // Each instruction is tried once: a rewrite changes the cone, which is then built again.
     let mut tried = FxHashSet::default();
     let one_bit = is_lowest_bit(func, input);
+    let mut immediate =
+        |value: u64| func.alloc_value(Value::Immediate(Immediate::I256(U256::from(value))));
+    let constants = Constants {
+        zero: immediate(0),
+        one: immediate(1),
+        eight: immediate(8),
+        all: immediate(255),
+        bits: immediate(256),
+    };
     loop {
         // The values left untried when the work runs out keep their code.
         if work.get() == 0 {
@@ -390,14 +402,23 @@ fn rewrite_scans(
             if needed.len() > MAX_SCAN {
                 continue;
             }
-            let Some(scan) = cone.prove(func, &needed, root, leading_zeros, one_bit) else {
+            let uses = index.uses.get_or_insert_with(|| super::egraph::use_counts(func));
+            let mut priced = None;
+            let pays = |scan| {
+                priced = price(func, target, uses, &cone, root, scan, &constants);
+                priced.is_some()
+            };
+            let Some(scan) = cone.prove(func, &needed, root, leading_zeros, one_bit, pays) else {
                 continue;
             };
-            if let Some(inserted) = rewrite(func, target, index, block, &cone, root, scan) {
-                tried.extend(inserted);
-                rewritten = true;
-                break;
-            }
+            let (form, removed) = priced.expect("a proved scan is priced");
+            let inserted =
+                rewrite(func, index, block, &cone, root, scan, form, removed, &constants);
+            tried.extend(inserted);
+            rewritten = true;
+            // A rewrite earns the work of the next proof.
+            work.set(work.get().saturating_add(PROOF_WORK));
+            break;
         }
         if !rewritten {
             return changed;
@@ -530,12 +551,14 @@ impl<'a> Cone<'a> {
         root: usize,
         leading_zeros: bool,
         one_bit: bool,
+        pays: impl FnOnce(Scan) -> bool,
     ) -> Option<Scan> {
         let mut scratch = vec![vec![None; root + 1]; WINDOW as usize];
         self.evaluate(func, needed, Word::Known(U256::ZERO), Class::ZERO, &mut scratch[0]);
         let Some(Word::Known(zero)) = scratch[0][root] else { return None };
-        // A value without a form for its zero result keeps its code, so it is not proved.
-        if !has_clz_form(leading_zeros, zero) {
+        // A value whose rewrite would not pay, or that has no form for its zero result, keeps its
+        // code, so it is not proved.
+        if !pays(Scan { leading_zeros, zero }) {
             return None;
         }
         // The candidates of an input of one bit have been tried on each of its values.
@@ -808,17 +831,17 @@ fn clz_form(
     InstKind::Or(index, none)
 }
 
-/// Replaces the scan at `root` with its `CLZ` form, if that is cheaper, and returns the
-/// instructions it added.
-fn rewrite(
-    func: &mut Function,
+/// The form of the scan at `root` and the instructions only it reads, when its `CLZ` form is
+/// cheaper than they are.
+fn price(
+    func: &Function,
     target: &Target,
-    index: &mut Index,
-    block: BlockId,
+    uses: &IndexVec<ValueId, u32>,
     cone: &Cone<'_>,
     root: usize,
     scan: Scan,
-) -> Option<Vec<InstId>> {
+    constants: &Constants,
+) -> Option<(Form, FxHashSet<InstId>)> {
     let input = cone.input;
     let root_inst = cone.steps[root].inst;
     let form = match (scan.leading_zeros, scan.zero) {
@@ -831,7 +854,6 @@ fn rewrite(
     };
 
     // The instructions that only the scan reads go with it.
-    let uses = index.uses.get_or_insert_with(|| super::egraph::use_counts(func));
     let mut left = FxHashMap::default();
     let mut removed = FxHashSet::default();
     let mut pending = vec![root as u32];
@@ -851,29 +873,35 @@ fn rewrite(
         .chain([&root_inst])
         .map(|&inst| target.instruction_estimate(func, inst))
         .sum::<Cost>();
-
-    let mut immediate =
-        |value: u64| func.alloc_value(Value::Immediate(Immediate::I256(U256::from(value))));
-    let constants = Constants {
-        zero: immediate(0),
-        one: immediate(1),
-        eight: immediate(8),
-        all: immediate(255),
-        bits: immediate(256),
-    };
     let mut new = Cost::ZERO;
-    let last = clz_form(scan, form, input, &constants, &mut |kind, _| {
+    let last = clz_form(scan, form, input, constants, &mut |kind, _| {
         new += target.kind_estimate(func, &kind);
         input
     });
     new += target.kind_estimate(func, &last);
-    if !target.cmp(new, old).is_lt() {
-        return None;
-    }
+    target.cmp(new, old).is_lt().then_some((form, removed))
+}
 
+/// Replaces the scan at `root` with its `CLZ` form, removing the instructions only it read, and
+/// returns the instructions it added.
+#[allow(clippy::too_many_arguments)]
+fn rewrite(
+    func: &mut Function,
+    index: &mut Index,
+    block: BlockId,
+    cone: &Cone<'_>,
+    root: usize,
+    scan: Scan,
+    form: Form,
+    removed: FxHashSet<InstId>,
+    constants: &Constants,
+) -> Vec<InstId> {
+    let input = cone.input;
+    let root_inst = cone.steps[root].inst;
+    let uses = index.uses.as_mut().expect("priced with the use counts");
     let metadata = func.inst(root_inst).metadata.debug_context();
     let mut inserted = Vec::new();
-    let last = clz_form(scan, form, input, &constants, &mut |kind, ty| {
+    let last = clz_form(scan, form, input, constants, &mut |kind, ty| {
         let mut inst = Instruction::new(kind, Some(ty));
         inst.metadata = metadata.clone();
         let (inst, value) = func.alloc_value_inst(inst);
@@ -911,13 +939,5 @@ fn rewrite(
     }
     index.removed.extend(removed);
     index.inserted.entry(root_inst).or_default().extend(inserted.iter().copied());
-    Some(inserted)
-}
-
-/// Whether a scan that is `zero` for zero has a `CLZ` form; see [`rewrite`].
-fn has_clz_form(leading_zeros: bool, zero: U256) -> bool {
-    match leading_zeros {
-        false => zero.is_zero() || zero == U256::from(256) || zero == U256::MAX,
-        true => zero == U256::from(255) || zero == U256::from(256),
-    }
+    inserted
 }
