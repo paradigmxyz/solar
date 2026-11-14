@@ -1,0 +1,20 @@
+@module RegionCFG
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+bb1:
+  jump bb3
+bb2:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3:
+  push 19
+  push 0
+  mstore
+  push 32
+  push 0
+  return

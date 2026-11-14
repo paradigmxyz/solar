@@ -1,8 +1,8 @@
-//! One scheduled EVM IR window with explicit live-in state.
+//! Scheduled EVM IR windows and regions with explicit live-in state.
 //!
-//! Runs the existing interpreter's instructions, stopping at the first outgoing transfer or
-//! terminal opcode. Gas replay uses opcode-table prices and memory growth; calls, storage and
-//! other dynamic gas schedules remain unsupported. Transaction execution is unchanged.
+//! Windows stop at the first outgoing transfer; regions follow the existing interpreter's
+//! blocks until a terminal outcome. Gas replay uses opcode-table prices and memory growth; calls,
+//! storage and other dynamic gas schedules remain unsupported. Transaction execution is unchanged.
 
 use crate::{
     Host, Options,
@@ -71,6 +71,27 @@ pub fn run_window(
     input: Input,
     options: Options,
 ) -> Result<Execution, String> {
+    replay(text, label, input, options, false)
+}
+
+/// Replays all reachable blocks from a stable entry until a real terminal outcome.
+/// The original interpreter follows transfers; no imported CFG recipe is supplied.
+pub fn run_region(
+    text: &str,
+    label: &str,
+    input: Input,
+    options: Options,
+) -> Result<Execution, String> {
+    replay(text, Some(label), input, options, true)
+}
+
+fn replay(
+    text: &str,
+    label: Option<&str>,
+    input: Input,
+    options: Options,
+    region: bool,
+) -> Result<Execution, String> {
     if input.stack.len() > 1024
         || input.memory_size > (1 << 24)
         || !input.memory_size.is_multiple_of(32)
@@ -113,6 +134,7 @@ pub fn run_window(
             options.fuel,
             Layout::COMPACT,
             selected,
+            region,
         )
     })
 }

@@ -188,7 +188,12 @@ impl<'a> Snapshot<'a> {
             record["diagnostic"] = reason.into();
         }
         if let Some(region) = region {
-            record["region"] = serde_json::json!({"kind": region.kind, "name": region.name, "stack_height": region.height});
+            if !record["region"].is_object() {
+                record["region"] = serde_json::json!({});
+            }
+            record["region"]["kind"] = region.kind.into();
+            record["region"]["name"] = region.name.clone().into();
+            record["region"]["stack_height"] = region.height.into();
         }
         record["status"] = serde_json::Value::String(
             if outcome == "checker failed" { "error" } else { outcome }.into(),
