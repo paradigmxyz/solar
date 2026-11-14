@@ -35,6 +35,8 @@ struct Request {
     #[serde(default)]
     selector: Option<String>,
     #[serde(default)]
+    region: bool,
+    #[serde(default)]
     world: Option<world::Input>,
 }
 
@@ -178,12 +180,17 @@ fn replay(request: &Request) -> Result<[String; 2], String> {
                     returndata_size: word(request, "returndatasize")?,
                     gas: if request.gas { Some(word(request, "gas")?) } else { None },
                 };
-                let execution = evm::run_window(
-                    text,
-                    request.selector.as_deref(),
-                    input,
-                    EvmOptions { evm_version: version, ..Default::default() },
-                )?;
+                let options = EvmOptions { evm_version: version, ..Default::default() };
+                let execution = if request.region {
+                    evm::run_region(
+                        text,
+                        request.selector.as_deref().ok_or("region requires an entry label")?,
+                        input,
+                        options,
+                    )?
+                } else {
+                    evm::run_window(text, request.selector.as_deref(), input, options)?
+                };
                 let mut outcome = match execution.outcome {
                     evm::Outcome::Edge(target) => {
                         let target = target.map_or("fallthrough".into(), |id| format!("bb{id}"));

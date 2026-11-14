@@ -1,0 +1,23 @@
+; === solar-tv/examples/evmir/tail-region/before.evmir (after tail-merge) ===
+@module SharedTail
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+bb1:
+  push 11
+  jump bb3
+bb2:
+  push 23
+  jump bb3
+bb3:
+  push 0
+  mstore
+  push 0x123456789abcdef123456789abcdef
+  push 32
+  mstore
+  push 0xabcdef123456789abcdef123456789
+  push 64
+  mstore
+  push 96
+  push 0
+  return

@@ -27,6 +27,10 @@ def witnesses(inputs: list[str]) -> list[list[int]]:
             else 0
             for name in inputs
         ],
+        [
+            index + 1 if name.startswith("stack") else 0
+            for index, name in enumerate(inputs)
+        ],
     ]
 
 

@@ -19,6 +19,7 @@ import SolarTV.KeccakSafety
 import SolarTV.WordSafety
 
 import SolarTV.EVMIR.State.Normalize
+import SolarTV.EVMIR.Region
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
 import SolarTV.EVMIR.Precompiles.Observe
@@ -164,3 +165,7 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.MIR.State.widenBits_ite' does not depend on any axioms -/
 #guard_msgs in
 #print axioms SolarTV.MIR.State.widenBits_ite
+
+/-- info: 'SolarTV.EVM.Region.swap_across_jump' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Region.swap_across_jump
