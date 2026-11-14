@@ -145,7 +145,7 @@ fn lower_storage_array_element_slot(
     // data_slot = storage_array_data_slot(slot)
     // result = data_slot + index * element_slots
     let data_slot = lower_fixed_slot_hash(builder, target, &[slot], 1);
-    let offset = if element_slots <= 1 {
+    let offset = if element_slots == 1 {
         index
     } else {
         let stride = builder.imm(element_slots);

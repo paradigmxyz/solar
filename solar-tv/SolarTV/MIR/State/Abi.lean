@@ -1,0 +1,113 @@
+import SolarTV.MIR.State.Packed
+
+/-! Direct scalar ABI operations. Static tuple encoding preserves allocation and
+selector/header store order, including dirty padding. Decoding validates the
+signed input length and word canonicality before normalization. Markers carry
+explicit canonicality obligations on their operands at the reached program point;
+a false obligation is unsupported, not a runtime guard or an assumed fact.
+Packed encodings use the separate Packed model for word footprints and padding.
+Recursive shapes use AbiDecode and AbiEncode; Returns models physical call-return
+buffers with an explicit per-function convention. -/
+
+namespace SolarTV.MIR.State
+open EvmRules SolarTV.Execution
+
+def abiCanonical (rule : AbiRule) (word : Word) : Bool :=
+  match rule with
+  | .any => true
+  | .uint bits => word.toNat < 2^bits
+  | .left bits => word &&& BitVec.ofNat 256 (2^(256-bits)-1) == 0
+  | .sint bits => word == (word.setWidth bits).signExtend 256
+  | .boolean => word.toNat ≤ 1
+  | .enumeration bound => word.toNat < bound
+
+/-- An obligation must hold on a reached path; failing to prove it is not program failure. -/
+def abiObligation (rule : AbiRule) (word : Word) : Except String Unit :=
+  if abiCanonical rule word then .ok () else .error "unproved ABI canonicality obligation"
+
+@[simp] theorem masked_nat_lt (word mask limit : Nat) (bound : mask < limit) :
+    word &&& mask < limit :=
+  Nat.lt_of_le_of_lt Nat.and_le_right bound
+
+@[simp] theorem canonical_uint_and (bits : Nat) (word mask : Word)
+    (bound : mask.toNat < 2^bits) :
+    abiCanonical (.uint bits) (word &&& mask) = true := by
+  simp only [abiCanonical, decide_eq_true_eq, BitVec.toNat_and]
+  exact Nat.lt_of_le_of_lt Nat.and_le_right bound
+
+@[simp] theorem canonical_uint_shift (bits shift : Nat) (word : Word)
+    (bound : 256 ≤ bits + shift) :
+    abiCanonical (.uint bits) (word >>> shift) = true := by
+  simp only [abiCanonical, decide_eq_true_eq]
+  by_cases h : shift ≤ 256
+  · exact Nat.lt_of_lt_of_le (BitVec.toNat_ushiftRight_lt word shift h)
+      (Nat.pow_le_pow_right (by decide) (by omega))
+  · rw [BitVec.ushiftRight_eq_zero (by omega)]
+    exact Nat.two_pow_pos bits
+
+/-- Write the statically shaped tuple in order; only function words need normalization. -/
+def abiWriteWords (memory : List Byte) (start : Word) : List (Word × Bool) → Except String (List Byte)
+  | [] => .ok memory
+  | (word,function)::rest => do
+    let word := if function then word <<< 64 else word
+    let memory ← expand memory start.toNat 32
+    abiWriteWords (writeBytes memory start.toNat (wordBytes word)) (start+32) rest
+
+def abiEncode (frame : Frame) (mode : Nat) (hasBase hasSelector : Bool)
+    (functions : List Bool) (args : List Word) : Except String (Value × Frame) := do
+  let (base,args) ← if hasBase then do
+      let base ← required args[0]? "missing ABI encoding base"
+      pure (some base,args.drop 1)
+    else pure (none,args)
+  let (selector,args) ← if hasSelector then do
+      let selector ← required args[0]? "missing ABI selector"
+      pure (some selector,args.drop 1)
+    else pure (none,args)
+  if args.length != functions.length || mode > 2 then .error "ABI encode shape" else
+  let total := args.length*32 + if hasSelector then 4 else 0
+  let header := mode == 1 || mode == 0 && !hasSelector
+  let (pointer,frame) ← if mode == 2 then do
+      match base with
+      | some pointer => pure (pointer,frame)
+      | none => do
+        let memory ← expand frame.memory 64 32
+        pure (readWord memory 64,{frame with memory})
+    else do
+      let size := (total+31)/32*32 + if header then 32 else 0
+      match ← allocate frame (BitVec.ofNat 256 size) false false with
+      | .returned (some pointer,frame) => pure (pointer,frame)
+      | _ => .error "ABI encoding allocation precondition"
+  let mut memory := frame.memory
+  if header then
+    memory ← expand memory pointer.toNat 32
+    memory := writeBytes memory pointer.toNat (wordBytes (BitVec.ofNat 256 total))
+  let data := pointer + if header then 32 else 0
+  if let some selector := selector then
+    memory ← expand memory data.toNat 32
+    memory := writeBytes memory data.toNat (wordBytes selector)
+  let start := data + if hasSelector then 4 else 0
+  memory ← abiWriteWords memory start (args.zip functions)
+  let result := if mode == 1 then Value.scalar (Scalar.ofWord 256 pointer) else
+    .aggregate [.scalar (Scalar.ofWord 256 data),.scalar (Scalar.ofWord 256 (BitVec.ofNat 256 total))]
+  return (result,{frame with memory})
+
+def abiDecode (cfg : Config) (frame : Frame) (rule : Option AbiRule)
+    (function calldata : Bool) (input : Value) : Step := do
+  let (base,length,frame) ← match input with
+    | .scalar object => do
+      if calldata then .error "calldata decode needs a slice" else
+      let memory ← expand frame.memory object.word.toNat 32
+      pure (object.word+32,readWord memory object.word.toNat,{frame with memory})
+    | .aggregate [base,length] => pure (← base.word,← length.word,frame)
+    | _ => .error "undefined ABI decode input"
+  let head := if rule.isSome then 32 else 0
+  if length.toNat ≥ 2^255 || length.toNat < head then return .reverted .empty else
+  match rule with
+  | none => return .returned (none,frame)
+  | some rule =>
+    let memory ← if calldata then pure frame.memory else expand frame.memory base.toNat 32
+    let word := readWord (if calldata then cfg.environment.input else memory) base.toNat
+    if !abiCanonical rule word then return .reverted .empty else
+      return .returned (some (if function then word >>> 64 else word),{frame with memory})
+
+end SolarTV.MIR.State

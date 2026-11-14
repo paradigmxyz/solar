@@ -28,13 +28,14 @@ UNFOLD = (
 # so address arithmetic reduces without unfolding symbolic byte memory.
 MIR_UNFOLD = (
     "before, after, mirWorldConfig, MIR.State.equivalent, MIR.State.observe, "
-    "MIR.State.execute, MIR.State.reduceRun, MIR.State.transition, MIR.State.next, MIR.State.stop, MIR.State.enter, MIR.State.function, MIR.State.start, "
-    "MIR.State.typedWords, MIR.State.callSignature, MIR.State.branch, MIR.State.advance, MIR.State.Fact.holds, "
+    "MIR.State.execute, ↓MIR.State.reduceRun, MIR.State.transition, MIR.State.next, MIR.State.stop, MIR.State.enter, MIR.State.function, MIR.State.start, "
+    "MIR.State.typedWords, MIR.State.callSignature, MIR.State.publishReturns, MIR.State.returnLeaves, MIR.State.branch, MIR.State.advance, MIR.State.Fact.holds, "
     "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, MIR.State.assign, "
-    "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, MIR.State.Value.fits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
-    "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
-    "MIR.State.allocate, MIR.State.freePointer, MIR.State.memoryOperation, "
-    "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.readWord, "
+    "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, ↓MIR.State.reduceFits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
+    "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, BitVec.ult_iff_toNat_lt, BitVec.ule_iff_toNat_le, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, Word.binary, Word.unary, Word.shift, "
+    "MIR.State.allocate, MIR.State.deferredAllocate, MIR.State.activationBase, MIR.State.placementBinding, MIR.State.layoutBinding, MIR.State.freePointer, MIR.State.memoryOperation, "
+    "MIR.State.abiRequirePayload, MIR.State.requireLiteral, MIR.State.failureData, RevertData.fromBytes, MIR.State.abiEncode, MIR.State.abiWriteWords, MIR.State.abiDecode, MIR.State.abiCanonical, MIR.State.abiObligation, "
+    "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.reduceClosedRead, Execution.readWord, "
     "Execution.readBytes, Execution.wordBytes, Execution.writeBytes, "
     "Execution.account, Execution.putAccount, Execution.warmSlot, Execution.warmAddress, "
     "Execution.slotsRead, Execution.slotsWrite, Execution.normalizedSlots, "
@@ -103,6 +104,18 @@ def check(
     unfold = MIR_UNFOLD if direct_mir else UNFOLD
     if not a.inputs:
         proof = "  decide +kernel\n"
+    elif direct_mir and len(a.inputs) <= 4 and all(width == 1 for width in widths):
+        # A tiny Boolean domain has a complete kernel certificate without
+        # normalizing a machine under unknown control flow. Exhaust every value;
+        # this is not a set of testing assumptions or sampled executions.
+        proof = "  have boolCases : \u2200 value : BitVec 1, value = 0 \u2228 value = 1 := by decide +kernel\n"
+        for index, name in enumerate(a.inputs):
+            proof += (
+                f"  all_goals have cases{index} := boolCases {name}\n"
+                f"  all_goals rcases cases{index} with h | h\n"
+                f"  all_goals subst {name}\n"
+            )
+        proof += "  all_goals decide +kernel\n"
     elif direct_mir:
         # Normalize each execution before comparing it. Keep byte memory abstract
         # for the range-proved read/write laws; expanding every symbolic byte
@@ -122,12 +135,11 @@ def check(
         # Compare observation fields before simplifying their contents. Identical
         # account/access sets need no repeated normalization under symbolic bytes.
         # Splitting a guard can expose a continuation, so normalize again there.
-        finish = f"<;> (repeat (first | split | intro _)); all_goals simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe] <;> first | rfl | omega"
+        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega\n"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"
-            f"  conv => arg 2; simp [{abstract}]\n"
-            f"  simp only [MIR.State.equivalent, MIR.State.observe, MIR.State.Observation.mk.injEq, and_true, true_and, eq_self] {finish}\n"
+            f"  conv => arg 2; simp [{abstract}]\n" + finish
         )
     else:
         proof = (

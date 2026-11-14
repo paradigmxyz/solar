@@ -59,7 +59,7 @@ pub enum FrameMode {
     External,
     /// The function uses its internal-call frame for its locals.
     Internal,
-    /// The ephemeral buffer used by multi-value calls.
+    /// The pointer word for a multi-value call's buffer; requires offset zero and a word slot.
     MultiReturn,
 }
 

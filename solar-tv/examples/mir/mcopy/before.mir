@@ -1,0 +1,9 @@
+@module Copy
+fn @f() [entry] {
+bb0:
+  mstore 160, 17
+  mcopy 0, 191, 1
+  v0 = msize
+  mstore 0, v0
+  returndata 0, 32
+}

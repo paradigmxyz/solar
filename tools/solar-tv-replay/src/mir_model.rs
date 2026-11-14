@@ -9,9 +9,11 @@ use serde::Deserialize;
 use serde_json::{Value as Json, json};
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
-    AllocationFailure, AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee,
-    Function, MirType, Module, RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value,
-    ValueId, analysis::CallGraphInfo,
+    AbiEncodeMode, AbiParamType, AbiType, AbiWordValidator, AllocationFailure,
+    AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, CallOutput, Callee, FrameMode,
+    FrameSlotKind, Function, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
+    PackedArraySource, PackedPart, RequireKind, RevertKind, Semantics, Terminator, Value, ValueId,
+    ValueLayout, analysis::CallGraphInfo, memory::EvmMemoryLayout,
 };
 use std::io::{self, Read};
 
@@ -88,6 +90,7 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
     }
     // Bound repeated type metadata before constructing the JSON response.
     let mut type_nodes = 0;
+    let mut constant_bytes = 0;
     for owner in reachable.iter() {
         let function = &module.functions[owner];
         let mut count = |ty| -> Result<(), String> {
@@ -114,6 +117,31 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
                 for value in inst.kind.operands() {
                     count(function.value_ty(value).ok_or("untyped MIR operand")?)?;
                 }
+                if let Some(Semantics::StoreStorageBytesLiteral(_, bytes)) = inst.kind.semantics() {
+                    constant_bytes += bytes.len();
+                    if constant_bytes > 65536 {
+                        return Err("MIR constant data export budget of 64 KiB".into());
+                    }
+                }
+                if let Some(Semantics::Packed(parts, _)) = inst.kind.semantics() {
+                    constant_bytes += parts
+                        .iter()
+                        .map(|p| match p {
+                            PackedPart::Literal(b) => b.len(),
+                            _ => 0,
+                        })
+                        .sum::<usize>();
+                    if constant_bytes > 65536 {
+                        return Err("MIR constant data export budget of 64 KiB".into());
+                    }
+                }
+                if let Some(Semantics::DataCopy(data, ..)) = inst.kind.semantics() {
+                    let data = module.data.get(data.id).ok_or("unknown MIR data")?;
+                    constant_bytes += data.bytes.known().map_or(0, |bytes| bytes.len());
+                    if constant_bytes > 65536 {
+                        return Err("MIR constant data export budget of 64 KiB".into());
+                    }
+                }
                 if let Some(Semantics::InsertValue(ty, ..) | Semantics::ExtractValue(ty, ..)) =
                     inst.kind.semantics()
                 {
@@ -124,6 +152,20 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
                 for value in term.operands() {
                     count(function.value_ty(value).ok_or("untyped MIR operand")?)?;
                 }
+            }
+        }
+    }
+    for owner in reachable.iter() {
+        let f = &module.functions[owner];
+        for inst in f.instructions() {
+            if matches!(f.inst(inst).kind.semantics(), Some(Semantics::Opcode("gas", _)))
+                && (owner != id
+                    || module.dispatch_entry() == Some(owner)
+                    || f.blocks.len() != 1
+                    || f.instructions().count() != 1
+                    || !matches!(&f.blocks[solar_mir::BlockId::ENTRY].terminator,Some(Terminator::Return {values}) if values.as_slice()==f.inst(inst).result().as_slice()))
+            {
+                return Err("GAS requires an isolated opcode window".into());
             }
         }
     }
@@ -141,9 +183,27 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             export_function(module, id.index(), function)
         })
         .collect::<Result<Vec<_>, String>>()?;
+    // Link/placement windows retain table identity across a rewrite. Structural
+    // SSA types may disappear during type lowering; they do not key link inputs.
+    let mut linked = false;
+    let declarations = module
+        .to_text()
+        .to_string()
+        .lines()
+        .skip(1)
+        .take_while(|line| !line.starts_with("fn "))
+        .filter(|line| {
+            if line.starts_with('@') {
+                linked = matches!(*line, "@data" | "@libraries" | "@immutables");
+            }
+            linked
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     Ok(json!({
         "version": 1,
         "name": body.name.to_string(),
+        "layout_declarations": declarations,
         "entry": module.dispatch_entry() == Some(id),
         "entry_id": id.index(),
         "params": body.params.iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
@@ -168,7 +228,10 @@ fn export_function(module: &Module, id: usize, function: &Function) -> Result<Js
         .iter()
         .map(|block| export_block(module, function, block))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(json!({"id": id, "params": params, "returns": returns, "blocks": blocks}))
+    let return_buffer = function.name.to_string();
+    Ok(
+        json!({"id": id, "params": params, "returns": returns, "blocks": blocks,"return_buffer":return_buffer}),
+    )
 }
 
 fn value_type(module: &Module, ty: MirType) -> Result<Json, String> {
@@ -223,24 +286,11 @@ fn operand(module: &Module, body: &Function, id: ValueId) -> Result<Json, String
     })
 }
 
-fn failure_code(failure: RevertKind) -> Result<Option<u8>, String> {
-    match failure {
-        RevertKind::Panic(code) => Ok(Some(code as u8)),
-        RevertKind::Reason(RevertReason::Empty) => Ok(None),
-        _ => Err("unmodeled MIR check payload".into()),
-    }
-}
-
 fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<Json, String> {
     let mut phis = Vec::new();
     let mut instructions = Vec::new();
     for &id in &block.instructions {
         let inst = body.inst(id);
-        if inst.metadata.deferred_alloc() {
-            return Err(
-                "deferred allocation requires backend placement, not direct MIR semantics".into()
-            );
-        }
         let result = inst.result().map(|v| v.index());
         let ty = inst
             .result()
@@ -261,7 +311,19 @@ fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<
             instructions.push(json!({"result": null, "type": null, "operation": operation}));
             continue;
         }
-        let operation = export_operation(module, body, &inst.kind)?;
+        let mut operation = export_operation(module, body, &inst.kind)?;
+        if inst.metadata.deferred_alloc() {
+            if !matches!(inst.kind.semantics(), Some(Semantics::Allocate(..))) {
+                return Err("deferred placement marker requires an allocation".into());
+            }
+            operation["kind"] = json!("deferred_allocate");
+            operation["function"] = json!(body.name.to_string());
+            operation["site"] = json!(
+                body.instructions()
+                    .position(|candidate| candidate == id)
+                    .ok_or("inactive allocation site")?
+            );
+        }
         instructions.push(json!({"result":result,"type":ty,"operation":operation}));
     }
     let term = match block.terminator.as_ref().ok_or("missing MIR terminator")? {
@@ -290,7 +352,10 @@ fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<
         }
         Terminator::Stop => json!({"kind":"stop"}),
         Terminator::Invalid => json!({"kind":"invalid"}),
-        _ => return Err("unmodeled direct MIR terminator".into()),
+        Terminator::RevertReturndata => json!({"kind":"revert_return_data"}),
+        Terminator::SelfDestruct { recipient } => {
+            json!({"kind":"selfdestruct","args":operands(module,body,&[*recipient])?})
+        }
     };
     Ok(json!({"phis":phis,"instructions":instructions,"terminator":term}))
 }
@@ -324,6 +389,193 @@ fn export_operation(
             Semantics::MakeSlice(location, ptr, len) => {
                 json!({"kind":"make_slice","location":location.to_string(),"args":operands(module, body,&[ptr,len])?})
             }
+            Semantics::MappingSlot(key, slot) => {
+                json!({"kind":"mapping_slot","args":operands(module,body,&[key,slot])?})
+            }
+            Semantics::MappingSlotBytes(key, slot) => {
+                json!({"kind":"mapping_slot_bytes","args":operands(module,body,&[key,slot])?})
+            }
+            Semantics::StorageArrayDataSlot(slot) => {
+                json!({"kind":"array_data_slot","args":operands(module,body,&[slot])?})
+            }
+            Semantics::StorageArrayElementSlot(slot, index, stride) => {
+                json!({"kind":"array_element_slot","stride":stride,"args":operands(module,body,&[slot,index])?})
+            }
+            Semantics::DataCopy(data, dest, count) => {
+                let entry = module.data.get(data.id).ok_or("unknown MIR data")?;
+                let bytes = entry.bytes.known().map(|bytes| bytes.as_ref());
+                let relocations = entry
+                    .library_relocations
+                    .iter()
+                    .map(|r| json!([r.offset, r.library.index()]))
+                    .collect::<Vec<_>>();
+                json!({"kind":"data_copy","id":data.id.index(),"bytes":bytes,"relocations":relocations,"offset":data.offset,"args":operands(module,body,&[dest,count])?})
+            }
+
+            Semantics::ValidateStorageBytes(header) => {
+                json!({"kind":"validate_storage_bytes","args":operands(module,body,&[header])?})
+            }
+            Semantics::LoadStorageBytes(slot) => {
+                json!({"kind":"load_storage_bytes","args":operands(module,body,&[slot])?})
+            }
+            Semantics::StoreStorageBytes(slot, object) => {
+                json!({"kind":"store_storage_bytes","args":operands(module,body,&[slot,object])?})
+            }
+            Semantics::StoreStorageBytesLiteral(slot, bytes) => {
+                json!({"kind":"store_storage_bytes_literal","bytes":bytes,"args":operands(module,body,&[slot])?})
+            }
+            Semantics::ClearStorageWords(slot, first, last) => {
+                json!({"kind":"clear_storage_words","args":operands(module,body,&[slot,first,last])?})
+            }
+            Semantics::LoadStorageArray(slot, element, variants) => {
+                let layout = match element {
+                    ValueLayout::UInt(size) => json!({"kind":"uint","bits":size.bits()}),
+                    ValueLayout::Int(size) => json!({"kind":"int","bits":size.bits()}),
+                    ValueLayout::FixedBytes(size) => {
+                        json!({"kind":"fixed_bytes","bits":size.bits()})
+                    }
+                    ValueLayout::MemoryObject(MemoryObjectKind::Bytes) => json!({"kind":"bytes"}),
+                    _ => return Err("unsupported storage array element layout".into()),
+                };
+                json!({"kind":"load_storage_array","element":layout,"variants":variants,"args":operands(module,body,&[slot])?})
+            }
+            Semantics::FrameLoad(offset, mode, kind) => {
+                frame_operation(module, body, offset, mode, kind, None)?
+            }
+            Semantics::FrameStore(offset, mode, kind, value) => {
+                frame_operation(module, body, offset, mode, kind, Some(value))?
+            }
+            Semantics::ExtCall(name, output, address, input, gas, value) => {
+                // Operands in order: callee, then whichever of input, gas and value are present.
+                let word = matches!(output, CallOutput::Word);
+                let clears = word && body.extcall_clears_word(address);
+                let mut args = vec![address];
+                args.extend(input);
+                args.extend(gas);
+                args.extend(value);
+                json!({"kind":"extcall","name":name,"input":input.is_some(),"gas":gas.is_some(),
+                    "value":value.is_some(),"word":word,"clears":clears,
+                    "args":operands(module,body,&args)?})
+            }
+            Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
+                json!({"kind":"returndata_bytes","args":[]})
+            }
+            Semantics::HeapFloor => {
+                json!({"kind":"layout","query":"heap_floor","function":body.name.to_string(),"args":[]})
+            }
+            Semantics::InternalFrameAddress(offset) => {
+                json!({"kind":"layout","query":"frame_address","function":body.name.to_string(),"offset":offset,"args":[]})
+            }
+            Semantics::ConstructorArgs(end) => {
+                json!({"kind":"layout","query":"constructor","end":end,"args":[]})
+            }
+            Semantics::LinkedDataSize(size) => {
+                json!({"kind":"layout","query":"data_size","id":size.data.index(),"addend":size.addend,"aligned":size.aligned,"args":[]})
+            }
+            Semantics::LibraryAddress(id) => {
+                json!({"kind":"layout","query":"library","id":id.index(),"args":[]})
+            }
+            Semantics::ImmutableRead(id) | Semantics::ImmutableStore(id, _) => {
+                let layout = module.immutable_type(id);
+                if layout.immutable_encoding().is_none() {
+                    return Err("non-scalar immutable representation".into());
+                }
+                let (query, args) =
+                    if let Some(Semantics::ImmutableStore(_, value)) = kind.semantics() {
+                        ("immutable_store", vec![value])
+                    } else {
+                        ("immutable_read", vec![])
+                    };
+                json!({"kind":"layout","query":query,"id":id.index(),"width":layout.mir_type().integer_bits().expect("scalar immutable"),"signed":matches!(layout,ValueLayout::Int(_)),"args":operands(module,body,&args)?})
+            }
+            Semantics::AbiEncode(mode, base, selector, args, layout) => {
+                let mut values = Vec::new();
+                values.extend(base);
+                values.extend(selector);
+                values.extend_from_slice(args);
+                let mode = match mode {
+                    AbiEncodeMode::Slice => 0,
+                    AbiEncodeMode::Bytes => 1,
+                    AbiEncodeMode::Scratch => 2,
+                };
+                if layout.types.iter().all(|t| matches!(t, AbiType::Word(_) | AbiType::Function)) {
+                    json!({"kind":"abi_encode","mode":mode,"base":base.is_some(),"selector":selector.is_some(),"functions":layout.types.iter().map(|t|json!(matches!(t,AbiType::Function))).collect::<Vec<_>>(),"args":operands(module,body,&values)?})
+                } else {
+                    let (shapes, memory_slices) = abi_encode_shapes(body, &layout.types, args)?;
+                    json!({"kind":"abi_encode_tree","memory_slices":memory_slices,"mode":mode,"base":base.is_some(),"selector":selector.is_some(),"shapes":shapes,"args":operands(module,body,&values)?})
+                }
+            }
+            Semantics::AbiDecode(data, layout) => {
+                let calldata =
+                    body.value_slice_location(data) == Some(solar_mir::PtrLocation::Calldata);
+                if layout.types.len() <= 1 && layout.types.iter().all(AbiParamType::is_scalar_word)
+                {
+                    json!({"kind":"abi_decode","rule":abi_rule(layout)?,"calldata":calldata,"args":operands(module,body,&[data])?})
+                } else {
+                    let mut nodes = 0;
+                    let shapes = layout
+                        .types
+                        .iter()
+                        .map(|ty| abi_decode_shape(ty, 0, &mut nodes))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    json!({"kind":"abi_decode_tree","shapes":shapes,"calldata":calldata,"args":operands(module,body,&[data])?})
+                }
+            }
+            Semantics::ValidateAbi(validator, value) => {
+                if !validator.is_well_formed() {
+                    return Err("invalid ABI word validator".into());
+                }
+                json!({"kind":"validate_abi","rule":abi_validator(Some(validator)),"args":operands(module,body,&[value])?})
+            }
+            Semantics::Packed(parts, hash) => {
+                if parts.len() > 2048 {
+                    return Err("packed part limit of 2048".into());
+                }
+                let mut values = Vec::new();
+                let mut shapes = Vec::new();
+                let mut total = 0;
+                for part in parts {
+                    match part {
+                        PackedPart::Literal(bytes) => {
+                            total += bytes.len();
+                            shapes.push(json!({"kind":"literal","bytes":bytes.as_ref()}));
+                        }
+                        PackedPart::Scalar { value, ty } => {
+                            let size =
+                                usize::from(ty.type_size().ok_or("packed scalar layout")?.bytes());
+                            total += size;
+                            shapes.push(json!({"kind":"scalar","index":values.len(),"size":size,"fixed":matches!(ty,ValueLayout::FixedBytes(_))}));
+                            values.push(*value);
+                        }
+                        PackedPart::Bytes { value, location } => {
+                            let location = body.value_slice_location(*value).unwrap_or(*location);
+                            shapes.push(json!({"kind":"bytes","index":values.len(),"location":abi_location(location)?}));
+                            values.push(*value);
+                        }
+                        PackedPart::Array { value, element, source, wordwise } => {
+                            let (object, location, length, stride) = match source {
+                                PackedArraySource::Memory {
+                                    layout: MemoryObjectLayout::DynamicArray { element_words },
+                                } => (true, 0, None, *element_words),
+                                PackedArraySource::Memory {
+                                    layout: MemoryObjectLayout::FixedArray { len, element_words },
+                                } => (true, 0, Some(*len), *element_words),
+                                PackedArraySource::Slice(location) => {
+                                    (false, abi_location(*location)?, None, 1)
+                                }
+                                _ => return Err("packed memory array layout".into()),
+                            };
+                            let element = abi_encode_shape(element, 0, &mut 0)?;
+                            shapes.push(json!({"kind":"array","index":values.len(),"element":element,"object":object,"location":location,"length":length,"stride":stride,"wordwise":wordwise}));
+                            values.push(*value);
+                        }
+                    }
+                    if total > 65536 {
+                        return Err("packed bytes exceed 64 KiB".into());
+                    }
+                }
+                json!({"kind":"packed","parts":shapes,"hash":hash,"args":operands(module,body,&values)?})
+            }
             Semantics::FreePointer => json!({"kind": "free_pointer", "args": []}),
             Semantics::MemoryZero(offset, size) => {
                 json!({"kind": "memory_zero", "args": operands(module, body, &[offset, size])?})
@@ -350,11 +602,53 @@ fn export_operation(
                 json!({"kind":"checked","operation":format!("{op:?}"),"signed":signed,"bits":bits,"args":operands(module, body,&[a,b])?})
             }
             Semantics::Call(Callee::Builtin(Builtin::Check { is_zero, failure }), args) => {
-                json!({"kind":"check","zero":is_zero,"panic":failure_code(*failure)?,"args":operands(module, body,args)?})
+                let (panic, message) = match *failure {
+                    RevertKind::Panic(code) => (Some(code as u8), None),
+                    RevertKind::Reason(reason) => (None, reason.message().map(str::as_bytes)),
+                };
+                json!({"kind":"check","zero":is_zero,"panic":panic,"message":message,"args":operands(module, body,args)?})
             }
-            Semantics::Call(Callee::Builtin(Builtin::Require(RequireKind::EmptyString)), args) => {
-                json!({"kind":"check","zero":true,"panic":null,"args":operands(module, body,args)?})
+            Semantics::Call(
+                Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
+                args,
+            ) => {
+                json!({"kind":"checked_modular","name":if matches!(builtin,Builtin::CheckedAddMod){"addmod"}else{"mulmod"},"args":operands(module,body,args)?})
             }
+            Semantics::Call(Callee::Builtin(Builtin::Erc7201), args) => {
+                json!({"kind":"namespace","args":operands(module,body,args)?})
+            }
+            Semantics::Call(Callee::Builtin(Builtin::Require(kind)), args) => match kind {
+                RequireKind::EmptyString => {
+                    json!({"kind":"require_literal","bytes":[],"args":operands(module,body,args)?})
+                }
+                RequireKind::LongString(bytes) => {
+                    let bytes = bytes.as_byte_str();
+                    if bytes.len() > 65536 {
+                        return Err("require literal exceeds 64 KiB".into());
+                    }
+                    json!({"kind":"require_literal","bytes":bytes.to_vec(),"args":operands(module,body,args)?})
+                }
+                RequireKind::ShortString => {
+                    json!({"kind":"require_short","args":operands(module,body,args)?})
+                }
+                RequireKind::ErrorString | RequireKind::CustomError(_) => {
+                    let (types, values, custom) = match kind {
+                        RequireKind::ErrorString => (
+                            vec![AbiType::Bytes(solar_mir::PtrLocation::Memory)],
+                            args.get(1..).ok_or("require arguments missing")?,
+                            false,
+                        ),
+                        RequireKind::CustomError(layout) => (
+                            layout.types.to_vec(),
+                            args.get(2..).ok_or("require selector missing")?,
+                            true,
+                        ),
+                        _ => unreachable!(),
+                    };
+                    let (shapes, memory_slices) = abi_encode_shapes(body, &types, values)?;
+                    json!({"kind":"require_encode","custom":custom,"shapes":shapes,"memory_slices":memory_slices,"args":operands(module,body,args)?})
+                }
+            },
             _ => {
                 return Err(format!("unmodeled direct MIR operation `{}`", kind.op_def().mnemonic));
             }
@@ -390,4 +684,152 @@ fn type_cost(
         _ => {}
     }
     Ok(cost)
+}
+
+fn frame_address(offset: u64, mode: FrameMode, kind: FrameSlotKind) -> Result<String, String> {
+    match mode {
+        FrameMode::External => {
+            Ok((u128::from(offset) + u128::from(EvmMemoryLayout::HEAP_START)).to_string())
+        }
+        FrameMode::MultiReturn if offset == 0 && kind == FrameSlotKind::Word => {
+            Ok(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT.to_string())
+        }
+        _ => Err("MIR frame needs backend placement".into()),
+    }
+}
+
+fn abi_rule(layout: &solar_mir::AbiParamLayout) -> Result<Json, String> {
+    if layout.types.is_empty() {
+        return Ok(Json::Null);
+    }
+    let [ty] = layout.types.as_ref() else {
+        return Err("ABI decoding requires zero or one scalar".into());
+    };
+    if !ty.is_scalar_word() {
+        return Err("ABI decoding requires a scalar layout".into());
+    }
+    let mut rule = abi_validator(ty.word_validator());
+    rule["function"] = json!(matches!(ty, AbiParamType::Scalar(ValueLayout::Function)));
+    Ok(rule)
+}
+
+/// Reflects the declared ABI tree; no offsets, bounds proofs or decoder IR are exported.
+fn abi_decode_shape(ty: &AbiParamType, depth: usize, nodes: &mut usize) -> Result<Json, String> {
+    *nodes += 1;
+    if depth > 32 || *nodes > 256 {
+        return Err("ABI layout limit: depth 32, nodes 256".into());
+    }
+    Ok(match ty {
+        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {
+            let scalar = solar_mir::AbiParamLayout::new(vec![ty.clone()]);
+            json!({"kind":"scalar","rule":abi_rule(&scalar)?,"width":ty.mir_type().integer_bits().unwrap_or(256)})
+        }
+        AbiParamType::Bytes => json!({"kind":"bytes"}),
+        AbiParamType::DynamicArray(element) => {
+            json!({"kind":"array","length":null,"element":abi_decode_shape(element,depth+1,nodes)?})
+        }
+        AbiParamType::FixedArray { element, len } => {
+            json!({"kind":"array","length":len,"element":abi_decode_shape(element,depth+1,nodes)?})
+        }
+        AbiParamType::Tuple(fields) => {
+            json!({"kind":"tuple","fields":fields.iter().map(|ty|abi_decode_shape(ty,depth+1,nodes)).collect::<Result<Vec<_>,_>>()?})
+        }
+    })
+}
+
+/// Reflects recursive encoder layouts without importing the lowering implementation.
+fn abi_encode_shape(ty: &AbiType, depth: usize, nodes: &mut usize) -> Result<Json, String> {
+    *nodes += 1;
+    if depth > 32 || *nodes > 256 {
+        return Err("ABI layout limit: depth 32, nodes 256".into());
+    }
+    Ok(match ty {
+        AbiType::Word(validator) => json!({"kind":"word","rule":abi_validator(*validator)}),
+        AbiType::Function => json!({"kind":"function"}),
+        AbiType::Bytes(place) => json!({"kind":"bytes","location":abi_location(*place)?}),
+        AbiType::DynamicArray { element, location: place } => {
+            json!({"kind":"array","length":null,"location":abi_location(*place)?,"block_copy":false,"element":abi_encode_shape(element,depth+1,nodes)?})
+        }
+        AbiType::FixedArray { element, len, block_copy } => {
+            json!({"kind":"array","length":len,"location":0,"block_copy":block_copy,"element":abi_encode_shape(element,depth+1,nodes)?})
+        }
+        AbiType::Tuple(fields) => {
+            json!({"kind":"tuple","fields":fields.iter().map(|ty|abi_encode_shape(ty,depth+1,nodes)).collect::<Result<Vec<_>,_>>()?})
+        }
+    })
+}
+
+fn abi_validator(validator: Option<AbiWordValidator>) -> Json {
+    let (kind, bits) = match validator {
+        None => ("any", 0),
+        Some(AbiWordValidator::Unsigned(n)) => ("uint", u64::from(n)),
+        Some(AbiWordValidator::LeftAligned(n)) => ("left", u64::from(n)),
+        Some(AbiWordValidator::SignExtend(n)) => ("sint", (n + 1) * 8),
+        Some(AbiWordValidator::Bool) => ("boolean", 0),
+        Some(AbiWordValidator::EnumRange(n)) => ("enumeration", n),
+    };
+    json!({"kind":kind,"bits":bits,"function":false})
+}
+
+fn abi_encode_shapes(
+    body: &Function,
+    types: &[AbiType],
+    args: &[ValueId],
+) -> Result<(Vec<Json>, Vec<Json>), String> {
+    if types.len() != args.len() {
+        return Err("ABI tuple arity".into());
+    }
+    let mut nodes = 0;
+    let mut shapes = Vec::new();
+    let mut memory_slices = Vec::new();
+    for (ty, &value) in types.iter().zip(args) {
+        let location = body.value_slice_location(value);
+        memory_slices.push(json!(
+            location == Some(solar_mir::PtrLocation::Memory)
+                && matches!(ty, AbiType::FixedArray { .. } | AbiType::Tuple(_))
+        ));
+        let ty = if let Some(location) = location {
+            ty.clone().at_location(location)
+        } else {
+            ty.clone()
+        };
+        shapes.push(abi_encode_shape(&ty, 0, &mut nodes)?);
+    }
+    Ok((shapes, memory_slices))
+}
+
+fn abi_location(location: solar_mir::PtrLocation) -> Result<usize, String> {
+    match location {
+        solar_mir::PtrLocation::Memory => Ok(0),
+        solar_mir::PtrLocation::Calldata => Ok(1),
+        solar_mir::PtrLocation::Returndata => Ok(2),
+        solar_mir::PtrLocation::Storage => Ok(3),
+        _ => Err("ABI encoding address space".to_string()),
+    }
+}
+
+fn frame_operation(
+    module: &Module,
+    body: &Function,
+    offset: u64,
+    mode: FrameMode,
+    kind: FrameSlotKind,
+    value: Option<ValueId>,
+) -> Result<Json, String> {
+    let args = operands(module, body, &value.into_iter().collect::<Vec<_>>())?;
+    let ty = value_type(module, kind.result_type())?;
+    if mode == FrameMode::Internal {
+        let offset = EvmMemoryLayout::internal_frame_prefix(
+            body.params.len() + body.return_components().len(),
+        )
+        .and_then(|prefix| prefix.checked_add(offset))
+        .ok_or("internal frame prefix overflow")?;
+        Ok(
+            json!({"kind":if value.is_some(){"internal_frame_store"}else{"internal_frame_load"},"function":body.name.to_string(),"offset":offset,"slot_type":ty,"args":args}),
+        )
+    } else {
+        Ok(
+            json!({"kind":if value.is_some(){"frame_store"}else{"frame_load"},"address":frame_address(offset,mode,kind)?,"slot_type":ty,"args":args}),
+        )
+    }
 }

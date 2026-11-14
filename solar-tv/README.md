@@ -343,8 +343,42 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation, indirect calls, physical multi-return buffers,
-ABI/layout helpers and backend memory records remain unsupported.
+invented. Deferred allocations and physical multi-return calls use explicit
+placements, described below. Function-pointer
+dispatchers are ordinary MIR bodies and use the
+same internal-call semantics. The function-pointers Solidity example checks a
+real inlining pair for both choices and replays an incorrect callee change.
+Recursive ABI helpers and explicit placement windows are
+supported below. Backend memory records remain unsupported.
+
+A deferred allocation uses `mir_layout.allocations.<function>.<site>`, where
+`site` is its zero-based position among the function's active MIR instructions
+(phis included, terminators excluded). A `static` placement supplies `address`
+and `size`; a `heap` placement supplies `size` and bumps the explicit FMP each
+time the instruction executes. The extent must match the MIR operand. Static
+reservation alone neither touches memory nor changes the FMP; requested zero
+initialization still touches the exact range. Missing placements, mismatched
+extents and invalid addresses are inconclusive. There are at most 4,096 bindings
+across 128 functions, each reserving at most 64 KiB.
+
+```json
+{"mir_layout":{"allocations":{"f":{"0":{"kind":"static","address":256,"size":32}}}}}
+```
+
+These are explicit inputs to a placement window. They do not certify that the
+backend selects those placements, and do not import its captured memory records.
+
+MIR `mcopy` is a logical overlap-safe copy on every supported fork. Pre-Cancun
+targets lower it to loops; scheduled EVM `MCOPY` still requires Cancun. Partial
+copy tails retain exact memory expansion as well as bytes. The example compares
+real `lower-mcopy` output and replays the old source-overread counterexample:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/mcopy/{before,after}.mir \
+  --function=f --evm-version=shanghai --world solar-tv/examples/mir/mcopy/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/mcopy/{before,broken}.mir \
+  --function=f --evm-version=shanghai --world solar-tv/examples/mir/mcopy/world.json
+```
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
@@ -359,7 +393,8 @@ These are real `inline` and `lower-alloc` outputs. The allocation pass creates a
 shared checked-allocation helper, which is interpreted as ordinary MIR. The
 broken pair aliases two allocated objects; the checker reports the changed
 return value and independently replays both original modules. Memory read/write
-normalization uses kernel-proved range and byte-order laws, not alias assumptions.
+normalization uses kernel-proved range and byte-order laws. Closed initial reads
+reduce by definitional equality; symbolic bytes stay abstract.
 
 ### Typed MIR products and slices
 
@@ -381,9 +416,40 @@ To compare type-lowering passes, the selected function boundary exposes scalar
 leaves in declaration order. Both interpreters rebuild the original parameter
 tree independently and flatten its returned leaves. A pointer may be represented
 by its address word after lowering; two explicitly different pointer address
-spaces are rejected. This boundary relation assigns no physical ABI, padding,
-frame addresses or return buffers. Lowered internal calls requiring a physical
-multi-return buffer remain unsupported.
+spaces are rejected. This boundary relation assigns no implicit physical ABI,
+padding or frame addresses. A selected outer function exposes its return
+components logically. Nested lowered calls with several scalar results require
+an explicit `mir_layout.functions.<callee>.return_buffer` placement. For a single
+logical aggregate or slice, supplying that placement selects the physical
+memory-return convention; without it, the result remains a logical SSA value.
+Publication flattens nested fields in declaration order, with each slice's
+pointer before its length. Later leaves occupy `buffer + 32*k`, followed by the
+buffer address at `0x20`, including when the call result is unused. Empty and
+single-leaf products write no buffer. Typed callers retain their logical first
+component until lowering reconstructs it from the physical words.
+
+Tail calls keep the original callee's buffer. Nested calls may use overlapping
+buffers: returned SSA values are captured before publication, and writes retain
+their order and memory aliases. Only the published extras need defined bits; an
+unused undefined first word is neither stored nor given an invented value.
+This checks the supplied memory-return convention; it does not infer or certify
+the backend's placement or stack-return decisions. Missing required placements
+and undefined stored extras remain inconclusive.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/return-buffers/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/return-buffers/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/return-buffers/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/return-buffers/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/aggregate-returns/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/aggregate-returns/world.json
+```
+
+The aggregate example is a real `lower-structs`, `lower-frame-slots`,
+`lower-slices`, `lower-memory-objects` pair. Its broken variant reads a return
+field from the next buffer offset. [Returns.lean](SolarTV/MIR/State/Returns.lean)
+also proves that placed pair and slice publication agree with their expanded
+components for arbitrary values and memory.
 
 Types are limited to depth 32 and 256 nodes, with a whole-model budget of 65,536
 exported type nodes checked before expansion. A boundary admits at most 32 input
@@ -399,6 +465,238 @@ solar-tv/solar-tv mir solar-tv/examples/mir/slices/{before,after}.mir \
 These are actual `lower-structs` and `lower-slices` outputs. Replace `after` with
 `broken` to replay a wrong-field or wrong-slice-pointer counterexample.
 
+### MIR slots and storage bytes
+
+Mapping and dynamic-array slot operations hash their real bytes and preserve
+scratch writes and memory expansion. Byte keys use unreserved FMP scratch;
+copying may overlap the source, and array offsets wrap at 256 bits. External
+balance/code reads use live fixture accounts, with address truncation, access
+warmth, padded copies and the original code of EIP-7702 designators. The MIR
+contract's own runtime code remains unknown.
+
+Storage byte helpers validate short/long headers, allocate memory objects,
+clear old long tails and mask dirty padding. Invalid headers panic with 0x22;
+allocation and arithmetic failures keep their own panic codes. Full-word memory
+traffic remains observable, including when scratch aliases the input object.
+Storage loops have a 2048-word work limit. Model errors never certify a pair.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/slots/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/slots/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/storage-bytes/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/storage-bytes/world.json
+```
+
+The examples are actual `lower-mapping-slots` and `lower-builtins` outputs;
+`broken.mir` changes a parent slot or stored byte. Constant `datacopy` also
+executes directly for ranges wholly inside known data. Library patches use the
+explicit `mir_layout.libraries` addresses. Deferred contract code requires
+`mir_layout.code` and the entry's `data` extent. The verifier still requires an
+exact `datasize` copy; use `codecopy` for arbitrary image ranges, including
+neighboring bytes and zero padding. Known entries must match a supplied image
+after patching; inconsistent bytes or extents are inconclusive. Empty copies
+read no source bytes or relocations; computing `datasize` still needs its extent.
+Exported constant bytes are limited to 64 KiB across the selected call graph. Supplied
+deferred images remain boundary assumptions, not proofs of another contract's
+compilation or final assembler placement.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/linked-data/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/linked-data/world.json
+```
+
+This example specializes a copy under the supplied link boundary. Its broken
+variant writes one byte later, changing both memory and the returned word.
+
+Storage-array loads also execute directly: packed integers, signed values,
+fixed bytes, checked enums and nested bytes objects. The array header is reserved
+before data-slot hashing, and child allocations share the FMP and scratch memory.
+Copies above 2048 elements are unsupported. External scratch frame slots alias
+ordinary memory at base 128; slices retain pointer/length order. Internal frames
+use explicit per-function activation bases. Slot offsets follow the two-word
+frame header and the function's argument/return components. Both direct slots
+and `internal_frame_addr` share ordinary byte memory, including aliases.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/storage-arrays/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/storage-arrays/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/frames/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/frames/world.json
+```
+
+These pairs come from `lower-builtins` and `lower-frame-slots`. Their broken
+versions change an element encoding or the returned frame value.
+
+### MIR ABI and placement windows
+
+ABI encoders handle scalars, function pointers, bytes, arrays and nested tuples in
+object, slice and scratch modes, with an optional selector. Sources can live in
+memory, calldata or returndata; storage byte strings retain their header checks and
+slot reads. Returndata copies retain bounds checks and opcode availability.
+Decoders handle recursive layouts and multiple results from memory objects or
+memory/calldata slices. They preserve offset and signed length checks, dirty-word
+rejection, allocation/copy order, padding and function-word normalization.
+Layouts are bounded to depth 32 and 256 nodes; each operation has a work limit of
+2,048 elements. Exceeding a bound is unsupported, never a successful short result.
+Memory slices of static aggregates read contiguous encoded heads; dynamic memory
+aggregates retain their object representation.
+
+Require builtins preserve exact revert bytes, including short and long strings,
+dynamic messages and recursive custom-error arguments. `require(false, "")`
+returns `Error(string)` with an empty string, not an empty revert. Passing checks
+evaluate their arguments but do not read the referenced payload objects.
+Set `debug_reverts: true` in the fixture to model compiler-generated check
+messages from `--revert-strings=debug`. The default checks revert with empty
+data; explicit user payloads retain the bytes encoded in MIR in either mode.
+
+Checked `addmod` and `mulmod` panic on a zero modulus; their nonzero cases use
+full-width modular arithmetic. ERC-7201 namespace hashing retains the input
+reads and scratch write. Send and transfer are `extcall`s with the 2,300-gas
+stipend and execute real children, including out-of-gas and storage-sentry
+failures. Transfer's `revert_returndata` branch preserves the failed call's
+complete revert bytes.
+
+MIR `selfdestruct` applies fork-specific account lifetime and balance effects,
+including Cancun's preservation of existing accounts, and rejects static writes.
+Amsterdam's changed destruction semantics remain unsupported in this path.
+
+SHA-256, RIPEMD-160 and address recovery are `extcall static word` calls to
+their precompiles, as the frontend emits them. Provide an ordered `builtin_gas`
+list in the world fixture, with the child gas budget at each executed `extcall`
+without a gas operand. Like `creation_gas`, this is an explicit
+boundary input because semantic MIR has no physical caller gas price. Budgets
+are shared across internal calls; missing budgets make the check inconclusive.
+Consumption of creation and builtin budgets remains observable at internal
+returns, so a rewrite cannot silently shift a caller's later budget sequence.
+Both successful and out-of-gas calls run the actual precompile in Lean and in
+independent replay, preserving scratch writes and volatile returndata.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/precompile-builtins/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/precompile-builtins/world.json
+```
+
+Packed encodings accept literals, scalars and byte references, retaining each
+unaligned word store and selecting scratch from the whole write footprint. They are bounded
+to 2,048 parts and 64 KiB of data. Memory objects and slices, calldata slices and
+storage bytes keep ordered header reads, overlapping copies and dirty word tails.
+Hashes may borrow and restore a memory object's header. Packed arrays retain
+padded and cleaned leaves, declared memory strides, nested memory rows and
+wordwise calldata reads when ranges wrap. Array work is capped at 2,048 nodes.
+Physical call-return buffers need the explicit convention above.
+
+### ABI canonicality obligations
+
+`validate_abi uint8, value` records the required representation explicitly. The
+checker proves it at the reached program point, including through phis and calls.
+Rules cover unsigned widths, sign extension, fixed-byte padding, booleans and enum
+ranges. A false obligation is inconclusive; it is never an assumed fact or a
+fabricated runtime revert. Raw external-function padding uses `bytes24`; its
+normalized value uses `uint192`. Checking the normalized value cannot justify
+removing the raw padding check.
+
+The kernel-checked discharge rule is in
+[MIR/Transforms/AbiValidation.lean](SolarTV/MIR/Transforms/AbiValidation.lean).
+This example runs actual ABI conversion passes. Its `i1` input selects a clean
+function word or one with a dirty padding bit; the kernel exhausts both values.
+The padding-equivalence and unsigned-shift lemmas apply to every 256-bit word.
+Its broken version skips the function-word padding rejection:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-validation/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/abi-validation/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-validation/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/abi-validation/world.json
+```
+
+Both interpreters replay a counterexample: malformed input reverts before the
+rewrite but returns successfully afterward.
+
+The packed-array example uses a two-word memory stride. Its broken rewrite
+copies the gap between elements instead of the second element:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/packed-arrays/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/packed-arrays/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/packed-arrays/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/packed-arrays/world.json
+```
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-scalar/before.mir \
+  solar-tv/examples/mir/abi-scalar/after.mir --function f \
+  --world solar-tv/examples/mir/abi-scalar/world.json
+```
+
+A real reference encoding pair, plus an incorrect relative-offset rewrite:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-reference/{before,after}.mir \
+  --function f --world solar-tv/examples/mir/abi-reference/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-reference/{before,broken}.mir \
+  --function f --world solar-tv/examples/mir/abi-reference/world.json
+```
+
+Layout-dependent operations take explicit window inputs in `mir_layout`:
+
+```json
+{
+  "version": 1,
+  "memory": {"size": 192},
+  "mir_layout": {
+    "code": "0x01020304",
+    "functions": {"f": {"frame_base": 256}},
+    "constructor": {"offset": 128, "size": 64},
+    "data": {"0": {"offset": 1, "size": 3}},
+    "immutable_slots": {"0": 256},
+    "libraries": {"0": "17"}
+  }
+}
+```
+
+`heap_floor` reads its function's placement and must not exceed the supplied
+initial FMP. `internal_frame_addr` and internal frame slots use `frame_base` for
+activation zero. Recursive windows instead supply `frame_bases`, including the
+first activation, for example `{"g":{"frame_bases":[256,512,768]}}`. The index
+counts live activations of that function; tail calls replace an activation.
+Missing entries are inconclusive, and `frame_base` cannot accompany a nonempty
+`frame_bases` list. Each function admits at most 128 bases. No implicit frame
+allocation or initialization is introduced. Constructor ranges reference existing
+initial memory. `datasize` reads a deferred entry's linked extent, retaining
+addends and alignment; the MIR verifier rejects this operation on literal data.
+`codesize`/`codecopy` use the supplied image and zero-pad out-of-range reads.
+Scalar immutables alias staging slots, or use `immutable_values` for read-only
+runtime relocations. Staging words retain the declared SSA carrier: narrow
+integers, booleans and addresses must have zero high bits. Signed runtime values
+may also be sign-extended; typed reads project them to the instruction's carrier,
+while raw `i256` reads retain the relocation word. Fixed-byte and function values
+keep all 256 bits, including dirty fixed-byte padding visible through assembly.
+Non-canonical context words are inconclusive. Library relocations retain 160-bit
+addresses. Numeric keys are module-local IDs, and declaration tables must agree
+across the pair.
+
+Missing inputs stay unsupported. A proof is conditional on these placements and
+code bytes; it does not verify backend layout, root reentry or runtime-image
+correspondence. Frame/link inputs are recorded in the fixture hash and replayed
+independently. Tables have at most 128 entries; code and memory retain the 64 KiB
+limit.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/layout/before.mir \
+  solar-tv/examples/mir/layout/after.mir --function f \
+  --world solar-tv/examples/mir/layout/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/gas-sample/before.mir \
+  solar-tv/examples/mir/gas-sample/after.mir --function f \
+  --world solar-tv/examples/mir/gas-sample/world.json
+```
+
+The GAS example is deliberately a single-opcode window. `gas_before` is the budget
+immediately before GAS, which pays its own opcode charge before sampling. Below
+that charge it halts exceptionally. This does not price arbitrary MIR bodies or
+assume physical call/return costs are zero.
+
 ### Direct MIR messages
 
 `call`, `callcode`, `delegatecall`, `staticcall`, `create` and `create2` execute
@@ -406,6 +704,22 @@ children from the fixture's bytecode accounts. The MIR caller stays typed SSA;
 we do not compile it into an EVM image. The Lean and native interpreters share
 neither an imported instruction recipe nor child results. Both execute the real
 child, including nested messages, precompiles, exact revert data and rollback.
+
+Typed `extcall`, `extcall static` and `extcall delegate` accept no input, a
+memory object or a slice. Without `word` they reserve no output buffer; with it
+the callee's first 32 return bytes land in scratch, which is zeroed first unless
+the callee is the constant SHA-256 or RIPEMD-160 precompile.
+`icall returndata_bytes<>` copies the live return buffer to an uninitialized
+bytes object, retaining dirty padding and leaving the buffer available. An
+`extcall` without a gas operand takes the next `builtin_gas` budget instead of
+pricing the caller.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/address-calls/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/address-calls/world.json
+```
 
 MIR does not price its own instructions. CALL-family checks therefore assume
 enough caller gas to forward the explicit requested amount without EIP-150

@@ -1216,10 +1216,10 @@ impl LowerAbiCx {
     }
 
     fn discharge_abi_validations(func: &mut Function) {
-        // validate_abi value -> validated entry decoding or a typed internal argument
+        // validate_abi validator, value -> validated entry decoding or a typed internal argument
         for block in func.blocks.indices() {
             let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
-            instructions.retain(|&id| !matches!(func.inst(id).kind, InstKind::ValidateAbi(_)));
+            instructions.retain(|&id| !matches!(func.inst(id).kind, InstKind::ValidateAbi { .. }));
             func.blocks[block].instructions = instructions;
         }
     }

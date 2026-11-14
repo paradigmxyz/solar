@@ -73,11 +73,21 @@ use solar_data_structures::{
 use solar_evmir::op;
 use solar_mir::{
     AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
-    ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp, DataRef, Function,
-    FunctionId, InstId, InstKind, MirType, Module, RequireKind, RevertKind, RevertReason,
-    Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    ArithmeticKind, AssumePredicate, BlockId, Builtin, CallOutput, Callee, CheckedOp, Function,
+    FunctionId, InstId, InstKind, MirType, Module, Semantics, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
+
+mod abi;
+mod arrays;
+mod builtins;
+mod frames;
+mod links;
+mod messages;
+mod placement;
+mod returns;
+mod storage;
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
 /// more than any block holds.
@@ -191,6 +201,25 @@ pub trait Host {
     /// not model it.
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
 
+    /// A placement or link input at this MIR window, never a guessed backend address.
+    fn placement(&mut self, query: PlacementRead<'_>) -> Option<U256> {
+        let _ = query;
+        None
+    }
+
+    /// The fixed code image containing this window, when supplied explicitly.
+    /// This does not authorize executing unknown MIR root code through a child call.
+    fn code_image(&mut self) -> Option<Vec<u8>> {
+        None
+    }
+
+    /// Original external code bytes, without resolving delegation, or `None` if unknown.
+    /// Account access must be recorded even when a caller requests zero copied bytes.
+    fn code(&mut self, address: U256) -> Option<Vec<u8>> {
+        let _ = address;
+        None
+    }
+
     /// Returns the host's current persistent value, overlaid by unpublished local writes.
     /// A message host publishes pending writes before child entry, so subsequent reads see
     /// changes committed by that child. Without messages this is the initial value.
@@ -226,6 +255,59 @@ pub trait Host {
     fn is_static(&self) -> bool {
         false
     }
+
+    /// Applies SELFDESTRUCT to the current account after publishing its changes.
+    /// The host owns fork-specific balance transfer and deferred deletion.
+    fn destroy(
+        &mut self,
+        beneficiary: U256,
+        pending: PendingChanges<'_>,
+    ) -> Result<(), &'static str> {
+        let _ = (beneficiary, pending);
+        Err("selfdestruct is not modeled by this host")
+    }
+
+    /// Returns the next explicit child budget for an implicit-gas builtin call.
+    /// MIR does not determine the caller's physical gas consumption.
+    fn builtin_gas(&mut self) -> Option<U256> {
+        None
+    }
+
+    /// Whether compiler-generated checks retain their diagnostic strings.
+    fn debug_reverts(&self) -> bool {
+        false
+    }
+}
+
+/// Explicit inputs for layout-dependent MIR operations.
+#[derive(Clone, Copy, Debug)]
+pub enum PlacementRead<'a> {
+    /// The entry heap lower bound for a named function.
+    HeapFloor(&'a str),
+    /// The current activation's internal frame base.
+    FrameBase(&'a str, usize),
+    /// The explicitly selected memory-return convention's buffer.
+    ReturnBuffer(&'a str),
+    /// A deferred allocation's fixed address, absent for an FMP-backed placement.
+    AllocationAddress(&'a str, usize),
+    /// Its explicitly selected extent, for either placement kind.
+    AllocationSize(&'a str, usize),
+    /// Copied constructor argument range start.
+    ConstructorBase,
+    /// Copied constructor argument range end.
+    ConstructorEnd,
+    /// The byte length of a linked data entry.
+    DataSize(usize),
+    /// The first byte of an explicitly placed data entry in the supplied code image.
+    DataOffset(usize),
+    /// Constructor immutable staging word address.
+    ImmutableSlot(usize),
+    /// Typed runtime immutable value after patching.
+    ImmutableValue(usize),
+    /// Linked library address.
+    Library(usize),
+    /// Gas just before an isolated GAS opcode window.
+    GasBefore,
 }
 
 /// A semantic MIR message; no caller bytecode or stack protocol is synthesized.
@@ -825,6 +907,260 @@ impl<'a> Run<'_, 'a, '_> {
         };
         if self.semantic.is_some() {
             match semantics {
+                Semantics::HeapFloor => {
+                    let name = body.name.to_string();
+                    let word = self.placement(PlacementRead::HeapFloor(&name))?;
+                    self.frame().values[instruction.result().expect("heap floor")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::InternalFrameAddress(offset) => {
+                    let name = body.name.to_string();
+                    let activation =
+                        self.frames.iter().filter(|frame| std::ptr::eq(frame.body, body)).count()
+                            - 1;
+                    let base = self.placement(PlacementRead::FrameBase(&name, activation))?;
+                    self.frame().values[instruction.result().expect("frame address")] =
+                        Some(RuntimeValue::Word(base + U256::from(offset)));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ConstructorArgs(end) => {
+                    let word = self.placement(if end {
+                        PlacementRead::ConstructorEnd
+                    } else {
+                        PlacementRead::ConstructorBase
+                    })?;
+                    self.frame().values[instruction.result().expect("constructor range")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::LinkedDataSize(size) => {
+                    let length = self.placement(PlacementRead::DataSize(size.data.index()))?;
+                    if length > U256::from(u32::MAX) {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "linked data exceeds the u32 extent bound",
+                        ));
+                    }
+                    let word = size.value(length.to::<usize>());
+                    self.frame().values[instruction.result().expect("linked size")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::LibraryAddress(id) => {
+                    let word = self.placement(PlacementRead::Library(id.index()))?;
+                    if word >> 160 != U256::ZERO {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "unclean linked library address",
+                        ));
+                    }
+                    self.frame().values[instruction.result().expect("library address")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ImmutableRead(id) => {
+                    let word = self.semantic_immutable(id, None)?;
+                    let bits = instruction.result_ty.and_then(MirType::integer_bits).unwrap_or(256);
+                    self.frame().values[instruction.result().expect("immutable read")] =
+                        Some(RuntimeValue::Word(word & (U256::MAX >> (256 - bits))));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ImmutableStore(id, value) => {
+                    let word = frame.read(value)?;
+                    self.semantic_immutable(id, Some(word))?;
+                    return ControlFlow::Continue(());
+                }
+                Semantics::AbiEncode(mode, base, selector, args, layout) => {
+                    let base = if let Some(v) = base { Some(frame.read(v)?) } else { None };
+                    let selector = if let Some(v) = selector { Some(frame.read(v)?) } else { None };
+                    let values = frame.read_values(args)?;
+                    let mut sources = Vec::new();
+                    let mut types = Vec::new();
+                    for ((ty, &arg), value) in layout.types.iter().zip(args).zip(values) {
+                        let location = body.value_slice_location(arg);
+                        let memory_slice = location == Some(solar_mir::PtrLocation::Memory)
+                            && matches!(
+                                ty,
+                                solar_mir::AbiType::FixedArray { .. }
+                                    | solar_mir::AbiType::Tuple(_)
+                            );
+                        sources.push((value, memory_slice));
+                        types.push(if let Some(location) = location {
+                            ty.clone().at_location(location)
+                        } else {
+                            ty.clone()
+                        });
+                    }
+                    let layout = solar_mir::AbiLayout::new(types);
+                    let value =
+                        self.semantic_abi_encode_values(mode, base, selector, &sources, &layout)?;
+                    self.frame().values[instruction.result().expect("ABI encoding result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::AbiDecode(data, layout) => {
+                    let input = frame.read_value(data)?;
+                    let location =
+                        body.value_slice_location(data).unwrap_or(solar_mir::PtrLocation::Memory);
+                    let value = self.semantic_abi_values(input, location, layout)?;
+                    if let Some(result) = instruction.result() {
+                        self.frame().values[result] = value;
+                    }
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ValidateAbi(validator, value) => {
+                    let word = frame.read(value)?;
+                    self.semantic_validate_abi(validator, word)?;
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Packed(parts, hash) => {
+                    if parts.iter().any(|part| {
+                        matches!(
+                            part,
+                            solar_mir::PackedPart::Bytes { .. }
+                                | solar_mir::PackedPart::Array { .. }
+                        )
+                    }) {
+                        let word = self.semantic_packed_references(body, parts, hash)?;
+                        self.frame().values[instruction.result().expect("packed result")] =
+                            Some(RuntimeValue::Word(word));
+                        return ControlFlow::Continue(());
+                    }
+                    let mut values = Vec::new();
+                    for part in parts {
+                        if let solar_mir::PackedPart::Scalar { value, .. } = part {
+                            values.push(frame.read(*value)?);
+                        }
+                    }
+                    let word = self.semantic_packed(parts, &values, hash)?;
+                    self.frame().values[instruction.result().expect("packed result")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Opcode("gas", _) => {
+                    if !self.gas_window(body, inst) {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "GAS requires an isolated opcode window",
+                        ));
+                    }
+                    let budget = self.placement(PlacementRead::GasBefore)?;
+                    let price = U256::from(
+                        op::definition(op::GAS)
+                            .expect("GAS opcode")
+                            .gas
+                            .gas(self.semantic.expect("semantic version")),
+                    );
+                    if budget < price {
+                        return ControlFlow::Break(Outcome::Invalid);
+                    }
+                    self.frame().values[instruction.result().expect("gas result")] =
+                        Some(RuntimeValue::Word(budget - price));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ValidateStorageBytes(header) => {
+                    Self::bytes_header(frame.read(header)?)?;
+                    return ControlFlow::Continue(());
+                }
+                Semantics::LoadStorageBytes(slot) => {
+                    let slot = frame.read(slot)?;
+                    let pointer = self.load_storage_bytes(slot)?;
+                    self.frame().values[instruction.result().expect("storage bytes result")] =
+                        Some(RuntimeValue::Word(pointer));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::StoreStorageBytes(slot, object) => {
+                    let (slot, object) = (frame.read(slot)?, frame.read(object)?);
+                    return self.store_storage_bytes(slot, object, None);
+                }
+                Semantics::StoreStorageBytesLiteral(slot, bytes) => {
+                    let slot = frame.read(slot)?;
+                    return self.store_storage_bytes(slot, U256::ZERO, Some(bytes));
+                }
+                Semantics::ClearStorageWords(slot, first, last) => {
+                    let (slot, first, last) =
+                        (frame.read(slot)?, frame.read(first)?, frame.read(last)?);
+                    return self.clear_storage_words(slot, first, last);
+                }
+                Semantics::LoadStorageArray(slot, element, variants) => {
+                    let slot = frame.read(slot)?;
+                    let pointer = self.load_storage_array(slot, element, variants)?;
+                    self.frame().values[instruction.result().expect("storage array result")] =
+                        Some(RuntimeValue::Word(pointer));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::FrameLoad(offset, mode, kind) => {
+                    let address = self.semantic_frame_address(body, offset, mode, kind)?;
+                    let value = self.semantic_frame_load(address, kind)?;
+                    self.frame().values[instruction.result().expect("frame load result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::FrameStore(offset, mode, kind, value) => {
+                    let value = frame.read_value(value)?;
+                    let address = self.semantic_frame_address(body, offset, mode, kind)?;
+                    return self.semantic_frame_store(address, kind, value);
+                }
+                Semantics::ExtCall(name, output, address, input, gas, value) => {
+                    let value =
+                        if let Some(value) = value { Some(frame.read(value)?) } else { None };
+                    let gas = if let Some(gas) = gas { Some(frame.read(gas)?) } else { None };
+                    let input =
+                        if let Some(input) = input { Some(frame.read_value(input)?) } else { None };
+                    let word = match output {
+                        CallOutput::None => None,
+                        CallOutput::Word => Some(body.extcall_clears_word(address)),
+                    };
+                    let address = frame.read(address)?;
+                    let opcode = op::from_mnemonic(name).expect("schema message opcode");
+                    let result = self.semantic_extcall(opcode, address, input, gas, value, word)?;
+                    self.frame().values[instruction.result().expect("extcall result")] =
+                        Some(RuntimeValue::Word(result));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
+                    let pointer = self.semantic_returndata_bytes()?;
+                    self.frame().values[instruction.result().expect("returndata object")] =
+                        Some(RuntimeValue::Word(pointer));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::MappingSlotBytes(key, slot) => {
+                    let key = frame.read_value(key)?;
+                    let slot = frame.read(slot)?;
+                    let (source, length, calldata) = match key {
+                        RuntimeValue::Word(object) => {
+                            let length = limit(self.memory.load(object))?;
+                            (object.wrapping_add(U256::from(32)), length, false)
+                        }
+                        RuntimeValue::Aggregate(fields) if fields.len() == 2 => {
+                            let [RuntimeValue::Word(source), RuntimeValue::Word(length)] =
+                                fields.as_slice()
+                            else {
+                                return ControlFlow::Break(Outcome::Unsupported(
+                                    "undefined mapping bytes key",
+                                ));
+                            };
+                            (*source, *length, true)
+                        }
+                        _ => {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "invalid mapping bytes key",
+                            ));
+                        }
+                    };
+                    let scratch = limit(self.memory.load(U256::from(64)))?;
+                    self.burn_words(length)?;
+                    if calldata {
+                        self.world_opcode(op::CALLDATACOPY, &[scratch, source, length])?;
+                    } else {
+                        limit(self.memory.copy(scratch, source, length))?;
+                    }
+                    limit(self.memory.store(scratch.wrapping_add(length), slot))?;
+                    let count = length.wrapping_add(U256::from(32));
+                    self.burn_words(count)?;
+                    let bytes = limit(self.memory.read(scratch, count))?;
+                    self.frame().values[instruction.result().expect("mapping result")] =
+                        Some(RuntimeValue::Word(U256::from_be_bytes(keccak256(bytes).0)));
+                    return ControlFlow::Continue(());
+                }
                 Semantics::InsertValue(ty, aggregate, index, value) => {
                     if let Err(e) = values::widths(self.machine.module, ty) {
                         return ControlFlow::Break(Outcome::Unsupported(e));
@@ -959,39 +1295,22 @@ impl<'a> Run<'_, 'a, '_> {
                 let Some(callee) = self.machine.body(id) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
-                if self.semantic.is_some() && callee.return_components().len() > 1 {
-                    return ControlFlow::Break(Outcome::Unsupported(
-                        "physical multi-return protocol is not modeled",
-                    ));
-                }
                 self.call(callee, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
                 return ControlFlow::Continue(());
             }
+            Semantics::Call(Callee::Builtin(Builtin::Require(kind)), args)
+                if self.semantic.is_some() =>
+            {
+                self.semantic_require(body, kind, args)?;
+                return ControlFlow::Continue(());
+            }
             Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
                 let words = frame.read_all(args)?;
-                let &[condition] = words.as_slice() else {
-                    return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+                let Some(result) = self.semantic_builtin_words(builtin, &words)? else {
+                    return ControlFlow::Continue(());
                 };
-                let failure = match builtin {
-                    Builtin::Check { is_zero, failure } if condition.is_zero() == *is_zero => {
-                        Some(*failure)
-                    }
-                    Builtin::Check { .. } => None,
-                    Builtin::Require(RequireKind::EmptyString) if condition.is_zero() => {
-                        Some(RevertKind::Reason(RevertReason::Empty))
-                    }
-                    Builtin::Require(RequireKind::EmptyString) => None,
-                    _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
-                };
-                if let Some(failure) = failure {
-                    return ControlFlow::Break(Outcome::Revert(match failure {
-                        RevertKind::Panic(code) => panic_data(U256::from(code as u8)),
-                        RevertKind::Reason(RevertReason::Empty) => Vec::new(),
-                        _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
-                    }));
-                }
-                return ControlFlow::Continue(());
+                result
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
             Semantics::DataCopy(data, dest, len) => {
@@ -1009,13 +1328,30 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Allocate(size, semantics) if self.semantic.is_some() => {
                 let size = frame.read(size)?;
-                self.semantic_allocate(size, semantics)?
+                if instruction.metadata.deferred_alloc() {
+                    self.semantic_deferred_allocate(body, inst, size, semantics)?
+                } else {
+                    self.semantic_allocate(size, semantics)?
+                }
             }
             Semantics::MemoryZero(offset, size) if self.semantic.is_some() => {
                 let (offset, size) = (frame.read(offset)?, frame.read(size)?);
                 self.burn_words(size)?;
                 limit(self.memory.zero(offset, size))?;
                 return ControlFlow::Continue(());
+            }
+            Semantics::MappingSlot(key, slot) if self.semantic.is_some() => {
+                let words = [frame.read(key)?, frame.read(slot)?];
+                self.fixed_slot(&words)?
+            }
+            Semantics::StorageArrayDataSlot(slot) if self.semantic.is_some() => {
+                let slot = frame.read(slot)?;
+                self.fixed_slot(&[slot])?
+            }
+            Semantics::StorageArrayElementSlot(slot, index, stride) if self.semantic.is_some() => {
+                let slot = frame.read(slot)?;
+                let offset = frame.read(index)?.wrapping_mul(U256::from(stride));
+                self.fixed_slot(&[slot])?.wrapping_add(offset)
             }
             Semantics::Word(value) => frame.read(value)?,
             Semantics::PointerAdd(ptr, offset) if self.semantic.is_some() => {
@@ -1104,7 +1440,9 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(opcode) = op::from_mnemonic(name) else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
-        if self.lacks(opcode) {
+        // MIR memory copies are logical memmoves. `lower-mcopy` expands them on
+        // pre-Cancun targets; only scheduled EVM MCOPY has opcode availability.
+        if opcode != op::MCOPY && self.lacks(opcode) {
             return ControlFlow::Break(Outcome::Invalid);
         }
         if MEMORY_OPCODES.contains(&opcode) {
@@ -1203,6 +1541,22 @@ impl<'a> Run<'_, 'a, '_> {
         }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
+            (op::CODECOPY, &[dest, offset, len]) if self.semantic.is_some() => {
+                if len.is_zero() {
+                    return ControlFlow::Continue(None);
+                }
+                let Some(bytes) = self.world.as_mut().and_then(|w| w.host.code_image()) else {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "missing explicit MIR code image",
+                    ));
+                };
+                self.burn_words(len)?;
+                let data = (0..len.to::<u64>())
+                    .map(|i| calldata_byte(&bytes, offset, i))
+                    .collect::<Vec<_>>();
+                limit(self.memory.write(dest, &data))?;
+                return ControlFlow::Continue(None);
+            }
             (op::CALLDATACOPY, &[dest, offset, len]) => {
                 let Some(transaction) = &self.transaction else {
                     return ControlFlow::Break(unsupported());
@@ -1213,6 +1567,18 @@ impl<'a> Run<'_, 'a, '_> {
                     .map(|index| calldata_byte(calldata, offset, index))
                     .collect::<Vec<_>>();
                 limit(self.memory.write(dest, &bytes))?;
+                return ControlFlow::Continue(None);
+            }
+            (op::EXTCODECOPY, &[address, destination, offset, length]) => {
+                self.burn_words(length)?;
+                let Some(bytes) = self.world.as_mut().and_then(|world| world.host.code(address))
+                else {
+                    return ControlFlow::Break(unsupported());
+                };
+                let bytes = (0..length.to::<u64>())
+                    .map(|index| calldata_byte(&bytes, offset, index))
+                    .collect::<Vec<_>>();
+                limit(self.memory.write(destination, &bytes))?;
                 return ControlFlow::Continue(None);
             }
             (op::RETURNDATACOPY, &[destination, offset, len]) => {
@@ -1346,21 +1712,13 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(result.value)
     }
 
-    /// Copies `len` bytes of the constant data at `data` to memory at `dest`.
-    fn data_copy(&mut self, data: DataRef, dest: U256, len: U256) -> ControlFlow<Outcome> {
-        self.burn_words(len)?;
-        // Another contract's bytecode is known only once final assembly links it in.
-        let Some(bytes) = self.machine.module.data.get(data.id).and_then(|data| data.bytes.known())
-        else {
-            return ControlFlow::Break(Outcome::Unsupported("datacopy of unlinked data"));
-        };
-        let start = data.offset as usize;
-        // The backend copies from where it placed the data in the code, so the bytes past its end
-        // are whatever follows it there.
-        let Some(bytes) = bytes.get(start..start.saturating_add(len.to::<usize>())) else {
-            return ControlFlow::Break(Outcome::Unsupported("datacopy past its data"));
-        };
-        limit(self.memory.write(dest, bytes))
+    /// Hashes word keys and retains their scratch writes and memory expansion.
+    fn fixed_slot(&mut self, words: &[U256]) -> ControlFlow<Outcome, U256> {
+        for (index, &word) in words.iter().enumerate() {
+            limit(self.memory.store(U256::from(index * 32), word))?;
+        }
+        let bytes = limit(self.memory.read(U256::ZERO, U256::from(words.len() * 32)))?;
+        ControlFlow::Continue(U256::from_be_bytes(keccak256(bytes).0))
     }
 
     /// Executes the backend's recorded static address or ordered dynamic FMP bump.
@@ -1426,36 +1784,6 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(pointer)
     }
 
-    /// Publishes the results after the first of a call returning several values the way the
-    /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
-    fn publish_multi_return(&mut self, body: &Function, values: &[U256]) -> ControlFlow<Outcome> {
-        let Some(_) = &self.transaction else {
-            // Further results pass through a memory buffer the backend owns.
-            return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
-        };
-        let buffer = if let Some(layout) = &self.machine.module.backend_memory {
-            let function = self.machine.function_id(body);
-            let Some(buffer) = layout.returns.get(&function) else {
-                return ControlFlow::Break(Outcome::Unsupported(
-                    "missing backend return buffer placement",
-                ));
-            };
-            *buffer
-        } else {
-            return ControlFlow::Break(Outcome::Unsupported(
-                "return buffer without backend placement",
-            ));
-        };
-        // mstore buffer + 32 * k, result k
-        // mstore 0x20, buffer
-        for (index, &value) in values.iter().enumerate().skip(1) {
-            let offset = buffer.wrapping_add(U256::from(index as u64 * EvmMemoryLayout::WORD_SIZE));
-            limit(self.memory.store(offset, value))?;
-        }
-        let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        limit(self.memory.store(slot, buffer))
-    }
-
     fn terminator(&mut self, body: &'a Function, block: BlockId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let Some(terminator) = &body.blocks[block].terminator else {
@@ -1493,10 +1821,11 @@ impl<'a> Run<'_, 'a, '_> {
                         }
                         return ControlFlow::Break(Outcome::Return(words.into_iter().collect()));
                     }
+                    self.publish_semantic_returns(frame.return_owner, values.as_raw_slice())?;
                     if let Some(result) = frame.result {
-                        if values.len() != 1 {
+                        if values.is_empty() {
                             return ControlFlow::Break(Outcome::Unsupported(
-                                "physical multi-return protocol is not modeled",
+                                "call without a result",
                             ));
                         }
                         self.frame().values[result] =
@@ -1508,11 +1837,6 @@ impl<'a> Run<'_, 'a, '_> {
                 let frame = self.frames.pop().expect("a run always has a frame");
                 if self.frames.is_empty() {
                     return ControlFlow::Break(Outcome::Return(values));
-                }
-                if values.len() > 1 && self.semantic.is_some() {
-                    return ControlFlow::Break(Outcome::Unsupported(
-                        "aggregate semantic call result",
-                    ));
                 }
                 if values.len() > 1 {
                     let caller_id = self.frames.last().expect("caller").function;
@@ -1578,11 +1902,29 @@ impl<'a> Run<'_, 'a, '_> {
                 self.frame().caller_inst = frame.caller_inst;
                 ControlFlow::Continue(())
             }
+            &Terminator::SelfDestruct { recipient } if self.semantic.is_some() => {
+                let beneficiary = frame.read(recipient)?;
+                self.semantic_destroy(beneficiary)?;
+                ControlFlow::Break(Outcome::Stop)
+            }
             Terminator::SelfDestruct { .. } => {
                 ControlFlow::Break(Outcome::Unsupported("selfdestruct"))
             }
             Terminator::RevertReturndata => {
-                ControlFlow::Break(Outcome::Unsupported("revert_returndata"))
+                if self.semantic.is_none() {
+                    return ControlFlow::Break(Outcome::Unsupported("revert_returndata"));
+                }
+                let data = if self.lacks(op::RETURNDATASIZE) {
+                    Vec::new()
+                } else {
+                    self.world
+                        .as_ref()
+                        .expect("semantic replay has a host")
+                        .effects
+                        .return_data
+                        .clone()
+                };
+                ControlFlow::Break(Outcome::Revert(data))
             }
         }
     }

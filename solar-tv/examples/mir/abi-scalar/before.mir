@@ -1,0 +1,7 @@
+@module Examples
+fn @f() -> i256 {
+bb0:
+v0 = abi_encode [word], object, args 17
+v1 = ptrtoint ptr<memory> v0 to i256
+ret v1
+}

@@ -27,7 +27,13 @@ mod mir;
 #[serde(deny_unknown_fields)]
 pub(super) struct Input {
     #[serde(default)]
+    mir_layout: Option<serde_json::Value>,
+    #[serde(default)]
     creation_gas: Vec<u64>,
+    #[serde(default)]
+    builtin_gas: Vec<u64>,
+    #[serde(default)]
+    debug_reverts: bool,
     compiler: String,
     address: String,
     caller: String,
@@ -173,6 +179,9 @@ pub(super) fn spec(text: &str) -> Result<SpecId, String> {
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
     if request.kind == "mir" {
         return mir::replay(request, input);
+    }
+    if input.mir_layout.is_some() {
+        return Err("MIR layout is not an EVM world input".into());
     }
     let budget = input.gas.ok_or("missing EVM entry gas budget")?;
     if !matches!(request.kind.as_str(), "mir" | "evmir")

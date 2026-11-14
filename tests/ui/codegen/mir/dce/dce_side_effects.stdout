@@ -58,7 +58,7 @@
   fn @abi_dependency(arg0: ptr<memory>) {
     bb0:
       v0 = mload arg0
-      validate_abi v0
+      validate_abi uint192, v0
       ret
   }
   

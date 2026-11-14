@@ -1,0 +1,8 @@
+@module BytesSlot
+fn @f() -> i256 {
+bb0:
+    v9 = inttoptr i256 0 to ptr<calldata>
+    v0 = make_calldata_slice v9, 3
+    v1 = mapping_slot_bytes v0, 9
+    ret v1
+}

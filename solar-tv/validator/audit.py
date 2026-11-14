@@ -119,13 +119,29 @@ def record(
                     "logical product/slice values; boundary leaves in declaration order; pointer-to-word erasure only at the boundary; distinct pointer spaces remain distinct",
                     "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
+                    "deferred allocations require explicit per-function instruction-site placements and matching extents; static reservations keep FMP and memory unchanged unless zero initialization is requested; heap placements bump on every execution",
+                    "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
+                    "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
+                    "external frame slots use convention-defined addresses; internal frame slots and address queries use explicit bases indexed by the function's live activation count; missing bases are unsupported; typed address calls require explicit gas",
+                    "external account reads use live state; codecopy/codesize require an explicit code image; literal data patches use supplied library addresses and deferred copies require linked extents; known data must agree with a supplied image; export budget 64 KiB",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
+                    "precompile builtin child gas is supplied by ordered builtin_gas boundary inputs; missing budgets are unsupported; scratch, returndata and child gas failures are retained",
+                    "compiler-generated check messages follow the fixture's debug_reverts setting; user require payloads are already explicit in MIR",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
-                    "MIR root bytecode introspection/reentry, ABI helpers and backend layouts unsupported",
+                    "recursive ABI encoder/decoder layouts; depth 32, nodes 256 and work 2048; memory/calldata/returndata source locations; bounded packed encoding layouts",
+                    "outer returns expose logical components; expanded memory returns require explicit per-function return-buffer placements; a placement selects leaf-ordered physical publication for logical aggregates and slices; unplaced single results stay logical; stored extras must be defined; tail calls retain the original return owner; no backend stack-return or placement claim",
+                    "packed literals, scalars, byte references and arrays preserve ordered memory effects; limit 2048 parts, array work 2048 and 64 KiB",
                 ]
             )
+            if "mir_layout" in fixture:
+                assumptions.extend(
+                    [
+                        "explicit MIR link/placement window inputs; data, library and immutable declaration tables must match; structural SSA types may lower away; no claim about backend placement or runtime image correspondence",
+                        "scalar immutables alias constructor staging memory or read fixed runtime relocations; narrow staging words are zero-extended; signed runtime values may be sign-extended; typed reads keep carrier bits and fixed-byte padding stays intact; invalid context words are unsupported; GAS only samples a single-opcode window after its own charge",
+                    ]
+                )
         else:
             assumptions.extend(
                 [

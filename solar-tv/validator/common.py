@@ -64,14 +64,10 @@ def literal(token: str, width: int = 256) -> str:
 
 
 def lean_root() -> Path:
-    """The paradigmxyz/solidity-lean checkout whose `SolarTV` library the proofs build
-    against: `SOLAR_TV_LEAN`, else `.cache/solidity-lean` at the repository root, at the
-    commit `tools/certify/solidity-lean.rev` pins. A missing checkout leaves every check
-    inconclusive."""
+    """The Lean package whose `SolarTV` library the proofs build against: `SOLAR_TV_LEAN` when
+    set (such as a solidity-lean checkout), else this directory's own package."""
     configured = os.getenv("SOLAR_TV_LEAN")
-    root = Path(configured) if configured else ROOT.parent / ".cache/solidity-lean"
+    root = Path(configured) if configured else ROOT
     if not (root / "lean-toolchain").is_file():
-        raise Inconclusive(
-            f"no solidity-lean checkout at {root}: set SOLAR_TV_LEAN to one at the pinned commit"
-        )
+        raise Inconclusive(f"no Lean package at {root}: set SOLAR_TV_LEAN to one")
     return root.resolve()

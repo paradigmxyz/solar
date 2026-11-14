@@ -18,6 +18,8 @@
 //! - `heap_floor()`: the initial heap floor resolved by backend placement.
 //! - `insert_value(ty, aggregate, index, value)`, `extract_value(ty, aggregate, index)`, and
 //!   `make_slice(location, ptr, len)`: functional typed products, without allocation.
+//! - Slot-hashing and storage-byte operations retain their scratch writes, header checks, padding
+//!   masks and tail clearing; they do not delegate interpretation to lowering.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration, and the MIR interpreter
 //! (`solar-mir-interpreter`) runs it instead of classifying operations itself. An operation
@@ -32,10 +34,14 @@
 //! to emit for it.
 
 use crate::{
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, InstKind, LogTopics,
-    MirType, PtrLocation, ValueId,
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiWordValidator, AllocationSemantics,
+    ArithmeticKind, BlockId, CallOutput, CallPolicy, Callee, CheckedOp, DataRef, ExtCallKind,
+    FrameMode, FrameSlotKind, ImmutableId, InstKind, LogTopics, MirType, PackedPart, PtrLocation,
+    ValueId, ValueLayout,
 };
+use alloy_primitives::Bytes;
 use smallvec::SmallVec;
+use solar_ir::link::LibraryId;
 
 /// What one MIR operation computes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -82,6 +88,54 @@ pub enum Semantics<'a> {
     ExtractValue(MirType, ValueId, u32),
     /// A logical pointer/length pair, without allocating or accessing its range.
     MakeSlice(PtrLocation, ValueId, ValueId),
+    /// Hash the key and parent slot after writing them to scratch words 0 and 32.
+    MappingSlot(ValueId, ValueId),
+    /// Hash a bytes key followed by its parent slot in unreserved free memory.
+    MappingSlotBytes(ValueId, ValueId),
+    /// Hash the array parent slot after writing scratch word 0.
+    StorageArrayDataSlot(ValueId),
+    /// The array data hash plus the wrapping index times its slot stride.
+    StorageArrayElementSlot(ValueId, ValueId, u64),
+    /// Validate Solidity's short/long byte-string storage header, or panic 0x22.
+    ValidateStorageBytes(ValueId),
+    /// Allocate and read a Solidity storage byte string, preserving word reads.
+    LoadStorageBytes(ValueId),
+    /// Store a memory byte string, clearing an old long tail and masking padding.
+    StoreStorageBytes(ValueId, ValueId),
+    /// Store literal bytes without materializing a memory object.
+    StoreStorageBytesLiteral(ValueId, &'a [u8]),
+    /// Zero array-data words in the half-open index range, retaining scratch hashing.
+    ClearStorageWords(ValueId, ValueId, ValueId),
+    /// Allocate a word-strided array, unpacking storage scalars or loading bytes objects.
+    LoadStorageArray(ValueId, ValueLayout, Option<u64>),
+    /// Read a logical mutable-local slot under the named frame convention.
+    FrameLoad(u64, FrameMode, FrameSlotKind),
+    /// Write a logical mutable-local slot under the named frame convention.
+    FrameStore(u64, FrameMode, FrameSlotKind, ValueId),
+    /// Message call: the opcode its kind selects, where its output lands, the callee, an
+    /// optional memory object or slice input, and optional gas and value. A word output is the
+    /// callee's first 32 bytes of returndata written to scratch memory.
+    ExtCall(&'static str, CallOutput, ValueId, Option<ValueId>, Option<ValueId>, Option<ValueId>),
+    /// An explicitly placed internal frame, offset in bytes.
+    InternalFrameAddress(u64),
+    /// The copied constructor input's base or end address.
+    ConstructorArgs(bool),
+    /// A linked data extent with addend and alignment.
+    LinkedDataSize(crate::DataSize),
+    /// Read a typed immutable from constructor staging or a linked runtime value.
+    ImmutableRead(ImmutableId),
+    /// Write constructor staging memory for an immutable.
+    ImmutableStore(ImmutableId, ValueId),
+    /// Read a linked library address.
+    LibraryAddress(LibraryId),
+    /// Encode a semantic ABI tuple.
+    AbiEncode(AbiEncodeMode, Option<ValueId>, Option<ValueId>, &'a [ValueId], &'a AbiLayout),
+    /// Decode a semantic ABI tuple.
+    AbiDecode(ValueId, &'a AbiParamLayout),
+    /// Demand an explicit canonicality obligation, without adding a runtime guard.
+    ValidateAbi(AbiWordValidator, ValueId),
+    /// Encode packed scalar and reference parts, optionally hashing their bytes.
+    Packed(&'a [PackedPart], bool),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -202,6 +256,170 @@ pub(super) mod declare {
         len: &ValueId,
     ) -> Semantics<'static> {
         Semantics::MakeSlice(*location, *ptr, *len)
+    }
+
+    /// Fixed-width mapping hashing, including scratch stores.
+    pub(crate) fn mapping_slot(key: &ValueId, slot: &ValueId) -> Semantics<'static> {
+        Semantics::MappingSlot(*key, *slot)
+    }
+
+    /// Variable-width mapping hashing, including its transient memory footprint.
+    pub(crate) fn mapping_slot_bytes(key: &ValueId, slot: &ValueId) -> Semantics<'static> {
+        Semantics::MappingSlotBytes(*key, *slot)
+    }
+
+    /// Dynamic array data hashing.
+    pub(crate) fn storage_array_data_slot(slot: &ValueId) -> Semantics<'static> {
+        Semantics::StorageArrayDataSlot(*slot)
+    }
+
+    /// Dynamic array element addressing with wrapping arithmetic.
+    pub(crate) fn storage_array_element_slot(
+        slot: &ValueId,
+        index: &ValueId,
+        stride: &u64,
+    ) -> Semantics<'static> {
+        Semantics::StorageArrayElementSlot(*slot, *index, *stride)
+    }
+
+    /// Validate a storage byte-string header.
+    pub(crate) fn validate_storage_bytes(header: &ValueId) -> Semantics<'static> {
+        Semantics::ValidateStorageBytes(*header)
+    }
+
+    /// Load storage bytes into a newly reserved memory object.
+    pub(crate) fn load_storage_bytes(slot: &ValueId) -> Semantics<'static> {
+        Semantics::LoadStorageBytes(*slot)
+    }
+
+    /// Store a memory byte string.
+    pub(crate) fn store_storage_bytes(slot: &ValueId, object: &ValueId) -> Semantics<'static> {
+        Semantics::StoreStorageBytes(*slot, *object)
+    }
+
+    /// Store literal bytes.
+    pub(crate) fn store_storage_bytes_literal<'a>(
+        slot: &ValueId,
+        bytes: &'a Bytes,
+    ) -> Semantics<'a> {
+        Semantics::StoreStorageBytesLiteral(*slot, bytes)
+    }
+
+    /// Clear a half-open range of storage data words.
+    pub(crate) fn clear_storage_words(
+        slot: &ValueId,
+        first: &ValueId,
+        last: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::ClearStorageWords(*slot, *first, *last)
+    }
+
+    /// Load a storage array with its scalar encoding and optional enum bound.
+    pub(crate) fn load_storage_array(
+        slot: &ValueId,
+        element: &ValueLayout,
+        enum_variants: &Option<u64>,
+    ) -> Semantics<'static> {
+        Semantics::LoadStorageArray(*slot, *element, *enum_variants)
+    }
+
+    /// Read a frame slot, without assigning a backend placement.
+    pub(crate) fn frame_load(
+        offset: &u64,
+        mode: &FrameMode,
+        kind: &FrameSlotKind,
+    ) -> Semantics<'static> {
+        Semantics::FrameLoad(*offset, *mode, *kind)
+    }
+
+    /// Write a frame slot, without assigning a backend placement.
+    pub(crate) fn frame_store(
+        offset: &u64,
+        mode: &FrameMode,
+        kind: &FrameSlotKind,
+        value: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::FrameStore(*offset, *mode, *kind, *value)
+    }
+
+    /// The call kind selects a message opcode; input retains its typed representation.
+    pub(crate) fn extcall(
+        policy: &CallPolicy,
+        address: &ValueId,
+        input: &Option<ValueId>,
+        gas: &Option<ValueId>,
+        value: &Option<ValueId>,
+    ) -> Semantics<'static> {
+        let opcode = match policy.kind {
+            ExtCallKind::Call => "call",
+            ExtCallKind::Static => "staticcall",
+            ExtCallKind::Delegate => "delegatecall",
+        };
+        Semantics::ExtCall(opcode, policy.output, *address, *input, *gas, *value)
+    }
+
+    /// An explicit frame placement, without consulting backend records.
+    pub(crate) fn internal_frame_address(offset: &u64) -> Semantics<'static> {
+        Semantics::InternalFrameAddress(*offset)
+    }
+
+    /// Constructor blob base.
+    pub(crate) fn constructor_args_base() -> Semantics<'static> {
+        Semantics::ConstructorArgs(false)
+    }
+
+    /// Constructor blob end.
+    pub(crate) fn constructor_args_end() -> Semantics<'static> {
+        Semantics::ConstructorArgs(true)
+    }
+
+    /// Deferred data size after linking.
+    pub(crate) fn linked_data_size(size: &crate::DataSize) -> Semantics<'static> {
+        Semantics::LinkedDataSize(*size)
+    }
+
+    /// Constructor staging or runtime relocation read.
+    pub(crate) fn immutable_read(id: &ImmutableId) -> Semantics<'static> {
+        Semantics::ImmutableRead(*id)
+    }
+
+    /// Constructor staging write.
+    pub(crate) fn immutable_store(id: &ImmutableId, value: &ValueId) -> Semantics<'static> {
+        Semantics::ImmutableStore(*id, *value)
+    }
+
+    /// Linked library relocation.
+    pub(crate) fn library_address(id: &LibraryId) -> Semantics<'static> {
+        Semantics::LibraryAddress(*id)
+    }
+
+    /// ABI tuple encoding retains its original layouts and operands.
+    pub(crate) fn abi_encode<'a>(
+        mode: &AbiEncodeMode,
+        base: &Option<ValueId>,
+        selector: &Option<ValueId>,
+        args: &'a [ValueId],
+        layout: &'a AbiLayout,
+    ) -> Semantics<'a> {
+        Semantics::AbiEncode(*mode, *base, *selector, args, layout)
+    }
+
+    /// ABI tuple decoding retains validation types.
+    pub(crate) fn abi_decode<'a>(data: &ValueId, layout: &'a AbiParamLayout) -> Semantics<'a> {
+        Semantics::AbiDecode(*data, layout)
+    }
+
+    /// Validation dependency, not an unchecked no-op.
+    pub(crate) fn validate_abi(
+        validator: &AbiWordValidator,
+        value: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::ValidateAbi(*validator, *value)
+    }
+
+    /// Packed ABI encoding or hashing.
+    pub(crate) fn packed<'a>(parts: &'a [PackedPart], hash: &bool) -> Semantics<'a> {
+        Semantics::Packed(parts, *hash)
     }
 }
 

@@ -8,7 +8,7 @@ Independent replay reparses the original MIR and executes the Rust interpreter.
 import json
 import subprocess
 
-from . import native, world
+from . import mir_layout, native, world
 from . import operations as ops
 from .common import Program, Unsupported, literal
 
@@ -127,7 +127,7 @@ def operation(value, definitions):
             expression = ".comparison .eq 256"
             args = [*args, {"kind": "constant", "value": "0", "type": {"bits": 256}}]
         elif name in {"addmod", "mulmod"}:
-            expression = f".ternary .{name}"
+            expression = f".ternary .{name} false"
         elif name in {
             "mload",
             "mstore",
@@ -163,16 +163,24 @@ def operation(value, definitions):
             "create",
             "create2",
         }:
-            expression = f".external {opcode}"
+            expression = f".external (.raw {opcode})"
         elif name in {"sload", "sstore", "tload", "tstore"}:
             expression = f".storage {'true' if name.startswith('t') else 'false'} {'true' if name.endswith('store') else 'false'}"
+        elif name == "gas":
+            expression = ".context .gasSample"
         elif name in {
+            "codesize",
+            "codecopy",
             "address",
             "origin",
             "caller",
             "callvalue",
             "gasprice",
             "selfbalance",
+            "balance",
+            "extcodesize",
+            "extcodehash",
+            "extcodecopy",
             "blockhash",
             "coinbase",
             "timestamp",
@@ -185,12 +193,14 @@ def operation(value, definitions):
             "blobbasefee",
             "slotnum",
         }:
-            expression = f".environment {opcode}"
+            expression = f".context (.environment {opcode})"
         elif name in {"log0", "log1", "log2", "log3", "log4"}:
             expression = f".log {name[-1]}"
         else:
             raise Unsupported(f"unmodeled direct MIR opcode `{name}`")
-        return f"some {opcode}", expression, args
+        # MIR copies survive until lower-mcopy on pre-Cancun targets. They are
+        # logical memmoves, unlike scheduled EVM MCOPY's fork-gated opcode.
+        return ("none" if name == "mcopy" else f"some {opcode}"), expression, args
     if kind in {"word", "ne", "select", "pointer_add"}:
         expression = {
             "word": ".word",
@@ -203,6 +213,171 @@ def operation(value, definitions):
         expression = (
             f".{tag} ({value_type(value['aggregate_type'])}) {number(value['index'])}"
         )
+    elif kind == "layout":
+        query = value["query"]
+        if query in {"heap_floor", "frame_address"}:
+            name = value["function"]
+            if not name.isascii():
+                raise Unsupported("non-ASCII placement function name")
+            tag = "heapFloor" if query == "heap_floor" else "frameAddress"
+            tail = "" if query == "heap_floor" else " " + number(value["offset"], 2**64)
+            expression = f".context (.{tag} {json.dumps(name)}{tail})"
+        elif query == "constructor":
+            expression = (
+                f".context (.constructorRange {'true' if value['end'] else 'false'})"
+            )
+        elif query == "data_size":
+            expression = f".context (.dataSize {number(value['id'])} {number(value['addend'], 2**64)} {'true' if value['aligned'] else 'false'})"
+        elif query in {"immutable_read", "immutable_store", "library"}:
+            tag = {
+                "immutable_read": "immutableRead",
+                "immutable_store": "immutableStore",
+                "library": "library",
+            }[query]
+            tail = (
+                f" {number(value['width'], 257)} {'true' if value['signed'] else 'false'}"
+                if query == "immutable_read"
+                else ""
+            )
+            expression = f".context (.{tag} {number(value['id'])}{tail})"
+        else:
+            raise Unsupported("unknown MIR layout query")
+    elif kind == "abi_encode":
+        functions = (
+            "[" + ",".join("true" if x else "false" for x in value["functions"]) + "]"
+        )
+        expression = f".abi (.encode {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} {functions})"
+    elif kind == "checked_modular":
+        name = value["name"]
+        if name not in {"addmod", "mulmod"}:
+            raise Unsupported("unknown modular arithmetic builtin")
+        expression = f".ternary .{name} true"
+    elif kind == "namespace":
+        expression = ".slot .namespace"
+    elif kind == "value_transfer":
+        expression = f".external (.transfer {'true' if value['revert'] else 'false'})"
+    elif kind == "precompile_builtin":
+        tag = {
+            "sha256": ".hash false",
+            "ripemd160": ".hash true",
+            "ecrecover": ".recover",
+        }.get(value["name"])
+        if tag is None:
+            raise Unsupported("unknown precompile builtin")
+        expression = f".external ({tag})"
+    elif kind == "require_literal":
+        data = ",".join(number(byte, 256) for byte in value["bytes"])
+        expression = f".abi (.require (.literal [{data}]))"
+    elif kind == "require_short":
+        expression = ".abi (.require .short)"
+    elif kind == "require_encode":
+        shapes = ",".join(abi_encode_shape(shape) for shape in value["shapes"])
+        memory_slices = ",".join(
+            "true" if item else "false" for item in value["memory_slices"]
+        )
+        expression = f".abi (.require (.encode {'true' if value['custom'] else 'false'} [{shapes}] [{memory_slices}]))"
+    elif kind == "abi_encode_tree":
+        shapes = ",".join(abi_encode_shape(shape) for shape in value["shapes"])
+        memory_slices = ",".join(
+            "true" if value else "false" for value in value["memory_slices"]
+        )
+        expression = f".abi (.encodeTree {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} [{shapes}] [{memory_slices}])"
+    elif kind == "abi_decode":
+        rule = value["rule"]
+        expression = f".abi (.decode ({'none' if rule is None else 'some (' + abi_rule(rule) + ')'}) {'true' if rule is not None and rule['function'] else 'false'} {'true' if value['calldata'] else 'false'})"
+    elif kind == "abi_decode_tree":
+        shapes = ",".join(abi_decode_shape(shape) for shape in value["shapes"])
+        expression = (
+            f".abi (.decodeTree [{shapes}] {'true' if value['calldata'] else 'false'})"
+        )
+    elif kind == "validate_abi":
+        expression = f".abi (.validate ({abi_rule(value['rule'])}))"
+    elif kind == "packed":
+        parts = []
+        for part in value["parts"]:
+            if part["kind"] == "literal":
+                parts.append(
+                    ".literal [" + ",".join(number(b, 256) for b in part["bytes"]) + "]"
+                )
+            elif part["kind"] == "scalar":
+                size = number(part["size"], 33)
+                if size == "0":
+                    raise Unsupported("zero-width packed scalar")
+                parts.append(
+                    f".scalar {number(part['index'])} {size} {'true' if part['fixed'] else 'false'}"
+                )
+            elif part["kind"] == "bytes":
+                parts.append(
+                    f".bytes {number(part['index'])} {number(part['location'], 4)}"
+                )
+            elif part["kind"] == "array":
+                count = (
+                    "none"
+                    if part["length"] is None
+                    else f"some {number(part['length'], 2**64)}"
+                )
+                parts.append(
+                    f".array {number(part['index'])} ({abi_encode_shape(part['element'])}) "
+                    f"{'true' if part['object'] else 'false'} {number(part['location'], 2)} "
+                    f"({count}) {number(part['stride'], 2**64)} {'true' if part['wordwise'] else 'false'}"
+                )
+            else:
+                raise Unsupported("unsupported packed shape")
+        expression = (
+            f".abi (.packed [{','.join(parts)}] {'true' if value['hash'] else 'false'})"
+        )
+    elif kind == "load_storage_array":
+        element = value["element"]
+        tag = {
+            "uint": "uint",
+            "int": "sint",
+            "fixed_bytes": "fixedBytes",
+            "bytes": "bytes",
+        }.get(element["kind"])
+        if tag is None:
+            raise Unsupported("unknown storage array element")
+        layout = f".{tag}"
+        if tag != "bytes":
+            bits = int(width(element["bits"]))
+            if bits % 8:
+                raise Unsupported("invalid storage array element width")
+            layout += f" {bits}"
+        variants = value["variants"]
+        bound = "none" if variants is None else f"some {number(variants, 257)}"
+        expression = f".object (.array ({layout}) ({bound}))"
+    elif kind == "extcall":
+        name = value["name"]
+        if name not in {"call", "staticcall", "delegatecall"}:
+            raise Unsupported("unknown extcall kind")
+        opcode = number(definitions[name]["opcode"], 256)
+        flags = " ".join(
+            "true" if value[flag] else "false"
+            for flag in ("value", "input", "gas", "word", "clears")
+        )
+        # A static call on a target without STATICCALL falls back to a zero-value CALL in the
+        # model, as lowering does for precompiles, so only CALL and DELEGATECALL gate the opcode.
+        gate = "none" if name == "staticcall" else f"some {opcode}"
+        return (gate, f".external (.extcall {opcode} {flags})", args)
+    elif kind == "address_call":
+        name = value["name"]
+        if name not in {"call", "staticcall", "delegatecall"}:
+            raise Unsupported("unknown address-call kind")
+        opcode = number(definitions[name]["opcode"], 256)
+        return (
+            f"some {opcode}",
+            f".external (.address {opcode} {'true' if value['value'] else 'false'})",
+            args,
+        )
+    elif kind == "returndata_bytes":
+        expression = ".memory .returnDataBytes"
+    elif kind in {"frame_load", "frame_store"}:
+        address = literal(value["address"])
+        expression = f".frame {'true' if kind == 'frame_store' else 'false'} ({address}) ({value_type(value['slot_type'])})"
+    elif kind in {"internal_frame_load", "internal_frame_store"}:
+        expression = (
+            f".internalFrame {'true' if kind == 'internal_frame_store' else 'false'} "
+            f"{json.dumps(value['function'])} {number(value['offset'], 2**64)} ({value_type(value['slot_type'])})"
+        )
     elif kind == "make_slice":
         location = {"memory": 0, "calldata": 1, "returndata": 2}.get(value["location"])
         if location is None:
@@ -213,12 +388,64 @@ def operation(value, definitions):
         if value.get("predicate") not in {"eq", "ne", "ult", "ule"}:
             raise Unsupported("unknown MIR assume predicate")
         expression = f".assume .{value['predicate']}"
+    elif kind in {
+        "validate_storage_bytes",
+        "load_storage_bytes",
+        "store_storage_bytes",
+        "clear_storage_words",
+    }:
+        expression = {
+            "validate_storage_bytes": ".object (.bytes .validate)",
+            "load_storage_bytes": ".object (.bytes .load)",
+            "store_storage_bytes": ".object (.bytes .store)",
+            "clear_storage_words": ".object (.bytes .clear)",
+        }[kind]
+    elif kind == "store_storage_bytes_literal":
+        raw = value["bytes"]
+        if not isinstance(raw, list) or len(raw) > 65536:
+            raise Unsupported("MIR constant data limit of 64 KiB")
+        expression = (
+            ".object (.bytes (.literal ["
+            + ",".join(number(byte, 256) for byte in raw)
+            + "]))"
+        )
+    elif kind == "data_copy":
+        raw = value["bytes"]
+        if raw is not None and (not isinstance(raw, list) or len(raw) > 65536):
+            raise Unsupported("MIR constant data limit of 64 KiB")
+        data = (
+            "none"
+            if raw is None
+            else "(some [" + ",".join(number(byte, 256) for byte in raw) + "])"
+        )
+        relocations = (
+            "["
+            + ",".join(
+                f"({number(offset)},{number(library)})"
+                for offset, library in value["relocations"]
+            )
+            + "]"
+        )
+        expression = f".dataCopy {number(value['id'])} {data} {relocations} {number(value['offset'])}"
+    elif kind in {"mapping_slot", "mapping_slot_bytes", "array_data_slot"}:
+        expression = {
+            "mapping_slot": ".slot .mapping",
+            "mapping_slot_bytes": ".slot .bytesKey",
+            "array_data_slot": ".slot .arrayData",
+        }[kind]
+    elif kind == "array_element_slot":
+        expression = f".slot (.arrayElement {number(value['stride'], 2**64)})"
     elif kind == "call":
         expression = f".call {number(value['function'])}"
-    elif kind == "allocate":
+    elif kind in {"allocate", "deferred_allocate"}:
         if type(value["zeroed"]) is not bool or type(value["checked"]) is not bool:
             raise Unsupported("invalid MIR allocation policy")
         expression = f".allocate {'true' if value['zeroed'] else 'false'} {'true' if value['checked'] else 'false'}"
+        if kind == "deferred_allocate":
+            expression = (
+                f".deferredAllocate {json.dumps(value['function'])} {number(value['site'], 4096)} "
+                f"{'true' if value['zeroed'] else 'false'} {'true' if value['checked'] else 'false'}"
+            )
     elif kind == "free_pointer":
         expression = ".freePointer"
     elif kind == "memory_zero":
@@ -253,7 +480,14 @@ def operation(value, definitions):
             if value["panic"] is None
             else f"(some {number(value['panic'], 256)})"
         )
-        expression = f".check {'true' if value['zero'] else 'false'} {panic}"
+        message = (
+            "none"
+            if value["message"] is None
+            else "(some ["
+            + ",".join(number(byte, 256) for byte in value["message"])
+            + "])"
+        )
+        expression = f".check {'true' if value['zero'] else 'false'} {panic} {message}"
     else:
         raise Unsupported("unknown MIR model operation")
     return "none", expression, args
@@ -278,6 +512,10 @@ def block(value, definitions):
     kind = term["kind"]
     if kind in {"stop", "invalid"}:
         end = "." + kind
+    elif kind == "revert_return_data":
+        end = ".revertReturnData"
+    elif kind == "selfdestruct":
+        end = f".selfdestruct {operand(term['args'][0])}"
     elif kind == "jump":
         end = f".jump {number(term['target'])}"
     elif kind == "branch":
@@ -306,7 +544,11 @@ def function_body(value, definitions):
     params = "[" + ",".join(f"({value_type(ty)})" for ty in value["params"]) + "]"
     returns = "[" + ",".join(f"({value_type(ty)})" for ty in value["returns"]) + "]"
     blocks = "[" + ",".join(block(b, definitions) for b in value["blocks"]) + "]"
-    return f"({number(value['id'])},⟨{params},{returns},{blocks}⟩)"
+    name = value["return_buffer"]
+    if not isinstance(name, str) or not name:
+        raise Unsupported("MIR model lacks return-owner identity")
+    buffer = f"some {json.dumps(name)}"
+    return f"({number(value['id'])},⟨{params},{returns},{blocks},{buffer}⟩)"
 
 
 def translate(text, solar, version, fixture, timeout, function, replay=None):
@@ -370,9 +612,13 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
     ]
     env = world.environment_expression(fixture)
     external = any(
-        inst["operation"]["kind"] == "opcode"
-        and inst["operation"]["name"]
-        in {"call", "callcode", "delegatecall", "staticcall", "create", "create2"}
+        inst["operation"]["kind"]
+        in {"extcall", "address_call", "value_transfer", "precompile_builtin"}
+        or (
+            inst["operation"]["kind"] == "opcode"
+            and inst["operation"]["name"]
+            in {"call", "callcode", "delegatecall", "staticcall", "create", "create2"}
+        )
         for func in model["functions"]
         for block in func["blocks"]
         for inst in block["instructions"]
@@ -383,7 +629,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         solar, version, fixture, timeout, replay, root_is_mir=True
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
-    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']}⟩\n"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']},{'true' if fixture['debug_reverts'] else 'false'}⟩\n"
     boundary_inputs = []
     for index, ty in enumerate(params):
         for path, leaf in leaf_paths(ty):
@@ -402,7 +648,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
         f"let journal : Execution.Journal := ⟨accounts,accounts,[{','.join(world.warm_addresses(fixture, version))}],[{','.join(f'({a},{k.removeprefix("$")})' for a, k in fixture['warm_slots'])}],[],0⟩\n"
         f"let memory : List Execution.Byte := {fixture['memory']['data']} ++ List.replicate {fixture['memory']['size'] - len(fixture['memory']['data'])} 0\n"
-        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0⟩"
+        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0,0⟩"
     )
     return Program(
         (
@@ -413,6 +659,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
             json.dumps(return_widths),
             str(entry),
             fixture["fixture_sha256"],
+            model["layout_declarations"] if "mir_layout" in fixture else "",
         ),
         inputs,
         "MIR.State.Run",
@@ -434,3 +681,59 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
             },
         },
     )
+
+
+def abi_rule(rule):
+    kind = rule["kind"]
+    if kind in {"any", "boolean"}:
+        return "." + kind
+    if kind in {"uint", "left", "sint"}:
+        bits = width(rule["bits"])
+        return f".{kind} {bits}"
+    if kind == "enumeration":
+        return ".enumeration " + number(rule["bits"], 2**64)
+    raise Unsupported("unknown ABI word validator")
+
+
+def abi_decode_shape(shape):
+    kind = shape["kind"]
+    if kind == "scalar":
+        rule = shape["rule"]
+        return f".scalar ({abi_rule(rule)}) {'true' if rule['function'] else 'false'} {width(shape['width'])}"
+    if kind == "bytes":
+        return ".bytes"
+    if kind == "array":
+        length = (
+            "none"
+            if shape["length"] is None
+            else f"some {number(shape['length'], 2**64)}"
+        )
+        return f".array ({abi_decode_shape(shape['element'])}) ({length})"
+    if kind == "tuple":
+        return (
+            ".tuple ["
+            + ",".join(abi_decode_shape(field) for field in shape["fields"])
+            + "]"
+        )
+    raise Unsupported("invalid recursive ABI shape")
+
+
+def abi_encode_shape(shape):
+    kind = shape["kind"]
+    if kind == "word":
+        return f".word ({abi_rule(shape['rule'])})"
+    if kind == "function":
+        return ".function"
+    if kind == "bytes":
+        return f".bytes {number(shape['location'], 4)}"
+    if kind == "array":
+        length = shape["length"]
+        count = "none" if length is None else f"some {number(length, 2**64)}"
+        return f".array ({abi_encode_shape(shape['element'])}) ({count}) {number(shape['location'], 4)} {'true' if shape['block_copy'] else 'false'}"
+    if kind == "tuple":
+        return (
+            ".tuple ["
+            + ",".join(abi_encode_shape(field) for field in shape["fields"])
+            + "]"
+        )
+    raise Unsupported("unknown ABI encoder shape")

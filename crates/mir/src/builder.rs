@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AllocationFailure, AllocationSemantics, BlockId, CallPolicy, CalldataTail,
-    FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
-    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
-    Terminator, Value, ValueId,
+    AbiEncodeMode, AbiWordValidator, AllocationFailure, AllocationSemantics, BlockId, CallPolicy,
+    CalldataTail, FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId,
+    InstKind, Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion,
+    MirType, PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias,
+    StructId, Terminator, Value, ValueId,
 };
 use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
@@ -1185,7 +1185,7 @@ impl<'a> FunctionBuilder<'a> {
         index: ValueId,
         ty: MirType,
     ) -> ValueId {
-        let offset = self.word_offset(index);
+        let offset = self.element_offset(layout, index);
         let (address, location) = self.object_address(object, Self::header_size(layout), offset);
         self.load_as(address, location, ty)
     }
@@ -1208,7 +1208,7 @@ impl<'a> FunctionBuilder<'a> {
         index: ValueId,
         value: ValueId,
     ) {
-        let offset = self.word_offset(index);
+        let offset = self.element_offset(layout, index);
         let (address, _) = self.object_address(object, Self::header_size(layout), offset);
         self.store(address, value);
     }
@@ -1221,6 +1221,24 @@ impl<'a> FunctionBuilder<'a> {
         // offset = shl index, 5
         let shift = self.imm(u64::from(EvmMemoryLayout::WORD_SIZE.trailing_zeros()));
         self.shl(index, shift)
+    }
+
+    /// Returns the byte offset of an element using the layout's declared stride.
+    fn element_offset(&mut self, layout: MemoryObjectLayout, index: ValueId) -> ValueId {
+        let words = match layout {
+            MemoryObjectLayout::DynamicArray { element_words }
+            | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::Struct { .. } => 1,
+        };
+        // word_index = mul index, element_words
+        // byte_offset = shl word_index, 5
+        let word_index = if words == 1 {
+            index
+        } else {
+            let words = self.imm(words);
+            self.mul(index, words)
+        };
+        self.word_offset(word_index)
     }
 
     /// Returns the header bytes before a memory object's words: none for a fixed array or
@@ -1467,10 +1485,11 @@ impl<'a> FunctionBuilder<'a> {
         self.cast(value, MirType::I256)
     }
 
-    /// Preserve a source ABI validation obligation until interface lowering discharges it.
-    pub fn validate_abi(&mut self, value: ValueId) {
-        // validate_abi value
-        self.emit_void_inst(InstKind::ValidateAbi(value));
+    /// Preserve a source ABI canonicality obligation until interface lowering discharges it.
+    /// This records the required representation, not a runtime check or an assumed fact.
+    pub fn validate_abi(&mut self, validator: AbiWordValidator, value: ValueId) {
+        // validate_abi validator, value
+        self.emit_void_inst(InstKind::ValidateAbi { validator, value });
     }
 
     /// Builds the body of `load_storage_bytes(slot) -> bytes`, the helper shared by storage

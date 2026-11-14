@@ -7,22 +7,34 @@ use serde_json::json;
 use solar_config::EvmVersion;
 use solar_evmir::op;
 use solar_mir_interpreter::{
-    ExternalMessage, Host, MessageOutput, Options, PendingChanges,
+    ExternalMessage, Host, MessageOutput, Options, PendingChanges, PlacementRead,
     replay::{StateInput, StateOutcome, run_state},
 };
 use std::{collections::BTreeMap, str::FromStr};
 
+mod layout;
 mod messages;
 
 struct Context<'a> {
+    layout: layout::Layout,
     native: messages::Native<'a>,
     reads: BTreeMap<u8, U256>,
     history: BTreeMap<U256, U256>,
     blobs: Vec<U256>,
     static_permission: bool,
+    debug_reverts: bool,
 }
 
 impl Host for Context<'_> {
+    fn placement(&mut self, query: PlacementRead<'_>) -> Option<U256> {
+        self.layout.read(query)
+    }
+    fn code_image(&mut self) -> Option<Vec<u8>> {
+        self.layout.code.clone()
+    }
+    fn code(&mut self, address: U256) -> Option<Vec<u8>> {
+        self.native.code(address)
+    }
     fn storage(&mut self, slot: U256) -> U256 {
         self.native.storage(slot)
     }
@@ -41,6 +53,9 @@ impl Host for Context<'_> {
     }
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256> {
         match (opcode, operands) {
+            (op::BALANCE | op::EXTCODESIZE | op::EXTCODEHASH, &[address]) => {
+                self.native.account_read(opcode, address)
+            }
             (op::SELFBALANCE, &[]) => Some(self.native.balance()),
             (op::BLOCKHASH, &[number]) => {
                 let current = self.reads[&op::NUMBER];
@@ -57,9 +72,26 @@ impl Host for Context<'_> {
                     .copied()
                     .unwrap_or_default(),
             ),
+            (op::CODESIZE, []) => self.layout.code.as_ref().map(|c| U256::from(c.len())),
             (_, []) => self.reads.get(&opcode).copied(),
             _ => None,
         }
+    }
+
+    fn destroy(
+        &mut self,
+        beneficiary: U256,
+        pending: PendingChanges<'_>,
+    ) -> Result<(), &'static str> {
+        self.native.destroy(beneficiary, pending)
+    }
+
+    fn builtin_gas(&mut self) -> Option<U256> {
+        self.native.builtin_gas()
+    }
+
+    fn debug_reverts(&self) -> bool {
+        self.debug_reverts
     }
 }
 
@@ -79,6 +111,8 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         || input.blob_hashes.len() > 64
         || input.creation_gas.len() > 128
         || input.creation_gas.iter().any(|&gas| gas > 30_000_000)
+        || input.builtin_gas.len() > 128
+        || input.builtin_gas.iter().any(|&gas| gas > 30_000_000)
     {
         return Err("direct MIR replay input limit".into());
     }
@@ -129,11 +163,13 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     let args = super::super::words(request, "arg")?;
     let execute = |text: &str| -> Result<String, String> {
         let mut host = Context {
+            layout: layout::Layout::parse(input)?,
             native: messages::Native::new(request, input)?,
             reads: reads.clone(),
             history: history.clone(),
             blobs: blobs.clone(),
             static_permission: input.is_static,
+            debug_reverts: input.debug_reverts,
         };
         let execution = run_state(
             text,

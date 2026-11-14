@@ -72,11 +72,11 @@ fn @looping() {
 
 // CHECK-LABEL: fn @abi_dependency
 // CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = mload arg0
-// CHECK: {{^[ +].*}}validate_abi [[FIELD]]
+// CHECK: {{^[ +].*}}validate_abi uint192, [[FIELD]]
 fn @abi_dependency(arg0: ptr<memory>) {
   bb0:
     v0 = mload arg0
-    validate_abi v0
+    validate_abi uint192, v0
     ret
 }
 

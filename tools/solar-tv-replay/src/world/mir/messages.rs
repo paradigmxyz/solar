@@ -30,6 +30,7 @@ pub(super) struct Native<'a> {
     environment: TxEnv,
     owner: Address,
     creation_index: usize,
+    builtin_index: usize,
     unsupported: Rc<RefCell<Option<&'static str>>>,
     checkpoint: StateCheckpoint,
     child_gas_spent: u64,
@@ -135,6 +136,7 @@ impl<'a> Native<'a> {
             environment: context::transaction(request, input)?,
             owner,
             creation_index: 0,
+            builtin_index: 0,
             child_gas_spent: 0,
             unsupported,
         })
@@ -157,6 +159,30 @@ impl<'a> Native<'a> {
             .expect("in-memory account")
             .map(|a| a.balance)
             .unwrap_or_default()
+    }
+
+    pub(super) fn account_read(&mut self, opcode: u8, address: U256) -> Option<U256> {
+        let address = Address::from_word(address.into());
+        if opcode != op::BALANCE && address == self.owner {
+            return None;
+        }
+        let account =
+            EvmHost::load_account(&mut self.engine, &address, opcode != op::BALANCE, false).ok()?;
+        match opcode {
+            op::BALANCE => Some(account.balance),
+            op::EXTCODESIZE => Some(U256::from(account.code.original_bytes().len())),
+            op::EXTCODEHASH => Some(U256::from_be_bytes(account.code_hash.0)),
+            _ => None,
+        }
+    }
+
+    pub(super) fn code(&mut self, address: U256) -> Option<Vec<u8>> {
+        let address = Address::from_word(address.into());
+        if address == self.owner {
+            return None;
+        }
+        let account = EvmHost::load_account(&mut self.engine, &address, true, false).ok()?;
+        Some(account.code.original_bytes().to_vec())
     }
 
     pub(super) fn flush(&mut self, pending: PendingChanges<'_>) {
@@ -446,8 +472,26 @@ impl<'a> Native<'a> {
         } else {
             Vec::new()
         };
-        Ok(
-            json!({"accounts":accounts,"logs":logs,"warm_addresses":observed_warm,"warm_slots":slots}),
-        )
+        let boundary_budgets = keep_transient.then_some([self.creation_index, self.builtin_index]);
+        Ok(json!({"accounts":accounts,"logs":logs,"warm_addresses":observed_warm,
+            "warm_slots":slots,"boundary_budgets":boundary_budgets}))
+    }
+
+    pub(super) fn destroy(
+        &mut self,
+        beneficiary: U256,
+        pending: PendingChanges<'_>,
+    ) -> Result<(), &'static str> {
+        self.flush(pending);
+        let beneficiary = Address::from_word(beneficiary.into());
+        EvmHost::selfdestruct(&mut self.engine, &self.owner, &beneficiary, false)
+            .map(|_| ())
+            .map_err(|_| "native MIR selfdestruct failed")
+    }
+
+    pub(super) fn builtin_gas(&mut self) -> Option<U256> {
+        let budget = *self.input.builtin_gas.get(self.builtin_index)?;
+        self.builtin_index += 1;
+        Some(U256::from(budget))
     }
 }

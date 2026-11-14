@@ -196,7 +196,7 @@ def translate(text: str, *, memory: bool = False) -> Program:
                 continuations += 1
             elif require := re.fullmatch(REQUIRE, line):
                 value, _ = operand(require[1], current)
-                code.append(f"MIR.guard ({value} == 0) .empty (\n")
+                code.append(f"MIR.guard ({value} == 0) (.data errorEmptyData) (\n")
                 continuations += 1
             elif phi := re.fullmatch(PHI, line):
                 incoming = []

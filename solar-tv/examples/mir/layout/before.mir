@@ -1,0 +1,9 @@
+@module Examples
+fn @f() -> i256 {
+bb0:
+v0 = internal_frame_addr 32
+v1 = ptrtoint ptr<memory> v0 to i256
+v2 = codesize
+v3 = add v1, v2
+ret v3
+}

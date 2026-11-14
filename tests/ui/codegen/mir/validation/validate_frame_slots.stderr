@@ -1,0 +1,16 @@
+error: [fn0] [bb0, inst0] multi-return frame slot requires a word at offset zero
+
+error: [fn1] [bb0, inst0] multi-return frame slot requires a word at offset zero
+
+error: [fn2] [bb0, inst0] multi-return frame slot requires a word at offset zero
+
+error: [fn3] [bb0, inst0] multi-return frame slot requires a word at offset zero
+
+error: [fn4] [bb0, inst0] frame slot offset overflows u64
+
+error: [fn5] [bb0, inst0] frame slot offset overflows u64
+
+error: [fn6] [bb0, inst0] `frame_load` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 7 previous errors
+

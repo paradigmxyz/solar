@@ -1,0 +1,14 @@
+@module BuiltinHashes
+fn @f() -> i256 {
+bb0:
+    jump bb1
+bb1:
+    v0 = inttoptr i256 128 to ptr<memory>
+    v1 = extcall static word i160 2, v0
+    jumpi v1, bb3, bb2
+bb2:
+    revert_returndata
+bb3:
+    v2 = mload 0
+    ret v2
+}

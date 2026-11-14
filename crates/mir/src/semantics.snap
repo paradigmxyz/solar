@@ -7,15 +7,15 @@ ptrtoint: low_bits(operand0, bits)
 inttoptr: word(operand0)
 ptradd: pointer_add(ptr, offset)
 checked_binary: checked(op, arithmetic, lhs, rhs)
-validate_storage_bytes: -
-load_storage_bytes: -
-load_storage_array: -
-store_storage_bytes: -
-store_storage_bytes_literal: -
-clear_storage_words: -
-validate_abi: -
-abi_encode_packed: -
-extcall: -
+validate_storage_bytes: validate_storage_bytes(operand0)
+load_storage_bytes: load_storage_bytes(operand0)
+load_storage_array: load_storage_array(slot, element, enum_variants)
+store_storage_bytes: store_storage_bytes(operand0, operand1)
+store_storage_bytes_literal: store_storage_bytes_literal(slot, bytes)
+clear_storage_words: clear_storage_words(operand0, operand1, operand2)
+validate_abi: validate_abi(validator, value)
+abi_encode_packed: packed(parts, hash)
+extcall: extcall(policy, address, input, gas, value)
 add: opcode(add)
 sub: opcode(sub)
 mul: opcode(mul)
@@ -49,26 +49,26 @@ msize: opcode(msize)
 fmp: free_pointer()
 heap_floor: heap_floor()
 alloc: allocate(size, semantics)
-abi_encode: -
-abi_decode: -
+abi_encode: abi_encode(mode, base, selector, args, layout)
+abi_decode: abi_decode(data, layout)
 mcopy: opcode(match location { Memory => mcopy, Calldata => calldatacopy, Returndata => returndatacopy })
 calldatasize: opcode(calldatasize)
 make_memory_slice: make_slice(location, ptr, len)
-internal_frame_addr: -
-frame_load: -
-frame_store: -
-constructor_args_base: -
-constructor_args_end: -
+internal_frame_addr: internal_frame_address(offset)
+frame_load: frame_load(offset, mode, kind)
+frame_store: frame_store(offset, mode, kind, value)
+constructor_args_base: constructor_args_base()
+constructor_args_end: constructor_args_end()
 datacopy: data_copy(data, dest, size)
-datasize: -
+datasize: linked_data_size(size)
 codesize: opcode(codesize)
 codecopy: opcode(codecopy)
 extcodesize: opcode(extcodesize)
 extcodecopy: opcode(extcodecopy)
 extcodehash: opcode(extcodehash)
-storeimmutable: -
-loadimmutable: -
-library_address: -
+storeimmutable: immutable_store(id, value)
+loadimmutable: immutable_read(id)
+library_address: library_address(library)
 returndatasize: opcode(returndatasize)
 caller: opcode(caller)
 callvalue: opcode(callvalue)
@@ -90,10 +90,10 @@ basefee: opcode(basefee)
 blobbasefee: opcode(blobbasefee)
 blobhash: opcode(blobhash)
 keccak256: opcode(keccak256)
-mapping_slot: -
-mapping_slot_bytes: -
-storage_array_data_slot: -
-storage_array_element_slot: -
+mapping_slot: mapping_slot(key, slot)
+mapping_slot_bytes: mapping_slot_bytes(key, slot)
+storage_array_data_slot: storage_array_data_slot(slot)
+storage_array_element_slot: storage_array_element_slot(slot, index, element_slots)
 call: opcode(call)
 callcode: opcode(callcode)
 staticcall: opcode(staticcall)

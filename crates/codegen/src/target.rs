@@ -1512,7 +1512,7 @@ impl Target {
             InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
                 Cost::new(40, 24)
             }
-            InstKind::ValidateAbi(_) => Cost::new(0, 0),
+            InstKind::ValidateAbi { .. } => Cost::new(0, 0),
             // A recorded fact emits no code until `check-analyses` tests it, after every pass
             // that prices code, so a checked build optimizes like an unchecked one.
             InstKind::Assume { .. } => Cost::ZERO,

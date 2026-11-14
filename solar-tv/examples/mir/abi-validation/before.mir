@@ -1,0 +1,13 @@
+; arg0 selects clean padding (0) or a dirty padding bit (1).
+@module AbiValidation
+fn @f(arg0: i1) -> i256 {
+bb0:
+  v0 = zext i1 arg0 to i256
+  v1 = or v0, 0x110000000000000000
+  mstore 128, 32
+  mstore 160, v1
+  v2 = inttoptr i256 128 to ptr<memory>
+  v3 = abi_decode [function], v2
+  validate_abi uint192, v3
+  ret v3
+}

@@ -5,8 +5,8 @@
 //@[paris] filecheck: --check-prefix=PRE
 @module PreCancunMCopy
 
-// `mcopy` lowers to overlap-safe word-copy loops plus a conditional byte-masked
-// partial-word merge, so exactly `len` bytes change. The identity
+// `mcopy` lowers to overlap-safe word-copy loops plus a snapshotted byte tail,
+// so exactly `len` bytes change without extra memory expansion. The identity
 // precompile would be smaller, but a precompile call is observable by tooling
 // that keys behavior on "the next call" (Foundry's `vm.prank` and
 // `vm.expectRevert`), and a whole-word tail would clobber bytes past the copy.
@@ -16,26 +16,24 @@
 // PRE: + [[FULL:v[0-9]+]] = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 // PRE: + [[BACKWARD:v[0-9]+]] = lt arg1, arg0
 // PRE: + [[FORWARD_OFFSET:v[0-9]+]] = phi
-// PRE: + [[FORWARD_CHANGED:v[0-9]+]] = xor {{v[0-9]+}}, {{v[0-9]+}}
-// PRE-NEXT: + [[FORWARD_SHIFTED:v[0-9]+]] = shr [[FORWARD_CHANGED]], {{v[0-9]+}}
-// PRE-NEXT: + [[FORWARD_TOP:v[0-9]+]] = shl [[FORWARD_SHIFTED]], {{v[0-9]+}}
-// PRE-NEXT: + [[FORWARD_MERGED:v[0-9]+]] = xor {{v[0-9]+}}, [[FORWARD_TOP]]
-// PRE: + mstore {{v[0-9]+}}, [[FORWARD_MERGED]]
+// PRE: + [[FORWARD_BASE:v[0-9]+]] = select
+// PRE: + [[FORWARD_WORD:v[0-9]+]] = mload [[FORWARD_BASE]]
+// PRE: + {{v[0-9]+}} = shr [[FORWARD_WORD]], {{v[0-9]+}}
+// PRE: + mstore8
 // PRE: + [[FORWARD_SOURCE:v[0-9]+]] = add arg1, [[FORWARD_OFFSET]]
 // PRE: + [[FORWARD_WORD:v[0-9]+]] = mload [[FORWARD_SOURCE]]
 // PRE: + mstore {{v[0-9]+}}, [[FORWARD_WORD]]
 // PRE: + [[FORWARD_NEXT:v[0-9]+]] = add [[FORWARD_OFFSET]], 32
 // PRE: + {{v[0-9]+}} = lt [[FULL]], arg2
-// PRE: + [[REVERSE_CHANGED:v[0-9]+]] = xor {{v[0-9]+}}, {{v[0-9]+}}
-// PRE-NEXT: + [[REVERSE_SHIFTED:v[0-9]+]] = shr [[REVERSE_CHANGED]], {{v[0-9]+}}
-// PRE-NEXT: + [[REVERSE_TOP:v[0-9]+]] = shl [[REVERSE_SHIFTED]], {{v[0-9]+}}
-// PRE-NEXT: + [[REVERSE_MERGED:v[0-9]+]] = xor {{v[0-9]+}}, [[REVERSE_TOP]]
-// PRE: + mstore {{v[0-9]+}}, [[REVERSE_MERGED]]
-// PRE: + [[REVERSE_OFFSET:v[0-9]+]] = phi
+// PRE: + [[REVERSE_BASE:v[0-9]+]] = select
+// PRE: + [[REVERSE_WORD:v[0-9]+]] = mload [[REVERSE_BASE]]
+// PRE: + {{v[0-9]+}} = shr [[REVERSE_WORD]], {{v[0-9]+}}
+// PRE: + [[REVERSE_OFFSET:v[0-9]+]] = phi [{{bb[0-9]+}}: [[FULL]]]
 // PRE: + [[REVERSE_NEXT:v[0-9]+]] = sub [[REVERSE_OFFSET]], 32
 // PRE: + [[REVERSE_SOURCE:v[0-9]+]] = add [[REVERSE_NEXT]], arg1
 // PRE: + [[REVERSE_WORD:v[0-9]+]] = mload [[REVERSE_SOURCE]]
 // PRE: + mstore {{v[0-9]+}}, [[REVERSE_WORD]]
+// PRE: + mstore8
 // PRE: {{^[ +].*}}ret arg0
 fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
@@ -44,7 +42,7 @@ fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 }
 
 // A word array's byte length is a multiple of 32, so both directions copy
-// whole words and skip the partial-word merge.
+// whole words and skip the partial-tail loop.
 // PRE-LABEL: {{^[ +].*}}fn @copy_words{{[( ]}}
 // PRE: - mcopy arg0, arg1, v0
 // PRE-NOT: {{^\+.*}} = xor
