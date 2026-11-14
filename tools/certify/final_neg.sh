@@ -121,7 +121,7 @@ other="$(ls "$lean_dir/$examples"/*/bytecode.hex | grep -v "/$name/bytecode.hex"
 if [[ -n "$other" ]]; then
     variant substituted-artifact "$(tr -d '[:space:]' < "$other")" "pass"
 fi
-vac='d["kind"] = "certified"; d["allowed"] = "fun _ _ => True"; d["post"] = "fun _ _ => True"; d.pop("spec_export", None); d.pop("nonvacuous", None); d.pop("vacuity", None); d.setdefault("gas", "fun _ => 0")'
+vac='d["kind"] = "certified"; d.pop("allowed_export", None); d["allowed"] = "fun _ _ => True"; d["post"] = "fun _ _ => True"; d.pop("spec_export", None); d.pop("nonvacuous", None); d.pop("vacuity", None); d.setdefault("gas", "fun _ => 0")'
 if grep -q '"kind": "compiled"' "$shape"; then
     # No specification: the strongest status cannot be claimed with a made-up one, and the gas
     # bound is the proof's.
@@ -135,8 +135,10 @@ else
     else
         variant strongest-without-resources "$hex" 'd["kind"] = "certified"; d["gas"] = "fun _ => 0"'
     fi
-    variant wrong-post "$hex" 'd.pop("spec_export", None); d["post"] = "fun call obs => obs.success = true"'
-    variant no-allowed-status "$hex" 'd["allowed"] = "(fun _ _ => False)"'
+    # With the allowed statuses read off the export too, a variant that drops the export states
+    # them as a plain term (success only), so the variant is refused by the kernel, not by final.py.
+    variant wrong-post "$hex" 'd.pop("spec_export", None); d.pop("allowed_export", None) and d.setdefault("allowed", "fun _ obs => obs.success = true"); d["post"] = "fun call obs => obs.success = true"'
+    variant no-allowed-status "$hex" 'd.pop("allowed_export", None); d["allowed"] = "(fun _ _ => False)"'
     if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("env") else 1)' "$shape"; then
         variant dropped-env-premise "$hex" 'd["env"] = []'
     fi
@@ -153,7 +155,7 @@ fi
 # allowed and meeting the specification), as a negative test writes it: final.py refuses it without a
 # non-vacuity witness, and with a sorry witness the checker's axiom audit does.
 real="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proof"])' "$shape")"
-vac2='d["kind"] = "certified"; d["allowed"] = "fun call obs => call = call"; d["post"] = "fun call obs => obs = obs"; d.pop("spec_export", None); d.pop("nonvacuous", None); d.pop("vacuity", None); d.setdefault("gas", "fun _ => 0")'
+vac2='d["kind"] = "certified"; d.pop("allowed_export", None); d["allowed"] = "fun call obs => call = call"; d["post"] = "fun call obs => obs = obs"; d.pop("spec_export", None); d.pop("nonvacuous", None); d.pop("vacuity", None); d.setdefault("gas", "fun _ => 0")'
 if grep -q '"kind": "compiled"' "$shape"; then
     export VP="Exists.imp (fun _ h => ⟨h.1, _root_.SolidCore.Refinement.Shapes.Compiled.certified h.2 (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)⟩) ($real)"
 elif ! python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("env") else 1)' "$shape"; then

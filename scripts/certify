@@ -721,10 +721,6 @@ replay_receipt="$lean_dir/.lake/certify-$name.json.replay"
 rm -f "$final_record" "$replay_receipt"
 final_thm=
 if [[ -f "$dir/shape.json" ]]; then
-    if python3 -c 'import json,sys; sys.exit(0 if "generic" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
-        python3 "$here/shape_gen.py" "$dir/shape.json" --name "$name" --certified "$examples" \
-            --out "$dir/Shape.lean" || die "shape_gen.py cannot write the proof of the published statement"
-    fi
     # A specification from solar-verify's export: written fresh from the source in this run, as
     # NAME.gen.CONTRACT.Spec, the bundle the statement's postcondition reads (Shapes.bundlePost).
     if python3 -c 'import json,sys; sys.exit(0 if "spec_export" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
@@ -737,6 +733,54 @@ if [[ -f "$dir/shape.json" ]]; then
         python3 "$here/export_check.py" spec "$dir/gen/$contract/Spec.lean" "Certified.$name.gen.$contract.Spec" \
             --source "$source" --contract "$contract" || die "the exported specification of $source is not whole"
         bash "$here/audit.sh" scan "$dir/gen/$contract/Spec.lean" || die "the exported specification fails the scan"
+    fi
+    # The source-level connection of that specification, generically: when shape.json's generic
+    # block has spec_connect, tools/certify/spec_connect.py proves every function spec of the fresh
+    # export of SolidCore's contract from the generic stage's erased trees (NAME.SpecConnect, each
+    # theorem checked by the kernel when it builds; a function it cannot connect fails the run), and
+    # shape_gen.py composes them with the bytecode below.
+    rm -f "$dir/SpecConnect.lean"
+    if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("generic", {}).get("spec_connect") else 1)' "$dir/shape.json"; then
+        [[ -s "$dir/gen/$contract/Spec.lean" ]] || die "generic.spec_connect needs spec_export (solar-verify's export of the source)"
+        mapfile -t sc_args < <(python3 - "$dir/shape.json" <<'PYEOF'
+import json, sys
+s = json.load(open(sys.argv[1]))
+g = s["generic"]; c = g["spec_connect"]
+print(c.get("core", g["lowering"])); print(c.get("ns", g.get("source_ns", g["ns"])))
+if c.get("ghost_fixed"): print("--ghost-fixed")
+for u in c.get("using", []): print("--using"); print(u)
+for m in c.get("imports", []): print("--import"); print(m)
+PYEOF
+        ) || die "shape.json: cannot read generic.spec_connect"
+        sc_core="${sc_args[0]}" sc_ns="${sc_args[1]}"
+        sc_more=("${sc_args[@]:2}")
+        # Every module spec_connect.py's probe and output import, built before its probe runs (a
+        # clean build directory has none of them).
+        sc_build=("$sc_core" "$name.gen.$contract.Spec" Verify.VC.Model Verify.Spec.Tree Verify.Spec.TreeMap
+            Verify.Spec.TreeMapNested Verify.Spec.TreeIn Verify.Spec.TreeSucceeds Verify.VC.KernelIdx
+            SolidCore.Refinement.KernelRfl)
+        for ((k = 0; k < ${#sc_more[@]}; k++)); do
+            if [[ "${sc_more[k]}" == "--import" ]]; then sc_build+=("${sc_more[k+1]}"); fi
+        done
+        for module in "${sc_build[@]}"; do
+            printf '%s: ' "$module"
+            guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check"; }
+            tail -n 1 "$log"
+        done
+        iso_setup
+        mapfile -t holds < <(run env PATH="$iso_bin:$PATH" python3 "$here/spec_connect.py" --core-module "$sc_core" --namespace "$sc_ns" \
+            --spec-module "$name.gen.$contract.Spec" --bundle "Certified.$name.gen.$contract.Spec.$contract" \
+            --module-name "$name.SpecConnect" --out "$dir/SpecConnect.lean" "${sc_more[@]}" \
+            --lean "lake env lean -M $memory" --cwd "$lean_dir"; echo "exit $?")
+        [[ "${holds[-1]}" == "exit 0" ]] || die "spec_connect.py refuses functions of $contract (above): their spec is not proved"
+        unset 'holds[-1]'
+        [[ ${#holds[@]} -gt 0 ]] || die "spec_connect.py connects no function of $contract"
+        bash "$here/audit.sh" scan "$dir/SpecConnect.lean" || die "$dir/SpecConnect.lean fails the scan"
+        echo "spec connected generically: ${holds[*]}"
+    fi
+    if python3 -c 'import json,sys; sys.exit(0 if "generic" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
+        python3 "$here/shape_gen.py" "$dir/shape.json" --name "$name" --certified "$examples" \
+            --out "$dir/Shape.lean" || die "shape_gen.py cannot write the proof of the published statement"
     fi
     # The checked SolidCore source AST, when shape.json names it, must be the front end's AST of
     # this run's source (tools/certify/source_bind.sh), else the run fails.

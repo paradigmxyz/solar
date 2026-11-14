@@ -34,6 +34,12 @@ shape.json keys (Lean terms without tactics or commands):
   fuel      the source semantics' fuel (`solidCore fuel`)
   valid     `Call → Prop`: the declared valid calls
   allowed   `Call → Observable → Prop`: the allowed statuses (not for kind "compiled")
+  allowed_export  true (with spec_export, instead of allowed): the allowed statuses are read off the
+            same export, Shapes.bundleAllowed (success, or a call from which no function spec's
+            succeeds-if conditions require success)
+  source_sem  the source semantics of the checked contract, a function of the fuel (default
+            SolidCore.Refinement.solidCore; SolidCore.Refinement.solidCoreRuntime runs SolidCore's
+            dispatcher on the runtime code from the call's storage)
   spec_export  {"ctx": `Call → SolidCore.Spec.Ctx`, "step": `SolidCore.Spec.GhostStep`}: the
             specification is solar-verify's export of the source in this run (the driver writes it
             as NAME.gen.C.Spec, bundle Certified.NAME.gen.C.Spec.C), read as a postcondition by
@@ -178,12 +184,15 @@ def main():
         exists = ""
     else:
         contract, fuel = expr(shape, "contract"), expr(shape, "fuel")
-        source = f"({fuel}) c" if opened else f"(_root_.SolidCore.Refinement.solidCore ({fuel})) c"
+        sem_fn = shape.get("source_sem", "SolidCore.Refinement.solidCore")
+        if not isinstance(sem_fn, str) or not NAME.match(sem_fn):
+            fail("shape.json: source_sem must be a Lean name")
+        source = f"({fuel}) c" if opened else f"(_root_.{sem_fn} ({fuel})) c"
         exists = f"∃ c, {contract} = .ok c ∧\n      "
     valid = expr(shape, "valid")
     ns = f"Certified.{a.name}.Final"
     export_ns = f"Certified.{a.name}.gen.{a.contract}.Spec"
-    bound_spec, vacuity, nonvac = False, None, None
+    bound_spec, bound_allowed, vacuity, nonvac = False, False, None, None
     allowed = post = None
     if kind == "compiled":
         for k in ("allowed", "post", "spec_export", "nonvacuous", "vacuity"):
@@ -191,7 +200,17 @@ def main():
                 fail(f"shape.json: kind compiled states no specification (no {k})")
         spec_args = ""
     else:
-        allowed = expr(shape, "allowed")
+        if shape.get("allowed_export") is True:
+            if "allowed" in shape or "spec_export" not in shape:
+                fail("shape.json: allowed_export needs spec_export and excludes allowed")
+            se = shape["spec_export"]
+            allowed = (f"_root_.SolidCore.Refinement.Shapes.bundleAllowed _root_.{export_ns}.{a.contract} "
+                       f"({expr(se, 'ctx')})")
+            bound_allowed = True
+        elif "allowed_export" in shape:
+            fail("shape.json: allowed_export must be true when present")
+        else:
+            allowed = expr(shape, "allowed")
         if "spec_export" in shape:
             if "post" in shape:
                 fail("shape.json: spec_export and post exclude each other")
@@ -251,6 +270,7 @@ def main():
     imports = ["Verify.Shapes", *(["Verify.ShapeGeneric"] if kind == "compiled" else []),
                *(["Verify.ShapeOpen"] if opened else []),
                *(["Verify.ShapeBundle", f"{a.name}.gen.{a.contract}.Spec"] if bound_spec else []),
+               *(["Verify.ShapeSpecExport"] if bound_allowed else []),
                f"{a.name}.gen.{a.contract}.Bytecode", *spec_mods]
     lines = [f"import {m}" for m in dict.fromkeys(imports)]
     byte_list = ",".join(("\n   " if i % 16 == 0 and i else "") + " " + hex(b) for i, b in enumerate(bytes.fromhex(a.hex))).strip()
@@ -348,6 +368,7 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                 "vacuity": vacuity,
                 "allowed_vacuity": allowed_vac,
                 "spec_bound_to_export": (f"{export_ns}.{a.contract}" if bound_spec else None),
+                "allowed_bound_to_export": bound_allowed,
                 "assumptions": env,
                 "excluded": shape.get("excluded", []),
                 "spec": shape.get("spec"),

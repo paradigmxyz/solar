@@ -145,13 +145,14 @@ def main():
         okthm, okdef = g["contract_ok"], ""
     else:
         fail("generic.style must be core or checked")
+    nonvac = ""
     comp = (f"{S}.compiled{'' if value else '0'} hd hchk {'hval ' if value else ''}"
             f"({S}.genericValid{'' if value else '0'}_inhabited _ _ _)\n"
             f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok gas_lt")
     if kind == "compiled":
         shape_t = f"{S}.Compiled (solidCore {sns}.fuel) c code ({valid}) ({gas})"
         body = f"  exact ⟨c, hc, ({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)⟩\n"
-    elif kind == "certified":
+    elif kind == "certified" and not g.get("spec_connect"):
         triples = g.get("triples", [])
         if not triples:
             fail("kind certified needs generic.triples")
@@ -164,6 +165,103 @@ def main():
                 f"    (fun _ _ _ _ => trivial) ({meets})⟩\n")
         if shape.get("allowed") != "fun _ _ => True":
             fail("kind certified from triples: allowed must be fun _ _ => True (the triples state no revert condition)")
+    elif kind == "certified" and g.get("spec_connect"):
+        # The specification is solar-verify's export of this run's source (NAME.gen.C.Spec), its
+        # postcondition and allowed statuses (Shapes.bundlePost, Shapes.bundleAllowed), proved of
+        # SolidCore's contract function by function from the erased trees by NAME.SpecConnect
+        # (tools/certify/spec_connect.py, written in this run before this module).
+        se = shape.get("spec_export")
+        if not isinstance(se, dict) or shape.get("allowed_export") is not True:
+            fail("generic.spec_connect needs spec_export and allowed_export")
+        if se.get("ctx") != f"{S}.ctxOfCall" or se.get("step") != f"{S}.idStep":
+            fail(f"generic.spec_connect: spec_export must be ctx {S}.ctxOfCall and step {S}.idStep")
+        sc_path = root / "SpecConnect.lean"
+        if not sc_path.exists():
+            fail(f"{sc_path} is missing: the driver writes it before this module")
+        sct = sc_path.read_text()
+        SC = f"{a.name}.SpecConnect"
+        B = f"Certified.{a.name}.gen.{contract}.Spec.{contract}"
+        if f"abbrev spec : Bundle := {B}" not in sct:
+            fail(f"{sc_path} is not about this run's export {B}")
+        fnd = {m.group(1): (int(m.group(2)), int(m.group(3))) for m in re.finditer(
+            r"^def fn_(\w+) : SolidCore\.Refinement\.Abi\.Fn := ⟨(\d+), List\.replicate (\d+) \(\.uint 256\)⟩", sct, re.M)}
+        idx = {m.group(1): int(m.group(2)) for m in re.finditer(
+            r"^def (\w+)_spec : FnSpec := spec\.spec\.specs\[(\d+)\]", sct, re.M)}
+        hyps = {m.group(1): (m.group(2) or "").strip() for m in re.finditer(
+            r"^theorem (\w+)_holds((?: \(hsep : [^)]*\))?) \{c", sct, re.M)}
+        fixed = "(hstep :" in sct
+        if not idx or set(idx) != set(fnd) or set(idx) != set(hyps):
+            fail(f"{sc_path}: cannot read its functions")
+        if sorted(idx.values()) != list(range(len(idx))):
+            fail(f"{sc_path} does not connect every function of the spec")
+        norm = lambda x: " ".join(x.split())
+        envs = [norm(e) for e in env]
+        def hsep_arg(fid):
+            h = hyps[fid]
+            if not h:
+                return ""
+            ty = norm(h[len("(hsep : "):-1])
+            full = "SolidCore.Spec." + ty if not ty.startswith("SolidCore.") else ty
+            if full not in envs:
+                fail(f"shape.json: env must name {full}, the premise of {fid}_holds")
+            return f" _h{envs.index(full)}"
+        cases = []
+        for fid, i in sorted(idx.items(), key=lambda kv: kv[1]):
+            step_arg = f" {S}.idStep" + (" (fun _ _ _ => rfl)" if fixed else "")
+            holds = f"({SC}.{fid}_holds{hsep_arg(fid)} hc{step_arg})"
+            if value:
+                cases.append(f"    · exact {S}.holdsFn_genericValid hd hchk hval (fun _ => rfl)\n"
+                             f"        (by first | exact Or.inl rfl | exact Or.inr (by simp [{S}.valueGuarded, {S}.valueZero, {B}]))\n"
+                             f"        (fn := {SC}.fn_{fid}) (by rfl) (by decide) {holds}")
+            else:
+                cases.append(f"    · exact {S}.holdsFn_genericValid0 (fn := {SC}.fn_{fid}) (by rfl) (by decide)\n"
+                             f"        {holds}")
+        cases.append(f"    · simp [{B}] at hi")
+        holds_proof = (f"  have hholds : SolidCore.Spec.Holds (solidCore {sns}.fuel) c ({valid}) {B} {S}.ctxOfCall {S}.idStep := by\n"
+                       f"    refine {S}.holds_of_getElem ?_\n    intro i hi\n"
+                       f"    rcases i with {' | '.join(['_'] * len(idx))} | i\n" + "\n".join(cases) + "\n")
+        allowed_t = f"({S}.bundleAllowed {B} {S}.ctxOfCall)"
+        post_t = f"({S}.bundlePost {B} {S}.ctxOfCall {S}.idStep)"
+        shape_t = f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) {allowed_t} {post_t} ({gas})"
+        body = (holds_proof +
+                f"  exact ⟨c, hc, (({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified_of_holds\n"
+                f"    (fun _ h => h) hholds⟩\n")
+        # Non-vacuity: the first function spec with succeeds-if conditions, on zero words, no
+        # value, from the constructor's slots written with 0, must succeed; the same call
+        # reverting is rejected by both the postcondition and the allowed statuses.
+        wit = g["spec_connect"].get("witness")
+        if wit not in idx:
+            fail("generic.spec_connect.witness must name a connected function with succeeds-if conditions")
+        wsel, wn = fnd[wit]
+        storage = g["storage"]
+        nonvac = (f"""
+/-- **Non-vacuity**: `{wit}` on zero words with no value, from the constructor's slots written with 0,
+meets its precondition and its succeeds-if conditions, so the spec requires it to succeed: the same call
+reverting is rejected by the exported postcondition and by the exported allowed statuses. -/
+theorem nonvacuous :
+    (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ ¬ {post_t} call obs) ∧
+      (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ obs.success = false ∧
+        ¬ {allowed_t} call obs) := by
+  let wcall : SolarTV.Call := {{ calldata := SolidCore.Refinement.Abi.calldata {wsel} (List.replicate {wn} 0), callvalue := 0, storage := {S}.zeros ({storage}) }}
+  have hpre : SolidCore.Spec.Pre {B} (({B}).spec.specs[{idx[wit]}]'(by decide))
+      ({S}.ctxOfCall wcall) ⟨fun _ => 0, SolidCore.Spec.Ghost.zero, 0⟩ wcall (List.replicate {wn} 0) := by
+    refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
+      ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
+      simp [SolidCore.Spec.Bundle.satAll, {B}]
+  refine {S}.nonvacuous_of_succeeds ({S}.valid{'' if value else '0'}_of_find ({S}.covers_zeros _) (by decide))
+    (List.getElem_mem _) hpre (by simp [{B}]) ?_
+  simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
+    SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
+    SolidCore.Spec.slotOf, SolidCore.Spec.Ty.ofBits, SolidCore.Spec.toWord, {S}.ctxOfCall]
+
+/-- info: 'Certified.{a.name}.Shape.nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms nonvacuous
+""")
+        if shape.get("nonvacuous") != f"Certified.{a.name}.Shape.nonvacuous":
+            fail(f"shape.json: nonvacuous must be Certified.{a.name}.Shape.nonvacuous")
+        g.setdefault("imports", [])
+        g["imports"] = [*g["imports"], "Verify.ShapeSpecExport", SC]
     else:
         fail("kind must be compiled or certified")
     # Negative controls the module proves: the loop checker rejects the bytecode with a jump
@@ -265,7 +363,7 @@ theorem published : {premises}∃ c, {sns}.contract? = .ok c ∧
 /-- info: 'Certified.{a.name}.Shape.published' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms published
-
+{nonvac}
 end Certified.{a.name}.Shape
 """
     text = text.replace("`", chr(96))

@@ -230,8 +230,14 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
     instrs = blocks[b]
     edges, items, top, known = [], 0, 0, []
 
+    def kat(known, j):
+        return known[j] if j < len(known) else None
+
+    def two(known):
+        return kat(known, 0) is not None and kat(known, 1) is not None
+
     def reach(known, top):
-        if len(known) >= 2 and known[1] != 0:
+        if two(known) and known[1] != 0:
             return max(top, known[0] + known[1])
         return top
 
@@ -258,10 +264,10 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
             continue
         items += 1
         if tag == "push":
-            h, known, ty = h + 1, [i[1]] + known[:1], [False] + ty
+            h, known, ty = h + 1, [i[1]] + known, [False] + ty
         elif tag == "dup":
             j = i[1]
-            known = [known[j]] + known[:1] if j < len(known) else []
+            known = [kat(known, j)] + known
             h, ty = h + 1, [ty_at(ty, j)] + ty
         elif tag == "swap":
             known, ty = [], ty_swap(ty, i[1])
@@ -271,7 +277,7 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
             nd = need_of(i[1])
             if nd is None:
                 return edges, items, top
-            h, known, ty = max(h + nd[1], 0), [], [False] + ty[nd[0] :]
+            h, known, ty = max(h + nd[1], 0), [None] + known[nd[0] :], [False] + ty[nd[0] :]
         elif tag == "store" and dyn:
             top = DYN_TOP
             h, known, ty = h - 2, [], ty[2:]
@@ -284,38 +290,42 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
             top = DYN_TOP
             h, known, ty = h - 3, [], ty[3:]
         elif tag == "store":
-            if not known:
+            if kat(known, 0) is None:
                 if bail is not None:
                     bail.append(b)
                 return edges, items, top
             top = max(top, known[0] + 32)
-            h, known, ty = h - 2, [], ty[2:]
+            h, known, ty = h - 2, known[2:], ty[2:]
         elif tag == "load":
-            if not known:
+            if kat(known, 0) is None:
                 if bail is not None:
                     bail.append(b)
                 return edges, items, top
             top = max(top, known[0] + 32)
             known, ty = [], [False] + ty[1:]
-        elif (tag == "effect" and i[1] in ("callvalue", "calldatasize", "caller", "address")) or (
+        elif tag == "effect" and i[1] == "caller":
+            h, known, ty = h + 1, [None] + known, [False] + ty
+        elif (tag == "effect" and i[1] in ("callvalue", "calldatasize", "address")) or (
             tag == "env" and i[1] in ENV_READS and i[2] == 0
         ):
             h, known, ty = h + 1, [], [False] + ty
-        elif tag == "effect" and i[1] in ("calldataload", "sload"):
+        elif tag == "effect" and i[1] == "calldataload":
+            known, ty = [None] + known[1:], [False] + ty[1:]
+        elif tag == "effect" and i[1] == "sload":
             known, ty = [], [False] + ty[1:]
         elif tag == "effect" and i[1] == "sstore":
             h, known, ty = h - 2, [], ty[2:]
         elif tag == "effect" and i[1] == "keccak256":
             if dyn:
                 top = DYN_TOP
-            elif len(known) < 2 and bail is not None:
+            elif not two(known) and bail is not None:
                 bail.append(b)
             top = reach(known, top) if not dyn else top
             h, known, ty = h - 1, [], [False] + ty[2:]
         elif tag == "log":
             if dyn:
                 top = DYN_TOP
-            elif len(known) < 2 and bail is not None:
+            elif not two(known) and bail is not None:
                 bail.append(b)
             top = reach(known, top) if not dyn else top
             h, known, ty = h - (i[1] + 2), [], ty[i[1] + 2 :]
@@ -325,7 +335,7 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
             edges += [(t, h - 1, ty[1:]) for t in rets]
             return edges, items, top
         elif tag in ("ret", "revert"):
-            if not dyn and len(known) < 2 and bail is not None:
+            if not dyn and not two(known) and bail is not None:
                 bail.append(b)
             return edges, items - 1, top if dyn else reach(known, top)
         else:

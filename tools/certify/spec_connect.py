@@ -129,6 +129,44 @@ def spec_mapping_slots(path):
     return flat - nested, nested
 
 
+def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
+    """A function with succeeds-if conditions: the spec without them (the same tactic, with the
+    conditions removed by FnSpec.noSucc), the conditions apart (TreeSucceeds), and both put
+    together (Verify/Spec/TreeSucceeds.lean)."""
+    ds = f"{fid}_tree, {fid}_spec, {mod}.spec, {bundle}, {mod}.ctx"
+    use = " hsep" if hyp else ""
+    if nests:
+        sproof = f"  have hsep' := NestedSlotsSeparated.map hsep\n  tree_succeeds_map [{ds}] hsep'"
+    elif lits:
+        sproof = f"  tree_succeeds_map [{ds}] hsep"
+    else:
+        sproof = f"  tree_succeeds [{ds}]"
+    if meets == "TreeMeetsFixed" and not nests:
+        # tree_meets_map', which tolerates simplification steps that change nothing (a spec
+        # with no invariants); with no mapping, from the separation of no slots.
+        sep = "hsep" if lits else "SolidCore.Spec.mapSlotsSeparated_nil"
+        proof0 = f"  tree_meets_map' [{fid}_tree, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, {mod}.ctx] {sep}"
+    else:
+        proof0 = proof.replace("_spec,", "_spec, SolidCore.Spec.FnSpec.noSucc,", 1)
+    comb = "treeMeetsFixed_of_succeeds" if meets == "TreeMeetsFixed" else "treeMeets_of_succeeds"
+    return [
+        "set_option maxHeartbeats 4000000 in",
+        f"/-- `{fid}`'s spec without its succeeds-if conditions holds of its erased tree. -/",
+        f"theorem {fid}_meets0{hyp} : {meets} spec {fid}_spec.noSucc ctx {n} {fid}_tree := by",
+        proof0,
+        "",
+        "set_option maxHeartbeats 4000000 in",
+        f"/-- From a pre-state meeting `{fid}`'s succeeds-if conditions, its erased tree succeeds. -/",
+        f"theorem {fid}_succeeds{hyp} : TreeSucceeds spec {fid}_spec ctx {n} {fid}_tree := by",
+        sproof,
+        "",
+        f"/-- `{fid}`'s spec holds of its erased tree. -/",
+        f"theorem {fid}_meets{hyp} : {meets} spec {fid}_spec ctx {n} {fid}_tree :=",
+        f"  {comb} ({fid}_meets0{use}) ({fid}_succeeds{use})",
+        "",
+    ]
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -219,9 +257,6 @@ def main():
             refused.append(f"{name}: outside the generic source stage")
             continue
         n, nsi, sel = int(parts[2]), int(parts[3]), int(parts[4])
-        if nsi != 0 and not args.tree_only:
-            refused.append(f"{name}: succeeds-if conditions are not proved yet")
-            continue
         if n > 8:
             refused.append(f"{name}: more than eight parameters")
             continue
@@ -238,7 +273,7 @@ def main():
                 f"{name}: reads mappings, which tree_meets_map proves only with --ghost-fixed"
             )
             continue
-        fns.append((k, name, ident(name), n, sel, tree, slots))
+        fns.append((k, name, ident(name), n, sel, tree, slots, nsi))
     if refused:
         sys.exit("spec_connect: refused (unproved):\n" + "\n".join(refused))
 
@@ -252,6 +287,7 @@ def main():
         "import Verify.Spec.TreeMap",
         "import Verify.Spec.TreeMapNested",
         "import Verify.Spec.TreeIn",
+        "import Verify.Spec.TreeSucceeds",
         "import Verify.VC.KernelIdx",
         "import SolidCore.Refinement.KernelRfl",
         *[f"import {m}" for m in args.imports],
@@ -293,7 +329,7 @@ def main():
     tactic = "tree_meets_fixed" if args.ghost_fixed else "tree_meets"
     holds = "holdsFn_of_tree_fixed" if args.ghost_fixed else "holdsFn_of_tree"
     hstep = " hstep" if args.ghost_fixed else ""
-    for i, name, fid, n, sel, tree, slots in fns:
+    for i, name, fid, n, sel, tree, slots, nsi in fns:
         mod = args.module_name
         lits, nests = slots
         if nests:
@@ -332,11 +368,12 @@ def main():
         ]
         if args.tree_only:
             continue
-        out += [
+        out += (succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, args.bundle) if nsi else [
             f"/-- `{name}`'s spec holds of its erased tree. -/",
             f"theorem {fid}_meets{hyp} : {meets} spec {fid}_spec ctx {n} {fid}_tree := by",
             proof,
             "",
+        ]) + [
             f"/-- **`{name}`'s spec holds of SolidCore's checked contract** on the stage's calls of it. -/",
             f"theorem {fid}_holds{hyp} {{c : SolidCore.Solidity.TypeCheck.CheckedContract}} (hc : {ns}.contract? = .ok c)",
             "    (step : GhostStep)"
