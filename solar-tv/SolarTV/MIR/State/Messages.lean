@@ -5,6 +5,9 @@ import SolarTV.EVMIR.State.Interpreter
 account access, value and creation charges before EIP-150 forwarding. Omission
 retains the sufficient-caller-gas mode and explicit CREATE child budgets. Neither
 mode assigns physical gas to an unpriced MIR body.
+Implicit typed calls require EIP-150 and a caller budget. Builtin lowering's
+GAS sample precedes CALL's charges, so clipping yields the cap; it is not a
+stand-in for an arbitrary GAS instruction elsewhere in the MIR body.
 Children execute real fixture bytecode with fork-specific gas, precompiles and
 journaling. The current MIR runtime's code is unknown, so inspecting or executing
 it from a child remains unsupported instead of compiling it through the backend.
@@ -17,38 +20,42 @@ open EvmRules SolarTV.Execution
 abbrev MessageStep := Except String (Option (Outcome (Option Word × Frame) × Nat))
 
 def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
-    (args : List Word) : MessageStep := do
+    (args : List Word) (gas : Option Word) : MessageStep := do
   let externalConfig ← required cfg.externalConfig "missing MIR external execution configuration"
   if cfg.fork.atLeast .amsterdam then .error "Amsterdam MIR message gas is not modeled" else
   match opcode,args with
   | 0xf1,_ | 0xf2,_ | 0xf4,_ | 0xfa,_ =>
     let explicitValue := opcode = 0xf1 || opcode = 0xf2
-    if args.length != (if explicitValue then 7 else 6) then
+    if args.length != (if explicitValue then 6 else 5) then
       .error "MIR call operand count" else
-    let gas := args[0]?.getD 0
-    let destination := args[1]?.getD 0
-    let start := if explicitValue then 3 else 2
+    let destination := args[0]?.getD 0
+    let start := if explicitValue then 2 else 1
     let inputOffset := args[start]?.getD 0
     let inputSize := args[start + 1]?.getD 0
     let outputOffset := args[start + 2]?.getD 0
     let outputSize := args[start + 3]?.getD 0
-    let amount := if opcode = 0xf1 || opcode = 0xf2 then args[2]?.getD 0 else 0
+    let amount := if explicitValue then args[1]?.getD 0 else 0
     let kind := if opcode = 0xf1 then Calls.Kind.call else if opcode = 0xf2 then .callcode
       else if opcode = 0xf4 then .delegatecall else .staticcall
     if cfg.environment.isStatic && kind == .call && amount != 0 then return some (.invalid,0) else
-    if gas.toNat > 30000000 then .error "MIR requested child gas exceeds 30000000" else
+    if gas.any (fun gas => gas.toNat > 30000000) then .error "MIR requested child gas exceeds 30000000" else
+    if gas.isNone && (cfg.messageGas.isNone || !cfg.fork.atLeast .tangerineWhistle) then
+      .error "implicit address-call gas requires caller pricing" else
     let memory ← expand frame.memory inputOffset.toNat inputSize.toNat
     let memory ← expand memory outputOffset.toNat outputSize.toNat
     let (code,resolution,world) := EVM.State.executionCode cfg.fork frame.world (destination.setWidth 160)
     let message := ⟨kind,destination.setWidth 160,amount,readBytes memory inputOffset.toNat inputSize.toNat⟩
     let budget ← match cfg.messageGas with
-      | none => pure (some (gas.toNat + if Calls.hasValue message then 2300 else 0,0))
+      | none => do
+        let gas ← required gas "implicit address-call gas requires caller pricing"
+        pure (some (gas.toNat + if Calls.hasValue message then 2300 else 0,0))
       | some budgets => do
         let available ← required budgets[frame.messageGas.length]? "missing MIR caller gas budget"
         let charge := EVM.State.callBoundaryCharge externalConfig frame.world message opcode resolution
           (memoryWords frame.memory) (memoryWords memory)
         if available < charge then pure none else
-          pure ((Calls.forwardGas cfg.fork (available-charge) gas.toNat (Calls.hasValue message)).map
+          let requested := gas.map BitVec.toNat |>.getD (available-charge)
+          pure ((Calls.forwardGas cfg.fork (available-charge) requested (Calls.hasValue message)).map
             (fun budget => (budget.supplied,available-charge-budget.charged)))
     let some (supplied,retained) := budget | return none
     let child ← EVM.State.executeCall (EVM.State.run fuel externalConfig) externalConfig world
@@ -89,14 +96,18 @@ def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
 
 /-- Reading an object's header precedes the message; a slice needs no memory read. -/
 def messageArguments (cfg : Config) (frame : Frame) (op : MessageOp) (operands : List Operand) :
-    Except String (Nat × List Word × Frame) := do
+    Except String (Nat × List Word × Frame × Option Word) := do
   match op,operands with
-  | .raw opcode,_ => return (opcode,← operands.mapM (read frame),frame)
+  | .raw opcode,_ =>
+    let args ← operands.mapM (read frame)
+    if opcode == 0xf1 || opcode == 0xf2 || opcode == 0xf4 || opcode == 0xfa then
+      return (opcode,args.drop 1,frame,some (← required args[0]? "missing call gas"))
+    else return (opcode,args,frame,none)
   | .transfer _,[address,amount] =>
     let address ← read frame address
     let amount ← read frame amount
     let gas := if amount == 0 then 2300 else 0
-    return (0xf1,[gas,address,amount,0,0,0,0],frame)
+    return (0xf1,[address,amount,0,0,0,0],frame,some gas)
   | .hash ripemd,[input] =>
     let input ← readValue frame input
     let (offset,length,frame) ← match input with
@@ -107,9 +118,9 @@ def messageArguments (cfg : Config) (frame : Frame) (op : MessageOp) (operands :
       | _ => .error "hash input representation"
     let gas ← required cfg.builtinGas[frame.builtinIndex]? "missing MIR builtin gas budget"
     let opcode := if cfg.available.contains 0xfa then 0xfa else 0xf1
-    let args := [BitVec.ofNat 256 gas,if ripemd then 3 else 2] ++
+    let args := [if ripemd then 3 else 2] ++
       (if opcode = 0xf1 then [0] else []) ++ [offset,length,0,32]
-    return (opcode,args,{frame with builtinIndex := frame.builtinIndex+1})
+    return (opcode,args,{frame with builtinIndex := frame.builtinIndex+1},some (BitVec.ofNat 256 gas))
   | .recover,[hash,v,r,s] =>
     let words ← [hash,v,r,s].mapM (read frame)
     let memory ← expand frame.memory 64 32
@@ -123,23 +134,23 @@ def messageArguments (cfg : Config) (frame : Frame) (op : MessageOp) (operands :
     memory := writeBytes memory 0 (wordBytes 0)
     let gas ← required cfg.builtinGas[frame.builtinIndex]? "missing MIR builtin gas budget"
     let opcode := if cfg.available.contains 0xfa then 0xfa else 0xf1
-    let args := [BitVec.ofNat 256 gas,1] ++ (if opcode = 0xf1 then [0] else []) ++ [input,128,0,32]
-    return (opcode,args,{frame with memory,builtinIndex := frame.builtinIndex+1})
-  | .address opcode hasValue,address :: input :: gas :: rest =>
-    if rest.length != (if hasValue then 1 else 0) ||
+    let args := [1] ++ (if opcode = 0xf1 then [0] else []) ++ [input,128,0,32]
+    return (opcode,args,{frame with memory,builtinIndex := frame.builtinIndex+1},some (BitVec.ofNat 256 gas))
+  | .address opcode hasGas hasValue,address :: input :: rest =>
+    if rest.length != (if hasGas then 1 else 0) + (if hasValue then 1 else 0) ||
         (opcode != 0xf1 && hasValue) then .error "MIR address-call operand count" else
     let address ← read frame address
     let input ← readValue frame input
-    let gas ← read frame gas
-    let amount ← if hasValue then read frame (← required rest[0]? "missing call value") else pure 0
+    let gas ← if hasGas then some <$> read frame (← required rest[0]? "missing call gas") else pure none
+    let amount ← if hasValue then read frame (← required rest[if hasGas then 1 else 0]? "missing call value") else pure 0
     let (offset,length,frame) ← match input with
       | .scalar object => do
         let memory ← expand frame.memory object.word.toNat 32
         pure (object.word + 32,readWord memory object.word.toNat,{frame with memory})
       | .aggregate [pointer,length] => pure (← pointer.word,← length.word,frame)
       | _ => .error "undefined address-call input"
-    let args := [gas,address] ++ (if opcode = 0xf1 then [amount] else []) ++ [offset,length,0,0]
-    return (opcode,args,frame)
+    let args := [address] ++ (if opcode = 0xf1 then [amount] else []) ++ [offset,length,0,0]
+    return (opcode,args,frame,gas)
   | _,_ => .error "MIR address-call operand count"
 
 end SolarTV.MIR.State

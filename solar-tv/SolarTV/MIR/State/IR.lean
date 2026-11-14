@@ -37,7 +37,7 @@ inductive ArrayElement where
 
 inductive MessageOp where
   | raw (opcode : Nat)
-  | address (opcode : Nat) (hasValue : Bool)
+  | address (opcode : Nat) (hasGas hasValue : Bool)
   | transfer (revertOnFailure : Bool)
   | hash (ripemd : Bool)
   | recover

@@ -74,8 +74,8 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
     match inst.operation with
     | .external op =>
       if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then stop .invalid frame else
-      let (opcode,args,frame) ← messageArguments cfg frame op inst.operands
-      let some (effect,work) ← external fuel cfg frame opcode args | stop .outOfGas frame
+      let (opcode,args,frame,gas) ← messageArguments cfg frame op inst.operands
+      let some (effect,work) ← external fuel cfg frame opcode args gas | stop .outOfGas frame
       match effect with
       | .returned (value,parent) =>
         if (match op with | .transfer true | .hash _ | .recover => true | _ => false) && value == some 0 then

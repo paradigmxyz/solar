@@ -2,9 +2,14 @@
 //!
 //! Address-call input is either a memory object (whose length word is read) or
 //! a logical memory slice. Calls have no output buffer and replace volatile
-//! returndata. Explicit gas uses the existing sufficient-caller-gas boundary;
-//! implicit gas requires pricing and is unsupported. Returndata objects reserve
+//! returndata. Implicit gas requires a host that prices the caller's boundary
+//! and applies the EIP-150 cap. Returndata objects reserve
 //! uninitialized memory, write their length and copy exactly the returned bytes.
+//!
+//! `lower_builtins::lower_address_call` samples GAS before CALL on EIP-150
+//! targets. That request is at least the gas left after CALL's upfront charges,
+//! so its clipped budget is the cap. Before EIP-150, the compiler's reserve
+//! depends on instruction pricing; that case remains unsupported here.
 
 use super::{Outcome, Run, RuntimeValue, limit};
 use alloy_primitives::U256;
@@ -19,11 +24,19 @@ impl Run<'_, '_, '_> {
         opcode: u8,
         address: U256,
         input: RuntimeValue,
-        gas: U256,
+        gas: Option<U256>,
         value: Option<U256>,
     ) -> ControlFlow<Outcome, U256> {
         if self.lacks(opcode) {
             return ControlFlow::Break(Outcome::Invalid);
+        }
+        if self.world.is_none() {
+            return ControlFlow::Break(Outcome::Unsupported("address call needs a host"));
+        }
+        if gas.is_none() && self.semantic.is_some_and(|evm| !evm.can_overcharge_gas_for_call()) {
+            return ControlFlow::Break(Outcome::Unsupported(
+                "pre-EIP-150 implicit address-call gas requires instruction pricing",
+            ));
         }
         let (offset, length) = match input {
             RuntimeValue::Word(object) => {
@@ -41,17 +54,14 @@ impl Run<'_, '_, '_> {
             }
             _ => return ControlFlow::Break(Outcome::Unsupported("undefined address-call input")),
         };
-        let mut args = vec![gas, address];
+        let mut args = vec![address];
         if opcode == op::CALL {
             args.push(value.unwrap_or_default());
         } else if value.is_some() {
             return ControlFlow::Break(Outcome::Unsupported("value on non-value address call"));
         }
         args.extend([offset, length, U256::ZERO, U256::ZERO]);
-        let Some(result) = self.world_opcode(opcode, &args)? else {
-            return ControlFlow::Break(Outcome::Unsupported("missing address-call result"));
-        };
-        ControlFlow::Continue(result)
+        self.external_message(opcode, &args, gas)
     }
 
     pub(super) fn semantic_returndata_bytes(&mut self) -> ControlFlow<Outcome, U256> {

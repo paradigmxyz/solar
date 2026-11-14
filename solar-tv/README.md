@@ -699,10 +699,13 @@ neither an imported instruction recipe nor child results. Both execute the real
 child, including nested messages, precompiles, exact revert data and rollback.
 
 Typed `address_call`, `address_staticcall` and `address_delegatecall` also accept
-memory objects or slices with explicit gas. They reserve no output buffer;
+memory objects or slices. They reserve no output buffer;
 `icall returndata_bytes<>` copies the live return buffer to an uninitialized
-bytes object, retaining dirty padding and leaving the buffer available. Implicit
-address-call gas is unsupported until caller pricing is modeled.
+bytes object, retaining dirty padding and leaving the buffer available. With
+`message_gas`, an omitted gas option forwards the EIP-150 cap after the boundary's
+charges, including the value stipend. An explicit zero still requests zero gas.
+Without caller budgets, omitted gas is inconclusive. Pre-EIP-150 implicit gas
+needs instruction pricing and remains unsupported.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,after}.mir \
@@ -737,6 +740,17 @@ solar-tv/solar-tv mir solar-tv/examples/mir/message-gas/{before,after}.mir \
   --function=f --world solar-tv/examples/mir/message-gas/world.json
 solar-tv/solar-tv mir solar-tv/examples/mir/message-gas/{before,broken}.mir \
   --function=f --world solar-tv/examples/mir/message-gas/world.json
+```
+
+The implicit-gas example uses a real `sccp` pair and a child that returns its
+`GAS` reading. Its broken rewrite adds a 100-gas option; both Lean execution and
+independent native replay observe 98 instead of 3,739:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/implicit-gas/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/implicit-gas/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/implicit-gas/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/implicit-gas/world.json
 ```
 
 Without `message_gas`, CALL assumes sufficient caller gas to avoid clipping.
