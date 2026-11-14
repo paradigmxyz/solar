@@ -190,7 +190,7 @@ def split_segments(out, pm, module, p, body, imports, ns, opens, what):
     return rest, mods
 
 
-def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
+def write_cut_points(args, manifest, stages, ns, opens, label, every_doc, scope="anyCall", scope_def=""):
     """The proofs of a contract whose programs loop: per pair of consecutive stages a LayerSim
     through the cut points cutpoints.py derives from what the compiler kept across the pass,
     and the Stages module that chains their certificates on every call, both ways."""
@@ -220,12 +220,12 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
             f"/-- Every end of `{a['def']}` on a call is matched by an agreeing end of "
             f"`{p}`. -/\n"
             f"theorem {p}_certified (o : Oracle) :\n"
-            f"    Certified {layer(a)} {layer(b)} o {a['def']} {p} anyCall :=\n"
+            f"    Certified {layer(a)} {layer(b)} o {a['def']} {p} {cutpoints.scope_parts()[4]} :=\n"
             f"  ({p}_sim o).certified\n\n"
             f"/-- Every end of `{p}` on a call is matched by an agreeing end of "
             f"`{a['def']}`. -/\n"
             f"theorem {p}_certified_back (o : Oracle) :\n"
-            f"    Certified {layer(b)} {layer(a)} o {p} {a['def']} anyCall :=\n"
+            f"    Certified {layer(b)} {layer(a)} o {p} {a['def']} {cutpoints.scope_parts()[4]} :=\n"
             f"  ({p}_sim o).certified_back\n\n"
         )
         base = [
@@ -268,7 +268,7 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
         )
 
     final = f"{label}_mir_to_evmir"
-    body = [
+    body = ([scope_def] if scope_def else []) + [
         (
             f"/-- The compilation from the first lowered MIR to the final EVM IR. -/\n"
             f"def compilation : Compilation :=\n"
@@ -279,8 +279,8 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
             f"/-- Every stage from the first lowered MIR to the final EVM IR, each through cut "
             f"points, chained by the library's composition, on every call. -/\n"
             f"theorem {final} (o : Oracle) : Stage (mirSem o) (evmirSem o) {first['def']} "
-            f"{last['def']} anyCall :=\n"
-            f"  mir_to_evmir_certified o anyCall compilation {steps(mirs[1:])} "
+            f"{last['def']} {scope} :=\n"
+            f"  mir_to_evmir_certified o {scope} compilation {steps(mirs[1:])} "
             f"({sched['def']}_certified o)\n    {steps(evms)}\n"
         ),
     ]
@@ -295,14 +295,14 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc):
         f"EVM IR, on every call. -/\n"
         f"theorem {label}_certified (o : Oracle) :\n"
         f"    Certified MIR.Lowered.moduleLayer EVM.Program.layer o {first['def']} "
-        f"{last['def']} anyCall :=\n  {fwd}\n"
+        f"{last['def']} {scope} :=\n  {fwd}\n"
     )
     body.append(
         f"/-- Every end of the final EVM IR is matched by an agreeing end of the first "
         f"lowered MIR, on every call: one ends exactly when the other does. -/\n"
         f"theorem {label}_certified_back (o : Oracle) :\n"
         f"    Certified EVM.Program.layer MIR.Lowered.moduleLayer o {last['def']} "
-        f"{first['def']} anyCall :=\n  {back}\n"
+        f"{first['def']} {scope} :=\n  {back}\n"
     )
     checks = "".join(
         "\n" + axioms_check(ns, n)
@@ -365,12 +365,38 @@ def main():
         help="JSON: theorem name to its expected axiom list, where it is not " + AXIOMS,
     )
     ap.add_argument(
+        "--cut",
+        action="store_true",
+        help="prove every stage through cut points even when no program loops: with --joins, "
+        "one segment proof per join point and module, for programs too large for one "
+        "symbolic run per stage",
+    )
+    ap.add_argument(
+        "--segment",
+        type=int,
+        default=None,
+        help="with --joins, the most configurations one EVM IR segment evaluates before it is "
+        "cut again (default: cutpoints.SEGMENT)",
+    )
+    ap.add_argument(
+        "--no-mir-joins",
+        action="store_true",
+        help="with --joins, keep the MIR passes' stages whole (one segment from the entry): "
+        "a pass that moves reads across blocks (place-reads) changes which values are live "
+        "at a join, so the join relations do not hold there",
+    )
+    ap.add_argument(
         "--joins",
         action="store_true",
         help="cut the programs at their join points too, so that no path is evaluated twice",
     )
     args = ap.parse_args()
     cutpoints.JOINS = args.joins
+    cutpoints.EXCLUDED_SELECTORS = {int(e.partition("=")[0], 16) for e in args.exclude}
+    cutpoints.EXCLUDED_FUNCTIONS = {e.partition("=")[2].partition("(")[0] for e in args.exclude}
+    cutpoints.MIR_JOINS = not args.no_mir_joins
+    if args.segment is not None:
+        cutpoints.SEGMENT = args.segment
     manifest, stages = stage_list(args.gen, args.loops)
     global DEPTH
     if any(
@@ -433,9 +459,32 @@ def main():
             f"#guard_msgs in\n#axioms_within {name}\n"
         )
 
-    cut = loops_somewhere(args.gen, stages) and not excluded
+    cut = args.cut or (loops_somewhere(args.gen, stages) and not excluded)
     if cut:
-        final = write_cut_points(args, manifest, stages, ns, opens, label, every)
+        scope_term, scope_def = "anyCall", ""
+        if excluded:
+            conj = " ∧ ".join(
+                f"EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x}" for sel, _ in excluded
+            )
+            # Each segment proof assumes the selector word is none of the excluded ones, so the
+            # paths of their functions end at the dispatcher's test.
+            cutpoints.SCOPE = {
+                "hyps": hyps,
+                "names": "".join(f" hsel{i}" for i in range(len(excluded))),
+                "prune": prune,
+                "given": given,
+                "term": f"(fun call => {conj})",
+            }
+            scope_term = "scope"
+            scope_def = (
+                "/-- The calls the stages are about: every call whose selector word is none of "
+                + ", ".join(f"`{sel:#010x}` (`{sig}`)" for sel, sig in excluded)
+                + ", whose functions are outside these proofs. -/\n"
+                f"def scope : Call → Prop := fun call =>\n  {conj}\n"
+            )
+        final = write_cut_points(
+            args, manifest, stages, ns, opens, label, every, scope_term, scope_def
+        )
         last = stages[-1]
         first = stages[0]
     else:
