@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard opt
-//@[opt] compile-flags: -Ogas -Zdump=mir
+//@[opt] compile-flags: -Ogas -Zdump=mir --evm-version prague
 //@[opt] filecheck: --check-prefix=OPT
 //@ run-call: fls 0 => 256
 //@ run-call: clz 0 => 256
@@ -44,7 +44,8 @@
 // The frozen checked bit-search port: eight `if` steps that each shift the
 // word and set a result bit. Every step is a pure two-phi diamond, so it
 // becomes a scaled shift and a scaled or with no branch; only the zero test
-// keeps its jump.
+// keeps its jump. The optimized revision targets Prague, which has no `CLZ`
+// for `bit-scan` to replace the selected search with.
 library LibBit {
     function fls(uint256 x) internal pure returns (uint256 r) {
         if (x == 0) return 256;

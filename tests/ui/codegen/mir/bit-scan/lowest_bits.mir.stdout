@@ -1,0 +1,79 @@
+; === ROOT/tests/ui/codegen/mir/bit-scan/lowest_bits.sol:LowestBits ===
+@module LowestBits
+; function ffs(uint256 x) external pure returns (uint256 r) [selector 0x2297890a]
+fn @ffs(arg0: i256) -> i256 [selector=0x2297890a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = not arg0
+    v1 = add v0, 1
+    v2 = and v1, arg0
+    v3 = mul v2, 0xb6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff
+    v4 = shr v3, 250
+    v5 = shl v4, 2
+    v6 = shl 0x8040405543005266443200005020610674053026020000107506200176117077, v5
+    v7 = shr v6, 252
+    v8 = shl v7, 5
+    v9 = shr v2, v8
+    v10 = div 0xd76453e0, v9
+    v11 = and v10, 31
+    v12 = byte v11, 0x1f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405
+    v13 = or v8, v12
+    ret v13
+}
+
+; function leastSignificantBit(uint256 x) external pure returns (uint8 r) [selector 0xd230d23f]
+fn @leastSignificantBit(arg0: i256) -> i256 [selector=0xd230d23f, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = gt arg0, 0
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = sub 0, arg0
+    v3 = and v2, arg0
+    v4 = mul v3, 0xb6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff
+    v5 = shr v4, 250
+    v6 = shl v5, 2
+    v7 = shl 0x8040405543005266443200005020610674053026020000107506200176117077, v6
+    v8 = shr v7, 252
+    v9 = shl v8, 5
+    v10 = shr v3, v9
+    v11 = div 0xd76453e0, v10
+    v12 = and v11, 31
+    v13 = byte v12, 0x1f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405
+    v14 = or v9, v13
+    ret v14
+}
+
+; function wrongEntry(uint256 x) external pure returns (uint256 r) [selector 0x205fe1e2]
+fn @wrongEntry(arg0: i256) -> i256 [selector=0x205fe1e2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sub 0, arg0
+    v1 = and v0, arg0
+    v2 = mul v1, 0xb6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff
+    v3 = shr v2, 250
+    v4 = shl v3, 2
+    v5 = shl 0x8040405543005266443200005020610674053026020000107506200176117077, v4
+    v6 = shr v5, 252
+    v7 = shl v6, 5
+    v8 = shr v1, v7
+    v9 = div 0xd76453e0, v8
+    v10 = and v9, 31
+    v11 = byte v10, 0x1f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160404
+    v12 = or v7, v11
+    ret v12
+}
+
+; function whole(uint256 x) external pure returns (uint256 r) [selector 0x79863e84]
+fn @whole(arg0: i256) -> i256 [selector=0x79863e84, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mul arg0, 0xb6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff
+    v1 = shr v0, 250
+    v2 = shl v1, 2
+    v3 = shl 0x8040405543005266443200005020610674053026020000107506200176117077, v2
+    v4 = shr v3, 252
+    v5 = shl v4, 5
+    v6 = shr arg0, v5
+    v7 = div 0xd76453e0, v6
+    v8 = and v7, 31
+    v9 = byte v8, 0x1f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405
+    v10 = or v5, v9
+    ret v10
+}

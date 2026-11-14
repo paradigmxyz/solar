@@ -1,0 +1,82 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@ filecheck:
+@module ClzBounds
+
+// A word with a set bit has at most 255 leading zeros.
+// CHECK-LABEL: fn @nonzero
+// CHECK: - jumpi v2, bb1, bb2
+// CHECK: + jump bb1
+fn @nonzero(arg0: i256) -> i256 {
+  bb0:
+    v0 = or arg0, 1
+    v1 = clz v0
+    v2 = lt v1, 256
+    jumpi v2, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}
+
+// Zero has 256, so the same test of any word stays.
+// CHECK-LABEL: fn @any
+// CHECK-NOT: {{^[-+]}}
+// CHECK: jumpi v1, bb1, bb2
+fn @any(arg0: i256) -> i256 {
+  bb0:
+    v0 = clz arg0
+    v1 = lt v0, 256
+    jumpi v1, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}
+
+// No word has more.
+// CHECK-LABEL: fn @width
+// CHECK: - jumpi v1, bb1, bb2
+// CHECK: + jump bb1
+fn @width(arg0: i256) -> i256 {
+  bb0:
+    v0 = clz arg0
+    v1 = lt v0, 257
+    jumpi v1, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}
+
+// The count falls as the word grows: sixteen bits leave at least 240 zeros.
+// CHECK-LABEL: fn @narrow_word
+// CHECK: - jumpi v2, bb1, bb2
+// CHECK: + jump bb1
+fn @narrow_word(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffff
+    v1 = clz v0
+    v2 = gt v1, 239
+    jumpi v2, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}
+
+// The index of the highest set bit taken from the count fits a byte.
+// CHECK-LABEL: fn @index
+// CHECK: - jumpi v3, bb1, bb2
+// CHECK: + jump bb1
+fn @index(arg0: i256) -> i256 {
+  bb0:
+    v0 = or arg0, 1
+    v1 = clz v0
+    v2 = sub 255, v1
+    v3 = lt v2, 256
+    jumpi v3, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}
