@@ -34,6 +34,10 @@ class Program:
     scope: str | None = None
     following: str | None = None
     world: dict | None = None
+    region_code: str = ""
+    import_certificate: str = ""
+    import_obligation: str = ""
+    import_evidence: dict | None = None
 
 
 def lines(text: str) -> list[str]:

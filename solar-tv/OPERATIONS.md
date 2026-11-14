@@ -208,8 +208,10 @@ for admitted forks, limits, observables and gas policies.
 
 Acyclic multi-block EVM regions now follow changed successors and shared tails
 through terminal outcomes, with symbolic live-in stacks and memory. Internal
-labels and stack layouts need not correspond. Loops, dynamic/escaping labels,
-priced region transfers and stateful region operations remain unsupported. See
+labels and stack layouts need not correspond. Pure cyclic regions with equal
+independently exported source graphs also admit an all-execution-bounds proof.
+General loop invariants, dynamic/escaping labels, priced region transfers and
+stateful region operations remain unsupported. See
 the [region examples](README.md#multi-block-evm-ir-regions).
 
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
@@ -219,12 +221,16 @@ the [region examples](README.md#multi-block-evm-ir-regions).
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
-4. Prove importer/interpreter correspondence and connect explicit placement
-   assumptions to actual backend layout decisions. Direct MIR semantics and
-   independent replay do not by themselves prove those decisions correct.
+4. Extend the per-import correspondence certificates beyond acyclic EVM regions
+   and pure straight-line i256 MIR. Connect explicit placement assumptions to
+   actual backend layout decisions. Direct MIR semantics and independent replay
+   do not by themselves prove those decisions correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.
 
 Unsupported semantics remain explicit. A local proof does not establish
 whole-contract equivalence or an all-input correspondence theorem for the Rust
 implementation.
+
+See [CORRECTNESS.md](CORRECTNESS.md) for the checked import boundaries, pinned
+real-contract evaluation and the evidence required to close each remaining gap.

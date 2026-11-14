@@ -74,15 +74,23 @@ the Python importer's operation recipe. `--replay PATH` or `SOLAR_TV_REPLAY` sel
 the helper; by default it is beside the selected compiler. Replay has a 16 MiB
 memory limit, ten million units of work and a MIR call-depth limit of 1,024.
 A missing helper, unsupported replay state or model disagreement cannot produce
-a counterexample result. Positive proofs still trust the importer; concrete replay
-does not establish a correspondence theorem for all inputs.
+a counterexample result. Concrete replay alone does not establish correspondence
+for all inputs. The checked import fragments below also require a Lean certificate
+before either a proof or a counterexample can be accepted.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
 | MIR | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 
-The importer and the mapping from compiler operations to Lean are trusted.
+The compiler parser, source normalizer and operation-to-Lean mapping remain
+trusted. Acyclic EVM regions additionally check their imported execution tree
+against a separately exported compiler CFG, for every projected live-in state.
+Straight-line i256 MIR without memory or effects checks the imported expression
+against the direct typed SSA interpreter. Audit records identify these certificates
+under `import_correspondence`; other fragments retain the importer assumption.
+See [proof boundaries and remaining work](CORRECTNESS.md).
+
 EVM windows compare live stack values at outgoing edges before executing either
 successor. Terminal halts discard the remaining stack. The default check assumes
 sufficient gas; the opt-in gas policies below add finite budgets. Physical PCs,
@@ -101,11 +109,12 @@ resource proof in [EVMIR/Transforms/GasSwapAdd.lean](SolarTV/EVMIR/Transforms/Ga
 
 ```sh
 (cd solar-tv && lake build)
-python3 -m unittest discover -s solar-tv/tests
+uv run --locked --all-packages pytest -n 2 --dist worksteal solar-tv/tests
 ```
 
-The tests regenerate the example outputs with real compiler passes. The `solar-tv`
-CI job builds the Lean proofs, runs these tests for both IRs, and checks that an
+The tests regenerate the example outputs with real compiler passes. Two proof
+workers bound concurrent memory use. The `solar-tv` CI job builds the Lean
+proofs, runs these tests for both IRs, and checks that an
 injected wrong-code pass stops compilation and produces a replayable pair.
 
 The phi example removes an empty forwarder with `cfg-simplify` and updates the
@@ -970,7 +979,17 @@ jump fallthroughs retain the temporary stack growth of their lowering.
 [Region.lean](SolarTV/EVMIR/Region.lean) composes the existing instruction semantics;
 it does not add an instruction interpreter or obtain observations from native
 replay. The importer expands at most 256 block visits, 2,048 instructions and
-128 blocks per path. Loops require invariants and remain inconclusive. Dynamic
+128 blocks per path. A separate path admits pure cyclic regions whose independently
+exported source graphs are definitionally equal. It proves agreement for every
+execution bound, without assuming termination or cutting a loop into a fake exit:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/cyclic-region/{before,after}.evmir \
+  --region bb0 --stack-height 1
+```
+
+This example is a real `cfg-simplify` removal of unreachable code. Nonisomorphic
+loops still require an invariant and remain unsupported. Dynamic
 or escaping labels, layout-observing instructions, stateful operations and priced
 gas regions remain unsupported. Memory uses the existing constant-access
 256-byte projection. No whole-pass or arbitrary-world claim follows from a
@@ -1002,3 +1021,33 @@ value and rechecks the saved pair with Lean:
 SOLAR="$PWD/target/debug/solar" SOLAR_TV="$PWD/solar-tv/solar-tv" \
   cargo nextest run -p solar-compiler --test it --run-ignored only -E 'test(solar_tv::)'
 ```
+
+### Reproducible real-contract evaluation
+
+Capture changed pass pairs without running the prover, then check a deterministic
+sample from pinned Solady, OpenZeppelin and Morpho source archives:
+
+```sh
+target/debug/solar contract.sol -Ogas --emit=bin \
+  -Zsolar-tv=target/tv-capture -Zsolar-tv-capture
+solar-tv/evaluate --limit 8 --timeout 10 --seed 0 \
+  --output target/tv-evaluation
+```
+
+Capture is explicitly unchecked: `captures/*/regions.jsonl` records `captured`,
+never `verified`, and the normal audit summary does not count it as a proof.
+Module pairs are stored once per pass and shared by their region records.
+
+The evaluation compiles each contract normally and with capture, requires
+identical ABI and bytecode outputs, and records compiler, replay, source and
+semantics fingerprints. Selection alternates IR layers and passes, with seeded
+hash ordering inside each group. Rejected and unsupported regions stay in the
+denominator. `results.json` separates selected and unselected checks, every
+status and each case's output identity. Use a fresh output directory for each run.
+CI retains the reports and full before/after pairs as an artifact.
+
+The initial eight-check-per-contract run verified 1 of 24 selected checks;
+23 were unsupported, with no counterexamples, timeouts or errors. All three
+contracts retained identical bytecode. This is a coverage baseline, not evidence
+that the complete contracts or passes were verified. The exact cases, limitations
+and next obligations are recorded in [CORRECTNESS.md](CORRECTNESS.md).

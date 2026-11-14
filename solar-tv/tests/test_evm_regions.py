@@ -159,7 +159,6 @@ bb1:
 
     def test_cycles_dynamic_targets_and_gas_are_explicitly_unsupported(self):
         for body in (
-            "bb0:\n  jump bb0\n",
             "bb0 [stack=1]:\n  jump\n",
             "bb0:\n  push bb1\n  push 0\n  mstore\n  stop\nbb1:\n  stop\n",
         ):

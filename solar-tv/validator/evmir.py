@@ -176,7 +176,11 @@ def translate(
 
 
 def instructions(body, constants, *, memory, gas=None):
-    """Import one instruction sequence, retaining abstract stack constants across edges."""
+    """Render instructions and optionally track/check abstract memory addresses.
+
+    A source-graph certificate renders the independent operation identity with
+    constants=None; its separate tree import retains the existing bounds checks.
+    """
     estimate = 0
     words = 0
     ops = []
@@ -187,7 +191,8 @@ def instructions(body, constants, *, memory, gas=None):
             if gas is None:
                 raise Unsupported("GAS requires --gas=exact or --gas=refine")
             ops.append(".gas")
-            constants.insert(0, None)
+            if constants is not None:
+                constants.insert(0, None)
             continue
         if line in vocabulary.UNARY | vocabulary.BINARY | vocabulary.TERNARY | {
             "calldatasize",
@@ -195,7 +200,9 @@ def instructions(body, constants, *, memory, gas=None):
             "pop",
         }:
             operation = f".{line}"
-            if line in {"calldatasize", "returndatasize"}:
+            if constants is None:
+                pass
+            elif line in {"calldatasize", "returndatasize"}:
                 constants.insert(0, None)
             elif line in vocabulary.UNARY | {"pop"}:
                 constants = constants[1:]
@@ -208,7 +215,9 @@ def instructions(body, constants, *, memory, gas=None):
             if not 1 <= depth <= 235:
                 raise Unsupported("stack depth is outside the schema's range")
             operation = f".{stack_op[1]} {depth - 1}"
-            if stack_op[1] == "dup":
+            if constants is None:
+                pass
+            elif stack_op[1] == "dup":
                 constants.insert(0, constants[depth - 1])
             else:
                 constants[0], constants[depth] = constants[depth], constants[0]
@@ -217,47 +226,58 @@ def instructions(body, constants, *, memory, gas=None):
             if not 1 <= first < second or first + second > 30:
                 raise Unsupported("invalid exchange operands")
             operation = f".exchange {first} {second}"
-            constants[first], constants[second] = constants[second], constants[first]
+            if constants is not None:
+                constants[first], constants[second] = (
+                    constants[second],
+                    constants[first],
+                )
         elif line.startswith("push "):
             value = literal(line[5:])
             operation = f".push {value}"
-            constants.insert(0, int(value.split("#", 1)[0]))
+            if constants is not None:
+                constants.insert(0, int(value.split("#", 1)[0]))
         elif line == "mcopy":
-            if len(constants) < 3:
-                raise Unsupported("missing MCOPY operands")
-            destination, source, count = constants[:3]
-            words = max(
-                words,
-                mem.active_words(destination, count),
-                mem.active_words(source, count),
-            )
-            constants = constants[3:]
+            if constants is not None:
+                if len(constants) < 3:
+                    raise Unsupported("missing MCOPY operands")
+                destination, source, count = constants[:3]
+                words = max(
+                    words,
+                    mem.active_words(destination, count),
+                    mem.active_words(source, count),
+                )
+                constants = constants[3:]
             operation = ".copy"
             ops.append(f".instruction ({operation})" if gas is not None else operation)
             continue
         elif line == "keccak256":
-            if len(constants) < 2:
-                raise Unsupported("missing KECCAK256 operands")
-            offset, count = constants[:2]
-            words = max(words, mem.active_words(offset, count))
-            constants = [None, *constants[2:]]
+            if constants is not None:
+                if len(constants) < 2:
+                    raise Unsupported("missing KECCAK256 operands")
+                offset, count = constants[:2]
+                words = max(words, mem.active_words(offset, count))
+                constants = [None, *constants[2:]]
             operation = ".hash"
             ops.append(f".instruction ({operation})" if gas is not None else operation)
             continue
         elif line in {"mload", "mstore", "mstore8", "msize"}:
             if line == "msize":
-                constants.insert(0, None)
+                if constants is not None:
+                    constants.insert(0, None)
                 operation = ".size"
             else:
-                words = max(
-                    words,
-                    mem.active_words(constants[0], 1 if line == "mstore8" else 32),
-                )
+                if constants is not None:
+                    words = max(
+                        words,
+                        mem.active_words(constants[0], 1 if line == "mstore8" else 32),
+                    )
                 if line == "mload":
-                    constants[0] = None
+                    if constants is not None:
+                        constants[0] = None
                     operation = ".load"
                 else:
-                    constants = constants[2:]
+                    if constants is not None:
+                        constants = constants[2:]
                     operation = ".storeByte" if line == "mstore8" else ".store"
             ops.append(f".instruction ({operation})" if gas is not None else operation)
             continue
