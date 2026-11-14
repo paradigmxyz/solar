@@ -214,3 +214,30 @@ class MirMessageGasTests(unittest.TestCase):
         obs = record["witness"]["observations"]
         self.assertEqual(obs, record["witness"]["native_observations"])
         self.assertEqual(obs[0]["outcome"], "out-of-gas")
+
+    def test_constructor_records_the_forwarded_gas_cap(self):
+        # GAS; PUSH0; MSTORE; PUSH1 32; PUSH0; RETURN publishes the gas word as code.
+        initcode = int.from_bytes(
+            bytes.fromhex("5a5f5260205ff3").ljust(32, b"\0"), "big"
+        )
+        for op, salt, expected_word, remaining in (
+            ("create", "", 7872, 1583),
+            ("create2", ", 17", 7866, 1577),
+        ):
+            with self.subTest(op=op):
+                before = state.module(
+                    f"mstore 0, {initcode}\nv0 = add 0, 0\nv1 = {op} v0, 0, 7{salt}\nret 17"
+                )
+                fixture = {"message_gas": [40000]}
+                self.pair(before, self.lower(before), fixture=fixture)
+                _, record = self.pair(
+                    before, before.replace("ret 17", "ret 0"), fixture=fixture, status=1
+                )
+                obs = record["witness"]["observations"]
+                self.assertEqual(obs, record["witness"]["native_observations"])
+                created = [account for account in obs[0]["accounts"] if account[6]]
+                self.assertEqual(len(created), 1)
+                self.assertEqual(
+                    int.from_bytes(bytes(created[0][3]), "big"), expected_word
+                )
+                self.assertEqual(obs[0]["message_gas"], [remaining])

@@ -204,6 +204,18 @@ def assign (next : Frame) (result : Option Nat) (ty : ValueType) (word : Option 
 def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation : Nat := 0) : Step := do
   if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then return .invalid
   match inst.operation,inst.operands with
+  | .binary op 1,[a,b] =>
+    let a ← readBits 1 frame a
+    let b ← readBits 1 frame b
+    assignValue frame inst.result inst.ty (.scalar ⟨1,MIR.eval op a b⟩)
+  | .shift op width,[amount,value] =>
+    let amount ← readBits width frame amount
+    let value ← readBits width frame value
+    assignValue frame inst.result inst.ty (.scalar ⟨width,MIR.shift op value amount⟩)
+  | .notEqual,[a,b] =>
+    let a ← read frame a
+    let b ← read frame b
+    assignValue frame inst.result inst.ty (.scalar ⟨1,if a = b then 0 else 1⟩)
   | .abi (.encode mode hasBase hasSelector functions),_ =>
     let args ← inst.operands.mapM (read frame)
     let (value,next) ← abiEncode frame mode hasBase hasSelector functions args
@@ -262,7 +274,7 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation 
     let (word,next) ← bytesSlot cfg frame key slot
     assign next inst.result inst.ty (some word)
   | .select,[condition,yes,no] =>
-    let condition ← read frame condition
+    let condition ← readBits 1 frame condition
     let yes ← readValue frame yes
     let no ← readValue frame no
     assignValue frame inst.result inst.ty (if condition = 0 then no else yes)

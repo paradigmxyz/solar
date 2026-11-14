@@ -114,7 +114,7 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
     match block.terminator with
     | .jump target => next (branch cursor target) stack frame
     | .branch condition yes no =>
-      let condition ← read frame condition
+      let condition ← readBits 1 frame condition
       if condition = 1 then next (branch cursor yes) stack frame
       else next (branch cursor no) stack frame
     | .switch value fallback cases =>
