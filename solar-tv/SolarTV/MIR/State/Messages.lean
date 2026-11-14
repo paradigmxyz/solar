@@ -1,9 +1,10 @@
 import SolarTV.MIR.State.Ops
 import SolarTV.EVMIR.State.Interpreter
 
-/-! Direct MIR message boundaries. Explicit CALL gas is forwarded without a
-caller-side cap under the sufficient-caller-gas assumption. CREATE's child gas
-is an explicit boundary input; it is not invented from an unpriced MIR body.
+/-! Direct MIR message boundaries. Optional caller budgets price memory growth,
+account access, value and creation charges before EIP-150 forwarding. Omission
+retains the sufficient-caller-gas mode and explicit CREATE child budgets. Neither
+mode assigns physical gas to an unpriced MIR body.
 Children execute real fixture bytecode with fork-specific gas, precompiles and
 journaling. The current MIR runtime's code is unknown, so inspecting or executing
 it from a child remains unsupported instead of compiling it through the backend.
@@ -12,7 +13,8 @@ Missing creation budgets make a scenario unsupported; an unused suffix is allowe
 namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
 
-abbrev MessageStep := Except String (Outcome (Option Word × Frame) × Nat)
+/-- An absent result is caller out-of-gas; evaluator errors remain unsupported. -/
+abbrev MessageStep := Except String (Option (Outcome (Option Word × Frame) × Nat))
 
 def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
     (args : List Word) : MessageStep := do
@@ -33,32 +35,56 @@ def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
     let amount := if opcode = 0xf1 || opcode = 0xf2 then args[2]?.getD 0 else 0
     let kind := if opcode = 0xf1 then Calls.Kind.call else if opcode = 0xf2 then .callcode
       else if opcode = 0xf4 then .delegatecall else .staticcall
-    if cfg.environment.isStatic && kind == .call && amount != 0 then return (.invalid,0) else
+    if cfg.environment.isStatic && kind == .call && amount != 0 then return some (.invalid,0) else
     if gas.toNat > 30000000 then .error "MIR requested child gas exceeds 30000000" else
     let memory ← expand frame.memory inputOffset.toNat inputSize.toNat
     let memory ← expand memory outputOffset.toNat outputSize.toNat
-    let (code,_,world) := EVM.State.executionCode cfg.fork frame.world (destination.setWidth 160)
+    let (code,resolution,world) := EVM.State.executionCode cfg.fork frame.world (destination.setWidth 160)
     let message := ⟨kind,destination.setWidth 160,amount,readBytes memory inputOffset.toNat inputSize.toNat⟩
+    let budget ← match cfg.messageGas with
+      | none => pure (some (gas.toNat + if Calls.hasValue message then 2300 else 0,0))
+      | some budgets => do
+        let available ← required budgets[frame.messageGas.length]? "missing MIR caller gas budget"
+        let charge := EVM.State.callBoundaryCharge externalConfig frame.world message opcode resolution
+          (memoryWords frame.memory) (memoryWords memory)
+        if available < charge then pure none else
+          pure ((Calls.forwardGas cfg.fork (available-charge) gas.toNat (Calls.hasValue message)).map
+            (fun budget => (budget.supplied,available-charge-budget.charged)))
+    let some (supplied,retained) := budget | return none
     let child ← EVM.State.executeCall (EVM.State.run fuel externalConfig) externalConfig world
-      cfg.environment message code (gas.toNat + if Calls.hasValue message then 2300 else 0)
+      cfg.environment message code supplied
     let next := {frame with
       world := child.world
       memory := writeBytes memory outputOffset.toNat (child.data.take outputSize.toNat)
-      returnData := child.data}
-    return (.returned (some child.value,next),child.work)
+      returnData := child.data
+      messageGas := if cfg.messageGas.isSome then frame.messageGas ++ [retained+child.gas] else frame.messageGas}
+    return some (.returned (some child.value,next),child.work)
   | 0xf0,[amount,offset,size] | 0xf5,[amount,offset,size,_] =>
-    if cfg.environment.isStatic then return (.invalid,0) else
-    if cfg.fork.atLeast .shanghai && size.toNat > 49152 then return (.invalid,0) else
-    let supplied ← required cfg.creationGas[frame.creationIndex]? "missing MIR creation gas budget"
+    if cfg.environment.isStatic then return some (.invalid,0) else
+    if cfg.fork.atLeast .shanghai && size.toNat > 49152 then return none else
     let memory ← expand frame.memory offset.toNat size.toNat
     let salt := if opcode = 0xf5 then args[3]? else none
+    let budget ← match cfg.messageGas with
+      | none => do
+        let supplied ← required cfg.creationGas[frame.creationIndex]? "missing MIR creation gas budget"
+        pure (some (supplied,0))
+      | some budgets => do
+        let available ← required budgets[frame.messageGas.length]? "missing MIR caller gas budget"
+        let charge := EVM.State.createBoundaryCharge externalConfig (opcode = 0xf5) size.toNat
+          (memoryWords frame.memory) (memoryWords memory)
+        if available < charge then pure none else
+          let remaining := available-charge
+          let supplied := if cfg.fork.atLeast .tangerineWhistle then remaining-remaining/64 else remaining
+          pure (some (supplied,remaining-supplied))
+    let some (supplied,retained) := budget | return none
     let child ← EVM.State.executeCreation (EVM.State.run fuel externalConfig) externalConfig frame.world
       cfg.environment salt amount (readBytes memory offset.toNat size.toNat) supplied
-    return (.returned (some child.value,{frame with
+    return some (.returned (some child.value,{frame with
       world := child.world
       memory
       returnData := child.data
-      creationIndex := frame.creationIndex + 1}),child.work)
+      creationIndex := frame.creationIndex + 1
+      messageGas := if cfg.messageGas.isSome then frame.messageGas ++ [retained+child.gas] else frame.messageGas}),child.work)
   | _,_ => .error "unmodeled MIR external message or operand count"
 
 /-- Reading an object's header precedes the message; a slice needs no memory read. -/

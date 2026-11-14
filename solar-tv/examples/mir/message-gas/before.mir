@@ -1,0 +1,8 @@
+@module Messages
+fn @f() -> i256 {
+bb0:
+ v0 = add 262143, 1
+ v1 = call 100000, v0, 0, 0, 0, 0, 32
+ v2 = mload 0
+ ret v2
+}

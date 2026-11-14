@@ -710,21 +710,41 @@ solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,broken}.mir \
   --function=f --world solar-tv/examples/mir/address-calls/world.json
 ```
 
-MIR does not price its own instructions. CALL-family checks therefore assume
-enough caller gas to forward the explicit requested amount without EIP-150
-clipping. CREATE has no gas operand, so its forwarded child budgets are explicit
-scenario inputs, in evaluation order:
+MIR does not price abstract instructions. To check physical gas **at each message
+boundary**, supply ordered caller budgets just before the opcode's charges:
 
 ```json
-{"version":1,"creation_gas":[100000,200000]}
+{"version":1,"message_gas":[6400,40000]}
 ```
 
-A missing budget is unsupported; an unused suffix is allowed. Each child pays
-fork-specific EVM gas and can run out of gas. Requested CALL gas and each creation
-budget are limited to 30 million. Independent native replay also limits combined
-child gas spent to 30 million and child instructions to one million. These checks
-prove semantic effects under the recorded boundary conditions; they do not prove
-equality of physical caller gas or infer CREATE budgets from backend code.
+These budgets pay memory expansion, warm/cold account access, value transfer and
+new-account charges. CALL requests are capped by EIP-150, with the value stipend
+added to the child budget. CREATE/CREATE2 derive their child budget after base,
+initcode and hashing charges. Unused child gas returns to the caller; child
+reverts and exceptional failures retain their distinct gas behavior. Insufficient
+upfront gas terminates the caller and rolls back its journal. EIP-7702 resolution
+is charged before forwarding. Amsterdam's message gas remains unsupported.
+
+Remaining gas at completed boundaries is observable, including through internal
+calls. A proof in this mode requires equal boundary gas observations; it does not
+infer instruction prices between those explicit boundaries or claim a whole
+MIR body's physical gas equivalence. Missing budgets are unsupported, an unused
+suffix is allowed, and an explicit empty list never enables a fallback.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/message-gas/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/message-gas/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/message-gas/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/message-gas/world.json
+```
+
+Without `message_gas`, CALL assumes sufficient caller gas to avoid clipping.
+CREATE instead needs explicit ordered child budgets, for example
+`{"version":1,"creation_gas":[100000,200000]}`. The two modes cannot be combined.
+Precompile builtins still use `builtin_gas` for their requested gas operand.
+Budgets are limited to 128 entries and 30 million gas per entry. Independent
+native replay also limits combined child gas spent to 30 million and child
+instructions to one million. Child bytecode always pays fork-specific gas.
 
 Return data, access warmth and account creation/destruction flags remain observable
 when an internal function returns. Calls replace the full returndata buffer while

@@ -15,7 +15,7 @@ namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
 
 def finish (completion : Completion) (frame : Frame) : Result :=
-  ⟨completion,frame.world,frame.memory,frame.returnData,frame.creationIndex,frame.builtinIndex⟩
+  ⟨completion,frame.world,frame.memory,frame.returnData,frame.creationIndex,frame.builtinIndex,frame.messageGas⟩
 
 def function (functions : Functions) (id : Nat) : Except String Function :=
   required ((functions.find? (·.1 == id)).map Prod.snd) "unknown MIR function"
@@ -75,7 +75,7 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
     | .external op =>
       if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then stop .invalid frame else
       let (opcode,args,frame) ← messageArguments cfg frame op inst.operands
-      let (effect,work) ← external fuel cfg frame opcode args
+      let some (effect,work) ← external fuel cfg frame opcode args | stop .outOfGas frame
       match effect with
       | .returned (value,parent) =>
         if (match op with | .transfer true | .hash _ | .recover => true | _ => false) && value == some 0 then
@@ -142,7 +142,8 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
           memory := frame.memory
           returnData := frame.returnData
           creationIndex := frame.creationIndex
-          builtinIndex := frame.builtinIndex}
+          builtinIndex := frame.builtinIndex
+          messageGas := frame.messageGas}
         if caller.result.isNone then next caller.cursor rest parent else
           let value ← required values.head? "call without a result"
           match ← assignValue parent caller.result caller.ty value with
@@ -209,7 +210,7 @@ def execute (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat) (f
   let initial ← start functions entry frame.arguments frame
   let result ← run fuel cfg functions ⟨{function := entry},[],initial⟩
   match result.completion with
-  | .reverted _ | .invalid => return {result with world := frame.world}
+  | .reverted _ | .invalid | .outOfGas => return {result with world := frame.world}
   | .returned values =>
     if cfg.entry then
       if values.isEmpty then return {result with completion := .success [],world := EVM.State.finalize result.world}

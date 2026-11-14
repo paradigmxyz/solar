@@ -611,7 +611,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         solar, version, fixture, timeout, replay, root_is_mir=True
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
-    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']},{'true' if fixture['debug_reverts'] else 'false'}⟩\n"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']},{'true' if fixture['debug_reverts'] else 'false'},{'none' if fixture['message_gas'] is None else 'some ' + str(fixture['message_gas'])}⟩\n"
     boundary_inputs = []
     for index, ty in enumerate(params):
         for path, leaf in leaf_paths(ty):
@@ -630,7 +630,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
         f"let journal : Execution.Journal := ⟨accounts,accounts,[{','.join(world.warm_addresses(fixture, version))}],[{','.join(f'({a},{k.removeprefix("$")})' for a, k in fixture['warm_slots'])}],[],0⟩\n"
         f"let memory : List Execution.Byte := {fixture['memory']['data']} ++ List.replicate {fixture['memory']['size'] - len(fixture['memory']['data'])} 0\n"
-        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0,0⟩"
+        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0,0,[]⟩"
     )
     return Program(
         (
