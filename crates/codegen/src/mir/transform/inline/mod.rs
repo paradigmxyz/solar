@@ -16,8 +16,10 @@
 //! a direct constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
-//! and one-word literals used once per emitted artifact. Shared void forwarders
-//! that add arguments stay shared to avoid duplicating their setup.
+//! and one-word literals used once per emitted artifact; gas mode likewise
+//! keeps multi-use helpers that write the free-memory pointer shared. Shared
+//! void forwarders that add arguments stay shared to avoid duplicating their
+//! setup.
 //!
 //! After memory lowering, frame allocation and multi-word return staging cannot
 //! be introduced again. At this stage the pass also partially clones returning
@@ -241,6 +243,8 @@ struct MirInlineSummary {
     internal_frame_size: u64,
     has_icall: bool,
     has_alloc: bool,
+    /// Whether the body allocates or writes the free-memory-pointer slot.
+    allocates: bool,
     /// Calls on returning paths require a separate call/frame stack estimate.
     has_returning_icall: bool,
     has_phi: bool,
@@ -589,6 +593,7 @@ impl MirInliner {
             && (!has_reference_return
                 || summary.is_transparent_forwarder
                 || (single_call && summary.is_small_literal_return))
+            && (single_call || !gas || !summary.allocates)
             && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
             && (single_call || !summary.void_forwarder_adds_args)
             && (!summary.has_control_flow || summary.is_check_wrapper);
@@ -1015,7 +1020,10 @@ fn summarize_function(
                     }
                 }
                 InstKind::Phi(_) => summary.has_phi = true,
-                InstKind::Alloc { .. } => summary.has_alloc = true,
+                InstKind::Alloc { .. } => {
+                    summary.has_alloc = true;
+                    summary.allocates = true;
+                }
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
                 InstKind::AbiDecode { .. }
@@ -1054,6 +1062,7 @@ fn summarize_function(
                 }
                 _ => {}
             }
+            summary.allocates |= func.is_fmp_slot_store(inst_id);
             let effect = kind.effect_kind();
             summary.is_impure |= !matches!(effect, EffectKind::Pure | EffectKind::MemoryRead);
             all_scalar_ops = all_scalar_ops
