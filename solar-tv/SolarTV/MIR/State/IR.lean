@@ -265,6 +265,12 @@ def readValue (frame : Frame) (operand : Operand) : Except String Value := do
 def read (frame : Frame) (operand : Operand) : Except String Word := do
   (← readValue frame operand).word
 
+/-- Read a typed scalar without widening through an intermediate word. -/
+def readBits (width : Nat) (frame : Frame) (operand : Operand) : Except String (BitVec width) := do
+  let .scalar value ← readValue frame operand | .error "non-scalar MIR operand"
+  if h : value.width = width then return value.bits.cast h
+  else .error "MIR scalar operand width mismatch"
+
 def put (locals : List (Nat × α)) (id : Nat) (value : α) : List (Nat × α) :=
   (id,value) :: locals.filter (·.1 != id)
 

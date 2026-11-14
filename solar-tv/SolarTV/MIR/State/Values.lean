@@ -51,6 +51,13 @@ def Scalar.ofWord (width : Nat) (value : Word) : Scalar := ⟨width,wordBits wid
       if condition then widenBits yes else widenBits no := by
   split <;> rfl
 
+/-- Distribute resizing before deciding a symbolic boolean's scalar carrier. -/
+@[simp] theorem resize_ite (condition : Prop) [Decidable condition]
+    (yes no : BitVec width) (target : Nat) :
+    BitVec.setWidth target (if condition then yes else no) =
+      if condition then BitVec.setWidth target yes else BitVec.setWidth target no := by
+  split <;> rfl
+
 inductive ValueType where
   | word (width : Nat)
   | pointer (location : Nat)
@@ -74,7 +81,8 @@ mutual
 end
 
 
-def ValueType.width : ValueType → Nat
+/-- A reducible type index keeps dependent scalar casts well-typed during simplification. -/
+abbrev ValueType.width : ValueType → Nat
   | .word width => width
   | .pointer _ => 256
   | _ => 0

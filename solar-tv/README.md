@@ -323,10 +323,10 @@ its values, all active memory, persistent/transient cells and logs. STOP and raw
 RETURN end the transaction; private memory and transient cells then disappear.
 Revert and exceptional halt roll back the journal and retain their exact outcome.
 
-MIR state validation compares semantic effects with sufficient gas. It assigns
-no EVM gas costs to semantic instructions and rejects `--gas` and fixture `gas`
-budgets. Direct internal calls share memory and state while keeping separate,
-width-typed SSA locals. Tail calls replace the current activation. Revert,
+MIR state validation compares semantic effects without pricing abstract
+instructions. Explicit `message_gas` budgets price message boundaries as described
+below; root `--gas` and fixture `gas` budgets remain unsupported. Direct internal
+calls share memory and state while keeping separate, width-typed SSA locals. Tail calls replace the current activation. Revert,
 exception, STOP and raw RETURN propagate through callers; normal returns resume
 the caller. One work budget covers the whole call tree, with a separate model
 limit of 128 live activations. Only the selected function's reachable callees
@@ -591,9 +591,10 @@ removing the raw padding check.
 
 The kernel-checked discharge rule is in
 [MIR/Transforms/AbiValidation.lean](SolarTV/MIR/Transforms/AbiValidation.lean).
-This example runs actual ABI conversion passes. Its `i1` input selects a clean
-function word or one with a dirty padding bit; the kernel exhausts both values.
-The padding-equivalence and unsigned-shift lemmas apply to every 256-bit word.
+This example runs actual ABI conversion passes. Its `i256` input is an
+unrestricted raw function word: the kernel-checked proof covers every value,
+including malformed padding. The proof keeps typed boolean intermediates and
+branches intact and discharges the normalized `uint192` obligation.
 Its broken version skips the function-word padding rejection:
 
 ```sh
