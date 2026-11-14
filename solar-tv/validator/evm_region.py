@@ -125,11 +125,27 @@ def translate(text: str, entry: str, height: int) -> Program:
         ("evm-region", str(height), "memory"),
         inputs,
         "EVM.Memory.Execution",
-        f"EVM.Region.execute ⟨calldatasize, returndatasize⟩ ({code}) [{','.join(stack)}] ({memory.INITIAL})",
+        f"EVM.Region.execute ⟨calldatasize, returndatasize⟩ (__IMPORT___code) [{','.join(stack)}] ({memory.INITIAL})",
         (*(256 for _ in range(2 + height)), *memory.WIDTHS),
         canonical_ir=projection,
         memory=True,
         replay_ir=text,
         selector=entry,
         scope="region",
+        region_code=code,
+    )
+
+
+def cyclic(text, entry, height):
+    """Keep an unbounded source graph; acceptance needs graph correspondence."""
+    return Program(
+        ("evm-cyclic-region", str(height)),
+        ["calldatasize", "returndatasize"],
+        "Correspondence.Graph EVM.Region.State EVM.Memory.Execution",
+        "__IMPORT___graph ⟨calldatasize,returndatasize⟩",
+        (256, 256),
+        canonical_ir=text,
+        replay_ir=text,
+        selector=entry,
+        scope="cyclic-region",
     )

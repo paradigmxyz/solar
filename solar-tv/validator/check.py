@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import (
     audit,
+    correspondence,
     evm_region,
     evmir,
     gas,
@@ -137,8 +138,24 @@ def load(
             raise Unsupported(
                 "gas-priced EVM regions require physical transfer pricing"
             )
-        program = evm_region.translate(projection, region, stack_height)
+        try:
+            program = evm_region.translate(projection, region, stack_height)
+        except Unsupported as error:
+            if str(error) != "cyclic EVM regions require loop invariants":
+                raise
+            program = evm_region.cyclic(projection, region, stack_height)
         program.evm_version = evm_version or "cancun"
+        # The source witness belongs to the compiler parse, not to a field an
+        # importer can accidentally replace along with its generated tree.
+        program.replay_ir = parsed.stdout
+        program.selector = region
+        correspondence.certify(
+            program,
+            replay_executable or native.default(solar),
+            timeout,
+            entry_label=region,
+            stack_height=stack_height,
+        )
         return program
     following = None
     if function is not None:
@@ -194,6 +211,13 @@ def load(
         program.scope = "function" if function is not None else "window"
         program.following = following
     program.evm_version = evm_version or "cancun"
+    if kind == "mir":
+        names = re.findall(r"^fn @([^ (]+)\(", projection, re.MULTILINE)
+        if names != [program.interface[0]]:
+            raise Unsupported("MIR import changed the selected function identity")
+        correspondence.certify_scalar_mir(
+            program, solar, replay_executable or native.default(solar), timeout
+        )
     return program
 
 
@@ -204,7 +228,12 @@ def definition(name: str, program: Program) -> str:
         for arg, width in zip(program.inputs, widths, strict=True)
     )
     body = "\n".join("  " + line for line in program.body.splitlines())
-    return f"def {name} {args} : {program.result_type} :=\n{body}\n"
+    declaration = (
+        program.import_certificate
+        + f"def {name} {args} : {program.result_type} :=\n{body}\n"
+        + program.import_obligation
+    )
+    return declaration.replace("__IMPORT__", name)
 
 
 def build_model(timeout: int) -> subprocess.CompletedProcess:
@@ -237,6 +266,8 @@ def check(
     replay_executable: str,
     verbose: bool = False,
 ) -> audit.Result:
+    if a.scope == "cyclic-region" or b.scope == "cyclic-region":
+        return correspondence.check_cyclic(a, b, timeout)
     if a.world is not None or b.world is not None:
         from .world_check import check as check_world
 
@@ -377,7 +408,13 @@ def check(
             probe = lean(
                 f'#eval IO.println (if decide ({relation("before " + concrete, "after " + concrete)}) then "same" else "different")\n'
             )
-            if probe.returncode or probe.stdout.strip() not in {"same", "different"}:
+            if probe.returncode:
+                raise Inconclusive(
+                    "import correspondence certificate failed\n"
+                    + probe.stdout
+                    + probe.stderr
+                )
+            if probe.stdout.strip() not in {"same", "different"}:
                 raise Inconclusive(
                     "invalid region witness probe\n" + probe.stdout + probe.stderr
                 )

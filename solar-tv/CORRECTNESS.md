@@ -1,0 +1,100 @@
+# Proof boundaries
+
+An operation having semantics does not mean every occurrence of that operation
+can be verified. A positive result covers the admitted inputs, observations and
+assumptions in its audit record. It does not prove the Rust compiler, complete
+pass or complete contract correct.
+
+## Import correspondence
+
+[Correspondence.lean](SolarTV/Correspondence.lean) proves that successful CFG
+expansion preserves execution for every initial state. Instruction effects may
+change state or terminate execution; missing nodes and exhausted expansion fuel
+are unsupported, not successful outcomes. The theorem is generic in the state
+and observation types. Its application determines which effects it covers.
+
+For acyclic EVM regions, the Rust helper reparses the compiler-validated source
+and exports reachable instruction identities and control edges. It does not
+consume the Python importer's execution tree. A generated Lean certificate
+checks that graph's expansion against the separate tree and applies
+`expansion_correct` and `EVM.Region.toTree_correct`. Changing both sides of a
+pair to the same incorrect tree therefore cannot turn a corrupt import into a
+proof. The projected stack, memory, transfer stack growth and terminal effects
+must agree with the source graph.
+An entry theorem then links the actual function used by the pair proof to that
+graph, with the requested entry label, incoming stack height and input types.
+Checking an unused code declaration is insufficient; corruption tests also
+replace the execution function while leaving its checked code tree intact.
+
+Pure cyclic EVM regions have a narrower route: kernel-checked equality of the
+independent source graphs implies equal executions for every bound and initial
+state. This proves no termination assumption and never equates successful
+execution with bounded exhaustion. It currently handles graph-preserving cleanup,
+including removal of unreachable blocks; loop rewriting that needs a simulation
+or invariant is unsupported. Memory/state operations in this route are rejected.
+
+Pure straight-line i256 MIR imports are checked against the direct typed SSA
+interpreter in Lean using the independent Rust schema export. The generated
+obligation quantifies every word argument. Unsupported execution and fuel
+exhaustion cannot satisfy a successful scalar result. Other MIR fragments still
+rely on the importer boundary; the absence of an `import_correspondence` record
+must not be read as a certificate.
+
+The compiler parser, Rust source normalizer/schema exporter, opcode mapping and
+backend placement remain trusted. Independent replay checks concrete witnesses
+against the original interpreters. It is additional evidence, not an all-input
+proof of those implementations. The permitted proof axioms remain `propext`,
+`Classical.choice` and `Quot.sound`; generated positive proofs reject others.
+
+## Real-contract evaluation
+
+Run `solar-tv/evaluate --limit 8 --timeout 10 --seed 0 --output DIR` with a
+fresh directory. [evaluation.json](evaluation.json) pins source archives by
+SHA-256. The contracts are Solady WETH, OpenZeppelin ERC20Mock and Morpho Blue.
+The runner compiles their real import closures for Cancun, via IR, with the
+optimizer enabled at 200 runs and metadata trailers disabled.
+
+Each case has a normal compilation and an unchecked capture compilation. Their
+ABI, creation bytecode and runtime bytecode outputs must match exactly. Capture
+stores every changed region, including ones the hook already knows it cannot
+verify. The deterministic sampler alternates layers and passes before taking a
+second region from a group. Seeded hash ordering selects within each group;
+successful checks receive no preference.
+
+The initial local run produced:
+
+| Contract | Captured checks | Selected | Verified | Unsupported |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 329 | 8 | 1 | 7 |
+| OpenZeppelin ERC20Mock | 372 | 8 | 0 | 8 |
+| Morpho Blue | 1,515 | 8 | 0 | 8 |
+
+All three output comparisons were identical. There were no counterexamples,
+timeouts, inconclusive checks or errors among the 24 selected checks. The other
+2,192 captured checks were not selected and have no verification claim. The
+verified check was an EVM IR tail-merge region in WETH. This small sample is a
+reproducible coverage baseline, not a whole-program soundness result or a broad
+comparison with other validators. CI uses four checks per contract and retains
+its own fingerprints, denominators, timings, reports and full input pairs.
+
+## Remaining obligations
+
+These limits remain explicit. They must be removed with semantics, proofs and
+regressions rather than suppressed statuses or stronger unrecorded assumptions.
+
+| Gap | Current boundary | Evidence needed to close it |
+| --- | --- | --- |
+| General loops | Acyclic expansion or equal pure cyclic source graphs | Inductive simulation/invariants, including phis, state, divergence and failures; real loop-pass pairs and broken invariants. |
+| Arbitrary state and aliases | Explicit world fixtures, listed symbolic storage cells and bounded memory projections | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
+| Whole-function MIR interfaces | Scalar local checks; broader direct execution under explicit fixtures | Automatic symbolic products, slices, void/multiple results and call graphs; certificates connecting local importer output to that execution. |
+| EVM entry stacks and indirect transfers | Fixed entry heights and static local transfers | Call/return stack relations and verified indirect targets; never assume an unknown height or destination. |
+| Importer correctness | Certificates for acyclic EVM regions and pure straight-line i256 MIR | Extend independently checked imports to typed CFGs, calls, memory, state and all other admitted modes; audit the remaining Rust and opcode boundaries. |
+| Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
+| Fork and transaction completeness | Admitted fork-specific execution, explicit delegated account state | Transaction admission/authorization processing and Amsterdam's two-resource state gas; differential boundary cases. |
+| Practical evaluation and review | Pinned three-contract sampling plus regression pairs | Wider published corpus, stronger pass coverage, independently reproduced results and external soundness review. |
+
+In the initial sample, the largest blockers were unknown EVM entry heights and
+MIR functions outside the single integer-result fragment. Removed function
+identities, shared declaration/phase changes, internal calls, dynamic return
+jumps and local calldata reads also remained unsupported. Lowering a status to
+`verified` without addressing its obligation would hide a gap, not close it.

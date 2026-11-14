@@ -1,4 +1,6 @@
 import SolarTV.MIR.Transforms.DCE
+import SolarTV.Correspondence
+import SolarTV.MIR.Import
 import SolarTV.MIR.Transforms.Casts
 import SolarTV.MIR.Transforms.CheckElim
 import SolarTV.MIR.Transforms.AbiValidation
@@ -169,3 +171,11 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.EVM.Region.swap_across_jump' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Region.swap_across_jump
+
+/-- info: 'SolarTV.Correspondence.expansion_correct' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Correspondence.expansion_correct
+
+/-- info: 'SolarTV.EVM.Region.toTree_correct' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Region.toTree_correct

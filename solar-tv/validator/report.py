@@ -14,8 +14,8 @@ from .common import Program, ReplayTimeout
 def region(program: Program) -> str:
     if program.world is not None:
         return f"{program.interface[1].upper()} world {f'function @{program.selector}' if program.world.get('direct_mir') else 'entry'} (fixture {program.world['fixture_sha256'][:12]})"
-    if program.interface[0] in {"evm-window", "evm-region"}:
-        kind = "region" if program.scope == "region" else "window"
+    if program.interface[0] in {"evm-window", "evm-region", "evm-cyclic-region"}:
+        kind = "region" if program.scope in {"region", "cyclic-region"} else "window"
         region = f"EVM IR {kind} {program.selector or 'bb0'}, entry stack height {program.interface[1]}"
         if program.gas is not None:
             region += f" (gas={program.gas}, evm={program.evm_version})"

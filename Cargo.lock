@@ -4704,6 +4704,7 @@ dependencies = [
  "serde_json",
  "snapbox",
  "solar-config",
+ "solar-data-structures",
  "solar-evmir",
  "solar-evmir-interpreter",
  "solar-interface",
