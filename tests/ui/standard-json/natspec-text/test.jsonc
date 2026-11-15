@@ -1,0 +1,28 @@
+// The documentation outputs join and trim NatSpec text like solc 0.8.38.
+// CHECK-LABEL: "C": {
+// CHECK: "notice": "block notice   continued"
+// CHECK: "notice": "Plain block"
+// CHECK: "notice": "single "
+// CHECK: "notice": "line one   line two"
+// CHECK: "details": "dev text"
+// CHECK: "a": "first   more",
+// CHECK: "b": "second"
+// CHECK: "x": "the value that continues"
+// CHECK-LABEL: "I": {
+// CHECK: "notice": "renamed parameter"
+// CHECK: "custom:tag": "not inherited"
+// CHECK-LABEL: "E": {
+// CHECK: "notice": "inherited notice"
+// CHECK-NOT: "renamed parameter"
+// CHECK: "details": "inherited dev"
+// CHECK-NOT: "custom:tag"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": ["userdoc", "devdoc"]
+      }
+    }
+  }
+}
