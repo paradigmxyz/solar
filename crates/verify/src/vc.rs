@@ -84,6 +84,8 @@ pub(crate) struct Vc<'p, 'a> {
     c: &'p Contract<'a>,
     pub smt: Smt,
     n: usize,
+    /// Calls the run has made (internal and external), so a loop cut can tell its body made one.
+    calls: usize,
     guard: String,
     env: Env,
     old: Option<Env>,
@@ -234,6 +236,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             c,
             smt,
             n: 0,
+            calls: 0,
             guard: "true".into(),
             env: Env::new(),
             old: None,
@@ -1358,11 +1361,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         if self.spec || self.guard == "false" || cond == "false" {
             return;
         }
-        self.revert_sites.push(if cond == "true" {
+        let site = if cond == "true" {
             self.guard.clone()
         } else {
             format!("(and {} {cond})", self.guard)
-        });
+        };
+        if self.trial == 0 && crate::lean::loopvc_on() {
+            self.smt.add_revert(&site);
+        }
+        self.revert_sites.push(site);
     }
 
     fn panic_unless(&mut self, phi: &str, what: &str, span: Span) {
@@ -5157,6 +5164,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
+        self.calls += 1;
         if self.in_library() {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
@@ -5423,6 +5431,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         span: Span,
         library: bool,
     ) -> R<Vec<Val>> {
+        self.calls += 1;
         if self.spec && f.opaque && self.reveal.as_deref() != Some(f.name.as_str()) {
             let ret = f
                 .rets

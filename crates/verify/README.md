@@ -50,6 +50,9 @@ Flags:
   those checks model is an error.
 - `--emit-lean DIR`: write every query as a Lean term with a manifest that binds it to the run
   (see [LEAN.md](LEAN.md)).
+- `--emit-loopvc DIR`: `--emit-lean DIR`, and for each function with a loop the loop's cutpoints,
+  edges and obligation templates as JSON, Horn clauses and Lean, with the theorem that they give
+  the exported obligations back (see [docs/loopvc-interface.md](../../docs/loopvc-interface.md)).
 - `--instrument OUT.sol`: write the file with every `@custom:check` as a `require`. A check in an
   imported file is an error, since the verification assumed it.
 - `--spec-check`: test the trusted base against its code in the file instead of verifying (see

@@ -1,0 +1,405 @@
+{
+  "candidate": {
+    "conjuncts": [
+      {
+        "origin": "annotation",
+        "site": {
+          "column": 14,
+          "file": "tests/loopvc/verify_counter.sol",
+          "line": 23
+        },
+        "term": "(<= |i@28| |n@21|)",
+        "text": "i <= n"
+      },
+      {
+        "origin": "annotation",
+        "site": {
+          "column": 14,
+          "file": "tests/loopvc/verify_counter.sol",
+          "line": 24
+        },
+        "term": "(= |count@27| (+ |count@17| |i@28|))",
+        "text": "count == old(count) + i"
+      }
+    ],
+    "head_assumption": "(assert (= |g@29| (and |g@26| (and (<= |i@28| |n@21|) (= |count@27| (+ |count@17| |i@28|))))))",
+    "rank": {
+      "origin": "annotation",
+      "site": {
+        "column": 14,
+        "file": "tests/loopvc/verify_counter.sol",
+        "line": 25
+      },
+      "term": "(- |n@21| |i@28|)",
+      "text": "n - i"
+    }
+  },
+  "cut": {
+    "head": {
+      "command": 57,
+      "guard_after": "|g@29|",
+      "guard_before": "|g@26|",
+      "script": 0,
+      "template": "(assert (= |g@29| (and |g@26| (|Inv@L0| |count@27| |i@28| |n@21| |count@17|))))"
+    },
+    "id": "L0",
+    "loop": "for",
+    "params": [
+      {
+        "back": "|arith@31|",
+        "entry": "|count@17|",
+        "lean_symbol": 26,
+        "name": "count",
+        "role": "loop",
+        "sort": "Int",
+        "symbol": "|count@27|"
+      },
+      {
+        "back": "|arith@33|",
+        "entry": "0",
+        "lean_symbol": 27,
+        "name": "i",
+        "role": "loop",
+        "sort": "Int",
+        "symbol": "|i@28|"
+      },
+      {
+        "back": "|n@21|",
+        "entry": "|n@21|",
+        "lean_symbol": 20,
+        "name": "n",
+        "role": "read",
+        "sort": "Int",
+        "symbol": "|n@21|"
+      },
+      {
+        "back": "|count@17|",
+        "entry": "|count@17|",
+        "lean_symbol": 16,
+        "name": "old(count)",
+        "role": "old",
+        "sort": "Int",
+        "symbol": "|count@17|"
+      }
+    ],
+    "predicate": "|Inv@L0|",
+    "rank": "|Rank@L0|",
+    "site": {
+      "column": 9,
+      "file": "tests/loopvc/verify_counter.sol",
+      "line": 26
+    }
+  },
+  "cutpoints": [
+    {
+      "id": "pre",
+      "kind": "function entry"
+    },
+    {
+      "id": "L0",
+      "kind": "loop head",
+      "site": {
+        "column": 9,
+        "file": "tests/loopvc/verify_counter.sol",
+        "line": 26
+      }
+    },
+    {
+      "id": "return",
+      "kind": "function exit",
+      "outcome": "normal"
+    },
+    {
+      "id": "revert",
+      "kind": "function exit",
+      "outcome": "revert"
+    }
+  ],
+  "edges": [
+    {
+      "from": "pre",
+      "id": "entry",
+      "outcome": null,
+      "templates": [
+        "t0"
+      ],
+      "to": "L0"
+    },
+    {
+      "from": "L0",
+      "id": "back",
+      "outcome": null,
+      "templates": [
+        "t1",
+        "t2"
+      ],
+      "to": "L0"
+    },
+    {
+      "from": "L0",
+      "id": "exit",
+      "outcome": "normal",
+      "templates": [
+        "t3",
+        "t4"
+      ],
+      "to": "return"
+    },
+    {
+      "from": [
+        "pre",
+        "L0"
+      ],
+      "id": "revert",
+      "outcome": "revert",
+      "paths": [
+        "r0",
+        "r1",
+        "r2",
+        "r3"
+      ],
+      "to": "revert"
+    },
+    {
+      "from": "L0",
+      "id": "call",
+      "outcome": null,
+      "templates": [],
+      "to": "L0"
+    }
+  ],
+  "format": "solar-verify-loopvc",
+  "horn": {
+    "file": "Counter/bump.horn.smt2",
+    "sha256": "88f69aaad5735250f8e4c8f3fd2d6c1dd94603c9cec4c92ff797ef62d8c3fe54"
+  },
+  "lean": {
+    "library": "LoopVc.lean",
+    "library_sha256": "8b5f650e16a217b5b843f8ca623a22f6c0dc6c0afc44e07251fac2559d4b2e82",
+    "module": "Counter/bump_loopvc.lean",
+    "namespace": "SolarVerifyLoopVc.Counter.bump"
+  },
+  "obligations": {
+    "module": "Counter/bump.lean",
+    "namespace": "SolarVerifyVc.Counter.bump"
+  },
+  "reverts": [
+    {
+      "asserts": 24,
+      "commands": 48,
+      "from": "entry",
+      "guard": "(and |g@23| (not (and (<= 0 |arith@24|) (<= |arith@24| 115792089237316195423570985008687907853269984665640564039457584007913129639935))))",
+      "id": "r0",
+      "script": 0
+    },
+    {
+      "asserts": 25,
+      "commands": 50,
+      "from": "entry",
+      "guard": "(and |g@25| (not (<= |arith@24| |limit@18|)))",
+      "id": "r1",
+      "script": 0
+    },
+    {
+      "asserts": 31,
+      "commands": 62,
+      "from": "body",
+      "guard": "(and |g@30| (not (and (<= 0 |arith@31|) (<= |arith@31| 115792089237316195423570985008687907853269984665640564039457584007913129639935))))",
+      "id": "r2",
+      "script": 0
+    },
+    {
+      "asserts": 33,
+      "commands": 66,
+      "from": "body",
+      "guard": "(and |g@32| (not (and (<= 0 |arith@33|) (<= |arith@33| 115792089237316195423570985008687907853269984665640564039457584007913129639935))))",
+      "id": "r3",
+      "script": 0
+    }
+  ],
+  "sha256": {
+    "candidate": "ad5e0176c2b5a4027a4cccc5e4ce421c51ca4bb6e760f78ee068804c6d0dc455",
+    "formulas": "f8b5887986ea82259e3bc90c12abea85773dc969a7d8788af39535ec590e2de2"
+  },
+  "templates": [
+    {
+      "asserts": 26,
+      "commands": 52,
+      "edge": "entry",
+      "goal": "(|Inv@L0| |count@17| 0 |n@21| |count@17|)",
+      "guard": "|g@26|",
+      "id": "t0",
+      "instances": [
+        {
+          "id": "Counter.bump#0",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.Counter.bump.ob0",
+          "site": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 23
+          },
+          "spec": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 23,
+            "text": "i <= n"
+          }
+        },
+        {
+          "id": "Counter.bump#1",
+          "kind": "loop invariant not satisfied on entry",
+          "lean": "SolarVerifyVc.Counter.bump.ob1",
+          "site": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 24
+          },
+          "spec": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 24,
+            "text": "count == old(count) + i"
+          }
+        }
+      ],
+      "lean": "SolarVerifyLoopVc.Counter.bump.t0",
+      "role": "invariant",
+      "script": 0
+    },
+    {
+      "asserts": 34,
+      "commands": 68,
+      "edge": "back",
+      "goal": "(|Inv@L0| |arith@31| |arith@33| |n@21| |count@17|)",
+      "guard": "|g@34|",
+      "id": "t1",
+      "instances": [
+        {
+          "id": "Counter.bump#2",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.Counter.bump.ob2",
+          "site": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 23
+          },
+          "spec": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 23,
+            "text": "i <= n"
+          }
+        },
+        {
+          "id": "Counter.bump#3",
+          "kind": "loop invariant not preserved by the loop body",
+          "lean": "SolarVerifyVc.Counter.bump.ob3",
+          "site": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 24
+          },
+          "spec": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 24,
+            "text": "count == old(count) + i"
+          }
+        }
+      ],
+      "lean": "SolarVerifyLoopVc.Counter.bump.t1",
+      "role": "invariant",
+      "script": 0
+    },
+    {
+      "asserts": 34,
+      "commands": 68,
+      "edge": "back",
+      "goal": "(and (<= 0 (|Rank@L0| |count@27| |i@28| |n@21| |count@17|)) (< (|Rank@L0| |arith@31| |arith@33| |n@21| |count@17|) (|Rank@L0| |count@27| |i@28| |n@21| |count@17|)))",
+      "guard": "|g@34|",
+      "id": "t2",
+      "instances": [
+        {
+          "id": "Counter.bump#4",
+          "kind": "loop does not terminate: decreases clause not decreased",
+          "lean": "SolarVerifyVc.Counter.bump.ob4",
+          "site": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 25
+          },
+          "spec": {
+            "column": 14,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 25,
+            "text": "n - i"
+          }
+        }
+      ],
+      "lean": "SolarVerifyLoopVc.Counter.bump.t2",
+      "role": "rank",
+      "script": 0
+    },
+    {
+      "asserts": 35,
+      "commands": 70,
+      "edge": "exit",
+      "goal": "(= |count@27| (+ |count@17| |n@21|))",
+      "guard": "|g@35|",
+      "id": "t3",
+      "instances": [
+        {
+          "id": "Counter.bump#6",
+          "kind": "postcondition not satisfied",
+          "lean": "SolarVerifyVc.Counter.bump.ob6",
+          "site": {
+            "column": 10,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 20
+          },
+          "spec": {
+            "column": 10,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 20,
+            "text": "count == old(count) + n"
+          }
+        }
+      ],
+      "lean": "SolarVerifyLoopVc.Counter.bump.t3",
+      "role": "path",
+      "script": 0
+    },
+    {
+      "asserts": 35,
+      "commands": 70,
+      "edge": "exit",
+      "goal": "(<= |count@27| |limit@18|)",
+      "guard": "|g@35|",
+      "id": "t4",
+      "instances": [
+        {
+          "id": "Counter.bump#7",
+          "kind": "contract invariant not preserved",
+          "lean": "SolarVerifyVc.Counter.bump.ob7",
+          "site": {
+            "column": 5,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 21
+          },
+          "spec": {
+            "column": 6,
+            "file": "tests/loopvc/verify_counter.sol",
+            "line": 4,
+            "text": "count <= limit"
+          }
+        }
+      ],
+      "lean": "SolarVerifyLoopVc.Counter.bump.t4",
+      "role": "path",
+      "script": 0
+    }
+  ],
+  "unit": "Counter.bump",
+  "version": 1
+}

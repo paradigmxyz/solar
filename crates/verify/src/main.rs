@@ -41,6 +41,8 @@ struct Cli {
     dump_lean: Option<PathBuf>,
     lean_namespace: Option<String>,
     emit_lean: Option<PathBuf>,
+    /// `--emit-loopvc DIR`: `--emit-lean DIR` and each function's loop cut (format 1).
+    emit_loopvc: bool,
     only: Option<String>,
     json: bool,
     jobs: usize,
@@ -95,6 +97,7 @@ fn parse_cli() -> Cli {
         dump_lean: None,
         lean_namespace: None,
         emit_lean: None,
+        emit_loopvc: false,
         only: None,
         json: false,
         instrument: None,
@@ -130,6 +133,15 @@ fn parse_cli() -> Cli {
             "--dump-lean" => c.dump_lean = it.next().map(PathBuf::from),
             "--lean-namespace" => c.lean_namespace = it.next(),
             "--emit-lean" => c.emit_lean = it.next().map(PathBuf::from),
+            "--emit-loopvc" => {
+                let dir = it.next().map(PathBuf::from);
+                if c.emit_lean.is_some() && c.emit_lean != dir {
+                    eprintln!("error: --emit-loopvc and --emit-lean name different directories");
+                    std::process::exit(2);
+                }
+                c.emit_lean = dir;
+                c.emit_loopvc = true;
+            }
             "--only" => c.only = it.next(),
             "--json" => c.json = true,
             "--dry-run" => c.dry_run = true,
@@ -155,6 +167,9 @@ fn parse_cli() -> Cli {
                      \x20          solidity-lean's SolidCore.Verify.VC checks (--lean-namespace NS)\n\
                      --emit-lean DIR  write every query as a Lean term, with DIR/manifest.json\n\
                      \x20          (see crates/verify/LEAN.md)\n\
+                     --emit-loopvc DIR  --emit-lean DIR, and each function's loop cut: its\n\
+                     \x20          cutpoints, edges and obligation templates as JSON, Horn clauses\n\
+                     \x20          and Lean (see docs/loopvc-interface.md)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
                      --emit-lean-spec OUT.lean  write the specs as a Lean module over solidity-lean's SolidCore.Spec\n\
@@ -389,6 +404,9 @@ fn main() {
         if let Err(e) = std::fs::create_dir_all(dir) {
             eprintln!("error: cannot create {}: {e}", dir.display());
             std::process::exit(2);
+        }
+        if cli.emit_loopvc {
+            lean::start_loopvc();
         }
         lean::start();
     }

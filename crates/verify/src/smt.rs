@@ -239,6 +239,30 @@ impl Smt {
         }
     }
 
+    /// How many persistent commands the recorder has seen (`--emit-loopvc`), 0 without one.
+    pub(crate) fn seq(&self) -> usize {
+        self.record.as_ref().map_or(0, |r| r.seq())
+    }
+
+    /// The recorder's current script and its number of commands, without one `None`.
+    pub(crate) fn pos(&self) -> Option<(usize, usize)> {
+        self.record.as_ref().map(|r| r.pos())
+    }
+
+    /// Records a loop cut of the real run (`--emit-loopvc`).
+    pub(crate) fn add_cut(&mut self, cut: crate::lean::loopvc::Cut) {
+        if let Some(r) = &mut self.record {
+            r.cuts.push(cut);
+        }
+    }
+
+    /// Records that the run's path reverts where `guard` holds (`--emit-loopvc`).
+    pub(crate) fn add_revert(&mut self, guard: &str) {
+        if let Some(r) = &mut self.record {
+            r.revert(guard);
+        }
+    }
+
     /// The index the next recorded query will have, for naming a case split's parent.
     pub(crate) fn next_query(&self) -> usize {
         self.record.as_ref().map_or(0, |r| r.len())

@@ -43,6 +43,19 @@ thread_local! {
     static RECORDING: Cell<bool> = const { Cell::new(false) };
     static UNIT: RefCell<String> = const { RefCell::new(String::new()) };
     static DONE: RefCell<Vec<Recorder>> = const { RefCell::new(Vec::new()) };
+    static LOOPVC: Cell<bool> = const { Cell::new(false) };
+}
+
+pub(crate) mod loopvc;
+
+/// Turns on the loop-cut export (`--emit-loopvc`) for the units recorded from now on.
+pub(crate) fn start_loopvc() {
+    LOOPVC.with(|r| r.set(true));
+}
+
+/// Whether the loop-cut export is on.
+pub(crate) fn loopvc_on() -> bool {
+    LOOPVC.with(Cell::get)
 }
 
 /// Turns recording on for the solvers this thread starts from now on.
@@ -139,6 +152,12 @@ pub(crate) struct Recorder {
     queries: Vec<Query>,
     /// Text that did not parse, which makes the unit's export an error.
     error: Option<String>,
+    /// Persistent commands seen, pushes and pops left out: a position in the run.
+    seq: usize,
+    /// The loop cuts of the real run (`--emit-loopvc`).
+    pub(crate) cuts: Vec<loopvc::Cut>,
+    /// Where the real run's paths revert (`--emit-loopvc`).
+    pub(crate) reverts: Vec<loopvc::Site>,
 }
 
 impl Recorder {
@@ -167,9 +186,28 @@ impl Recorder {
                         }
                     }
                 }
-                _ => self.cmds.push(cmd.to_string()),
+                _ => {
+                    self.cmds.push(cmd.to_string());
+                    self.seq += 1;
+                }
             }
         }
+    }
+
+    /// Persistent commands seen so far.
+    pub(crate) fn seq(&self) -> usize {
+        self.seq
+    }
+
+    /// The script the next query reads and its number of commands now.
+    pub(crate) fn pos(&self) -> (usize, usize) {
+        (self.scripts.len(), self.cmds.len())
+    }
+
+    /// Records a revert site at the current position.
+    pub(crate) fn revert(&mut self, guard: &str) {
+        let (script, upto) = self.pos();
+        self.reverts.push(loopvc::Site { seq: self.seq, script, upto, guard: guard.into() });
     }
 
     /// Closes the current script if a query reads it, so later commands start a new one.
@@ -736,6 +774,16 @@ pub(crate) fn write(sess: &Session, dir: &Path, run: Run<'_>) -> Vec<String> {
             Ok(mut json) => {
                 json["status"] =
                     run.statuses.get(&u.unit).cloned().unwrap_or_else(|| "lemma".into()).into();
+                if loopvc_on() {
+                    match loopvc::write_unit(sess, dir, u, &module, &json) {
+                        Ok(Some(v)) => json["loopvc"] = v,
+                        Ok(None) => {}
+                        Err(e) => {
+                            errors.push(format!("{}: --emit-loopvc: {e}", u.unit));
+                            json["loopvc"] = serde_json::json!({ "error": e });
+                        }
+                    }
+                }
                 functions.push(json);
             }
             Err(e) => {
@@ -779,6 +827,11 @@ pub(crate) fn write(sess: &Session, dir: &Path, run: Run<'_>) -> Vec<String> {
         "units": functions,
         "errors": errors,
     });
+    if loopvc_on()
+        && let Err(e) = std::fs::write(dir.join(loopvc::LIBRARY_FILE), loopvc::LIBRARY)
+    {
+        errors.push(format!("{}: {e}", loopvc::LIBRARY_FILE));
+    }
     let mut text = serde_json::to_string_pretty(&manifest).expect("the manifest serializes");
     text.push('\n');
     if let Err(e) = std::fs::write(dir.join("manifest.json"), text) {

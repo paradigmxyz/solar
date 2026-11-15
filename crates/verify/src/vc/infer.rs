@@ -26,7 +26,15 @@
 //! obligations were proved.
 
 use super::{Env, Frame, LoopCtx, R, Var, Vc};
-use crate::{prog::Spec, ty::Ty, walk};
+use crate::{
+    lean::loopvc::{
+        Conjunct as LoopConjunct, Cut as LoopCut, Head as LoopHead, Param as LoopParam,
+        Rank as LoopRank,
+    },
+    prog::Spec,
+    ty::Ty,
+    walk,
+};
 use solar_parse::{
     ast::{BinOpKind, Expr, ExprKind, IndexKind, LitKind, Stmt, StmtKind, UnOpKind},
     interface::{
@@ -151,9 +159,37 @@ impl<'p, 'a> Vc<'p, 'a> {
     ) -> R<()> {
         let invs = self.stmt_specs(s, "invariant");
         let decs = self.stmt_specs(s, "decreases");
-        for inv in &invs {
+        // `--emit-loopvc`: what the real run does at this cut (see `crate::lean::loopvc`).
+        let mut cut = (self.trial == 0 && crate::lean::loopvc_on()).then(|| LoopCut {
+            span: Some(s.span),
+            kind: match s.kind {
+                StmtKind::For { .. } => "for",
+                StmtKind::While(..) => "while",
+                StmtKind::DoWhile(..) => "do-while",
+                _ => "loop",
+            },
+            ..Default::default()
+        });
+        let calls0 = self.calls;
+        let seq0 = self.smt.seq();
+        for (j, inv) in invs.iter().enumerate() {
             let v = self.eval_spec(inv.expr)?;
+            let q = self.smt.next_query();
             self.check(&v.t, "loop invariant not satisfied on entry", inv.span, Some(inv));
+            if let Some(cut) = &mut cut
+                && self.smt.next_query() > q
+            {
+                cut.entry.push((q, j));
+            }
+        }
+        if let Some(cut) = &mut cut
+            && self.smt.seq() != seq0
+        {
+            cut.error.get_or_insert_with(|| {
+                "evaluating the loop invariant on entry declares symbols: not a substitution \
+                 instance of one candidate"
+                    .into()
+            });
         }
         let (entry_guard, entry_env) = (self.guard.clone(), self.env.clone());
         self.mem_call_writes.borrow_mut().clear();
@@ -211,36 +247,94 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         // The real run: every survivor and the measure are ordinary obligations from here on.
+        // The conjuncts the cut assumes at the head, in order: the hand-written invariants, then
+        // the inferred ones that have a term in the head state.
+        let mut head_terms: Vec<(String, String, String, Option<Span>)> = vec![];
+        for inv in &invs {
+            let seq = self.smt.seq();
+            let v = self.eval_spec(inv.expr)?;
+            if self.smt.seq() != seq
+                && let Some(cut) = &mut cut
+            {
+                cut.error.get_or_insert_with(|| {
+                    format!("evaluating loop invariant `{}` declares symbols", inv.text)
+                });
+            }
+            head_terms.push((v.t, inv.text.clone(), "annotation".into(), Some(inv.span)));
+        }
+        let mut cand_conj = vec![];
+        for c in &cands {
+            cand_conj.push(self.cand_term(c, &head_env, &entry_env).map(|t| {
+                head_terms.push((t, c.text.clone(), format!("inferred:{}", c.origin), None));
+                head_terms.len() - 1
+            }));
+        }
         if !cands.is_empty() {
             self.guard = entry_guard.clone();
             self.env = entry_env.clone();
-            for c in &cands {
+            for (c, j) in cands.iter().zip(&cand_conj) {
                 if let Some(t) = self.cand_term(c, &entry_env, &entry_env) {
+                    let q = self.smt.next_query();
                     self.check(
                         &t,
                         &format!("inferred loop invariant not satisfied on entry: {}", c.text),
                         s.span,
                         None,
                     );
+                    if let (Some(cut), Some(j)) = (&mut cut, j)
+                        && self.smt.next_query() > q
+                    {
+                        cut.entry.push((q, *j));
+                    }
                 }
             }
             self.guard = head_guard;
             self.env = head_env.clone();
         }
-        for inv in &invs {
-            let v = self.eval_spec(inv.expr)?;
-            self.assume(&v.t);
-        }
-        let mut assumed = vec![];
-        for c in &cands {
-            let t = self.cand_term(c, &head_env, &entry_env);
-            if let Some(t) = &t {
-                self.assume(t);
+        // One assumption of their conjunction: the one place the candidate enters the run's
+        // script, so the cut's template has one hole whatever the candidate.
+        let conj = match head_terms.len() {
+            0 => "true".to_string(),
+            1 => head_terms[0].0.clone(),
+            _ => format!(
+                "(and {})",
+                head_terms.iter().map(|t| t.0.as_str()).collect::<Vec<_>>().join(" ")
+            ),
+        };
+        let (before, pos) = (self.guard.clone(), self.smt.pos());
+        self.assume(&conj);
+        if let Some(cut) = &mut cut {
+            if self.guard != before
+                && let Some((script, cmd)) = pos
+            {
+                cut.head =
+                    Some(LoopHead { script, cmd: cmd + 1, before, after: self.guard.clone() });
             }
-            assumed.push(t);
+            cut.conj = head_terms
+                .iter()
+                .map(|(term, text, origin, span)| LoopConjunct {
+                    term: term.clone(),
+                    text: text.clone(),
+                    origin: origin.clone(),
+                    span: *span,
+                })
+                .collect();
+            cut.head_q = self.smt.next_query();
+            cut.head_seq = self.smt.seq();
         }
+        let seq = self.smt.seq();
         let d0: Vec<String> =
             decs.iter().map(|d| self.eval_spec(d.expr).map(|v| v.t)).collect::<R<_>>()?;
+        if let Some(cut) = &mut cut {
+            if self.smt.seq() != seq {
+                cut.error.get_or_insert_with(|| "evaluating `decreases` declares symbols".into());
+            }
+            if decs.len() > 1 {
+                cut.error.get_or_insert_with(|| {
+                    "several `decreases` clauses: one ranking function per loop".into()
+                });
+            }
+        }
         let c = match cond {
             Some(c) => self.eval(c)?.t,
             None => "true".into(),
@@ -268,43 +362,101 @@ impl<'p, 'a> Vc<'p, 'a> {
         if let Some(n) = next {
             self.eval(n)?;
         }
+        if let Some(cut) = &mut cut
+            && self.calls != calls0
+        {
+            cut.error.get_or_insert_with(|| {
+                "the loop makes a call: call edges are not exported yet".into()
+            });
+        }
         if self.trial == 0 {
             let keep = self.loop_vars(cond, next, body, &targets);
+            if let Some(cut) = &mut cut {
+                cut.params = self.cut_params(&env_head, &entry_env, &keep, &targets);
+            }
             let rec = self.loop_rec(s.span, &env_head, &entry_guard, &entry_env, &keep);
             self.loop_recs.insert(rec_at, rec);
         }
-        for inv in &invs {
+        for (j, inv) in invs.iter().enumerate() {
             let v = self.eval_spec(inv.expr)?;
+            let q = self.smt.next_query();
             self.check(&v.t, "loop invariant not preserved by the loop body", inv.span, Some(inv));
+            if let Some(cut) = &mut cut
+                && self.smt.next_query() > q
+            {
+                cut.back.push((q, j));
+            }
         }
         let post_env = self.env.clone();
-        for c in &cands {
+        if let Some(cut) = &mut cut {
+            for p in &mut cut.params {
+                match post_env.get(&p.name) {
+                    Some(v) if p.role != "old" => p.back = v.t.clone(),
+                    _ => {}
+                }
+            }
+        }
+        for (c, j) in cands.iter().zip(&cand_conj) {
             if let Some(t) = self.cand_term(c, &post_env, &entry_env) {
+                let q = self.smt.next_query();
                 self.check(
                     &t,
                     &format!("inferred loop invariant not preserved by the loop body: {}", c.text),
                     s.span,
                     None,
                 );
+                if let (Some(cut), Some(j)) = (&mut cut, j)
+                    && self.smt.next_query() > q
+                {
+                    cut.back.push((q, *j));
+                }
             }
         }
         for (d, t0) in decs.iter().zip(&d0) {
             let v = self.eval_spec(d.expr)?;
+            let q = self.smt.next_query();
             self.check(
                 &format!("(and (<= 0 {t0}) (< {} {t0}))", v.t),
                 "loop does not terminate: decreases clause not decreased",
                 d.span,
                 Some(d),
             );
+            if let Some(cut) = &mut cut {
+                cut.rank = Some(LoopRank {
+                    term: t0.clone(),
+                    back: v.t,
+                    text: d.text.clone(),
+                    origin: "annotation".into(),
+                    span: Some(d.span),
+                });
+                if self.smt.next_query() > q {
+                    cut.rank_q.push(q);
+                }
+            }
         }
         if let (Some(m), Some(t0)) = (&measure, &m0) {
             match self.measure_term(m) {
-                Some(t1) => self.check(
-                    &format!("(and (<= 0 {t0}) (< {t1} {t0}))"),
-                    &format!("inferred termination measure not decreased: {}", m.text),
-                    s.span,
-                    None,
-                ),
+                Some(t1) => {
+                    let q = self.smt.next_query();
+                    self.check(
+                        &format!("(and (<= 0 {t0}) (< {t1} {t0}))"),
+                        &format!("inferred termination measure not decreased: {}", m.text),
+                        s.span,
+                        None,
+                    );
+                    if let Some(cut) = &mut cut {
+                        cut.rank = Some(LoopRank {
+                            term: t0.clone(),
+                            back: t1,
+                            text: m.text.clone(),
+                            origin: "inferred:guard".into(),
+                            span: None,
+                        });
+                        if self.smt.next_query() > q {
+                            cut.rank_q.push(q);
+                        }
+                    }
+                }
                 None => measure = None,
             }
         }
@@ -325,7 +477,65 @@ impl<'p, 'a> Vc<'p, 'a> {
         let (g, e) = self.merge(exits);
         self.guard = g;
         self.env = e;
+        if let Some(mut cut) = cut {
+            cut.exit_q = self.smt.next_query();
+            cut.exit_seq = self.smt.seq();
+            self.smt.add_cut(cut);
+        }
         Ok(())
+    }
+
+    /// The parameters of a loop cut (`--emit-loopvc`): the head's constants of value type the
+    /// loop writes or reads, by name, then the function-entry value of each one it writes, as
+    /// `old(x)`; each with its term on entry to the loop and, until the caller replaces it once
+    /// the body ran, its head term as its back-edge term.
+    fn cut_params(
+        &self,
+        head: &Env,
+        entry: &Env,
+        keep: &BTreeSet<String>,
+        targets: &BTreeSet<String>,
+    ) -> Vec<LoopParam> {
+        let mut out = vec![];
+        let mut names: Vec<&String> = head.keys().filter(|n| keep.contains(*n)).collect();
+        names.sort();
+        for n in &names {
+            let v = &head[*n];
+            let sort = v.ty.sort();
+            if (sort != "Int" && sort != "Bool") || !super::is_atom(&v.t) {
+                continue;
+            }
+            let Some(e) = entry.get(*n) else { continue };
+            out.push(LoopParam {
+                name: n.to_string(),
+                symbol: v.t.clone(),
+                sort,
+                role: if targets.contains(*n) { "loop" } else { "read" },
+                entry: e.t.clone(),
+                back: v.t.clone(),
+            });
+        }
+        if let Some(old) = &self.old {
+            for n in names.iter().filter(|n| targets.contains(**n)) {
+                let Some(o) = old.get(*n) else { continue };
+                let sort = o.ty.sort();
+                if (sort != "Int" && sort != "Bool")
+                    || !super::is_atom(&o.t)
+                    || out.iter().any(|p| p.symbol == o.t)
+                {
+                    continue;
+                }
+                out.push(LoopParam {
+                    name: format!("old({n})"),
+                    symbol: o.t.clone(),
+                    sort,
+                    role: "old",
+                    entry: o.t.clone(),
+                    back: o.t.clone(),
+                });
+            }
+        }
+        out
     }
 
     /// Houdini over `cands`, which hold on entry, from the havocked head state: returns the

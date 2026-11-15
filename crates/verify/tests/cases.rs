@@ -971,3 +971,222 @@ fn storageptr() {
 fn infer_newton() {
     check("tests/cases/infer_newton.sol");
 }
+
+/// The files `--emit-loopvc` writes for `Counter.bump` of `tests/loopvc/verify_counter.sol` (the
+/// loop `for (i = 0; i < n; i++) count++` under `require(count + n <= limit)`), in `dir`.
+fn emit_loopvc_counter(dir: &Path, source: &str, dry: bool) -> Run {
+    let out = dir.to_str().unwrap();
+    let mut args = vec!["--no-infer", "--only", "Counter.bump", "--emit-loopvc", out, source];
+    if dry {
+        args.insert(0, "--dry-run");
+    }
+    run_verifier(&args)
+}
+
+const LOOPVC_FILES: [&str; 4] = [
+    "Counter/bump.loopvc.json",
+    "Counter/bump.horn.smt2",
+    "Counter/bump_loopvc.lean",
+    "LoopVc.lean",
+];
+
+/// `--emit-loopvc` without a solver (docs/loopvc-interface.md): the interface of the loop cut is
+/// pinned, two runs write the same bytes, every obligation of the function is an instance of
+/// exactly one template, and a different candidate of the same loop has the same formulas.
+#[test]
+fn emit_loopvc() {
+    let dir = scratch("emit-loopvc");
+    let src = "tests/loopvc/verify_counter.sol";
+    let run = emit_loopvc_counter(&dir.join("a"), src, true);
+    assert!(!run.stderr.contains("--emit-loopvc"), "{}", run.stderr);
+    emit_loopvc_counter(&dir.join("b"), src, true);
+    let read = |d: &str, f: &str| std::fs::read_to_string(dir.join(d).join(f)).unwrap();
+    for f in LOOPVC_FILES.iter().chain(&["Counter/bump.lean"]) {
+        assert_eq!(read("a", f), read("b", f), "{f} differs between two runs");
+    }
+    assert_data_eq!(read("a", LOOPVC_FILES[0]), file!["snapshots/loopvc/Counter/bump.loopvc.json"]);
+    assert_data_eq!(read("a", LOOPVC_FILES[1]), file!["snapshots/loopvc/Counter/bump.horn.smt2"]);
+    assert_data_eq!(read("a", LOOPVC_FILES[2]), file!["snapshots/loopvc/Counter/bump_loopvc.lean"]);
+    assert_data_eq!(read("a", "Counter/bump.lean"), file!["snapshots/loopvc/Counter/bump.lean"]);
+    assert_eq!(read("a", "LoopVc.lean"), std::fs::read_to_string("src/lean/LoopVc.lean").unwrap());
+
+    let manifest = read_manifest(&dir.join("a"));
+    assert_eq!(manifest["errors"], serde_json::json!([]));
+    let unit = &manifest["units"][0];
+    assert_eq!(unit["loopvc"]["file"], "Counter/bump.loopvc.json");
+    let lv: serde_json::Value = serde_json::from_str(&read("a", LOOPVC_FILES[0])).unwrap();
+    assert_eq!(
+        (lv["format"].as_str(), lv["version"].as_u64()),
+        (Some("solar-verify-loopvc"), Some(1))
+    );
+    // Every obligation is the instance of one template.
+    let mut want: Vec<&str> = unit["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["role"] == "obligation")
+        .map(|o| o["id"].as_str().unwrap())
+        .collect();
+    let mut got: Vec<&str> = lv["templates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|t| t["instances"].as_array().unwrap())
+        .map(|i| i["id"].as_str().unwrap())
+        .collect();
+    want.sort();
+    got.sort();
+    assert_eq!(got, want);
+    let edges: Vec<(&str, &str)> = lv["templates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| (t["edge"].as_str().unwrap(), t["role"].as_str().unwrap()))
+        .collect();
+    assert_eq!(
+        edges,
+        [
+            ("entry", "invariant"),
+            ("back", "invariant"),
+            ("back", "rank"),
+            ("exit", "path"),
+            ("exit", "path")
+        ]
+    );
+    let params: Vec<&str> = lv["cut"]["params"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(params, ["count", "i", "n", "old(count)"]);
+    let froms: Vec<&str> =
+        lv["reverts"].as_array().unwrap().iter().map(|r| r["from"].as_str().unwrap()).collect();
+    assert_eq!(froms, ["entry", "entry", "body", "body"]);
+
+    // Another candidate for the same loop: the same formulas, another candidate.
+    let alt = dir.join("alt");
+    let run = emit_loopvc_counter(&alt, "tests/loopvc/verify_counter_alt.sol", true);
+    assert!(!run.stderr.contains("--emit-loopvc"), "{}", run.stderr);
+    let lv2: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(alt.join(LOOPVC_FILES[0])).unwrap()).unwrap();
+    assert_eq!(lv2["sha256"]["formulas"], lv["sha256"]["formulas"]);
+    assert_ne!(lv2["sha256"]["candidate"], lv["sha256"]["candidate"]);
+    assert_eq!(lv2["candidate"]["conjuncts"][0]["text"], "i <= n && count <= old(count) + n");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// With z3, the run verifies `Counter.bump` and writes the same loop-cut files as without a
+/// solver, and Spacer solves the Horn view.
+#[test]
+fn emit_loopvc_solver() {
+    if z3_missing() {
+        return;
+    }
+    let dir = scratch("emit-loopvc-solver");
+    let run = emit_loopvc_counter(&dir, "tests/loopvc/verify_counter.sol", false);
+    assert_eq!(run.code, Some(0), "{}{}", run.stdout, run.stderr);
+    assert!(run.stdout.contains("✔ Counter.bump"), "{}", run.stdout);
+    let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap();
+    assert_data_eq!(read(LOOPVC_FILES[0]), file!["snapshots/loopvc/Counter/bump.loopvc.json"]);
+    assert_data_eq!(read(LOOPVC_FILES[1]), file!["snapshots/loopvc/Counter/bump.horn.smt2"]);
+    assert_data_eq!(read(LOOPVC_FILES[2]), file!["snapshots/loopvc/Counter/bump_loopvc.lean"]);
+    let z3 = std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into());
+    let out =
+        Command::new(z3).arg("-T:60").arg(dir.join(LOOPVC_FILES[1])).output().expect("run z3");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(text.lines().next(), Some("sat"), "{text}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The loop-cut modules check in Lean: every template's instances at the run's candidate are the
+/// run's obligations (`rfl`), for two candidates, with no axiom beyond the standard three. Needs a
+/// solidity-lean checkout in `SOLIDITY_LEAN`.
+#[test]
+fn emit_loopvc_lean() {
+    let Some(root) = solidity_lean() else { return };
+    let build = Command::new("lake")
+        .args(["build", "Verify.Obligation"])
+        .current_dir(&root)
+        .output()
+        .unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stdout));
+    let path = Command::new("lake")
+        .args(["env", "printenv", "LEAN_PATH"])
+        .current_dir(&root)
+        .output()
+        .unwrap();
+    let lean_path = String::from_utf8_lossy(&path.stdout).trim().to_string();
+    let dir = scratch("emit-loopvc-lean");
+    for (sub, src) in
+        [("a", "tests/loopvc/verify_counter.sol"), ("alt", "tests/loopvc/verify_counter_alt.sol")]
+    {
+        let out = dir.join(sub);
+        emit_loopvc_counter(&out, src, true);
+        let module = std::fs::read_to_string(out.join(LOOPVC_FILES[2])).unwrap();
+        let theorems: Vec<&str> = module
+            .lines()
+            .filter_map(|l| l.strip_prefix("theorem "))
+            .filter_map(|l| l.split_whitespace().next())
+            .collect();
+        let mut check = String::from("import Counter.bump_loopvc\n");
+        for t in &theorems {
+            check.push_str(&format!("#print axioms SolarVerifyLoopVc.Counter.bump.{t}\n"));
+        }
+        std::fs::write(out.join("Axioms.lean"), check).unwrap();
+        for (file, olean) in [
+            ("LoopVc.lean", Some("LoopVc.olean")),
+            ("Counter/bump.lean", Some("Counter/bump.olean")),
+            ("Counter/bump_loopvc.lean", Some("Counter/bump_loopvc.olean")),
+            ("Axioms.lean", None),
+        ] {
+            let mut cmd = Command::new("lean");
+            cmd.current_dir(&out).env("LEAN_PATH", format!("{lean_path}:{}", out.display()));
+            if let Some(o) = olean {
+                cmd.args(["-o", o]);
+            }
+            let r = cmd.arg(file).output().unwrap();
+            let text = String::from_utf8_lossy(&r.stdout).into_owned();
+            assert!(r.status.success() && !text.contains("error"), "{sub}/{file}: {text}");
+            if olean.is_none() {
+                for l in text.lines() {
+                    let ok = ["propext", "Classical.choice", "Quot.sound"];
+                    let axioms = l.split('[').nth(1).unwrap_or("").trim_end_matches(']');
+                    assert!(
+                        axioms.split(", ").all(|a| a.is_empty() || ok.contains(&a)),
+                        "{sub}: {l}"
+                    );
+                }
+                assert_eq!(text.lines().count(), theorems.len(), "{text}");
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// What format 1 cannot cut is an error of the export, never a missing edge.
+#[test]
+fn emit_loopvc_fails_closed() {
+    let dir = scratch("emit-loopvc-errors");
+    for (f, why) in [
+        ("Cuts.twice", "2 loops: format 1 exports functions with one loop"),
+        ("Cuts.calls", "the loop makes a call: call edges are not exported yet"),
+        ("Cuts.bare", "the loop has no invariant: no candidate to cut at"),
+    ] {
+        let out = dir.join(f);
+        let run = run_verifier(&[
+            "--dry-run",
+            "--no-infer",
+            "--only",
+            f,
+            "--emit-loopvc",
+            out.to_str().unwrap(),
+            "tests/loopvc/unsupported.sol",
+        ]);
+        assert_ne!(run.code, Some(0));
+        assert!(run.stderr.contains(&format!("{f}: --emit-loopvc: {why}")), "{f}: {}", run.stderr);
+        let manifest = read_manifest(&out);
+        assert_eq!(manifest["units"][0]["loopvc"]["error"], why);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
