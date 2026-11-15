@@ -1465,17 +1465,7 @@ impl<'gcx> Gcx<'gcx> {
         seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
         members: &mut Vec<members::Member<'gcx>>,
     ) {
-        let function_item = self.hir.function(function);
-        let fn_ty = self.type_of_item(function.into());
-        let fn_ty =
-            if function_item.contract.is_some_and(|id| self.hir.contract(id).kind.is_library())
-                && function_item.visibility >= Visibility::Public
-            {
-                fn_ty.as_externally_callable_function(true, self)
-            } else {
-                fn_ty
-            }
-            .as_attached_function(self);
+        let fn_ty = self.attached_function_ty(function);
         if let TyKind::Fn(function_ty) = fn_ty.kind
             && let Some(&self_ty) = function_ty.parameters.first()
             && ty.convert_implicit_to(self_ty, self)
@@ -1833,6 +1823,36 @@ pub fn contract_abi(gcx: _, id: hir::ContractId) -> &'gcx [alloy_json_abi::AbiIt
     gcx.cached_arena().alloc_slice_fill_iter(gcx.build_contract_abi(id))
 }
 
+/// Returns the type of the given function when a `using for` directive attaches it to a type.
+fn attached_function_ty(gcx: _, id: hir::FunctionId) -> Ty<'gcx> {
+    let function = gcx.hir.function(id);
+    let fn_ty = gcx.type_of_item(id.into());
+    if function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library())
+        && function.visibility >= Visibility::Public
+    {
+        fn_ty.as_externally_callable_function(true, gcx)
+    } else {
+        fn_ty
+    }
+    .as_attached_function(gcx)
+}
+
+/// Returns the JSON ABI of the given function, which does not depend on the contract that
+/// inherits it.
+pub(crate) fn function_abi_item(gcx: _, id: hir::FunctionId) -> &'gcx alloy_json_abi::Function {
+    gcx.cached_arena().alloc(gcx.function_abi(id))
+}
+
+/// Returns the JSON ABI of the given event.
+pub(crate) fn event_abi_item(gcx: _, id: hir::EventId) -> &'gcx alloy_json_abi::Event {
+    gcx.cached_arena().alloc(gcx.event_abi(id))
+}
+
+/// Returns the JSON ABI of the given error.
+pub(crate) fn error_abi_item(gcx: _, id: hir::ErrorId) -> &'gcx alloy_json_abi::Error {
+    gcx.cached_arena().alloc(gcx.error_abi(id))
+}
+
 /// Returns the developer documentation for the given contract.
 pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
     gcx.cached_arena().alloc(gcx.build_dev_documentation(id))
@@ -1963,35 +1983,11 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface())
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
-        let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
-        let ty = gcx
-            .mk_ty_fn(TyFn {
-                kind: TyFnKind::External,
-                parameters: fn_ty.parameters,
-                returns: fn_ty.returns,
-                state_mutability: f.state_mutability,
-                function_id: fn_ty.function_id,
-                attached: false,
-            })
-            .as_externally_callable_function(false, gcx);
-        let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
-        let mut result = Ok(());
-        for (var_id, ty) in f.variables().zip(ty_f.tys()) {
-            if let Err(guar) = ty.error_reported() {
-                result = Err(guar);
-                continue;
-            }
-            let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
-            if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
-                let kind = f.description();
-                let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
-                let span = gcx.hir.variable(var_id).ty.span;
-                result = Err(gcx.dcx().emit_err(span, msg));
-            }
-        }
-        if result.is_err() {
-            return None;
-        }
+        let in_library = f.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
+        let ty = match gcx.valid_interface_function_ty(f_id) {
+            Some(ty) if in_library == c.kind.is_library() => ty,
+            _ => interface_function_ty_checked(gcx, c, f_id)?,
+        };
 
         // Virtual functions or ones with the same function parameter types are checked separately,
         // skip them here to avoid reporting them as selector hash collision errors below.
@@ -2024,6 +2020,23 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
     let inheritance_start = functions.partition_point(|f| gcx.hir.function(f.id).contract == Some(id));
     InterfaceFunctions { functions, inheritance_start }
+}
+
+
+/// Returns the externally callable type of an interface function if all of its parameter and
+/// return types are valid interface types, without emitting errors.
+///
+/// The result does not depend on the contract that inherits the function, so
+/// `interface_functions` reuses it across contracts and checks again only to report errors.
+fn valid_interface_function_ty(gcx: _, id: hir::FunctionId) -> Option<Ty<'gcx>> {
+    let f = gcx.hir.function(id);
+    let in_library = f.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
+    let ty = external_interface_function_ty(gcx, id);
+    let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
+    f.variables().zip(ty_f.tys()).all(|(_, ty)| {
+        let library_storage = in_library && ty.data_stored_in(DataLocation::Storage);
+        ty.error_reported().is_ok() && ty.interface_type_error(library_storage, gcx).is_none()
+    }).then_some(ty)
 }
 
 pub(crate) fn base_override_functions(
@@ -2265,6 +2278,51 @@ pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
 } // cached!
 
 // DO NOT ADD `impl Gcx` HERE. ADD FUNCTIONS IN THE IMPL BLOCK ABOVE.
+
+/// Returns the external type of an interface function, or emits the errors that its parameter
+/// and return types have as interface types.
+fn interface_function_ty_checked<'gcx>(
+    gcx: Gcx<'gcx>,
+    c: &hir::Contract<'gcx>,
+    f_id: hir::FunctionId,
+) -> Option<Ty<'gcx>> {
+    let f = gcx.hir.function(f_id);
+    let ty = external_interface_function_ty(gcx, f_id);
+    let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
+    let mut result = Ok(());
+    for (var_id, ty) in f.variables().zip(ty_f.tys()) {
+        if let Err(guar) = ty.error_reported() {
+            result = Err(guar);
+            continue;
+        }
+        let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+        if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
+            let kind = f.description();
+            let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
+            let span = gcx.hir.variable(var_id).ty.span;
+            result = Err(gcx.dcx().emit_err(span, msg));
+        }
+    }
+    if result.is_err() {
+        return None;
+    }
+    Some(ty)
+}
+
+/// Returns the externally callable type of an interface function.
+fn external_interface_function_ty(gcx: Gcx<'_>, f_id: hir::FunctionId) -> Ty<'_> {
+    let f = gcx.hir.function(f_id);
+    let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
+    gcx.mk_ty_fn(TyFn {
+        kind: TyFnKind::External,
+        parameters: fn_ty.parameters,
+        returns: fn_ty.returns,
+        state_mutability: f.state_mutability,
+        function_id: fn_ty.function_id,
+        attached: false,
+    })
+    .as_externally_callable_function(false, gcx)
+}
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;
