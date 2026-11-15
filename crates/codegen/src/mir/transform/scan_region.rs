@@ -59,8 +59,18 @@
 //! # Limits and placement
 //!
 //! The target must have `CLZ` (Osaka). The region has no loop and no instruction with an effect
-//! before its last block, and the runs of one function evaluate at most [`WORK`] instructions.
+//! before its last block, and the runs of one function pass at most [`WORK`] instructions.
 //! The pass runs after `bit-scan`, which proves the straight-line scans first.
+//!
+//! # Cost
+//!
+//! A run passes every instruction up to the one it stops at, but most of them read neither the
+//! input nor a constant, and their value is unknown in every run. Before the runs of a region,
+//! the pass follows the readers of the input once and marks what a run may see as shifted or
+//! known; a run then evaluates only those instructions, finds where it stops from the positions
+//! of the instructions with an effect, and charges [`WORK`] for every instruction it passes, so
+//! the budget runs out where it would if the run evaluated them all. A region of a long
+//! straight-line block then costs what reads its input, not the rest of the block.
 
 use super::word_sequence::is_pure;
 use crate::{
@@ -73,7 +83,12 @@ use crate::{
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
+use solar_interface::Ident;
 use solar_sema::Gcx;
 
 /// The instructions the runs of one function may evaluate.
@@ -82,6 +97,10 @@ const WORK: u32 = 1 << 18;
 const MAX_REGIONS: usize = 64;
 /// The classes tried first, which reject most regions.
 const PROBES: [u32; 5] = [0, 128, 255, 64, 1];
+/// A run may see the value as the input shifted right.
+const SHIFTED: u8 = 1;
+/// A run may see the value as known.
+const KNOWN: u8 = 2;
 
 pub(crate) struct ScanRegion;
 
@@ -117,8 +136,70 @@ struct Run {
     /// The index of the instruction the run could not run, or the block's length for its
     /// terminator.
     stop_at: usize,
-    known: FxHashMap<ValueId, U256>,
+    known: Known,
     blocks: Vec<BlockId>,
+}
+
+/// The known values of a run, sorted by value.
+struct Known(Vec<(ValueId, U256)>);
+
+impl Known {
+    fn get(&self, value: &ValueId) -> Option<&U256> {
+        let at = self.0.binary_search_by_key(value, |&(value, _)| value).ok()?;
+        Some(&self.0[at].1)
+    }
+
+    fn contains_key(&self, value: &ValueId) -> bool {
+        self.get(value).is_some()
+    }
+}
+
+impl std::ops::Index<&ValueId> for Known {
+    type Output = U256;
+
+    fn index(&self, value: &ValueId) -> &U256 {
+        self.get(value).expect("a known value")
+    }
+}
+
+/// The values of the run in progress, kept across runs so that a run allocates no map.
+#[derive(Default)]
+struct Env {
+    words: IndexVec<ValueId, Word>,
+    /// The values a run set, to read its known values and to clear before the next run.
+    set: Vec<ValueId>,
+}
+
+impl Env {
+    /// Clears the values of the last run, for a function of `len` values.
+    fn clear(&mut self, len: usize) {
+        for value in self.set.drain(..) {
+            self.words[value] = Word::Unknown;
+        }
+        if self.words.len() < len {
+            self.words.resize(len, Word::Unknown);
+        }
+    }
+
+    fn insert(&mut self, value: ValueId, word: Word) {
+        self.words[value] = word;
+        self.set.push(value);
+    }
+
+    /// The known values of the run, or only those among `keep`, which is sorted.
+    fn known(&self, keep: Option<&[ValueId]>) -> Known {
+        let known_word = |&value: &ValueId| match self.words[value] {
+            Word::Known(c) => Some((value, c)),
+            _ => None,
+        };
+        if let Some(keep) = keep {
+            return Known(keep.iter().filter_map(known_word).collect());
+        }
+        let mut known: Vec<(ValueId, U256)> = self.set.iter().filter_map(known_word).collect();
+        known.sort_unstable_by_key(|&(value, _)| value);
+        known.dedup_by_key(|&mut (value, _)| value);
+        Known(known)
+    }
 }
 
 /// What a proved value computes from the index `m` of the highest set bit.
@@ -134,13 +215,39 @@ enum Shape {
     HalfPower,
 }
 
+impl Shape {
+    /// Every shape [`shape`] can pick; [`hopeless`] relies on the list being whole.
+    fn all() -> impl Iterator<Item = Self> {
+        // Keep the list below in step with the variants.
+        let _ = |shape: Self| match shape {
+            Self::Index(_) | Self::Masked(_) | Self::LeadingZeros | Self::HalfPower => {}
+        };
+        (0..8)
+            .map(Self::Index)
+            .chain((1..8).map(Self::Masked))
+            .chain([Self::LeadingZeros, Self::HalfPower])
+    }
+}
+
 fn run_function(func: &mut Function, target: &Target) -> bool {
+    if candidates(func).is_empty() {
+        return false;
+    }
     let mut changed = false;
     let mut work = WORK;
     let mut tried = FxHashSet::default();
+    let mut facts = Facts::new(func);
+    let mut env = Env::default();
     for _ in 0..MAX_REGIONS {
-        let Some((entry, input)) = next_region(func, &mut tried) else { break };
-        changed |= rewrite_region(func, target, &mut work, entry, input);
+        let Some(&(entry, input)) =
+            facts.candidates.iter().find(|&&candidate| tried.insert(candidate))
+        else {
+            break;
+        };
+        if rewrite_region(func, &facts, target, &mut env, &mut work, entry, input) {
+            changed = true;
+            facts = Facts::new(func);
+        }
         if work == 0 {
             break;
         }
@@ -148,24 +255,194 @@ fn run_function(func: &mut Function, target: &Target) -> bool {
     changed
 }
 
-/// The next untried block that tests the upper half of a word, and the word.
-fn next_region(
-    func: &Function,
-    tried: &mut FxHashSet<(BlockId, ValueId)>,
-) -> Option<(BlockId, ValueId)> {
+/// The blocks that test the upper half of a word, and the word, in block order.
+fn candidates(func: &Function) -> Vec<(BlockId, ValueId)> {
+    let mut candidates = Vec::new();
+    let mut seen = FxHashSet::default();
     for (block, data) in func.blocks.iter_enumerated() {
         if matches!(data.terminator, None | Some(Terminator::Invalid)) {
             continue;
         }
         for &inst in &data.instructions {
             if let Some(input) = half_test(func, inst)
-                && tried.insert((block, input))
+                && seen.insert((block, input))
             {
-                return Some((block, input));
+                candidates.push((block, input));
             }
         }
     }
-    None
+    candidates
+}
+
+/// What the runs of one function read, built again after each rewrite.
+struct Facts {
+    /// The block and index of every instruction in a block.
+    place: IndexVec<InstId, Option<(BlockId, u32)>>,
+    /// The instructions that read each value.
+    users: IndexVec<ValueId, SmallVec<[InstId; 2]>>,
+    /// The indices of the instructions a run stops at in each block: those with an effect, and
+    /// phis.
+    stops: IndexVec<BlockId, Vec<u32>>,
+    /// What a run may see as each value through constants alone, without reading the input.
+    base: IndexVec<ValueId, u8>,
+    /// The indices of the instructions of each block that a run evaluates for every input.
+    base_insts: IndexVec<BlockId, Vec<u32>>,
+    /// The reads of each value, by instructions in blocks and by terminators.
+    uses: IndexVec<ValueId, u32>,
+    /// The pure instructions of each block whose result nothing reads.
+    unused: IndexVec<BlockId, Vec<InstId>>,
+    candidates: Vec<(BlockId, ValueId)>,
+}
+
+impl Facts {
+    fn new(func: &Function) -> Self {
+        let mut place = IndexVec::from_vec(vec![None; func.num_insts()]);
+        let mut users = IndexVec::from_vec(vec![SmallVec::new(); func.num_values()]);
+        let mut stops = IndexVec::with_capacity(func.blocks.len());
+        for (block, data) in func.blocks.iter_enumerated() {
+            let mut block_stops = Vec::new();
+            for (index, &inst) in data.instructions.iter().enumerate() {
+                let index = index as u32;
+                place[inst] = Some((block, index));
+                let instruction = func.inst(inst);
+                instruction.kind.visit_operands(|operand| users[operand].push(inst));
+                if !is_pure(instruction) || matches!(instruction.kind, InstKind::Phi(_)) {
+                    block_stops.push(index);
+                }
+            }
+            stops.push(block_stops);
+        }
+
+        // What constants alone make known, to a fixed point through phis.
+        let mut base = IndexVec::from_vec(vec![0u8; func.num_values()]);
+        let mut pending: Vec<InstId> = func.instructions().collect();
+        while let Some(inst) = pending.pop() {
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            let new = reach(func, inst, |operand| constant_or(func, operand, base[operand]));
+            if new | base[value] != base[value] {
+                base[value] |= new;
+                pending.extend(users[value].iter().copied());
+            }
+        }
+        let base_insts = func
+            .blocks
+            .iter()
+            .map(|data| {
+                (0..data.instructions.len() as u32)
+                    .filter(|&index| {
+                        let inst = data.instructions[index as usize];
+                        evaluates(func.inst(inst))
+                            && func.inst_result_value(inst).is_some_and(|value| base[value] != 0)
+                    })
+                    .collect()
+            })
+            .collect();
+        let mut uses: IndexVec<ValueId, u32> =
+            users.iter().map(|users| users.len() as u32).collect();
+        for data in func.blocks.iter() {
+            if let Some(terminator) = &data.terminator {
+                terminator.visit_operands(|operand| uses[operand] += 1);
+            }
+        }
+        let unused = func
+            .blocks
+            .iter()
+            .map(|data| {
+                data.instructions
+                    .iter()
+                    .copied()
+                    .filter(|&inst| {
+                        let instruction = func.inst(inst);
+                        evaluates(instruction)
+                            && instruction.result().is_some_and(|value| uses[value] == 0)
+                    })
+                    .collect()
+            })
+            .collect();
+        Self { place, users, stops, base, base_insts, uses, unused, candidates: candidates(func) }
+    }
+
+    /// The indices of the instructions of each block that a run of `input` may see as other than
+    /// unknown, for the blocks where they differ from `base_insts`.
+    fn slice(&self, func: &Function, input: ValueId) -> FxHashMap<BlockId, Vec<u32>> {
+        let mut flags: FxHashMap<ValueId, u8> = FxHashMap::default();
+        let flag = |flags: &FxHashMap<ValueId, u8>, value: ValueId| {
+            if value == input {
+                SHIFTED
+            } else {
+                constant_or(func, value, flags.get(&value).copied().unwrap_or(self.base[value]))
+            }
+        };
+        let mut marked = Vec::new();
+        let mut pending: Vec<InstId> = self.users[input].to_vec();
+        while let Some(inst) = pending.pop() {
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if value == input {
+                continue;
+            }
+            let new = reach(func, inst, |operand| flag(&flags, operand));
+            let old = flag(&flags, value);
+            if new | old != old {
+                if flags.insert(value, new | old).is_none() {
+                    marked.push(inst);
+                }
+                pending.extend(self.users[value].iter().copied());
+            }
+        }
+        let mut slice: FxHashMap<BlockId, Vec<u32>> = FxHashMap::default();
+        for inst in marked {
+            if let Some((block, index)) = self.place[inst]
+                && evaluates(func.inst(inst))
+            {
+                slice.entry(block).or_insert_with(|| self.base_insts[block].clone()).push(index);
+            }
+        }
+        for list in slice.values_mut() {
+            list.sort_unstable();
+            list.dedup();
+        }
+        slice
+    }
+}
+
+/// Whether a run evaluates the instruction when it passes it, rather than stopping there.
+fn evaluates(instruction: &Instruction) -> bool {
+    is_pure(instruction) && !matches!(instruction.kind, InstKind::Phi(_))
+}
+
+/// `KNOWN` for a constant, and `flags` otherwise.
+fn constant_or(func: &Function, value: ValueId, flags: u8) -> u8 {
+    if func.value_u256(value).is_some() { KNOWN } else { flags }
+}
+
+/// What a run may see as the result of `inst`, given what it may see as each operand, following
+/// [`eval`] and the phis of [`run`].
+fn reach(func: &Function, inst: InstId, flag: impl Fn(ValueId) -> u8) -> u8 {
+    let instruction = func.inst(inst);
+    if let InstKind::Phi(incoming) = &instruction.kind {
+        return incoming.iter().fold(0, |flags, &(_, value)| flags | flag(value));
+    }
+    if !is_pure(instruction) {
+        return 0;
+    }
+    let known = |value| flag(value) & KNOWN != 0;
+    let shifted = |value| flag(value) & SHIFTED != 0;
+    let mut operands_known = true;
+    instruction.kind.visit_operands(|operand| operands_known &= known(operand));
+    let mut flags = if operands_known { KNOWN } else { 0 };
+    match instruction.kind {
+        InstKind::Select(condition, a, b) => {
+            return if known(condition) { flag(a) | flag(b) } else { 0 };
+        }
+        InstKind::Shr(shift, value) if known(shift) && shifted(value) => flags |= SHIFTED | KNOWN,
+        InstKind::Lt(a, b) | InstKind::Gt(a, b) | InstKind::Eq(a, b) | InstKind::Ne(a, b)
+            if (shifted(a) && known(b)) || (known(a) && shifted(b)) =>
+        {
+            flags |= KNOWN;
+        }
+        _ => {}
+    }
+    flags
 }
 
 /// The word whose upper half `inst` tests.
@@ -205,27 +482,34 @@ fn decides(kind: &InstKind, shifted_first: bool, c: U256) -> bool {
 }
 
 /// The value of `value` in a run.
-fn word(func: &Function, env: &FxHashMap<ValueId, Word>, input: ValueId, value: ValueId) -> Word {
+fn word(func: &Function, env: &Env, input: ValueId, value: ValueId) -> Word {
     if value == input {
         Word::Shifted(0)
     } else if let Some(c) = func.value_u256(value) {
         Word::Known(c)
     } else {
-        env.get(&value).copied().unwrap_or(Word::Unknown)
+        env.words[value]
     }
 }
 
 /// Runs the region of `input` from `entry` on `probe`, or returns `None` when it loops or
-/// the work runs out.
+/// the work runs out. It evaluates only the instructions of `slice`, or of `Facts::base_insts`
+/// for a block `slice` leaves out: the others are unknown in every run. The run keeps the known
+/// values among `keep`, or all of them.
+#[allow(clippy::too_many_arguments)]
 fn run(
     func: &Function,
+    facts: &Facts,
+    slice: &FxHashMap<BlockId, Vec<u32>>,
     entry: BlockId,
     start: usize,
     input: ValueId,
     probe: U256,
+    keep: Option<&[ValueId]>,
+    env: &mut Env,
     work: &mut u32,
 ) -> Option<Run> {
-    let mut env = FxHashMap::default();
+    env.clear(func.num_values());
     let mut blocks = vec![entry];
     let mut block = entry;
     let mut pred = None;
@@ -239,27 +523,43 @@ fn run(
             let value = func.inst_result_value(inst)?;
             let word = pred
                 .and_then(|pred| incoming.iter().find(|&&(from, _)| from == pred))
-                .map_or(Word::Unknown, |&(_, value)| word(func, &env, input, value));
+                .map_or(Word::Unknown, |&(_, value)| word(func, env, input, value));
             phis.push((value, word));
             index += 1;
         }
-        env.extend(phis);
-        while let Some(&inst) = data.instructions.get(index) {
-            *work = work.checked_sub(1)?;
-            let instruction = func.inst(inst);
-            if !is_pure(instruction) || matches!(instruction.kind, InstKind::Phi(_)) {
-                return Some(Run { stop_block: block, stop_at: index, known: known(env), blocks });
+        for (value, word) in phis {
+            env.insert(value, word);
+        }
+        // Every instruction up to the first one the run cannot run costs work, that one too.
+        let stops = &facts.stops[block];
+        let stop = stops.get(stops.partition_point(|&at| (at as usize) < index));
+        let end = stop.map_or(data.instructions.len(), |&at| at as usize);
+        let passed = u32::try_from(end - index + usize::from(stop.is_some())).unwrap_or(u32::MAX);
+        let Some(left) = work.checked_sub(passed) else {
+            *work = 0;
+            return None;
+        };
+        *work = left;
+        let list = slice.get(&block).unwrap_or(&facts.base_insts[block]);
+        let from = list.partition_point(|&at| (at as usize) < index);
+        for &at in &list[from..] {
+            if at as usize >= end {
+                break;
             }
+            let instruction = func.inst(data.instructions[at as usize]);
             if let Some(value) = instruction.result() {
-                let result = eval(func, &instruction.kind, &env, input, probe);
+                let result = eval(func, &instruction.kind, env, input, probe);
                 env.insert(value, result);
             }
-            index += 1;
+        }
+        index = end;
+        if stop.is_some() {
+            return Some(Run { stop_block: block, stop_at: index, known: env.known(keep), blocks });
         }
         let next = match &data.terminator {
             Some(Terminator::Jump(next)) => Some(*next),
             Some(Terminator::Branch { condition, then_block, else_block }) => {
-                match word(func, &env, input, *condition) {
+                match word(func, env, input, *condition) {
                     Word::Known(c) => Some(if c.is_zero() { *else_block } else { *then_block }),
                     _ => None,
                 }
@@ -267,7 +567,7 @@ fn run(
             _ => None,
         };
         let Some(next) = next else {
-            return Some(Run { stop_block: block, stop_at: index, known: known(env), blocks });
+            return Some(Run { stop_block: block, stop_at: index, known: env.known(keep), blocks });
         };
         // A loop, or a return to the entry, is not a region the rewrite takes.
         if blocks.contains(&next) {
@@ -279,23 +579,8 @@ fn run(
     }
 }
 
-fn known(env: FxHashMap<ValueId, Word>) -> FxHashMap<ValueId, U256> {
-    env.into_iter()
-        .filter_map(|(value, word)| match word {
-            Word::Known(c) => Some((value, c)),
-            _ => None,
-        })
-        .collect()
-}
-
 /// Evaluates one pure instruction of a run on `probe`.
-fn eval(
-    func: &Function,
-    kind: &InstKind,
-    env: &FxHashMap<ValueId, Word>,
-    input: ValueId,
-    probe: U256,
-) -> Word {
+fn eval(func: &Function, kind: &InstKind, env: &Env, input: ValueId, probe: U256) -> Word {
     let get = |value| word(func, env, input, value);
     match *kind {
         InstKind::Shr(shift, value) => {
@@ -465,16 +750,27 @@ fn phi_count(func: &Function, block: BlockId) -> usize {
 }
 
 /// The values of `last` that every run computed, before the first instruction one stopped at.
+/// Only the leading phis and the instructions of `list`, the ones a run evaluates in `last`, can
+/// be known.
 fn computed(
     func: &Function,
     last: BlockId,
     first: usize,
     runs: &[(u32, Run)],
+    list: &[u32],
 ) -> Vec<(InstId, ValueId)> {
     let limit = runs.iter().map(|(_, run)| run.stop_at).min().unwrap_or(0);
     let instructions = &func.blocks[last].instructions;
-    instructions[first.min(limit)..limit.min(instructions.len())]
+    let range = first.min(limit)..limit.min(instructions.len());
+    let phis = instructions[range.clone()]
         .iter()
+        .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
+    let rest = list
+        .iter()
+        .map(|&at| at as usize)
+        .filter(|at| range.contains(at))
+        .map(|at| &instructions[at]);
+    phis.chain(rest)
         .filter_map(|&inst| {
             let value = func.inst_result_value(inst)?;
             (func.value_ty(value) == Some(MirType::I256)
@@ -487,7 +783,9 @@ fn computed(
 /// Proves and rewrites the region of `input` that starts at `entry`.
 fn rewrite_region(
     func: &mut Function,
+    facts: &Facts,
     target: &Target,
+    env: &mut Env,
     work: &mut u32,
     entry: BlockId,
     input: ValueId,
@@ -502,13 +800,20 @@ fn rewrite_region(
         _ => phi_count(func, entry),
     };
     let first = |last: BlockId| if last == entry { start } else { 0 };
+    let slice = facts.slice(func, input);
+    let list = |last: BlockId| slice.get(&last).unwrap_or(&facts.base_insts[last]).as_slice();
 
     // The zero input and a few classes first; they reject most regions.
     let mut runs: Vec<(u32, Run)> = Vec::new();
-    let Some(zero) = run(func, entry, start, input, U256::ZERO, work) else { return false };
+    let Some(zero) = run(func, facts, &slice, entry, start, input, U256::ZERO, None, env, work)
+    else {
+        return false;
+    };
     let last = zero.stop_block;
     for m in PROBES {
-        let Some(run) = run(func, entry, start, input, U256::ONE << m as usize, work) else {
+        let probe = U256::ONE << m as usize;
+        let Some(run) = run(func, facts, &slice, entry, start, input, probe, None, env, work)
+        else {
             return false;
         };
         if run.stop_block != last {
@@ -516,20 +821,49 @@ fn rewrite_region(
         }
         runs.push((m, run));
     }
-    let plausible = computed(func, last, first(last), &runs).into_iter().any(|(_, value)| {
-        zero.known.contains_key(&value)
-            && runs.iter().all(|(m, run)| may_fit(*m, run.known[&value]))
-    });
-    if !plausible {
+    let plausible: Vec<(InstId, ValueId)> = computed(func, last, first(last), &runs, list(last))
+        .into_iter()
+        .filter(|(_, value)| {
+            zero.known.contains_key(value)
+                && runs.iter().all(|(m, run)| may_fit(*m, run.known[value]))
+        })
+        .collect();
+    if plausible.is_empty() {
         return false;
     }
 
-    // Every class now.
+    // Runs that stay in the entry and stop at an instruction, or at a terminator that is not a
+    // branch, all stop at the same place, so the region and what the rewrite can remove are
+    // known now. When no value can take a form cheaper than what replacing them all removes,
+    // the other classes cannot change the answer: charge the work they would take and stop.
+    let stays = last == entry
+        && (zero.stop_at < func.blocks[entry].instructions.len()
+            || !matches!(func.blocks[entry].terminator, Some(Terminator::Branch { .. })));
+    if stays && hopeless(func, facts, target, entry, &plausible, &zero, &runs) {
+        let instructions = &func.blocks[entry].instructions;
+        let from = start
+            + instructions[start..]
+                .iter()
+                .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+                .count();
+        let passed = zero.stop_at - from + usize::from(zero.stop_at < instructions.len());
+        let classes = 256 - PROBES.len();
+        let total = (passed as u64).saturating_mul(classes as u64);
+        *work = u32::try_from(u64::from(*work).saturating_sub(total)).unwrap_or(0);
+        return false;
+    }
+
+    // Every class now. Only a plausible value can fit a shape, so the runs keep only those.
+    let mut keep: Vec<ValueId> = plausible.iter().map(|&(_, value)| value).collect();
+    keep.sort_unstable();
     for m in 0..256u32 {
         if PROBES.contains(&m) {
             continue;
         }
-        let Some(run) = run(func, entry, start, input, U256::ONE << m as usize, work) else {
+        let probe = U256::ONE << m as usize;
+        let Some(run) =
+            run(func, facts, &slice, entry, start, input, probe, Some(&keep), env, work)
+        else {
             return false;
         };
         if run.stop_block != last {
@@ -539,7 +873,7 @@ fn rewrite_region(
     }
     runs.sort_by_key(|&(m, _)| m);
     let mut proved = Vec::new();
-    for (inst, value) in computed(func, last, first(last), &runs) {
+    for (inst, value) in computed(func, last, first(last), &runs, list(last)) {
         let Some(&at_zero) = zero.known.get(&value) else { continue };
         if zero.stop_at < func.blocks[last].instructions.len()
             && func.blocks[last].instructions[..zero.stop_at].iter().all(|&i| i != inst)
@@ -575,62 +909,9 @@ fn rewrite_region(
         region.iter().copied().filter(|&block| block != entry && block != last).collect();
     middle.sort_unstable();
 
-    // What the rewrite removes: the middle blocks, the phis of the last block, and then every
-    // pure instruction of the entry and the last block that nothing reads any more.
-    let mut uses = super::egraph::use_counts(func);
     let mut replaced: FxHashSet<InstId> = proved.iter().map(|&(inst, ..)| inst).collect();
-    let mut removed: FxHashSet<InstId> = FxHashSet::default();
-    let mut branches = Cost::ZERO;
-    let mut pending = Vec::new();
-    if last != entry {
-        for &block in middle.iter().chain([&entry]) {
-            let terminator = func.blocks[block].terminator.as_ref().expect("a run passed it");
-            terminator.visit_operands(|operand| uses[operand] -= 1);
-            branches += match terminator {
-                Terminator::Jump(_) => target.jump(),
-                _ => target.branch() + target.branch(),
-            };
-        }
-        for &block in &middle {
-            pending.extend(func.blocks[block].instructions.iter().copied());
-        }
-        pending.extend(func.blocks[last].instructions.iter().copied().take(phi_count(func, last)));
-    }
-    for &inst in &replaced {
-        func.inst(inst).kind.visit_operands(|operand| uses[operand] -= 1);
-    }
-    for &inst in &pending {
-        if removed.insert(inst) && !replaced.contains(&inst) {
-            func.inst(inst).kind.visit_operands(|operand| uses[operand] -= 1);
-        }
-    }
-    // The entry and the last block, each once: a region of one block is both.
-    let tail: &[InstId] = if last == entry { &[] } else { &func.blocks[last].instructions };
-    let mut sweep: Vec<InstId> = func.blocks[entry]
-        .instructions
-        .iter()
-        .chain(tail)
-        .copied()
-        .filter(|inst| !removed.contains(inst) && !replaced.contains(inst))
-        .collect();
-    loop {
-        let mut progress = false;
-        sweep.retain(|&inst| {
-            let instruction = func.inst(inst);
-            let dead = !matches!(instruction.kind, InstKind::Phi(_))
-                && is_pure(instruction)
-                && instruction.result().is_some_and(|value| uses[value] == 0);
-            if dead {
-                removed.insert(inst);
-                instruction.kind.visit_operands(|operand| uses[operand] -= 1);
-                progress = true;
-            }
-            !dead
-        });
-        if !progress {
-            break;
-        }
-    }
+    let (mut removed, uses, branches) =
+        removal(func, facts, target, entry, last, &middle, &replaced);
     // A proved value that only the removed code or other proved values read goes with them.
     proved.retain(|&(inst, value, ..)| {
         let dead = uses[value] == 0;
@@ -655,12 +936,7 @@ fn rewrite_region(
     }
 
     // Price the rewrite.
-    let old = removed
-        .iter()
-        .chain(replaced.iter().filter(|inst| !removed.contains(inst)))
-        .map(|&inst| target.instruction_estimate(func, inst))
-        .sum::<Cost>()
-        + branches;
+    let old = most_removed(func, target, &removed, &replaced) + branches;
     let mut new = if last != entry { target.jump() } else { Cost::ZERO };
     for &(_, _, shape, odd) in &proved {
         let last_kind = clz_form(func, shape, odd, input, &mut |func, kind| {
@@ -721,4 +997,172 @@ fn rewrite_region(
         func.replace_uses(&replacements);
     }
     true
+}
+
+/// What replacing `replaced` removes: the middle blocks, the phis of the last block, and then
+/// every pure instruction of the entry and the last block that nothing reads any more. Returns
+/// the removed instructions, the uses left, and the branches the region loses.
+fn removal(
+    func: &Function,
+    facts: &Facts,
+    target: &Target,
+    entry: BlockId,
+    last: BlockId,
+    middle: &[BlockId],
+    replaced: &FxHashSet<InstId>,
+) -> (FxHashSet<InstId>, IndexVec<ValueId, u32>, Cost) {
+    let mut uses = facts.uses.clone();
+    let mut removed: FxHashSet<InstId> = FxHashSet::default();
+    let mut branches = Cost::ZERO;
+    // The instructions whose result nothing may read any more, to sweep.
+    let mut dead: Vec<InstId> = facts.unused[entry].clone();
+    if last != entry {
+        dead.extend(facts.unused[last].iter().copied());
+    }
+    let drop_use = |uses: &mut IndexVec<ValueId, u32>, dead: &mut Vec<InstId>, value| {
+        uses[value] -= 1;
+        if uses[value] == 0
+            && let Value::Inst(def) = *func.value(value)
+        {
+            dead.push(def);
+        }
+    };
+    let mut pending = Vec::new();
+    if last != entry {
+        for &block in middle.iter().chain([&entry]) {
+            let terminator = func.blocks[block].terminator.as_ref().expect("a run passed it");
+            terminator.visit_operands(|operand| drop_use(&mut uses, &mut dead, operand));
+            branches += match terminator {
+                Terminator::Jump(_) => target.jump(),
+                _ => target.branch() + target.branch(),
+            };
+        }
+        for &block in middle {
+            pending.extend(func.blocks[block].instructions.iter().copied());
+        }
+        pending.extend(func.blocks[last].instructions.iter().copied().take(phi_count(func, last)));
+    }
+    for &inst in replaced {
+        func.inst(inst).kind.visit_operands(|operand| drop_use(&mut uses, &mut dead, operand));
+    }
+    for &inst in &pending {
+        if removed.insert(inst) && !replaced.contains(&inst) {
+            func.inst(inst).kind.visit_operands(|operand| drop_use(&mut uses, &mut dead, operand));
+        }
+    }
+    // Then every pure instruction of the entry and the last block that nothing reads any more,
+    // to a fixed point.
+    while let Some(inst) = dead.pop() {
+        let instruction = func.inst(inst);
+        let sweeps = facts.place[inst].is_some_and(|(block, _)| block == entry || block == last)
+            && !replaced.contains(&inst)
+            && evaluates(instruction)
+            && instruction.result().is_some_and(|value| uses[value] == 0);
+        if sweeps && removed.insert(inst) {
+            instruction.kind.visit_operands(|operand| drop_use(&mut uses, &mut dead, operand));
+        }
+    }
+    (removed, uses, branches)
+}
+
+/// The cost of the removed and replaced instructions.
+fn most_removed(
+    func: &Function,
+    target: &Target,
+    removed: &FxHashSet<InstId>,
+    replaced: &FxHashSet<InstId>,
+) -> Cost {
+    removed
+        .iter()
+        .chain(replaced.iter().filter(|inst| !removed.contains(inst)))
+        .map(|&inst| target.instruction_estimate(func, inst))
+        .sum::<Cost>()
+}
+
+/// Whether no rewrite of a region of one block can win, from the probe runs alone.
+///
+/// Every value the rewrite takes is among `plausible` and has one of the forms its probe
+/// results and its result for zero fit, so the new code costs at least the cheapest such form
+/// of one of them, in every dimension. Replacing more values removes no less, so what the
+/// rewrite removes costs at most what replacing all of `plausible` removes. A proved value
+/// that only removed code reads moves from the replaced to the removed instructions, which
+/// changes neither. The objective order grows with every dimension, so when the cheapest form
+/// of every value costs no less than that, no rewrite of the region is cheaper.
+fn hopeless(
+    func: &Function,
+    facts: &Facts,
+    target: &Target,
+    entry: BlockId,
+    plausible: &[(InstId, ValueId)],
+    zero: &Run,
+    runs: &[(u32, Run)],
+) -> bool {
+    let replaced: FxHashSet<InstId> = plausible.iter().map(|&(inst, _)| inst).collect();
+    let (removed, _, branches) = removal(func, facts, target, entry, entry, &[], &replaced);
+    let most = most_removed(func, target, &removed, &replaced) + branches;
+    let forms = form_costs(target);
+    plausible.iter().all(|(_, value)| {
+        let at_zero = zero.known[value];
+        let cheapest = forms
+            .iter()
+            .filter(|&&(shape, odd, _)| {
+                zero_form(shape, at_zero) == Some(odd)
+                    && runs.iter().all(|(m, run)| run.known[value] == shape_at(shape, *m))
+            })
+            .map(|&(.., cost)| cost)
+            .reduce(|a, b| Cost {
+                gas: a.gas.min(b.gas),
+                bytes: a.bytes.min(b.bytes),
+                steps: a.steps.min(b.steps),
+            });
+        cheapest.is_none_or(|cheapest| !target.cmp(cheapest, most).is_lt())
+    })
+}
+
+/// The value of `shape` for the class `m`.
+fn shape_at(shape: Shape, m: u32) -> U256 {
+    match shape {
+        Shape::Index(k) => U256::from(m >> k),
+        Shape::Masked(k) => U256::from(m >> k << k),
+        Shape::LeadingZeros => U256::from(255 - m),
+        Shape::HalfPower => U256::ONE << (m >> 1) as usize,
+    }
+}
+
+/// Whether `shape` with the value `zero` for zero needs `x | 1`, or `None` when neither
+/// form gives it, as [`shape`] picks.
+fn zero_form(shape: Shape, zero: U256) -> Option<bool> {
+    let (odd, even) = match shape {
+        Shape::Index(k) => (U256::ZERO, U256::MAX >> k as usize),
+        Shape::Masked(k) => (U256::ZERO, U256::from(0xffu32 >> k << k)),
+        Shape::LeadingZeros => (U256::from(255), U256::from(256)),
+        Shape::HalfPower => (U256::ONE, U256::ZERO),
+    };
+    if zero == odd {
+        Some(true)
+    } else if zero == even {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// The cost of every `CLZ` form, priced as the rewrite prices it, on a scratch function so that
+/// pricing allocates nothing in the function rewritten.
+fn form_costs(target: &Target) -> Vec<(Shape, bool, Cost)> {
+    let mut scratch = Function::new(Ident::DUMMY);
+    let input = scratch.alloc_value(Value::Undef(MirType::I256));
+    let mut forms = Vec::new();
+    for shape in Shape::all() {
+        for odd in [true, false] {
+            let mut cost = Cost::ZERO;
+            let last = clz_form(&mut scratch, shape, odd, input, &mut |func, kind| {
+                cost += target.kind_estimate(func, &kind);
+                input
+            });
+            cost += target.kind_estimate(&scratch, &last);
+            forms.push((shape, odd, cost));
+        }
+    }
+    forms
 }
