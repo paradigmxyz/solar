@@ -55,8 +55,9 @@
 //! index with a De Bruijn multiplication, as Solady's `ffs` and Uniswap's
 //! `BitMath.leastSignificantBit` do. The isolated bit is the input of that scan, and its index is
 //! the index of its highest set bit. It has at most one bit set, so it takes 256 nonzero values:
-//! the values of its cone are evaluated on each of them, which is the whole proof, and no class
-//! is needed. `x & (0 - x)` and `x & (~x + 1)` are the isolations the pass knows.
+//! a few of them discard most values of its cone, and evaluating each remaining value on all 256,
+//! once its rewrite is known to pay, is the whole proof; no class is needed. `x & (0 - x)` and `x &
+//! (~x + 1)` are the isolations the pass knows.
 //!
 //! # Rewrite
 //!
@@ -88,9 +89,10 @@
 //! than eight bits before a table would need more classes than the pass tries. A value is proved
 //! only when its result for zero has a form. The instructions one function evaluates in one run
 //! of the pass are bounded by [`PROOF_WORK`], about what the proof of a library's scan takes,
-//! and each rewrite earns that much again, so that a function with many scans keeps them while
-//! values that pass the probes and fail their proofs cost a function at most that bound: the
-//! values left when it is reached keep their code.
+//! and each rewrite earns up to that much again in proportion to the code it removes, so that a
+//! function with many scans keeps them while values that pass the probes and fail their proofs,
+//! or rewrites of a few instructions, cost a function at most that bound: the values left when
+//! it is reached keep their code.
 //!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
@@ -128,6 +130,9 @@ const WINDOW: u32 = 8;
 /// scan evaluates 10 to 50 thousand, so a function takes the scans it has, while values that
 /// pass the probes and fail their proofs spend at most this much of a function's time.
 const PROOF_WORK: u32 = 1 << 16;
+/// The work a rewrite earns per instruction it removes, up to [`PROOF_WORK`]. A library's scan
+/// removes 15 to 40 instructions.
+const WORK_PER_REMOVED: u32 = 2048;
 
 pub(crate) struct BitScan;
 
@@ -412,12 +417,14 @@ fn rewrite_scans(
                 continue;
             };
             let (form, removed) = priced.expect("a proved scan is priced");
+            // A rewrite earns the work of a proof in proportion to the code it removes, so that
+            // small rewrites cannot keep the pass going.
+            let earned = (removed.len() as u32 + 1).saturating_mul(WORK_PER_REMOVED);
             let inserted =
                 rewrite(func, index, block, &cone, root, scan, form, removed, &constants);
             tried.extend(inserted);
             rewritten = true;
-            // A rewrite earns the work of the next proof.
-            work.set(work.get().saturating_add(PROOF_WORK));
+            work.set(work.get().saturating_add(earned.min(PROOF_WORK)));
             break;
         }
         if !rewritten {
@@ -490,9 +497,8 @@ impl<'a> Cone<'a> {
         let mut candidates = Vec::new();
         let mut words = vec![None; self.steps.len()];
         let all = (0..self.steps.len() as u32).collect::<Vec<_>>();
-        let every_bit = (0..256).map(|bit| (1, bit));
-        let probes = PROBES.iter().copied().take_while(|_| !one_bit);
-        for (probe, (lead, shift)) in probes.chain(every_bit.take_while(|_| one_bit)).enumerate() {
+        let probes = if one_bit { ONE_BIT_PROBES } else { PROBES };
+        for (probe, &(lead, shift)) in probes.iter().enumerate() {
             let input = U256::from(lead) << shift;
             let msb = U256::from(255 - input.leading_zeros());
             words.fill(None);
@@ -561,8 +567,18 @@ impl<'a> Cone<'a> {
         if !pays(Scan { leading_zeros, zero }) {
             return None;
         }
-        // The candidates of an input of one bit have been tried on each of its values.
+        // An input of one bit takes 256 nonzero values: trying each of them is the proof.
         if one_bit {
+            let words = &mut scratch[0];
+            for bit in 0..256 {
+                let expected = U256::from(if leading_zeros { 255 - bit } else { bit });
+                words.fill(None);
+                let input = Word::Known(U256::ONE << bit);
+                self.evaluate(func, needed, input, Class::ZERO, words);
+                if words[root] != Some(Word::Known(expected)) {
+                    return None;
+                }
+            }
             return Some(Scan { leading_zeros, zero });
         }
         // The widest classes first: a value the classes cannot settle fails on them at once.
@@ -748,6 +764,10 @@ impl<'a> Cone<'a> {
         result
     }
 }
+
+/// Values of a one-bit input that discard most values of its cone before the proof tries all 256.
+const ONE_BIT_PROBES: &[(u64, usize)] =
+    &[(1, 0), (1, 255), (1, 1), (1, 128), (1, 7), (1, 64), (1, 200), (1, 31)];
 
 /// The inputs that sort the values of a cone into scans and others, as leading bits and the
 /// number of zero bits below them: every stage of the search decides at least one of them each
