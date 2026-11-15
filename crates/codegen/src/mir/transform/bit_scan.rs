@@ -852,6 +852,7 @@ impl<'a> Cone<'a> {
     }
 
     /// Whether `root` is what `prove` expects for every nonzero input.
+    #[allow(clippy::too_many_arguments)]
     fn holds(
         &self,
         func: &Function,
