@@ -691,6 +691,73 @@ def dig(d, path):
     return d
 
 
+# The record's claims, which --replay holds to the hashed certify-record.json (scripts/certify's
+# record, in run_files) and to the fresh run: record.json itself is not hashed, so a claim it
+# makes is believed only where certify-record.json or the fresh run says the same.
+CLAIM_KEYS = ("final", "replay", "statuses", "caveats")
+# NOTE: replay.replayed is compared by module, in order, not by olean digest: 28 of the 3966
+# oleans of acc4-flag's closure were not bit-identical between its run and its fresh replay.
+FRESH_KEYS = [("final",), ("statuses",), ("replay", "closure"), ("replay", "replayed_count"),
+              ("replay", "trusted_count"), ("replay", "trusted"), ("replay", "unaccounted"),
+              ("replay", "replayed_beyond_plan"), ("replay", "checker", "sha256")]
+
+
+def first_diff(x, y, path):
+    """The first path at which x and y differ, or None."""
+    if isinstance(x, dict) and isinstance(y, dict):
+        for k in sorted(set(x) | set(y), key=str):
+            if k not in x or k not in y:
+                return f"{path}.{k}"
+            if (q := first_diff(x[k], y[k], f"{path}.{k}")) is not None:
+                return q
+        return None
+    if isinstance(x, list) and isinstance(y, list) and len(x) == len(y):
+        for i, (u, v) in enumerate(zip(x, y)):
+            if (q := first_diff(u, v, f"{path}[{i}]")) is not None:
+                return q
+        return None
+    return None if x == y else path
+
+
+def reached_tier(comps):
+    if comps.get("strongest"):
+        return "certified"
+    if comps["spec"] and comps["equivalence"]:
+        return "functional"
+    return "compiled" if comps["equivalence"] and comps["resources"] else "none"
+
+
+def replayed_modules(rec):
+    return [m.get("module") if isinstance(m, dict) else m for m in (dig(rec, ("replay", "replayed")) or [])]
+
+
+def claims_problem(rec, d):
+    """Why record.json's claims are not certify-record.json's (or its verdict not the one strict
+    gives that record), or None."""
+    if "certify-record.json" not in rec.get("run_files", {}):
+        claimed = [k for k in (*CLAIM_KEYS, "strict", "tier_reached", "published_statement") if rec.get(k)]
+        return f"the record claims {', '.join(claimed)} without a certify-record.json" if claimed else None
+    try:
+        cr = json.loads((d / "certify-record.json").read_text())
+    except (OSError, ValueError) as e:
+        return f"certify-record.json is unreadable: {e}"
+    for k in CLAIM_KEYS:
+        if (q := first_diff(rec.get(k), cr.get(k), k)) is not None:
+            return f"{q} differs between record.json and certify-record.json"
+    if (q := first_diff(rec.get("published_statement"), cr.get("end_to_end_statement"), "published_statement")) is not None:
+        return f"{q} differs between record.json and certify-record.json (end_to_end_statement)"
+    tier = rec.get("requested_tier")
+    if tier not in ("compiled", "functional", "certified"):
+        return f"requested_tier {tier!r} is not a tier"
+    ok, need_c, comps = strict(dict(cr, name=rec.get("name"), contract=rec.get("contract")), tier)
+    want = {"strict": {"tier": tier, "holds": ok, "components": need_c}, "tier_reached": reached_tier(comps),
+            "status": tier.upper() if ok else "REJECTED"}
+    for k, v in want.items():
+        if (q := first_diff(rec.get(k), v, k)) is not None:
+            return f"{q} is not what certify-record.json gives (record {str(rec.get(k))[:120]}, expected {str(v)[:120]})"
+    return None
+
+
 def replay_main(a):
     """--replay DIR: refuse a finished run's directory unless its files are the record's and a
     fresh, cold run from its source reproduces every pin of the record."""
@@ -719,6 +786,8 @@ def replay_main(a):
     srcs = [r for r in files if r.endswith(".sol") and "/" not in r]
     if len(srcs) != 1 or files[srcs[0]] != dig(rec, ("source", "sha256")):
         out(1, "REJECTED: replay: the record's source digest is not its source file's")
+    if (why := claims_problem(rec, d)) is not None:
+        out(1, f"REJECTED: replay: {why}")
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     fresh_dir = d.parent / f"{d.name}.replay-{stamp}"
     work = pathlib.Path(a.work).resolve() if a.work else d.parent / f"{d.name}-replay-work-{stamp}"
@@ -741,6 +810,12 @@ def replay_main(a):
         if dig(rec, path) != dig(new, path):
             out(1, f"REJECTED: replay: {'.'.join(path)} differs between the record and the fresh run "
                    f"(record {str(dig(rec, path))[:120]}, fresh {str(dig(new, path))[:120]})")
+    for path in FRESH_KEYS:
+        if (q := first_diff(dig(rec, path), dig(new, path), ".".join(path))) is not None:
+            out(1, f"REJECTED: replay: {q} differs between the record and the fresh run "
+                   f"(record {str(dig(rec, path))[:120]}, fresh {str(dig(new, path))[:120]})")
+    if replayed_modules(rec) != replayed_modules(new):
+        out(1, "REJECTED: replay: replay.replayed (its modules) differs between the record and the fresh run")
     last = new.get("status", "")
     out(p.returncode, f"{last}: replay of {d}: every pin reproduced by a fresh cold run ({fresh_dir / 'record.json'})"
         if p.returncode == 0 else f"REJECTED: replay: the fresh run's verdict is {last} (exit {p.returncode})")
@@ -959,8 +1034,7 @@ def main():
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
         ok, need_c, comps = strict(dict(rec, name=name, contract=contract), tier)
-        reached = "certified" if comps.get("strongest") else ("functional" if comps["spec"] and comps["equivalence"] else
-                                                              ("compiled" if comps["equivalence"] and comps["resources"] else "none"))
+        reached = reached_tier(comps)
         res = dict(statuses=rec.get("statuses"), strict={"tier": tier, "holds": ok, "components": need_c},
                    tier_reached=reached, replay=rec.get("replay"), caveats=rec.get("caveats"),
                    published_statement=rec.get("end_to_end_statement"), final=rec.get("final"))

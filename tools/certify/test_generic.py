@@ -2,7 +2,10 @@
 """Negative controls for tools/certify/generic.py that need no Lean: the strict predicate's source
 binding and --replay's manifest check. Run: python3 tools/certify/test_generic.py"""
 
+import argparse
+import contextlib
 import hashlib
+import io
 import json
 import pathlib
 import subprocess
@@ -116,6 +119,131 @@ class ReplayManifest(unittest.TestCase):
             code, line = self.replay(d)
             self.assertNotIn("differs from the record", line)
             self.assertNotIn("manifest does not list", line)
+
+
+def claims_record():
+    """A certified run's certify-record.json (scripts/certify's record) and the driver's record.json."""
+    cr = full_record()
+    cr["statuses"].update(spec="proved", strongest=True, excluded=["deployment", "events"])
+    cr["final"] = {"theorem": f"Certified.{NAME}.Final.final", "statement": "code = runtime ∧ Expected src spec runtime",
+                   "shape": "SolidCore.Verify.Generic.Expected", "assumptions": [], "excluded": ["deployment", "events"],
+                   "nonvacuous": f"Certified.{NAME}.Final.NonVacuous"}
+    cr["replay"].update(replayed=[{"module": f"M{i}", "olean_sha256": f"{i:064x}"} for i in range(10)],
+                        trusted={}, replayed_beyond_plan=[], checker={"path": "/x/leanchecker", "sha256": "c" * 64})
+    cr["caveats"] = []
+    cr["end_to_end_statement"] = {}
+    ok, need_c, comps = generic.strict(cr, "certified")
+    rec = {"name": NAME, "contract": CONTRACT, "requested_tier": "certified", "status": "CERTIFIED",
+           "strict": {"tier": "certified", "holds": ok, "components": need_c},
+           "tier_reached": generic.reached_tier(comps), "published_statement": cr["end_to_end_statement"],
+           **{k: json.loads(json.dumps(cr[k])) for k in generic.CLAIM_KEYS}}
+    return cr, rec
+
+
+class ReplayClaims(unittest.TestCase):
+    """record.json is not hashed: --replay must hold its claims to certify-record.json and the fresh run."""
+
+    def make(self, root, edit=None):
+        cr, rec = claims_record()
+        d = root / "run"
+        d.mkdir()
+        (d / "Meter.sol").write_text("contract Meter {}\n")
+        (d / "certify.log").write_text("log\n")
+        (d / "certify-record.json").write_text(json.dumps(cr))
+        files = {str(q.relative_to(d)): sha(q) for q in d.rglob("*") if q.is_file()}
+        rec.update(source={"sha256": files["Meter.sol"]}, run_files=files)
+        if edit:
+            edit(rec)
+        (d / "record.json").write_text(json.dumps(rec))
+        return d
+
+    def replay(self, d, fresh_edit=None):
+        """replay_main in this process, its fresh run replaced by one that writes the record's own
+        claims back (edited by fresh_edit): the checks run, no Lean does."""
+        orig = json.loads((d / "record.json").read_text())
+
+        def fake_run(cmd, *args, **kw):
+            fresh = json.loads(json.dumps(orig))
+            if fresh_edit:
+                fresh_edit(fresh)
+            out = pathlib.Path(cmd[cmd.index("--record-dir") + 1])
+            out.mkdir(parents=True)
+            (out / "record.json").write_text(json.dumps(fresh))
+            return subprocess.CompletedProcess(cmd, 0)
+
+        a = argparse.Namespace(replay=str(d), work=str(d.parent / "w"), solidity_lean="/nonexistent",
+                               packages_from=None, probe_cache=None)
+        buf = io.StringIO()
+        saved = generic.subprocess.run
+        generic.subprocess.run = fake_run
+        try:
+            with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as e:
+                generic.replay_main(a)
+        finally:
+            generic.subprocess.run = saved
+        return e.exception.code, buf.getvalue().strip().splitlines()[-1]
+
+    def test_control_certified(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t)))
+            self.assertEqual(code, 0, line)
+            self.assertTrue(line.startswith("CERTIFIED: replay of "), line)
+
+    def test_tampered_record_rejected(self):
+        def drop_module(r):
+            del r["replay"]["replayed"][3]
+
+        def empty_excluded(r):
+            r["final"]["excluded"] = []
+            r["statuses"]["excluded"] = []
+
+        cases = {
+            "final.theorem renamed": (lambda r: r["final"].update(theorem="Certified.other.Final.final"), "final.theorem"),
+            "final.statement edited": (lambda r: r["final"].update(statement="True"), "final.statement"),
+            "replay.closure raised": (lambda r: r["replay"].update(closure=11), "replay.closure"),
+            "replayed module dropped": (drop_module, "replay.replayed"),
+            "excluded emptied": (empty_excluded, "final.excluded"),
+            "statuses.excluded emptied": (lambda r: r["statuses"].update(excluded=[]), "statuses.excluded"),
+            "caveats emptied": (lambda r: r.update(caveats=None), "caveats"),
+            "strict holds forged": (lambda r: r["strict"].update(holds=False), "strict.holds"),
+        }
+        for label, (edit, field) in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as t:
+                code, line = self.replay(self.make(pathlib.Path(t), edit))
+                self.assertEqual(code, 1, line)
+                self.assertTrue(line.startswith(f"REJECTED: replay: {field}"), line)
+
+    def test_certify_record_missing(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            rec = json.loads((d / "record.json").read_text())
+            del rec["run_files"]["certify-record.json"]
+            (d / "certify-record.json").unlink()
+            (d / "record.json").write_text(json.dumps(rec))
+            code, line = self.replay(d)
+            self.assertEqual(code, 1, line)
+            self.assertIn("without a certify-record.json", line)
+
+    def test_fresh_run_differs(self):
+        cases = {
+            "final.statement": lambda r: r["final"].update(statement="True"),
+            "statuses.excluded": lambda r: r["statuses"].update(excluded=[]),
+            "replay.closure": lambda r: r["replay"].update(closure=11, replayed_count=11),
+            "replay.replayed": lambda r: r["replay"]["replayed"].pop(),
+        }
+        for field, edit in cases.items():
+            with self.subTest(field), tempfile.TemporaryDirectory() as t:
+                code, line = self.replay(self.make(pathlib.Path(t)), edit)
+                self.assertEqual(code, 1, line)
+                self.assertTrue(line.startswith(f"REJECTED: replay: {field}"), line)
+
+    def test_fresh_olean_digests_may_differ(self):
+        def redigest(r):
+            r["replay"]["replayed"][0]["olean_sha256"] = "f" * 64
+
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t)), redigest)
+            self.assertEqual(code, 0, line)
 
 
 SOLC = pathlib.Path.home() / ".cache/solc" / f"solc-{generic.SOLC_VERSION}"
