@@ -200,13 +200,25 @@ pub(crate) fn run_passes_inner(
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
                     // delete with their last other use.
+                    // Only the bodies the pass edited can hold one, when the runners recorded
+                    // them.
                     // sstore s, v !metadata(storage=offset(dead, n)) -> sstore s, v
-                    for func in module.functions.iter_mut() {
-                        func.drop_dangling_storage_aliases();
+                    let changed_functions = analyses.changed_functions(module.functions.len());
+                    match changed_functions {
+                        Some(changed) => {
+                            for func_id in changed.iter() {
+                                module.functions[func_id].drop_dangling_storage_aliases();
+                            }
+                        }
+                        None => {
+                            for func in module.functions.iter_mut() {
+                                func.drop_dangling_storage_aliases();
+                            }
+                        }
                     }
                     // Backend memory records describe the code generated for the MIR as it was.
                     module.backend_memory = None;
-                    match analyses.changed_functions(module.functions.len()) {
+                    match changed_functions {
                         Some(changed) => hotness.update(gcx, module, changed),
                         None => hotness.run(gcx, module),
                     }
