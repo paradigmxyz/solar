@@ -1,0 +1,147 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "L": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "events": {
+            "LibraryEvent(uint32)": {
+              "notice": "Defined in library L"
+            }
+          },
+          "errors": {
+            "Failed(uint256)": [
+              {
+                "notice": "Library error"
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "events": {
+            "LibraryEvent(uint32)": {
+              "details": "Library event"
+            }
+          },
+          "version": 1
+        }
+      },
+      "A": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "errors": {
+            "F(uint256)": [
+              {
+                "notice": "Something failed."
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "errors": {
+            "F(uint256)": [
+              {
+                "params": {
+                  "x": "first parameter"
+                }
+              }
+            ]
+          },
+          "version": 1
+        }
+      },
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f()": {
+              "notice": "last comment"
+            }
+          },
+          "events": {
+            "E()": {
+              "notice": "Userdoc for file-level event E."
+            },
+            "LibraryEvent(uint32)": {
+              "notice": "Defined in library L"
+            }
+          },
+          "errors": {
+            "Failed(uint256)": [
+              {
+                "notice": "Library error"
+              }
+            ],
+            "F(uint256)": [
+              {
+                "notice": "Something failed."
+              },
+              {
+                "notice": "X failed."
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "g(bool)": {
+              "details": "Multiplies by 7"
+            }
+          },
+          "events": {
+            "E()": {
+              "details": "Devdoc for file-level E."
+            },
+            "LibraryEvent(uint32)": {
+              "details": "Library event"
+            }
+          },
+          "errors": {
+            "F(uint256)": [
+              {
+                "params": {
+                  "x": "first parameter"
+                }
+              },
+              {
+                "params": {
+                  "y": "first parameter"
+                }
+              }
+            ]
+          },
+          "stateVariables": {
+            "pair": {
+              "returns": {
+                "a": "first",
+                "b": "second"
+              }
+            },
+            "value": {
+              "return": "the value",
+              "returns": {
+                "_0": "the value"
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}
