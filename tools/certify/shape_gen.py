@@ -261,6 +261,32 @@ theorem nonvacuous :
         if shape.get("nonvacuous") != f"Certified.{a.name}.Shape.nonvacuous":
             fail(f"shape.json: nonvacuous must be Certified.{a.name}.Shape.nonvacuous")
         g.setdefault("imports", [])
+        # Per-function non-vacuity: for every connected function, its precondition (the spec's
+        # requires, under the statement's fixed environment) holds on zero words with no value from
+        # the constructor's slots written with 0. One witness does not cover a sibling whose
+        # requires is unsatisfiable (or false in the fixed block): each such function fails its
+        # theorem here, and with it the run. Fail-closed: a satisfiable precondition that needs other
+        # arguments or storage fails too.
+        for fid, i in sorted(idx.items(), key=lambda kv: kv[1]):
+            fsel, fn_n = fnd[fid]
+            nonvac += f"""
+/-- **Non-vacuity of §{fid}§'s precondition**: it holds on zero words with no value, from the
+constructor's slots written with 0, in the statement's fixed environment. -/
+theorem pre_sat_{fid} :
+    let wcall : SolarTV.Call := {{ calldata := SolidCore.Refinement.Abi.calldata {fsel} (List.replicate {fn_n} 0), callvalue := 0, storage := {S}.zeros ({storage}) }}
+    SolidCore.Spec.Pre {B} (({B}).spec.specs[{i}]'(by decide))
+      ({S}.ctxOfCall wcall) ⟨fun _ => 0, SolidCore.Spec.Ghost.zero, 0⟩ wcall (List.replicate {fn_n} 0) := by
+  intro wcall
+  refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
+    ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
+    simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
+      SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
+      SolidCore.Spec.slotOf, SolidCore.Spec.Ty.ofBits, SolidCore.Spec.toWord, {S}.ctxOfCall]
+
+/-- info: 'Certified.{a.name}.Shape.pre_sat_{fid}' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms pre_sat_{fid}
+""".replace("§", "\u0060")
         g["imports"] = [*g["imports"], "Verify.ShapeSpecExport", SC]
     else:
         fail("kind must be compiled or certified")

@@ -136,7 +136,7 @@ def param_of(p, enums):
     return None
 
 
-def envelope(text, ast, contracts, contract, invariants):
+def envelope(text, ast, contracts, contract, invariants, natspec=False):
     reasons = []
 
     def block(feature, node, detail):
@@ -195,6 +195,18 @@ def envelope(text, ast, contracts, contract, invariants):
                 block("external call", n, f"a call of an external function ({ty[:80]})")
         elif t == "Identifier" and n.get("name") in ("selfdestruct", "gasleft", "blockhash"):
             block("environment", n, f"{n['name']} is outside the source semantics' environment")
+    if natspec:
+        # The published statement fixes the environment (one frame, Target.message's block and
+        # transaction): a spec clause that reads the environment could be false there and make the
+        # function's spec hold vacuously, so it is outside the envelope.
+        env_re = re.compile(r"\b(block\.\w+|tx\.\w+|gasleft|blockhash|chainid|basefee|coinbase|prevrandao)\b")
+        for n in walk(cdef):
+            if n.get("nodeType") in ("ContractDefinition", "FunctionDefinition", "VariableDeclaration"):
+                doc = (n.get("documentation") or {})
+                doc = doc.get("text", "") if isinstance(doc, dict) else str(doc)
+                for line in doc.splitlines():
+                    if "@custom:" in line and env_re.search(line):
+                        block("environment", n, f"a spec clause reads the environment ({env_re.search(line).group(1)}), which the statement fixes: {line.strip()[:120]}")
     abi = contracts[contract]["abi"]
     fns = []
     for e in abi:
@@ -205,7 +217,13 @@ def envelope(text, ast, contracts, contract, invariants):
         outs = [param_of(p, enums) for p in e.get("outputs", [])]
         if None in params or None in outs:
             block("ABI types", None, f"{sig}: only uintN, intN, bool, address and enum parameters and results")
+        fdef = next((n for n in walk(cdef) if n.get("nodeType") == "FunctionDefinition" and n.get("name") == e["name"]
+                     and n.get("kind") == "function"), None)
+        doc = ((fdef or {}).get("documentation") or {}).get("text", "") if fdef else ""
         fns.append({"name": e["name"], "sig": sig, "params": params,
+                    "mutates": e.get("stateMutability") not in ("view", "pure"),
+                    "specified": "@custom:ensures" in doc or "@custom:requires" in doc,
+                    "succeeds": "@custom:succeeds-if" in doc or "@custom:succeeds_if" in doc,
                     "sel": int.from_bytes(keccak.keccak256(sig.encode())[:4], "big")})
     events = []
     for e in abi:
@@ -479,11 +497,11 @@ def source_lean(body):
             "\nimport SolidCore.Solidity.Checked\n\nopen SolidCore.Solidity\n\n" + body)
 
 
-def shape_json(name, contract, fns, gas, spec_desc):
+def shape_json(name, contract, fns, gas, spec_desc, spec_witness=None, events=()):
     ns = f"Certified.{name}.Lowering"
     valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({ns}.storageLit)"
     sigs = ", ".join(f["sig"] for f in fns)
-    return {
+    shape = {
         "kind": "compiled",
         "contract": f"{ns}.contract?",
         "fuel": f"{ns}.fuel",
@@ -505,6 +523,22 @@ def shape_json(name, contract, fns, gas, spec_desc):
         ],
         "source_ast": {"file": f"Certified/{name}/Source.lean", "namespace": f"Certified.{name}.Src", "contract": contract},
     }
+    if spec_witness is not None:
+        # The specification is solar-verify's export of this run's source, proved of SolidCore's
+        # contract by tools/certify/spec_connect.py and composed with the bytecode by shape_gen.py:
+        # the statement's postcondition and allowed statuses are read off that export, and its
+        # non-vacuity witness is a call of SPEC_WITNESS the spec requires to succeed.
+        shape.update({
+            "kind": "certified",
+            "allowed_export": True,
+            "spec_export": {"ctx": "SolidCore.Refinement.Shapes.ctxOfCall", "step": "SolidCore.Refinement.Shapes.idStep"},
+            "nonvacuous": f"Certified.{name}.Shape.nonvacuous",
+        })
+        shape["spec_modules"] += ["Verify.Spec.TreeMap", "Verify.ShapeSpecExport"]
+        shape["generic"]["spec_connect"] = {"witness": spec_witness, "ghost_fixed": True,
+                                            "using": [f"{ns}.digest_eq"] if events else []}
+        shape["excluded"].append("spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence")
+    return shape
 
 
 # --- the run ----------------------------------------------------------------------------------
@@ -562,6 +596,19 @@ def gas_need(solar, src, name, contract, tmp):
     return 22100 * (stages["fuel"] * bmax) + 3 * words + words * words // 512
 
 
+def source_bound(record):
+    """A positive binding verdict only: source_bind.sh's line for this run's own generated source
+    AST, its contract and source file, under the pinned solc. An empty, unknown or other value is
+    not a binding."""
+    name, contract = record.get("name"), record.get("contract")
+    v = (record.get("statuses") or {}).get("source")
+    if not (isinstance(v, str) and isinstance(name, str) and isinstance(contract, str)):
+        return False
+    want = (f"Certified/{name}/Source.lean is the front end's AST of {contract} in "
+            f"Certified/{name}/{name}.sol (solc {SOLC_VERSION})")
+    return v == want and record.get("source_ast") == want
+
+
 def strict(record, tier):
     """The typed strict predicate of the requested tier: each component an explicit boolean read
     from the record's typed fields (the replay receipt's counts, the published statement's
@@ -575,7 +622,7 @@ def strict(record, tier):
         "termination": proved("termination"),
         "resources": proved("resources"),
         "spec": proved("spec"),
-        "source_bound": isinstance(st.get("source"), str) and not st["source"].startswith("not bound"),
+        "source_bound": source_bound(record),
         "provenance_clean": st.get("provenance") == "clean",
         "replay_full": (isinstance(rp.get("closure"), int) and rp.get("closure", 0) > 0
                         and rp.get("replayed_count") == rp.get("closure") and rp.get("trusted_count") == 0
@@ -623,15 +670,16 @@ def replay_main(a):
         f = d / rel
         if not f.is_file() or sha256_file(f) != sha:
             out(1, f"REJECTED: replay: {rel} differs from the record (stale or edited run file)")
-    on_disk = {str(q.relative_to(d)) for q in (d / "inputs").rglob("*") if q.is_file()} if (d / "inputs").exists() else set()
-    extra = sorted(on_disk - {r for r in files if r.startswith("inputs/")})
+    # Every file and link of the directory, anywhere under it, is the record or in its manifest.
+    on_disk = {str(q.relative_to(d)) for q in d.rglob("*") if q.is_file() or q.is_symlink()}
+    extra = sorted(on_disk - set(files) - {"record.json"})
     if extra:
-        out(1, f"REJECTED: replay: files the record does not list: {extra[:3]}")
+        out(1, f"REJECTED: replay: files the record's manifest does not list: {extra[:3]}")
     srcs = [r for r in files if r.endswith(".sol") and "/" not in r]
     if len(srcs) != 1 or files[srcs[0]] != dig(rec, ("source", "sha256")):
         out(1, "REJECTED: replay: the record's source digest is not its source file's")
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    fresh_dir = d / f"replay-{stamp}"
+    fresh_dir = d.parent / f"{d.name}.replay-{stamp}"
     work = pathlib.Path(a.work).resolve() if a.work else d.parent / f"{d.name}-replay-work-{stamp}"
     cmd = [sys.executable, str(HERE / "generic.py"), str(d / srcs[0]), dig(rec, ("spec", "kind")) or "none",
            "--tier", rec.get("requested_tier", "certified"),
@@ -710,6 +758,12 @@ def main():
 
     def finish(status, code, line, **extra):
         record.update(extra)
+        # The manifest: every file the driver leaves in the record directory but record.json.
+        if record.get("run_files") is not None:
+            for q in sorted(rec_dir.rglob("*")):
+                rel = str(q.relative_to(rec_dir))
+                if q.is_file() and rel != "record.json" and rel not in record["run_files"]:
+                    record["run_files"][rel] = sha256_file(q)
         record["status"] = status
         record["finished"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
         (rec_dir / "record.json").write_text(json.dumps(record, indent=2) + "\n")
@@ -719,7 +773,7 @@ def main():
     try:
         log(f"== generic: {src} ({src_sha}) as {name}, requested tier {tier}")
         ast, contracts = solc_ast(a.solc, src)
-        contract, fns, events = envelope(text, ast, contracts, a.contract, a.invariants)
+        contract, fns, events = envelope(text, ast, contracts, a.contract, a.invariants, a.spec == "natspec")
         record["contract"] = contract
         record["functions"] = [{"signature": f["sig"], "selector": f"0x{f['sel']:08x}", "params": f["params"]} for f in fns]
         record["environment"] = ENVIRONMENT
@@ -779,7 +833,19 @@ def main():
             + "\n-- Placeholder: tools/certify/shape_gen.py writes this module in the run.\n")
         spec_desc = ("none: no specification requested" if a.spec == "none" else
                      "solar-verify's NatSpec in the source: exported and checked by scripts/certify step 6; not connected to the published statement by this driver yet")
-        (d / "shape.json").write_text(json.dumps(shape_json(name, contract, fns, need, spec_desc), indent=2) + "\n")
+        witness = None
+        if a.spec == "natspec":
+            spec_desc = "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)"
+            # The statement's non-vacuity needs a call the spec requires to succeed: a function with
+            # @custom:succeeds-if. Without one the allowed statuses reject nothing, and the certified
+            # tier cannot be stated non-vacuously: the run is refused before any proof.
+            witness = next((f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None) or \
+                next((f["name"] for f in fns if f.get("succeeds")), None)
+            if witness is None:
+                raise Failed("spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
+                             "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
+                             "conditions, or run with SPEC none")
+        (d / "shape.json").write_text(json.dumps(shape_json(name, contract, fns, need, spec_desc, witness, events), indent=2) + "\n")
         with open(lean_dir / "lakefile.lean", "a") as f:
             f.write(lakefile_lib(name, contract))
         git(lean_dir, "add", "-A", "Certified", "lakefile.lean")
@@ -832,7 +898,7 @@ def main():
             finish("REJECTED", 1, f"REJECTED: scripts/certify: exits {p.returncode}: {' | '.join(tail)}")
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
-        ok, need_c, comps = strict(rec, tier)
+        ok, need_c, comps = strict(dict(rec, name=name, contract=contract), tier)
         reached = "certified" if comps.get("strongest") else ("functional" if comps["spec"] and comps["equivalence"] else
                                                               ("compiled" if comps["equivalence"] and comps["resources"] else "none"))
         res = dict(statuses=rec.get("statuses"), strict={"tier": tier, "holds": ok, "components": need_c},
