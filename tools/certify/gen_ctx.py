@@ -7,7 +7,11 @@ The module states the certificate asm_ctxl.infer_ctx inferred as data, proves by
 evaluation that AssembleCtx.checkXB accepts the exact bytecode against the final EVM IR in its
 effect form (checkXB (norm evmN)), and instantiates AssembleCtx.assembly_of_checkXB_norm.
 """
-import argparse, pathlib, sys
+
+import argparse
+import pathlib
+import sys
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_ctxl
 
@@ -22,6 +26,7 @@ final_mod = a.final[0].upper() + a.final[1:]
 text = (a.gen / f"{final_mod}.lean").read_text()
 hexs = (a.gen / "manifest.json").read_text()
 import json
+
 code = bytes.fromhex(json.loads(hexs)["bytecode"])
 c = asm_ctxl.infer_ctx(text, code)
 ns = f"SolarTV.Export.{a.contract}.Ctx"

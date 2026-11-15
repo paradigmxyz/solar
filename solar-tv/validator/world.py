@@ -80,6 +80,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
             "gas_price",
             "warm_addresses",
             "memory",
+            "message_gas",
             "creation_gas",
             "builtin_gas",
             "debug_reverts",
@@ -117,6 +118,17 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         raise Unsupported("builtin child gas exceeds 30000000")
     if kind != "mir" and builtin_gas:
         raise Unsupported("builtin_gas is an explicit MIR boundary input")
+    message_gas = value.get("message_gas")
+    if message_gas is not None:
+        if kind != "mir" or not isinstance(message_gas, list) or len(message_gas) > 128:
+            raise Unsupported("message_gas requires up to 128 MIR caller budgets")
+        message_gas = [int(_number(gas, 64)) for gas in message_gas]
+        if any(gas > 30_000_000 for gas in message_gas):
+            raise Unsupported("message caller gas exceeds 30000000")
+        if creation_gas:
+            raise Unsupported(
+                "message_gas and creation_gas are alternative boundary modes"
+            )
     debug_reverts = value.get("debug_reverts", False)
     if type(debug_reverts) is not bool or kind != "mir" and debug_reverts:
         raise Unsupported("debug_reverts requires a direct MIR boolean setting")
@@ -229,6 +241,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         "gas_policy": policy,
         "fuel": fuel,
         "memory": {"data": memory_data, "size": memory_size},
+        "message_gas": message_gas,
         "creation_gas": creation_gas,
         "builtin_gas": builtin_gas,
         "debug_reverts": debug_reverts,
@@ -416,6 +429,7 @@ def replay_input(fixture: dict) -> dict:
         "blob_hashes",
         "warm_addresses",
         "memory",
+        "message_gas",
         "creation_gas",
         "builtin_gas",
         "debug_reverts",

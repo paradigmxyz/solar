@@ -13,10 +13,11 @@ use evm2::{
         Host as EvmHost, InstrStop, Interpreter, Message, MessageKind, MessageResult,
         derive_create_destination,
     },
+    version::GasId,
 };
 use serde_json::{Value, json};
 use solar_evmir::op;
-use solar_mir_interpreter::{ExternalMessage, MessageOutput, PendingChanges};
+use solar_mir_interpreter::{ExternalMessage, MessageError, MessageOutput, PendingChanges};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -34,6 +35,7 @@ pub(super) struct Native<'a> {
     unsupported: Rc<RefCell<Option<&'static str>>>,
     checkpoint: StateCheckpoint,
     child_gas_spent: u64,
+    message_gas: Vec<u64>,
 }
 
 struct CodeGuard {
@@ -138,6 +140,7 @@ impl<'a> Native<'a> {
             creation_index: 0,
             builtin_index: 0,
             child_gas_spent: 0,
+            message_gas: Vec::new(),
             unsupported,
         })
     }
@@ -207,39 +210,94 @@ impl<'a> Native<'a> {
         }
     }
 
-    pub(super) fn message(
+    pub(super) fn message_with_memory(
         &mut self,
         message: ExternalMessage<'_>,
         pending: PendingChanges<'_>,
-    ) -> Result<MessageOutput, &'static str> {
+        memory: (u64, u64),
+    ) -> Result<MessageOutput, MessageError> {
         self.flush(pending);
         let mut native = Message::<BaseEvmTypes> {
             depth: 1,
             caller_is_static: self.input.is_static,
             ..Default::default()
         };
+        let available = self
+            .input
+            .message_gas
+            .as_ref()
+            .map(|budgets| {
+                budgets
+                    .get(self.message_gas.len())
+                    .copied()
+                    .ok_or(MessageError::Unsupported("missing MIR caller gas budget"))
+            })
+            .transpose()?;
+        let params = self.engine.version().gas_params;
+        let features = self.engine.version().features;
+        let mut charge = params.memory_cost((memory.1 / 32) as usize)
+            - params.memory_cost((memory.0 / 32) as usize);
+        let mut retained = 0;
         let creation = matches!(message, ExternalMessage::Create { .. });
         match message {
             ExternalMessage::Call { opcode, gas, address, value, input } => {
-                if gas > U256::from(30_000_000) {
-                    return Err("MIR requested child gas exceeds 30000000");
+                if gas.is_some_and(|gas| gas > U256::from(30_000_000)) {
+                    return Err(MessageError::Unsupported(
+                        "MIR requested child gas exceeds 30000000",
+                    ));
+                }
+                if gas.is_none()
+                    && (available.is_none() || !self.engine.feature(EvmFeatures::EIP150))
+                {
+                    return Err(MessageError::Unsupported(
+                        "implicit address-call gas requires caller pricing",
+                    ));
                 }
                 let target = Address::from_word(address.into());
-                let mut code = EvmHost::load_account(&mut self.engine, &target, true, false)
+                let account = EvmHost::load_account(&mut self.engine, &target, true, false)
+                    .expect("in-memory account");
+                // evm2's owning gas schedule prices memory, account access and forwarding.
+                // Legacy CALL base prices precede Berlin's warm/cold schedule (EIP-150/2929).
+                charge += if self.engine.feature(EvmFeatures::EIP2929) {
+                    u64::from(params.get(GasId::WarmStorageReadCost))
+                        + if account.is_cold { params.cold_account_additional_cost() } else { 0 }
+                } else if self.engine.feature(EvmFeatures::EIP150) {
+                    700
+                } else {
+                    40
+                };
+                let transfers = matches!(opcode, op::CALL | op::CALLCODE) && !value.is_zero();
+                if transfers {
+                    charge += u64::from(params.get(GasId::TransferValueCost));
+                }
+                if opcode == op::CALL
+                    && (!self.engine.feature(EvmFeatures::EIP161) || transfers)
+                    && EvmHost::target_is_empty_for_new_account_gas(
+                        &mut self.engine,
+                        &target,
+                        features,
+                    )
                     .expect("in-memory account")
-                    .code;
+                {
+                    charge += u64::from(params.get(GasId::NewAccountCost));
+                }
+                let mut code = account.code;
                 let mut code_address = target;
                 if self.engine.feature(EvmFeatures::EIP7702)
                     && let Some(delegated) = code.eip7702_address()
                 {
-                    code = EvmHost::load_account(&mut self.engine, &delegated, true, false)
-                        .expect("in-memory delegated account")
-                        .code;
+                    let delegated_account =
+                        EvmHost::load_account(&mut self.engine, &delegated, true, false)
+                            .expect("in-memory delegated account");
+                    charge += u64::from(params.get(GasId::WarmStorageReadCost))
+                        + if delegated_account.is_cold {
+                            params.cold_account_additional_cost()
+                        } else {
+                            0
+                        };
+                    code = delegated_account.code;
                     code_address = delegated;
                     native.disable_precompiles = true;
-                }
-                if code_address == self.owner {
-                    return Err("MIR root runtime code is unknown");
                 }
                 let direct = matches!(opcode, op::CALL | op::STATICCALL);
                 native.kind = match opcode {
@@ -259,16 +317,47 @@ impl<'a> Native<'a> {
                 native.value = value;
                 native.code = code;
                 native.input = Bytes::copy_from_slice(input);
-                native.gas_limit = gas.to::<u64>()
-                    + if matches!(opcode, op::CALL | op::CALLCODE) && !value.is_zero() {
-                        2300
-                    } else {
-                        0
-                    };
+                let mut forwarded = gas.map(|gas| gas.to::<u64>()).unwrap_or_default();
+                if let Some(available) = available {
+                    let remaining = available.checked_sub(charge).ok_or(MessageError::OutOfGas)?;
+                    if self.engine.feature(EvmFeatures::EIP150) {
+                        let cap = params.call_stipend_reduction(remaining);
+                        forwarded = if gas.is_some() { forwarded.min(cap) } else { cap };
+                    } else if forwarded > remaining {
+                        return Err(MessageError::OutOfGas);
+                    }
+                    retained = remaining - forwarded;
+                }
+                if code_address == self.owner {
+                    return Err(MessageError::Unsupported("MIR root runtime code is unknown"));
+                }
+                native.gas_limit = forwarded
+                    + if transfers { u64::from(params.get(GasId::CallStipend)) } else { 0 };
             }
             ExternalMessage::Create { value, salt, initcode } => {
-                let Some(&gas) = self.input.creation_gas.get(self.creation_index) else {
-                    return Err("missing MIR creation gas budget");
+                let gas = if let Some(available) = available {
+                    charge += if salt.is_some() {
+                        params.create2_cost(initcode.len())
+                    } else {
+                        u64::from(params.get(GasId::Create))
+                    };
+                    if self.engine.feature(EvmFeatures::EIP3860) {
+                        charge += params.initcode_cost(initcode.len());
+                    }
+                    let remaining = available.checked_sub(charge).ok_or(MessageError::OutOfGas)?;
+                    let forwarded = if self.engine.feature(EvmFeatures::EIP150) {
+                        params.call_stipend_reduction(remaining)
+                    } else {
+                        remaining
+                    };
+                    retained = remaining - forwarded;
+                    forwarded
+                } else {
+                    *self
+                        .input
+                        .creation_gas
+                        .get(self.creation_index)
+                        .ok_or(MessageError::Unsupported("missing MIR creation gas budget"))?
                 };
                 self.creation_index += 1;
                 native.kind =
@@ -298,13 +387,16 @@ impl<'a> Native<'a> {
         }
         let result = EvmHost::execute_message(&mut self.engine, &self.environment, &mut native);
         if let Some(reason) = *self.unsupported.borrow() {
-            return Err(reason);
+            return Err(MessageError::Unsupported(reason));
         }
         self.child_gas_spent = self
             .child_gas_spent
             .saturating_add(native.gas_limit.saturating_sub(result.gas.remaining()));
         if self.child_gas_spent > 30_000_000 {
-            return Err("native MIR child gas work limit");
+            return Err(MessageError::Unsupported("native MIR child gas work limit"));
+        }
+        if available.is_some() {
+            self.message_gas.push(retained + result.gas.remaining());
         }
         let value = if creation {
             result.created_address_for_parent()
@@ -474,7 +566,7 @@ impl<'a> Native<'a> {
         };
         let boundary_budgets = keep_transient.then_some([self.creation_index, self.builtin_index]);
         Ok(json!({"accounts":accounts,"logs":logs,"warm_addresses":observed_warm,
-            "warm_slots":slots,"boundary_budgets":boundary_budgets}))
+            "warm_slots":slots,"boundary_budgets":boundary_budgets,"message_gas":self.message_gas}))
     }
 
     pub(super) fn destroy(

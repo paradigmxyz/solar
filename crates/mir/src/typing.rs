@@ -94,8 +94,8 @@ pub fn memory_object(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-/// The operands of `extcall`: its input, when present, is a bytes object, or a memory slice
-/// the call reads where it lies.
+/// The operands of `address_call` and `extcall`; an `extcall` input, when present, is a bytes
+/// object, or a memory slice the call reads where it lies.
 pub(super) fn address_call_types(
     func: &Function,
     input: Option<ValueId>,

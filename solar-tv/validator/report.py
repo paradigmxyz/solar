@@ -14,8 +14,9 @@ from .common import Program, ReplayTimeout
 def region(program: Program) -> str:
     if program.world is not None:
         return f"{program.interface[1].upper()} world {f'function @{program.selector}' if program.world.get('direct_mir') else 'entry'} (fixture {program.world['fixture_sha256'][:12]})"
-    if program.interface[0] == "evm-window":
-        region = f"EVM IR window {program.selector or 'bb0'}, entry stack height {program.interface[1]}"
+    if program.interface[0] in {"evm-window", "evm-region"}:
+        kind = "region" if program.scope == "region" else "window"
+        region = f"EVM IR {kind} {program.selector or 'bb0'}, entry stack height {program.interface[1]}"
         if program.gas is not None:
             region += f" (gas={program.gas}, evm={program.evm_version})"
         return region
@@ -35,6 +36,7 @@ def difference(before: str, after: str) -> str:
                 ("warm_addresses", "Live account access warmth changed"),
                 ("warm_slots", "Live storage access warmth changed"),
                 ("boundary_budgets", "Boundary gas budget consumption changed"),
+                ("message_gas", "Remaining caller gas at a message boundary changed"),
                 ("logs", "Emitted logs changed"),
             ):
                 if a.get(key) != b.get(key):
@@ -188,6 +190,7 @@ def replay_command(
     replay: str | None = None,
     function: str | None = None,
     window: str | None = None,
+    region: str | None = None,
     stack_height: int | None = None,
     world: Path | None = None,
 ) -> str:
@@ -214,8 +217,10 @@ def replay_command(
         argv.extend(["--function", function])
     if window is not None:
         argv.extend(["--window", window])
-        if stack_height is not None:
-            argv.extend(["--stack-height", str(stack_height)])
+    if region is not None:
+        argv.extend(["--region", region])
+    if (window is not None or region is not None) and stack_height is not None:
+        argv.extend(["--stack-height", str(stack_height)])
     if sys.platform == "win32":
         argv = [sys.executable, *argv]
         return "& " + " ".join("'" + arg.replace("'", "''") + "'" for arg in argv)

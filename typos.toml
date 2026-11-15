@@ -26,6 +26,10 @@ numer = "numer"
 Pn = "Pn"
 thm = "thm"
 typ = "typ"
+belows = "belows"
+lits = "lits"
+nd = "nd"
+fnd = "fnd"
 
 [type.py.extend-identifiers]
 som = "som"

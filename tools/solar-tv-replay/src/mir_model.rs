@@ -445,6 +445,12 @@ fn export_operation(
             Semantics::FrameStore(offset, mode, kind, value) => {
                 frame_operation(module, body, offset, mode, kind, Some(value))?
             }
+            Semantics::AddressCall(name, address, input, gas, value) => {
+                let mut args = vec![address, input];
+                args.extend(gas);
+                args.extend(value);
+                json!({"kind":"address_call","name":name,"gas":gas.is_some(),"value":value.is_some(),"args":operands(module,body,&args)?})
+            }
             Semantics::ExtCall(name, output, address, input, gas, value) => {
                 // Operands in order: callee, then whichever of input, gas and value are present.
                 let word = matches!(output, CallOutput::Word);

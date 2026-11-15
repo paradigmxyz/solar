@@ -22,6 +22,7 @@ failure the changed files are listed and removed with their module's .trace and 
 that the next build compiles those modules again from their sources instead of trusting what an
 untrusted module wrote.
 """
+
 import hashlib
 import os
 import re
@@ -38,18 +39,20 @@ def srcdirs(root):
         dirs = list(SRCDIRS)
         lf = os.path.join(root, "lakefile.lean")
         if os.path.isfile(lf):
-            for d in re.findall(r'srcDir\s*:=\s*"([^"]+)"', open(lf).read()):
+            for d in re.findall(r'srcDir\s*:=\s*"([^"]+)"', open(lf).read()):  # noqa: SIM115
                 if d not in dirs:
                     dirs.append(d)
         _SRCDIRS[root] = dirs
     return _SRCDIRS[root]
+
+
 IMPORT = re.compile(r"^\s*(?:(?:public|meta|private)\s+)*import\s+(.*)$")
 
 
 def header_imports(path):
     """The modules a Lean file imports: its header only (import lines before the first other
     command, after comments), as Lean reads it, so a comment or string elsewhere names nothing."""
-    text = open(path, errors="replace").read()
+    text = open(path, errors="replace").read()  # noqa: SIM115
     i, n, out = 0, len(text), []
     while i < n:
         if text[i].isspace():
@@ -73,7 +76,10 @@ def header_imports(path):
             if m:
                 i += m.end()
                 continue
-            m = re.match(r"(?:(?:public|meta|private)[ \t]+)*import[ \t]+(?:all[ \t]+)?([^\n]*)", text[i:])
+            m = re.match(
+                r"(?:(?:public|meta|private)[ \t]+)*import[ \t]+(?:all[ \t]+)?([^\n]*)",
+                text[i:],
+            )
             if not m:
                 break
             line = m.group(1).split("--")[0]
@@ -88,8 +94,17 @@ def closure(root, target):
         m = todo.pop()
         if m in seen:
             continue
-        path = next((p for p in (os.path.join(root, d, *m.split(".")) + ".lean" for d in srcdirs(root))
-                     if os.path.isfile(p)), None)
+        path = next(
+            (
+                p
+                for p in (
+                    os.path.join(root, d, *m.split(".")) + ".lean"
+                    for d in srcdirs(root)
+                )
+                if os.path.isfile(p)
+            ),
+            None,
+        )
         if path is None:
             continue
         seen.add(m)
@@ -134,7 +149,11 @@ def module_of(lib, path):
 cmd = sys.argv[1]
 if cmd == "allow":
     root, out, *rest = sys.argv[2:]
-    targets, minus = (rest[: rest.index("--")], rest[rest.index("--") + 1:]) if "--" in rest else (rest, [])
+    targets, minus = (
+        (rest[: rest.index("--")], rest[rest.index("--") + 1 :])
+        if "--" in rest
+        else (rest, [])
+    )
     deny = "--deny-statements" in minus
     minus = [m for m in minus if m != "--deny-statements"]
     allowed = set()
@@ -163,8 +182,13 @@ elif cmd == "order":
             return
         if m in stack:
             sys.exit(f"import cycle at {m}")
-        path = next(p for p in (os.path.join(root, d, *m.split(".")) + ".lean" for d in srcdirs(root))
-                    if os.path.isfile(p))
+        path = next(
+            p
+            for p in (
+                os.path.join(root, d, *m.split(".")) + ".lean" for d in srcdirs(root)
+            )
+            if os.path.isfile(p)
+        )
         for d in header_imports(path):
             visit(d, stack + (m,))
         done.add(m)
@@ -181,36 +205,69 @@ elif cmd == "packages":
     for t in targets:
         reach = closure(root, t)
         if not reach:
-            sys.exit(f"guard_build.py packages: {t} is not a module of the package under {root}")
+            sys.exit(
+                f"guard_build.py packages: {t} is not a module of the package under {root}"
+            )
         inside |= reach
     for m in inside:
-        path = next(p for p in (os.path.join(root, d, *m.split(".")) + ".lean" for d in srcdirs(root))
-                    if os.path.isfile(p))
+        path = next(
+            p
+            for p in (
+                os.path.join(root, d, *m.split(".")) + ".lean" for d in srcdirs(root)
+            )
+            if os.path.isfile(p)
+        )
         outside |= {d for d in header_imports(path) if d not in inside}
     toolchain = ("Init", "Std", "Lean", "Lake")
-    print("\n".join(sorted(m for m in outside if m.split(".", 1)[0] not in toolchain and m not in toolchain)))
+    print(
+        "\n".join(
+            sorted(
+                m
+                for m in outside
+                if m.split(".", 1)[0] not in toolchain and m not in toolchain
+            )
+        )
+    )
 elif cmd == "snap":
     lib, out = sys.argv[2:]
     with open(out, "w") as fh:
-        for p, h in sorted(scan(lib).items()):
-            fh.write(f"{h} {p}\n")
+        fh.writelines(f"{h} {p}\n" for p, h in sorted(scan(lib).items()))
 elif cmd == "check":
     lib, snap, allow = sys.argv[2:]
     before = {}
-    for line in open(snap):
+    for line in open(snap):  # noqa: SIM115
         h, p = line.rstrip("\n").split(" ", 1)
         before[p] = h
     after = scan(lib)
-    allowed = set(open(allow).read().split())
-    bad = [p for p in sorted(set(before) | set(after))
-           if before.get(p) != after.get(p)
-           and (module_of(lib, p) not in allowed or str(after.get(p, "")).startswith("link:"))]
+    allowed = set(open(allow).read().split())  # noqa: SIM115
+    bad = [
+        p
+        for p in sorted(set(before) | set(after))
+        if before.get(p) != after.get(p)
+        and (
+            module_of(lib, p) not in allowed
+            or str(after.get(p, "")).startswith("link:")
+        )
+    ]
     if bad:
         for p in bad[:20]:
-            print(f"guard_build: changed outside the modules this step may build: {p}", file=sys.stderr)
+            print(
+                f"guard_build: changed outside the modules this step may build: {p}",
+                file=sys.stderr,
+            )
         for p in bad:
-            stem = os.path.join(os.path.dirname(p), os.path.basename(p).split(".", 1)[0])
-            for ext in (".olean", ".ilean", ".trace", ".c", ".olean.hash", ".ilean.hash", ".c.hash"):
+            stem = os.path.join(
+                os.path.dirname(p), os.path.basename(p).split(".", 1)[0]
+            )
+            for ext in (
+                ".olean",
+                ".ilean",
+                ".trace",
+                ".c",
+                ".olean.hash",
+                ".ilean.hash",
+                ".c.hash",
+            ):
                 try:
                     os.remove(stem + ext)
                 except OSError:

@@ -45,10 +45,10 @@
 //! ```
 
 use crate::{
-    AbiType, BlockId, Builtin, Callee, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId,
-    InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
-    RequireKind, ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId,
-    analysis::CfgInfo, memory::EvmMemoryLayout,
+    AbiType, AddressCallKind, BlockId, Builtin, Callee, ExtCallKind, FrameMode, FrameSlotKind,
+    Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase,
+    MirType, Module, PtrLocation, RequireKind, ResultKind, StorageAlias, StructId, Terminator,
+    TypeSize, Value, ValueId, analysis::CfgInfo, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1249,6 +1249,9 @@ impl<'a> Validator<'a> {
                         }) && inst.result_ty == Some(MirType::MEMPTR)
                     }
                     InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
+                    InstKind::AddressCall { kind, value, .. } => {
+                        *kind == AddressCallKind::Call || value.is_none()
+                    }
                     InstKind::ExtCall { policy, value, .. } => {
                         policy.kind == ExtCallKind::Call || value.is_none()
                     }

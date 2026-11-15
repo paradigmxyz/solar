@@ -64,7 +64,11 @@ class RegionTests(unittest.TestCase):
         after = self.compile("functions.sol", flags, audit=True)
         self.assertEqual(json.loads(before.stdout), json.loads(after.stdout))
         records = self.records()
-        proved = [record for record in records if record["status"] == "verified"]
+        proved = [
+            record
+            for record in records
+            if record["status"] == "verified" and record["layer"] == "mir"
+        ]
         self.assertTrue(
             any(record.get("region", {}).get("name") == "helper" for record in proved)
         )
@@ -153,7 +157,13 @@ class RegionTests(unittest.TestCase):
         before = self.compile("windows.sol", ["--emit=bin,bin-runtime"])
         after = self.compile("windows.sol", ["--emit=bin,bin-runtime"], audit=True)
         self.assertEqual(json.loads(before.stdout), json.loads(after.stdout))
-        self.assertIn("window boundaries changed", after.stderr)
+        self.assertTrue(
+            any(
+                record["layer"] == "evmir"
+                and record.get("region", {}).get("kind") == "region"
+                for record in self.records()
+            )
+        )
         self.assertNotIn(": counterexample", after.stderr)
 
     def test_join_with_multiple_heights_is_unsupported(self):
