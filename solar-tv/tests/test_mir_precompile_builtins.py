@@ -35,7 +35,9 @@ def recover(words, result, label=2):
     """ecrecover stages its four words at the free memory pointer without reserving it."""
     staged = "v80 = fmp\nv81 = ptrtoint ptr<memory> v80 to i256\n"
     for index, word in enumerate(words):
-        staged += f"v8{index + 2} = add v81, {32 * index}\nmstore v8{index + 2}, {word}\n"
+        staged += (
+            f"v8{index + 2} = add v81, {32 * index}\nmstore v8{index + 2}, {word}\n"
+        )
     staged += "v86 = make_memory_slice v80, 128\n"
     return staged + precompile("ecrecover", "v86", result, label)
 
@@ -49,7 +51,9 @@ def hash_source(name="sha256", sliced=False):
     source = f"v0 = inttoptr i256 {160 if sliced else 128} to ptr<memory>\n"
     if sliced:
         source += "v1 = make_memory_slice v0, 3\n"
-    source += "jump bb1\nbb1:\n" + precompile(name, "v1" if sliced else "v0", "v2") + "ret v2"
+    source += (
+        "jump bb1\nbb1:\n" + precompile(name, "v1" if sliced else "v0", "v2") + "ret v2"
+    )
     return state.module(source)
 
 
@@ -86,7 +90,9 @@ class MirPrecompileBuiltinTests(unittest.TestCase):
         )
         source = state.module(
             f"v0 = inttoptr i256 {2**256 - 1} to ptr<memory>\n"
-            "v1 = make_memory_slice v0, 0\n" + precompile("sha256", "v1", "v2") + "ret v2"
+            "v1 = make_memory_slice v0, 0\n"
+            + precompile("sha256", "v1", "v2")
+            + "ret v2"
         )
         self.pair(
             source, source.replace("ret v2", f"ret {expected}"), fixture=fixture(b"")

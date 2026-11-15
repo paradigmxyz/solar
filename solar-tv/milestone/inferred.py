@@ -620,7 +620,9 @@ def generate(stage0_text, sol, inferred_text, function, stage0_name, namespace, 
     later = {v for v in later - inside if v in defs and defs[v][-1] not in after}
     for a in dict.fromkeys([a for a, _ in reversed(path)] + [pre]):
         for ins in blocks[a][1]:
-            m = re.fullmatch(r"\.assume false \.eq \[\.value (\d+), \.const (\w+)\]", ins)
+            m = re.fullmatch(
+                r"\.assume false \.eq \[\.value (\d+), \.const (\w+)\]", ins
+            )
             if m and int(m[1]) in later:
                 fact = f"env {m[1]} = ({m[2]} : {WORD})"
                 if fact not in frame:

@@ -15,7 +15,9 @@ use solar_mir::{MirPhase, Module};
 
 mod machine;
 mod values;
-pub use machine::{ExternalMessage, Host, Log, MessageOutput, PendingChanges, PlacementRead};
+pub use machine::{
+    ExternalMessage, Host, Log, MessageError, MessageOutput, PendingChanges, PlacementRead,
+};
 
 pub mod replay;
 
@@ -184,7 +186,7 @@ fn execution_from(outcome: RunOutcome, effects: Effects) -> Execution {
         RunOutcome::ReturnData(data) => Outcome::Success(data),
         RunOutcome::Stop => Outcome::Success(Vec::new()),
         RunOutcome::Revert(data) => Outcome::Revert(data),
-        RunOutcome::Invalid => Outcome::Halt,
+        RunOutcome::Invalid | RunOutcome::OutOfGas => Outcome::Halt,
         RunOutcome::ReturndataOutOfBounds => Outcome::ReturndataOutOfBounds,
         RunOutcome::Undefined => Outcome::Unsupported("fails an assumed fact".into()),
         RunOutcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),

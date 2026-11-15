@@ -10,7 +10,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import audit, evmir, gas, memory, mir, native, operations, regions, report, world
+from . import (
+    audit,
+    evm_region,
+    evmir,
+    gas,
+    memory,
+    mir,
+    native,
+    operations,
+    regions,
+    report,
+    world,
+)
 from .common import Inconclusive, Program, Unsupported, lean_root
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +84,7 @@ def load(
     evm_version: str | None = None,
     function: str | None = None,
     window: str | None = None,
+    region: str | None = None,
     stack_height: int | None = None,
     world_path: Path | None = None,
     replay_executable: str | None = None,
@@ -79,7 +92,11 @@ def load(
     if gas_mode is not None and kind != "evmir" and world_path is None:
         raise Unsupported("gas auditing requires scheduled EVM IR, not MIR")
     suffix = ".mir" if kind == "mir" else ".evmir"
-    limit = 1024 * 1024 if function is not None or window is not None else 128 * 1024
+    limit = (
+        1024 * 1024
+        if function is not None or window is not None or region is not None
+        else 128 * 1024
+    )
     if path.suffix != suffix or path.stat().st_size > limit:
         raise Unsupported(f"expected a {suffix} file of at most {limit // 1024} KiB")
     pipeline = "mir" if kind == "mir" else "evm-ir"
@@ -97,7 +114,7 @@ def load(
     if parsed.returncode:
         raise Unsupported(parsed.stderr.strip() or "compiler rejected input")
     if world_path is not None:
-        if window is not None or stack_height is not None:
+        if window is not None or region is not None or stack_height is not None:
             raise Unsupported(
                 "world mode requires a complete entry, not a block projection"
             )
@@ -113,6 +130,16 @@ def load(
             replay_executable,
         )
     projection = parsed.stdout
+    if region is not None:
+        if kind != "evmir" or stack_height is None:
+            raise Unsupported("--region requires EVM IR and --stack-height")
+        if gas_mode is not None:
+            raise Unsupported(
+                "gas-priced EVM regions require physical transfer pricing"
+            )
+        program = evm_region.translate(projection, region, stack_height)
+        program.evm_version = evm_version or "cancun"
+        return program
     following = None
     if function is not None:
         if kind != "mir":
@@ -266,6 +293,16 @@ def check(
 
     statement = f"theorem pair_correct {binders} : {relation(f'before {args}', f'after {args}')} := by\n"
     unfold = UNFOLD + (", " + memory.UNFOLD if a.memory else "")
+    if a.scope == "region":
+        # Normalize transfers and stack state before byte memory. Shared tails
+        # often leave identical memory expressions; unfolding every symbolic
+        # byte before comparing them needlessly exhausts the simplifier.
+        unfold = (
+            UNFOLD
+            + ", "
+            + evm_region.UNFOLD
+            + ", EVM.Memory.step, EVM.Memory.finish, Except.map, Except.bind, Bind.bind, Pure.pure, Functor.map"
+        )
     if a.gas is not None:
         unfold += ", " + gas.UNFOLD
     projection = (
@@ -301,6 +338,14 @@ def check(
             "  repeat' (first | omega | (split <;> simp_all [BitVec.add_comm]))\n"
             "  all_goals omega\n"
         )
+    if a.scope == "region":
+        # Transfer cleanup often changes only grouping. Kernel conversion can
+        # compare the unchanged memory expressions without expanding their bytes.
+        proof = (
+            "  first\n    | rfl\n    |\n"
+            + "\n".join("    " + line for line in proof.splitlines())
+            + "\n"
+        )
     # Kernel reduction is cheap for closed word arithmetic and explicit stack
     # windows. Do not normalize symbolic memory to individual bits first: that
     # can exhaust the budget before the overwrite/expansion lemmas get a turn.
@@ -320,10 +365,33 @@ def check(
             file.write_text(definitions + body)
             return run(["lake", "env", "lean", file], lean_root(), timeout)
 
-        result = lean(statement + proof + "#print axioms pair_correct\n")
-        proof_log = result.stdout + result.stderr
-        query_only = False
-        if result.returncode:
+        proposed = False
+        if a.scope == "region":
+            # A closed VM sample only proposes a witness. Avoid spending the
+            # universal proof budget reducing unequal symbolic byte lists when
+            # zero already distinguishes the regions. The kernel and original
+            # native modules must still confirm that exact counterexample below.
+            concrete = " ".join(f"0#{width}" for width in widths)
+            probe = lean(
+                f'#eval IO.println (if decide ({relation("before " + concrete, "after " + concrete)}) then "same" else "different")\n'
+            )
+            if probe.returncode or probe.stdout.strip() not in {"same", "different"}:
+                raise Inconclusive(
+                    "invalid region witness probe\n" + probe.stdout + probe.stderr
+                )
+            proposed = probe.stdout.strip() == "different"
+        result = (
+            probe
+            if proposed
+            else lean(statement + proof + "#print axioms pair_correct\n")
+        )
+        proof_log = (
+            "VM proposes a mismatch; kernel witness required"
+            if proposed
+            else result.stdout + result.stderr
+        )
+        query_only = proposed
+        if result.returncode and not proposed:
             # Outcomes with payloads are outside the solver's scalar fragment.
             # A tagged projection proposes witnesses; it never verifies a pair.
             query_only = a.result_type.startswith("Outcome ") or a.result_type in {
@@ -518,6 +586,9 @@ def main() -> int:
     selection.add_argument(
         "--window", help="check one complete EVM block by stable label"
     )
+    selection.add_argument(
+        "--region", help="check a complete acyclic EVM CFG from a stable entry label"
+    )
     parser.add_argument(
         "--stack-height", type=int, help="fixed incoming EVM window height"
     )
@@ -539,6 +610,7 @@ def main() -> int:
         replay=args.replay,
         function=args.function,
         window=args.window,
+        region=args.region,
         stack_height=args.stack_height,
         world=args.world,
     )
@@ -564,6 +636,7 @@ def main() -> int:
             replay=rust_replay,
             function=args.function,
             window=args.window,
+            region=args.region,
             stack_height=args.stack_height,
             world=args.world,
         )
@@ -577,6 +650,7 @@ def main() -> int:
                 evm_version=version,
                 function=args.function,
                 window=args.window,
+                region=args.region,
                 stack_height=args.stack_height,
                 world_path=args.world,
                 replay_executable=rust_replay,
@@ -628,13 +702,24 @@ def main() -> int:
             after=args.after,
             model=model,
         )
-        if args.function or args.window:
+        if args.function or args.window or args.region:
             record["region"] = {
-                "kind": "function" if args.function else "window",
-                "name": args.function or args.window,
+                "kind": "function"
+                if args.function
+                else "region"
+                if args.region
+                else "window",
+                "name": args.function or args.window or args.region,
                 "stack_height": args.stack_height,
             }
             record["whole_pass"] = False
+            if args.region and len(programs) == 2:
+                record["region"]["blocks_before"] = list(
+                    regions.blocks(programs[0].canonical_ir)
+                )
+                record["region"]["blocks_after"] = list(
+                    regions.blocks(programs[1].canonical_ir)
+                )
         if args.report:
             audit.write(args.report, record)
     except OSError as error:

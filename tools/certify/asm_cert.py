@@ -277,7 +277,11 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
             nd = need_of(i[1])
             if nd is None:
                 return edges, items, top
-            h, known, ty = max(h + nd[1], 0), [None] + known[nd[0] :], [False] + ty[nd[0] :]
+            h, known, ty = (
+                max(h + nd[1], 0),
+                [None] + known[nd[0] :],
+                [False] + ty[nd[0] :],
+            )
         elif tag == "store" and dyn:
             top = DYN_TOP
             h, known, ty = h - 2, [], ty[2:]
@@ -294,14 +298,14 @@ def run_block(blocks, turned, rets, b, h, ty, dyn=False, bail=None):
                 if bail is not None:
                     bail.append(b)
                 return edges, items, top
-            top = max(top, known[0] + 32)
+            top = max(top, known[0] + 32)  # ty: ignore[unsupported-operator]
             h, known, ty = h - 2, known[2:], ty[2:]
         elif tag == "load":
             if kat(known, 0) is None:
                 if bail is not None:
                     bail.append(b)
                 return edges, items, top
-            top = max(top, known[0] + 32)
+            top = max(top, known[0] + 32)  # ty: ignore[unsupported-operator]
             known, ty = [], [False] + ty[1:]
         elif tag == "effect" and i[1] == "caller":
             h, known, ty = h + 1, [None] + known, [False] + ty
@@ -425,9 +429,17 @@ def lean_cert(c):
     )
     cert = (
         "{ offsets := [" + ", ".join(hex(o) for o in c["offsets"]) + "],\n"
-        "    needs := " + str(c["needs"]) + ",\n"
-        + ("    top := 2 ^ 140,\n" if c["top"] == DYN_TOP else f"    top := {c['top']},\n")
-        + "    turned := " + str(c["turned"]) + ",\n"
+        "    needs := "
+        + str(c["needs"])
+        + ",\n"
+        + (
+            "    top := 2 ^ 140,\n"
+            if c["top"] == DYN_TOP
+            else f"    top := {c['top']},\n"
+        )
+        + "    turned := "
+        + str(c["turned"])
+        + ",\n"
         "    costs := " + str(c["costs"]) + ",\n"
         "    types := [" + types + "],\n"
         "    rets := " + str(c["rets"]) + ",\n"
@@ -439,7 +451,15 @@ def lean_cert(c):
 
 # The environment reads the checker executes (`Assemble.envRead`): words of EthLib's block and
 # transaction environment of the call, under an oracle that reads them so (`Assemble.EnvOk`).
-ENV_READS = {"origin", "gasprice", "coinbase", "timestamp", "number", "gaslimit", "chainid"}
+ENV_READS = {
+    "origin",
+    "gasprice",
+    "coinbase",
+    "timestamp",
+    "number",
+    "gaslimit",
+    "chainid",
+}
 
 FRAGMENT_EFFECTS = {
     "callvalue",
@@ -488,7 +508,11 @@ def outside(program_text, dyn=False):
                 or (tag in ("dup", "swap") and i[1] < 16)
                 or (tag == "stack" and (i[1] == "pop" or need_of(i[1]) is not None))
                 or (tag == "effect" and i[1] in FRAGMENT_EFFECTS)
-                or (dyn and tag == "effect" and (i[1], i[2]) in (("gas", 0), ("calldatacopy", 3)))
+                or (
+                    dyn
+                    and tag == "effect"
+                    and (i[1], i[2]) in (("gas", 0), ("calldatacopy", 3))
+                )
                 or (tag == "log" and i[1] <= 4)
                 or (tag == "env" and i[1] in ENV_READS and i[2] == 0)
             )

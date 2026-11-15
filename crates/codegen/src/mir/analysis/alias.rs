@@ -20,10 +20,10 @@
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
-    AbiLayout, AbiType, AllocationFailure, ArgIdx, BlockId, Builtin, CallOutput, Callee,
-    ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
-    MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
-    RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, CallOutput,
+    Callee, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId,
+    InstKind, MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess,
+    RawMemorySize, RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1147,6 +1147,7 @@ impl AliasAnalysis {
             | InstKind::Keccak256(dest, _)
             | InstKind::Log { offset: dest, .. } => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
+            InstKind::AddressCall { input, .. } => operand != *input,
             InstKind::ExtCall { input, .. } => *input != Some(operand),
             InstKind::Call { args_offset, ret_offset, .. }
             | InstKind::CallCode { args_offset, ret_offset, .. }
@@ -1486,6 +1487,15 @@ impl AliasAnalysis {
             }
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
+            }
+            InstKind::AddressCall { kind, .. } => {
+                effects.read_any(AddressSpace::Memory);
+                effects.read_any(AddressSpace::Storage);
+                effects.read_any(AddressSpace::Transient);
+                if kind != AddressCallKind::Static {
+                    effects.write_any(AddressSpace::Storage);
+                    effects.write_any(AddressSpace::Transient);
+                }
             }
             InstKind::ExtCall { policy, input, .. } => {
                 if input.is_some() {

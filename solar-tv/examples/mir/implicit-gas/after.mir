@@ -1,0 +1,16 @@
+; === solar-tv/examples/mir/implicit-gas/before.mir (after sccp) ===
+@module State
+fn @f() -> i256 {
+  bb0:
+    v0 = add 0x3ffff, 1
+    v1 = trunc i256 0x40000 to i160
+    mstore 128, 3
+    mstore 160, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v2 = inttoptr i256 128 to ptr<memory>
+    v3 = address_call i160 0x40000, ptr<memory> 128
+    returndatacopy 224, 0, 32
+    v4 = mload 224
+    assume eq sccp, v0, 0x40000
+    assume eq sccp, v1, i160 0x40000
+    ret v4
+}

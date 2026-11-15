@@ -37,7 +37,7 @@ inductive ArrayElement where
 
 inductive MessageOp where
   | raw (opcode : Nat)
-  | address (opcode : Nat) (hasValue : Bool)
+  | address (opcode : Nat) (hasGas hasValue : Bool)
   /-- An extcall: which of input, gas and value operands follow the callee, whether a
   word output lands in scratch, and whether scratch is zeroed first. -/
   | extcall (opcode : Nat) (hasValue hasInput hasGas word clears : Bool)
@@ -225,6 +225,7 @@ structure Config where
   layout : Layout := {}
   builtinGas : List Nat := []
   debugReverts : Bool := false
+  messageGas : Option (List Nat) := none
 
 structure Frame where
   world : Journal
@@ -234,6 +235,7 @@ structure Frame where
   returnData : List Byte := []
   creationIndex : Nat := 0
   builtinIndex : Nat := 0
+  messageGas : List Nat := []
 
 /-- A caller continuation owns its SSA snapshot, not a private copy of execution memory. -/
 structure Continuation where
@@ -247,6 +249,7 @@ inductive Completion where
   | success (data : List Byte)
   | reverted (data : List Byte)
   | invalid
+  | outOfGas
   /-- A failed `assume`: undefined behaviour, not a program outcome. -/
   | undefined
   deriving DecidableEq
@@ -258,6 +261,7 @@ structure Result where
   returnData : List Byte := []
   creationIndex : Nat := 0
   builtinIndex : Nat := 0
+  messageGas : List Nat := []
 
 abbrev Run := Except String Result
 abbrev Step := Except String (Outcome (Option Word × Frame))
@@ -281,6 +285,12 @@ def readValue (frame : Frame) (operand : Operand) : Except String Value := do
 
 def read (frame : Frame) (operand : Operand) : Except String Word := do
   (← readValue frame operand).word
+
+/-- Read a typed scalar without widening through an intermediate word. -/
+def readBits (width : Nat) (frame : Frame) (operand : Operand) : Except String (BitVec width) := do
+  let .scalar value ← readValue frame operand | .error "non-scalar MIR operand"
+  if h : value.width = width then return value.bits.cast h
+  else .error "MIR scalar operand width mismatch"
 
 def put (locals : List (Nat × α)) (id : Nat) (value : α) : List (Nat × α) :=
   (id,value) :: locals.filter (·.1 != id)

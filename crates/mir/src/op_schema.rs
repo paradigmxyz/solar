@@ -30,11 +30,12 @@ use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
 
 use super::{
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AbiWordValidator, AllocationSemantics,
-    ArithmeticKind, AssumePredicate, BlockId, Builtin, CallPolicy, Callee, CheckedOp, DataRef,
-    DataSize, EffectKind, FactSource, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId,
-    InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart,
-    PtrLocation, RevertKind, Semantics, StructId, ValueId, ValueLayout, typing,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AbiWordValidator, AddressCallKind,
+    AllocationSemantics, ArithmeticKind, AssumePredicate, BlockId, Builtin, CallPolicy, Callee,
+    CheckedOp, DataRef, DataSize, EffectKind, FactSource, FrameMode, FrameSlotKind, Function,
+    FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirPhase,
+    MirType, PackedPart, PtrLocation, RevertKind, Semantics, StructId, ValueId, ValueLayout,
+    typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;
@@ -647,7 +648,7 @@ fn isle_op_name(variant: &str) -> String {
 type OptionU64 = Option<u64>;
 
 attributes! {
-    bool, StructId, MirType, ValueLayout, CallPolicy, CheckedOp, ArithmeticKind, OptionU64,
+    bool, StructId, MirType, ValueLayout, AddressCallKind, CallPolicy, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
     LibraryId,
@@ -1347,6 +1348,17 @@ define_mir_ops! {
     #[operand_types(func => Some(typing::packed_types(func, parts)))]
     #[semantics(packed(parts, hash))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
+    #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
+        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
+    #[operand_types(func => Some(typing::address_call_types(func, Some(*input), gas.is_some(), value.is_some())))]
+    #[semantics(address_call(kind, address, input, gas, value))]
+    AddressCall {
+        kind: AddressCallKind,
+        address: ValueId,
+        input: ValueId,
+        gas: Option<ValueId>,
+        value: Option<ValueId>,
+    },
     #[mir_op(mnemonic = "extcall", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::address_call_types(func, *input, gas.is_some(), value.is_some())))]

@@ -5,7 +5,7 @@
 
 contract Caller {
     // CHECK-LABEL: fn @probeCall
-    // CHECK: extcall
+    // CHECK: address_call
     // CHECK: icall returndata_bytes<>
     function probeCall(address target) external returns (uint256) {
         (, bytes memory data) = target.call("");

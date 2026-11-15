@@ -166,10 +166,10 @@ contract CallGasCalls {
     // 50 + 25000.
     // HOMESTEAD-LABEL: fn @bare
     // HOMESTEAD-NOT: = gas
-    // HOMESTEAD: extcall
+    // HOMESTEAD: address_call
     // TANGERINE-LABEL: fn @bare
     // TANGERINE: [[GAS:v[0-9]+]] = gas
-    // TANGERINE: extcall {{.*}}, gas [[GAS]]
+    // TANGERINE: address_call {{.*}}, gas [[GAS]]
     function bare() external returns (uint256) {
         (bool ok,) = address(new CallGasCallee()).call(abi.encodeWithSignature("noop()"));
         return ok ? 1 : 0;

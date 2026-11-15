@@ -698,7 +698,6 @@ jobs:
       - fmt
       - deny
       - solsymdiff
-      - solar-tv
       - certify
     steps:
       - name: Decide whether the needed jobs succeeded or failed

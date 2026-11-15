@@ -858,6 +858,14 @@ impl Instruction {
     }
 }
 
+/// Solidity low-level address-call behavior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AddressCallKind {
+    Call,
+    Static,
+    Delegate,
+}
+
 /// Which opcode an `extcall` uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ExtCallKind {
@@ -1057,6 +1065,9 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
+            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
+            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
+            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
             _ => self.op_def().mnemonic,
         }
     }

@@ -181,6 +181,8 @@ pub enum StateOutcome {
     Invalid,
     /// An `assume` whose fact fails: undefined behaviour, which any result refines.
     Undefined,
+    /// An explicitly priced message exhausted its caller budget.
+    OutOfGas,
     /// The interpreter cannot establish the result, including work/memory limits.
     Unsupported(String),
 }
@@ -223,6 +225,7 @@ pub fn run_state(
                 RunOutcome::Revert(data) => StateOutcome::Revert(data),
                 RunOutcome::Invalid | RunOutcome::ReturndataOutOfBounds => StateOutcome::Invalid,
                 RunOutcome::Undefined => StateOutcome::Undefined,
+                RunOutcome::OutOfGas => StateOutcome::OutOfGas,
                 RunOutcome::Unsupported(what) => StateOutcome::Unsupported(what.into()),
                 RunOutcome::Limit(what) => {
                     StateOutcome::Unsupported(format!("state replay limit: {what:?}"))

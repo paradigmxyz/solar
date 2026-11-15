@@ -35,12 +35,12 @@
 
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
-    AbiType, AllocationFailure, AllocationInitialization, AllocationSemantics, BackendMemory,
-    BlockId, CallOutput, CallPolicy, DataId, DataRef, DataSize, Disambiguator, EffectKind,
-    ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, HirExprId,
-    Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, LogTopics,
-    MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias,
-    StructId, StructType, Terminator, Value, ValueId,
+    AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
+    BackendMemory, BlockId, CallOutput, CallPolicy, DataId, DataRef, DataSize, Disambiguator,
+    EffectKind, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
+    HirExprId, Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
+    LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
+    StorageAlias, StructId, StructType, Terminator, Value, ValueId,
 };
 use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize, ValueLayout};
 use smallvec::SmallVec;
@@ -2054,6 +2054,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::clear_storage_words => inst!(StorageClearWords(a, b, c)),
             sym::load_storage_bytes => {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
+            }
+            sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
+                operands!(address, input);
+                let kind = match mnemonic {
+                    sym::address_call => AddressCallKind::Call,
+                    sym::address_staticcall => AddressCallKind::Static,
+                    _ => AddressCallKind::Delegate,
+                };
+                let mut gas = None;
+                let mut value = None;
+                while self.parser.eat(TokenKind::Comma) {
+                    let option = self.parser.parse_ident()?;
+                    let operand = self.parse_value(builder)?;
+                    match option {
+                        kw::Gas if gas.is_none() => gas = Some(operand),
+                        sym::value if value.is_none() => value = Some(operand),
+                        _ => {
+                            return Err(self
+                                .parser
+                                .error("invalid or duplicate address call option"));
+                        }
+                    }
+                }
+                (InstKind::AddressCall { kind, address, input, gas, value }, Some(MirType::I1))
             }
             sym::extcall => {
                 // extcall [static | delegate] [word]

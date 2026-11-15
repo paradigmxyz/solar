@@ -44,12 +44,14 @@ def generate(stage0_text, sol, inferred_text, function, stage0_name, namespace, 
         if succ[p] != [h]:
             raise Unsupported(f"@{function} bb{p}: enters bb{h} and other blocks")
     _, measure, line = inferred_clauses(inferred_text, function)
-    m = re.search(rf"function {function}\b.*?while \((\w+) < (\w+)\)", sol, re.S)
+    m = re.search(rf"function {function}\b.*?while \((\w+) < (\w+)\)", sol, re.DOTALL)
     if not m:
         raise Unsupported(f"{function}: no 'while (a < b)' loop in the source")
     lo, hi = m[1], m[2]
     if measure not in (lo, hi):
-        raise Unsupported(f"{function}: measure {measure} is not a variable of the guard")
+        raise Unsupported(
+            f"{function}: measure {measure} is not a variable of the guard"
+        )
     defs = definitions(funcs[fidx])
     hphis, _, hterm = blocks[h]
     phi_in = {d: dict(inc) for d, inc in hphis}
@@ -72,7 +74,9 @@ def generate(stage0_text, sol, inferred_text, function, stage0_name, namespace, 
 
     def read(op):
         kind, n = op.split()
-        return f"({n} : EvmRules.Word).toNat" if kind == ".const" else f"(env {n}).toNat"
+        return (
+            f"({n} : EvmRules.Word).toNat" if kind == ".const" else f"(env {n}).toNat"
+        )
 
     sha = lambda t: hashlib.sha256(t.encode()).hexdigest()
     ps = sorted(preds[h])
@@ -116,7 +120,9 @@ def generate(stage0_text, sol, inferred_text, function, stage0_name, namespace, 
     ]
     for p in ps:
         r = read(phi_in[mphi][p])
-        out.append(f"  | (_, .enter _ {p} _, {'env' if 'env ' in r else '_'}, _) => {r}")
+        out.append(
+            f"  | (_, .enter _ {p} _, {'env' if 'env ' in r else '_'}, _) => {r}"
+        )
     out += ["  | _ => 0", "", f"end {namespace}", ""]
     return "\n".join(out)
 

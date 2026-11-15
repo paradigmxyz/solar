@@ -1,0 +1,30 @@
+@module SharedTail
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+bb1:
+  push 11
+  push 0
+  mstore
+  push 0x123456789abcdef123456789abcdef
+  push 32
+  mstore
+  push 0xabcdef123456789abcdef123456789
+  push 64
+  mstore
+  push 96
+  push 0
+  return
+bb2:
+  push 22
+  push 0
+  mstore
+  push 0x123456789abcdef123456789abcdef
+  push 32
+  mstore
+  push 0xabcdef123456789abcdef123456789
+  push 64
+  mstore
+  push 96
+  push 0
+  return
