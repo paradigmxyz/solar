@@ -311,5 +311,24 @@ class FrontendLocation(unittest.TestCase):
         self.assertIn("counter_x.sol", bodies[0])
 
 
+class PublishedStatementField(unittest.TestCase):
+    """record.published_statement names the checked Final theorem, not the optional headline list."""
+
+    def test_from_final(self):
+        rec = {"final": {"module": "M.Final", "statement_module": "M.Statement", "theorem": "M.Final.final",
+                         "shape": "SolidCore.Verify.Generic.Expected", "statement": "S", "kind": "x"},
+               "end_to_end_statement": {}}
+        f = generic.published_fields(rec)
+        self.assertEqual(f["published_statement"]["theorem"], "M.Final.final")
+        self.assertEqual(f["published_statement"]["shape"], "SolidCore.Verify.Generic.Expected")
+        self.assertEqual(f["headline_statements"], {})
+        self.assertTrue(generic.strict(dict(rec, statuses={}), "compiled")[2]["published_statement"])
+
+    def test_no_final(self):
+        f = generic.published_fields({"end_to_end_statement": {"T": "s"}})
+        self.assertIsNone(f["published_statement"])
+        self.assertEqual(f["headline_statements"], {"T": "s"})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

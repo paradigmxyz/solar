@@ -77,6 +77,21 @@ def spec_rejection(lines):
     return [l.split("spec_connect: ", 1)[1].strip() for l in lines if "spec_connect: REJECTED: spec:" in l]
 
 
+def published_statement(final):
+    """The published statement the record's strict component published_statement stands for: the
+    Final theorem scripts/certify checked (its record's final), or None."""
+    if not final:
+        return None
+    return {k: final.get(k) for k in ("module", "statement_module", "theorem", "shape", "statement")}
+
+
+def published_fields(rec):
+    """published_statement from the checked Final theorem; the optional contract-specific headline
+    theorems (CERTIFIED/NAME/headline, scripts/certify's end_to_end_statement) under their own name."""
+    return {"published_statement": published_statement(rec.get("final")),
+            "headline_statements": rec.get("end_to_end_statement") or {}}
+
+
 def resource_failures(lines):
     """The build output lines that say Lean ran out of memory, time or heartbeats."""
     return [l.strip() for l in lines if any(m in l for m in RESOURCE_MARKS)]
@@ -963,7 +978,7 @@ def main():
                                                               ("compiled" if comps["equivalence"] and comps["resources"] else "none"))
         res = dict(statuses=rec.get("statuses"), strict={"tier": tier, "holds": ok, "components": need_c},
                    tier_reached=reached, replay=rec.get("replay"), caveats=rec.get("caveats"),
-                   published_statement=rec.get("end_to_end_statement"), final=rec.get("final"))
+                   final=rec.get("final"), **published_fields(rec))
         if ok:
             finish(tier.upper(), 0, f"{tier.upper()}: {name}: the requested tier holds (record {rec_dir / 'record.json'})", **res)
         missing = [k for k, v in need_c.items() if not v]
