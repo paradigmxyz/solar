@@ -17,7 +17,7 @@ use crate::{
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Op, OpTraits,
         PtrLocation, Terminator, Value, ValueId,
-        analysis::{CfgInfo, Liveness},
+        analysis::{CfgInfo, Liveness, LoopInfo},
         memory::EvmMemoryLayout,
     },
     target::{Cost, StackCosts, Target},
@@ -30,6 +30,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use std::{
+    borrow::Cow,
     cell::{Cell, RefCell},
     collections::{BTreeMap, hash_map::Entry},
 };
@@ -243,6 +244,30 @@ pub(super) struct Planned {
     pub(super) first_use: FxHashMap<BlockId, Layout>,
 }
 
+/// What every planning attempt of a function shares, whatever it spills: the facts of the
+/// function's body that [`Planner::new`] would otherwise derive again on each restart.
+pub(super) struct PlannerBase {
+    /// Whether the function is entered with a return address.
+    has_ret: bool,
+    gas_mode: bool,
+    args: IndexVec<ArgIdx, Option<ValueId>>,
+    use_counts: IndexVec<ValueId, u32>,
+    /// Values pushed fresh at each use before any spill.
+    remat: DenseBitSet<ValueId>,
+    /// Instructions with no code of their own before any spill.
+    skipped: DenseBitSet<InstId>,
+    /// The cost of pushing each value of `remat`.
+    remat_costs: IndexVec<ValueId, Cost>,
+    projections: FxHashMap<InstId, SmallVec<[Option<ValueId>; 4]>>,
+    publish: DenseBitSet<InstId>,
+    tail_calls: FxHashMap<BlockId, InstId>,
+    conditions: FxHashMap<BlockId, (ValueId, bool)>,
+    executions: IndexVec<BlockId, u32>,
+    backedges: FxHashSet<(BlockId, BlockId)>,
+    forward_preds: IndexVec<BlockId, u32>,
+    floating: DenseBitSet<BlockId>,
+}
+
 pub(super) struct Planner<'a> {
     info: &'a ModuleInfo,
     func_id: FunctionId,
@@ -257,26 +282,28 @@ pub(super) struct Planner<'a> {
     ret_spilled: bool,
     reach: usize,
     cfg: &'a CfgInfo,
+    /// The facts every planning attempt of the function shares.
+    analysis: &'a Analysis,
     /// Values pushed fresh at each use instead of kept on the stack.
-    remat: DenseBitSet<ValueId>,
+    remat: Cow<'a, DenseBitSet<ValueId>>,
     /// The values of `remat` and `spilled`; `is_fresh` leaves out those `held` in the block.
     fresh_values: DenseBitSet<ValueId>,
     /// The cost of pushing each value of `remat`.
-    remat_costs: IndexVec<ValueId, Cost>,
+    remat_costs: Cow<'a, IndexVec<ValueId, Cost>>,
     /// The instructions that overwrite this function's fixed frame, with the values live across
     /// each.
     saved: &'a FxHashMap<InstId, DenseBitSet<ValueId>>,
     /// Whether a failure lists every spillable value beyond reach, for spilling in batches.
     batch_spills: bool,
     /// Instructions with no code of their own.
-    skipped: DenseBitSet<InstId>,
+    skipped: Cow<'a, DenseBitSet<InstId>>,
     /// Extra results of multi-word calls, adopted from the returned stack words.
-    projections: FxHashMap<InstId, SmallVec<[Option<ValueId>; 4]>>,
+    projections: &'a FxHashMap<InstId, SmallVec<[Option<ValueId>; 4]>>,
     /// Multi-word calls that store their extra results to the multi-return buffer.
-    publish: DenseBitSet<InstId>,
+    publish: &'a DenseBitSet<InstId>,
     /// Branch conditions with their single-use zero tests peeled off, and whether that
     /// inverts the branch.
-    conditions: FxHashMap<BlockId, (ValueId, bool)>,
+    conditions: &'a FxHashMap<BlockId, (ValueId, bool)>,
     /// The constants retained by this trial, with the blocks that first materialize them.
     constant_defs: Vec<(BlockId, ValueId)>,
     /// The blocks in which each retained constant is kept on the stack. The constant is pushed
@@ -285,25 +312,24 @@ pub(super) struct Planner<'a> {
     /// The block being planned.
     current: Cell<BlockId>,
     /// Number of operand positions reading each value.
-    use_counts: IndexVec<ValueId, u32>,
+    use_counts: &'a IndexVec<ValueId, u32>,
     /// Blocks that return the results of their last instruction, an internal call, which
     /// becomes a tail call.
-    tail_calls: FxHashMap<BlockId, InstId>,
-    args: IndexVec<ArgIdx, Option<ValueId>>,
+    tail_calls: &'a FxHashMap<BlockId, InstId>,
+    args: &'a IndexVec<ArgIdx, Option<ValueId>>,
     layouts: IndexVec<BlockId, Option<Layout>>,
     blocks: IndexVec<BlockId, Option<BlockPlan>>,
     natural: FxHashMap<BlockId, Layout>,
-    first_use: FxHashMap<BlockId, Layout>,
     gas_mode: bool,
     /// Relative executions of each block, which scale the gas of its planned code: zero for a cold
     /// block in a gas build.
-    executions: IndexVec<BlockId, u32>,
-    backedges: FxHashSet<(BlockId, BlockId)>,
+    executions: &'a IndexVec<BlockId, u32>,
+    backedges: &'a FxHashSet<(BlockId, BlockId)>,
     /// Blocks that never return through the caller's address and leave no loop: their layouts
     /// constrain only the words at the top of the stack.
-    floating: DenseBitSet<BlockId>,
+    floating: &'a DenseBitSet<BlockId>,
     /// Number of forward (non-back) edges into each block.
-    forward_preds: IndexVec<BlockId, u32>,
+    forward_preds: &'a IndexVec<BlockId, u32>,
     /// Edges into joins whose layout waits until every forward predecessor is planned.
     pending: FxHashMap<BlockId, Vec<Pending>>,
     /// The latest plain plan of a placement decision.
@@ -335,20 +361,19 @@ pub(super) struct Planner<'a> {
     marks: Vec<Mark>,
 }
 
-impl<'a> Planner<'a> {
+impl PlannerBase {
+    /// Computes what every planning attempt of the function shares.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        func: &'a Function,
-        info: &'a ModuleInfo,
+        func: &Function,
+        info: &ModuleInfo,
         func_id: FunctionId,
-        analysis: &'a Analysis,
-        target: &'a Target,
-        spilled: &'a DenseBitSet<ValueId>,
-        ret_spilled: bool,
-        batch_spills: bool,
-        hints: &'a FxHashMap<BlockId, Layout>,
+        cfg: &CfgInfo,
+        loops: &LoopInfo,
+        reads: &DenseBitSet<ValueId>,
+        recomputable: &FxHashMap<ValueId, (Cost, u32)>,
+        target: &Target,
     ) -> Result<Self, &'static str> {
-        let Analysis { liveness, cfg, loops, pinned, recomputable, saved, reads, .. } = analysis;
         let has_ret = info.returning.contains(func_id);
         let gas_mode = target.optimization().is_gas();
         let args = argument_values(func)?;
@@ -491,7 +516,6 @@ impl<'a> Planner<'a> {
             .map(|block| target.block_weight(block.hotness))
             .collect::<IndexVec<_, _>>();
         let mut backedges = FxHashSet::default();
-        let mut first_use = FxHashMap::default();
         for lp in loops.all_loops() {
             for block in lp.blocks.iter() {
                 executions[block] = Target::nested_block_weight(executions[block]);
@@ -499,18 +523,6 @@ impl<'a> Planner<'a> {
             for &latch in &lp.back_edges {
                 backedges.insert((latch, lp.header));
             }
-            let header = lp.header;
-            let mut words: Vec<ValueId> = liveness.live_in(header).iter().collect();
-            words.extend(func.block_phi_results(header).iter());
-            words.retain(|&value| !remat.contains(value) && !spilled.contains(value));
-            // Order the header's words by their last read in the loop body.
-            let body = cfg
-                .rpo()
-                .iter()
-                .copied()
-                .filter(|&block| block != header && lp.blocks.contains(block));
-            let layout = ordered_layout(func, body, words, has_ret && !ret_spilled, Read::Last);
-            first_use.insert(header, layout);
         }
 
         let mut forward_preds = index_vec![0u32; func.blocks.len()];
@@ -521,17 +533,6 @@ impl<'a> Planner<'a> {
                 }
             }
         }
-        // A pinned value chosen to leave the stack is recomputed at each use.
-        for value in spilled.iter() {
-            if pinned.contains(value)
-                && recomputable.contains_key(&value)
-                && let Value::Inst(def) = *func.value(value)
-            {
-                remat.insert(value);
-                skipped.insert(def);
-            }
-        }
-
         let mut floating = DenseBitSet::new_empty(func.blocks.len());
         for &block in cfg.rpo().iter().rev() {
             let Some(term) = &func.blocks[block].terminator else { continue };
@@ -550,10 +551,69 @@ impl<'a> Planner<'a> {
             }
         }
 
+        let mut remat_costs = index_vec![Cost::ZERO; func.num_values()];
+        for value in remat.iter() {
+            remat_costs[value] = match recomputable.get(&value) {
+                Some(&(cost, _)) => cost,
+                None => materialize_cost(func, target, value),
+            };
+        }
+        Ok(Self {
+            has_ret,
+            gas_mode,
+            args,
+            use_counts,
+            remat,
+            skipped,
+            remat_costs,
+            projections,
+            publish,
+            tail_calls,
+            conditions,
+            executions,
+            backedges,
+            forward_preds,
+            floating,
+        })
+    }
+}
+
+impl<'a> Planner<'a> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new(
+        func: &'a Function,
+        info: &'a ModuleInfo,
+        func_id: FunctionId,
+        analysis: &'a Analysis,
+        target: &'a Target,
+        spilled: &'a DenseBitSet<ValueId>,
+        ret_spilled: bool,
+        batch_spills: bool,
+        hints: &'a FxHashMap<BlockId, Layout>,
+    ) -> Result<Self, &'static str> {
+        let Analysis { liveness, cfg, pinned, recomputable, saved, .. } = analysis;
+        let base = analysis.base.as_ref().map_err(|&reason| reason)?;
+        let has_ret = base.has_ret;
+        // A pinned value chosen to leave the stack is recomputed at each use.
+        let mut remat = Cow::Borrowed(&base.remat);
+        let mut skipped = Cow::Borrowed(&base.skipped);
+        let mut remat_costs = Cow::Borrowed(&base.remat_costs);
+        for value in spilled.iter() {
+            if pinned.contains(value)
+                && let Some(&(cost, _)) = recomputable.get(&value)
+                && let Value::Inst(def) = *func.value(value)
+            {
+                remat.to_mut().insert(value);
+                skipped.to_mut().insert(def);
+                remat_costs.to_mut()[value] = cost;
+            }
+        }
+
         Ok(Self {
             info,
             func_id,
             func,
+            analysis,
             liveness,
             target,
             spilled,
@@ -562,18 +622,9 @@ impl<'a> Planner<'a> {
             ret_spilled: has_ret && ret_spilled,
             reach: target.evm_version().reachable_stack_depth(),
             cfg,
-            remat_costs: {
-                let mut costs = index_vec![Cost::ZERO; func.num_values()];
-                for value in remat.iter() {
-                    costs[value] = match recomputable.get(&value) {
-                        Some(&(cost, _)) => cost,
-                        None => materialize_cost(func, target, value),
-                    };
-                }
-                costs
-            },
+            remat_costs,
             fresh_values: {
-                let mut fresh = remat.clone();
+                let mut fresh = remat.clone().into_owned();
                 fresh.union(spilled);
                 fresh
             },
@@ -581,24 +632,23 @@ impl<'a> Planner<'a> {
             saved,
             batch_spills,
             skipped,
-            projections,
-            publish,
-            conditions,
+            projections: &base.projections,
+            publish: &base.publish,
+            conditions: &base.conditions,
             constant_defs: Vec::new(),
             held: FxHashMap::default(),
             current: Cell::new(BlockId::ENTRY),
-            use_counts,
-            tail_calls,
-            args,
+            use_counts: &base.use_counts,
+            tail_calls: &base.tail_calls,
+            args: &base.args,
             layouts: index_vec![None; func.blocks.len()],
             blocks: index_vec![None; func.blocks.len()],
             natural: FxHashMap::default(),
-            first_use,
-            gas_mode,
-            executions,
-            backedges,
-            floating,
-            forward_preds,
+            gas_mode: base.gas_mode,
+            executions: &base.executions,
+            backedges: &base.backedges,
+            floating: &base.floating,
+            forward_preds: &base.forward_preds,
             pending: FxHashMap::default(),
             plain_trial: None,
             stack_costs: StackOpCosts::new(target),
@@ -614,6 +664,31 @@ impl<'a> Planner<'a> {
             journal: Vec::new(),
             marks: Vec::new(),
         })
+    }
+
+    /// For each loop header, its words ordered by their last read in the loop body.
+    fn first_use(&self) -> FxHashMap<BlockId, Layout> {
+        let Analysis { liveness, cfg, loops, base, .. } = self.analysis;
+        let remat = &base.as_ref().expect("a planner has its base").remat;
+        let (func, spilled) = (self.func, self.spilled);
+        let has_ret = self.has_ret;
+        let ret_spilled = self.ret_spilled;
+        let mut first_use = FxHashMap::default();
+        for lp in loops.all_loops() {
+            let header = lp.header;
+            let mut words: Vec<ValueId> = liveness.live_in(header).iter().collect();
+            words.extend(func.block_phi_results(header).iter());
+            words.retain(|&value| !remat.contains(value) && !spilled.contains(value));
+            // Order the header's words by their last read in the loop body.
+            let body = cfg
+                .rpo()
+                .iter()
+                .copied()
+                .filter(|&block| block != header && lp.blocks.contains(block));
+            let layout = ordered_layout(func, body, words, has_ret && !ret_spilled, Read::Last);
+            first_use.insert(header, layout);
+        }
+        first_use
     }
 
     pub(super) fn plan(self) -> Result<Planned, Fail> {
@@ -672,6 +747,7 @@ impl<'a> Planner<'a> {
                 marks: std::mem::take(&mut self.marks),
             });
         }
+        let first_use = self.first_use();
         let plan = FunctionPlan {
             blocks: self.blocks,
             spilled: self.spilled.clone(),
@@ -680,7 +756,7 @@ impl<'a> Planner<'a> {
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
         };
-        Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
+        Ok(Planned { plan, natural: self.natural, first_use })
     }
 
     /// Plans the blocks after those already marked, in reverse postorder.

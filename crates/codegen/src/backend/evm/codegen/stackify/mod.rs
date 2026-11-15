@@ -396,6 +396,8 @@ struct Analysis {
     /// Calldata words at constant offsets that the planner pushes at each use. Nothing changes
     /// them during the call.
     reads: DenseBitSet<ValueId>,
+    /// What every planning attempt shares, or why the function cannot be planned.
+    base: Result<plan::PlannerBase, &'static str>,
 }
 
 /// Why an artifact could not be lowered: the function uses a shape this lowering does not
@@ -700,7 +702,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             plan::recomputable(func, &cfg, &reads, &self.target(info, func_id))
         };
-        Analysis { liveness, cfg, loops, saved, pinned, recomputable, reads }
+        let base = plan::PlannerBase::new(
+            func,
+            info,
+            func_id,
+            &cfg,
+            &loops,
+            &reads,
+            &recomputable,
+            &self.target(info, func_id),
+        );
+        Analysis { liveness, cfg, loops, saved, pinned, recomputable, reads, base }
     }
 
     /// Plans a function, or takes the plan of an identical function planned before from `cache`.
