@@ -13,12 +13,21 @@
 //@ run-call: missSecond 0xffff => 15
 
 // Functions that hold the same search share its proof. Each copy of a scan is rewritten, and
-// each copy of a near miss keeps its code, whichever function's proof ran first.
+// each copy of a near miss keeps its table, whichever function's proof ran first; scan-region
+// still rounds the near miss's index down to a nibble with CLZ, which is exact. The copies end
+// up identical, so the optimized dispatcher sends each selector to one shared block.
+// CHECK-LABEL: fn @entry
+// CHECK: switch {{.*}}0xb3f62f5 => [[SCAN:bb[0-9]+]], 0x691d13c2 => [[MISS:bb[0-9]+]], 0x7896dfe3 => [[SCAN]], 0xca7b9b97 => [[MISS]], 0xf1680ae6 => [[SCAN]]]
+// CHECK: [[MISS]]:
+// CHECK: clz
+// CHECK: and {{.*}}, 252
+// CHECK: byte
+// CHECK: returndata
+// CHECK: [[SCAN]]:
+// CHECK: clz
+// CHECK-NOT: byte
+// CHECK: returndata
 contract SharedProofs {
-    // CHECK-LABEL: fn @first
-    // CHECK: clz
-    // CHECK-NOT: byte
-    // CHECK: returndata
     function first(uint256 x) external pure returns (uint256 r) {
         assembly ("memory-safe") {
             r := shl(7, gt(x, 0xffffffffffffffffffffffffffffffff))
@@ -31,10 +40,6 @@ contract SharedProofs {
         }
     }
 
-    // CHECK-LABEL: fn @second
-    // CHECK: clz
-    // CHECK-NOT: byte
-    // CHECK: returndata
     function second(uint256 x) external pure returns (uint256 r) {
         assembly ("memory-safe") {
             r := shl(7, gt(x, 0xffffffffffffffffffffffffffffffff))
@@ -47,10 +52,6 @@ contract SharedProofs {
         }
     }
 
-    // CHECK-LABEL: fn @third
-    // CHECK: clz
-    // CHECK-NOT: byte
-    // CHECK: returndata
     function third(uint256 x) external pure returns (uint256 r) {
         assembly ("memory-safe") {
             r := shl(7, gt(x, 0xffffffffffffffffffffffffffffffff))
@@ -64,11 +65,6 @@ contract SharedProofs {
     }
 
     // The table's entry for eight is two: wrong for every word whose leading bits are 1000.
-    // CHECK-LABEL: fn @missFirst
-    // CHECK-NOT: clz
-    // CHECK: byte
-    // CHECK-NOT: clz
-    // CHECK: returndata
     function missFirst(uint256 x) external pure returns (uint256 r) {
         assembly ("memory-safe") {
             r := shl(7, gt(x, 0xffffffffffffffffffffffffffffffff))
@@ -82,11 +78,6 @@ contract SharedProofs {
     }
 
     // The same near miss again: it fails its proof here too.
-    // CHECK-LABEL: fn @missSecond
-    // CHECK-NOT: clz
-    // CHECK: byte
-    // CHECK-NOT: clz
-    // CHECK: returndata
     function missSecond(uint256 x) external pure returns (uint256 r) {
         assembly ("memory-safe") {
             r := shl(7, gt(x, 0xffffffffffffffffffffffffffffffff))

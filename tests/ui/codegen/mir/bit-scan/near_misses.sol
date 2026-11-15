@@ -22,7 +22,9 @@
 //@ run-call: halves 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 128
 
 // Searches that are not the index of the highest set bit for some input. Each agrees with it on
-// most inputs, and each keeps its code.
+// most inputs, and none becomes a full CLZ index. scan-region still replaces the steps of a
+// search that round the index down to a nibble or a byte, which are exact, and keeps the wrong
+// table or comparison after them.
 contract NearMisses {
     function toUint(bool b) internal pure returns (uint256 u) {
         assembly ("memory-safe") {
@@ -32,7 +34,8 @@ contract NearMisses {
 
     // The table's entry for five is three: wrong for every word whose leading bits are 101.
     // CHECK-LABEL: fn @wrongEntry
-    // CHECK-NOT: clz
+    // CHECK: clz
+    // CHECK: and {{.*}}, 252
     // CHECK: byte
     // CHECK-NOT: clz
     // CHECK: returndata
@@ -50,7 +53,9 @@ contract NearMisses {
 
     // One threshold is one too low: wrong for the words whose low half ends at `0xffff`.
     // CHECK-LABEL: fn @offByOne
-    // CHECK-NOT: clz
+    // CHECK: clz
+    // CHECK: and {{.*}}, 224
+    // CHECK: gt {{.*}}, 0xfffe
     // CHECK: byte
     // CHECK-NOT: clz
     // CHECK: returndata
@@ -66,9 +71,12 @@ contract NearMisses {
         }
     }
 
-    // The search stops one step short and only finds even indexes.
+    // The search stops one step short and only finds even indexes: the index rounded down to
+    // even, (m >> 1) << 1, which is a CLZ form.
     // CHECK-LABEL: fn @stopsEarly
-    // CHECK-NOT: clz
+    // CHECK: clz
+    // CHECK: and {{.*}}, 254
+    // CHECK-NOT: jumpi
     // CHECK: returndata
     function stopsEarly(uint256 x) external pure returns (uint256 r) {
         r = toUint(x > 0xffffffffffffffffffffffffffffffff) << 7;
@@ -82,7 +90,8 @@ contract NearMisses {
 
     // The index for every word but zero, for which no form of the opcode returns seven.
     // CHECK-LABEL: fn @otherZero
-    // CHECK-NOT: clz
+    // CHECK: clz
+    // CHECK: and {{.*}}, 252
     // CHECK: byte
     // CHECK-NOT: clz
     // CHECK: returndata
