@@ -42,14 +42,19 @@
 //!
 //! ```text
 //! index >> k        (255 - clz(x | 1)) >> k, or with clz(x)
+//! index >> k << k   (255 - clz(x | 1)) & (255 >> k << k), or with clz(x)
 //! leading zeros     clz(x | 1), or clz(x)
 //! 2**(index / 2)    1 << ((255 - clz(x | 1)) >> 1), or with clz(x)
 //! ```
 //!
-//! with the form its value for zero picks. Nothing else the region computes may be read past it:
-//! the first block then jumps straight to the last one, and the other blocks, the phis of the last
-//! block and the instructions only the region read go. The rewrite is taken when the target
-//! prices the new operations below the removed instructions and branches.
+//! with the form its value for zero picks. Solady rounds the index down to a byte this way when
+//! it stops its scan at the byte that holds the highest set bit. A proved value that only the
+//! removed code and other proved values read goes with them rather than being rewritten, so a
+//! scan that rounds its index in steps keeps only its last step. Nothing else the region
+//! computes may be read past it: the first block then jumps straight to the last one, and the
+//! other blocks, the phis of the last block and the instructions only the region read go. The
+//! rewrite is taken when the target prices the new operations below the removed instructions
+//! and branches.
 //!
 //! # Limits and placement
 //!
@@ -121,6 +126,8 @@ struct Run {
 enum Shape {
     /// `m >> k`.
     Index(u32),
+    /// `(m >> k) << k`, for `k` from 1 to 7.
+    Masked(u32),
     /// `255 - m`.
     LeadingZeros,
     /// `2**(m >> 1)`.
@@ -361,6 +368,18 @@ fn shape(table: &[U256], zero: U256) -> Option<(Shape, bool)> {
             };
         }
     }
+    for k in 1..8u32 {
+        if fits(&|m| U256::from(m >> k << k)) {
+            let mask = U256::from(0xffu32 >> k << k);
+            return if zero.is_zero() {
+                Some((Shape::Masked(k), true))
+            } else if zero == mask {
+                Some((Shape::Masked(k), false))
+            } else {
+                None
+            };
+        }
+    }
     if fits(&|m| U256::from(255 - m)) {
         return if zero == U256::from(255) {
             Some((Shape::LeadingZeros, true))
@@ -384,7 +403,7 @@ fn shape(table: &[U256], zero: U256) -> Option<(Shape, bool)> {
 
 /// Whether a result for the class `m` fits one of the shapes.
 fn may_fit(m: u32, result: U256) -> bool {
-    (0..8u32).any(|k| result == U256::from(m >> k))
+    (0..8u32).any(|k| result == U256::from(m >> k) || result == U256::from(m >> k << k))
         || result == U256::from(255 - m)
         || result == U256::ONE << (m >> 1) as usize
 }
@@ -420,6 +439,12 @@ fn clz_form(
             let index = emit(func, index);
             let k = immediate(func, u64::from(k));
             InstKind::Shr(k, index)
+        }
+        Shape::Masked(k) => {
+            // %result = and %index, 255 >> k << k
+            let index = emit(func, index);
+            let mask = immediate(func, u64::from(0xffu32 >> k << k));
+            InstKind::And(index, mask)
         }
         _ => {
             // %half = shr %index, 1
@@ -553,7 +578,7 @@ fn rewrite_region(
     // What the rewrite removes: the middle blocks, the phis of the last block, and then every
     // pure instruction of the entry and the last block that nothing reads any more.
     let mut uses = super::egraph::use_counts(func);
-    let replaced: FxHashSet<InstId> = proved.iter().map(|&(inst, ..)| inst).collect();
+    let mut replaced: FxHashSet<InstId> = proved.iter().map(|&(inst, ..)| inst).collect();
     let mut removed: FxHashSet<InstId> = FxHashSet::default();
     let mut branches = Cost::ZERO;
     let mut pending = Vec::new();
@@ -605,6 +630,18 @@ fn rewrite_region(
         if !progress {
             break;
         }
+    }
+    // A proved value that only the removed code or other proved values read goes with them.
+    proved.retain(|&(inst, value, ..)| {
+        let dead = uses[value] == 0;
+        if dead {
+            replaced.remove(&inst);
+            removed.insert(inst);
+        }
+        !dead
+    });
+    if proved.is_empty() {
+        return false;
     }
     // Nothing that stays may read what the removed code computes. A replaced phi hands its
     // readers to its new value.
