@@ -91,6 +91,8 @@ macro_rules! dense_keys {
 dense_keys! {
     hir::ContractId => contracts,
     hir::StructId => structs,
+    hir::FunctionId => functions,
+    hir::VariableId => variables,
 }
 
 macro_rules! map_keys {

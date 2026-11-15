@@ -1901,6 +1901,20 @@ fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceIt
     gcx.cached_arena().alloc(call_graph::interface_items(gcx, id))
 }
 
+/// Returns what the body of the given function reaches, before a contract resolves the overrides
+/// its calls dispatch to.
+fn function_call_ops(gcx: _, id: hir::FunctionId) -> &'gcx [call_graph::CallOp] {
+    assert!(gcx.has_typeck_results(), "call operations require type checking");
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_function(gcx, id))
+}
+
+/// Returns what the initializer of the given constant reaches, before a contract resolves the
+/// overrides its calls dispatch to.
+fn constant_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
+    assert!(gcx.has_typeck_results(), "call operations require type checking");
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_constant(gcx, id))
+}
+
 fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
     assert!(gcx.has_typeck_results(), "contract items require type checking");
     gcx.cached_arena().alloc(call_graph::all_items(gcx, id))
