@@ -315,6 +315,8 @@ enum Fail {
     Deep(Option<Victim>, SmallVec<[ValueId; 8]>),
     /// The function uses a shape this lowering does not implement.
     Unsupported(&'static str),
+    /// A replan stopped because it cannot beat the plan it competes with.
+    Bound,
 }
 
 /// A complete function plan.
@@ -784,7 +786,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The last plan and the best one with their hints and what they decided, for plans under
         // other hints to resume from. The best one also keeps the restarts before it: a plan
         // resumes only from one made with the same spills.
-        let mut last: Option<(FxHashMap<BlockId, Layout>, plan::Progress)> = None;
+        let mut last: Option<(FxHashMap<BlockId, Layout>, plan::Progress, u32)> = None;
         let mut best_progress: Option<(u32, plan::Progress)> = None;
         while let Some(hints) = candidates.pop() {
             round += 1;
@@ -796,14 +798,29 @@ impl<'gcx> EvmCodegen<'gcx> {
             // What the last plan decided before the first block the new hints can change, and
             // then what the last failed plan under these hints decided before the spills it asked
             // for.
-            let mut progress = last.take().map(|(last_hints, mut progress)| {
+            // A complete plan made with the same spills, which this round stops against once it
+            // reaches a block in that plan's state and cannot beat the best plan from there.
+            let rounds_at = restarts;
+            let reference = match &last {
+                Some((last_hints, progress, at))
+                    if *at == restarts && progress.planned_blocks() == analysis.cfg.rpo().len() =>
+                {
+                    Some(plan::Reference::new(progress.clone(), last_hints.clone()))
+                }
+                _ => best_progress.as_ref().filter(|&&(at, _)| at == restarts).map(
+                    |(_, progress)| plan::Reference::new(progress.clone(), best_hints.clone()),
+                ),
+            };
+            let best_cost = best.as_ref().map(|best| best.cost);
+            let beats = |cost: Cost| best_cost.is_none_or(|best| target.cmp(cost, best).is_lt());
+            let mut progress = last.take().map(|(last_hints, mut progress, _)| {
                 let blocks =
                     spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
                 progress.rewind(blocks.first_hinted(func, &last_hints, &hints));
                 progress
             });
-            let Planned { plan, mut natural, first_use } = loop {
-                let planner = Planner::new(
+            let outcome = loop {
+                let mut planner = Planner::new(
                     func,
                     info,
                     func_id,
@@ -817,6 +834,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .map_err(|reason| Decline(func_id, reason))?;
                 if round == 1 && restarts == 0 && target.optimizes_stack_plans() {
                     constants = planner.constants_to_retain();
+                }
+                if let Some(reference) = &reference
+                    && restarts == rounds_at
+                {
+                    planner =
+                        planner.settle_against(plan::Settle::converged(reference, &hints, &beats));
                 }
                 // Debug builds check that a resumed attempt ends as one from scratch does.
                 #[cfg(debug_assertions)]
@@ -837,13 +860,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let result = planner.plan_keeping(&mut progress);
                 #[cfg(debug_assertions)]
                 if let Some(Ok(scratch)) = &scratch {
+                    // A round stops only when the plan from scratch cannot beat the best one.
                     assert!(
-                        plan::same_outcome(&result, scratch),
+                        if let Err(Fail::Bound) = result {
+                            matches!(scratch, Ok(planned) if !beats(planned.plan.cost))
+                        } else {
+                            plan::same_outcome(&result, scratch)
+                        },
                         "a resumed stack plan differs from a plan from scratch",
                     );
                 }
                 match result {
-                    Ok(planned) => break planned,
+                    Ok(planned) => break Some(planned),
+                    Err(Fail::Bound) => break None,
                     Err(Fail::Deep(victim, beyond)) => {
                         restarts += 1;
                         match victim {
@@ -881,6 +910,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             let progress = progress.expect("a plan keeps its progress");
+            let Some(Planned { plan, mut natural, first_use }) = outcome else {
+                // What the round planned before it stopped still serves the next one.
+                last = Some((hints, progress, restarts));
+                continue;
+            };
             if round == 1 {
                 if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
@@ -900,14 +934,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                     candidates.insert(0, natural);
                 }
             }
-            last = Some((hints, progress));
+            last = Some((hints, progress, restarts));
         }
         let mut best = best.expect("at least one plan");
         let blocks = &*spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
         // A replan resumes from the best plan before the first block its hints can change, when no
         // later round spilled more.
-        let best_progress = best_progress.filter(|&(at, _)| at == restarts).map(|(_, p)| p);
-        let replan = |hints: &FxHashMap<BlockId, Layout>| {
+        let reference = best_progress
+            .filter(|&(at, _)| at == restarts)
+            .map(|(_, progress)| plan::Reference::new(progress, best_hints.clone()));
+        // A replan stops once it cannot beat the best plan; see `plan::Reference`.
+        let replan = |hints: &FxHashMap<BlockId, Layout>, best: Cost| {
+            let beats = |cost: Cost| target.cmp(cost, best).is_lt();
             let new = || {
                 Planner::new(
                     func,
@@ -922,17 +960,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
                 .ok()
             };
-            let mut progress = best_progress.clone().map(|mut progress: plan::Progress| {
+            let mut progress = reference.as_ref().map(|reference| {
+                let mut progress = reference.progress().clone();
                 progress.rewind(blocks.first_hinted(func, &best_hints, hints));
                 progress
             });
             #[cfg(debug_assertions)]
             let scratch = progress.is_some().then(|| new().map(Planner::plan)).flatten();
-            let result = new()?.plan_from(&mut progress);
+            let mut planner = new()?;
+            if let Some(reference) = &reference {
+                planner = planner.settle_against(plan::Settle::new(reference, hints, &beats));
+            }
+            let result = planner.plan_from(&mut progress);
             #[cfg(debug_assertions)]
             if let Some(scratch) = &scratch {
+                // A replan stops only when the plan from scratch cannot beat the best one.
                 assert!(
-                    plan::same_outcome(&result, scratch),
+                    if let Err(Fail::Bound) = result {
+                        !matches!(scratch, Ok(planned) if beats(planned.plan.cost))
+                    } else {
+                        plan::same_outcome(&result, scratch)
+                    },
                     "a resumed stack plan differs from a plan from scratch",
                 );
             }
@@ -974,6 +1022,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             trials += 1;
             retained.push(constant);
+            // What a candidate must pass below, in the parts that a higher cost fails too, so that
+            // the trial stops once its cost so far fails it.
+            let best_cost = best.cost;
+            let beats = |cost: Cost| {
+                target.cmp_lifetime(cost, best_cost).is_lt()
+                    && (target.is_creation()
+                        || (cost.gas <= best_cost.gas && cost.bytes <= best_cost.bytes))
+                    && (!target.optimization().is_size()
+                        || cost.bytes.saturating_add(target.jump().bytes) < best_cost.bytes)
+            };
             if let Ok(planner) = Planner::new(
                 func,
                 info,
@@ -986,7 +1044,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &hints,
             ) && let liveness =
                 plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, &retained)
-                && let Ok(candidate) = planner.retain_constants(&retained, &liveness).plan()
+                && let Ok(candidate) = planner
+                    .retain_constants(&retained, &liveness)
+                    .settle_against(plan::Settle::bound(&beats))
+                    .plan()
                 // Creation code pays for every byte it leaves out, so a constant kept on the
                 // stack may cost gas, as long as the deployment gets cheaper. Elsewhere it may
                 // cost setup gas outside loops only when the bytes it saves repay that gas.
@@ -1271,7 +1332,7 @@ fn exchange_header_words(
     mut hints: FxHashMap<BlockId, Layout>,
     tried: &mut Vec<FxHashMap<BlockId, Layout>>,
     best: &mut FunctionPlan,
-    replan: impl Fn(&FxHashMap<BlockId, Layout>) -> Option<Planned>,
+    replan: impl Fn(&FxHashMap<BlockId, Layout>, Cost) -> Option<Planned>,
 ) {
     // Replans cost time in proportion to the function's size, so large functions get fewer,
     // spent on the innermost loops first.
@@ -1298,7 +1359,7 @@ fn exchange_header_words(
                 let Some(left) = replans.checked_sub(1) else { return };
                 replans = left;
                 tried.push(hints.clone());
-                if let Some(planned) = replan(&hints)
+                if let Some(planned) = replan(&hints, best.cost)
                     && target.cmp(planned.plan.cost, best.cost).is_lt()
                 {
                     *best = planned.plan;
