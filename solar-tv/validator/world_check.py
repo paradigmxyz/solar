@@ -31,7 +31,7 @@ MIR_UNFOLD = (
     "MIR.State.execute, ↓MIR.State.reduceRun, MIR.State.transition, MIR.State.next, MIR.State.stop, MIR.State.enter, MIR.State.function, MIR.State.start, "
     "MIR.State.typedWords, MIR.State.callSignature, MIR.State.publishReturns, MIR.State.returnLeaves, MIR.State.branch, MIR.State.advance, MIR.State.Fact.holds, "
     "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, MIR.State.assign, "
-    "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, ↓MIR.State.reduceFits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
+    "MIR.State.read, MIR.State.readBits, MIR.State.readValue, MIR.State.Value.word, ↓MIR.State.reduceFits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
     "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, BitVec.ult_iff_toNat_lt, BitVec.ule_iff_toNat_le, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, Word.binary, Word.unary, Word.shift, "
     "MIR.State.allocate, MIR.State.deferredAllocate, MIR.State.activationBase, MIR.State.placementBinding, MIR.State.layoutBinding, MIR.State.freePointer, MIR.State.memoryOperation, "
     "MIR.State.abiRequirePayload, MIR.State.requireLiteral, MIR.State.failureData, RevertData.fromBytes, MIR.State.abiEncode, MIR.State.abiWriteWords, MIR.State.abiDecode, MIR.State.abiCanonical, MIR.State.abiObligation, "
@@ -117,6 +117,8 @@ def check(
             )
         proof += "  all_goals decide +kernel\n"
     elif direct_mir:
+        # Preserve symbolic shifts instead of recursively reducing Nat multiplication.
+        declarations += "attribute [local irreducible] Nat.mul\n"
         # Normalize each execution before comparing it. Keep byte memory abstract
         # for the range-proved read/write laws; expanding every symbolic byte
         # before reading a disjoint FMP word loses that useful structure.
@@ -135,7 +137,9 @@ def check(
         # Compare observation fields before simplifying their contents. Identical
         # account/access sets need no repeated normalization under symbolic bytes.
         # Splitting a guard can expose a continuation, so normalize again there.
-        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega\n"
+        # Normalize completed word observations if the existing solvers cannot
+        # close equality, including operand order after closed memory reads.
+        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm])\n"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"

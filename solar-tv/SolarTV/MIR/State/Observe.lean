@@ -22,6 +22,7 @@ structure Observation where
   warmAddresses : List Address
   warmSlots : List (Address × Word)
   boundaryBudgets : Option (Nat × Nat)
+  messageGas : List Nat
   deriving DecidableEq
 
 def observe (result : Result) : Observation :=
@@ -31,6 +32,7 @@ def observe (result : Result) : Observation :=
     | .reverted data => ("revert",[],data,none,false)
     | .invalid => ("exception",[],[],none,false)
     | .undefined => ("undefined",[],[],none,false)
+    | .outOfGas => ("out-of-gas",[],[],none,false)
   let accounts := result.world.accounts.map fun a => {a with
     storage := normalizedSlots a.storage
     transient := if keepTransient then normalizedSlots a.transient else []
@@ -40,7 +42,8 @@ def observe (result : Result) : Observation :=
     if keepTransient then result.returnData else [],
     if keepTransient then ordered (fun a b => a.ule b) result.world.warmAddresses.eraseDups else [],
     if keepTransient then ordered (fun a b => if a.1 == b.1 then a.2.ule b.2 else a.1.ule b.1) result.world.warmSlots.eraseDups else [],
-    if keepTransient then some (result.creationIndex,result.builtinIndex) else none⟩
+    if keepTransient then some (result.creationIndex,result.builtinIndex) else none,
+    result.messageGas⟩
 
 /-- The target refines the source: equal observations, unless the source run is undefined (a
 failed `assume`), which any target run that completes refines. An undefined target run observes
@@ -68,6 +71,7 @@ def describe (result : Run) : String :=
     (Lean.Json.mkObj [
       ("boundary_budgets",o.boundaryBudgets.map (fun (creation,builtin) =>
         Lean.Json.arr #[Lean.toJson creation,Lean.toJson builtin]) |>.getD .null),
+      ("message_gas",Lean.toJson o.messageGas),
       ("returndata",bytesJson o.returnData),
       ("warm_addresses",.arr (o.warmAddresses.map (fun a => .str (toString a.toNat))).toArray),
       ("warm_slots",.arr (o.warmSlots.map (fun (a,k) => Lean.Json.arr #[.str (toString a.toNat),wordJson k])).toArray),

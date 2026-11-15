@@ -1527,6 +1527,7 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
+            InstKind::AddressCall { .. } => Cost::new(720, 12),
             InstKind::ExtCall { policy, address, .. } => {
                 self.extcall(*policy, func.extcall_clears_word(*address))
             }

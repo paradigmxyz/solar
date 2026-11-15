@@ -29,8 +29,7 @@ def source(
     option = "" if gas is None else f", gas {gas}"
     if amount is not None:
         option += f", value {amount}"
-    op = {"call": "extcall", "staticcall": "extcall static", "delegatecall": "extcall delegate"}[kind]
-    body = prefix + f"v3 = {op} v0, {'v2' if sliced else 'v1'}{option}\n"
+    body = prefix + f"v3 = address_{kind} v0, {'v2' if sliced else 'v1'}{option}\n"
     if object_result:
         body += "v4 = icall returndata_bytes<>\nv5 = ptrtoint ptr<memory> v4 to i256\nret v5"
     else:
@@ -100,16 +99,15 @@ class MirAddressCallsTests(unittest.TestCase):
         )
         body = (
             prefix.replace("}\n", "")
-            + "v7 = extcall v0, v1, gas 0\nv8 = icall returndata_bytes<>\nv9 = ptrtoint ptr<memory> v8 to i256\nret v9\n}\n"
+            + "v7 = address_call v0, v1, gas 0\nv8 = icall returndata_bytes<>\nv9 = ptrtoint ptr<memory> v8 to i256\nret v9\n}\n"
         )
         self.lowered_pair(body, fixture())
         self.lowered_pair(source(gas="0"), fixture())
 
     def test_missing_gas_and_unsupported_fork_are_explicit(self):
-        # Implicit gas is an ordered builtin_gas boundary input, never caller pricing.
         text = source(gas=None)
         result, _ = self.pair(text, text, fixture=fixture(), status=2)
-        self.assertIn("builtin gas budget", result.stderr)
+        self.assertIn("requires caller pricing", result.stderr)
         text = source()
         result, _ = self.pair(
             text, text, fixture=fixture(), status=2, version="amsterdam"
@@ -121,7 +119,7 @@ class MirAddressCallsTests(unittest.TestCase):
             f"v0 = trunc i256 {ADDRESS} to i160\n"
             f"v1 = inttoptr i256 {2**256 - 1} to ptr<memory>\n"
             "v2 = make_memory_slice v1, 0\n"
-            "v3 = extcall static v0, v2, gas 100000\n"
+            "v3 = address_staticcall v0, v2, gas 100000\n"
             "v4 = returndatasize\nret v4"
         )
         self.lowered_pair(text, fixture())

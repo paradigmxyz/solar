@@ -112,8 +112,74 @@ def translate(
     else:
         raise Unsupported("unmodeled EVM terminal or dynamic transfer")
 
+    ops, constants, words, instruction_cost = instructions(
+        body, [None] * heights[entry], memory=memory, gas=gas
+    )
+    estimate += instruction_cost
+
+    if structured and structured[1] == following and len(constants) >= 1024:
+        raise Unsupported(
+            "full-stack layout fallthrough needs distinct transfer semantics"
+        )
+    if memory and output:
+        words = max(words, mem.active_words(constants[0], constants[1]))
+    if memory and not output:
+        terminal = f"(.control {terminal})"
+
+    height = heights[entry]
+    stack = [f"stack{i}" for i in range(height)]
+    inputs = ["calldatasize", "returndatasize", *stack]
+    if memory:
+        inputs.extend(mem.INPUTS)
+    if gas is not None:
+        inputs.append("gas")
+    function = (
+        "EVM.Gas.execute"
+        if gas is not None
+        else "EVM.Memory.execute"
+        if memory
+        else "EVM.execute"
+    )
+    return Program(
+        (
+            "evm-window",
+            str(height),
+            *blocks.keys(),
+            *(f"boundary:{label}" for label in sorted(boundaries)),
+            *(("memory",) if memory else ()),
+            *((gas, evm_version) if gas is not None else ()),
+        ),
+        inputs,
+        "EVM.Gas.Result"
+        if gas is not None
+        else "EVM.Memory.Execution"
+        if memory
+        else "EVM.Execution",
+        function
+        + " ⟨calldatasize, returndatasize⟩ ["
+        + ", ".join(ops)
+        + "] "
+        + terminal
+        + " ["
+        + ", ".join(stack)
+        + "]"
+        + (f" ({mem.INITIAL})" if memory else "")
+        + (f" gas.toNat .{evm_version}" if gas is not None else ""),
+        (*((256,) * (2 + height)), *mem.WIDTHS, *((256,) if gas is not None else ()))
+        if memory
+        else (),
+        memory=memory,
+        gas=gas,
+        gas_cost=estimate + 3 * words + words * words // 512,
+        evm_version=evm_version if gas is not None else None,
+    )
+
+
+def instructions(body, constants, *, memory, gas=None):
+    """Import one instruction sequence, retaining abstract stack constants across edges."""
+    estimate = 0
+    words = 0
     ops = []
-    constants: list[int | None] = [None] * heights[entry]
     for line in body:
         if gas is not None:
             estimate += pricing.estimate(line)
@@ -200,59 +266,4 @@ def translate(
         operation = f".stack ({operation})" if memory else operation
         ops.append(f".instruction ({operation})" if gas is not None else operation)
 
-    if structured and structured[1] == following and len(constants) >= 1024:
-        raise Unsupported(
-            "full-stack layout fallthrough needs distinct transfer semantics"
-        )
-    if memory and output:
-        words = max(words, mem.active_words(constants[0], constants[1]))
-    if memory and not output:
-        terminal = f"(.control {terminal})"
-
-    height = heights[entry]
-    stack = [f"stack{i}" for i in range(height)]
-    inputs = ["calldatasize", "returndatasize", *stack]
-    if memory:
-        inputs.extend(mem.INPUTS)
-    if gas is not None:
-        inputs.append("gas")
-    function = (
-        "EVM.Gas.execute"
-        if gas is not None
-        else "EVM.Memory.execute"
-        if memory
-        else "EVM.execute"
-    )
-    return Program(
-        (
-            "evm-window",
-            str(height),
-            *blocks.keys(),
-            *(f"boundary:{label}" for label in sorted(boundaries)),
-            *(("memory",) if memory else ()),
-            *((gas, evm_version) if gas is not None else ()),
-        ),
-        inputs,
-        "EVM.Gas.Result"
-        if gas is not None
-        else "EVM.Memory.Execution"
-        if memory
-        else "EVM.Execution",
-        function
-        + " ⟨calldatasize, returndatasize⟩ ["
-        + ", ".join(ops)
-        + "] "
-        + terminal
-        + " ["
-        + ", ".join(stack)
-        + "]"
-        + (f" ({mem.INITIAL})" if memory else "")
-        + (f" gas.toNat .{evm_version}" if gas is not None else ""),
-        (*((256,) * (2 + height)), *mem.WIDTHS, *((256,) if gas is not None else ()))
-        if memory
-        else (),
-        memory=memory,
-        gas=gas,
-        gas_cost=estimate + 3 * words + words * words // 512,
-        evm_version=evm_version if gas is not None else None,
-    )
+    return ops, constants, words, estimate

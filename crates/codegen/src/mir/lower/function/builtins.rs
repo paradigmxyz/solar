@@ -16,7 +16,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<CallResult> {
         match builtin {
             Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
-                // result = extcall(receiver, args, opts)
+                // result = address_call(receiver, args, opts)
                 let ExprKind::Member(receiver, _) = callee.kind else {
                     return self.cx.report_unsupported(callee.span, "address call");
                 };
@@ -167,17 +167,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.materialize_memory_argument(memory_ty, data, data_span)?
         };
         let kind = match builtin {
-            Builtin::AddressCall => ExtCallKind::Call,
-            Builtin::AddressStaticcall => ExtCallKind::Static,
-            Builtin::AddressDelegatecall => ExtCallKind::Delegate,
+            Builtin::AddressCall => AddressCallKind::Call,
+            Builtin::AddressStaticcall => AddressCallKind::Static,
+            Builtin::AddressDelegatecall => AddressCallKind::Delegate,
             _ => unreachable!(),
         };
-        // success = extcall(address, data, gas?, value?)
-        let policy = CallPolicy { kind, output: CallOutput::None };
-        let success = self.builder.extcall(
-            policy,
+        // success = address_call(address, data, gas?, value?)
+        let success = self.builder.address_call(
+            kind,
             address,
-            Some(data),
+            data,
             options.gas,
             options.value_set.then_some(options.value),
         );

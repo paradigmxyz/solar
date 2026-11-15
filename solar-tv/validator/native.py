@@ -23,11 +23,12 @@ def replay(
         "kind": a.interface[1]
         if a.world
         else "evmir"
-        if a.interface[0] == "evm-window"
+        if a.interface[0] in {"evm-window", "evm-region"}
         else "mir",
         "before": a.replay_ir or a.canonical_ir,
         "after": b.replay_ir or b.canonical_ir,
         "selector": a.selector,
+        "region": a.scope == "region",
         "inputs": {
             name: str(value) for name, value in zip(a.inputs, values, strict=True)
         },
