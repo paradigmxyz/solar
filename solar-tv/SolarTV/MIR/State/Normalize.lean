@@ -75,7 +75,7 @@ elab "split_mir_guard" : tactic => do
   let goal ← getMainGoal
   goal.withContext do
     let target ← goal.getType
-    let predicate := fun e => (e.isAppOf ``ite || e.isAppOf ``dite) && !e.hasLooseBVars
+    let predicate := fun e => (e.isAppOfArity ``ite 5 || e.isAppOfArity ``dite 5) && !e.hasLooseBVars
     let some first := target.find? predicate | throwError "no unresolved MIR guard"
     let mut term := first
     -- Resolve nested predicates before splitting the interpreter result. The
@@ -88,5 +88,10 @@ elab "split_mir_guard" : tactic => do
     -- Rewrite the exact guard before arithmetic normalization turns, for
     -- example, `¬ a < b` into `b ≤ a` and obscures the branch predicate.
     evalTactic (← `(tactic| all_goals simp only [$(mkIdent name):term]))
+
+-- A partially applied conditional is a function, not a branch to split.
+example : (@ite Nat) = (@ite Nat) := by
+  fail_if_success split_mir_guard
+  rfl
 
 end SolarTV.MIR.State

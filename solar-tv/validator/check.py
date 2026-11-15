@@ -424,6 +424,17 @@ def check(
             if proposed
             else lean(statement + proof + "#print axioms pair_correct\n")
         )
+        if result.returncode and (a.import_obligation or b.import_obligation):
+            errors = re.finditer(
+                rf"(?m)^{re.escape(str(file))}:(\d+):\d+: error:",
+                result.stdout + result.stderr,
+            )
+            if any(int(error[1]) <= definitions.count("\n") for error in errors):
+                raise Inconclusive(
+                    "import correspondence certificate failed\n"
+                    + result.stdout
+                    + result.stderr
+                )
         proof_log = (
             "VM proposes a mismatch; kernel witness required"
             if proposed
