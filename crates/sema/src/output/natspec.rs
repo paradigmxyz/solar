@@ -1,9 +1,10 @@
 //! NatSpec outputs matching solc's Standard JSON output fields.
 
 use super::DocumentationKind;
-use crate::{hir, ty::Gcx};
+use crate::{ast, hir, ty::Gcx};
 use serde::Serialize;
-use solar_data_structures::map::{FxHashSet, FxIndexMap};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
+use solar_interface::Span;
 
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
@@ -118,13 +119,14 @@ impl<'gcx> Gcx<'gcx> {
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
             let mut documentation_item = dev_doc_item(self, variable_id.into());
-            let return_text = doc_items(self, variable_id.into())
+            // solc writes `return` only for a single `@return` tag.
+            let mut returns = doc_items(self, variable_id.into())
                 .into_iter()
-                .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
-                .map(|item| item.content)
-                .collect::<String>();
-            if !return_text.is_empty() {
-                documentation_item.r#return = Some(return_text);
+                .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
+            if let (Some(item), None) = (returns.next(), returns.next())
+                && !item.content.is_empty()
+            {
+                documentation_item.r#return = Some(item.content);
             }
             if let Some(getter) = variable.getter {
                 documentation_item.returns =
@@ -137,30 +139,20 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
 
-        let mut event_signatures = FxHashSet::default();
-        for item in self.hir.contract_item_ids(contract_id) {
-            match item {
-                hir::ItemId::Event(event_id) => {
-                    let signature = self.item_signature(event_id.into()).to_string();
-                    if !event_signatures.insert(signature.clone()) {
-                        continue;
-                    }
-                    let documentation_item = dev_doc_item(self, event_id.into());
-                    if !documentation_item.is_empty() {
-                        documentation.events.insert(signature, documentation_item);
-                    }
-                }
-                hir::ItemId::Error(error_id) => {
-                    let documentation_item = dev_doc_item(self, error_id.into());
-                    if !documentation_item.is_empty() {
-                        documentation
-                            .errors
-                            .entry(self.item_signature(error_id.into()).to_string())
-                            .or_default()
-                            .push(documentation_item);
-                    }
-                }
-                _ => {}
+        for (signature, event_id) in unique_interface_events(self, contract_id) {
+            let documentation_item = dev_doc_item(self, event_id.into());
+            if !documentation_item.is_empty() {
+                documentation.events.insert(signature, documentation_item);
+            }
+        }
+        for error_id in self.interface_errors(contract_id).iter() {
+            let documentation_item = dev_doc_item(self, error_id.into());
+            if !documentation_item.is_empty() {
+                documentation
+                    .errors
+                    .entry(self.item_signature(error_id.into()).to_string())
+                    .or_default()
+                    .push(documentation_item);
             }
         }
 
@@ -198,35 +190,25 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
 
-        let mut event_signatures = FxHashSet::default();
-        for item in self.hir.contract_item_ids(contract_id) {
-            match item {
-                hir::ItemId::Event(event_id) => {
-                    let signature = self.item_signature(event_id.into()).to_string();
-                    if !event_signatures.insert(signature.clone()) {
-                        continue;
-                    }
-                    if let Some(notice) = natspec_text(self, event_id.into(), |kind| {
-                        matches!(kind, hir::NatSpecKind::Notice)
-                    }) {
-                        documentation.events.insert(
-                            signature,
-                            DocumentationItem { notice: Some(notice), ..Default::default() },
-                        );
-                    }
-                }
-                hir::ItemId::Error(error_id) => {
-                    if let Some(notice) = natspec_text(self, error_id.into(), |kind| {
-                        matches!(kind, hir::NatSpecKind::Notice)
-                    }) {
-                        documentation
-                            .errors
-                            .entry(self.item_signature(error_id.into()).to_string())
-                            .or_default()
-                            .push(DocumentationItem { notice: Some(notice), ..Default::default() });
-                    }
-                }
-                _ => {}
+        for (signature, event_id) in unique_interface_events(self, contract_id) {
+            if let Some(notice) =
+                natspec_text(self, event_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice))
+            {
+                documentation.events.insert(
+                    signature,
+                    DocumentationItem { notice: Some(notice), ..Default::default() },
+                );
+            }
+        }
+        for error_id in self.interface_errors(contract_id).iter() {
+            if let Some(notice) =
+                natspec_text(self, error_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice))
+            {
+                documentation
+                    .errors
+                    .entry(self.item_signature(error_id.into()).to_string())
+                    .or_default()
+                    .push(DocumentationItem { notice: Some(notice), ..Default::default() });
             }
         }
 
@@ -310,12 +292,17 @@ struct DocItem {
 /// A `///` line without a tag is such a continuation, so it extends the item before it instead of
 /// being a notice of its own.
 fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
-    let natspec = gcx.natspec_doc_comments(gcx.hir.item(item_id).doc());
+    let doc_id = gcx.hir.item(item_id).doc();
+    let natspec = gcx.natspec_doc_comments(doc_id);
     if natspec.is_empty() {
         return inherited_doc_items(gcx, item_id);
     }
+    let ignored = ignored_doc_comments(gcx, doc_id);
     let mut items: Vec<DocItem> = Vec::new();
     for item in natspec.iter().copied() {
+        if ignored.is_some_and(|ignored| ignored.contains(item.span)) {
+            continue;
+        }
         let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
         let line_comment = untagged
             && gcx
@@ -324,7 +311,12 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
                 .span_to_snippet(item.span)
                 .is_ok_and(|snippet| snippet.starts_with("///"));
         if line_comment && let Some(previous) = items.last_mut() {
-            append_doc_line(&mut previous.content, item.content());
+            // A tag with no text on its line takes the next line, without its leading whitespace.
+            if previous.content.is_empty() {
+                previous.content.push_str(item.content().trim_start_matches([' ', '\t']));
+            } else {
+                append_doc_line(&mut previous.content, item.content());
+            }
             continue;
         }
         let mut content = String::new();
@@ -382,4 +374,68 @@ fn append_doc_line(content: &mut String, line: &str) {
         content.push(' ');
     }
     content.push_str(line);
+}
+
+/// Returns the span of the doc comments before the last group of an item's doc comments.
+///
+/// solc's scanner keeps only the last doc comment before a declaration, where consecutive `///`
+/// lines form one comment, so it ignores the NatSpec of every earlier comment.
+fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
+    if doc_id.is_empty() {
+        return None;
+    }
+    let docs = gcx.hir.doc(doc_id).ast_comments();
+    let start = (1..docs.len()).rev().find(|&i| {
+        let (prev, doc) = (&docs[i - 1], &docs[i]);
+        let gap = gcx
+            .sess
+            .source_map()
+            .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
+            .unwrap_or_default();
+        !(prev.kind == ast::CommentKind::Line
+            && doc.kind == ast::CommentKind::Line
+            && gap.chars().all(|c| c.is_ascii_whitespace())
+            && gap.matches('\n').count() == 1)
+    })?;
+    Some(docs[0].span.with_hi(docs[start].span.lo()))
+}
+
+/// Returns the events documented for a contract with their signatures, like solc's
+/// `Natspec::uniqueInterfaceEvents`.
+///
+/// The events the contract and its bases define come first, the first of each signature winning.
+/// Events it emits from elsewhere follow, unless it emits several with the same signature.
+fn unique_interface_events(
+    gcx: Gcx<'_>,
+    contract_id: hir::ContractId,
+) -> Vec<(String, hir::EventId)> {
+    let mut events = Vec::new();
+    let mut signatures = FxHashSet::default();
+    let mut defined = FxHashSet::default();
+    for item in gcx.hir.contract_item_ids(contract_id) {
+        if let hir::ItemId::Event(event_id) = item {
+            defined.insert(event_id);
+            let signature = gcx.item_signature(event_id.into()).to_string();
+            if signatures.insert(signature.clone()) {
+                events.push((signature, event_id));
+            }
+        }
+    }
+
+    let mut used = FxIndexMap::default();
+    let mut used_counts = FxHashMap::<String, usize>::default();
+    for event_id in gcx.interface_events(contract_id).iter() {
+        if defined.contains(&event_id) {
+            continue;
+        }
+        let signature = gcx.item_signature(event_id.into()).to_string();
+        *used_counts.entry(signature.clone()).or_default() += 1;
+        used.entry(signature).or_insert(event_id);
+    }
+    for (signature, event_id) in used {
+        if used_counts[&signature] == 1 && !signatures.contains(&signature) {
+            events.push((signature, event_id));
+        }
+    }
+    events
 }
