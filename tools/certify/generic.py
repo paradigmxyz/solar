@@ -269,7 +269,9 @@ def nested_splits(eqs):
 def lowering_lean(name, contract, fns, events, core_lit, storage_lit):
     ns = f"Certified.{name}.Lowering"
     sels = "\n".join(f"/-- The selector of §{f['sig']}§. -/\nabbrev sel{i} : Nat := {hex(f['sel'])}\n" for i, f in enumerate(fns))
-    fnlist = ", ".join(f"⟨sel{i}, [{', '.join(f['params'])}]⟩" for i, f in enumerate(fns))
+    fndefs = "".join(f"/-- §{f['sig']}§ and its parameters. -/\ndef fn{i} : Fn := ⟨sel{i}, [{', '.join(f['params'])}]⟩\n\n"
+                     for i, f in enumerate(fns))
+    fnlist = ", ".join(f"fn{i}" for i in range(len(fns)))
     kr = []
     for i, f in enumerate(fns):
         kr.append(f"def selSig{i} : SolidCore.Solidity.Shared.Word :=\n  SolidCore.Solidity.Source.ABI.selectorFromSignature {lean_str(f['sig'])}\n\n"
@@ -323,7 +325,7 @@ def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
   TypeCheck.CheckedInput.contract Certified.{name}.Src.importedSourceUnit {lean_str(contract)}
 
 {sels}
-/-- The external functions of §{contract}§, from its ABI. -/
+{fndefs}/-- The external functions of §{contract}§, from its ABI. -/
 def fns : List Fn := [{fnlist}]
 
 /-- SolidCore's core of §{contract}§, as SolidCore's evaluation printed it (checked by §shape_eq§). -/
@@ -538,6 +540,15 @@ def shape_json(name, contract, fns, gas, spec_desc, spec_witness=None, events=()
         shape["generic"]["spec_connect"] = {"witness": spec_witness, "ghost_fixed": True,
                                             "using": [f"{ns}.digest_eq"] if events else []}
         shape["excluded"].append("spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence")
+        # The published statement: the driver-fixed Generic.Expected (tools/certify/final.py).
+        shape.update({
+            "statement": "expected",
+            "source_unit": f"Certified.{name}.Src.importedSourceUnit",
+            "source_contract": contract,
+            "storage": f"{ns}.storageLit",
+            "entries": [{"signature": f["sig"], "fn": f"{ns}.fn{i}", "sel": f["sel"], "arity": len(f["params"])}
+                        for i, f in enumerate(fns)],
+        })
     return shape
 
 
@@ -778,6 +789,18 @@ def main():
         record["functions"] = [{"signature": f["sig"], "selector": f"0x{f['sel']:08x}", "params": f["params"]} for f in fns]
         record["environment"] = ENVIRONMENT
         log(f"envelope (source): inside; functions {', '.join(f['sig'] for f in fns)}")
+        witness = None
+        if a.spec == "natspec":
+            spec_desc_natspec = "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)"
+            # The statement's non-vacuity needs a call the spec requires to succeed: a function with
+            # @custom:succeeds-if. Without one the allowed statuses reject nothing, and the certified
+            # tier cannot be stated non-vacuously: the run is refused before any proof.
+            witness = next((f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None) or \
+                next((f["name"] for f in fns if f.get("succeeds")), None)
+            if witness is None:
+                raise Failed("spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
+                             "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
+                             "conditions, or run with SPEC none")
         log("== generic: build solar")
         solar = build_solar()
         record["solar"]["binary_sha256"] = sha256_file(solar)
@@ -831,20 +854,7 @@ def main():
         (d / "Shape.lean").write_text("".join(f"import {m}\n" for m in (
             "Verify.ShapeGeneric", f"{name}.Lowering", f"{name}.Proofs.Stages", f"{name}.gen.{contract}.Bytecode"))
             + "\n-- Placeholder: tools/certify/shape_gen.py writes this module in the run.\n")
-        spec_desc = ("none: no specification requested" if a.spec == "none" else
-                     "solar-verify's NatSpec in the source: exported and checked by scripts/certify step 6; not connected to the published statement by this driver yet")
-        witness = None
-        if a.spec == "natspec":
-            spec_desc = "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)"
-            # The statement's non-vacuity needs a call the spec requires to succeed: a function with
-            # @custom:succeeds-if. Without one the allowed statuses reject nothing, and the certified
-            # tier cannot be stated non-vacuously: the run is refused before any proof.
-            witness = next((f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None) or \
-                next((f["name"] for f in fns if f.get("succeeds")), None)
-            if witness is None:
-                raise Failed("spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
-                             "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
-                             "conditions, or run with SPEC none")
+        spec_desc = "none: no specification requested" if a.spec == "none" else spec_desc_natspec
         (d / "shape.json").write_text(json.dumps(shape_json(name, contract, fns, need, spec_desc, witness, events), indent=2) + "\n")
         with open(lean_dir / "lakefile.lean", "a") as f:
             f.write(lakefile_lib(name, contract))

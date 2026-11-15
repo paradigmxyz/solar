@@ -118,5 +118,123 @@ class ReplayManifest(unittest.TestCase):
             self.assertNotIn("manifest does not list", line)
 
 
+SOLC = pathlib.Path.home() / ".cache/solc" / f"solc-{generic.SOLC_VERSION}"
+
+
+def run_driver(src_text, spec, root):
+    """The driver up to its first refusal; its envelope and spec checks run before any build."""
+    src = root / "C.sol"
+    src.write_text(src_text)
+    p = subprocess.run([sys.executable, str(HERE / "generic.py"), str(src), spec, "--solidity-lean", "/nonexistent",
+                        "--work", str(root / "w"), "--record-dir", str(root / "r"), "--solc", str(SOLC)],
+                       capture_output=True, text=True)
+    return p.returncode, (p.stdout.strip().splitlines() or [""])[-1]
+
+
+HEAD = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n"
+
+
+@unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+class SpecGates(unittest.TestCase):
+    def test_environment_clause_blocked(self):
+        src = HEAD + """contract C { uint256 public x;
+    /// @custom:succeeds-if msg.value == 0
+    /// @custom:requires block.chainid == 424242
+    /// @custom:ensures x == 8
+    function f() external { x = 1; } }"""
+        with tempfile.TemporaryDirectory() as t:
+            code, line = run_driver(src, "natspec", pathlib.Path(t))
+            self.assertEqual(code, 3)
+            self.assertTrue(line.startswith("BLOCKED: environment"), line)
+
+    def test_msg_value_clause_allowed(self):
+        src = HEAD + """contract C { uint256 public x;
+    /// @custom:succeeds-if msg.value == 0
+    /// @custom:ensures x == 1
+    function f() external { x = 1; } }"""
+        with tempfile.TemporaryDirectory() as t:
+            code, line = run_driver(src, "natspec", pathlib.Path(t))
+            self.assertNotIn("BLOCKED", line)
+            self.assertNotIn("succeeds-if", line)
+
+    def test_no_succeeds_if_refused(self):
+        src = HEAD + """contract C { uint256 public x;
+    /// @custom:ensures x == 1
+    function f() external { x = 1; } }"""
+        with tempfile.TemporaryDirectory() as t:
+            code, line = run_driver(src, "natspec", pathlib.Path(t))
+            self.assertEqual(code, 1)
+            self.assertIn("REJECTED: spec: no function has @custom:succeeds-if", line)
+
+    def test_spec_none_needs_no_succeeds_if(self):
+        src = HEAD + """contract C { uint256 public x;
+    function f() external { x = 1; } }"""
+        with tempfile.TemporaryDirectory() as t:
+            code, line = run_driver(src, "none", pathlib.Path(t))
+            self.assertNotIn("succeeds-if", line)
+
+
+def final_py(shape, root, hexcode="6001"):
+    sp = root / "shape.json"
+    sp.write_text(json.dumps(shape))
+    p = subprocess.run([sys.executable, str(HERE / "final.py"), str(sp), "--name", "c_1", "--contract", "C", "--hex", hexcode,
+                        "--out", str(root / "F.lean"), "--statement-out", str(root / "S.lean")], capture_output=True, text=True)
+    return p.returncode, p.stderr.strip(), (root / "S.lean").read_text() if (root / "S.lean").exists() else ""
+
+
+def expected_shape(**over):
+    s = {"kind": "certified", "statement": "expected", "contract": "L.contract?", "fuel": "L.fuel",
+         "valid": "V", "allowed_export": True, "spec_export": {"ctx": "X.ctxOfCall", "step": "X.idStep"},
+         "nonvacuous": "P.nonvacuous", "gas": "fun _ => 7", "env": [], "spec": "s", "spec_modules": ["L"],
+         "proof_module": "P", "proof": "P.published", "source_unit": "Src.importedSourceUnit",
+         "source_contract": "C", "storage": "L.storageLit",
+         "entries": [{"signature": "f()", "fn": "L.fn0", "sel": 1, "arity": 0}]}
+    s.update(over)
+    return s
+
+
+class ExpectedStatement(unittest.TestCase):
+    def test_writes_expected(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, err, stmt = final_py(expected_shape(), pathlib.Path(t))
+            self.assertEqual(code, 0, err)
+            self.assertIn("_root_.SolidCore.Verify.Generic.Expected _root_.Certified.c_1.Final.src", stmt)
+            self.assertIn("Contexts ctx := ctx = _root_.SolidCore.Verify.Generic.Context.default", stmt)
+            self.assertIn("assumptions := []", stmt)
+
+    def test_refused(self):
+        cases = {
+            "assumptions": expected_shape(env=["True"]),
+            "no non-vacuity": {k: v for k, v in expected_shape().items() if k != "nonvacuous"},
+            "compiled kind": expected_shape(kind="compiled", allowed_export=None),
+            "post not from the export": {**{k: v for k, v in expected_shape().items() if k != "spec_export"}, "post": "Q"},
+            "no entries": expected_shape(entries=[]),
+            "tactic in an input": expected_shape(gas="by decide"),
+            "other statement": expected_shape(statement="shapes"),
+        }
+        for label, shape in cases.items():
+            with self.subTest(label):
+                with tempfile.TemporaryDirectory() as t:
+                    code, err, _ = final_py({k: v for k, v in shape.items() if v is not None}, pathlib.Path(t))
+                    self.assertNotEqual(code, 0, label)
+
+
+class SpecConnectEmission(unittest.TestCase):
+    """A succeeds-if over the call's environment alone leaves some of tree_succeeds's steps
+    nothing to rewrite; the emitted proof must allow that, not call the macro."""
+
+    def test_tolerant_succeeds_proof(self):
+        import spec_connect
+
+        lines = spec_connect.succeeds_block(
+            "set", 1, "", "  tree_meets_fixed [set_tree, set_spec,]", [], [], "TreeMeetsFixed", "M", "B"
+        )
+        text = "\n".join(lines)
+        self.assertNotIn("tree_succeeds [", text)
+        self.assertIn("try simp only [set_tree, set_spec, M.spec, B, M.ctx, *", text)
+        self.assertIn("first | omega | (simp_all; done) | (simp_all; omega)", text)
+        self.assertNotIn("@DS@", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
