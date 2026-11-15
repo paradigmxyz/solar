@@ -94,6 +94,12 @@
 //! or rewrites of a few instructions, cost a function at most that bound: the values left when
 //! it is reached keep their code.
 //!
+//! A proof depends only on the instructions it evaluates, their operand types and constants, so
+//! the functions of a module share them by that shape: a library's scan inlined into many
+//! functions, or one near miss repeated, is proved once per run. A function still pays for a
+//! shared proof the work it took where it ran, so the values each function proves, and the work
+//! left for the rest, are the same whichever function ran it first.
+//!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
 //! It runs again after arithmetic lowering and if-conversion, where the scans that use checked
@@ -117,7 +123,12 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::Cell, cmp::Reverse, collections::BinaryHeap};
+use std::{
+    cell::Cell,
+    cmp::Reverse,
+    collections::BinaryHeap,
+    sync::{Mutex, PoisonError},
+};
 
 /// Bound on the instructions of one cone.
 const MAX_CONE: usize = 256;
@@ -145,8 +156,9 @@ impl MirPass for BitScan {
         if !gcx.sess.opts.evm_version.has_clz() {
             return false;
         }
+        let proofs = Proofs::default();
         run_function_pass(module, analyses, |func, analyses| {
-            run_function(func, &analyses.target(gcx))
+            run_function(func, &analyses.target(gcx), &proofs)
         })
     }
 }
@@ -226,15 +238,42 @@ struct Scan {
     zero: U256,
 }
 
+/// The instructions a proof evaluates, as [`Cone::shape`] renames them: each with its result
+/// type and the type and constant of each operand. Equal shapes have equal proofs.
+#[derive(PartialEq, Eq, Hash)]
+struct Shape {
+    leading_zeros: bool,
+    one_bit: bool,
+    steps: Vec<ShapeStep>,
+}
+
+/// One instruction of a [`Shape`]: its kind with renamed operands, its result type, and the
+/// type and constant of each operand.
+type ShapeStep = (InstKind, Option<MirType>, SmallVec<[(Option<MirType>, Option<U256>); 3]>);
+
+/// What the proof of a shape found.
+#[derive(Clone, Copy)]
+enum Proved {
+    /// It ran to its end with this much work.
+    Done { holds: bool, work: u32 },
+    /// It ran out after this much work.
+    Exceeds(u32),
+}
+
+/// The proofs of one run of the pass, shared by the functions of the module.
+type Proofs = Mutex<FxHashMap<Shape, Proved>>;
+
 /// The pure instructions of one block that compute functions of `input` alone, in block order.
 struct Cone<'a> {
     input: ValueId,
     steps: Vec<Step>,
     /// The instructions the pass may still evaluate for this input.
     work: &'a Cell<u32>,
+    /// Whether an evaluation found no work left.
+    starved: Cell<bool>,
 }
 
-fn run_function(func: &mut Function, target: &Target) -> bool {
+fn run_function(func: &mut Function, target: &Target, proofs: &Proofs) -> bool {
     let mut inputs = Vec::new();
     let mut found = FxHashSet::default();
     for (block, data) in func.blocks.iter_enumerated() {
@@ -253,7 +292,7 @@ fn run_function(func: &mut Function, target: &Target) -> bool {
     let mut changed = false;
     let work = Cell::new(PROOF_WORK);
     for (block, input) in inputs {
-        changed |= rewrite_scans(func, target, &mut index, &work, block, input);
+        changed |= rewrite_scans(func, target, &mut index, &work, proofs, block, input);
     }
     index.apply(func);
     changed
@@ -374,6 +413,7 @@ fn rewrite_scans(
     target: &Target,
     index: &mut Index,
     work: &Cell<u32>,
+    proofs: &Proofs,
     block: BlockId,
     input: ValueId,
 ) -> bool {
@@ -413,7 +453,8 @@ fn rewrite_scans(
                 priced = price(func, target, uses, &cone, root, scan, &constants);
                 priced.is_some()
             };
-            let Some(scan) = cone.prove(func, &needed, root, leading_zeros, one_bit, pays) else {
+            let Some(scan) = cone.prove(func, &needed, root, leading_zeros, one_bit, pays, proofs)
+            else {
                 continue;
             };
             let (form, removed) = priced.expect("a proved scan is priced");
@@ -487,7 +528,7 @@ impl<'a> Cone<'a> {
                 reach(result, &mut pending);
             }
         }
-        Self { input, steps, work }
+        Self { input, steps, work, starved: Cell::new(false) }
     }
 
     /// The word-sized values of the cone that agree with a scan on a few inputs, with whether
@@ -550,6 +591,7 @@ impl<'a> Cone<'a> {
 
     /// Proves that `root`, a candidate, is the index of the highest set bit of every nonzero
     /// input, or the number of zeros above it, and returns what it is for zero.
+    #[allow(clippy::too_many_arguments)]
     fn prove(
         &self,
         func: &Function,
@@ -558,15 +600,95 @@ impl<'a> Cone<'a> {
         leading_zeros: bool,
         one_bit: bool,
         pays: impl FnOnce(Scan) -> bool,
+        proofs: &Proofs,
     ) -> Option<Scan> {
+        // The proof reads the steps of `needed` alone, so it runs on a cone of just them, where
+        // `root` is the last.
+        debug_assert_eq!(needed.last(), Some(&(root as u32)));
+        let cone = self.restrict(needed);
+        let needed = (0..needed.len() as u32).collect::<Vec<_>>();
+        let needed = &needed[..];
+        let root = needed.len() - 1;
         let mut scratch = vec![vec![None; root + 1]; WINDOW as usize];
-        self.evaluate(func, needed, Word::Known(U256::ZERO), Class::ZERO, &mut scratch[0]);
+        cone.evaluate(func, needed, Word::Known(U256::ZERO), Class::ZERO, &mut scratch[0]);
         let Some(Word::Known(zero)) = scratch[0][root] else { return None };
+        let scan = Scan { leading_zeros, zero };
         // A value whose rewrite would not pay, or that has no form for its zero result, keeps its
         // code, so it is not proved.
-        if !pays(Scan { leading_zeros, zero }) {
+        if !pays(scan) {
             return None;
         }
+        // A proof that another value of the same shape ran costs what it cost there, so the
+        // values that are proved, and the work left for the rest, do not depend on which of them
+        // ran it.
+        let shape = cone.shape(func, needed, leading_zeros, one_bit);
+        let budget = cone.work.get();
+        let known = proofs.lock().unwrap_or_else(PoisonError::into_inner).get(&shape).copied();
+        let holds = match known {
+            Some(Proved::Done { holds, work }) if work <= budget => {
+                cone.work.set(budget - work);
+                holds
+            }
+            // It would run out of work here, which fails it and leaves none.
+            Some(Proved::Done { .. }) => {
+                cone.work.set(0);
+                false
+            }
+            Some(Proved::Exceeds(work)) if budget <= work => {
+                cone.work.set(0);
+                false
+            }
+            _ => {
+                cone.starved.set(false);
+                let holds = cone.holds(func, needed, root, leading_zeros, one_bit, &mut scratch);
+                let starved = cone.starved.get();
+                let proved = if starved {
+                    Proved::Exceeds(budget)
+                } else {
+                    Proved::Done { holds, work: budget - cone.work.get() }
+                };
+                let mut proofs = proofs.lock().unwrap_or_else(PoisonError::into_inner);
+                let entry = proofs.entry(shape).or_insert(proved);
+                if !matches!(entry, Proved::Done { .. }) {
+                    *entry = proved;
+                }
+                holds && !starved
+            }
+        };
+        holds.then_some(scan)
+    }
+
+    /// The cone of the steps of `needed` alone, numbered by their place in it.
+    fn restrict(&self, needed: &[u32]) -> Self {
+        let place = |step: u32| needed.partition_point(|&other| other < step) as u32;
+        let steps = needed
+            .iter()
+            .map(|&step| {
+                let data = &self.steps[step as usize];
+                let operands = data
+                    .operands
+                    .iter()
+                    .map(|&(value, slot)| match slot {
+                        Slot::Step(operand) => (value, Slot::Step(place(operand))),
+                        slot => (value, slot),
+                    })
+                    .collect();
+                Step { inst: data.inst, operands }
+            })
+            .collect();
+        Self { input: self.input, steps, work: self.work, starved: Cell::new(false) }
+    }
+
+    /// Whether `root` is what `prove` expects for every nonzero input.
+    fn holds(
+        &self,
+        func: &Function,
+        needed: &[u32],
+        root: usize,
+        leading_zeros: bool,
+        one_bit: bool,
+        scratch: &mut [Vec<Option<Word>>],
+    ) -> bool {
         // An input of one bit takes 256 nonzero values: trying each of them is the proof.
         if one_bit {
             let words = &mut scratch[0];
@@ -576,20 +698,47 @@ impl<'a> Cone<'a> {
                 let input = Word::Known(U256::ONE << bit);
                 self.evaluate(func, needed, input, Class::ZERO, words);
                 if words[root] != Some(Word::Known(expected)) {
-                    return None;
+                    return false;
                 }
             }
-            return Some(Scan { leading_zeros, zero });
+            return true;
         }
         // The widest classes first: a value the classes cannot settle fails on them at once.
-        for msb in (0..256).rev() {
+        (0..256).rev().all(|msb| {
             let expected = U256::from(if leading_zeros { 255 - msb } else { msb });
             let class = Class::with_msb(msb);
-            if !self.prove_class(func, needed, root, class, expected, &mut scratch, 0) {
-                return None;
-            }
+            self.prove_class(func, needed, root, class, expected, scratch, 0)
+        })
+    }
+
+    /// The proof problem of `root`: the instructions of `needed` with their operands renamed
+    /// to the input, their place in `needed` and their constants, so that values that compute
+    /// the same function of their inputs in the same way share it.
+    fn shape(&self, func: &Function, needed: &[u32], leading_zeros: bool, one_bit: bool) -> Shape {
+        let mut shape = Shape { leading_zeros, one_bit, steps: Vec::with_capacity(needed.len()) };
+        for &step in needed {
+            let data = &self.steps[step as usize];
+            let inst = func.inst(data.inst);
+            let mut kind = inst.kind.clone();
+            let mut operands = SmallVec::new();
+            let mut nth = 0;
+            kind.visit_operands_mut(|operand| {
+                let (value, slot) = data.operands[nth];
+                nth += 1;
+                *operand = ValueId::from_usize(match slot {
+                    Slot::Input => 0,
+                    Slot::Step(step) => needed.partition_point(|&other| other < step) + 1,
+                    Slot::Constant(_) => needed.len() + 1,
+                });
+                let constant = match slot {
+                    Slot::Constant(constant) => Some(constant),
+                    _ => None,
+                };
+                operands.push((func.value_ty(value), constant));
+            });
+            shape.steps.push((kind, inst.result_ty, operands));
         }
-        Some(Scan { leading_zeros, zero })
+        shape
     }
 
     /// Whether `root` is `expected` for every input of `class`. The words of the enclosing class
@@ -650,7 +799,10 @@ impl<'a> Cone<'a> {
         for &step in needed {
             if words[step as usize].is_none() {
                 // Out of work: the step has no word, and so nothing that reads it is proved.
-                let Some(work) = self.work.get().checked_sub(1) else { break };
+                let Some(work) = self.work.get().checked_sub(1) else {
+                    self.starved.set(true);
+                    break;
+                };
                 self.work.set(work);
                 let mut bits = None;
                 words[step as usize] =
