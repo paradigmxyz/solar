@@ -27,12 +27,13 @@ use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxHasher},
 };
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
     collections::{BTreeMap, hash_map::Entry},
+    hash::{Hash, Hasher},
 };
 
 /// The modeled stack of a block being planned and the steps that produced it.
@@ -158,16 +159,23 @@ pub(super) struct Progress {
     pending: FxHashMap<BlockId, Vec<Pending>>,
     cost: Cost,
     non_loop_gas: u32,
+    frontier: u64,
     journal: Vec<Undo>,
     marks: Vec<Mark>,
 }
 
 impl Progress {
+    /// Number of blocks planned, in reverse postorder.
+    pub(super) fn planned_blocks(&self) -> usize {
+        self.marks.len()
+    }
+
     /// Reverts to the start of the block at position `start` of the reverse postorder, or of the
     /// block that failed when the plan did not get that far.
     pub(super) fn rewind(&mut self, start: usize) {
         let start = start.min(self.marks.len().saturating_sub(1));
-        let Some(&Mark { journal, cost, non_loop_gas, .. }) = self.marks.get(start) else {
+        let Some(&Mark { journal, cost, non_loop_gas, frontier, .. }) = self.marks.get(start)
+        else {
             return;
         };
         for undo in self.journal.drain(journal..).rev() {
@@ -206,6 +214,7 @@ impl Progress {
         }
         self.cost = cost;
         self.non_loop_gas = non_loop_gas;
+        self.frontier = frontier;
     }
 }
 
@@ -226,13 +235,113 @@ enum Undo {
     Trampolines(BlockId, Option<Vec<Step>>, Option<Vec<Step>>),
 }
 
-/// The start of a block's planning: the block, the journal's length, and the totals.
+/// The start of a block's planning: the block, the journal's length, the totals, and the
+/// fingerprint of the decisions that outlive the blocks planned before it.
 #[derive(Clone, Copy)]
 struct Mark {
     block: BlockId,
     journal: usize,
     cost: Cost,
     non_loop_gas: u32,
+    frontier: u64,
+}
+
+/// A complete plan that a replan under other loop header layouts compares itself with, so that it
+/// can stop once it cannot beat the plan it competes with.
+///
+/// Blocks are planned in reverse postorder, and what a block's plan depends on besides the
+/// function and the hints of headers still without a layout is the state the blocks before it
+/// leave: the layouts chosen for later blocks, the edges waiting for a join, and the headers with
+/// a recorded natural layout. A replan that reaches a block in the state the reference reached it
+/// in plans every later block as the reference did, so its total is its cost so far plus what
+/// the reference spent from there on. Each mark keeps a fingerprint of that state, and only a
+/// matching fingerprint is compared in full.
+pub(super) struct Reference {
+    progress: Progress,
+    hints: FxHashMap<BlockId, Layout>,
+    /// The journal index at which each block's layout was chosen.
+    layout_set: IndexVec<BlockId, usize>,
+    /// The journal index at which each header's natural layout was recorded.
+    natural_set: FxHashMap<BlockId, usize>,
+    /// The journal indices of the edges recorded into each join, in order.
+    deferred: FxHashMap<BlockId, SmallVec<[usize; 4]>>,
+    /// The journal index at which each join took its edges, with the edges.
+    resolved: FxHashMap<BlockId, (usize, Vec<Pending>)>,
+}
+
+impl Reference {
+    /// The reference of a complete plan made under `hints`, kept in `progress`.
+    pub(super) fn new(progress: Progress, hints: FxHashMap<BlockId, Layout>) -> Self {
+        let mut layout_set = index_vec![usize::MAX; progress.layouts.len()];
+        let mut natural_set = FxHashMap::default();
+        let mut deferred = FxHashMap::<BlockId, SmallVec<[usize; 4]>>::default();
+        let mut resolved = FxHashMap::default();
+        for (index, undo) in progress.journal.iter().enumerate() {
+            match undo {
+                Undo::Layout(block) => layout_set[*block] = index,
+                Undo::Natural(header) => {
+                    natural_set.insert(*header, index);
+                }
+                Undo::Deferred(join) => deferred.entry(*join).or_default().push(index),
+                Undo::Resolved(join, edges) => {
+                    resolved.insert(*join, (index, edges.clone()));
+                }
+                Undo::Steps(..) | Undo::Trampolines(..) => {}
+            }
+        }
+        Self { progress, hints, layout_set, natural_set, deferred, resolved }
+    }
+
+    /// The complete plan's progress.
+    pub(super) fn progress(&self) -> &Progress {
+        &self.progress
+    }
+
+    /// The loop headers whose hints differ between the reference and `hints`.
+    fn changed(&self, hints: &FxHashMap<BlockId, Layout>) -> SmallVec<[BlockId; 4]> {
+        let changed = self.hints.iter().filter(|&(block, layout)| hints.get(block) != Some(layout));
+        let added = hints.keys().filter(|block| !self.hints.contains_key(block));
+        changed.map(|(&block, _)| block).chain(added.copied()).collect()
+    }
+}
+
+/// The test that a replan's total must pass for the replan to be worth finishing, and the
+/// reference it may compare itself with. The test must fail for every cost at least as high as
+/// one it fails for, in every dimension: costs only grow as blocks are planned.
+pub(super) struct Settle<'a> {
+    reference: Option<&'a Reference>,
+    /// Loop headers whose hints differ from the reference's. Until each has a layout, a later
+    /// block may plan otherwise than the reference's.
+    changed: SmallVec<[BlockId; 4]>,
+    beats: &'a dyn Fn(Cost) -> bool,
+    /// Whether the replan also stops once its cost so far fails the test. Only a replan that
+    /// cannot ask for more spills may: one stopped early never finds the words it would spill.
+    bound: bool,
+}
+
+impl<'a> Settle<'a> {
+    pub(super) fn new(
+        reference: &'a Reference,
+        hints: &FxHashMap<BlockId, Layout>,
+        beats: &'a dyn Fn(Cost) -> bool,
+    ) -> Self {
+        Self { changed: reference.changed(hints), reference: Some(reference), beats, bound: true }
+    }
+
+    /// The reference alone: the replan stops only once it reaches a block in the reference's
+    /// state and the reference's remaining cost shows its total fails the test.
+    pub(super) fn converged(
+        reference: &'a Reference,
+        hints: &FxHashMap<BlockId, Layout>,
+        beats: &'a dyn Fn(Cost) -> bool,
+    ) -> Self {
+        Self { bound: false, ..Self::new(reference, hints, beats) }
+    }
+
+    /// The test alone, for a replan without a reference.
+    pub(super) fn bound(beats: &'a dyn Fn(Cost) -> bool) -> Self {
+        Self { reference: None, changed: SmallVec::new(), beats, bound: true }
+    }
 }
 
 /// A planned function together with the layouts its loop latches would choose.
@@ -355,6 +464,12 @@ pub(super) struct Planner<'a> {
     forced_order: Cell<Option<usize>>,
     cost: Cost,
     non_loop_gas: u32,
+    /// A fingerprint of the state that outlives a block: the layouts of the blocks not yet
+    /// planned, the edges waiting for a join, and the headers with a natural layout.
+    frontier: u64,
+    /// The plan this attempt stops against, when it is a replan that only a cheaper plan makes
+    /// worth finishing.
+    settle: Option<Settle<'a>>,
     /// How to revert each change to the state that outlives a block, in order.
     journal: Vec<Undo>,
     /// The start of each block planned so far, in reverse postorder.
@@ -661,9 +776,17 @@ impl<'a> Planner<'a> {
             forced_order: Cell::new(None),
             cost: Cost::ZERO,
             non_loop_gas: 0,
+            frontier: 0,
+            settle: None,
             journal: Vec::new(),
             marks: Vec::new(),
         })
+    }
+
+    /// Makes this attempt a replan that stops once its total cannot pass the test of `settle`.
+    pub(super) fn settle_against(mut self, settle: Settle<'a>) -> Self {
+        self.settle = Some(settle);
+        self
     }
 
     /// For each loop header, its words ordered by their last read in the loop body.
@@ -719,6 +842,7 @@ impl<'a> Planner<'a> {
             self.pending = progress.pending;
             self.cost = progress.cost;
             self.non_loop_gas = progress.non_loop_gas;
+            self.frontier = progress.frontier;
             self.journal = progress.journal;
             self.marks = progress.marks;
         }
@@ -730,6 +854,7 @@ impl<'a> Planner<'a> {
                 pending: self.pending,
                 cost: self.cost,
                 non_loop_gas: self.non_loop_gas,
+                frontier: self.frontier,
                 journal: self.journal,
                 marks: self.marks,
             });
@@ -743,6 +868,7 @@ impl<'a> Planner<'a> {
                 pending: self.pending.clone(),
                 cost: self.cost,
                 non_loop_gas: self.non_loop_gas,
+                frontier: self.frontier,
                 journal: std::mem::take(&mut self.journal),
                 marks: std::mem::take(&mut self.marks),
             });
@@ -763,16 +889,24 @@ impl<'a> Planner<'a> {
     fn plan_blocks(&mut self) -> Result<(), Fail> {
         let cfg = self.cfg;
         for &block in &cfg.rpo()[self.marks.len()..] {
+            if self.settle.is_some() {
+                self.check_settle(self.marks.len())?;
+            }
             self.marks.push(Mark {
                 block,
                 journal: self.journal.len(),
                 cost: self.cost,
                 non_loop_gas: self.non_loop_gas,
+                frontier: self.frontier,
             });
             self.current.set(block);
             self.resolve_join(block)?;
             let layout = match self.layouts[block].clone() {
-                Some(layout) => layout,
+                Some(layout) => {
+                    // The block leaves the state that later blocks depend on.
+                    self.frontier ^= frontier_hash(0, block, &layout);
+                    layout
+                }
                 None if block == BlockId::ENTRY => self.entry_layout(),
                 None => return Err(Fail::Unsupported("block without a planned predecessor")),
             };
@@ -792,6 +926,98 @@ impl<'a> Planner<'a> {
             self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
         }
         Ok(())
+    }
+
+    /// Stops a replan before the block at `position` of the reverse postorder once it cannot beat
+    /// the plan it competes with: when its cost so far already fails the test, since costs only
+    /// grow, or when it reaches the block in the reference's state, so that its total is its cost
+    /// so far plus what the reference spent from the block on. A replan whose total passes the
+    /// test plans on without further checks.
+    fn check_settle(&mut self, position: usize) -> Result<(), Fail> {
+        let settle = self.settle.as_ref().expect("a replan with a reference");
+        if settle.bound && !(settle.beats)(self.cost) {
+            return Err(Fail::Bound);
+        }
+        let Some(reference) = settle.reference else { return Ok(()) };
+        let Some(mark) = reference.progress.marks.get(position) else { return Ok(()) };
+        if mark.frontier != self.frontier
+            || settle.changed.iter().any(|&header| self.layouts[header].is_none())
+            || !self.same_state(reference, position)
+        {
+            return Ok(());
+        }
+        // Without saturation anywhere, the remaining blocks add exactly what they added to the
+        // reference.
+        let total = reference.progress.cost;
+        let sum = |own: u32, total: u32, at: u32| {
+            u32::try_from(u64::from(own) + u64::from(total - at))
+                .ok()
+                .filter(|&sum| sum != u32::MAX)
+        };
+        let (Some(gas), Some(bytes), Some(steps)) = (
+            sum(self.cost.gas, total.gas, mark.cost.gas).filter(|_| total.gas != u32::MAX),
+            sum(self.cost.bytes, total.bytes, mark.cost.bytes).filter(|_| total.bytes != u32::MAX),
+            sum(self.cost.steps, total.steps, mark.cost.steps).filter(|_| total.steps != u32::MAX),
+        ) else {
+            return Ok(());
+        };
+        if (settle.beats)(Cost::new(gas, bytes).with_steps(steps)) {
+            self.settle = None;
+            Ok(())
+        } else {
+            Err(Fail::Bound)
+        }
+    }
+
+    /// Whether this attempt reached the block at `position` of the reverse postorder in the state
+    /// that `reference` reached it in.
+    fn same_state(&self, reference: &Reference, position: usize) -> bool {
+        let journal = reference.progress.marks[position].journal;
+        let before = |index: usize| index < journal;
+        // The layouts of the blocks not yet planned, and of those planned that a later block
+        // jumps back to.
+        let planned = |block: BlockId| self.blocks[block].is_some();
+        for (block, layout) in self.layouts.iter_enumerated() {
+            let theirs = reference.progress.layouts[block]
+                .as_ref()
+                .filter(|_| before(reference.layout_set[block]));
+            if layout.as_ref() != theirs
+                && (!planned(block)
+                    || self.func.blocks[block]
+                        .predecessors
+                        .iter()
+                        .any(|&pred| self.cfg.is_reachable(pred) && !planned(pred)))
+            {
+                return false;
+            }
+        }
+        // The edges waiting for a join.
+        let mut joins = 0;
+        for (join, deferred) in &reference.deferred {
+            let resolved = reference.resolved.get(join);
+            if resolved.is_some_and(|&(index, _)| before(index)) {
+                continue;
+            }
+            let count = deferred.iter().take_while(|&&index| before(index)).count();
+            if count == 0 {
+                continue;
+            }
+            let theirs = match resolved {
+                Some((_, edges)) => edges.get(..count),
+                None => reference.progress.pending.get(join).and_then(|edges| edges.get(..count)),
+            };
+            if theirs.is_none() || self.pending.get(join).map(Vec::as_slice) != theirs {
+                return false;
+            }
+            joins += 1;
+        }
+        if joins != self.pending.len() {
+            return false;
+        }
+        // The headers with a natural layout.
+        let mut natural = reference.natural_set.iter().filter(|&(_, &index)| before(index));
+        natural.clone().count() == self.natural.len()
+            && natural.all(|(header, _)| self.natural.contains_key(header))
     }
 
     /// Returns the repeated immediates worth keeping on the stack, the one that saves the most
@@ -1511,18 +1737,29 @@ impl<'a> Planner<'a> {
     /// as it is, else the deepest one in reach, which leaves the next ones on top.
     fn restore_saved(&self, sim: &mut Sim, saved: &[Victim]) -> Result<(), Fail> {
         let mut pending = SmallVec::<[Victim; 4]>::from_slice(saved);
+        let mut seen = SmallVec::<[bool; 4]>::new();
         while !pending.is_empty() {
-            let (index, depth) = pending
-                .iter()
-                .map(|victim| sim.depth_of(victim.saved_slot()).expect("saved word"))
-                .enumerate()
-                .max_by_key(|&(_, depth)| match depth {
-                    0 => usize::MAX,
-                    depth if depth <= self.reach => depth,
-                    // Beyond reach: the swap fails and names a word to spill.
-                    _ => 0,
-                })
-                .expect("pending saved words");
+            debug_assert!(pending.iter().all(|victim| sim.depth_of(victim.saved_slot()).is_some()));
+            // The saved word on top, else the deepest one in reach, from one scan of the words in
+            // reach that takes the shallowest copy of each.
+            seen.clear();
+            seen.resize(pending.len(), false);
+            let mut chosen = None;
+            for (depth, &slot) in sim.stack.iter().rev().take(self.reach + 1).enumerate() {
+                if let Some(index) = pending.iter().position(|victim| victim.saved_slot() == slot)
+                    && !std::mem::replace(&mut seen[index], true)
+                {
+                    chosen = Some((index, depth));
+                    if depth == 0 {
+                        break;
+                    }
+                }
+            }
+            // Beyond reach: the swap of the last one fails and names a word to spill.
+            let (index, depth) = chosen.unwrap_or_else(|| {
+                let index = pending.len() - 1;
+                (index, sim.depth_of(pending[index].saved_slot()).expect("saved word"))
+            });
             // swap saved; store
             self.swap_up_over_junk(sim, depth)?;
             match pending.swap_remove(index) {
@@ -2826,6 +3063,7 @@ impl<'a> Planner<'a> {
     /// Chooses the layout of a block that has none.
     fn set_layout(&mut self, block: BlockId, layout: Layout) {
         debug_assert!(self.layouts[block].is_none());
+        self.frontier ^= frontier_hash(0, block, &layout);
         self.layouts[block] = Some(layout);
         self.journal.push(Undo::Layout(block));
     }
@@ -2837,6 +3075,7 @@ impl<'a> Planner<'a> {
             && let Ok(layout) = self.adopt(&mut sim.fork(), pred, succ)
         {
             self.natural.insert(succ, layout);
+            self.frontier ^= frontier_hash(1, succ, &[]);
             self.journal.push(Undo::Natural(succ));
         }
     }
@@ -2862,11 +3101,9 @@ impl<'a> Planner<'a> {
         if side.is_none() {
             self.store_spilled_phis(sim, pred, succ)?;
         }
-        self.pending.entry(succ).or_default().push(Pending {
-            pred,
-            stack: sim.stack.clone(),
-            side,
-        });
+        let edges = self.pending.entry(succ).or_default();
+        self.frontier ^= pending_hash(succ, edges.len(), pred, &sim.stack, side);
+        edges.push(Pending { pred, stack: sim.stack.clone(), side });
         self.journal.push(Undo::Deferred(succ));
         Ok(())
     }
@@ -2879,6 +3116,9 @@ impl<'a> Planner<'a> {
     /// beat one the edges reach more cheaply.
     fn resolve_join(&mut self, join: BlockId) -> Result<(), Fail> {
         let Some(pending) = self.pending.remove(&join) else { return Ok(()) };
+        for (index, edge) in pending.iter().enumerate() {
+            self.frontier ^= pending_hash(join, index, edge.pred, &edge.stack, edge.side);
+        }
         let result = self.complete_edges(join, &pending);
         self.journal.push(Undo::Resolved(join, pending));
         result
@@ -3516,8 +3756,29 @@ impl Uses {
     }
 }
 
+/// The fingerprint of the layout chosen for `block`, or with `kind` 1 of the natural layout
+/// recorded for the header `block`.
+fn frontier_hash(kind: u8, block: BlockId, layout: &[Slot]) -> u64 {
+    let mut hasher = FxHasher::default();
+    (kind, block, layout).hash(&mut hasher);
+    hasher.finish()
+}
+
+/// The fingerprint of the edge at `index` of those recorded into `join`.
+fn pending_hash(
+    join: BlockId,
+    index: usize,
+    pred: BlockId,
+    stack: &[Slot],
+    side: Option<bool>,
+) -> u64 {
+    let mut hasher = FxHasher::default();
+    (2u8, join, index, pred, stack, side).hash(&mut hasher);
+    hasher.finish()
+}
+
 /// An edge into a join, recorded until the join's layout is chosen.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct Pending {
     pred: BlockId,
     /// The predecessor's stack on the edge.
