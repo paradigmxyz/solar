@@ -824,6 +824,9 @@ def main():
         record["solar"]["binary_sha256"] = sha256_file(solar)
         rc, vout, _ = run([str(solar), "--version"])
         record["solar"]["version"] = vout.strip().splitlines()[0] if vout else ""
+        # The commit the binary embeds (its build's), recorded apart from the driver's checkout.
+        m = re.search(r"Commit SHA: ([0-9a-f]{40})", vout or "")
+        record["solar"]["binary_commit"] = m.group(1) if m else None
         plain, err = solar_runtime(solar, src, contract)
         if plain is None:
             raise Failed(f"solar does not compile the source: {err.strip()[:400]}")
@@ -903,13 +906,18 @@ def main():
                 raise Failed(f"cannot copy the packages: {err[:200]}")
             record["packages_from"] = str(pk)
         log(f"== generic: solidity-lean {base} + inputs {inputs}; scripts/certify")
+        # scripts/certify builds solar itself from this checkout (no SOLAR, no CERTIFY_SKIP_BUILD: a
+        # binary it is handed is a provenance caveat whatever its digest), and must get the binary
+        # the driver built and compiled the source with: CERTIFY_SOLAR_SHA256 is that binary's digest,
+        # so a different build is a caveat too.
         env = dict(os.environ, SOLIDITY_LEAN_DIR=str(lean_dir), CERTIFY_ALLOW_UNPINNED="1", CERTIFY_CLEAN_BUILD="1",
-                   SOLC=a.solc, SOLAR=str(solar), LEAN_MEMORY=LEAN_MEMORY)
-        env.pop("CERTIFY_REPLAY_TRUST_UPSTREAM", None)
+                   SOLC=a.solc, CERTIFY_SOLAR_SHA256=record["solar"]["binary_sha256"], LEAN_MEMORY=LEAN_MEMORY)
+        for k in ("CERTIFY_REPLAY_TRUST_UPSTREAM", "SOLAR", "CERTIFY_SKIP_BUILD", "CERTIFY_ALLOW_FOREIGN_SOLAR"):
+            env.pop(k, None)
         cmd = ["bash", str(ROOT / "scripts" / "certify"), str(d / f"{name}.sol"), "--name", name, "--contract", contract, "--require-final"]
         if a.no_negatives:
             cmd.append("--no-negatives")
-        record["scripts_certify"] = {"command": cmd, "env": {k: env[k] for k in ("SOLIDITY_LEAN_DIR", "CERTIFY_ALLOW_UNPINNED", "CERTIFY_CLEAN_BUILD", "SOLC", "SOLAR", "LEAN_MEMORY")}}
+        record["scripts_certify"] = {"command": cmd, "env": {k: env[k] for k in ("SOLIDITY_LEAN_DIR", "CERTIFY_ALLOW_UNPINNED", "CERTIFY_CLEAN_BUILD", "SOLC", "CERTIFY_SOLAR_SHA256", "LEAN_MEMORY")}}
         logf = rec_dir / "certify.log"
         with open(logf, "w") as lf:
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
