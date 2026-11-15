@@ -100,6 +100,14 @@
 //! shared proof the work it took where it ran, so the values each function proves, and the work
 //! left for the rest, are the same whichever function ran it first.
 //!
+//! Near misses that differ in a constant, as a table entry or a compared value, have distinct
+//! shapes, but a class of a high bit often decides the steps where they differ, and the classes
+//! below it then evaluate the same thing. A word of a class holds in every narrower class, as that
+//! class knows it, so what the narrower classes compute depends only on the steps still without a
+//! word, the words those steps read, and the class. The classes below each class of a highest bit
+//! are proved once per run for each such rest, and charged, like shared shapes, the work they took
+//! where they ran.
+//!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
 //! It runs again after arithmetic lowering and if-conversion, where the scans that use checked
@@ -164,7 +172,7 @@ impl MirPass for BitScan {
 }
 
 /// A word of the evaluation of one class of inputs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Word {
     /// The same number for every input of the class.
     Known(U256),
@@ -206,6 +214,14 @@ impl Class {
         }
     }
 
+    /// A word that an enclosing class found, as this class knows it.
+    fn resolve(self, word: Word) -> Word {
+        match word {
+            Word::Known(_) => word,
+            Word::Shifted(by) => self.shifted(by),
+        }
+    }
+
     /// The least and the greatest value of the input shifted right by `shift` bits, fewer than
     /// the free ones.
     fn bounds(self, shift: u32) -> (U256, U256) {
@@ -227,6 +243,122 @@ enum Slot {
 struct Step {
     inst: InstId,
     operands: SmallVec<[(ValueId, Slot); 3]>,
+    /// How the step evaluates.
+    op: Op,
+    /// How the step takes the shifted input.
+    partial: Partial,
+}
+
+/// The operations that take the shifted input while bits of it are free, read off the
+/// instruction once.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Partial {
+    Shr,
+    Lt,
+    Gt,
+    Eq,
+    Ne,
+    Other,
+}
+
+impl Partial {
+    fn new(kind: &InstKind) -> Self {
+        match kind {
+            InstKind::Shr(..) => Self::Shr,
+            InstKind::Lt(..) => Self::Lt,
+            InstKind::Gt(..) => Self::Gt,
+            InstKind::Eq(..) => Self::Eq,
+            InstKind::Ne(..) => Self::Ne,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// How a step evaluates, decided once for the cone: a proof evaluates each step thousands of
+/// times.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Op {
+    /// A select, which reads its condition and the operand it chooses.
+    Select,
+    /// An operation whose result is its operand's word, which passes the shifted input on.
+    Word,
+    /// An EVM opcode on words, computed here as the constant folder computes it.
+    Opcode(Opcode),
+    /// Anything else, which goes through the constant folder.
+    Other,
+}
+
+/// The opcodes on 256-bit operands that a scan is written with.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Opcode {
+    Add,
+    Sub,
+    Mul,
+    And,
+    Or,
+    Xor,
+    Not,
+    Shl,
+    Shr,
+    Byte,
+    Lt,
+    Gt,
+    Eq,
+}
+
+impl Op {
+    fn new(func: &Function, kind: &InstKind) -> Self {
+        let opcode = match kind {
+            InstKind::Select(..) => return Self::Select,
+            _ if matches!(kind.semantics(), Some(Semantics::Word(_))) => return Self::Word,
+            InstKind::Add(..) => Opcode::Add,
+            InstKind::Sub(..) => Opcode::Sub,
+            InstKind::Mul(..) => Opcode::Mul,
+            InstKind::And(..) => Opcode::And,
+            InstKind::Or(..) => Opcode::Or,
+            InstKind::Xor(..) => Opcode::Xor,
+            InstKind::Not(..) => Opcode::Not,
+            InstKind::Shl(..) => Opcode::Shl,
+            InstKind::Shr(..) => Opcode::Shr,
+            InstKind::Byte(..) => Opcode::Byte,
+            InstKind::Lt(..) => Opcode::Lt,
+            InstKind::Gt(..) => Opcode::Gt,
+            InstKind::Eq(..) => Opcode::Eq,
+            _ => return Self::Other,
+        };
+        // On words the constant folder applies the opcode as the EVM does; narrower operands
+        // are extended and the result masked, which only it does.
+        let words =
+            kind.operands().iter().all(|&value| func.value_ty(value) == Some(MirType::I256));
+        if words { Self::Opcode(opcode) } else { Self::Other }
+    }
+}
+
+impl Opcode {
+    /// The opcode's result for the operands, as the EVM computes it.
+    fn eval(self, operands: &[U256]) -> U256 {
+        let bit = |holds: bool| U256::from(holds);
+        let shift = |by: U256| u32::try_from(by).ok().filter(|&by| by < 256);
+        match (self, operands) {
+            (Self::Add, &[a, b]) => a.wrapping_add(b),
+            (Self::Sub, &[a, b]) => a.wrapping_sub(b),
+            (Self::Mul, &[a, b]) => a.wrapping_mul(b),
+            (Self::And, &[a, b]) => a & b,
+            (Self::Or, &[a, b]) => a | b,
+            (Self::Xor, &[a, b]) => a ^ b,
+            (Self::Not, &[a]) => !a,
+            (Self::Shl, &[by, value]) => shift(by).map_or(U256::ZERO, |by| value << by),
+            (Self::Shr, &[by, value]) => shift(by).map_or(U256::ZERO, |by| value >> by),
+            (Self::Byte, &[index, value]) => match u32::try_from(index) {
+                Ok(index) if index < 32 => (value >> (8 * (31 - index))) & U256::from(0xff),
+                _ => U256::ZERO,
+            },
+            (Self::Lt, &[a, b]) => bit(a < b),
+            (Self::Gt, &[a, b]) => bit(a > b),
+            (Self::Eq, &[a, b]) => bit(a == b),
+            _ => unreachable!("an opcode takes its operands"),
+        }
+    }
 }
 
 /// What a proved scan computes.
@@ -261,7 +393,44 @@ enum Proved {
 }
 
 /// The proofs of one run of the pass, shared by the functions of the module.
-type Proofs = Mutex<FxHashMap<Shape, Proved>>;
+#[derive(Default)]
+struct Proofs {
+    /// The proofs of values, by the shape of what they evaluate.
+    shapes: Mutex<FxHashMap<Shape, Proved>>,
+    /// The proofs of the classes below a class of a highest bit, by what is left to evaluate
+    /// there.
+    rests: Mutex<FxHashMap<Rest, Proved>>,
+}
+
+/// What the classes below a class still evaluate: the steps without a word there, renamed as
+/// in a [`Shape`], with the words of the other steps they read in place of those steps, how
+/// the root is found, the class, how many free bits its classes fix, and the value expected of
+/// the root. Values that differ only in steps that have their words by then, such as near misses
+/// whose difference a class of a high bit decides, have the same rest, and equal rests have equal
+/// proofs.
+#[derive(PartialEq, Eq, Hash)]
+struct Rest {
+    steps: Vec<RestStep>,
+    root: Operand,
+    lead: u32,
+    free: u32,
+    bits: u32,
+    expected: U256,
+}
+
+/// One step of a [`Rest`]: its kind with renamed operands, its result type, and the type and
+/// source of each operand.
+type RestStep = (InstKind, Option<MirType>, SmallVec<[(Option<MirType>, Operand); 3]>);
+
+/// Where a step of a [`Rest`] finds an operand.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Operand {
+    Input,
+    /// The step of the rest at this place.
+    Step(u32),
+    /// A word the class has already.
+    Word(Word),
+}
 
 /// The pure instructions of one block that compute functions of `input` alone, in block order.
 struct Cone<'a> {
@@ -524,7 +693,8 @@ impl<'a> Cone<'a> {
             }
             if reads_input && operands.len() == data.kind.operands().len() {
                 step_of.insert(result, steps.len() as u32);
-                steps.push(Step { inst, operands });
+                let (op, partial) = (Op::new(func, &data.kind), Partial::new(&data.kind));
+                steps.push(Step { inst, operands, op, partial });
                 reach(result, &mut pending);
             }
         }
@@ -609,7 +779,7 @@ impl<'a> Cone<'a> {
         let needed = (0..needed.len() as u32).collect::<Vec<_>>();
         let needed = &needed[..];
         let root = needed.len() - 1;
-        let mut scratch = vec![vec![None; root + 1]; WINDOW as usize];
+        let mut scratch = vec![vec![None; root + 1]];
         cone.evaluate(func, needed, Word::Known(U256::ZERO), Class::ZERO, &mut scratch[0]);
         let Some(Word::Known(zero)) = scratch[0][root] else { return None };
         let scan = Scan { leading_zeros, zero };
@@ -623,7 +793,8 @@ impl<'a> Cone<'a> {
         // ran it.
         let shape = cone.shape(func, needed, leading_zeros, one_bit);
         let budget = cone.work.get();
-        let known = proofs.lock().unwrap_or_else(PoisonError::into_inner).get(&shape).copied();
+        let known =
+            proofs.shapes.lock().unwrap_or_else(PoisonError::into_inner).get(&shape).copied();
         let holds = match known {
             Some(Proved::Done { holds, work }) if work <= budget => {
                 cone.work.set(budget - work);
@@ -640,14 +811,15 @@ impl<'a> Cone<'a> {
             }
             _ => {
                 cone.starved.set(false);
-                let holds = cone.holds(func, needed, root, leading_zeros, one_bit, &mut scratch);
+                let holds =
+                    cone.holds(func, needed, root, leading_zeros, one_bit, &mut scratch, proofs);
                 let starved = cone.starved.get();
                 let proved = if starved {
                     Proved::Exceeds(budget)
                 } else {
                     Proved::Done { holds, work: budget - cone.work.get() }
                 };
-                let mut proofs = proofs.lock().unwrap_or_else(PoisonError::into_inner);
+                let mut proofs = proofs.shapes.lock().unwrap_or_else(PoisonError::into_inner);
                 let entry = proofs.entry(shape).or_insert(proved);
                 if !matches!(entry, Proved::Done { .. }) {
                     *entry = proved;
@@ -673,13 +845,14 @@ impl<'a> Cone<'a> {
                         slot => (value, slot),
                     })
                     .collect();
-                Step { inst: data.inst, operands }
+                Step { inst: data.inst, operands, op: data.op, partial: data.partial }
             })
             .collect();
         Self { input: self.input, steps, work: self.work, starved: Cell::new(false) }
     }
 
     /// Whether `root` is what `prove` expects for every nonzero input.
+    #[allow(clippy::too_many_arguments)]
     fn holds(
         &self,
         func: &Function,
@@ -688,6 +861,7 @@ impl<'a> Cone<'a> {
         leading_zeros: bool,
         one_bit: bool,
         scratch: &mut [Vec<Option<Word>>],
+        proofs: &Proofs,
     ) -> bool {
         // An input of one bit takes 256 nonzero values: trying each of them is the proof.
         if one_bit {
@@ -704,10 +878,12 @@ impl<'a> Cone<'a> {
             return true;
         }
         // The widest classes first: a value the classes cannot settle fails on them at once.
+        let words = &mut scratch[0];
+        words.fill(None);
         (0..256).rev().all(|msb| {
             let expected = U256::from(if leading_zeros { 255 - msb } else { msb });
             let class = Class::with_msb(msb);
-            self.prove_class(func, needed, root, class, expected, scratch, 0)
+            self.prove_class(func, needed, root, class, expected, words, Some(&proofs.rests))
         })
     }
 
@@ -741,47 +917,176 @@ impl<'a> Cone<'a> {
         shape
     }
 
-    /// Whether `root` is `expected` for every input of `class`. The words of the enclosing class
-    /// are in `scratch[depth - 1]`; the numbers among them hold in this class too.
+    /// Whether `root` is `expected` for every input of `class`, once the steps of `pending`,
+    /// which have no word in the enclosing class, are evaluated in it.
+    ///
+    /// A word of the enclosing class holds here too: a number as it is, and the shifted input as
+    /// this class knows it, which [`Class::shifted`] gives when the word is read. So a class
+    /// writes the words of its pending steps alone, and clears them when it is done.
+    ///
+    /// The classes below a class of a highest bit are proved once per rest, in `rests`, and a
+    /// proof that another value with the same rest ran costs what it cost there, as with shapes.
     #[allow(clippy::too_many_arguments)]
     fn prove_class(
         &self,
         func: &Function,
-        needed: &[u32],
+        pending: &[u32],
         root: usize,
         class: Class,
         expected: U256,
-        scratch: &mut [Vec<Option<Word>>],
-        depth: usize,
+        words: &mut [Option<Word>],
+        rests: Option<&Mutex<FxHashMap<Rest, Proved>>>,
     ) -> bool {
-        let (outer, inner) = scratch.split_at_mut(depth);
-        let words = &mut inner[0];
-        match outer.last() {
-            // A word of the enclosing class holds here too: a number as it is, and the shifted
-            // input as this class knows it.
-            Some(outer) => {
-                for (word, &outer) in words.iter_mut().zip(outer) {
-                    *word = outer.map(|word| match word {
-                        Word::Known(_) => word,
-                        Word::Shifted(by) => class.shifted(by),
-                    });
-                }
-            }
-            None => words.fill(None),
-        }
-        let blocked = self.evaluate(func, needed, class.shifted(0), class, words);
-        match (words[root], blocked) {
+        let mut left = SmallVec::<[u32; 16]>::new();
+        let blocked = self.evaluate_pending(func, pending, class, words, &mut left);
+        let holds = match (words[root].map(|word| class.resolve(word)), blocked) {
             (Some(Word::Known(value)), _) => value == expected,
             // Free bits kept an operation from its result: fix as many as let it go on.
             (_, Some(bits)) => {
-                let mut classes = class.reveal(bits).peekable();
-                classes.peek().is_some()
-                    && classes.all(|class| {
-                        self.prove_class(func, needed, root, class, expected, scratch, depth + 1)
-                    })
+                let below = |words: &mut [Option<Word>]| {
+                    let mut classes = class.reveal(bits).peekable();
+                    classes.peek().is_some()
+                        && classes.all(|class| {
+                            self.prove_class(func, &left, root, class, expected, words, None)
+                        })
+                };
+                match rests {
+                    Some(rests) if !self.starved.get() => {
+                        let rest = self.rest(func, &left, root, class, bits, expected, words);
+                        self.prove_rest(rests, rest, || below(words))
+                    }
+                    _ => below(words),
+                }
             }
             (_, None) => false,
+        };
+        for &step in pending {
+            words[step as usize] = None;
         }
+        holds
+    }
+
+    /// What the classes below `class` evaluate, once it has fixed the words it can: the steps
+    /// of `left`, whose classes fix `bits` more free bits.
+    #[allow(clippy::too_many_arguments)]
+    fn rest(
+        &self,
+        func: &Function,
+        left: &[u32],
+        root: usize,
+        class: Class,
+        bits: u32,
+        expected: U256,
+        words: &[Option<Word>],
+    ) -> Rest {
+        let operand = |slot| match slot {
+            Slot::Input => Operand::Input,
+            Slot::Constant(constant) => Operand::Word(Word::Known(constant)),
+            Slot::Step(step) => match words[step as usize] {
+                Some(word) => Operand::Word(class.resolve(word)),
+                None => Operand::Step(left.partition_point(|&other| other < step) as u32),
+            },
+        };
+        let mut steps = Vec::with_capacity(left.len());
+        for &step in left {
+            let data = &self.steps[step as usize];
+            let inst = func.inst(data.inst);
+            let mut kind = inst.kind.clone();
+            let mut operands = SmallVec::new();
+            let mut nth = 0;
+            kind.visit_operands_mut(|value| {
+                let (original, slot) = data.operands[nth];
+                nth += 1;
+                *value = ValueId::from_usize(0);
+                operands.push((func.value_ty(original), operand(slot)));
+            });
+            steps.push((kind, inst.result_ty, operands));
+        }
+        Rest {
+            steps,
+            root: operand(Slot::Step(root as u32)),
+            lead: class.lead,
+            free: class.free,
+            bits,
+            expected,
+        }
+    }
+
+    /// Proves the classes below a class with `below`, unless another value proved the same
+    /// `rest`: then it costs the work it took there, so that the values proved, and the work
+    /// left, do not depend on which value ran it.
+    fn prove_rest(
+        &self,
+        rests: &Mutex<FxHashMap<Rest, Proved>>,
+        rest: Rest,
+        below: impl FnOnce() -> bool,
+    ) -> bool {
+        let budget = self.work.get();
+        let known = rests.lock().unwrap_or_else(PoisonError::into_inner).get(&rest).copied();
+        match known {
+            Some(Proved::Done { holds, work }) if work <= budget => {
+                self.work.set(budget - work);
+                holds
+            }
+            // It would run out of work here.
+            Some(Proved::Done { .. }) => self.starve(),
+            Some(Proved::Exceeds(work)) if budget <= work => self.starve(),
+            _ => {
+                let holds = below();
+                let proved = if self.starved.get() {
+                    Proved::Exceeds(budget)
+                } else {
+                    Proved::Done { holds, work: budget - self.work.get() }
+                };
+                let mut rests = rests.lock().unwrap_or_else(PoisonError::into_inner);
+                let entry = rests.entry(rest).or_insert(proved);
+                if !matches!(entry, Proved::Done { .. }) {
+                    *entry = proved;
+                }
+                holds
+            }
+        }
+    }
+
+    /// Spends the work left, as evaluating past it does, which fails the proof.
+    fn starve(&self) -> bool {
+        self.work.set(0);
+        self.starved.set(true);
+        false
+    }
+
+    /// Evaluates the steps of `pending`, which have no word, for the inputs of `class`, as
+    /// [`Cone::evaluate`] does, and pushes those still without one to `left`.
+    fn evaluate_pending(
+        &self,
+        func: &Function,
+        pending: &[u32],
+        class: Class,
+        words: &mut [Option<Word>],
+        left: &mut SmallVec<[u32; 16]>,
+    ) -> Option<u32> {
+        let mut blocked = None::<u32>;
+        let input = class.shifted(0);
+        for (nth, &step) in pending.iter().enumerate() {
+            debug_assert!(words[step as usize].is_none());
+            // Out of work: the step has no word, and so nothing that reads it is proved.
+            let Some(work) = self.work.get().checked_sub(1) else {
+                self.starved.set(true);
+                left.extend_from_slice(&pending[nth..]);
+                break;
+            };
+            self.work.set(work);
+            let mut bits = None;
+            let word = self.evaluate_step(func, step as usize, input, class, words, &mut bits);
+            words[step as usize] = word;
+            if word.is_none() {
+                left.push(step);
+            }
+            if let Some(bits) = bits {
+                blocked = Some(blocked.map_or(bits, |blocked| blocked.min(bits)));
+            }
+        }
+        blocked
     }
 
     /// Evaluates the steps of `needed` that have no word yet, for the inputs of `class`, which
@@ -829,22 +1134,44 @@ impl<'a> Cone<'a> {
         let step = &self.steps[step];
         let word = |slot| match slot {
             Slot::Input => Some(input),
-            Slot::Step(step) => words[step as usize],
+            Slot::Step(step) => words[step as usize].map(|word| class.resolve(word)),
             Slot::Constant(constant) => Some(Word::Known(constant)),
         };
-        let kind = &func.inst(step.inst).kind;
         // A select reads its condition and the operand it chooses.
-        if let InstKind::Select(..) = kind
+        if step.op == Op::Select
             && let Some(Word::Known(condition)) = word(step.operands[0].1)
         {
             return word(step.operands[if condition.is_zero() { 2 } else { 1 }].1);
         }
         let mut operands = SmallVec::<[Word; 3]>::new();
+        let mut known = true;
         for &(_, slot) in &step.operands {
-            operands.push(word(slot)?);
+            let operand = word(slot)?;
+            known &= matches!(operand, Word::Known(_));
+            operands.push(operand);
         }
-        if operands.iter().all(|word| matches!(word, Word::Known(_))) {
-            let value = eval_typed_inst(func, kind, |value| {
+        let operands = &operands[..];
+        if known {
+            if let Op::Opcode(opcode) = step.op {
+                // An opcode takes at most two operands.
+                let mut numbers = [U256::ZERO; 2];
+                for (number, word) in numbers.iter_mut().zip(operands) {
+                    if let Word::Known(value) = *word {
+                        *number = value;
+                    }
+                }
+                let numbers = &numbers[..operands.len()];
+                let value = opcode.eval(numbers);
+                debug_assert_eq!(
+                    eval_typed_inst(func, &func.inst(step.inst).kind, |value| {
+                        let nth = step.operands.iter().position(|&(operand, _)| operand == value);
+                        nth.map(|nth| numbers[nth]).ok_or(())
+                    }),
+                    Ok(Some(value)),
+                );
+                return Some(Word::Known(value));
+            }
+            let value = eval_typed_inst(func, &func.inst(step.inst).kind, |value| {
                 let &(_, slot) =
                     step.operands.iter().find(|&&(operand, _)| operand == value).ok_or(())?;
                 match word(slot) {
@@ -856,16 +1183,16 @@ impl<'a> Cone<'a> {
         }
         // The operations that take the input while bits of it are free.
         let decided = |holds: bool| Some(Word::Known(U256::from(holds)));
-        let result = match (kind, &operands[..]) {
+        let result = match (step.partial, operands) {
             // x >> s >> k => x >> (s + k)
-            (InstKind::Shr(..), &[Word::Known(shift), Word::Shifted(by)]) => {
+            (Partial::Shr, &[Word::Known(shift), Word::Shifted(by)]) => {
                 Some(match u32::try_from(shift) {
                     Ok(shift) if shift < 256 => class.shifted(by + shift),
                     _ => Word::Known(U256::ZERO),
                 })
             }
-            (InstKind::Lt(..), &[Word::Shifted(by), Word::Known(limit)])
-            | (InstKind::Gt(..), &[Word::Known(limit), Word::Shifted(by)]) => {
+            (Partial::Lt, &[Word::Shifted(by), Word::Known(limit)])
+            | (Partial::Gt, &[Word::Known(limit), Word::Shifted(by)]) => {
                 let (low, high) = class.bounds(by);
                 if high < limit {
                     decided(true)
@@ -875,8 +1202,8 @@ impl<'a> Cone<'a> {
                     None
                 }
             }
-            (InstKind::Gt(..), &[Word::Shifted(by), Word::Known(limit)])
-            | (InstKind::Lt(..), &[Word::Known(limit), Word::Shifted(by)]) => {
+            (Partial::Gt, &[Word::Shifted(by), Word::Known(limit)])
+            | (Partial::Lt, &[Word::Known(limit), Word::Shifted(by)]) => {
                 let (low, high) = class.bounds(by);
                 if low > limit {
                     decided(true)
@@ -887,15 +1214,15 @@ impl<'a> Cone<'a> {
                 }
             }
             (
-                InstKind::Eq(..) | InstKind::Ne(..),
+                Partial::Eq | Partial::Ne,
                 &[Word::Shifted(by), Word::Known(other)] | &[Word::Known(other), Word::Shifted(by)],
             ) => {
                 let (low, high) = class.bounds(by);
                 (other < low || other > high)
-                    .then_some(matches!(kind, InstKind::Ne(..)))
+                    .then_some(step.partial == Partial::Ne)
                     .and_then(decided)
             }
-            (_, &[word]) if matches!(kind.semantics(), Some(Semantics::Word(_))) => Some(word),
+            (_, &[word]) if step.op == Op::Word => Some(word),
             // Any other operation needs its operands as numbers: the one closest to being one
             // becomes one when the free bits left in it are fixed.
             _ => {
