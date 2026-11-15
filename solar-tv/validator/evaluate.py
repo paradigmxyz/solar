@@ -151,7 +151,14 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
     for index, row in enumerate(chosen):
         target = folder / f"check-{index:03}.json"
         start = time.monotonic()
-        if row["rejection"]:
+        region = row["region"]
+        prefix = (
+            row["layer"] == "evmir"
+            and region
+            and region["kind"] == "window"
+            and row["rejection"] == "incoming EVM stack height is unknown"
+        )
+        if row["rejection"] and not prefix:
             record = {
                 "version": 1,
                 "status": "unsupported",
@@ -179,7 +186,10 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 target,
             ]
             if region := row["region"]:
-                command += [f"--{region['kind']}", region["name"]]
+                command += [
+                    "--prefix" if prefix else f"--{region['kind']}",
+                    region["name"],
+                ]
                 if region["stack_height"] is not None:
                     command += ["--stack-height", str(region["stack_height"])]
             try:
@@ -213,6 +223,8 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 "layer": row["layer"],
                 "pass": row["pass"],
                 "status": record["status"],
+                "capture_rejection": row["rejection"],
+                "proof_mode": "universal-stack-prefix" if prefix else "original",
                 "seconds": time.monotonic() - start,
                 "report": str(target.relative_to(folder.parent)),
             }

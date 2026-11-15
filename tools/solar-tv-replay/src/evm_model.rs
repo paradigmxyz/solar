@@ -27,6 +27,8 @@ struct Input {
     text: String,
     entry: u32,
     evm_version: String,
+    #[serde(default)]
+    window: bool,
 }
 
 pub(super) fn export() -> Result<Value, String> {
@@ -56,7 +58,7 @@ pub(super) fn export() -> Result<Value, String> {
             .iter_enumerated()
             .find(|(_, b)| b.label == input.entry)
             .ok_or("missing EVM model entry")?;
-        graph(&module, entry)
+        if input.window { window(&module, entry) } else { graph(&module, entry) }
     })
 }
 
@@ -161,4 +163,27 @@ fn instruction(inst: &Instruction) -> Result<String, String> {
         return Err("unmodeled EVM source relocation".into());
     }
     Ok(inst.mnemonic().to_string())
+}
+
+/// Export every operation in a block, including its final transfer. Consumers
+/// may prove a prefix only if the entire remaining continuation is identical.
+fn window(module: &Module, entry: BlockId) -> Result<Value, String> {
+    let block = &module.blocks[entry];
+    let instructions = block
+        .instructions
+        .iter()
+        .map(|inst| {
+            if let Some(target) = inst.pushed_block() {
+                Ok(format!("push bb{}", module.blocks[target].label))
+            } else {
+                instruction(inst)
+            }
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let terminal = &block.terminator.as_ref().ok_or("missing EVM window terminator")?.kind;
+    Ok(json!({
+        "instructions": instructions,
+        "terminal": format!("{terminal:?}"),
+        "following": module.next_block(entry).map(|id| module.blocks[id].label),
+    }))
 }
