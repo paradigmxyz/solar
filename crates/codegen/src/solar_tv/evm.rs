@@ -1,14 +1,16 @@
-//! Complete-block EVM windows with fixed incoming stack heights and stable label identities.
+//! EVM windows and acyclic regions with proven fixed entry stack heights.
 //!
 //! This adapter never selects instruction slices. It checks a changed block only when its
-//! identity, shared declarations and entry height survive. Unknown heights and structural edits
-//! remain unsupported. The checker models outgoing transfers, not the successor's execution.
+//! identity, shared declarations and entry height survive. Adjacent edits, changed successors
+//! and shared-tail changes use a complete reachable region through terminal outcomes instead.
+//! Internal labels and stack layouts may change there. The checker rejects cycles, dynamic
+//! transfers and operations outside its fragment; unknown entry heights remain unsupported.
 
 use super::{Region, Snapshot};
 use solar_evmir::ir::{BlockId, Module, verify::Verifier};
 use solar_interface::Result;
 use solar_sema::Gcx;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) struct EvmSnapshot<'a> {
     snapshot: Snapshot<'a>,
@@ -29,28 +31,36 @@ impl<'a> EvmSnapshot<'a> {
         let prefix = |text: &str| {
             text.lines().take_while(|line| !line.starts_with("bb")).collect::<Vec<_>>().join("\n")
         };
-        if prefix(&self.snapshot.before) != prefix(&after)
-            || self.before.blocks.iter().map(|b| b.label).ne(module.blocks.iter().map(|b| b.label))
-        {
+        if prefix(&self.snapshot.before) != prefix(&after) {
             return self.snapshot.check(
                 gcx,
                 "evmir",
                 pass,
                 module.name(),
                 &after,
-                (None, Some(
-                    "shared EVM declarations or label set changed; block correspondence is unknown",
-                )),
+                (None, Some("shared EVM declarations changed; region correspondence is unknown")),
             );
         }
         let version = gcx.sess.opts.evm_version;
         let old_depths = Verifier::stack_entry_exact_depths(&self.before, version);
         let new_depths = Verifier::stack_entry_exact_depths(module, version);
+        let labels = module
+            .blocks
+            .iter_enumerated()
+            .map(|(id, block)| (block.label, id))
+            .collect::<BTreeMap<_, _>>();
+        let structural =
+            self.before.blocks.iter().map(|b| b.label).ne(module.blocks.iter().map(|b| b.label));
+        let mut checked = false;
         for (old_id, before) in self.before.blocks.iter_enumerated() {
-            let id = old_id;
-            if self.before.block_text(old_id).to_string() == module.block_text(id).to_string() {
+            let Some(&id) = labels.get(&before.label) else { continue };
+            let next = |m: &Module, block| m.next_block(block).map(|id| m.blocks[id].label);
+            if self.before.block_text(old_id).to_string() == module.block_text(id).to_string()
+                && next(&self.before, old_id) == next(module, id)
+            {
                 continue;
             }
+            checked = true;
             let height = old_depths[old_id];
             let rejection = if height.is_none() {
                 Some("incoming EVM stack height is unknown")
@@ -58,12 +68,17 @@ impl<'a> EvmSnapshot<'a> {
                 Some("incoming EVM stack height changed")
             } else if before.metadata.call_effect != module.blocks[id].metadata.call_effect {
                 Some("helper call interface changed")
-            } else if boundaries(&self.before, old_id) != boundaries(module, id) {
-                Some("window boundaries changed; successor equivalence is not modeled")
             } else {
                 None
             };
-            let region = Region { kind: "window", name: format!("bb{}", before.label), height };
+            let use_region = structural
+                || boundaries(&self.before, old_id) != boundaries(module, id)
+                || neighbors_changed(&self.before, module, old_id, &labels);
+            let region = Region {
+                kind: if use_region { "region" } else { "window" },
+                name: format!("bb{}", before.label),
+                height,
+            };
             self.snapshot.check(
                 gcx,
                 "evmir",
@@ -73,8 +88,47 @@ impl<'a> EvmSnapshot<'a> {
                 (Some(&region), rejection),
             )?;
         }
+        if structural && !checked {
+            return self.snapshot.check(
+                gcx,
+                "evmir",
+                pass,
+                module.name(),
+                &after,
+                (None, Some("no surviving changed entry for EVM region correspondence")),
+            );
+        }
         Ok(())
     }
+}
+
+fn neighbors_changed(
+    before: &Module,
+    after: &Module,
+    entry: BlockId,
+    labels: &BTreeMap<u32, BlockId>,
+) -> bool {
+    let name = before.blocks[entry].label;
+    let mut neighbors = boundaries(before, entry);
+    if let Some(&id) = labels.get(&name) {
+        neighbors.extend(boundaries(after, id));
+    }
+    for (id, block) in before.blocks.iter_enumerated() {
+        if boundaries(before, id).contains(&name) {
+            neighbors.insert(block.label);
+        }
+    }
+    for (id, block) in after.blocks.iter_enumerated() {
+        if boundaries(after, id).contains(&name) {
+            neighbors.insert(block.label);
+        }
+    }
+    before.blocks.iter_enumerated().any(|(id, block)| {
+        neighbors.contains(&block.label)
+            && labels.get(&block.label).is_none_or(|&new| {
+                before.block_text(id).to_string() != after.block_text(new).to_string()
+            })
+    })
 }
 
 fn boundaries(module: &Module, id: BlockId) -> BTreeSet<u32> {

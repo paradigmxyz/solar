@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AbiWordValidator, AllocationFailure, AllocationSemantics, BlockId, CallPolicy,
-    CalldataTail, FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId,
-    InstKind, Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion,
-    MirType, PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias,
-    StructId, Terminator, Value, ValueId,
+    AbiEncodeMode, AbiWordValidator, AddressCallKind, AllocationFailure, AllocationSemantics,
+    BlockId, CallPolicy, CalldataTail, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
+    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout,
+    MemoryRegion, MirType, PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason,
+    StorageAlias, StructId, Terminator, Value, ValueId,
 };
 use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
@@ -1782,6 +1782,22 @@ impl<'a> FunctionBuilder<'a> {
 
     pub fn slotnum(&mut self) -> ValueId {
         self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
+    }
+
+    /// Emits a low-level address call over a bytes object.
+    pub fn address_call(
+        &mut self,
+        kind: AddressCallKind,
+        address: ValueId,
+        input: ValueId,
+        gas: Option<ValueId>,
+        value: Option<ValueId>,
+    ) -> ValueId {
+        // success = address_call(address, input, gas?, value?)
+        self.emit_inst(
+            InstKind::AddressCall { kind, address, input, gas, value },
+            Some(MirType::I1),
+        )
     }
 
     /// Emits an `extcall` over a bytes object or memory slice, or over no bytes at all, and

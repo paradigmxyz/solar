@@ -11,6 +11,23 @@ accounts without lowering its own program to bytecode. -/
 namespace SolarTV.EVM.State
 open EvmRules
 
+/-- Caller charges at a message boundary, before the EIP-150 split. Memory
+extents are active words, not the abstract MIR allocation cursor. -/
+def callBoundaryCharge (cfg : Config) (world : Journal) (message : Calls.Message)
+    (opcode resolution beforeWords afterWords : Nat) : Nat :=
+  let base := if cfg.fork.atLeast .berlin && world.warmAddresses.contains message.destination
+    then 100 else (cfg.opcodes[opcode]?.map (·.base)).getD 0
+  let value := if Calls.hasValue message then 9000 else 0
+  let fresh := if message.kind == .call && dead world message.destination &&
+    (!cfg.fork.atLeast .spuriousDragon || message.value != 0) then 25000 else 0
+  base + value + fresh + resolution + memoryCost afterWords - memoryCost beforeWords
+
+def createBoundaryCharge (cfg : Config) (create2 : Bool)
+    (size beforeWords afterWords : Nat) : Nat :=
+  let perWord := (if cfg.fork.atLeast .shanghai then 2 else 0) + if create2 then 6 else 0
+  let base := ((cfg.opcodes[if create2 then 0xf5 else 0xf0]?).map (·.base)).getD 0
+  base + perWord * ((size+31)/32) + memoryCost afterWords - memoryCost beforeWords
+
 structure MessageOutcome where
   value : Word
   data : List Byte

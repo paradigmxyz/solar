@@ -6,6 +6,10 @@
 //! overflow checks, repairing successor phi labels when it splits blocks. Revert outlining can
 //! then share builtin failure payloads.
 //!
+//! Low-level address calls (`address_call`) expose their bytes input only here and retain
+//! explicit gas/value options; without a gas option they forward `gas()`, less the pre-EIP-150
+//! reserve where the target needs it.
+//!
 //! Every `extcall` expands through the one call emitter, `emit_call`: the low-level calls with
 //! their explicit gas and value options, the stipend-limited `send` and `transfer`, and the
 //! `ecrecover`, `sha256` and `ripemd160` precompiles. The operation's policy states the call kind
@@ -15,8 +19,9 @@
 //! allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AllocationSemantics, Builtin, CallPolicy, Callee, ExtCallKind, FunctionBuilder, InstKind,
-    MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, CallPolicy, Callee, ExtCallKind,
+    FunctionBuilder, InstKind, MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory,
+    PtrLocation, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
@@ -201,6 +206,9 @@ impl MirPass for LowerBuiltins {
                         InstKind::StorageBytesLoad(slot) => {
                             super::lower_storage_bytes::load(builder, slot)
                         }
+                        InstKind::AddressCall { kind, address, input, gas, value } => {
+                            lower_address_call(builder, evm, kind, address, input, gas, value)
+                        }
                         InstKind::ExtCall { policy, address, input, gas, value } => {
                             lower_extcall(builder, evm, policy, address, input, gas, value)
                         }
@@ -235,6 +243,40 @@ fn builtin_args<const N: usize>(args: &[ValueId]) -> [ValueId; N] {
 
 fn is_builtin(kind: &InstKind) -> bool {
     kind.op_def().phase_category == Some(PhaseCategory::Builtin)
+}
+
+fn lower_address_call(
+    builder: &mut FunctionBuilder<'_>,
+    evm: EvmVersion,
+    kind: AddressCallKind,
+    address: ValueId,
+    input: ValueId,
+    gas: Option<ValueId>,
+    value: Option<ValueId>,
+) -> ValueId {
+    // offset = add (ptrtoint input), 32
+    // size = mload input
+    // gas = explicit_gas | gas() - pre_tangerine_reserve
+    // success = call/staticcall/delegatecall(gas, address, value?, offset, size, 0, 0)
+    let offset = builder.memory_data(input);
+    let size = builder.memory_len(input);
+    let zero = builder.imm(0);
+    // A bare call has no code guard. Like solc, reserve possible account creation even for
+    // delegatecall on pre-EIP-150 targets; an explicit zero value option still reserves value gas.
+    let gas = gas.unwrap_or_else(|| {
+        if evm.can_overcharge_gas_for_call() {
+            builder.gas()
+        } else {
+            crate::mir::utils::pre_tangerine_call_gas(builder, value.is_some(), true)
+        }
+    });
+    match kind {
+        AddressCallKind::Call => {
+            builder.call(gas, address, value.unwrap_or(zero), offset, size, zero, zero)
+        }
+        AddressCallKind::Static => builder.staticcall(gas, address, offset, size, zero, zero),
+        AddressCallKind::Delegate => builder.delegatecall(gas, address, offset, size, zero, zero),
+    }
 }
 
 fn lower_extcall(

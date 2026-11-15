@@ -104,5 +104,16 @@ bb2:
         self.assertEqual(witness["observations"], witness["native_observations"])
         self.assertEqual(witness["observations"][0]["outcome"], "revert")
         self.assertEqual(witness["observations"][1]["outcome"], "return")
-        self.assertEqual(witness["observations"][1]["values"], ["17"])
+        self.assertEqual(witness["observations"][1]["values"], ["0"])
         self.assertIn("counterexample", result.stdout + result.stderr)
+
+    def test_symbolic_boolean_carriers_and_typed_branch(self):
+        before = state.module(
+            "v0 = ne arg0, 0\nv1 = or v0, false\njumpi v1, bb1, bb2\n"
+            "bb1:\nret 17\nbb2:\nret 0",
+            "fn @f(arg0: i256) -> i256",
+        )
+        after = before.replace("v1 = or v0, false\n", "").replace(
+            "jumpi v1,", "jumpi v0,"
+        )
+        self.pair(before, after)

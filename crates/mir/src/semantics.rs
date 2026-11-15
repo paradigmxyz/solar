@@ -34,10 +34,10 @@
 //! to emit for it.
 
 use crate::{
-    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiWordValidator, AllocationSemantics,
-    ArithmeticKind, BlockId, CallOutput, CallPolicy, Callee, CheckedOp, DataRef, ExtCallKind,
-    FrameMode, FrameSlotKind, ImmutableId, InstKind, LogTopics, MirType, PackedPart, PtrLocation,
-    ValueId, ValueLayout,
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiWordValidator, AddressCallKind,
+    AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, Callee, CheckedOp,
+    DataRef, ExtCallKind, FrameMode, FrameSlotKind, ImmutableId, InstKind, LogTopics, MirType,
+    PackedPart, PtrLocation, ValueId, ValueLayout,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -112,6 +112,8 @@ pub enum Semantics<'a> {
     FrameLoad(u64, FrameMode, FrameSlotKind),
     /// Write a logical mutable-local slot under the named frame convention.
     FrameStore(u64, FrameMode, FrameSlotKind, ValueId),
+    /// Low-level address call over a memory object or slice, with optional gas and value.
+    AddressCall(&'static str, ValueId, ValueId, Option<ValueId>, Option<ValueId>),
     /// Message call: the opcode its kind selects, where its output lands, the callee, an
     /// optional memory object or slice input, and optional gas and value. A word output is the
     /// callee's first 32 bytes of returndata written to scratch memory.
@@ -340,6 +342,22 @@ pub(super) mod declare {
         value: &ValueId,
     ) -> Semantics<'static> {
         Semantics::FrameStore(*offset, *mode, *kind, *value)
+    }
+
+    /// Address-call kind selects a message opcode; input retains its typed representation.
+    pub(crate) fn address_call(
+        kind: &AddressCallKind,
+        address: &ValueId,
+        input: &ValueId,
+        gas: &Option<ValueId>,
+        value: &Option<ValueId>,
+    ) -> Semantics<'static> {
+        let opcode = match kind {
+            AddressCallKind::Call => "call",
+            AddressCallKind::Static => "staticcall",
+            AddressCallKind::Delegate => "delegatecall",
+        };
+        Semantics::AddressCall(opcode, *address, *input, *gas, *value)
     }
 
     /// The call kind selects a message opcode; input retains its typed representation.

@@ -470,6 +470,7 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
     for ident in sorted(chosen):
         if uncovered(chosen - {ident}) is None:
             chosen.discard(ident)
+
     def shapes_of(ident):
         ia, ib = a_ids.index(ident), b_ids.index(ident)
         shapes = []
@@ -488,7 +489,14 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
         not before (a threaded jump to a shared revert) would end one side's segment only."""
         out = []
         for nodes, succ, node_ids, _ in sides:
-            out.append({node_ids[n] for n, ts in succ.items() for t in ts if node_ids[t] == ident})
+            out.append(
+                {
+                    node_ids[n]
+                    for n, ts in succ.items()
+                    for t in ts
+                    if node_ids[t] == ident
+                }
+            )
         return out
 
     def same_entry(ident):
@@ -507,7 +515,7 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
                 preds[t] = preds.get(t, 0) + 1
         for n, k in preds.items():
             ident = node_ids[n]
-            if k >= 2 and ident in common and ident not in chosen:
+            if k >= 2 and ident in common and ident not in chosen:  # noqa: SIM102
                 if same_entry(ident):
                     chosen.add(ident)
     a_nodes, a_succ_n, a_node_ids, _ = sides[0]
@@ -910,7 +918,9 @@ def scoped_states(blocks, edges):
     dropped = set()
     for idx, (_, instrs) in enumerate(blocks):
         for k in range(len(instrs) - 2):
-            m = re.fullmatch(r"\.op \(\.stack \(\.push (0x[0-9a-f]+|\d+)\)\)", instrs[k])
+            m = re.fullmatch(
+                r"\.op \(\.stack \(\.push (0x[0-9a-f]+|\d+)\)\)", instrs[k]
+            )
             if (
                 m
                 and int(m[1], 0) in EXCLUDED_SELECTORS
@@ -927,8 +937,11 @@ def scoped_states(blocks, edges):
                 continue
             seen.add(t)
             work.append(t)
-    return {st: [t for t in edges[st] if t in seen and (st[0], t[0]) not in dropped]
-            for st in edges if st in seen}
+    return {
+        st: [t for t in edges[st] if t in seen and (st[0], t[0]) not in dropped]
+        for st in edges
+        if st in seen
+    }
 
 
 def scope_parts():
@@ -1154,7 +1167,9 @@ def scoped_blocks(funcs, entry, ctxs):
             succ = set(mir_succ(term))
             if f == entry and EXCLUDED_SELECTORS and term.startswith(".switch"):
                 cases = re.findall(r"\(\.const (0x[0-9a-f]+|\d+), (\d+)\)", term)
-                taken = {int(t) for v, t in cases if int(v, 0) not in EXCLUDED_SELECTORS}
+                taken = {
+                    int(t) for v, t in cases if int(v, 0) not in EXCLUDED_SELECTORS
+                }
                 dead = {int(t) for v, t in cases if int(v, 0) in EXCLUDED_SELECTORS}
                 succ -= dead - taken
             for t in succ:
@@ -1324,7 +1339,18 @@ def layer_term(kind):
     return "MIR.Lowered.moduleLayer" if kind == "mir" else "EVM.Program.layer"
 
 
-def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_reach=None, recdepth=None):
+def pair_module(
+    a,
+    b,
+    cuts_a,
+    cuts_b,
+    rels,
+    fuel_a,
+    fuel_b,
+    heartbeats,
+    entry_reach=None,
+    recdepth=None,
+):
     """Lean (after the header) proving the stage from a["def"] to b["def"] through cut points:
     cuts_a/cuts_b are the cut tests' blocks, rels the relations at pairs of cut points, each a
     dict of src_vars, tgt_vars ([(name, type)]), src and tgt (configuration terms) and conds
@@ -1421,9 +1447,7 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
                 wit = (
                     "⟨" + ", ".join(names + ["rfl"] + [f"h{i}" for i in range(k)]) + "⟩"
                 )
-                proof = (
-                    f"by\n  obtain {pat} := h\n  exact rel_mem ({mem_of(n)}) {wit}"
-                )
+                proof = f"by\n  obtain {pat} := h\n  exact rel_mem ({mem_of(n)}) {wit}"
         out.append(
             f"theorem {name} {{call : Call}} {src_vars} {{y : {cb}}}\n"
             f"    (h : {h}) :\n"
@@ -1432,6 +1456,7 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
     seg_rel = f"SegRel Agree (fun y y' => ∃ Q ∈ {p}_rels call, Q y y')"
     unf = ", ".join(unf_a + unf_b)
     segs = []
+
     def seg_mks(r):
         # The relation lemmas of the cut points the segment can reach, when the exporter's
         # configuration graph names them: a leaf tries only those.
@@ -1461,6 +1486,7 @@ def pair_module(a, b, cuts_a, cuts_b, rels, fuel_a, fuel_b, heartbeats, entry_re
             + f"  sym_seg [{unf}] [{', '.join(seg_mks(r))}]\n\n"
             + ("\x00" if chunked else "")
         )
+
     def case_lines(start, group):
         lines = []
         for n, r in enumerate(group, start=start):
@@ -1884,7 +1910,9 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         fa, fb = parse_mir(ta), parse_mir(tb)
         ctx_a = mir_contexts(b["pass"], fa, mir_entry(ta))
         ctx_b = mir_contexts(b["pass"], fb, mir_entry(tb))
-        live = scoped_blocks(fa, mir_entry(ta), ctx_a) & scoped_blocks(fb, mir_entry(tb), ctx_b)
+        live = scoped_blocks(fa, mir_entry(ta), ctx_a) & scoped_blocks(
+            fb, mir_entry(tb), ctx_b
+        )
         cuts = [c for c in mir_cuts(b["pass"], fa, fb) if c[:2] in live]
         joins = mir_mir_block_cuts(fa, fb, cuts) if MIR_JOINS else []
         joins = [j for j in joins if j[:2] in live]
@@ -1896,13 +1924,21 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
             # relation equates the callers' values by number.
             for ctx in ctx_a.get(j[0], {()}) | ctx_b.get(j[0], {()}):
                 for site in ctx:
-                    if live_after_call(fa[site[0]], site) != live_after_call(fb[site[0]], site):
+                    if live_after_call(fa[site[0]], site) != live_after_call(
+                        fb[site[0]], site
+                    ):
                         return False
             return True
 
         joins = [j for j in joins if callers_agree(j)]
         tests_a, tests_b, rels = mir_mir_rels(
-            b["pass"], fa, fb, cuts + joins, ctx_a, ctx_b, {(f, h) for f, h, _, _ in joins}
+            b["pass"],
+            fa,
+            fb,
+            cuts + joins,
+            ctx_a,
+            ctx_b,
+            {(f, h) for f, h, _, _ in joins},
         )
         fuel_a, fuel_b = mir_fuel(fa), mir_fuel(fb)
     elif a["kind"] == "mir":
@@ -1927,7 +1963,9 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
             # scheduler recomputes there instead (a CALLER read, a constant) is related by
             # nothing at the cut, so the block stays inside its segments.
             f, h = j[0], j[1]
-            bm = next((x for x in fmaps.get(f, {}).get("blocks", []) if x["block"] == h), None)
+            bm = next(
+                (x for x in fmaps.get(f, {}).get("blocks", []) if x["block"] == h), None
+            )
             if bm is None:
                 return False
             held = {int(x[1:]) for x in bm["layout"] if x.startswith("v")}
@@ -1973,7 +2011,9 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         else:
             tests_a, tests_b, rels = evm_evm_rels(cuts)
             fuel_a, fuel_b = len(ea) + 1, len(eb) + 1
-    return pair_module(a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats, entry_reach, recdepth)
+    return pair_module(
+        a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats, entry_reach, recdepth
+    )
 
 
 # --- Driver ----------------------------------------------------------------------------------

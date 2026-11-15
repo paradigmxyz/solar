@@ -171,8 +171,15 @@ def split_segments(out, pm, module, p, body, imports, ns, opens, what):
     sub.mkdir(parents=True, exist_ok=True)
     opener = "open SolarTV.CutPoint (seg SegRel)\n\n"
     (sub / "Defs.lean").write_text(
-        header(imports, f"{what}: the cut points, relations and relation lemmas.", ns, opens)
-        + opener + defs + f"end {ns}\n"
+        header(
+            imports,
+            f"{what}: the cut points, relations and relation lemmas.",
+            ns,
+            opens,
+        )
+        + opener
+        + defs
+        + f"end {ns}\n"
     )
     mods = []
     for n, chunk in enumerate(segs):
@@ -185,12 +192,16 @@ def split_segments(out, pm, module, p, body, imports, ns, opens, what):
                 ns,
                 opens,
             )
-            + opener + chunk + f"end {ns}\n"
+            + opener
+            + chunk
+            + f"end {ns}\n"
         )
     return rest, mods
 
 
-def write_cut_points(args, manifest, stages, ns, opens, label, every_doc, scope="anyCall", scope_def=""):
+def write_cut_points(
+    args, manifest, stages, ns, opens, label, every_doc, scope="anyCall", scope_def=""
+):
     """The proofs of a contract whose programs loop: per pair of consecutive stages a LayerSim
     through the cut points cutpoints.py derives from what the compiler kept across the pass,
     and the Stages module that chains their certificates on every call, both ways."""
@@ -236,7 +247,9 @@ def write_cut_points(args, manifest, stages, ns, opens, label, every_doc, scope=
             f"{gm}.{b['module']}",
             f"{gm}.{a['module']}",
         ]
-        body, imports = split_segments(out, pm, b["module"], p, body, base, ns, opens, what)
+        body, imports = split_segments(
+            out, pm, b["module"], p, body, base, ns, opens, what
+        )
         (out / "Runs" / f"{b['module']}.lean").write_text(
             header(
                 imports,
@@ -393,14 +406,17 @@ def main():
     args = ap.parse_args()
     cutpoints.JOINS = args.joins
     cutpoints.EXCLUDED_SELECTORS = {int(e.partition("=")[0], 16) for e in args.exclude}
-    cutpoints.EXCLUDED_FUNCTIONS = {e.partition("=")[2].partition("(")[0] for e in args.exclude}
-    cutpoints.MIR_JOINS = not args.no_mir_joins
+    cutpoints.EXCLUDED_FUNCTIONS = {
+        e.partition("=")[2].partition("(")[0] for e in args.exclude
+    }
+    cutpoints.MIR_JOINS = not args.no_mir_joins  # ty: ignore[invalid-assignment]
     if args.segment is not None:
         cutpoints.SEGMENT = args.segment
     manifest, stages = stage_list(args.gen, args.loops)
     global DEPTH
     if any(
-        "set_option maxRecDepth" in (args.gen / f"{s['module']}.lean").read_text() for s in stages
+        "set_option maxRecDepth" in (args.gen / f"{s['module']}.lean").read_text()
+        for s in stages
     ):
         DEPTH = "set_option maxRecDepth 100000\n\n"
     contract = manifest["contract"]
@@ -464,11 +480,12 @@ def main():
         scope_term, scope_def = "anyCall", ""
         if excluded:
             conj = " ∧ ".join(
-                f"EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x}" for sel, _ in excluded
+                f"EvmRules.Evm.shr 224 (calldataWord call 0) ≠ {sel:#x}"
+                for sel, _ in excluded
             )
             # Each segment proof assumes the selector word is none of the excluded ones, so the
             # paths of their functions end at the dispatcher's test.
-            cutpoints.SCOPE = {
+            cutpoints.SCOPE = {  # ty: ignore[invalid-assignment]
                 "hyps": hyps,
                 "names": "".join(f" hsel{i}" for i in range(len(excluded))),
                 "prune": prune,
@@ -731,7 +748,9 @@ def main():
     # evaluates the items of a program of more than a hundred blocks or with environment reads,
     # whose spelling compares their names: the elaborator's `decide` takes many minutes over either.
     items_decide = (
-        "decide +kernel" if blocks(last_text) > 100 or '.effect (.env "' in last_text else "decide"
+        "decide +kernel"
+        if blocks(last_text) > 100 or '.effect (.env "' in last_text
+        else "decide"
     )
     asm += "" if DEPTH else "set_option maxRecDepth 100000\n\n"
     asm += (
@@ -753,17 +772,17 @@ def main():
             f"theorem walk_eq : walk bytecode offset 0 items = some stream :=\n"
             f"  walk_of_walkAt (by decide +kernel) walkAt_eq\n\n"
             if linear
-            else f"def stream : List (Nat × Instr) := (walk bytecode offset 0 items).getD []\n\n"
-            f"/-- The checker's walk accepts the exported bytecode against the final EVM IR. -/\n"
+            else "def stream : List (Nat × Instr) := (walk bytecode offset 0 items).getD []\n\n"
+            "/-- The checker's walk accepts the exported bytecode against the final EVM IR. -/\n"
             # The kernel evaluates the walk: the elaborator's `decide` runs out of recursion
             # depth on longer bytecode.
-            f"theorem walk_eq : walk bytecode offset 0 items = some stream := by decide +kernel\n\n"
+            "theorem walk_eq : walk bytecode offset 0 items = some stream := by decide +kernel\n\n"
         )
-        + f"theorem checked : Walk bytecode offset 0 items stream := walk_sound walk_eq\n\n"
-        f"/-- The bytecode's linear decoding is the final EVM IR's instructions at the "
-        f"layout. -/\n"
-        f"theorem decodes : decodeFrom bytecode (bytecode.length + 1) 0 = stream :=\n"
-        f"  walk_decodes checked _ (by have := walk_length checked; omega)\n\n"
+        + "theorem checked : Walk bytecode offset 0 items stream := walk_sound walk_eq\n\n"
+        "/-- The bytecode's linear decoding is the final EVM IR's instructions at the "
+        "layout. -/\n"
+        "theorem decodes : decodeFrom bytecode (bytecode.length + 1) 0 = stream :=\n"
+        "  walk_decodes checked _ (by have := walk_length checked; omega)\n\n"
         + axioms_check(ns, "walk_eq", "[propext, Quot.sound]")
         + "\n"
         + axioms_check(ns, "decodes", "[propext, Quot.sound]")
@@ -872,71 +891,75 @@ def main():
             f"theorem labels_ok : {A}.labelsValid {last['def']} cert code = true :=\n"
             f"  {A}.labelsValid_of_walk walk_ok\n\n"
             "theorem size_ok : code.size < 2 ^ 32 := by decide +kernel\n\n"
-            + ((
-            "/-- The checker with memory at any offset accepts the bytecode for the final EVM IR. -/\n"
-            f"theorem check_ok : {C}.checkC {last['def']} code cert maxs = true := by\n"
-            f"  simp only [{C}.checkC, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
-            "    Bool.true_and]\n"
-            "  decide\n\n"
-            "/-- **The assembly stage, run by run, at every gas below 2 ^ 256**: an oracle meeting the "
-            "certificate's\nconstraints under which every result of the bytecode is the final EVM IR's or "
-            "a failure that changes\nnothing. -/\n"
-            f"theorem assembly (scope : Call → Prop) :\n"
-            f"    {C}.WithinRunLt evmirSem (fun _ => {last['def']}) code scope\n"
-            "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
-            f"  {C}.withinRun_of_checkC check_ok scope\n\n"
-            "/-- **The first lowered MIR to the exact bytecode, run by run, at every gas below 2 ^ 256**: "
-            "for every such\ngas and every call there is an oracle, meeting the certificate's constraints "
-            "(CertOk), under which every\nresult of the bytecode is the first lowered MIR's or a failure "
-            "that changes nothing. -/\n"
-            f"theorem {executes}_run :\n"
-            f"    {C}.WithinRunLt mirSem (fun _ => {first['def']}) code anyCall\n"
-            "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
-            f"  {C}.withinRun_mir_of_checkC {label}_certified_back\n"
-            "    (fun _ _ => trivial) check_ok\n\n"
-            ) if dyn else (
-            "/-- The checker of code with loops accepts the bytecode for the final EVM IR. -/\n"
-            f"theorem check_ok : {L}.checkL {last['def']} code cert maxs = true := by\n"
-            f"  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
-            "    Bool.true_and]\n"
-            "  decide\n\n"
-            "/-- **The assembly stage at every gas.** -/\n"
-            f"theorem assembly (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
-            f"    (he : cert.reads = true → {A}.EnvOk o) (scope : Call → Prop) (gas : Nat) :\n"
-            f"    SolidCore.Refinement.Final.Within (evmirSem o) (SolidCore.Refinement.Final.ethLibWith gas)\n"
-            f"      {last['def']} code scope :=\n"
-            f"  {L}.within_of_checkL check_ok o ho scope gas he\n\n"
-            "/-- **The first lowered MIR to the exact bytecode at every gas**: every result of the "
-            "bytecode, on every call, is\nthe first lowered MIR's or a failure that changes nothing"
             + (
-                ", under every oracle whose caller and hash are EthLib's"
-                if "env := true" in cert
-                else ""
+                (
+                    "/-- The checker with memory at any offset accepts the bytecode for the final EVM IR. -/\n"
+                    f"theorem check_ok : {C}.checkC {last['def']} code cert maxs = true := by\n"
+                    f"  simp only [{C}.checkC, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
+                    "    Bool.true_and]\n"
+                    "  decide\n\n"
+                    "/-- **The assembly stage, run by run, at every gas below 2 ^ 256**: an oracle meeting the "
+                    "certificate's\nconstraints under which every result of the bytecode is the final EVM IR's or "
+                    "a failure that changes\nnothing. -/\n"
+                    f"theorem assembly (scope : Call → Prop) :\n"
+                    f"    {C}.WithinRunLt evmirSem (fun _ => {last['def']}) code scope\n"
+                    "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
+                    f"  {C}.withinRun_of_checkC check_ok scope\n\n"
+                    "/-- **The first lowered MIR to the exact bytecode, run by run, at every gas below 2 ^ 256**: "
+                    "for every such\ngas and every call there is an oracle, meeting the certificate's constraints "
+                    "(CertOk), under which every\nresult of the bytecode is the first lowered MIR's or a failure "
+                    "that changes nothing. -/\n"
+                    f"theorem {executes}_run :\n"
+                    f"    {C}.WithinRunLt mirSem (fun _ => {first['def']}) code anyCall\n"
+                    "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
+                    f"  {C}.withinRun_mir_of_checkC {label}_certified_back\n"
+                    "    (fun _ _ => trivial) check_ok\n\n"
+                )
+                if dyn
+                else (
+                    "/-- The checker of code with loops accepts the bytecode for the final EVM IR. -/\n"
+                    f"theorem check_ok : {L}.checkL {last['def']} code cert maxs = true := by\n"
+                    f"  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
+                    "    Bool.true_and]\n"
+                    "  decide\n\n"
+                    "/-- **The assembly stage at every gas.** -/\n"
+                    f"theorem assembly (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
+                    f"    (he : cert.reads = true → {A}.EnvOk o) (scope : Call → Prop) (gas : Nat) :\n"
+                    f"    SolidCore.Refinement.Final.Within (evmirSem o) (SolidCore.Refinement.Final.ethLibWith gas)\n"
+                    f"      {last['def']} code scope :=\n"
+                    f"  {L}.within_of_checkL check_ok o ho scope gas he\n\n"
+                    "/-- **The first lowered MIR to the exact bytecode at every gas**: every result of the "
+                    "bytecode, on every call, is\nthe first lowered MIR's or a failure that changes nothing"
+                    + (
+                        ", under every oracle whose caller and hash are EthLib's"
+                        if "env := true" in cert
+                        else ""
+                    )
+                    + (
+                        (" and" if "env := true" in cert else ", under every oracle")
+                        + " whose reads of the block and the transaction are EthLib's (EnvOk)"
+                        if "reads := true" in cert
+                        else ""
+                    )
+                    + ". -/\n"
+                    f"theorem {executes} (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
+                    f"    (he : cert.reads = true → {A}.EnvOk o) (gas : Nat) :\n"
+                    f"    SolidCore.Refinement.Final.Within (mirSem o) (SolidCore.Refinement.Final.ethLibWith gas)\n"
+                    f"      {first['def']} code anyCall :=\n"
+                    f"  SolidCore.Refinement.Solar.EndToEnd.within_of_checkL ({label}_certified_back o)\n"
+                    "    (fun _ _ => trivial) check_ok ho gas he\n\n"
+                    "/-- **The first lowered MIR to the exact bytecode, run by run**: for every gas and every "
+                    "call there is an oracle,\nmeeting the certificate's constraints (CertOk), under which "
+                    "every result of the bytecode is the first\nlowered MIR's or a failure that changes "
+                    "nothing; it composes with specifications proved for every\noracle "
+                    "(RunOracle.holds_of_withinRun). -/\n"
+                    f"theorem {executes}_run :\n"
+                    f"    SolidCore.Refinement.Solar.RunOracle.WithinRun mirSem (fun _ => {first['def']}) code anyCall\n"
+                    "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
+                    f"  SolidCore.Refinement.Solar.RunOracle.withinRun_mir_of_checkL {label}_certified_back\n"
+                    "    (fun _ _ => trivial) check_ok\n\n"
+                )
             )
-            + (
-                (" and" if "env := true" in cert else ", under every oracle")
-                + " whose reads of the block and the transaction are EthLib's (EnvOk)"
-                if "reads := true" in cert
-                else ""
-            )
-            + ". -/\n"
-            f"theorem {executes} (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
-            f"    (he : cert.reads = true → {A}.EnvOk o) (gas : Nat) :\n"
-            f"    SolidCore.Refinement.Final.Within (mirSem o) (SolidCore.Refinement.Final.ethLibWith gas)\n"
-            f"      {first['def']} code anyCall :=\n"
-            f"  SolidCore.Refinement.Solar.EndToEnd.within_of_checkL ({label}_certified_back o)\n"
-            "    (fun _ _ => trivial) check_ok ho gas he\n\n"
-            "/-- **The first lowered MIR to the exact bytecode, run by run**: for every gas and every "
-            "call there is an oracle,\nmeeting the certificate's constraints (CertOk), under which "
-            "every result of the bytecode is the first\nlowered MIR's or a failure that changes "
-            "nothing; it composes with specifications proved for every\noracle "
-            "(RunOracle.holds_of_withinRun). -/\n"
-            f"theorem {executes}_run :\n"
-            f"    SolidCore.Refinement.Solar.RunOracle.WithinRun mirSem (fun _ => {first['def']}) code anyCall\n"
-            "      (SolidCore.Refinement.Solar.RunOracle.CertOk cert) :=\n"
-            f"  SolidCore.Refinement.Solar.RunOracle.withinRun_mir_of_checkL {label}_certified_back\n"
-            "    (fun _ _ => trivial) check_ok\n\n"
-            ))
             + axioms_check(ns, "check_ok", "[propext, Quot.sound]")
             + ("" if dyn else "\n" + axioms_check(ns, executes))
             + "\n"

@@ -19,8 +19,8 @@ import sys
 here = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(here))
 sys.path.insert(0, str(here.parents[1] / "solar-tv" / "milestone"))
-import asm_cert  # noqa: E402
-import cutpoints  # noqa: E402
+import asm_cert
+import cutpoints
 
 
 def infer_ctx(program_text, code):
@@ -30,6 +30,7 @@ def infer_ctx(program_text, code):
     assert n == len(ablocks)
     edges = cutpoints.evm_states("final", blocks)
     turned, offsets, labelled = asm_cert.layout(ablocks, code)
+
     # The contexts of each block: its configurations grouped by the labels on their stacks
     # (each label's depth and block), so that a callee entered from two call sites has a context
     # per return label, while the configurations that differ only in the data words under them
@@ -62,7 +63,9 @@ def infer_ctx(program_text, code):
                 for t in edges[st]:
                     if t[0] == b:
                         if index[t] != index[st]:
-                            raise SystemExit(f"error: block {b} jumps to itself in another context")
+                            raise SystemExit(
+                                f"error: block {b} jumps to itself in another context"
+                            )
                         continue
                     pair = (t[0], index[t])
                     prev = [q for q in succ if q[0] == t[0]]
@@ -86,8 +89,14 @@ def infer_ctx(program_text, code):
         out.append(row)
     costs = []
     for b, instrs in enumerate(ablocks):
-        costs.append((1 if b in labelled else 0) + sum(asm_cert.lower_len(i) for i in instrs))
-    env = any(i[0] == "effect" and i[1] in ("caller", "keccak256") for bl in ablocks for i in bl)
+        costs.append(
+            (1 if b in labelled else 0) + sum(asm_cert.lower_len(i) for i in instrs)
+        )
+    env = any(
+        i[0] == "effect" and i[1] in ("caller", "keccak256")
+        for bl in ablocks
+        for i in bl
+    )
     reads = any(i[0] == "env" for bl in ablocks for i in bl)
     calls = any(i[0] == "other" and "staticcall" in i[1] for bl in ablocks for i in bl)
     rets = sorted({i[1] for bl in ablocks for i in bl if i[0] == "pushLabel"})
@@ -109,11 +118,22 @@ def lean_lab(l):
 
 def lean_ctx(c):
     return (
-        "{ need := " + str(c["need"]) + ", max := " + str(c["max"])
-        + ", types := [" + ", ".join("some true" if t else "some false" for t in c["types"]) + "]"
-        + ", labs := [" + ", ".join(lean_lab(l) for l in c["labs"]) + "]"
-        + ", succ := [" + ", ".join(f"({t}, {j})" for t, j in c["succ"]) + "]"
-        + ", rets := " + str(c["rets"]) + " }"
+        "{ need := "
+        + str(c["need"])
+        + ", max := "
+        + str(c["max"])
+        + ", types := ["
+        + ", ".join("some true" if t else "some false" for t in c["types"])
+        + "]"
+        + ", labs := ["
+        + ", ".join(lean_lab(l) for l in c["labs"])
+        + "]"
+        + ", succ := ["
+        + ", ".join(f"({t}, {j})" for t, j in c["succ"])
+        + "]"
+        + ", rets := "
+        + str(c["rets"])
+        + " }"
     )
 
 
@@ -124,11 +144,17 @@ def lean_cx(base, ctxs):
         "    turned := " + str(base["turned"]) + ",\n"
         "    costs := " + str(base["costs"]) + ",\n"
         "    rets := " + str(base["rets"]) + ",\n"
-        "    env := " + ("true" if base["env"] else "false")
-        + ", reads := " + ("true" if base["reads"] else "false")
-        + ", calls := " + ("true" if base["calls"] else "false") + ", creates := false }"
+        "    env := "
+        + ("true" if base["env"] else "false")
+        + ", reads := "
+        + ("true" if base["reads"] else "false")
+        + ", calls := "
+        + ("true" if base["calls"] else "false")
+        + ", creates := false }"
     )
-    rows = ",\n    ".join("[" + ", ".join(lean_ctx(c) for c in row) + "]" for row in ctxs)
+    rows = ",\n    ".join(
+        "[" + ", ".join(lean_ctx(c) for c in row) + "]" for row in ctxs
+    )
     return b, "{ base := base\n    ctxs := [\n    " + rows + "] }"
 
 
@@ -281,16 +307,26 @@ def negatives(code, offsets):
     while pc < len(code):
         op = code[pc]
         w = op - 0x5F if 0x60 <= op <= 0x7F else 0
-        if w and jump is None and int.from_bytes(code[pc + 1 : pc + 1 + w], "big") in targets:
+        if (
+            w
+            and jump is None
+            and int.from_bytes(code[pc + 1 : pc + 1 + w], "big") in targets
+        ):
             jump = (pc + w, (code[pc + w] + 1) % 256)
         if op == 0x55 and sstore is None:
             sstore = pc
         pc += 1 + w
     if jump:
-        out.append(("rejects_jump", jump[0], jump[1], "a pushed jump target moved by one"))
+        out.append(
+            ("rejects_jump", jump[0], jump[1], "a pushed jump target moved by one")
+        )
     if sstore is not None:
-        out.append(("rejects_sstore", sstore, 0x50, "the first SSTORE dropped (as POP)"))
-        out.append(("rejects_opcode", sstore, 0xF0, "the first SSTORE replaced by CREATE"))
+        out.append(
+            ("rejects_sstore", sstore, 0x50, "the first SSTORE dropped (as POP)")
+        )
+        out.append(
+            ("rejects_opcode", sstore, 0xF0, "the first SSTORE replaced by CREATE")
+        )
     return out
 
 
@@ -301,7 +337,9 @@ def main():
     ap.add_argument("gen", type=pathlib.Path, help="the exported stages' directory")
     ap.add_argument("--gen-module", required=True)
     ap.add_argument("--out", required=True, type=pathlib.Path)
-    ap.add_argument("--neg-out", type=pathlib.Path, help="also write the negative controls here")
+    ap.add_argument(
+        "--neg-out", type=pathlib.Path, help="also write the negative controls here"
+    )
     ap.add_argument("--module", help="the module name of --out, for --neg-out's import")
     args = ap.parse_args()
     import json
@@ -314,20 +352,45 @@ def main():
     base, ctxs = infer_ctx(program, bytes.fromhex(manifest["bytecode"]))
     export = f"SolarTV.Export.{contract}"
     norm_blocks = [
-        [".effect .returndatasize 0" if i == ".op (.stack .returndatasize)" else i for i in instrs]
+        [
+            ".effect .returndatasize 0" if i == ".op (.stack .returndatasize)" else i
+            for i in instrs
+        ]
         for _, instrs in cutpoints.parse_evm(program)
     ]
     code = bytes.fromhex(manifest["bytecode"])
     found = call_ops(code)
-    names = {0xF0: "CREATE", 0xF1: "CALL", 0xF2: "CALLCODE", 0xF4: "DELEGATECALL", 0xF5: "CREATE2",
-             0xFA: "STATICCALL", 0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY"}
-    tail = TAIL_FREE if not found else TAIL_CALLS.replace(
-        "{calls}", ", ".join(f"{names[op]} at {pc}" for pc, op in found))
+    names = {
+        0xF0: "CREATE",
+        0xF1: "CALL",
+        0xF2: "CALLCODE",
+        0xF4: "DELEGATECALL",
+        0xF5: "CREATE2",
+        0xFA: "STATICCALL",
+        0x3D: "RETURNDATASIZE",
+        0x3E: "RETURNDATACOPY",
+    }
+    tail = (
+        TAIL_FREE
+        if not found
+        else TAIL_CALLS.replace(
+            "{calls}", ", ".join(f"{names[op]} at {pc}" for pc, op in found)
+        )
+    )
     # The record the driver reads: whether the bytes edge is proved.
-    print(json.dumps({"assembly": "executed" if not found else "checker accepts; bytes make calls",
-                      "calls": [[pc, names[op]] for pc, op in found]}))
+    print(
+        json.dumps(
+            {
+                "assembly": "executed"
+                if not found
+                else "checker accepts; bytes make calls",
+                "calls": [[pc, names[op]] for pc, op in found],
+            }
+        )
+    )
     args.out.write_text(
-        MODULE.replace("{tail}", tail).replace("{gen}", args.gen_module)
+        MODULE.replace("{tail}", tail)
+        .replace("{gen}", args.gen_module)
         .replace("{last}", module)
         .replace("{last_def}", last["definition"])
         .replace("{contract}", contract)
@@ -335,10 +398,17 @@ def main():
         .replace("{ns}", f"{export}.Ctx")
         .replace("{ncode}", str(len(bytes.fromhex(manifest["bytecode"]))))
         .replace("{nblocks}", str(len(norm_blocks)))
-        .replace("{block_lemmas}", "\n\n".join(
-            f"theorem block_{k} : (List.range (cx.count {k})).all (fun j => ctxOk prog cx {k} j (prog.blocks.getD {k} [])) = true := by\n  decide +kernel"
-            for k in range(len(norm_blocks))))
-        .replace("{block_cases}", "\n".join(f"  | {k}, _ => block_{k}" for k in range(len(norm_blocks))))
+        .replace(
+            "{block_lemmas}",
+            "\n\n".join(
+                f"theorem block_{k} : (List.range (cx.count {k})).all (fun j => ctxOk prog cx {k} j (prog.blocks.getD {k} [])) = true := by\n  decide +kernel"
+                for k in range(len(norm_blocks))
+            ),
+        )
+        .replace(
+            "{block_cases}",
+            "\n".join(f"  | {k}, _ => block_{k}" for k in range(len(norm_blocks))),
+        )
         .replace("{base}", lean_cx(base, ctxs)[0])
         .replace("{cx}", lean_cx(base, ctxs)[1])
     )
@@ -349,8 +419,10 @@ def main():
             for name, i, b, why in negatives(code, base["offsets"])
         )
         args.neg_out.write_text(
-            NEG_MODULE.replace("{mod}", args.module).replace("{contract}", contract)
-            .replace("{ns}", f"{export}.Ctx").replace("{cases}", cases)
+            NEG_MODULE.replace("{mod}", args.module)
+            .replace("{contract}", contract)
+            .replace("{ns}", f"{export}.Ctx")
+            .replace("{cases}", cases)
         )
 
 

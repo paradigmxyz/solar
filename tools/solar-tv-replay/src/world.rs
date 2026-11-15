@@ -31,6 +31,8 @@ pub(super) struct Input {
     #[serde(default)]
     creation_gas: Vec<u64>,
     #[serde(default)]
+    message_gas: Option<Vec<u64>>,
+    #[serde(default)]
     builtin_gas: Vec<u64>,
     #[serde(default)]
     debug_reverts: bool,

@@ -37,7 +37,7 @@ import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-import asm_cert  # noqa: E402
+import asm_cert
 
 
 def fail(msg):
@@ -47,31 +47,45 @@ def fail(msg):
 
 def last_stage(stages_text):
     """The last EVM IR stage of Stages.lean: names, fuels and the composition theorem."""
-    ns = re.search(r"^namespace (SolarTV\.Milestone\.\w+)", stages_text, re.M)
+    ns = re.search(r"^namespace (SolarTV\.Milestone\.\w+)", stages_text, re.MULTILINE)
     st = re.findall(
         r"theorem stage_(\w+) \(o : Oracle\) : Stage \(evmirSem o\) \(evmirSem o\) (\w+) (\w+) anyCall :=\n"
         r"\s+stage_of_runs \(A := EVM\.Program\.layer\) \(B := EVM\.Program\.layer\) (\d+) (\d+) "
         r"\((\w+) o\)\s*\n\s*\(fun call _ => (\w+) o call\)",
         stages_text,
     )
-    comp = re.search(r"theorem (\w+_mir_to_evmir) \(o : Oracle\) : Stage \(mirSem o\) \(evmirSem o\) (\w+) (\w+) anyCall", stages_text)
+    comp = re.search(
+        r"theorem (\w+_mir_to_evmir) \(o : Oracle\) : Stage \(mirSem o\) \(evmirSem o\) (\w+) (\w+) anyCall",
+        stages_text,
+    )
     if not (ns and st and comp):
         fail("Stages.lean: no EVM IR stage chain to the final EVM IR")
     _, prev, last, fuel0, fuel, prev_ends, last_run = st[-1]
-    if last != comp.group(3):
+    if last != comp.group(3):  # ty: ignore[unresolved-attribute]
         fail("Stages.lean: the last EVM IR stage is not the composition's target")
-    return {"ns": ns.group(1), "prev": prev, "last": last, "fuel": int(fuel), "fuel0": int(fuel0),
-            "prev_ends": prev_ends, "last_run": last_run, "compose": comp.group(1), "first": comp.group(2)}
+    return {
+        "ns": ns.group(1),  # ty: ignore[unresolved-attribute]
+        "prev": prev,
+        "last": last,
+        "fuel": int(fuel),
+        "fuel0": int(fuel0),
+        "prev_ends": prev_ends,
+        "last_run": last_run,
+        "compose": comp.group(1),  # ty: ignore[unresolved-attribute]
+        "first": comp.group(2),  # ty: ignore[unresolved-attribute]
+    }
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("shape")
     ap.add_argument("--name", required=True)
-    ap.add_argument("--certified", required=True, help="the solidity-lean Certified directory")
+    ap.add_argument(
+        "--certified", required=True, help="the solidity-lean Certified directory"
+    )
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    shape = json.load(open(a.shape))
+    shape = json.load(open(a.shape))  # noqa: SIM115
     g = shape.get("generic")
     if not isinstance(g, dict):
         fail("shape.json has no generic block")
@@ -87,10 +101,12 @@ def main():
     hx = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bt)
     if hx is None:
         fail("Bytecode.lean defines no bytecodeHex")
-    code = bytes.fromhex(hx.group(1))
+    code = bytes.fromhex(hx.group(1))  # ty: ignore[unresolved-attribute]
     if re.search(r"def dataStart : Nat := (\d+)", bt):
         fail("the runtime bytecode carries data: outside the loop-free shape")
-    last_module = "Evm" + stages["last"][3:] if stages["last"].startswith("evm") else None
+    last_module = (
+        "Evm" + stages["last"][3:] if stages["last"].startswith("evm") else None
+    )
     last_text = (gen / f"{last_module}.lean").read_text()
     outside = asm_cert.outside(last_text)
     if outside:
@@ -105,16 +121,23 @@ def main():
     gas = shape.get("gas", "")
     m = re.fullmatch(r"fun _ => (\d+)", gas)
     if m is None:
-        fail(f"shape.json: gas must be a constant bound, fun _ => K (the checker needs {need})")
-    K = int(m.group(1))
-    if K < need or K >= 2 ** 64:
-        fail(f"shape.json: gas bound {K} is below the checker's {need} or not below 2^64")
+        fail(
+            f"shape.json: gas must be a constant bound, fun _ => K (the checker needs {need})"
+        )
+    K = int(m.group(1))  # ty: ignore[unresolved-attribute]
+    if K < need or K >= 2**64:
+        fail(
+            f"shape.json: gas bound {K} is below the checker's {need} or not below 2^64"
+        )
     X = f"SolarTV.Export.{contract}"
     M = stages["ns"]
     ns = g["ns"]
     sns = g.get("source_ns", ns)
-    A, L, S = ("SolidCore.Refinement.Solar.Assemble", "SolidCore.Refinement.Solar.AssembleLoop",
-               "SolidCore.Refinement.Shapes")
+    A, L, S = (
+        "SolidCore.Refinement.Solar.Assemble",
+        "SolidCore.Refinement.Solar.AssembleLoop",
+        "SolidCore.Refinement.Shapes",
+    )
     last = f"{X}.{stages['last']}"
     value = "check_value" in g
     valid = f"{S}.genericValid{'' if value else '0'} ({g['fns']}) ({g['storage']})"
@@ -123,32 +146,40 @@ def main():
     env = shape.get("env", [])
     binders = " ".join(f"_h{i}" for i in range(len(env)))
     if g["style"] == "core":
-        start = (f"  obtain ⟨hk, d, hd⟩ := {ns}.deployed_of hc\n"
-                 f"  have hchk := {ns}.{g['check']}\n  rw [← hk] at hchk\n")
+        start = (
+            f"  obtain ⟨hk, d, hd⟩ := {ns}.deployed_of hc\n"
+            f"  have hchk := {ns}.{g['check']}\n  rw [← hk] at hchk\n"
+        )
         if value:
             start += f"  have hval := {ns}.{g['check_value']}\n  rw [← hk] at hval\n"
         okthm = "contract_ok"
-        okdef = (f"/-- SolidCore type checks the contract. -/\n"
-                 f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
-                 f"  have h := {ns}.shape_eq\n  unfold {ns}.shape? at h\n  split at h\n"
-                 f"  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n\n")
+        okdef = (
+            f"/-- SolidCore type checks the contract. -/\n"
+            f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
+            f"  have h := {ns}.shape_eq\n  unfold {ns}.shape? at h\n  split at h\n"
+            f"  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n\n"
+        )
     elif g["style"] == "checked":
         hs = " ".join(f"h{i}" for i in range(len(g["checks"])))
         start = f"  obtain ⟨d, hd⟩ := {ns}.deployed hc\n"
         for i, (_, thm) in enumerate(g["checks"]):
             start += f"  have h{i} := {ns}.check_of hc {thm}\n"
-        start += (f"  have hchk : Generic.check {sns}.fuel {ns}.mirFuel c.core {X}.stage0 ({g['fns']}) .all = true := by\n"
-                  f"    simp only [Generic.check, List.all_cons, List.all_nil, Bool.and_true] at {hs} ⊢\n"
-                  f"    simp only [{', '.join(f'h{i}' for i in range(len(g['checks'])))}, Bool.and_self]\n")
+        start += (
+            f"  have hchk : Generic.check {sns}.fuel {ns}.mirFuel c.core {X}.stage0 ({g['fns']}) .all = true := by\n"
+            f"    simp only [Generic.check, List.all_cons, List.all_nil, Bool.and_true] at {hs} ⊢\n"
+            f"    simp only [{', '.join(f'h{i}' for i in range(len(g['checks'])))}, Bool.and_self]\n"
+        )
         if value:
             fail("style checked has no value check")
         okthm, okdef = g["contract_ok"], ""
     else:
         fail("generic.style must be core or checked")
     nonvac = ""
-    comp = (f"{S}.compiled{'' if value else '0'} hd hchk {'hval ' if value else ''}"
-            f"({S}.genericValid{'' if value else '0'}_inhabited _ _ _)\n"
-            f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok gas_lt")
+    comp = (
+        f"{S}.compiled{'' if value else '0'} hd hchk {'hval ' if value else ''}"
+        f"({S}.genericValid{'' if value else '0'}_inhabited _ _ _)\n"
+        f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok gas_lt"
+    )
     if kind == "compiled":
         shape_t = f"{S}.Compiled (solidCore {sns}.fuel) c code ({valid}) ({gas})"
         body = f"  exact ⟨c, hc, ({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)⟩\n"
@@ -159,12 +190,18 @@ def main():
         meets = f"{S}.meets_of_triple ({triples[-1]})"
         for t in reversed(triples[:-1]):
             meets = f"{S}.Meets.and ({S}.meets_of_triple ({t})) ({meets})"
-        shape_t = (f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) ({shape['allowed']}) "
-                   f"({shape['post']}) ({gas})")
-        body = (f"  exact ⟨c, hc, (({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified\n"
-                f"    (fun _ _ _ _ => trivial) ({meets})⟩\n")
+        shape_t = (
+            f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) ({shape['allowed']}) "
+            f"({shape['post']}) ({gas})"
+        )
+        body = (
+            f"  exact ⟨c, hc, (({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified\n"
+            f"    (fun _ _ _ _ => trivial) ({meets})⟩\n"
+        )
         if shape.get("allowed") != "fun _ _ => True":
-            fail("kind certified from triples: allowed must be fun _ _ => True (the triples state no revert condition)")
+            fail(
+                "kind certified from triples: allowed must be fun _ _ => True (the triples state no revert condition)"
+            )
     elif kind == "certified" and g.get("spec_connect"):
         # The specification is solar-verify's export of this run's source (NAME.gen.C.Spec), its
         # postcondition and allowed statuses (Shapes.bundlePost, Shapes.bundleAllowed), proved of
@@ -174,7 +211,9 @@ def main():
         if not isinstance(se, dict) or shape.get("allowed_export") is not True:
             fail("generic.spec_connect needs spec_export and allowed_export")
         if se.get("ctx") != f"{S}.ctxOfCall" or se.get("step") != f"{S}.idStep":
-            fail(f"generic.spec_connect: spec_export must be ctx {S}.ctxOfCall and step {S}.idStep")
+            fail(
+                f"generic.spec_connect: spec_export must be ctx {S}.ctxOfCall and step {S}.idStep"
+            )
         sc_path = root / "SpecConnect.lean"
         if not sc_path.exists():
             fail(f"{sc_path} is missing: the driver writes it before this module")
@@ -183,12 +222,28 @@ def main():
         B = f"Certified.{a.name}.gen.{contract}.Spec.{contract}"
         if f"abbrev spec : Bundle := {B}" not in sct:
             fail(f"{sc_path} is not about this run's export {B}")
-        fnd = {m.group(1): (int(m.group(2)), int(m.group(3))) for m in re.finditer(
-            r"^def fn_(\w+) : SolidCore\.Refinement\.Abi\.Fn := ⟨(\d+), List\.replicate (\d+) \(\.uint 256\)⟩", sct, re.M)}
-        idx = {m.group(1): int(m.group(2)) for m in re.finditer(
-            r"^def (\w+)_spec : FnSpec := spec\.spec\.specs\[(\d+)\]", sct, re.M)}
-        hyps = {m.group(1): (m.group(2) or "").strip() for m in re.finditer(
-            r"^theorem (\w+)_holds((?: \(hsep : [^)]*\))?) \{c", sct, re.M)}
+        fnd = {
+            m.group(1): (int(m.group(2)), int(m.group(3)))
+            for m in re.finditer(
+                r"^def fn_(\w+) : SolidCore\.Refinement\.Abi\.Fn := ⟨(\d+), List\.replicate (\d+) \(\.uint 256\)⟩",
+                sct,
+                re.MULTILINE,
+            )
+        }
+        idx = {
+            m.group(1): int(m.group(2))
+            for m in re.finditer(
+                r"^def (\w+)_spec : FnSpec := spec\.spec\.specs\[(\d+)\]",
+                sct,
+                re.MULTILINE,
+            )
+        }
+        hyps = {
+            m.group(1): (m.group(2) or "").strip()
+            for m in re.finditer(
+                r"^theorem (\w+)_holds((?: \(hsep : [^)]*\))?) \{c", sct, re.MULTILINE
+            )
+        }
         fixed = "(hstep :" in sct
         if not idx or set(idx) != set(fnd) or set(idx) != set(hyps):
             fail(f"{sc_path}: cannot read its functions")
@@ -196,47 +251,61 @@ def main():
             fail(f"{sc_path} does not connect every function of the spec")
         norm = lambda x: " ".join(x.split())
         envs = [norm(e) for e in env]
+
         def hsep_arg(fid):
             h = hyps[fid]
             if not h:
                 return ""
-            ty = norm(h[len("(hsep : "):-1])
+            ty = norm(h[len("(hsep : ") : -1])
             full = "SolidCore.Spec." + ty if not ty.startswith("SolidCore.") else ty
             if full not in envs:
                 fail(f"shape.json: env must name {full}, the premise of {fid}_holds")
             return f" _h{envs.index(full)}"
+
         cases = []
         for fid, i in sorted(idx.items(), key=lambda kv: kv[1]):
             step_arg = f" {S}.idStep" + (" (fun _ _ _ => rfl)" if fixed else "")
             holds = f"({SC}.{fid}_holds{hsep_arg(fid)} hc{step_arg})"
             if value:
-                cases.append(f"    · exact {S}.holdsFn_genericValid hd hchk hval (fun _ => rfl)\n"
-                             f"        (by first | exact Or.inl rfl | exact Or.inr (by simp [{S}.valueGuarded, {S}.valueZero, {B}]))\n"
-                             f"        (fn := {SC}.fn_{fid}) (by rfl) (by decide) {holds}")
+                cases.append(
+                    f"    · exact {S}.holdsFn_genericValid hd hchk hval (fun _ => rfl)\n"
+                    f"        (by first | exact Or.inl rfl | exact Or.inr (by simp [{S}.valueGuarded, {S}.valueZero, {B}]))\n"
+                    f"        (fn := {SC}.fn_{fid}) (by rfl) (by decide) {holds}"
+                )
             else:
-                cases.append(f"    · exact {S}.holdsFn_genericValid0 (fn := {SC}.fn_{fid}) (by rfl) (by decide)\n"
-                             f"        {holds}")
+                cases.append(
+                    f"    · exact {S}.holdsFn_genericValid0 (fn := {SC}.fn_{fid}) (by rfl) (by decide)\n"
+                    f"        {holds}"
+                )
         # The index past the last function: simp reads the spec's length, and omega closes what
         # it leaves (with two or more functions simp stops at `i + 1 + 1 < 2`).
         cases.append(f"    · simp [{B}] at hi <;> omega")
-        holds_proof = (f"  have hholds : SolidCore.Spec.Holds (solidCore {sns}.fuel) c ({valid}) {B} {S}.ctxOfCall {S}.idStep := by\n"
-                       f"    refine {S}.holds_of_getElem ?_\n    intro i hi\n"
-                       f"    rcases i with {' | '.join(['_'] * len(idx))} | i\n" + "\n".join(cases) + "\n")
+        holds_proof = (
+            f"  have hholds : SolidCore.Spec.Holds (solidCore {sns}.fuel) c ({valid}) {B} {S}.ctxOfCall {S}.idStep := by\n"
+            f"    refine {S}.holds_of_getElem ?_\n    intro i hi\n"
+            f"    rcases i with {' | '.join(['_'] * len(idx))} | i\n"
+            + "\n".join(cases)
+            + "\n"
+        )
         allowed_t = f"({S}.bundleAllowed {B} {S}.ctxOfCall)"
         post_t = f"({S}.bundlePost {B} {S}.ctxOfCall {S}.idStep)"
         shape_t = f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) {allowed_t} {post_t} ({gas})"
-        body = (holds_proof +
-                f"  exact ⟨c, hc, (({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified_of_holds\n"
-                f"    (fun _ h => h) hholds⟩\n")
+        body = (
+            holds_proof
+            + f"  exact ⟨c, hc, (({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified_of_holds\n"
+            f"    (fun _ h => h) hholds⟩\n"
+        )
         # Non-vacuity: the first function spec with succeeds-if conditions, on zero words, no
         # value, from the constructor's slots written with 0, must succeed; the same call
         # reverting is rejected by both the postcondition and the allowed statuses.
         wit = g["spec_connect"].get("witness")
         if wit not in idx:
-            fail("generic.spec_connect.witness must name a connected function with succeeds-if conditions")
+            fail(
+                "generic.spec_connect.witness must name a connected function with succeeds-if conditions"
+            )
         wsel, wn = fnd[wit]
         storage = g["storage"]
-        nonvac = (f"""
+        nonvac = f"""
 /-- **Non-vacuity**: `{wit}` on zero words with no value, from the constructor's slots written with 0,
 meets its precondition and its succeeds-if conditions, so the spec requires it to succeed: the same call
 reverting is rejected by the exported postcondition and by the exported allowed statuses. -/
@@ -250,7 +319,7 @@ theorem nonvacuous :
     refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
       ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
       simp [SolidCore.Spec.Bundle.satAll, {B}]
-  refine {S}.nonvacuous_of_succeeds ({S}.valid{'' if value else '0'}_of_find ({S}.covers_zeros _) (by decide))
+  refine {S}.nonvacuous_of_succeeds ({S}.valid{"" if value else "0"}_of_find ({S}.covers_zeros _) (by decide))
     (List.getElem_mem _) hpre (by simp [{B}]) ?_
   simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
     SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
@@ -259,7 +328,7 @@ theorem nonvacuous :
 /-- info: 'Certified.{a.name}.Shape.nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms nonvacuous
-""")
+"""
         if shape.get("nonvacuous") != f"Certified.{a.name}.Shape.nonvacuous":
             fail(f"shape.json: nonvacuous must be Certified.{a.name}.Shape.nonvacuous")
         g.setdefault("imports", [])
@@ -297,14 +366,23 @@ theorem pre_sat_{fid} :
     # place, each by the kernel's evaluation, failing at the walk.
     insns = asm_cert.decode(code)
     mutants = []
-    for (pc, op, _), nxt in zip(insns, insns[1:]):
+    for (pc, op, _), nxt in zip(insns, insns[1:]):  # noqa: RUF007
         if op == 0x60 and nxt[1] in (0x56, 0x57):
-            mutants.append(("jump", "a jump target moved", pc + 1, (code[pc + 1] + 1) % 256))
+            mutants.append(
+                ("jump", "a jump target moved", pc + 1, (code[pc + 1] + 1) % 256)
+            )
             break
     for pc, op, _ in insns:
         if op == 0x55:
             mutants.append(("sstore", "an SSTORE dropped (as POP)", pc, 0x50))
-            mutants.append(("opcode", "an opcode outside the fragment (CREATE) for an SSTORE", pc, 0xF0))
+            mutants.append(
+                (
+                    "opcode",
+                    "an opcode outside the fragment (CREATE) for an SSTORE",
+                    pc,
+                    0xF0,
+                )
+            )
             break
     negs = "".join(
         f"set_option maxRecDepth 100000 in\n/-- The checker rejects the bytecode with {what} (byte {i}). -/\n"
@@ -314,9 +392,16 @@ theorem pre_sat_{fid} :
     )
     premises = "".join(f"({e}) →\n    " for e in env)
     intro = f"  intro {binders}\n" if env else ""
-    mods = ["Verify.ShapeGeneric", g["lowering"], f"{a.name}.Proofs.Stages", f"{a.name}.gen.{contract}.Bytecode",
-            *g.get("imports", [])]
-    text = "\n".join(f"import {m}" for m in dict.fromkeys(mods)) + f"""
+    mods = [
+        "Verify.ShapeGeneric",
+        g["lowering"],
+        f"{a.name}.Proofs.Stages",
+        f"{a.name}.gen.{contract}.Bytecode",
+        *g.get("imports", []),
+    ]
+    text = (
+        "\n".join(f"import {m}" for m in dict.fromkeys(mods))
+        + f"""
 
 -- Generated by solar's tools/certify/shape_gen.py from {a.name}/shape.json and this run's export;
 -- do not edit. Untrusted data and composition: the kernel re-derives every claim.
@@ -324,8 +409,8 @@ theorem pre_sat_{fid} :
 /-!
 # {contract}: the proof of the published statement
 
-`published` applies `{S}.compiled{'' if value else '0'}` to the source check of `{ns}`, solar-tv's backend
-stages to `{stages['last']}` (`{M}.{stages['compose']}`), the final EVM IR's run within {N} blocks on every
+`published` applies `{S}.compiled{"" if value else "0"}` to the source check of `{ns}`, solar-tv's backend
+stages to `{stages["last"]}` (`{M}.{stages["compose"]}`), the final EVM IR's run within {N} blocks on every
 call (the last stage's fuel) and the loop checker on the exact bytecode, with the certificate
 tools/certify/asm_cert.py inferred. The gas bound is `gasBoundL cert {N}` = 22100 · ({N} · {bmax}) + {mem}
 = {need}, at most the statement's {K}.
@@ -372,8 +457,8 @@ theorem check_ok : {L}.checkL {last} code cert maxs = true := by
 /-- The final EVM IR ends within {N} blocks on every call, under the bytecode's oracle. -/
 theorem ends (call : Call) : (EVM.Program.run {S}.oracle {last} call {N}).isSome = true :=
   SolarTV.Milestone.W1.ends_of_runs (A := EVM.Program.layer) (B := EVM.Program.layer)
-    (o := {S}.oracle) (p := {X}.{stages['prev']}) (q := {last}) (n := {stages['fuel0']}) (m := {N})
-    ({M}.{stages['prev_ends']} {S}.oracle) (fun call _ => {M}.{stages['last_run']} {S}.oracle call) call trivial
+    (o := {S}.oracle) (p := {X}.{stages["prev"]}) (q := {last}) (n := {stages["fuel0"]}) (m := {N})
+    ({M}.{stages["prev_ends"]} {S}.oracle) (fun call _ => {M}.{stages["last_run"]} {S}.oracle call) call trivial
 
 /-- The bytecode with byte `i` replaced by `b`. -/
 def mutant (i b : Nat) : ByteArray := ⟨(({X}.bytecode.set i b).map UInt8.ofNat).toArray⟩
@@ -394,9 +479,18 @@ theorem published : {premises}∃ c, {sns}.contract? = .ok c ∧
 {nonvac}
 end Certified.{a.name}.Shape
 """
+    )
     text = text.replace("`", chr(96))
     pathlib.Path(a.out).write_text(text)
-    print(json.dumps({"proof": f"Certified.{a.name}.Shape.published", "gas_needed": need, "blocks": N}))
+    print(
+        json.dumps(
+            {
+                "proof": f"Certified.{a.name}.Shape.published",
+                "gas_needed": need,
+                "blocks": N,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

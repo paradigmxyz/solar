@@ -3,6 +3,7 @@
 outside comments and string literals, matches the banned pattern (argv[1]). Comments are
 skipped so that prose naming a construct is not mistaken for its use; string literals are kept
 as code, so they can only add hits."""
+
 import pathlib
 import re
 import sys
@@ -59,4 +60,3 @@ for root in sys.argv[2:]:
                 print(f"{f}:{k}:{line.strip()}")
                 hit = True
 sys.exit(0 if hit else 1)
-

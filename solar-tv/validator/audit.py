@@ -114,7 +114,7 @@ def record(
                     "direct typed MIR SSA execution; no backend lowering or implicit frame/FMP setup",
                     "listed symbolic storage cells and typed function arguments universally quantified",
                     "explicit initial byte memory; normal function returns expose memory and transient storage",
-                    "semantic effects; sufficient gas; no physical EVM gas or stack-layout claim",
+                    "semantic effects; abstract MIR instructions unpriced; physical message gas only at explicit boundaries; no backend stack-layout claim",
                     "direct typed internal calls and tail calls; model call depth limit 128",
                     "logical product/slice values; boundary leaves in declaration order; pointer-to-word erasure only at the boundary; distinct pointer spaces remain distinct",
                     "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",
@@ -122,10 +122,10 @@ def record(
                     "deferred allocations require explicit per-function instruction-site placements and matching extents; static reservations keep FMP and memory unchanged unless zero initialization is requested; heap placements bump on every execution",
                     "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
                     "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
-                    "external frame slots use convention-defined addresses; internal frame slots and address queries use explicit bases indexed by the function's live activation count; missing bases are unsupported; typed address calls require explicit gas",
+                    "external frame slots use convention-defined addresses; internal frame slots and address queries use explicit bases indexed by the function's live activation count; missing bases are unsupported; implicit typed-call gas requires caller boundary budgets and EIP-150",
                     "external account reads use live state; codecopy/codesize require an explicit code image; literal data patches use supplied library addresses and deferred copies require linked extents; known data must agree with a supplied image; export budget 64 KiB",
-                    "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
-                    "CREATE child gas is supplied by explicit creation_gas boundary inputs",
+                    "message_gas supplies ordered pre-message caller budgets; memory growth, account/value/initcode charges, EIP-150 clipping, stipend and unused child gas are modeled; absent message_gas requires explicit requested CALL gas and assumes sufficient caller gas",
+                    "CREATE child gas follows message_gas or explicit creation_gas boundary inputs; abstract MIR instructions remain unpriced",
                     "precompile builtin child gas is supplied by ordered builtin_gas boundary inputs; missing budgets are unsupported; scratch, returndata and child gas failures are retained",
                     "compiler-generated check messages follow the fixture's debug_reverts setting; user require payloads are already explicit in MIR",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
@@ -161,7 +161,9 @@ def record(
             assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
         else:
             assumptions.append(
-                "one opcode window; explicit valid label transfers; no PC/CODESIZE"
+                "complete acyclic EVM region to terminal outcomes; no dynamic or escaping labels; no PC/CODESIZE; sufficient gas"
+                if program and program.scope == "region"
+                else "one opcode window; explicit valid label transfers; no PC/CODESIZE"
             )
             if program:
                 assumptions.append(f"entry stack height {program.interface[1]}")

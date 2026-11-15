@@ -135,6 +135,8 @@ pub(crate) enum Outcome {
     Stop,
     /// Execution reached `INVALID` or an opcode the EVM version lacks.
     Invalid,
+    /// An explicitly priced message boundary exhausted its caller budget.
+    OutOfGas,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
     /// Execution reached an `assume` whose fact fails: undefined behaviour, not an outcome.
@@ -245,6 +247,23 @@ pub trait Host {
         Err("external messages are not modeled by this host")
     }
 
+    /// Executes a message with the caller's active memory extents, in bytes.
+    /// Hosts may price this boundary without assigning prices to abstract MIR.
+    fn message_with_memory(
+        &mut self,
+        message: ExternalMessage<'_>,
+        pending: PendingChanges<'_>,
+        memory: (u64, u64),
+    ) -> Result<MessageOutput, MessageError> {
+        let _ = memory;
+        if matches!(message, ExternalMessage::Call { gas: None, .. }) {
+            return Err(MessageError::Unsupported(
+                "implicit address-call gas requires caller pricing",
+            ));
+        }
+        self.message(message, pending).map_err(MessageError::Unsupported)
+    }
+
     /// Returns where the free memory pointer starts: the heap start the backend's layout chose,
     /// which programs can observe only by exposing an address.
     fn free_memory_start(&mut self) -> U256 {
@@ -313,8 +332,9 @@ pub enum PlacementRead<'a> {
 /// A semantic MIR message; no caller bytecode or stack protocol is synthesized.
 #[derive(Debug)]
 pub enum ExternalMessage<'a> {
-    /// CALL, CALLCODE, DELEGATECALL or STATICCALL with explicit requested gas.
-    Call { opcode: u8, gas: U256, address: U256, value: U256, input: &'a [u8] },
+    /// CALL, CALLCODE, DELEGATECALL or STATICCALL. An absent request forwards the
+    /// EIP-150 cap and requires a host that prices the caller's message boundary.
+    Call { opcode: u8, gas: Option<U256>, address: U256, value: U256, input: &'a [u8] },
     /// CREATE or CREATE2; the host supplies the explicit child budget.
     Create { value: U256, salt: Option<U256>, initcode: &'a [u8] },
 }
@@ -335,6 +355,14 @@ pub struct MessageOutput {
     pub value: U256,
     /// Empty on exceptions, complete output on success or revert.
     pub return_data: Vec<u8>,
+}
+
+/// Failure to execute an explicitly supplied message boundary.
+pub enum MessageError {
+    /// The caller could not pay the boundary's EVM charges.
+    OutOfGas,
+    /// Missing evidence or an operation the host does not model.
+    Unsupported(&'static str),
 }
 
 /// An event a transaction logged.
@@ -1099,6 +1127,17 @@ impl<'a> Run<'_, 'a, '_> {
                     let address = self.semantic_frame_address(body, offset, mode, kind)?;
                     return self.semantic_frame_store(address, kind, value);
                 }
+                Semantics::AddressCall(name, address, input, gas, value) => {
+                    let gas = if let Some(gas) = gas { Some(frame.read(gas)?) } else { None };
+                    let value =
+                        if let Some(value) = value { Some(frame.read(value)?) } else { None };
+                    let (address, input) = (frame.read(address)?, frame.read_value(input)?);
+                    let opcode = op::from_mnemonic(name).expect("schema message opcode");
+                    let result = self.semantic_address_call(opcode, address, input, gas, value)?;
+                    self.frame().values[instruction.result().expect("address call result")] =
+                        Some(RuntimeValue::Word(result));
+                    return ControlFlow::Continue(());
+                }
                 Semantics::ExtCall(name, output, address, input, gas, value) => {
                     let value =
                         if let Some(value) = value { Some(frame.read(value)?) } else { None };
@@ -1537,7 +1576,10 @@ impl<'a> Run<'_, 'a, '_> {
                     | op::CREATE2
             )
         {
-            return ControlFlow::Continue(Some(self.external_message(opcode, operands)?));
+            let creation = matches!(opcode, op::CREATE | op::CREATE2);
+            let (args, gas) =
+                if creation { (operands, None) } else { (&operands[1..], Some(operands[0])) };
+            return ControlFlow::Continue(Some(self.external_message(opcode, args, gas)?));
         }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
@@ -1646,14 +1688,19 @@ impl<'a> Run<'_, 'a, '_> {
 
     /// Evaluates external MIR operands directly. Memory expansion belongs to the caller;
     /// child execution and journal commit/rollback belong to the explicitly supplied host.
-    fn external_message(&mut self, opcode: u8, args: &[U256]) -> ControlFlow<Outcome, U256> {
+    fn external_message(
+        &mut self,
+        opcode: u8,
+        args: &[U256],
+        gas: Option<U256>,
+    ) -> ControlFlow<Outcome, U256> {
         let world = self.world.as_ref().expect("external messages require a host");
         let creation = matches!(opcode, op::CREATE | op::CREATE2);
         let explicit_value = matches!(opcode, op::CALL | op::CALLCODE);
         let value = if creation {
             args[0]
         } else if explicit_value {
-            args[2]
+            args[1]
         } else {
             U256::ZERO
         };
@@ -1663,17 +1710,18 @@ impl<'a> Run<'_, 'a, '_> {
         let start = if creation {
             1
         } else if explicit_value {
-            3
-        } else {
             2
+        } else {
+            1
         };
         let (offset, size) = (args[start], args[start + 1]);
         if creation
             && self.semantic.is_some_and(|version| version >= EvmVersion::Shanghai)
             && size > U256::from(49152)
         {
-            return ControlFlow::Break(Outcome::Invalid);
+            return ControlFlow::Break(Outcome::OutOfGas);
         }
+        let memory_before = self.memory.size_bytes();
         let input = limit(self.memory.read(offset, size))?;
         self.burn_words(size)?;
         let output = if creation {
@@ -1690,16 +1738,23 @@ impl<'a> Run<'_, 'a, '_> {
                 initcode: &input,
             }
         } else {
-            ExternalMessage::Call { opcode, gas: args[0], address: args[1], value, input: &input }
+            ExternalMessage::Call { opcode, gas, address: args[0], value, input: &input }
         };
         let world = self.world.as_mut().expect("external messages require a host");
         let storage = world.effects.storage.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
         let transient = world.effects.transient.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
         let pending =
             PendingChanges { storage: &storage, transient: &transient, logs: &world.effects.logs };
-        let result = match world.host.message(message, pending) {
+        let result = match world.host.message_with_memory(
+            message,
+            pending,
+            (memory_before, self.memory.size_bytes()),
+        ) {
             Ok(result) => result,
-            Err(reason) => return ControlFlow::Break(Outcome::Unsupported(reason)),
+            Err(MessageError::Unsupported(reason)) => {
+                return ControlFlow::Break(Outcome::Unsupported(reason));
+            }
+            Err(MessageError::OutOfGas) => return ControlFlow::Break(Outcome::OutOfGas),
         };
         world.effects.storage.clear();
         world.effects.transient.clear();

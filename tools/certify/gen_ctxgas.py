@@ -12,9 +12,16 @@ every other block checked in each of its calling contexts with memory below the 
 That the statement's calls never reach a skipped block is a stage (guard_run), proved apart by
 symbolic execution.
 """
-import argparse, json, pathlib, re, sys
+
+import argparse
+import json
+import pathlib
+import re
+import sys
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-import asm_cert, asm_ctxl
+import asm_cert
+import asm_ctxl
 
 ap = argparse.ArgumentParser()
 ap.add_argument("gen", type=pathlib.Path)
@@ -22,11 +29,18 @@ ap.add_argument("--module-prefix", required=True)
 ap.add_argument("--contract", required=True)
 ap.add_argument("--final", required=True)
 ap.add_argument("--skip", default=None)
-ap.add_argument("--slice-from", default=None, type=int,
-                help="skip every block but the entry's dispatcher (blocks 0 and 1) and those reachable "
-                     "from this block (a function's entry): its jumps, falls and the labels it pushes")
-ap.add_argument("--selector", default=None,
-                help="--slice-from the block the dispatcher jumps to on this selector (push SEL; eq; jumpi B)")
+ap.add_argument(
+    "--slice-from",
+    default=None,
+    type=int,
+    help="skip every block but the entry's dispatcher (blocks 0 and 1) and those reachable "
+    "from this block (a function's entry): its jumps, falls and the labels it pushes",
+)
+ap.add_argument(
+    "--selector",
+    default=None,
+    help="--slice-from the block the dispatcher jumps to on this selector (push SEL; eq; jumpi B)",
+)
 ap.add_argument("--out", required=True, type=pathlib.Path)
 a = ap.parse_args()
 final_mod = a.final[0].upper() + a.final[1:]
@@ -40,13 +54,16 @@ def succ(b):
     out, term = set(), False
     for i in blocks[b]:
         if i[0] == "jump":
-            out.add(i[1]); term = True; break
+            out.add(i[1])
+            term = True
+            break
         if i[0] == "jumpi":
             out.add(i[1])
         if i[0] == "pushLabel":
             out.add(i[1])
         if i[0] in ("ret", "revert", "stop", "jumpDyn", "jumpTable", "invalid"):
-            term = True; break
+            term = True
+            break
     if not term:
         out.add(b + 1)
     return out
@@ -60,7 +77,9 @@ if a.selector is not None:
             if x == ("push", sel) and y == ("stack", "eq") and z[0] == "jumpi":
                 hits.add(z[1])
     if len(hits) != 1:
-        raise SystemExit(f"error: the dispatcher jumps on selector {a.selector} to {sorted(hits)}, not one block")
+        raise SystemExit(
+            f"error: the dispatcher jumps on selector {a.selector} to {sorted(hits)}, not one block"
+        )
     a.slice_from = hits.pop()
     print(f"selector {a.selector}: block {a.slice_from}")
 if a.slice_from is not None:
@@ -90,23 +109,37 @@ for b in range(n):
         continue
     for x in c["ctxs"][b]:
         ty = [bool(v) if v is not None else False for v in x["types"]]
-        _, _, t = asm_cert.run_block(blocks, turned, c["rets"], b, x["need"], ty, False, bail)
+        _, _, t = asm_cert.run_block(
+            blocks, turned, c["rets"], b, x["need"], ty, False, bail
+        )
         top = max(top, t)
 if bail:
-    raise SystemExit(f"error: blocks {sorted(set(bail))} reach memory at offsets the checker does not know")
+    raise SystemExit(
+        f"error: blocks {sorted(set(bail))} reach memory at offsets the checker does not know"
+    )
 top = (top + 31) // 32 * 32
-env = any(i[0] == "effect" and i[1] in ("caller", "keccak256") for b in range(n) if b not in F for i in blocks[b])
+env = any(
+    i[0] == "effect" and i[1] in ("caller", "keccak256")
+    for b in range(n)
+    if b not in F
+    for i in blocks[b]
+)
 reads = any(i[0] == "env" for b in range(n) if b not in F for i in blocks[b])
 cert = asm_ctxl.lean_ctx_cert(c)
 # One field per line: the base certificate's flags on one line do not parse after a list.
 cert = cert.replace("top := 2 ^ 140", f"top := {top}")
-cert = re.sub(r"env := (true|false), reads := (true|false), calls := (true|false)",
-              f"env := {'true' if env else 'false'}, reads := {'true' if reads else 'false'}", cert)
+cert = re.sub(
+    r"env := (true|false), reads := (true|false), calls := (true|false)",
+    f"env := {'true' if env else 'false'}, reads := {'true' if reads else 'false'}",
+    cert,
+)
 # Each flag of the base certificate on its own line, as Lean parses them.
-cert = cert.replace(", env := ", ",\n      env := ").replace(", reads := ", ",\n      reads := ")
+cert = cert.replace(", env := ", ",\n      env := ").replace(
+    ", reads := ", ",\n      reads := "
+)
 # The guarded program: the same text with each skipped block a jump to itself.
 m = re.search(r"\{ blocks := \[\n", text)
-start = m.end()
+start = m.end()  # ty: ignore[unresolved-attribute]
 end = text.rindex("] }")
 body = text[start:end]
 parts = re.split(r"(?m)^(    -- bb\d+\n)", body)

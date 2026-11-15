@@ -329,10 +329,10 @@ its values, all active memory, persistent/transient cells and logs. STOP and raw
 RETURN end the transaction; private memory and transient cells then disappear.
 Revert and exceptional halt roll back the journal and retain their exact outcome.
 
-MIR state validation compares semantic effects with sufficient gas. It assigns
-no EVM gas costs to semantic instructions and rejects `--gas` and fixture `gas`
-budgets. Direct internal calls share memory and state while keeping separate,
-width-typed SSA locals. Tail calls replace the current activation. Revert,
+MIR state validation compares semantic effects without pricing abstract
+instructions. Explicit `message_gas` budgets price message boundaries as described
+below; root `--gas` and fixture `gas` budgets remain unsupported. Direct internal
+calls share memory and state while keeping separate, width-typed SSA locals. Tail calls replace the current activation. Revert,
 exception, STOP and raw RETURN propagate through callers; normal returns resume
 the caller. One work budget covers the whole call tree, with a separate model
 limit of 128 live activations. Only the selected function's reachable callees
@@ -599,9 +599,10 @@ removing the raw padding check.
 
 The kernel-checked discharge rule is in
 [MIR/Transforms/AbiValidation.lean](SolarTV/MIR/Transforms/AbiValidation.lean).
-This example runs actual ABI conversion passes. Its `i1` input selects a clean
-function word or one with a dirty padding bit; the kernel exhausts both values.
-The padding-equivalence and unsigned-shift lemmas apply to every 256-bit word.
+This example runs actual ABI conversion passes. Its `i256` input is an
+unrestricted raw function word: the kernel-checked proof covers every value,
+including malformed padding. The proof keeps typed boolean intermediates and
+branches intact and discharges the normalized `uint192` obligation.
 Its broken version skips the function-word padding rejection:
 
 ```sh
@@ -705,6 +706,15 @@ we do not compile it into an EVM image. The Lean and native interpreters share
 neither an imported instruction recipe nor child results. Both execute the real
 child, including nested messages, precompiles, exact revert data and rollback.
 
+Typed `address_call`, `address_staticcall` and `address_delegatecall` also accept
+memory objects or slices. They reserve no output buffer;
+`icall returndata_bytes<>` copies the live return buffer to an uninitialized
+bytes object, retaining dirty padding and leaving the buffer available. With
+`message_gas`, an omitted gas option forwards the EIP-150 cap after the boundary's
+charges, including the value stipend. An explicit zero still requests zero gas.
+Without caller budgets, omitted gas is inconclusive. Pre-EIP-150 implicit gas
+needs instruction pricing and remains unsupported.
+
 Typed `extcall`, `extcall static` and `extcall delegate` accept no input, a
 memory object or a slice. Without `word` they reserve no output buffer; with it
 the callee's first 32 return bytes land in scratch, which is zeroed first unless
@@ -721,21 +731,52 @@ solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,broken}.mir \
   --function=f --world solar-tv/examples/mir/address-calls/world.json
 ```
 
-MIR does not price its own instructions. CALL-family checks therefore assume
-enough caller gas to forward the explicit requested amount without EIP-150
-clipping. CREATE has no gas operand, so its forwarded child budgets are explicit
-scenario inputs, in evaluation order:
+MIR does not price abstract instructions. To check physical gas **at each message
+boundary**, supply ordered caller budgets just before the opcode's charges:
 
 ```json
-{"version":1,"creation_gas":[100000,200000]}
+{"version":1,"message_gas":[6400,40000]}
 ```
 
-A missing budget is unsupported; an unused suffix is allowed. Each child pays
-fork-specific EVM gas and can run out of gas. Requested CALL gas and each creation
-budget are limited to 30 million. Independent native replay also limits combined
-child gas spent to 30 million and child instructions to one million. These checks
-prove semantic effects under the recorded boundary conditions; they do not prove
-equality of physical caller gas or infer CREATE budgets from backend code.
+These budgets pay memory expansion, warm/cold account access, value transfer and
+new-account charges. CALL requests are capped by EIP-150, with the value stipend
+added to the child budget. CREATE/CREATE2 derive their child budget after base,
+initcode and hashing charges. Unused child gas returns to the caller; child
+reverts and exceptional failures retain their distinct gas behavior. Insufficient
+upfront gas terminates the caller and rolls back its journal. EIP-7702 resolution
+is charged before forwarding. Amsterdam's message gas remains unsupported.
+
+Remaining gas at completed boundaries is observable, including through internal
+calls. A proof in this mode requires equal boundary gas observations; it does not
+infer instruction prices between those explicit boundaries or claim a whole
+MIR body's physical gas equivalence. Missing budgets are unsupported, an unused
+suffix is allowed, and an explicit empty list never enables a fallback.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/message-gas/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/message-gas/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/message-gas/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/message-gas/world.json
+```
+
+The implicit-gas example uses a real `sccp` pair and a child that returns its
+`GAS` reading. Its broken rewrite adds a 100-gas option; both Lean execution and
+independent native replay observe 98 instead of 3,739:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/implicit-gas/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/implicit-gas/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/implicit-gas/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/implicit-gas/world.json
+```
+
+Without `message_gas`, CALL assumes sufficient caller gas to avoid clipping.
+CREATE instead needs explicit ordered child budgets, for example
+`{"version":1,"creation_gas":[100000,200000]}`. The two modes cannot be combined.
+Precompile builtins still use `builtin_gas` for their requested gas operand.
+Budgets are limited to 128 entries and 30 million gas per entry. Independent
+native replay also limits combined child gas spent to 30 million and child
+instructions to one million. Child bytecode always pays fork-specific gas.
 
 Return data, access warmth and account creation/destruction flags remain observable
 when an internal function returns. Calls replace the full returndata buffer while
@@ -889,12 +930,10 @@ Reports identify the function or stable block label and incoming height. Both
 module and region hashes are retained. A verified region is a local proof, not a
 claim that the entire pass or contract was verified (`whole_pass: false`). ABI and
 function interface changes, new/deleted functions, shared declaration changes,
-unknown stack heights and changed window boundaries remain unsupported. In
-particular, replacing a revert block with a jump to shared revert code needs a
-larger region; it is not reported as a wrong-code counterexample.
-If a neighboring block also changes, stack-position correspondence is unknown,
-so that window is unsupported too. This avoids blaming a valid stack reshuffle
-that spans several blocks.
+unknown entry stack heights remain unsupported. When successors or adjacent
+blocks change, the hook selects the larger region described below instead of
+assuming that stack positions correspond at the old window boundary. This
+allows shared revert code and stack reshuffles spanning several blocks.
 
 You can select a region when replaying full snapshots:
 
@@ -906,12 +945,53 @@ solar-tv/solar-tv evmir before.evmir after.evmir --window bb7 --stack-height 3
 The standalone window proof assumes the specified incoming height. The pass hook
 derives it from the original and edited CFGs; a maximum bound is insufficient.
 Successor labels denote the same boundaries on both sides. No instructions are
-cut out of a block. Layout changes and shared-tail transformations remain
-unsupported; structured transfers are also unsupported under gas policies.
-Full context is limited to 1 MiB per file, and each selected region keeps the
-128 KiB and 512-line limits. Unrelated EVM bodies are not copied into the proof.
+cut out of a block. Single-block windows do not admit layout changes or shared
+tails; the multi-block mode below follows their successors instead. Structured
+transfers remain unsupported under gas policies.
+Full context is limited to 1 MiB per file. Selected windows and MIR functions keep
+the 128 KiB and 512-line limits; multi-block expansion has the budgets below.
+Unrelated EVM bodies are not copied into the proof.
 For a complete physical `JUMPI; STOP` block, the untaken path executes `STOP`;
 it is not an invented edge to the next block.
+
+### Multi-block EVM IR regions
+
+Use `--region` to execute an entire reachable acyclic CFG through its terminal
+outcomes. Internal labels may disappear or be added, shared tails execute with
+their incoming stack and memory, and stack reshuffles may cross block boundaries.
+Only the entry height must agree. Terminal success/revert bytes and exceptions
+are observable; intermediate stack positions are not artificial outputs.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/cfg-region/{before,after}.evmir \
+  --region bb0 --stack-height 0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/tail-region/{before,after}.evmir \
+  --region bb0 --stack-height 0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/tail-region/{before,broken}.evmir \
+  --region bb0 --stack-height 0
+```
+
+These are real `cfg-simplify` and `tail-merge` outputs. The broken shared tail
+returns 23 where the original returns 22; the Lean kernel checks that witness
+and the native interpreter independently follows the original modules' CFGs.
+Reports retain the entry, height and before/after block sets, alongside replay
+commands and `whole_pass: false`.
+
+The pass hook selects regions when labels, successors or adjacent blocks change;
+isolated edits can still use smaller windows. Unrelated unreachable blocks need
+not fit the model. Manual entry heights are explicit assumptions; the hook proves
+a fixed height in both original and edited CFGs. Internal joins may have different
+heights on different paths. Physical conditional continuations and structured
+jump fallthroughs retain the temporary stack growth of their lowering.
+
+[Region.lean](SolarTV/EVMIR/Region.lean) composes the existing instruction semantics;
+it does not add an instruction interpreter or obtain observations from native
+replay. The importer expands at most 256 block visits, 2,048 instructions and
+128 blocks per path. Loops require invariants and remain inconclusive. Dynamic
+or escaping labels, layout-observing instructions, stateful operations and priced
+gas regions remain unsupported. Memory uses the existing constant-access
+256-byte projection. No whole-pass or arbitrary-world claim follows from a
+verified region.
 
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.

@@ -310,6 +310,7 @@ impl<'m> Machine<'m> {
         fuel: u64,
         layout: Layout,
         selected: Option<BlockId>,
+        region: bool,
     ) -> Result<crate::replay::Execution, String> {
         let entry = selected.unwrap_or(BlockId::ENTRY);
         let Some(body) = self.module.blocks.get(entry) else {
@@ -332,6 +333,12 @@ impl<'m> Machine<'m> {
             gas: input.gas,
         };
         let execute = |run: &mut Run<'_, 'm>| -> Result<Option<usize>, Outcome> {
+            if region {
+                let mut block = entry;
+                loop {
+                    block = run.block(block)?;
+                }
+            }
             for inst in &body.instructions {
                 let target = run.instruction(inst)?;
                 if target.is_some() || (inst.opcode == op::JUMPI && selected.is_none()) {
