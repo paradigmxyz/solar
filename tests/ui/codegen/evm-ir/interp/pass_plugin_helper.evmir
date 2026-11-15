@@ -1,0 +1,29 @@
+//@ revisions: none gas size
+//@ compile-flags: --evm-version=osaka
+//@[none] compile-flags: -Onone -Zevm-ir-pipeline=default
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=default
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=default
+//@ run-call: identity(uint256)(uint256) 0 => 0
+//@ run-call: identity(uint256)(uint256) 123 => 123
+//@ run-call: identity(uint256)(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+// This is the callable-block shape constructed by the native plugin example, whose loading
+// and edits are checked by integration tests. The return address sits below the argument.
+@module PluginHelper
+bb0:
+  push 4
+  calldataload
+  push bb1
+  swap 1
+  jump bb2
+bb1:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb2 [ret=1, inputs=2, outputs=1]:
+  not
+  not
+  swap 1
+  jump

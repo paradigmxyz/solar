@@ -9,9 +9,8 @@
 //! them, which memory expansion keeps below 2^64 because each step costs gas. Anything else, such
 //! as an argument, a loaded word, a call result, or a difference of words, may be any word, as the
 //! negative step `mul(i, not(31))` and `sub(0x80, pointer)` show. The offsets of a memory object's
-//! elements and fields are the exception: the compiler checks them against the object's bounds,
-//! so a `ptradd` keeps its pointer, and `lower-memory-objects` marks the additions it makes for
-//! them.
+//! elements and fields can carry an explicit checked-offset proof. `ptradd` itself has wrapping
+//! semantics and supplies no such proof; an unbounded offset cannot preserve heap provenance.
 //!
 //! Stepping back from a pointer by a constant stays above the heap prefix the frames reserve, but
 //! a loop that steps back on every iteration walks down through the frames without limit.
@@ -44,7 +43,7 @@ pub(crate) fn pointer_bases(
                 bases.push(b);
             }
         }
-        InstKind::PtrAdd(base, _) => bases.push(base),
+        InstKind::PtrAdd(base, offset) if is_bounded_offset(func, offset) => bases.push(base),
         InstKind::Sub(base, delta)
             if func.value_u64(delta).is_some_and(|step| step <= max_step_back)
                 && !steps_back_in_loop(func, value) =>

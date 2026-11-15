@@ -1,0 +1,20 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module LoweredSwitchCases
+@phase lowered
+
+// Backend switch selection requires distinct constants, including for plugin-built CFGs.
+//~? ERROR: [fn0] [bb0] switch case is not a constant in lowered MIR
+fn @dynamic(arg0: i256) {
+  bb0:
+    switch arg0, default bb1, [arg0 => bb1]
+  bb1:
+    ret
+}
+
+//~? ERROR: [fn1] [bb0] duplicate switch case in lowered MIR
+fn @duplicate(arg0: i256) {
+  bb0:
+    switch arg0, default bb1, [1 => bb1, 1 => bb1]
+  bb1:
+    ret
+}

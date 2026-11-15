@@ -30,5 +30,7 @@ pub use link::{
 mod isle_log;
 
 mod debugify;
+mod pass_plugin;
+pub use pass_plugin::build_inputs as pass_plugin_build_inputs;
 pub(crate) mod target;
 mod timing;

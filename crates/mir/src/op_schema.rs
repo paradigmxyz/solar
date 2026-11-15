@@ -942,6 +942,14 @@ macro_rules! define_mir_ops {
                 }
             }
 
+            /// Builds an operation whose complete payload consists of value operands.
+            /// Returns `None` for unknown names, wrong arity, or operations with other payloads.
+            #[must_use]
+            pub fn from_operands(mnemonic: &str, operands: &[ValueId]) -> Option<Self> {
+                let (arity, build) = Self::operand_only(mnemonic)?;
+                (operands.len() == arity).then(|| build(operands))
+            }
+
             /// Returns the rewrite-rule view of this instruction.
             #[must_use]
             pub fn op(&self) -> Op {

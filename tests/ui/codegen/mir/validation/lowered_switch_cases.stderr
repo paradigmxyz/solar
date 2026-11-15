@@ -1,0 +1,6 @@
+error: [fn0] [bb0] switch case is not a constant in lowered MIR
+
+error: [fn1] [bb0] duplicate switch case in lowered MIR
+
+error: aborting due to 2 previous errors
+

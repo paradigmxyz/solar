@@ -47,17 +47,28 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
     contracts: IndexVec<ContractId, OnceLock<String>>,
     sources: IndexVec<SourceId, OnceLock<Value>>,
     referenced_sources: IndexVec<SourceId, OnceLock<Vec<SourceId>>>,
+    plugins: Vec<String>,
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     #[tracing::instrument(name = "metadata", level = "debug", skip_all)]
-    pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
+    pub(super) fn new(
+        gcx: Gcx<'gcx>,
+        settings: &'a Settings<'input>,
+    ) -> solar_interface::Result<Self> {
         let contracts =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
         let sources = std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         let referenced_sources =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
-        Self { gcx, settings, contracts, sources, referenced_sources }
+        Ok(Self {
+            gcx,
+            settings,
+            contracts,
+            sources,
+            referenced_sources,
+            plugins: solar_codegen::pass_plugin_build_inputs(gcx)?,
+        })
     }
 
     /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
@@ -172,6 +183,9 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     }
     if !metadata.settings.solar.unstable.is_empty() {
         value["settings"]["solar"] = json!({ "unstable": metadata.settings.solar.unstable });
+    }
+    if !metadata.plugins.is_empty() {
+        value["settings"]["solar"]["plugins"] = json!(metadata.plugins);
     }
     serde_json::to_string(&value).expect("contract metadata must serialize")
 }
