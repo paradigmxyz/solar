@@ -286,5 +286,30 @@ class SpecRejectionPath(unittest.TestCase):
             self.assertNotIn("passed", p.stdout)
 
 
+class FrontendLocation(unittest.TestCase):
+    """Source.lean must not depend on where the source file sits (a replay reads it from the
+    record directory): the same source at two paths gives the same front-end body."""
+
+    def test_same_body_from_two_paths(self):
+        import os
+        lean = os.environ.get("SOLIDITY_LEAN_DIR")
+        solc = os.environ.get("SOLC", str(pathlib.Path.home() / ".cache/solc/solc-0.8.35"))
+        if not lean or not pathlib.Path(solc).exists():
+            self.skipTest("needs SOLIDITY_LEAN_DIR and solc")
+        src = (HERE / "examples" / "counter.sol").read_bytes()
+        sha = hashlib.sha256(src).hexdigest()
+        bodies = []
+        for sub in ("a", "b/c"):
+            with tempfile.TemporaryDirectory() as d:
+                p = pathlib.Path(d) / sub / "counter.sol"
+                p.parent.mkdir(parents=True)
+                p.write_bytes(src)
+                rc, body, err = generic.frontend(lean, p, sha, "counter_x", "Counter", solc)
+                self.assertEqual(rc, 0, err)
+                bodies.append(body)
+        self.assertEqual(bodies[0], bodies[1])
+        self.assertIn("counter_x.sol", bodies[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
