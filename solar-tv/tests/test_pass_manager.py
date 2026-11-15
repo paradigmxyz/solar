@@ -78,17 +78,19 @@ class PassManagerTests(unittest.TestCase):
     def test_inconclusive_pair_is_retained(self):
         source = Path(self.tmp.name) / "store.mir"
         text = (ROOT / "examples/mir/dce/before.mir").read_text()
-        source.write_text(text.replace("ret v1", "sstore 0, v1\n    ret v1"))
+        source.write_text(text.replace("ret v1", "v5 = mload arg0\n    ret v5"))
         result = self.compile(source, "dce")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("unsupported", result.stderr)
-        self.assertIn("unmodeled MIR instruction", result.stderr)
+        self.assertIn("universal typed MIR proof did not close", result.stderr)
         self.assertIn("Replay", result.stderr)
         (pair,) = self.pairs()
         self.assertNotEqual(
             (pair / "before.mir").read_text(), (pair / "after.mir").read_text()
         )
-        self.assertIn("unmodeled MIR instruction", (pair / "result.txt").read_text())
+        self.assertIn(
+            "universal typed MIR proof did not close", (pair / "result.txt").read_text()
+        )
 
     def test_standard_json_cannot_enable_a_checker(self):
         request = {

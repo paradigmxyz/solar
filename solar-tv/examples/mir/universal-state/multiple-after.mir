@@ -1,0 +1,8 @@
+@module Multiple
+@types
+  struct0: {i160, i256}
+
+fn @f(arg0: i160, arg1: i256) -> struct0 [return_abi=[i160, i256]] {
+  bb0:
+    ret arg0, arg1
+}

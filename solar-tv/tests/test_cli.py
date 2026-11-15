@@ -83,7 +83,7 @@ class PairTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(expected, result.stdout)
 
-    def test_effect_is_unsupported(self):
+    def test_removed_storage_effect_has_a_counterexample(self):
         before = ROOT / "examples/mir/dce/before.mir"
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "write.mir"
@@ -91,8 +91,8 @@ class PairTests(unittest.TestCase):
                 before.read_text().replace("ret v1", "sstore 0, v1\n    ret v1")
             )
             result = check("mir", path, before)
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("unmodeled MIR instruction", result.stderr)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("Rust interpreter: matched", result.stdout)
 
     def test_counterexample_away_from_zero(self):
         before = ROOT / "examples/mir/switch/before.mir"
@@ -143,9 +143,9 @@ class PairTests(unittest.TestCase):
             )
             result = check("mir", path, path)
             self.assertEqual(result.returncode, 2, result.stderr)
-            self.assertIn("cyclic MIR control flow", result.stderr)
+            self.assertIn("symbolic MIR cycles require an invariant", result.stderr)
 
-    def test_path_expansion_is_bounded(self):
+    def test_large_acyclic_cfg_uses_direct_source_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "diamonds.mir"
             blocks = []
@@ -163,5 +163,6 @@ class PairTests(unittest.TestCase):
                 + "bb36:\n  ret arg0\n}\n"
             )
             result = check("mir", path, path)
-            self.assertEqual(result.returncode, 2, result.stderr)
-            self.assertIn("MIR path expansion limit", result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "verified\n")
+            self.assertIn("supplied acyclic call graph", result.stderr)

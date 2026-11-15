@@ -12,6 +12,8 @@ from .common import Program, ReplayTimeout
 
 
 def region(program: Program) -> str:
+    if program.symbolic_mir is not None:
+        return f"MIR function @{program.selector}, arbitrary caller state"
     if program.world is not None:
         return f"{program.interface[1].upper()} world {f'function @{program.selector}' if program.world.get('direct_mir') else 'entry'} (fixture {program.world['fixture_sha256'][:12]})"
     if program.interface[0] in {"evm-window", "evm-region", "evm-cyclic-region"}:

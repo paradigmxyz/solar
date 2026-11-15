@@ -38,6 +38,7 @@ class Program:
     import_certificate: str = ""
     import_obligation: str = ""
     import_evidence: dict | None = None
+    symbolic_mir: dict | None = None
 
 
 def lines(text: str) -> list[str]:
