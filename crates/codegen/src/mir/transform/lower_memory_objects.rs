@@ -55,7 +55,9 @@ impl MirPass for LowerMemoryObjects {
             );
             return false;
         }
-        run_lowering_function_pass(module, analyses, |func, _| lower_function(func))
+        let changed = run_lowering_function_pass(module, analyses, |func, _| lower_function(func));
+        analyses.preserve_local_summaries();
+        changed
     }
 }
 
