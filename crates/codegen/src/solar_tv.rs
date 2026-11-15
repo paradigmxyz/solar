@@ -89,13 +89,17 @@ impl<'a> Snapshot<'a> {
             return self.capture_pair(layer, &after, &record).map_err(io_error);
         }
         // Capture keeps the original selection and rejection for stable corpus sampling.
-        // A universal prefix proof needs no guessed stack height. Other rejected regions
-        // retain their original boundary restrictions.
+        // Universal prefix and terminal-region proofs need no guessed stack height.
+        // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()
             && region.is_some_and(|r| r.kind == "window")
             && rejection == Some("incoming EVM stack height is unknown");
-        let rejection = if prefix { None } else { rejection };
+        let universal_region = layer == "evmir"
+            && gas_policy.is_none()
+            && region.is_some_and(|r| r.kind == "region")
+            && rejection == Some("incoming EVM stack height is unknown");
+        let rejection = if prefix || universal_region { None } else { rejection };
         let pair = tempfile::Builder::new()
             .prefix(&format!("{layer}-"))
             .tempdir_in(std::path::absolute(self.directory).map_err(io_error)?)

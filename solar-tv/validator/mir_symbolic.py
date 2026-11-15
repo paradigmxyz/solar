@@ -190,7 +190,7 @@ def translate(text, function, executable, version, timeout):
             ).hexdigest(),
             "boundary": "trusted compiler parser/schema export and constructor renderer; direct typed SSA execution without an expression projection",
         },
-        symbolic_mir={"model": model, "fuel": fuel},
+        symbolic_mir={"model": model, "fuel": fuel, "code": code},
     )
 
 
@@ -199,10 +199,13 @@ def declaration(name, program):
         f"({arg} : BitVec {width})"
         for arg, width in zip(program.inputs, program.input_widths, strict=True)
     )
+    code = program.symbolic_mir["code"]
+    body = program.body.replace("cfg " + code, "cfg " + name + "Code")
     return (
-        f"def {name} (environment : World.Environment) (context : Execution.Block)\n"
+        f"def {name}Code : MIR.State.Functions :=\n  {code}\n"
+        + f"def {name} (environment : World.Environment) (context : Execution.Block)\n"
         f" (debug : Bool) (frame : MIR.State.Frame) {binders} : MIR.State.Run :=\n"
-        + "\n".join("  " + line for line in program.body.splitlines())
+        + "\n".join("  " + line for line in body.splitlines())
         + "\n"
     )
 
@@ -266,14 +269,19 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
         "Execution.normalizedSlots",
         "Execution.ordered",
         "Execution.orderedInsert",
+        "MIR.State.function",
     ):
         unfold = unfold.replace(term + ", ", "")
+    unfold += ", ↓MIR.State.reduceFunction, ↓MIR.State.reduceEquivalent, BitVec.ofNatLT_eq_ofNat"
     declarations = (
         PRELUDE
         + "set_option maxRecDepth 16384\nset_option maxHeartbeats 2000000\n"
         + declaration("before", a)
         + declaration("after", b)
     )
+    # Normalize bounds in the reached path before another split. Observation
+    # stays behind a completed-run guard, so pending continuations do not expand
+    # into a product of duplicated result projections.
     theorem = f"""
 theorem pair_correct (environment : World.Environment) (context : Execution.Block)
  (debug : Bool) (frame : MIR.State.Frame) {binders}
@@ -281,10 +289,14 @@ theorem pair_correct (environment : World.Environment) (context : Execution.Bloc
  MIR.State.equivalent (before environment context debug frame {args})
    (after environment context debug frame {args}) := by
   rcases valid with ⟨bounded, aligned⟩
+  have alignment : 32 * (frame.memory.length / 32) = frame.memory.length := by omega
   unfold before after
   conv => arg 1; simp [{unfold}]
   conv => arg 2; simp [{unfold}]
-  repeat (split_mir_guard <;> simp_all [{unfold}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)
+  repeat (split_mir_guard <;>
+    (try simp_all [{unfold}, Nat.add_comm]) <;>
+    (try simp (disch := omega) [*, {unfold}, Decidable.imp_iff_not_or,
+      Decidable.not_and_iff_not_or_not, or_comm, Nat.add_comm]) <;> try omega)
   all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm])
 #print axioms pair_correct
 """

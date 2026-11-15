@@ -167,6 +167,13 @@ def record(
                     else "sufficient gas; resource refinement and gas-insensitive continuation",
                 ]
             )
+        elif program and program.scope == "universal-region":
+            assumptions.extend(
+                [
+                    "complete acyclic EVM region to terminal outcomes; all incoming stack lengths and values, including exact overflow checks",
+                    "arbitrary projected memory; no assumed incoming constants, dynamic or escaping labels, code-image observations or physical gas claim",
+                ]
+            )
         elif layer == "mir":
             assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
         else:
@@ -262,6 +269,19 @@ def record(
                 },
             }
             if program and program.symbolic_mir is not None and result.pair
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "region",
+                    "name": program.selector,
+                    "proof": "universal-stack-region",
+                    "stack_height": None,
+                },
+            }
+            if program and program.scope == "universal-region"
             else {}
         ),
         "evidence": "kernel-proof"

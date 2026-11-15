@@ -158,7 +158,13 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             and region["kind"] == "window"
             and row["rejection"] == "incoming EVM stack height is unknown"
         )
-        if row["rejection"] and not prefix:
+        universal_region = (
+            row["layer"] == "evmir"
+            and region
+            and region["kind"] == "region"
+            and row["rejection"] == "incoming EVM stack height is unknown"
+        )
+        if row["rejection"] and not (prefix or universal_region):
             record = {
                 "version": 1,
                 "status": "unsupported",
