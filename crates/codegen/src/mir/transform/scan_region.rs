@@ -579,10 +579,12 @@ fn rewrite_region(
             func.inst(inst).kind.visit_operands(|operand| uses[operand] -= 1);
         }
     }
+    // The entry and the last block, each once: a region of one block is both.
+    let tail: &[InstId] = if last == entry { &[] } else { &func.blocks[last].instructions };
     let mut sweep: Vec<InstId> = func.blocks[entry]
         .instructions
         .iter()
-        .chain(&func.blocks[last].instructions)
+        .chain(tail)
         .copied()
         .filter(|inst| !removed.contains(inst) && !replaced.contains(inst))
         .collect();
