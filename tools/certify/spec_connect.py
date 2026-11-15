@@ -181,7 +181,12 @@ def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
         # tree_meets_map', which tolerates simplification steps that change nothing (a spec
         # with no invariants); with no mapping, from the separation of no slots.
         sep = "hsep" if lits else "SolidCore.Spec.mapSlotsSeparated_nil"
-        proof0 = f"  tree_meets_map' [{fid}_tree, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, {mod}.ctx] {sep}"
+        ds0 = f"{fid}_tree, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, {mod}.ctx"
+        proof0 = f"  tree_meets_map' [{ds0}] {sep}"
+        if not lits:
+            # A tree with no branch (a function that only writes, such as one setting a slot to a
+            # constant) leaves tree_meets_map' no if-then-else to split; tree_meets_fixed proves it.
+            proof0 = f"  first\n  | (tree_meets_map' [{ds0}] {sep})\n  | (tree_meets_fixed [{ds0}])"
     else:
         proof0 = proof.replace("_spec,", "_spec, SolidCore.Spec.FnSpec.noSucc,", 1)
     comb = "treeMeetsFixed_of_succeeds" if meets == "TreeMeetsFixed" else "treeMeets_of_succeeds"
