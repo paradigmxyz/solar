@@ -87,7 +87,7 @@ verify. The deterministic sampler alternates layers and passes before taking a
 second region from a group. Seeded hash ordering selects within each group;
 successful checks receive no preference.
 
-The current run, using the same selected IDs as the original 1/24 baseline, produced:
+The prefix-only baseline, using the same selected IDs as the original 1/24 run, produced:
 
 | Contract | Captured checks | Selected | Verified | Unsupported |
 | --- | ---: | ---: | ---: | ---: |
@@ -107,6 +107,34 @@ measurement, not a whole-program soundness result or a broad
 comparison with other validators. CI uses four checks per contract and retains
 its own fingerprints, denominators, timings, reports and full input pairs.
 
+## Automatic typed source execution
+
+The scalar expression projection has a separate automatic fallback: direct
+execution of the Rust-exported typed SSA, including void/multiple returns,
+aggregate arguments/results and acyclic helper calls. The checker reconstructs
+the source model before checking; a changed cached body or signature cannot
+certify itself. There is no reduced scalar tree to compare in this route. The
+compiler parser/schema exporter and constructor renderer remain trusted.
+
+The generated theorem quantifies every typed argument and arbitrary initial
+journal, byte-memory contents, return data, caller environment and block context.
+Initial memory is aligned and at most 64 KiB. `State.equivalent` requires two
+successful interpreter results and compares all live boundary observations.
+It is false for equal model errors. Work is bounded structurally over the
+acyclic CFG/call graph; exhaustion cannot satisfy the theorem.
+
+The real storage, memory, multiple-return, aggregate and helper-call `egraph`
+pairs in `examples/mir/universal-state/` pass this route. Their broken storage,
+memory and return-value versions have kernel-checked, independently replayed
+counterexamples. Concrete scenarios never establish a universal positive result.
+Unproved pointer validity and erased-layout witnesses are not counterexamples.
+
+The same 24-check corpus sample still verifies 3 checks: 20 are unsupported and
+one larger ERC20Mock `spell-width-tests` proof hits the ten-second limit. Selected
+IDs and output fingerprints remain identical. The broader interface support has
+not yet discharged the remaining corpus obligations; the timeout is retained in
+the report, not counted as a successful or unsupported proof.
+
 ## Remaining obligations
 
 These limits remain explicit. They must be removed with semantics, proofs and
@@ -115,8 +143,8 @@ regressions rather than suppressed statuses or stronger unrecorded assumptions.
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |
 | General loops | Acyclic expansion or equal pure cyclic source graphs | Inductive simulation/invariants, including phis, state, divergence and failures; real loop-pass pairs and broken invariants. |
-| Arbitrary state and aliases | Explicit world fixtures, listed symbolic storage cells and bounded memory projections | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
-| Whole-function MIR interfaces | Scalar local checks; broader direct execution under explicit fixtures | Automatic symbolic products, slices, void/multiple results and call graphs; certificates connecting local importer output to that execution. |
+| Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
+| Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results and acyclic calls | ABI entry, allocation/layout preconditions, recursive call invariants and broader defined memory domains. |
 | EVM entry stacks and indirect transfers | Fixed entry heights or universally quantified effect-free prefixes with an unchanged continuation | Call/return stack relations and verified indirect targets; never assume an unknown height or destination. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
@@ -124,7 +152,9 @@ regressions rather than suppressed statuses or stronger unrecorded assumptions.
 | Practical evaluation and review | Pinned three-contract sampling plus regression pairs | Wider published corpus, stronger pass coverage, independently reproduced results and external soundness review. |
 
 In the initial sample, the largest blockers were unknown EVM entry heights and
-MIR functions outside the single integer-result fragment. Removed function
+MIR functions outside the single integer-result fragment. Automatic typed source
+execution now covers those interfaces; ABI/layout and memory-domain obligations
+continue to limit the selected real-contract checks. Removed function
 identities, shared declaration/phase changes, internal calls, dynamic return
 jumps and local calldata reads also remained unsupported. Lowering a status to
 `verified` without addressing its obligation would hide a gap, not close it.

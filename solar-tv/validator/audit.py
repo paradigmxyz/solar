@@ -146,7 +146,17 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "prefix-window":
+        if program and program.symbolic_mir is not None:
+            assumptions.extend(
+                [
+                    "direct typed SSA source execution; supplied acyclic call graph; no backend lowering, implicit FMP or ABI entry setup",
+                    "all typed argument leaves and arbitrary initial journal, memory contents, return data and caller environment",
+                    "initial memory is aligned and at most 64 KiB; unproved accesses, model errors and work exhaustion cannot verify",
+                    "all returned leaves, live memory, persistent/transient storage, access warmth and returndata remain observable",
+                    "abstract MIR operations unpriced; no physical gas, backend placement or whole-contract claim",
+                ]
+            )
+        elif program and program.scope == "prefix-window":
             assumptions.extend(
                 [
                     "all incoming stack lengths and values; exact 1024-word overflow and underflow checks",
@@ -171,7 +181,9 @@ def record(
                 assumptions.append(f"entry stack height {program.interface[1]}")
         if program and program.scope:
             assumptions.append(
-                "region-local proof; no whole-pass or interprocedural claim"
+                "function-local proof with supplied callees; no whole-pass claim"
+                if program.symbolic_mir is not None
+                else "region-local proof; no whole-pass or interprocedural claim"
             )
         if (program and program.memory) or (
             result.pair and any(side.memory for side in result.pair)
@@ -179,7 +191,11 @@ def record(
             assumptions.append(
                 "constant accesses inside 256-byte memory prefix; representable aligned MSIZE"
             )
-        if not program or program.scope != "prefix-window":
+        if (
+            not program
+            or program.scope != "prefix-window"
+            and program.symbolic_mir is None
+        ):
             assumptions.append(
                 "sufficient gas"
                 if policy is None
@@ -215,7 +231,12 @@ def record(
         )
         or (
             "semantic-effects"
-            if program and program.world and program.world.get("direct_mir")
+            if program
+            and (
+                program.symbolic_mir is not None
+                or program.world
+                and program.world.get("direct_mir")
+            )
             else "fixture-effects"
             if program and program.world
             else "sufficient"
@@ -225,6 +246,22 @@ def record(
         **(
             {"import_correspondence": [side.import_evidence for side in result.pair]}
             if result.pair and any(side.import_evidence for side in result.pair)
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
+                    "proof": "universal-caller-state",
+                    "work_bounds": [side.symbolic_mir["fuel"] for side in result.pair],
+                    "supplied_functions": len(
+                        program.symbolic_mir["model"]["functions"]
+                    ),
+                },
+            }
+            if program and program.symbolic_mir is not None and result.pair
             else {}
         ),
         "evidence": "kernel-proof"

@@ -1,6 +1,7 @@
 import SolarTV.MIR.Transforms.DCE
 import SolarTV.Correspondence
 import SolarTV.MIR.Import
+import SolarTV.MIR.Universal
 import SolarTV.MIR.Transforms.Casts
 import SolarTV.MIR.Transforms.CheckElim
 import SolarTV.MIR.Transforms.AbiValidation
@@ -192,3 +193,19 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.EVM.Prefix.resource' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Prefix.resource
+
+/-- info: 'SolarTV.MIR.Universal.executions_defined' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.Universal.executions_defined
+
+/-- info: 'SolarTV.MIR.Universal.unsupported_is_not_equivalent' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.Universal.unsupported_is_not_equivalent
+
+/-- info: 'SolarTV.MIR.Universal.returned_words_live' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.Universal.returned_words_live
+
+/-- info: 'SolarTV.MIR.Universal.expand_defined' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.Universal.expand_defined
