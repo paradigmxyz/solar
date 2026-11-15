@@ -1024,6 +1024,34 @@ SOLAR="$PWD/target/debug/solar" SOLAR_TV="$PWD/solar-tv/solar-tv" \
   cargo nextest run -p solar-compiler --test it --run-ignored only -E 'test(solar_tv::)'
 ```
 
+### Block prefixes with unknown incoming stacks
+
+`--prefix` checks an effect-free prefix of a complete EVM IR block for **every**
+incoming stack length and value, including underflow and the 1024-word limit:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/prefix/{before,after}.evmir \
+  --solar target/debug/solar --prefix bb0 --report target/tv-prefix.json
+```
+
+The example is a real `block-cse` rewrite from WETH: the third constant push
+becomes `DUP1` before `LOG3`. The Rust source exporter supplies the complete
+block. Every instruction after the scalar prefix, the terminal and the physical
+successor must match. Memory, logs and storage stay in the arbitrary live world;
+this proof assumes no empty state or fixed memory prefix.
+
+[Prefix.lean](SolarTV/EVMIR/Prefix.lean) proves that instruction-by-instruction
+charging agrees with the prefix observation. Equal-cost prefixes preserve every
+gas budget and a gas-sensitive continuation. Cheaper prefixes carry an explicit
+resource-refinement policy and require sufficient gas and a gas-insensitive
+continuation. `--gas=exact` rejects such a cheaper rewrite. Code observers and
+calls require further correspondence and remain unsupported here.
+
+The pass hook uses this mode for unknown-height block windows. Capture retains
+its original rejection and region identity; evaluation chooses the proof mode
+**after** sampling. A failed universal proof is unsupported, since a hypothetical
+stack need not be reachable. It never fabricates a compiler counterexample.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1048,8 +1076,10 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The initial eight-check-per-contract run verified 1 of 24 selected checks;
-23 were unsupported, with no counterexamples, timeouts or errors. All three
-contracts retained identical bytecode. This is a coverage baseline, not evidence
-that the complete contracts or passes were verified. The exact cases, limitations
-and next obligations are recorded in [CORRECTNESS.md](CORRECTNESS.md).
+The same eight-check-per-contract sample now verifies **3 of 24**, up from
+1 of 24; 21 remain unsupported. The selected check IDs and all three output
+fingerprints are unchanged. The additional checks are WETH's constant-push
+reuse and ERC20Mock's stack cleanup. There are no counterexamples, timeouts or
+errors. This is local coverage, not verification of the complete contracts or
+passes. The exact cases and remaining obligations are in
+[CORRECTNESS.md](CORRECTNESS.md).

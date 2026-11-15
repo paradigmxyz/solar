@@ -146,7 +146,18 @@ def record(
                 ]
             )
     else:
-        if layer == "mir":
+        if program and program.scope == "prefix-window":
+            assumptions.extend(
+                [
+                    "all incoming stack lengths and values; exact 1024-word overflow and underflow checks",
+                    "effect-free fixed-price prefix; identical complete logical continuation; no code-image or interprocedural claim",
+                    "arbitrary live world; no zero-memory or empty-storage assumption",
+                    "all gas budgets and gas-sensitive continuation"
+                    if program.gas == "exact"
+                    else "sufficient gas; resource refinement and gas-insensitive continuation",
+                ]
+            )
+        elif layer == "mir":
             assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
         else:
             assumptions.append(
@@ -168,13 +179,14 @@ def record(
             assumptions.append(
                 "constant accesses inside 256-byte memory prefix; representable aligned MSIZE"
             )
-        assumptions.append(
-            "sufficient gas"
-            if policy is None
-            else "exact remaining gas and outcomes"
-            if policy == "exact"
-            else "resource refinement; original OOG unconstrained; gas-insensitive continuation"
-        )
+        if not program or program.scope != "prefix-window":
+            assumptions.append(
+                "sufficient gas"
+                if policy is None
+                else "exact remaining gas and outcomes"
+                if policy == "exact"
+                else "resource refinement; original OOG unconstrained; gas-insensitive continuation"
+            )
     sources = []
     for i, path in enumerate((before, after)):
         sources.append(
@@ -198,7 +210,9 @@ def record(
         "layer": layer,
         "semantics": model or semantics(),
         "target": target,
-        "gas_policy": policy
+        "gas_policy": (
+            program.gas if program and program.scope == "prefix-window" else policy
+        )
         or (
             "semantic-effects"
             if program and program.world and program.world.get("direct_mir")

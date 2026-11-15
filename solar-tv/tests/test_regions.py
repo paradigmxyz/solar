@@ -192,7 +192,13 @@ bb2:
             ]
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("incoming EVM stack height is unknown", result.stderr)
+        self.assertIn("universal prefix proof did not close", result.stderr)
+        self.assertTrue(
+            any(
+                record.get("region", {}).get("proof") == "universal-stack-prefix"
+                for record in self.records()
+            )
+        )
         self.assertFalse(
             any(record["status"] == "verified" for record in self.records())
         )
@@ -232,7 +238,23 @@ bb2 [stack=0]:
                     ]
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("incoming EVM stack height is unknown", result.stderr)
+                self.assertIn(
+                    "incoming EVM stack height is unknown"
+                    if name == "cycle"
+                    else "universal prefix proof did not close",
+                    result.stderr,
+                )
+                records = [
+                    json.loads(path.read_text())
+                    for path in (self.audits / name / "audits").glob("*.json")
+                ]
+                self.assertTrue(records)
+                self.assertTrue(
+                    all(record["status"] == "unsupported" for record in records)
+                )
+                self.assertTrue(
+                    all(record["region"]["stack_height"] is None for record in records)
+                )
 
     def test_non_dense_successors_keep_their_identity(self):
         source = """@module Labels

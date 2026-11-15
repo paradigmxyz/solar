@@ -60,6 +60,18 @@ against the original interpreters. It is additional evidence, not an all-input
 proof of those implementations. The permitted proof axioms remain `propext`,
 `Classical.choice` and `Quot.sound`; generated positive proofs reject others.
 
+Unknown-height block windows also admit a narrower contextual prefix proof.
+An independent Rust export includes every instruction and the terminal. Only a
+fixed-price scalar/stack prefix may differ, and the complete remaining suffix
+and physical successor must agree. A Lean theorem quantifies over every stack
+and arbitrary live world, including all stack-limit cases. Equal-price prefixes
+preserve all gas budgets; cheaper prefixes prove resource refinement and require
+sufficient gas and a gas-insensitive continuation. Neither calls nor code-image
+observers are admitted. The source exporter and opcode mapping remain trusted;
+this route does not claim the CFG-expansion import certificate described above.
+A failed universal proof is unsupported, since its hypothetical stack may be
+unreachable. It never becomes an unreplayed wrong-code claim.
+
 ## Real-contract evaluation
 
 Run `solar-tv/evaluate --limit 8 --timeout 10 --seed 0 --output DIR` with a
@@ -75,19 +87,23 @@ verify. The deterministic sampler alternates layers and passes before taking a
 second region from a group. Seeded hash ordering selects within each group;
 successful checks receive no preference.
 
-The initial local run produced:
+The current run, using the same selected IDs as the original 1/24 baseline, produced:
 
 | Contract | Captured checks | Selected | Verified | Unsupported |
 | --- | ---: | ---: | ---: | ---: |
-| Solady WETH | 329 | 8 | 1 | 7 |
-| OpenZeppelin ERC20Mock | 372 | 8 | 0 | 8 |
+| Solady WETH | 329 | 8 | 2 | 6 |
+| OpenZeppelin ERC20Mock | 372 | 8 | 1 | 7 |
 | Morpho Blue | 1,515 | 8 | 0 | 8 |
 
 All three output comparisons were identical. There were no counterexamples,
 timeouts, inconclusive checks or errors among the 24 selected checks. The other
 2,192 captured checks were not selected and have no verification claim. The
-verified check was an EVM IR tail-merge region in WETH. This small sample is a
-reproducible coverage baseline, not a whole-program soundness result or a broad
+verified checks are an EVM IR tail-merge region in WETH, its `block-cse`
+constant-push reuse before `LOG3`, and ERC20Mock's `peephole-early` stack cleanup
+before a dynamic return. The first prefix is exact-gas; the second requires the
+recorded gas-insensitive continuation. All three output fingerprints also match
+the previous baseline. This small sample is a reproducible local coverage
+measurement, not a whole-program soundness result or a broad
 comparison with other validators. CI uses four checks per contract and retains
 its own fingerprints, denominators, timings, reports and full input pairs.
 
@@ -101,7 +117,7 @@ regressions rather than suppressed statuses or stronger unrecorded assumptions.
 | General loops | Acyclic expansion or equal pure cyclic source graphs | Inductive simulation/invariants, including phis, state, divergence and failures; real loop-pass pairs and broken invariants. |
 | Arbitrary state and aliases | Explicit world fixtures, listed symbolic storage cells and bounded memory projections | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Scalar local checks; broader direct execution under explicit fixtures | Automatic symbolic products, slices, void/multiple results and call graphs; certificates connecting local importer output to that execution. |
-| EVM entry stacks and indirect transfers | Fixed entry heights and static local transfers | Call/return stack relations and verified indirect targets; never assume an unknown height or destination. |
+| EVM entry stacks and indirect transfers | Fixed entry heights or universally quantified effect-free prefixes with an unchanged continuation | Call/return stack relations and verified indirect targets; never assume an unknown height or destination. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
 | Fork and transaction completeness | Admitted fork-specific execution, explicit delegated account state | Transaction admission/authorization processing and Amsterdam's two-resource state gas; differential boundary cases. |

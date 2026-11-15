@@ -20,6 +20,7 @@ from . import (
     mir,
     native,
     operations,
+    prefix,
     regions,
     report,
     world,
@@ -639,6 +640,9 @@ def main() -> int:
     selection.add_argument(
         "--region", help="check a complete acyclic EVM CFG from a stable entry label"
     )
+    selection.add_argument(
+        "--prefix", help="prove a block prefix for every incoming stack"
+    )
     parser.add_argument(
         "--stack-height", type=int, help="fixed incoming EVM window height"
     )
@@ -663,6 +667,7 @@ def main() -> int:
         region=args.region,
         stack_height=args.stack_height,
         world=args.world,
+        prefix=args.prefix,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -689,32 +694,49 @@ def main() -> int:
             region=args.region,
             stack_height=args.stack_height,
             world=args.world,
+            prefix=args.prefix,
         )
-        programs = [
-            load(
-                args.ir,
-                path,
+        if args.prefix:
+            if args.ir != "evmir" or args.world or args.stack_height is not None:
+                raise Unsupported(
+                    "--prefix requires EVM IR without a world fixture or fixed height"
+                )
+            result = prefix.check(
+                (args.before, args.after),
                 solar,
+                rust_replay,
                 args.timeout,
-                gas_mode=args.gas,
-                evm_version=version,
-                function=args.function,
-                window=args.window,
-                region=args.region,
-                stack_height=args.stack_height,
-                world_path=args.world,
-                replay_executable=rust_replay,
+                args.prefix,
+                version,
+                args.gas,
             )
-            for path in (args.before, args.after)
-        ]
-        result = check(
-            programs[0],
-            programs[1],
-            args.timeout,
-            replay_command=replay,
-            replay_executable=rust_replay,
-            verbose=args.verbose,
-        )
+            programs = list(result.pair)
+        else:
+            programs = [
+                load(
+                    args.ir,
+                    path,
+                    solar,
+                    args.timeout,
+                    gas_mode=args.gas,
+                    evm_version=version,
+                    function=args.function,
+                    window=args.window,
+                    region=args.region,
+                    stack_height=args.stack_height,
+                    world_path=args.world,
+                    replay_executable=rust_replay,
+                )
+                for path in (args.before, args.after)
+            ]
+            result = check(
+                programs[0],
+                programs[1],
+                args.timeout,
+                replay_command=replay,
+                replay_executable=rust_replay,
+                verbose=args.verbose,
+            )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
         status = (
             "timeout"
@@ -752,17 +774,19 @@ def main() -> int:
             after=args.after,
             model=model,
         )
-        if args.function or args.window or args.region:
+        if args.function or args.window or args.region or args.prefix:
             record["region"] = {
                 "kind": "function"
                 if args.function
                 else "region"
                 if args.region
                 else "window",
-                "name": args.function or args.window or args.region,
+                "name": args.function or args.window or args.region or args.prefix,
                 "stack_height": args.stack_height,
             }
             record["whole_pass"] = False
+            if args.prefix:
+                record["region"]["proof"] = "universal-stack-prefix"
             if args.region and len(programs) == 2:
                 record["region"]["blocks_before"] = list(
                     regions.blocks(programs[0].canonical_ir)
