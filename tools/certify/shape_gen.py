@@ -216,7 +216,9 @@ def main():
             else:
                 cases.append(f"    · exact {S}.holdsFn_genericValid0 (fn := {SC}.fn_{fid}) (by rfl) (by decide)\n"
                              f"        {holds}")
-        cases.append(f"    · simp [{B}] at hi")
+        # The index past the last function: simp reads the spec's length, and omega closes what
+        # it leaves (with two or more functions simp stops at `i + 1 + 1 < 2`).
+        cases.append(f"    · simp [{B}] at hi <;> omega")
         holds_proof = (f"  have hholds : SolidCore.Spec.Holds (solidCore {sns}.fuel) c ({valid}) {B} {S}.ctxOfCall {S}.idStep := by\n"
                        f"    refine {S}.holds_of_getElem ?_\n    intro i hi\n"
                        f"    rcases i with {' | '.join(['_'] * len(idx))} | i\n" + "\n".join(cases) + "\n")
