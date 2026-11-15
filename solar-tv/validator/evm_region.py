@@ -7,16 +7,18 @@ dynamic/escaping labels and operations outside the existing memory fragment.
 """
 
 import re
+import tempfile
+from pathlib import Path
 
-from . import evmir, memory, regions
+from . import audit, evmir, memory, regions
 from .common import Program, Unsupported
 
 UNFOLD = "EVM.Region.execute, EVM.Region.instructions"
 
 
-def translate(text: str, entry: str, height: int) -> Program:
+def translate(text: str, entry: str, height: int | None) -> Program:
     bodies = regions.blocks(text)
-    if entry not in bodies or not 0 <= height <= 1024:
+    if entry not in bodies or height is not None and not 0 <= height <= 1024:
         raise Unsupported("missing region entry or invalid stack height")
     # Preserve the original physical successor even when reachable blocks are
     # non-contiguous or the selected entry is not first in layout order.
@@ -25,6 +27,7 @@ def translate(text: str, entry: str, height: int) -> Program:
     visited = set()
     expansions = 0
     instruction_count = 0
+    peak = 0
 
     def block(label, constants, path):
         nonlocal expansions, instruction_count
@@ -42,6 +45,7 @@ def translate(text: str, entry: str, height: int) -> Program:
         return sequence(label, bodies[label], list(constants), {*path, label})
 
     def sequence(label, body, constants, path):
+        nonlocal peak
         ops = []
         index = 0
         while index < len(body):
@@ -55,10 +59,12 @@ def translate(text: str, entry: str, height: int) -> Program:
                         raise Unsupported(
                             "instructions after unconditional region transfer"
                         )
+                    peak = max(peak, len(constants) + 1)
                     flow = f".jump 1 ({block(target, constants, path)})"
                 else:
                     if not constants:
                         raise Unsupported("region branch lacks its condition")
+                    peak = max(peak, len(constants) + 1)
                     yes = block(target, constants[1:], path)
                     no = sequence(label, body[index + 2 :], constants[1:], path)
                     flow = f".branch ({yes}) ({no})"
@@ -67,11 +73,13 @@ def translate(text: str, entry: str, height: int) -> Program:
                 if index + 1 != len(body):
                     raise Unsupported("instructions after region terminator")
                 target = jump[1]
+                peak = max(peak, len(constants) + int(target != following[label]))
                 flow = f".jump {int(target != following[label])} ({block(target, constants, path)})"
                 break
             if branch := re.fullmatch(r"jumpi (bb\d+), (bb\d+)", line):
                 if index + 1 != len(body) or not constants:
                     raise Unsupported("invalid region branch")
+                peak = max(peak, len(constants) + 1)
                 yes = block(branch[1], constants[1:], path)
                 no = block(branch[2], constants[1:], path)
                 flow = f".branch ({yes}) ({no})"
@@ -97,6 +105,7 @@ def translate(text: str, entry: str, height: int) -> Program:
                     "region entry stack cannot execute its instructions"
                 ) from None
             ops.extend(added)
+            peak = max(peak, len(constants))
             index += 1
         else:
             target = following[label]
@@ -107,8 +116,11 @@ def translate(text: str, entry: str, height: int) -> Program:
             )
         return f".instructions [{','.join(ops)}] ({flow})" if ops else flow
 
-    code = block(entry, [None] * height, set())
-    stack = [f"stack{i}" for i in range(height)]
+    # No incoming word is assumed constant. Unknown memory addresses remain
+    # unsupported, while execution still uses the complete real incoming stack,
+    # including underflow and overflow during a concrete transfer.
+    code = block(entry, [None] * (height or 0), set())
+    stack = [f"stack{i}" for i in range(height or 0)]
     inputs = ["calldatasize", "returndatasize", *stack, *memory.INPUTS]
     projection = (
         "@module Region\n"
@@ -121,6 +133,20 @@ def translate(text: str, entry: str, height: int) -> Program:
     )
     if len(projection.encode()) > 128 * 1024:
         raise Unsupported("selected region exceeds 128 KiB")
+    if height is None:
+        return Program(
+            ("evm-universal-region", "memory"),
+            [],
+            "EVM.Memory.Execution",
+            "EVM.Region.execute ctx __IMPORT___code stack memory",
+            canonical_ir=projection,
+            memory=True,
+            replay_ir=text,
+            selector=entry,
+            scope="universal-region",
+            region_code=code,
+            stack_peak=peak,
+        )
     return Program(
         ("evm-region", str(height), "memory"),
         inputs,
@@ -149,3 +175,79 @@ def cyclic(text, entry, height):
         selector=entry,
         scope="cyclic-region",
     )
+
+
+def check_universal(a, b, timeout):
+    """Prove complete terminal regions for every stack and projected memory."""
+    from .check import PRELUDE, ROOT, build_model, run
+
+    if (
+        a.scope != b.scope
+        or a.interface != b.interface
+        or a.evm_version != b.evm_version
+    ):
+        raise Unsupported("universal EVM region interfaces differ")
+    peak = max(a.stack_peak, b.stack_peak)
+    if peak > 32:
+        raise Unsupported("universal region exceeds the 32-word proof budget")
+    build = build_model(timeout)
+    if build.returncode:
+        raise Unsupported(build.stdout + build.stderr)
+
+    def declaration(name, program):
+        return (
+            program.import_certificate
+            + f"def {name} (ctx : EVM.Context) (stack : EVM.Stack) (memory : Memory.State) : EVM.Memory.Execution :=\n"
+            + f"  {program.body}\n"
+            + program.import_obligation
+        ).replace("__IMPORT__", name)
+
+    unfold = (
+        "before, after, before_code, after_code, "
+        "EVM.Region.execute, EVM.Region.instructions, EVM.Memory.step, "
+        "EVM.Memory.finish, EVM.finish, EVM.stepChecked, EVM.step, "
+        "Except.bind, Except.map, Bind.bind, Functor.map, List.length_cons, Nat.add_assoc"
+    )
+    proof = ["by_cases huge : stack.length > 1024"]
+    proof += ["· have h0 : 1024 < stack.length := by omega"]
+    proof += [
+        f"  have h{i} : 1024 < stack.length + {i} := by omega"
+        for i in range(1, peak + 1)
+    ]
+    hypotheses = ", ".join(f"h{i}" for i in range(peak + 1))
+    proof += [f"  simp [{unfold}, {hypotheses}]"]
+    for i in range(peak):
+        proof += [
+            f"by_cases edge{i} : stack.length = {1024 - i}",
+            f"· simp [{unfold}, edge{i}]",
+        ]
+    proof += [
+        f"have h{i} : ¬1024 < stack.length{' + ' + str(i) if i else ''} := by omega"
+        for i in range(peak + 1)
+    ]
+    proof += [f"simp [{unfold}, {hypotheses}]"]
+    theorem = (
+        "theorem pair_correct (ctx : EVM.Context) (stack : EVM.Stack) (memory : Memory.State) :\n"
+        " before ctx stack memory = after ctx stack memory := by\n"
+        + "\n".join("  " + line for line in proof)
+        + "\n#print axioms pair_correct\n"
+    )
+    with tempfile.TemporaryDirectory(prefix="solar-tv-universal-region-") as directory:
+        path = Path(directory) / "Pair.lean"
+        path.write_text(
+            PRELUDE + declaration("before", a) + declaration("after", b) + theorem
+        )
+        result = run(["lake", "env", "lean", path], ROOT, timeout)
+    axioms = re.search(r"'pair_correct' depends on axioms: \[(.*?)\]", result.stdout)
+    if result.returncode or not (
+        "'pair_correct' does not depend on any axioms" in result.stdout
+        or axioms
+        and not set(axioms[1].split(", "))
+        - {"propext", "Quot.sound", "Classical.choice"}
+    ):
+        # An arbitrary incoming stack need not be reachable in the full module.
+        # Failure of this stronger theorem is not a compiler counterexample.
+        raise Unsupported(
+            "universal EVM region proof did not close\n" + result.stdout + result.stderr
+        )
+    return audit.Result("verified", stdout="verified\n", program=a, pair=(a, b))

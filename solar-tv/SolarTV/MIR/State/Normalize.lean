@@ -1,4 +1,6 @@
 import SolarTV.MIR.State.Interpreter
+import SolarTV.MIR.State.Observe
+import SolarTV.MIR.State.ScalarNormalize
 import SolarTV.State.MemoryNormalize
 import Lean
 
@@ -18,6 +20,7 @@ attribute [simp↓] Option.any_some Option.any_none
 
 dsimproc_decl reduceFits (Value.fits _ _ _) := fun expression => do
   let args := expression.getAppArgs
+  unless args.size == 3 do return .continue
   unless (← getNatValue? args[0]!).isSome do return .continue
   let ty ← whnf args[1]!
   let value ← whnf args[2]!
@@ -29,16 +32,60 @@ dsimproc_decl reduceFits (Value.fits _ _ _) := fun expression => do
   -- Its arguments become known after the list combinator reduces.
   return .visit (← withTransparency .default (whnf expression))
 
+-- Keep the source program shared instead of copying its function table into
+-- every symbolic branch. A concrete lookup still reduces by kernel equality.
+dsimproc_decl reduceFunction (function _ _) := fun expression => do
+  let args := expression.getAppArgs
+  unless args.size == 2 do return .continue
+  unless (← getNatValue? args[1]!).isSome do return .continue
+  let head ← withTransparency .default (whnf expression)
+  unless head.isAppOf ``Except.ok || head.isAppOf ``Except.error do return .continue
+  return .visit head
+
+-- Observation is a terminal boundary, not a symbolic-execution step. Expanding
+-- its projections under an unresolved run duplicates every pending branch.
+private def terminalObservation? (execution : Expr) : MetaM (Option Expr) := do
+  unless execution.isAppOf ``Except.ok do return none
+  let result ← withTransparency .default (whnf execution.appArg!)
+  unless result.isAppOfArity ``Result.mk 7 do return none
+  let completion ← withTransparency .default (whnf result.getAppArgs[0]!)
+  let .const name _ := completion.getAppFn | return none
+  let .ctorInfo info ← getConstInfo name | return none
+  unless info.induct == ``Completion do return none
+  let observation ← mkAppM ``observe #[result]
+  return some (← withTransparency .default (whnf observation))
+
+dsimproc_decl reduceEquivalent (equivalent _ _) := fun expression => do
+  let args := expression.getAppArgs
+  unless args.size == 2 do return .continue
+  let left ← withTransparency .default (whnf args[0]!)
+  let right ← withTransparency .default (whnf args[1]!)
+  if left.isAppOf ``Except.error || right.isAppOf ``Except.error then
+    return .visit (mkConst ``False)
+  let some left ← terminalObservation? left | return .continue
+  let some right ← terminalObservation? right | return .continue
+  return .visit (← mkEq left right)
+
+dsimproc_decl reduceConclude (conclude _ _ _) := fun expression => do
+  let args := expression.getAppArgs
+  unless args.size == 3 do return .continue
+  let execution ← withTransparency .default (whnf args[2]!)
+  unless execution.isAppOf ``Except.ok || execution.isAppOf ``Except.error do return .continue
+  return .visit (← withTransparency .default (whnf expression))
+
 simproc_decl reduceRun (run _ _ _ _) := fun expression => do
   let args := expression.getAppArgs
+  unless args.size == 4 do return .continue
   let some fuel ← getNatValue? args[0]! | return .continue
   if fuel = 0 then return .done {expr := ← whnf expression}
   let machine ← whnf args[3]!
-  unless machine.isAppOf ``Machine.mk do return .continue
+  unless machine.isAppOfArity ``Machine.mk 3 do return .continue
   let cursor ← whnf machine.getAppArgs[0]!
-  unless cursor.isAppOf ``Cursor.mk do return .continue
-  for index in [0,1,2] do
-    unless (← getNatValue? (← withTransparency .default (whnf cursor.getAppArgs[index]!))).isSome do return .continue
+  unless cursor.isAppOfArity ``Cursor.mk 6 do return .continue
+  let position := cursor.getAppArgs
+  unless (← getNatValue? (← withTransparency .default (whnf position[0]!))).isSome do return .continue
+  unless (← getNatValue? (← withTransparency .default (whnf position[1]!))).isSome do return .continue
+  unless (← getNatValue? (← withTransparency .default (whnf position[2]!))).isSome do return .continue
   let step ← mkAppM ``transition #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
   -- A known constructor needs only definitional equality. This avoids unfolding
   -- instruction/type matches under the transition's unapplied continuations.
@@ -75,7 +122,11 @@ elab "split_mir_guard" : tactic => do
   let goal ← getMainGoal
   goal.withContext do
     let target ← goal.getType
-    let predicate := fun e => (e.isAppOfArity ``ite 5 || e.isAppOfArity ``dite 5) && !e.hasLooseBVars
+    -- Only the proposition must be closed at this position. Branches may use
+    -- the surrounding continuation's bound variables; splitting the closed
+    -- proposition remains valid under that binder.
+    let predicate := fun e => (e.isAppOfArity ``ite 5 || e.isAppOfArity ``dite 5) &&
+      !e.getAppArgs[1]!.hasLooseBVars
     let some first := target.find? predicate | throwError "no unresolved MIR guard"
     let mut term := first
     -- Resolve nested predicates before splitting the interpreter result. The
@@ -93,5 +144,16 @@ elab "split_mir_guard" : tactic => do
 example : (@ite Nat) = (@ite Nat) := by
   fail_if_success split_mir_guard
   rfl
+
+example (condition : Prop) [Decidable condition] :
+    (fun x : Nat => if condition then x else x + 1) =
+      (if condition then id else fun x => x + 1) := by
+  split_mir_guard <;> simp_all <;> rfl
+
+example (cfg : Config) (functions : Functions) (function block index : Nat) (frame : Frame)
+    (result : Run) (known : run 10 cfg functions ⟨⟨function,block,index,true,none,none⟩,[],frame⟩ = result) :
+    run 10 cfg functions ⟨⟨function,block,index,true,none,none⟩,[],frame⟩ = result := by
+  fail_if_success simp only [↓reduceRun]
+  exact known
 
 end SolarTV.MIR.State

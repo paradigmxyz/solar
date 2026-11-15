@@ -956,7 +956,8 @@ solar-tv/solar-tv summarize target/tv
 
 Each pass manager compares its module before and after a pass, including edits a
 pass forgot to report. MIR checks each changed function separately. EVM IR checks
-complete changed blocks with proven fixed incoming stack heights. Unrelated
+complete changed blocks with proven fixed incoming stack heights, or the
+universal prefix and terminal-region proofs described below. Unrelated
 dispatchers, helpers and successor bodies do not have to fit the modeled fragment.
 The compiler still parses and validates the full module, and Rust counterexample
 replay executes the selected region in that original context.
@@ -964,11 +965,12 @@ replay executes the selected region in that original context.
 Reports identify the function or stable block label and incoming height. Both
 module and region hashes are retained. A verified region is a local proof, not a
 claim that the entire pass or contract was verified (`whole_pass: false`). ABI and
-function interface changes, new/deleted functions, shared declaration changes,
-unknown entry stack heights remain unsupported. When successors or adjacent
-blocks change, the hook selects the larger region described below instead of
-assuming that stack positions correspond at the old window boundary. This
-allows shared revert code and stack reshuffles spanning several blocks.
+function interface changes, new/deleted functions and shared declaration changes
+remain unsupported. Unknown entry heights require a universal proof. When
+successors or adjacent blocks change, the hook selects the larger region
+described below instead of assuming that stack positions correspond at the old
+window boundary. This allows shared revert code and stack reshuffles spanning
+several blocks.
 
 You can select a region when replaying full snapshots:
 
@@ -1093,6 +1095,25 @@ its original rejection and region identity; evaluation chooses the proof mode
 **after** sampling. A failed universal proof is unsupported, since a hypothetical
 stack need not be reachable. It never fabricates a compiler counterexample.
 
+### Terminal regions with unknown incoming stacks
+
+Complete acyclic terminal regions can also quantify every incoming stack:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/tail-region/before.evmir \
+  solar-tv/examples/evmir/tail-region/after.evmir --region bb0
+```
+
+Omitting `--stack-height` proves all lengths and values, including underflow,
+the 1024-word boundary and the temporary label push of a concrete transfer.
+Memory contents and active size remain arbitrary in the constant-access memory
+projection. Each side retains its independent source-CFG certificate and an
+entry theorem for the actual universally quantified execution. Gas-priced
+regions, unknown addresses, dynamic transfers and cycles remain unsupported.
+The pass hook and sampler use this route for unknown-height terminal regions;
+capture identities stay unchanged. Failed universal checks stay unsupported,
+because their hypothetical entry states need not be reachable.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1101,7 +1122,7 @@ sample from pinned Solady, OpenZeppelin and Morpho source archives:
 ```sh
 target/debug/solar contract.sol -Ogas --emit=bin \
   -Zsolar-tv=target/tv-capture -Zsolar-tv-capture
-solar-tv/evaluate --limit 8 --timeout 10 --seed 0 \
+solar-tv/evaluate --limit 8 --timeout 30 --seed 0 \
   --output target/tv-evaluation
 ```
 
@@ -1117,11 +1138,28 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample verifies **3 of 24**, up from the
-original 1 of 24. With automatic typed SSA attempts, 20 are unsupported and one
-larger stateful proof reaches the ten-second limit. Selected check IDs and all
-three output fingerprints are unchanged. The verified additions remain WETH's
-constant-push reuse and ERC20Mock's stack cleanup. There are no counterexamples
-or errors. This is local coverage, not verification of complete contracts or
-passes; the timeout remains visible. The exact cases and remaining obligations
-are in [CORRECTNESS.md](CORRECTNESS.md).
+The same eight-check-per-contract sample now verifies **8 of 24** with
+`--timeout 30`; 16 remain unsupported, with no counterexamples, timeouts or
+errors. Selected check IDs and all three output fingerprints are unchanged.
+Four additions are complete terminal paths formerly rejected for unknown stack
+heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
+merge. The ERC20Mock `spell-width-tests` pair also verifies over arbitrary caller
+state, including its unchanged storage/logging helper.
+
+The original ten-second budget verifies **7 of 24**, with that larger MIR proof
+still timing out. It now closes in about 23 seconds without increasing Lean's
+heartbeat limit. Shared source tables, delayed result observation and canonical
+width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and
+a broken-width counterexample are in `examples/mir/width-guard/` and
+`examples/mir/erc20-width-guard/`. The counterexample is independently replayed;
+its concrete fixture never establishes the positive universal result.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/erc20-width-guard/{before,after}.mir \
+  --function burn --timeout 30
+solar-tv/solar-tv mir solar-tv/examples/mir/width-guard/{before,broken}.mir \
+  --function f --world solar-tv/examples/mir/width-guard/world.json
+```
+
+This is local coverage, not verification of complete contracts or passes. See
+[CORRECTNESS.md](CORRECTNESS.md) for the remaining obligations.

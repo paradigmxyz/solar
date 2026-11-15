@@ -134,8 +134,8 @@ def load(
         )
     projection = parsed.stdout
     if region is not None:
-        if kind != "evmir" or stack_height is None:
-            raise Unsupported("--region requires EVM IR and --stack-height")
+        if kind != "evmir":
+            raise Unsupported("--region requires EVM IR")
         if gas_mode is not None:
             raise Unsupported(
                 "gas-priced EVM regions require physical transfer pricing"
@@ -143,7 +143,10 @@ def load(
         try:
             program = evm_region.translate(projection, region, stack_height)
         except Unsupported as error:
-            if str(error) != "cyclic EVM regions require loop invariants":
+            if (
+                stack_height is None
+                or str(error) != "cyclic EVM regions require loop invariants"
+            ):
                 raise
             program = evm_region.cyclic(projection, region, stack_height)
         program.evm_version = evm_version or "cancun"
@@ -280,6 +283,8 @@ def check(
     replay_executable: str,
     verbose: bool = False,
 ) -> audit.Result:
+    if a.scope == "universal-region" or b.scope == "universal-region":
+        return evm_region.check_universal(a, b, timeout)
     if a.symbolic_mir is not None or b.symbolic_mir is not None:
         return mir_symbolic.check(
             a,
@@ -666,7 +671,9 @@ def main() -> int:
         "--prefix", help="prove a block prefix for every incoming stack"
     )
     parser.add_argument(
-        "--stack-height", type=int, help="fixed incoming EVM window height"
+        "--stack-height",
+        type=int,
+        help="fixed incoming EVM height (regions otherwise prove all stacks)",
     )
     parser.add_argument(
         "--world",

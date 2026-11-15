@@ -151,4 +151,4 @@ class TypedMirTests(unittest.TestCase):
             result.stderr,
         )
         result = self.pair("ret undef i256", "ret undef i256", status=2)
-        self.assertIn("undefined MIR operands", result.stderr)
+        self.assertIn("unsupported execution is not equivalence", result.stderr)

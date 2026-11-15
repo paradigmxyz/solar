@@ -1,0 +1,83 @@
+; Reduced from the pinned OpenZeppelin ERC20Mock spell-width-tests pair.
+@module ERC20Burn
+@phase lowered
+fn @burn() {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = calldataload 4
+    v11 = shr v3, 160
+    v13 = zext i1 v2 to i256
+    v14 = or v11, v13
+    v8 = ne v14, 0
+    jumpi v8, bb3, bb4
+  bb4:                                            ; preds = bb0
+    v9 = calldataload 4
+    v0 = eq v9, 0
+    jumpi v0, bb2, bb1
+  bb1:                                            ; preds = bb4
+    v10 = calldataload 36
+    icall @_update, v9, 0, v10
+    stop
+  bb2 [cold]:                                     ; preds = bb4
+    mstore 32, 0 !metadata(memory=scratch)
+    mstore 0, 0x96c6fd1e !metadata(memory=scratch)
+    revert 28, 36
+  bb3 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+fn @_update(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    mstore 0, arg0
+    mstore 32, 0 !metadata(memory=scratch)
+    v22 = keccak256 0, 64 !metadata(memory=scratch)
+    v5 = sload v22
+    v6 = lt v5, arg2
+    jumpi v6, bb8, bb4
+  bb4:                                            ; preds = bb2
+    v8 = sub v5, arg2
+    sstore v22, v8
+    jump bb3
+  bb8 [cold]:                                     ; preds = bb2
+    mstore 32, arg0
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore 96, arg2 !metadata(memory=scratch)
+    mstore 0, 0xe450d38c !metadata(memory=scratch)
+    revert 28, 100
+  bb1:                                            ; preds = bb0
+    v1 = sload 2 !metadata(storage=slot(2))
+    v20 = add v1, arg2
+    v21 = lt v20, v1
+    jumpi v21, bb9, bb10
+  bb10:                                           ; preds = bb1
+    sstore 2, v20 !metadata(storage=slot(2))
+    jump bb3
+  bb3:                                            ; preds = bb4, bb10
+    v11 = eq arg1, 0
+    jumpi v11, bb5, bb6
+  bb6:                                            ; preds = bb3
+    mstore 0, arg1
+    mstore 32, 0 !metadata(memory=scratch)
+    v23 = keccak256 0, 64 !metadata(memory=scratch)
+    v16 = sload v23
+    v17 = add v16, arg2
+    sstore v23, v17
+    jump bb7
+  bb5:                                            ; preds = bb3
+    v12 = sload 2 !metadata(storage=slot(2))
+    v13 = sub v12, arg2
+    sstore 2, v13 !metadata(storage=slot(2))
+    jump bb7
+  bb7:                                            ; preds = bb5, bb6
+    mstore 0, arg2 !metadata(memory=scratch)
+    log 0, 32, 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, arg0, arg1
+    ret
+  bb9 [cold]:                                     ; preds = bb1
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

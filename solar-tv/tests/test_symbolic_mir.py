@@ -24,7 +24,7 @@ class SymbolicMirTests(unittest.TestCase):
         self.report = self.directory / "report.json"
         self.examples = ROOT / "examples/mir/universal-state"
 
-    def check(self, before, after, *flags):
+    def check(self, before, after, *flags, timeout=20):
         result = subprocess.run(
             [
                 CLI,
@@ -34,7 +34,7 @@ class SymbolicMirTests(unittest.TestCase):
                 "--solar",
                 SOLAR,
                 "--timeout",
-                "20",
+                str(timeout),
                 "--report",
                 self.report,
                 *flags,
@@ -46,6 +46,74 @@ class SymbolicMirTests(unittest.TestCase):
         )
         self.assertTrue(self.report.exists(), result.stderr)
         return result, json.loads(self.report.read_text())
+
+    def test_width_guards_with_stateful_internal_calls(self):
+        for example, function, timeout in (
+            ("width-guard", "f", 20),
+            ("erc20-width-guard", "burn", 45),
+        ):
+            with self.subTest(example=example):
+                folder = ROOT / "examples/mir" / example
+                before, after = [folder / f"{side}.mir" for side in ("before", "after")]
+                results = [
+                    subprocess.run(
+                        [SOLAR, path, "-Ogas", f"-Zmir-pipeline={pipeline}"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=30,
+                    )
+                    for path, pipeline in (
+                        (before, "spell-width-tests"),
+                        (after, "none"),
+                    )
+                ]
+                normalize = lambda text: [
+                    line.strip()
+                    for line in text.splitlines()
+                    if line.strip() and not line.lstrip().startswith(";")
+                ]
+                for result in results:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                # Parsing assigns dense value IDs; the pass leaves holes for
+                # removed definitions. Compare after the same parser round trip.
+                emitted = self.directory / "emitted.mir"
+                emitted.write_text(results[0].stdout)
+                canonical = subprocess.run(
+                    [SOLAR, emitted, "-Ogas", "-Zmir-pipeline=none"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=30,
+                )
+                self.assertEqual(canonical.returncode, 0, canonical.stderr)
+                self.assertEqual(
+                    normalize(canonical.stdout), normalize(results[1].stdout)
+                )
+                result, record = self.check(
+                    before, after, "--function", function, timeout=timeout
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(record["status"], "verified")
+                self.assertEqual(record["region"]["proof"], "universal-caller-state")
+                self.assertNotIn("world", record)
+
+    def test_broken_width_guard_has_an_independent_witness(self):
+        folder = ROOT / "examples/mir/width-guard"
+        result, record = self.check(
+            folder / "before.mir",
+            folder / "broken.mir",
+            "--function",
+            "f",
+            "--world",
+            folder / "world.json",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(record["status"], "counterexample")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+        self.assertIn("Execution outcome changed", result.stdout)
 
     def test_real_pass_pairs_with_live_world_and_typed_returns(self):
         for name in ("storage", "memory", "multiple", "aggregate", "calls"):

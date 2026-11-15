@@ -8,6 +8,9 @@ entire symbolic heap merely to read an untouched allocation-cursor word. -/
 namespace SolarTV.Execution
 open EvmRules
 
+@[simp] theorem readBytes_zero (bytes : List Byte) (offset : Nat) :
+    readBytes bytes offset 0 = [] := by rfl
+
 theorem writeBytes_eq_spec (memory bytes : List Byte) (offset : Nat) :
   writeBytes memory offset bytes = writeBytesSpec memory offset bytes := by
   apply List.ext_getElem?
