@@ -83,16 +83,16 @@ impl DocumentationItem {
 impl<'gcx> Gcx<'gcx> {
     pub(crate) fn build_dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
-        let contract_doc = dev_doc_item(self, contract.doc);
+        let contract_doc = dev_doc_item(self, contract_id.into());
         let mut documentation = Documentation::new(DocumentationKind::Dev);
         documentation.author = contract_doc.author;
         documentation.details = contract_doc.details;
         documentation.title =
-            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Title));
+            natspec_text(self, contract_id.into(), |kind| matches!(kind, hir::NatSpecKind::Title));
         documentation.custom = contract_doc.custom;
 
         if let Some(constructor) = contract.ctor {
-            let documentation_item = dev_doc_item(self, self.hir.function(constructor).doc);
+            let documentation_item = dev_doc_item(self, constructor.into());
             if !documentation_item.is_empty() {
                 documentation.methods.insert("constructor".into(), documentation_item);
             }
@@ -105,8 +105,8 @@ impl<'gcx> Gcx<'gcx> {
                 continue;
             }
 
-            let mut documentation_item = dev_doc_item(self, function.doc);
-            documentation_item.returns = return_docs(self, function.doc, function.returns);
+            let mut documentation_item = dev_doc_item(self, function_id.into());
+            documentation_item.returns = return_docs(self, function_id.into(), function.returns);
             if !documentation_item.is_empty() {
                 documentation.methods.insert(
                     self.item_signature(function_id.into()).to_string(),
@@ -117,20 +117,18 @@ impl<'gcx> Gcx<'gcx> {
 
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
-            let mut documentation_item = dev_doc_item(self, variable.doc);
-            let return_text = self
-                .natspec_doc_comments(variable.doc)
-                .iter()
-                .copied()
+            let mut documentation_item = dev_doc_item(self, variable_id.into());
+            let return_text = doc_items(self, variable_id.into())
+                .into_iter()
                 .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
-                .map(|item| item.content().to_string())
+                .map(|item| item.content)
                 .collect::<String>();
             if !return_text.is_empty() {
                 documentation_item.r#return = Some(return_text);
             }
             if let Some(getter) = variable.getter {
                 documentation_item.returns =
-                    return_docs(self, variable.doc, self.hir.function(getter).returns);
+                    return_docs(self, variable_id.into(), self.hir.function(getter).returns);
             }
             if !documentation_item.is_empty() {
                 documentation
@@ -143,19 +141,17 @@ impl<'gcx> Gcx<'gcx> {
         for item in self.hir.contract_item_ids(contract_id) {
             match item {
                 hir::ItemId::Event(event_id) => {
-                    let event = self.hir.event(event_id);
                     let signature = self.item_signature(event_id.into()).to_string();
                     if !event_signatures.insert(signature.clone()) {
                         continue;
                     }
-                    let documentation_item = dev_doc_item(self, event.doc);
+                    let documentation_item = dev_doc_item(self, event_id.into());
                     if !documentation_item.is_empty() {
                         documentation.events.insert(signature, documentation_item);
                     }
                 }
                 hir::ItemId::Error(error_id) => {
-                    let error = self.hir.error(error_id);
-                    let documentation_item = dev_doc_item(self, error.doc);
+                    let documentation_item = dev_doc_item(self, error_id.into());
                     if !documentation_item.is_empty() {
                         documentation
                             .errors
@@ -175,10 +171,10 @@ impl<'gcx> Gcx<'gcx> {
         let contract = self.hir.contract(contract_id);
         let mut documentation = Documentation::new(DocumentationKind::User);
         documentation.notice =
-            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Notice));
+            natspec_text(self, contract_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice));
 
         if let Some(constructor) = contract.ctor
-            && let Some(notice) = natspec_text(self, self.hir.function(constructor).doc, |kind| {
+            && let Some(notice) = natspec_text(self, constructor.into(), |kind| {
                 matches!(kind, hir::NatSpecKind::Notice)
             })
         {
@@ -191,9 +187,9 @@ impl<'gcx> Gcx<'gcx> {
         for interface_function in self.interface_functions(contract_id) {
             let function_id = interface_function.id;
             let function = self.hir.function(function_id);
-            let doc = function.gettee.map_or(function.doc, |gettee| self.hir.variable(gettee).doc);
+            let item = function.gettee.map_or(function_id.into(), hir::ItemId::from);
             if let Some(notice) =
-                natspec_text(self, doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
+                natspec_text(self, item, |kind| matches!(kind, hir::NatSpecKind::Notice))
             {
                 documentation.methods.insert(
                     self.item_signature(function_id.into()).to_string(),
@@ -206,12 +202,11 @@ impl<'gcx> Gcx<'gcx> {
         for item in self.hir.contract_item_ids(contract_id) {
             match item {
                 hir::ItemId::Event(event_id) => {
-                    let event = self.hir.event(event_id);
                     let signature = self.item_signature(event_id.into()).to_string();
                     if !event_signatures.insert(signature.clone()) {
                         continue;
                     }
-                    if let Some(notice) = natspec_text(self, event.doc, |kind| {
+                    if let Some(notice) = natspec_text(self, event_id.into(), |kind| {
                         matches!(kind, hir::NatSpecKind::Notice)
                     }) {
                         documentation.events.insert(
@@ -221,8 +216,7 @@ impl<'gcx> Gcx<'gcx> {
                     }
                 }
                 hir::ItemId::Error(error_id) => {
-                    let error = self.hir.error(error_id);
-                    if let Some(notice) = natspec_text(self, error.doc, |kind| {
+                    if let Some(notice) = natspec_text(self, error_id.into(), |kind| {
                         matches!(kind, hir::NatSpecKind::Notice)
                     }) {
                         documentation
@@ -242,23 +236,21 @@ impl<'gcx> Gcx<'gcx> {
 
 fn natspec_text(
     gcx: Gcx<'_>,
-    doc_id: hir::DocId,
+    item: hir::ItemId,
     mut matches: impl FnMut(hir::NatSpecKind) -> bool,
 ) -> Option<String> {
-    let text = gcx
-        .natspec_doc_comments(doc_id)
-        .iter()
-        .copied()
+    let text = doc_items(gcx, item)
+        .into_iter()
         .filter(|item| matches(item.kind))
-        .map(|item| item.content().to_string())
+        .map(|item| item.content)
         .collect::<String>();
     (!text.is_empty()).then_some(text)
 }
 
-fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
+fn dev_doc_item(gcx: Gcx<'_>, item: hir::ItemId) -> DocumentationItem {
     let mut documentation = DocumentationItem::default();
-    for item in gcx.natspec_doc_comments(doc_id).iter().copied() {
-        let content = item.content();
+    for item in doc_items(gcx, item) {
+        let content = item.content.as_str();
         match item.kind {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
             hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
@@ -288,18 +280,106 @@ fn append_doc(target: &mut Option<String>, content: &str) {
 
 fn return_docs(
     gcx: Gcx<'_>,
-    doc_id: hir::DocId,
+    item: hir::ItemId,
     returns: &[hir::VariableId],
 ) -> FxIndexMap<String, String> {
-    gcx.natspec_doc_comments(doc_id)
-        .iter()
-        .copied()
+    doc_items(gcx, item)
+        .into_iter()
         .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
         .enumerate()
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            (!item.content().is_empty()).then_some((name, item.content().to_string()))
+            (!item.content.is_empty()).then_some((name, item.content))
         })
         .collect()
+}
+
+/// A NatSpec item with its text as solc's documentation output has it.
+struct DocItem {
+    kind: hir::NatSpecKind,
+    content: String,
+}
+
+/// Returns the NatSpec items of `doc_id` with their text joined and trimmed like solc.
+///
+/// solc's scanner joins the lines of a doc comment with newlines, dropping the leading `///` of
+/// each line and the leading whitespace and first `*` of each line of a block comment, and
+/// skipping empty lines. Its `DocStringParser` then strips the whitespace that starts a tag and
+/// appends every later line to the tag before it, with a space unless the line starts with one.
+/// A `///` line without a tag is such a continuation, so it extends the item before it instead of
+/// being a notice of its own.
+fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
+    let natspec = gcx.natspec_doc_comments(gcx.hir.item(item_id).doc());
+    if natspec.is_empty() {
+        return inherited_doc_items(gcx, item_id);
+    }
+    let mut items: Vec<DocItem> = Vec::new();
+    for item in natspec.iter().copied() {
+        let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
+        let line_comment = untagged
+            && gcx
+                .sess
+                .source_map()
+                .span_to_snippet(item.span)
+                .is_ok_and(|snippet| snippet.starts_with("///"));
+        if line_comment && let Some(previous) = items.last_mut() {
+            append_doc_line(&mut previous.content, item.content());
+            continue;
+        }
+        let mut content = String::new();
+        for (i, line) in item.content().split('\n').enumerate() {
+            if i == 0 {
+                content.push_str(if untagged {
+                    line.trim_start_matches([' ', '\t'])
+                } else {
+                    line
+                });
+                continue;
+            }
+            // Block comment decoration: whitespace, then one `*`.
+            let line = line.trim_ascii_start();
+            let line =
+                if line.starts_with("**") { line } else { line.strip_prefix('*').unwrap_or(line) };
+            if line.is_empty() {
+                continue;
+            }
+            if content.is_empty() {
+                content.push_str(line.trim_start_matches([' ', '\t']));
+            } else {
+                append_doc_line(&mut content, line);
+            }
+        }
+        items.push(DocItem { kind: item.kind, content });
+    }
+    items
+}
+
+/// Returns the documentation an undocumented item inherits, like solc's `DocStringAnalyser`.
+///
+/// An item without NatSpec tags that overrides exactly one base takes the base's tags, except
+/// custom ones. A function also needs the same parameter names as its base.
+fn inherited_doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
+    let &[base] = gcx.base_override_items(item_id) else { return Vec::new() };
+    if let (hir::ItemId::Function(function), hir::ItemId::Function(base_function)) = (item_id, base)
+    {
+        let names = |id| gcx.hir.function(id).parameters.iter().map(|&p| gcx.hir.variable(p).name);
+        if !names(function).eq(names(base_function)) {
+            return Vec::new();
+        }
+    }
+    let mut items = doc_items(gcx, base);
+    items.retain(|item| !matches!(item.kind, hir::NatSpecKind::Custom { .. }));
+    items
+}
+
+/// Appends a continuation line to a tag's text, as solc's `DocStringParser` does.
+fn append_doc_line(content: &mut String, line: &str) {
+    if line.is_empty() {
+        return;
+    }
+    if !line.starts_with([' ', '\t']) {
+        content.push(' ');
+    }
+    content.push_str(line);
 }
