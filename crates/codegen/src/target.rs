@@ -308,6 +308,17 @@ impl Target {
         !self.optimization.is_none() && added_bytes <= allowed
     }
 
+    /// Live words a caller may hold across an inlined body plus the body's own peak:
+    /// [`Self::SIZE_INLINE_STACK_BUDGET`] under the size objective,
+    /// [`Self::INLINE_STACK_BUDGET`] otherwise.
+    pub(crate) const fn inline_stack_budget(&self) -> usize {
+        if self.optimization.is_size() {
+            Self::SIZE_INLINE_STACK_BUDGET
+        } else {
+            Self::INLINE_STACK_BUDGET
+        }
+    }
+
     /// Whether the model prices creation code, which only the gas objective does.
     pub(crate) const fn is_creation(&self) -> bool {
         self.creation
@@ -1379,6 +1390,11 @@ impl Target {
     /// that drained every carried word, and twelve took 15% off decoding. A single-block clone
     /// never reaches deeper than its call, so the inline loop exempts it.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
+    /// [`Self::INLINE_STACK_BUDGET`] under the size objective: fourteen words, still two short
+    /// of the sixteen a `DUP` or `SWAP` reaches. A size build pays for a call's protocol in
+    /// bytes at every site and for a spill only where it occurs. At fourteen words the project
+    /// corpus's `-Osize` bytecode shrank by 0.02%, and no contract grew by more than 0.5%.
+    pub(crate) const SIZE_INLINE_STACK_BUDGET: usize = 14;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
     /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
     /// leaves the block's own temporaries room.
@@ -2640,6 +2656,7 @@ mod tests {
         let reach = usize::from(op::DUP16 - op::DUP1) + 1;
         for budget in [
             Target::INLINE_STACK_BUDGET,
+            Target::SIZE_INLINE_STACK_BUDGET,
             Target::DIRECT_REUSE_LIVE_BUDGET,
             Target::LOOP_CARRY_BUDGET,
             Target::SHALLOW_CARRIED_WORDS,
