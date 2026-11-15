@@ -205,10 +205,9 @@ theorem run_error (fuel : Nat) {cfg functions machine reason}
     run (fuel + 1) cfg functions machine = .error reason := by
   simp only [run, h, Except.bind, Bind.bind]
 
-def execute (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat) (frame : Frame) : Run := do
-  if cfg.callDepth = 0 then .error "MIR internal call depth limit" else
-  let initial ← start functions entry frame.arguments frame
-  let result ← run fuel cfg functions ⟨{function := entry},[],initial⟩
+/-- Finalization is delayed until execution has produced a terminal result. -/
+def conclude (cfg : Config) (frame : Frame) (execution : Run) : Run := do
+  let result ← execution
   match result.completion with
   | .reverted _ | .invalid | .outOfGas => return {result with world := frame.world}
   | .returned values =>
@@ -217,5 +216,10 @@ def execute (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat) (f
       else .error "MIR entry returned word values"
     else return result
   | .success _ => return {result with world := EVM.State.finalize result.world}
+
+def execute (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat) (frame : Frame) : Run := do
+  if cfg.callDepth = 0 then .error "MIR internal call depth limit" else
+  let initial ← start functions entry frame.arguments frame
+  conclude cfg frame (run fuel cfg functions ⟨{function := entry},[],initial⟩)
 
 end SolarTV.MIR.State

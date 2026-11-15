@@ -15,7 +15,7 @@ inductive Op where
   | add | sub | mul | div | sdiv | mod | smod | exp | and | or | xor
 
 /-- Semantic arithmetic wraps at the operand width, as in lower-integers. -/
-def eval {width : Nat} : Op → BitVec width → BitVec width → BitVec width
+abbrev eval {width : Nat} : Op → BitVec width → BitVec width → BitVec width
   | .add => fun a b => a + b
   | .sub => fun a b => a - b
   | .mul => fun a b => a * b

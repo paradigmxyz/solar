@@ -97,15 +97,25 @@ class MemoryTests(unittest.TestCase):
         # A zero-sized output must not overflow, expand or read the huge offset.
         self.pair("evmir", f"push 0\npush {2**256 - 1}\nreturn", "stop", status=0)
 
-    def test_dynamic_and_out_of_prefix_addresses_are_inconclusive(self):
-        for code, params, diagnostic in [
-            ("v0 = mload arg0\nret v0", "arg0: i256", "must be constant"),
-            ("v0 = mload 225\nret v0", "", "256-byte modeled prefix"),
-            ("mstore8 256, 1\nret 0", "", "256-byte modeled prefix"),
+    def test_unproved_mir_memory_ranges_are_inconclusive(self):
+        for code, params in [
+            ("v0 = mload arg0\nret v0", "arg0: i256"),
+            ("v0 = mload 65505\nret v0", ""),
         ]:
             with self.subTest(code=code):
                 result = self.pair("mir", code, code, params=params, status=2)
-                self.assertIn(diagnostic, result.stderr)
+                self.assertIn("unsupported execution is not equivalence", result.stderr)
+
+    def test_mir_memory_can_exceed_the_old_scalar_prefix(self):
+        # The typed interpreter proves the actual checked ranges, rather than
+        # assuming the old expression projection's 256-byte boundary.
+        for code in ["v0 = mload 225\nret v0", "mstore8 256, 1\nret 0"]:
+            with self.subTest(code=code):
+                result = self.pair("mir", code, code, status=0)
+                self.assertEqual(result.stdout, "verified\n")
+                self.assertIn("arbitrary initial journal", result.stderr)
+
+    def test_unproved_evm_memory_ranges_are_inconclusive(self):
         for code in ["mload\npop\nstop", "push 0\nreturn"]:
             result = self.pair("evmir", code, code, height=1, status=2)
             self.assertIn("must be constant", result.stderr)

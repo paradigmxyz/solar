@@ -24,6 +24,7 @@ import SolarTV.WordSafety
 import SolarTV.EVMIR.State.Normalize
 import SolarTV.EVMIR.Region
 import SolarTV.EVMIR.Prefix
+import SolarTV.EVMIR.Transforms.TailMerge
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
 import SolarTV.EVMIR.Precompiles.Observe
@@ -209,3 +210,23 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.MIR.Universal.expand_defined' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.Universal.expand_defined
+
+/-- info: 'SolarTV.EVM.Transforms.TailMerge.panic_tail' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Transforms.TailMerge.panic_tail
+
+/-- info: 'SolarTV.MIR.State.bit_or_one' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.bit_or_one
+
+/-- info: 'SolarTV.MIR.State.nat_or_bits' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.nat_or_bits
+
+/-- info: 'SolarTV.MIR.State.ofNat_toNat_shift_right' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.ofNat_toNat_shift_right
+
+/-- info: 'SolarTV.MIR.State.shift_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.shift_zero

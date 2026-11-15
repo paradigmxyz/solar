@@ -239,7 +239,7 @@ bb2 [stack=0]:
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(
-                    "incoming EVM stack height is unknown"
+                    "cyclic EVM regions require loop invariants"
                     if name == "cycle"
                     else "universal prefix proof did not close",
                     result.stderr,

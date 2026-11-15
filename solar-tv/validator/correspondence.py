@@ -124,10 +124,21 @@ def __IMPORT___graph (ctx : EVM.Context) : Correspondence.Graph EVM.Region.State
     # Bind the checked tree to the actual function used by the pair proof, not
     # merely to an unused code declaration. The requested entry and input shape
     # come from the validated source selection, independently of the importer.
-    stack = [f"stack{i}" for i in range(stack_height)]
+    universal = stack_height is None
+    if universal and (
+        program.interface != ("evm-universal-region", "memory")
+        or program.inputs
+        or program.input_widths
+        or program.body != "EVM.Region.execute ctx __IMPORT___code stack memory"
+        or program.result_type != "EVM.Memory.Execution"
+        or not program.memory
+        or program.scope != "universal-region"
+    ):
+        raise Unsupported("EVM import changed the universal entry interface")
+    stack = [f"stack{i}" for i in range(stack_height or 0)]
     inputs = ["calldatasize", "returndatasize", *stack, *memory.INPUTS]
-    widths = (*(256 for _ in range(2 + stack_height)), *memory.WIDTHS)
-    if (
+    widths = (*(256 for _ in range(2 + (stack_height or 0))), *memory.WIDTHS)
+    if not universal and (
         program.inputs != inputs
         or program.input_widths != widths
         or program.interface != ("evm-region", str(stack_height), "memory")
@@ -158,6 +169,15 @@ theorem __IMPORT___source_correct (ctx : EVM.Context) (state : EVM.Region.State)
         ).hexdigest(),
         "boundary": "trusted compiler parser/source normalizer and opcode mapping; projected EVM stack/memory semantics",
     }
+    if universal:
+        program.import_obligation = f"""
+theorem __IMPORT___entry_checked (ctx : EVM.Context) (stack : EVM.Stack) (memory : Memory.State) :
+  Correspondence.evalGraph (__IMPORT___graph ctx) {fuel} {entry} (stack,memory) =
+    some (__IMPORT__ ctx stack memory) := by
+  rw [__IMPORT___source_correct]
+  rfl
+"""
+        return
     binders = " ".join(
         f"({name} : BitVec {width})" for name, width in zip(inputs, widths, strict=True)
     )
