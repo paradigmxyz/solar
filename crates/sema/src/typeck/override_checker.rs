@@ -22,6 +22,7 @@ use solar_ast::{FunctionKind, StateMutability, Visibility};
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
     map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{
@@ -45,6 +46,8 @@ type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<Override
 
 pub(crate) struct OverrideIndex<'gcx> {
     by_signature: InheritedFunctions<'gcx>,
+    /// The indices in `by_signature` of the signatures each contract defines, in ascending order.
+    contract_signatures: IndexVec<ContractId, Vec<u32>>,
     by_name: FxHashMap<Ident, Vec<OverrideProxy>>,
     unimplemented_functions: Vec<FunctionId>,
 }
@@ -1014,6 +1017,8 @@ impl<'gcx> OverrideChecker<'gcx> {
 fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
     gcx.override_index.get_or_init(|| {
         let mut by_signature = InheritedFunctions::default();
+        let mut contract_signatures =
+            IndexVec::from_vec(vec![Vec::new(); gcx.hir.contract_ids().len()]);
         let mut by_name = FxHashMap::default();
         let mut unimplemented_functions = Vec::new();
 
@@ -1026,7 +1031,11 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
-            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            let entry = by_signature.entry(override_signature(gcx, proxy));
+            if let Some(contract) = f.contract {
+                contract_signatures[contract].push(entry.index() as u32);
+            }
+            entry.or_insert_with(Vec::new).push(proxy);
             if let Some(name) = proxy.name(gcx) {
                 by_name.entry(name).or_insert_with(Vec::new).push(proxy);
             }
@@ -1038,11 +1047,20 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
                 continue;
             }
             let proxy = OverrideProxy::Variable(v_id);
-            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            let entry = by_signature.entry(override_signature(gcx, proxy));
+            if let Some(contract) = v.contract {
+                contract_signatures[contract].push(entry.index() as u32);
+            }
+            entry.or_insert_with(Vec::new).push(proxy);
             by_name.entry(proxy.name(gcx).unwrap()).or_insert_with(Vec::new).push(proxy);
         }
 
-        OverrideIndex { by_signature, by_name, unimplemented_functions }
+        for signatures in contract_signatures.iter_mut() {
+            signatures.sort_unstable();
+            signatures.dedup();
+        }
+
+        OverrideIndex { by_signature, contract_signatures, by_name, unimplemented_functions }
     })
 }
 
@@ -1157,8 +1175,24 @@ fn compute_inherited_functions<'gcx>(
             ancestry
         })
         .collect::<Vec<_>>();
+    // Only signatures defined in some base can have a visible definition. Visit them in index
+    // order, so the result keeps the order of a walk over the whole index.
+    let index = override_index(gcx);
+    let mut seen = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+    let mut signatures = Vec::new();
+    for ancestry in &direct_base_ancestries {
+        for base_id in ancestry.iter() {
+            if !seen.insert(base_id) {
+                continue;
+            }
+            signatures.extend_from_slice(&index.contract_signatures[base_id]);
+        }
+    }
+    signatures.sort_unstable();
+    signatures.dedup();
     let mut result: InheritedFunctions<'gcx> = FxIndexMap::default();
-    for (&signature, candidates) in &override_index(gcx).by_signature {
+    for i in signatures {
+        let (&signature, candidates) = index.by_signature.get_index(i as usize).unwrap();
         let definitions = visible_definitions(gcx, candidates, &direct_base_ancestries);
         if definitions.len() > 1 {
             result.insert(signature, definitions);
