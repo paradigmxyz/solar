@@ -772,7 +772,7 @@ PYEOF
             --spec-module "$name.gen.$contract.Spec" --bundle "Certified.$name.gen.$contract.Spec.$contract" \
             --module-name "$name.SpecConnect" --out "$dir/SpecConnect.lean" "${sc_more[@]}" \
             --lean "lake env lean -M $memory" --cwd "$lean_dir"; echo "exit $?")
-        [[ "${holds[-1]}" == "exit 0" ]] || die "spec_connect.py refuses functions of $contract (above): their spec is not proved"
+        [[ ${#holds[@]} -gt 0 && "${holds[-1]}" == "exit 0" ]] || die "spec_connect.py refuses functions of $contract (above): their spec is not proved"
         unset 'holds[-1]'
         [[ ${#holds[@]} -gt 0 ]] || die "spec_connect.py connects no function of $contract"
         bash "$here/audit.sh" scan "$dir/SpecConnect.lean" || die "$dir/SpecConnect.lean fails the scan"

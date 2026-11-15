@@ -263,5 +263,28 @@ class SpecConnectCheck(unittest.TestCase):
                           ("clear_succeeds", 8, "omega could not prove the goal:")])
 
 
+class SpecRejectionPath(unittest.TestCase):
+    """A rejected spec ends with spec_connect's REJECTED line, and scripts/certify's guard on the
+    captured output refuses cleanly even when the capture is empty (no bad array subscript)."""
+
+    def test_rejected_line_is_the_verdict(self):
+        log = ["spec_connect: REJECTED: spec: set_meets0 does not check: omega could not prove the goal: (SpecConnect.lean:67)",
+               "certify: error: spec_connect.py refuses functions of C (above): their spec is not proved"]
+        self.assertEqual(generic.spec_rejection(log),
+                         ["REJECTED: spec: set_meets0 does not check: omega could not prove the goal: (SpecConnect.lean:67)"])
+
+    def test_guard_on_empty_capture(self):
+        script = (HERE.parent.parent / "scripts" / "certify").read_text()
+        guard = next(l.strip() for l in script.splitlines() if "spec_connect.py refuses functions of" in l and "exit 0" in l)
+        for capture in ("true", "echo 'exit 1'"):
+            prog = ("set -euo pipefail; contract=C; die() { echo \"certify: error: $*\" >&2; exit 1; }\n"
+                    f"mapfile -t holds < <({capture})\n{guard}\necho passed\n")
+            p = subprocess.run(["bash", "-c", prog], capture_output=True, text=True)
+            self.assertEqual(p.returncode, 1, capture)
+            self.assertIn("their spec is not proved", p.stderr)
+            self.assertNotIn("bad array subscript", p.stderr)
+            self.assertNotIn("passed", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

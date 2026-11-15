@@ -71,6 +71,12 @@ class Failed(Exception):
     pass
 
 
+def spec_rejection(lines):
+    """spec_connect.py's REJECTED lines in scripts/certify's output: a theorem of SpecConnect that
+    does not check, named."""
+    return [l.split("spec_connect: ", 1)[1].strip() for l in lines if "spec_connect: REJECTED: spec:" in l]
+
+
 def resource_failures(lines):
     """The build output lines that say Lean ran out of memory, time or heartbeats."""
     return [l.strip() for l in lines if any(m in l for m in RESOURCE_MARKS)]
@@ -919,7 +925,7 @@ def main():
             lines = logf.read_text().strip().splitlines()
             tail = lines[-3:]
             hit = resource_failures(lines)
-            spec_rej = [l.split("spec_connect: ", 1)[1].strip() for l in lines if "spec_connect: REJECTED: spec:" in l]
+            spec_rej = spec_rejection(lines)
             if spec_rej and not hit:
                 # spec_connect.py elaborated its module and a theorem of it does not check: the spec
                 # is false of the code (or beyond the tactics), named by that theorem.
