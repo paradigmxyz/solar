@@ -21,13 +21,15 @@
 //! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
 //! is never taken. When the header dominates the latch, a branch in the natural loop of their
 //! back edge that leaves the loop is taken once per `UNCOUNTED_LOOP_ITERATIONS` traversals, the
-//! target's estimate for a loop without a computable trip count, and other branches split integer
-//! probability mass equally. Returns to the header stop propagation and inner loops are limited to
-//! 32 rounds and 256 visited blocks. The replacement edge must receive more than twice the old
-//! edge's estimated mass. Without the loop odds, the inner loop of a nested pair looked no hotter
-//! than its entry from the outer loop, which kept a jump on every iteration. This is a static
-//! frequency heuristic, not a guarantee for every input. Other existing fallthroughs remain
-//! intact, and no instruction or condition is duplicated.
+//! target's estimate for a loop without a computable trip count, also when the rest of its block
+//! continues both in and out of the loop, as a search loop's match test does; other branches split
+//! integer probability mass equally. Without that, a search loop nested in another kept its latch
+//! after its header and paid a jump back on every iteration. Returns to the header stop
+//! propagation and inner loops are limited to 32 rounds and 256 visited blocks. The replacement
+//! edge must receive more than twice the old edge's estimated mass. Without the loop odds, the
+//! inner loop of a nested pair looked no hotter than its entry from the outer loop, which kept a
+//! jump on every iteration. This is a static frequency heuristic, not a guarantee for every input.
+//! Other existing fallthroughs remain intact, and no instruction or condition is duplicated.
 //!
 //! The layouts that follow can place a branch's `PUSH; JUMPI` target next behind a `JUMP`, as
 //! `jumpi-fallthrough` describes; the pass turns such branches around when it finishes.
@@ -363,7 +365,7 @@ impl Continuation {
 /// The share of `weight` that a branch in `from` sends to `to` when the block otherwise continues
 /// to `rest`: none into a cold block and all of it when `rest` is cold; inside the loop's body,
 /// all but one part in `UNCOUNTED_LOOP_ITERATIONS` when only `to` stays in the loop and one part
-/// when only `rest` does; half otherwise.
+/// when `to` leaves it and `rest` stays in it on at least one path; half otherwise.
 fn taken_share(
     module: &Module,
     body: &DenseBitSet<BlockId>,
@@ -377,7 +379,13 @@ fn taken_share(
         (Continuation::Cold, _) => 0,
         (_, Continuation::Cold) => weight,
         (Continuation::Inside, Continuation::Outside) if body.contains(from) => weight - exit,
-        (Continuation::Outside, Continuation::Inside) if body.contains(from) => exit,
+        // A branch out of the loop whose block stays in it on some later path, as a search
+        // loop's match test does, still leaves once per traversal estimate.
+        (Continuation::Outside, Continuation::Inside | Continuation::Mixed)
+            if body.contains(from) =>
+        {
+            exit
+        }
         _ => weight / 2,
     }
 }
