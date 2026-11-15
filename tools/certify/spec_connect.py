@@ -129,6 +129,42 @@ def spec_mapping_slots(path):
     return flat - nested, nested
 
 
+# `tree_succeeds` (Verify/Spec/TreeSucceeds.lean) with every simplification step allowed to
+# change nothing: the macro fails with "simp made no progress" when a step has nothing to rewrite,
+# as for a succeeds-if over the call's environment alone (`msg.value == 0`). The steps and the
+# closing tactics are the macro's; only the `try`s are new, so it proves the same statement.
+TREE_SUCCEEDS_TOLERANT = """  intro args s iargs pre hl hargs hs hdec hst ht hreq hinv hsi
+  try simp only [Nat.reducePow] at hs
+  rcases args with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7, _ | ⟨_, _⟩⟩⟩⟩⟩⟩⟩⟩⟩ <;>
+    (try simp only [List.length_cons, List.length_nil] at hl) <;> (try omega) <;>
+    (try simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
+      IsEmpty.forall_iff, implies_true, and_true, Nat.reducePow] at hargs) <;>
+    (try simp only [@DS@, List.head, List.getElem_cons_zero, List.getElem_cons_succ, decodeWords, Ty.ofWord,
+      bind, pure, Option.bind, Nat.reducePow] at hdec) <;>
+    (try split_ifs at hdec) <;> (try simp only [Option.some.injEq, reduceCtorEq] at hdec) <;>
+    (try subst hdec)
+  all_goals try simp only [@DS@, Tree.eval, WExpr.eval, BinOp.eval, UnOp.eval, Generic.wordSize, Res.obs,
+    Writes.store, List.getD_cons_zero, List.getD_cons_succ, Nat.reducePow]
+  all_goals try simp (disch := simp only [hargs, hs, Nat.reduceLT]) only [Nat.mod_eq_of_lt, ite_mod_nat,
+    Nat.reduceMod, Nat.zero_mod, ite10_eq_zero_iff, Decidable.not_not]
+  all_goals try simp only [Bundle.satAll, Bundle.sat, @DS@, List.getElem_cons_succ, List.getElem_cons_zero,
+    List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, eval, evalList, slotOf, mkEnv,
+    Env.cur, Env.bind, BinOp.apply, Ty.ofBits, toWord, List.getD_cons_zero, List.getD_cons_succ,
+    List.lookup, ofProp_ne_zero, ite_true, ite_false, Bool.false_eq_true, Nat.zero_mod, hst,
+    beq_self_eq_true, Ty.InRange, Option.getD_some, forall_int_range, Nat.cast_ofNat, Int.reducePow] at hsi
+  all_goals try simp only [wordMod, Nat.reducePow] at hsi
+  all_goals try simp (disch := first | exact hs _ | omega) only [Nat.cast_ofNat,
+    Int.reduceMod, Int.reduceToNat, Nat.mod_eq_of_lt, toNat_natCast_emod, toNat_ofNat_emod,
+    toNat_zero_emod, toNat_one_emod, wordMod, Nat.reducePow, Nat.reduceMul, Nat.reduceMod, Nat.div_one,
+    Nat.reduceDiv, Int.reducePow] at hsi
+  all_goals ((try split_ifs) <;> (try rfl) <;> first | omega | (simp_all; done) | (simp_all; omega))"""
+
+
+def tree_succeeds_tolerant(ds):
+    """The tolerant `tree_succeeds` proof body for the simp set `ds`."""
+    return TREE_SUCCEEDS_TOLERANT.replace("@DS@", f"{ds}, *")
+
+
 def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
     """A function with succeeds-if conditions: the spec without them (the same tactic, with the
     conditions removed by FnSpec.noSucc), the conditions apart (TreeSucceeds), and both put
@@ -140,12 +176,17 @@ def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
     elif lits:
         sproof = f"  tree_succeeds_map [{ds}] hsep"
     else:
-        sproof = f"  tree_succeeds [{ds}]"
+        sproof = tree_succeeds_tolerant(ds)
     if meets == "TreeMeetsFixed" and not nests:
         # tree_meets_map', which tolerates simplification steps that change nothing (a spec
         # with no invariants); with no mapping, from the separation of no slots.
         sep = "hsep" if lits else "SolidCore.Spec.mapSlotsSeparated_nil"
-        proof0 = f"  tree_meets_map' [{fid}_tree, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, {mod}.ctx] {sep}"
+        ds0 = f"{fid}_tree, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, {mod}.ctx"
+        proof0 = f"  tree_meets_map' [{ds0}] {sep}"
+        if not lits:
+            # A tree with no branch (a function that only writes, such as one setting a slot to a
+            # constant) leaves tree_meets_map' no if-then-else to split; tree_meets_fixed proves it.
+            proof0 = f"  first\n  | (tree_meets_map' [{ds0}] {sep})\n  | (tree_meets_fixed [{ds0}])"
     else:
         proof0 = proof.replace("_spec,", "_spec, SolidCore.Spec.FnSpec.noSucc,", 1)
     comb = (
@@ -160,6 +201,9 @@ def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
         proof0,
         "",
         "set_option maxHeartbeats 4000000 in",
+        "set_option linter.unusedTactic false in",
+        "set_option linter.unreachableTactic false in",
+        "set_option linter.unnecessarySeqFocus false in",
         f"/-- From a pre-state meeting `{fid}`'s succeeds-if conditions, its erased tree succeeds. -/",
         f"theorem {fid}_succeeds{hyp} : TreeSucceeds spec {fid}_spec ctx {n} {fid}_tree := by",
         sproof,
@@ -169,6 +213,39 @@ def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
         f"  {comb} ({fid}_meets0{use}) ({fid}_succeeds{use})",
         "",
     ]
+
+
+def failing_theorems(text, out_lines):
+    """The theorems of the written module that the errors in Lean's output text fall in, with
+    each one's first error, in order: (theorem, line, message)."""
+    found = {}
+    for m in re.finditer(r":(\d+):\d+: error: (.*)", text):
+        if "#guard_msgs" in m.group(2):
+            # The axiom checks at the end fail only because a theorem above them did.
+            continue
+        line = int(m.group(1))
+        thm = next((re.match(r"theorem (\S+)", out_lines[k]).group(1) for k in range(min(line, len(out_lines)) - 1, -1, -1)
+                    if out_lines[k].startswith("theorem ")), "the module header")
+        found.setdefault(thm, (line, m.group(2).strip()))
+    return [(t, l, msg) for t, (l, msg) in found.items()]
+
+
+def check_output(args):
+    """Elaborate the written module before any theorem is named as connected, so that a false spec
+    is refused here, by the theorem that does not check, rather than later as a build error of the
+    published statement's proof."""
+    res = subprocess.run(shlex.split(args.lean) + [str(args.out)], cwd=args.cwd, capture_output=True,
+                         text=True, check=False)
+    text = res.stdout + res.stderr
+    if res.returncode == 0 and "sorryAx" not in text and ": error" not in text:
+        return
+    bad = failing_theorems(text, args.out.read_text().splitlines())
+    sys.stderr.write(text[-4000:])
+    if bad:
+        thm, line, msg = bad[0]
+        more = f" (and {', '.join(t for t, _, _ in bad[1:])})" if len(bad) > 1 else ""
+        sys.exit(f"spec_connect: REJECTED: spec: {thm} does not check{more}: {msg} ({args.out.name}:{line})")
+    sys.exit(f"spec_connect: REJECTED: spec: {args.out.name} does not check (exit {res.returncode})")
 
 
 def main():
@@ -434,6 +511,7 @@ def main():
         ]
     out += [f"end {args.module_name}", ""]
     args.out.write_text("\n".join(out).replace("`", chr(96)))
+    check_output(args)
     for _, name, fid, *_ in fns:
         print(f"{args.module_name}.{fid}_{'tree' if args.tree_only else 'holds'}")
 
