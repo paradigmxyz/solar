@@ -222,7 +222,7 @@ the [region examples](README.md#multi-block-evm-ir-regions).
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
 4. Extend the per-import correspondence certificates beyond acyclic EVM regions
-   and pure straight-line i256 MIR. Connect explicit placement assumptions to
+   and acyclic typed scalar MIR. Connect explicit placement assumptions to
    actual backend layout decisions. Direct MIR semantics and independent replay
    do not by themselves prove those decisions correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including

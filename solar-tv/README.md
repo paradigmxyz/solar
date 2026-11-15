@@ -86,8 +86,10 @@ before either a proof or a counterexample can be accepted.
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
 against a separately exported compiler CFG, for every projected live-in state.
-Straight-line i256 MIR without memory or effects checks the imported expression
-against the direct typed SSA interpreter. Audit records identify these certificates
+Pure acyclic scalar MIR checks its typed arguments, phis, control flow, casts
+and checked arithmetic against the direct SSA interpreter. Memory, actual calls,
+ABI entries and symbolic checked powers remain outside that certificate.
+Audit records identify these certificates
 under `import_correspondence`; other fragments retain the importer assumption.
 See [proof boundaries and remaining work](CORRECTNESS.md).
 

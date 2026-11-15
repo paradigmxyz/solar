@@ -300,4 +300,20 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation 
     | .reverted data => return .reverted data
     | .invalid => return .invalid
 
+/-- Checked results keep their width until assignment boxes the returned word. -/
+@[simp↓] theorem checkedResult_returned (frame : Frame) (value : BitVec width) :
+    checkedResult frame (.returned value) = .ok (.returned (some (value.setWidth 256),frame)) := rfl
+
+@[simp↓] theorem checkedResult_reverted (frame : Frame) (data : RevertData) :
+    checkedResult (width := width) frame (.reverted data) = .ok (.reverted data) := rfl
+
+@[simp↓] theorem checkedResult_invalid (frame : Frame) :
+    checkedResult (width := width) frame .invalid = .ok .invalid := rfl
+
+@[simp↓] theorem checkedResult_ite (frame : Frame) (condition : Prop) [Decidable condition]
+    (yes no : Outcome (BitVec width)) :
+    checkedResult frame (if condition then yes else no) =
+      if condition then checkedResult frame yes else checkedResult frame no := by
+  split <;> rfl
+
 end SolarTV.MIR.State

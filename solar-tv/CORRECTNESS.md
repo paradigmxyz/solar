@@ -33,12 +33,26 @@ execution with bounded exhaustion. It currently handles graph-preserving cleanup
 including removal of unreachable blocks; loop rewriting that needs a simulation
 or invariant is unsupported. Memory/state operations in this route are rejected.
 
-Pure straight-line i256 MIR imports are checked against the direct typed SSA
-interpreter in Lean using the independent Rust schema export. The generated
-obligation quantifies every word argument. Unsupported execution and fuel
-exhaustion cannot satisfy a successful scalar result. Other MIR fragments still
-rely on the importer boundary; the absence of an `import_correspondence` record
-must not be read as a certificate.
+Pure acyclic scalar MIR imports are checked against the direct typed SSA
+interpreter in Lean using the independent Rust schema export. Arguments and the
+single result retain their integer widths from i1 through i256. Certificates
+cover predecessor-sensitive phis, switches, branches, casts and checked
+arithmetic, including exact failure payloads. The independent signature must
+match the imported signature; retagging an i1 input as i256 is rejected.
+
+The generated obligation quantifies every typed argument and links the actual
+imported function to successful interpreter execution. Unsupported execution and
+fuel exhaustion cannot satisfy it. Corruption regressions invert a branch,
+change phi selection, omit an overflow check and exhaust the source interpreter.
+Internal calls, memory effects, ABI entrypoints and symbolic checked powers
+remain outside this certificate. Those modes retain their explicit importer
+boundary; absent `import_correspondence` evidence never means a certificate.
+
+The real `phi`, `switch`, `typed-branch`, `casts` and `checked` example pairs
+now require both import certificates: ten imports previously outside the
+straight-line i256 certificate. Their broken variants still require matching
+Lean and native counterexamples. This expands certified import coverage; the
+separate real-contract sampling denominator below is unchanged.
 
 The compiler parser, Rust source normalizer/schema exporter, opcode mapping and
 backend placement remain trusted. Independent replay checks concrete witnesses
@@ -88,7 +102,7 @@ regressions rather than suppressed statuses or stronger unrecorded assumptions.
 | Arbitrary state and aliases | Explicit world fixtures, listed symbolic storage cells and bounded memory projections | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Scalar local checks; broader direct execution under explicit fixtures | Automatic symbolic products, slices, void/multiple results and call graphs; certificates connecting local importer output to that execution. |
 | EVM entry stacks and indirect transfers | Fixed entry heights and static local transfers | Call/return stack relations and verified indirect targets; never assume an unknown height or destination. |
-| Importer correctness | Certificates for acyclic EVM regions and pure straight-line i256 MIR | Extend independently checked imports to typed CFGs, calls, memory, state and all other admitted modes; audit the remaining Rust and opcode boundaries. |
+| Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
 | Fork and transaction completeness | Admitted fork-specific execution, explicit delegated account state | Transaction admission/authorization processing and Amsterdam's two-resource state gas; differential boundary cases. |
 | Practical evaluation and review | Pinned three-contract sampling plus regression pairs | Wider published corpus, stronger pass coverage, independently reproduced results and external soundness review. |

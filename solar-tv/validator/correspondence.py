@@ -221,18 +221,22 @@ theorem all_finite_executions (ctx : EVM.Context) (fuel entry : Nat) (state : EV
 
 
 def certify_scalar_mir(program, solar, executable, timeout):
-    # Start with straight-line full-word imports. Wider structural/type coverage
-    # remains explicitly outside this per-import certificate, not assumed proved.
+    result = re.fullmatch(r"Outcome \(BitVec (\d+)\)", program.result_type)
+    # The scalar importer already rejects cyclic CFGs. Memory, actual calls and
+    # symbolic checked powers still require additional correspondence lemmas.
     if (
         program.memory
-        or program.result_type != "Outcome (BitVec 256)"
-        or any(width != 256 for width in program.input_widths)
-        or re.search(
-            r"\b(?:phi|jump|jumpi|switch|checked_\w+|wrapping_div|icall)\b",
-            program.canonical_ir,
+        or not result
+        or re.search(r"^\s*(?:v\d+ = )?icall\b", program.canonical_ir, re.MULTILINE)
+        or (
+            program.inputs
+            and re.search(
+                r"^\s*v\d+ = checked_pow\b", program.canonical_ir, re.MULTILINE
+            )
         )
     ):
         return
+    result_width = int(result[1])
     from . import mir_state, world
     from .world_check import MIR_UNFOLD
 
@@ -252,6 +256,16 @@ def certify_scalar_mir(program, solar, executable, timeout):
     )
     if source.world["entry"]:
         return
+    boundary = source.world["boundary"]
+    if (
+        source.inputs != program.inputs
+        or source.input_widths != program.input_widths
+        or any(ty.get("kind", "word") != "word" for ty in boundary["params"])
+        or len(boundary["returns"]) != 1
+        or boundary["returns"][0].get("kind", "word") != "word"
+        or boundary["returns"][0]["bits"] != result_width
+    ):
+        raise Unsupported("MIR import changed the typed scalar interface")
     config = (
         source.world["configuration"]
         .replace("mirExternalConfig", "__IMPORT___external_config")
@@ -259,7 +273,10 @@ def certify_scalar_mir(program, solar, executable, timeout):
     )
     body = source.body.replace("mirWorldConfig", "__IMPORT___world_config")
     args = " ".join(program.inputs)
-    binders = " ".join(f"({arg} : BitVec 256)" for arg in program.inputs)
+    binders = " ".join(
+        f"({arg} : BitVec {width})"
+        for arg, width in zip(program.inputs, program.input_widths, strict=True)
+    )
     program.import_certificate = (
         config
         + f"def __IMPORT___source {binders} : MIR.State.Run :=\n"
@@ -270,23 +287,29 @@ def certify_scalar_mir(program, solar, executable, timeout):
         MIR_UNFOLD.replace("before, after,", "__IMPORT___source, __IMPORT__,")
         .replace("mirWorldConfig", "__IMPORT___world_config")
         .replace("tvWorldConfig, ", "")
+        + ", MIR.State.scalarOutcome, MIR.choose, MIR.phi, MIR.branch, MIR.cast, MIR.checked, MIR.guard, MIR.select, MIR.ternary, Outcome.bind, BitVec.add_comm"
     )
     # Closed executions need no algebraic normalization. Kernel evaluation
     # avoids saturating the simplifier on large word-operation test bodies.
     proof = (
         "  decide +kernel\n"
         if not program.inputs
-        else f"  simp [{unfold}, MIR.State.scalarOutcome, MIR.eval, MIR.wordBinary, MIR.unary, MIR.shift, MIR.cast, MIR.compare, Outcome.bind, BitVec.add_comm]\n"
-        "  all_goals first | rfl | omega\n"
+        else f"  simp [{unfold}]\n"
+        "  all_goals\n"
+        "    repeat first\n"
+        "      | (solve | rfl | (apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_setWidth, BitVec.toNat_add, Nat.mod_mod_of_dvd] <;> omega))\n"
+        f"      | (split_mir_guard <;> simp_all [{unfold}])\n"
     )
     program.import_obligation = f"""
+set_option maxHeartbeats 2000000 in
+set_option maxRecDepth 16384 in
 theorem __IMPORT___import_checked {binders} :
-  MIR.State.scalarOutcome 256 (__IMPORT___source {args}) = some (__IMPORT__ {args}) := by
+  MIR.State.scalarOutcome {result_width} (__IMPORT___source {args}) = some (__IMPORT__ {args}) := by
 {proof}
 """
     program.import_evidence = {
         "kind": "kernel-checked-scalar-interpreter",
-        "fragment": "straight-line i256 without memory or effects",
+        "fragment": "acyclic scalar i1..i256 without memory, calls or symbolic checked power",
         "source_sha256": hashlib.sha256(program.canonical_ir.encode()).hexdigest(),
         "boundary": "trusted compiler parser/schema exporter and operation mapping; independent typed SSA interpreter",
     }
