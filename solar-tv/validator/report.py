@@ -193,6 +193,7 @@ def replay_command(
     region: str | None = None,
     stack_height: int | None = None,
     world: Path | None = None,
+    prefix: str | None = None,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -205,6 +206,8 @@ def replay_command(
         "--timeout",
         str(timeout),
     ]
+    if prefix is not None:
+        argv.extend(["--prefix", prefix])
     if world is not None:
         argv.extend(["--world", str(world.resolve())])
     if gas is not None:

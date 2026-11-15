@@ -1,10 +1,11 @@
-//! EVM windows and acyclic regions with proven fixed entry stack heights.
+//! EVM windows, contextual prefixes and acyclic regions.
 //!
 //! This adapter never selects instruction slices. It checks a changed block only when its
 //! identity, shared declarations and entry height survive. Adjacent edits, changed successors
 //! and shared-tail changes use a complete reachable region through terminal outcomes instead.
 //! Internal labels and stack layouts may change there. The checker rejects cycles, dynamic
-//! transfers and operations outside its fragment; unknown entry heights remain unsupported.
+//! transfers and operations outside its fragment. Unknown-height block windows can instead
+//! prove an effect-free prefix for every incoming stack with an unchanged continuation.
 
 use super::{Region, Snapshot};
 use solar_evmir::ir::{BlockId, Module, verify::Verifier};

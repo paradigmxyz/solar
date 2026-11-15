@@ -22,6 +22,7 @@ import SolarTV.WordSafety
 
 import SolarTV.EVMIR.State.Normalize
 import SolarTV.EVMIR.Region
+import SolarTV.EVMIR.Prefix
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
 import SolarTV.EVMIR.Precompiles.Observe
@@ -179,3 +180,15 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.EVM.Region.toTree_correct' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Region.toTree_correct
+
+/-- info: 'SolarTV.EVM.Prefix.contextual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Prefix.contextual
+
+/-- info: 'SolarTV.EVM.Prefix.sufficient_contextual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Prefix.sufficient_contextual
+
+/-- info: 'SolarTV.EVM.Prefix.resource' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Prefix.resource
