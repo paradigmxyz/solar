@@ -1,0 +1,6 @@
+@module MemoryVoid
+fn @f(arg0: i256) {
+  bb0:
+    mstore 32, arg0
+    ret
+}

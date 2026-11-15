@@ -18,6 +18,7 @@ from . import (
     gas,
     memory,
     mir,
+    mir_symbolic,
     native,
     operations,
     prefix,
@@ -193,10 +194,22 @@ def load(
                     raise Unsupported(
                         f"MIR opcode `{name}` is unavailable on {evm_version or 'cancun'}"
                     )
-    program = (
-        mir.translate(projection)
-        if kind == "mir"
-        else evmir.translate(
+    if kind == "mir":
+        try:
+            program = mir.translate(projection)
+        except Unsupported:
+            names = re.findall(r"^fn @([^ (]+)\(", projection, re.MULTILINE)
+            if len(names) != 1:
+                raise Unsupported("select one MIR function") from None
+            return mir_symbolic.translate(
+                parsed.stdout,
+                function or names[0],
+                replay_executable or native.default(solar),
+                evm_version or "cancun",
+                timeout,
+            )
+    else:
+        program = evmir.translate(
             projection,
             gas=gas_mode,
             evm_version=evm_version or "cancun",
@@ -204,7 +217,7 @@ def load(
             following=following,
             scoped=window is not None,
         )
-    )
+
     program.canonical_ir = projection
     if function is not None or window is not None:
         program.replay_ir = parsed.stdout
@@ -267,6 +280,15 @@ def check(
     replay_executable: str,
     verbose: bool = False,
 ) -> audit.Result:
+    if a.symbolic_mir is not None or b.symbolic_mir is not None:
+        return mir_symbolic.check(
+            a,
+            b,
+            timeout,
+            replay_command=replay_command,
+            replay_executable=replay_executable,
+            verbose=verbose,
+        )
     if a.scope == "cyclic-region" or b.scope == "cyclic-region":
         return correspondence.check_cyclic(a, b, timeout)
     if a.world is not None or b.world is not None:
@@ -776,6 +798,7 @@ def main() -> int:
         )
         if args.function or args.window or args.region or args.prefix:
             record["region"] = {
+                **record.get("region", {}),
                 "kind": "function"
                 if args.function
                 else "region"

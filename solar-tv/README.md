@@ -80,7 +80,8 @@ before either a proof or a counterexample can be accepted.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
-| MIR | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
+| MIR scalar projection | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
+| MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
@@ -92,6 +93,46 @@ ABI entries and symbolic checked powers remain outside that certificate.
 Audit records identify these certificates
 under `import_correspondence`; other fragments retain the importer assumption.
 See [proof boundaries and remaining work](CORRECTNESS.md).
+
+### Automatic typed MIR and caller state
+
+When the scalar importer cannot represent a function's interface or effects,
+the checker can execute the independently exported typed SSA directly. This
+covers void and multiple returns, nested product/slice values, memory/storage
+effects and acyclic internal calls. It preserves logical pointer address spaces
+and every returned component. No backend lowering or implicit FMP setup is used.
+
+```sh
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/universal-state/storage-{before,after}.mir
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/universal-state/multiple-{before,after}.mir
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/universal-state/aggregate-{before,after}.mir
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/universal-state/calls-{before,after}.mir --function f
+# A changed storage effect, confirmed by the kernel and native interpreter:
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/universal-state/storage-{before,broken}.mir
+```
+
+These examples are actual `egraph` before/after pairs. The proof quantifies the
+initial journal, memory contents, returndata, typed arguments, caller environment
+and block context. Initial memory must be aligned and at most 64 KiB; every
+reached operation must remain defined in the model. Acyclic call/CFG analysis
+supplies a work bound, capped at 8,192 units. Recursion requires an invariant.
+
+Both executions must complete: identical model errors, undefined results and
+work exhaustion cannot establish equivalence. Memory and transient storage stay
+observable at normal returns. The proof and its rejection boundary are in
+[MIR/Universal.lean](SolarTV/MIR/Universal.lean). Audit records identify direct
+source execution as `independent-typed-source-interpreter`; they retain the
+trusted Rust schema exporter and constructor-renderer boundary.
+
+Counterexamples use concrete fixtures only after the universal proof fails,
+and require matching native replay. A concrete scenario that verifies never
+replaces the arbitrary-state proof. Erased pointer/layout preconditions and
+unproved pointer witnesses remain unsupported.
 
 EVM windows compare live stack values at outgoing edges before executing either
 successor. Terminal halts discard the remaining stack. The default check assumes
@@ -1076,10 +1117,11 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **3 of 24**, up from
-1 of 24; 21 remain unsupported. The selected check IDs and all three output
-fingerprints are unchanged. The additional checks are WETH's constant-push
-reuse and ERC20Mock's stack cleanup. There are no counterexamples, timeouts or
-errors. This is local coverage, not verification of the complete contracts or
-passes. The exact cases and remaining obligations are in
-[CORRECTNESS.md](CORRECTNESS.md).
+The same eight-check-per-contract sample verifies **3 of 24**, up from the
+original 1 of 24. With automatic typed SSA attempts, 20 are unsupported and one
+larger stateful proof reaches the ten-second limit. Selected check IDs and all
+three output fingerprints are unchanged. The verified additions remain WETH's
+constant-push reuse and ERC20Mock's stack cleanup. There are no counterexamples
+or errors. This is local coverage, not verification of complete contracts or
+passes; the timeout remains visible. The exact cases and remaining obligations
+are in [CORRECTNESS.md](CORRECTNESS.md).

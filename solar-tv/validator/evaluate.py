@@ -224,7 +224,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 "pass": row["pass"],
                 "status": record["status"],
                 "capture_rejection": row["rejection"],
-                "proof_mode": "universal-stack-prefix" if prefix else "original",
+                "proof_mode": record.get("region", {}).get("proof", "original"),
                 "seconds": time.monotonic() - start,
                 "report": str(target.relative_to(folder.parent)),
             }
