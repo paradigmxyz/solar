@@ -8,7 +8,12 @@
 //! summaries and other module state.
 
 use crate::{
-    mir::{Module, analysis::HotnessAnalysis, pass::ModuleAnalyses, should_validate_ir, validate},
+    mir::{
+        Module,
+        analysis::{HotnessAnalysis, LocalSummaryCache},
+        pass::ModuleAnalyses,
+        should_validate_ir, validate,
+    },
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -143,6 +148,31 @@ pub(crate) fn run_passes_inner(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> (bool, Option<ErrorGuaranteed>) {
+    run_passes_with(gcx, module, passes, name, &mut ModuleAnalyses::default())
+}
+
+/// Runs one stage of the default pipeline, reusing the local memory summaries the previous stage
+/// left in `local_summaries`, since nothing edits the module between stages.
+#[must_use]
+pub(crate) fn run_pipeline_stage(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    local_summaries: &mut LocalSummaryCache,
+) -> (bool, Option<ErrorGuaranteed>) {
+    let mut analyses = ModuleAnalyses::with_local_summaries(std::mem::take(local_summaries));
+    let result = run_passes_with(gcx, module, passes, None, &mut analyses);
+    *local_summaries = analyses.into_local_summaries();
+    result
+}
+
+fn run_passes_with(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    name: Option<&str>,
+    analyses: &mut ModuleAnalyses,
+) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
     {
         name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
@@ -151,7 +181,6 @@ pub(crate) fn run_passes_inner(
     };
     let explicit = name.is_some();
     let mut changed = false;
-    let mut analyses = ModuleAnalyses::default();
     let mut unchanged = Vec::new();
     // Parsed or lowered MIR carries no trustworthy hotness.
     let mut hotness = HotnessAnalysis::new();
@@ -192,7 +221,7 @@ pub(crate) fn run_passes_inner(
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = module.take_lowered_check();
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
-                    .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
+                    .in_scope(|| pass.run_pass(gcx, module, analyses));
                 module.restore_lowered_check(
                     lowered_checked && !pass_changed && !analyses.unreported_edit,
                 );

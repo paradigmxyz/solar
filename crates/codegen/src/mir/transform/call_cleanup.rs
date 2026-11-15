@@ -72,15 +72,18 @@ impl MirPass for CallCleanup {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
         let facts = infer_arguments(module);
         let returns = infer_returns(module);
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
-            changed |=
-                cleanup(func, |func, index| argument_bits(func, id, index, &facts), &returns);
+            if cleanup(func, |func, index| argument_bits(func, id, index, &facts), &returns) {
+                analyses.invalidate_local_summary(id);
+                changed = true;
+            }
         }
+        analyses.preserve_local_summaries();
         changed
     }
 }
