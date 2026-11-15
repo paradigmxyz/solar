@@ -236,5 +236,17 @@ class SpecConnectEmission(unittest.TestCase):
         self.assertNotIn("@DS@", text)
 
 
+class ResourceFailures(unittest.TestCase):
+    """A kernel that runs out of memory is reported as resources, never as a refuted proof."""
+
+    def test_kernel_memory(self):
+        log = ["X.lean:97:4: (kernel) excessive memory consumption detected", "error: build failed"]
+        self.assertEqual(len(generic.resource_failures(log)), 1)
+
+    def test_proof_failure_is_not_resources(self):
+        log = ["X.lean:70:2: `simp` made no progress", "error: build failed"]
+        self.assertEqual(generic.resource_failures(log), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

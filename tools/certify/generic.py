@@ -39,6 +39,13 @@ import keccak  # noqa: E402
 SOLC_VERSION = "0.8.35"
 ENVIRONMENT = "one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message (fixed, not quantified)"
 OPTIONS = ["-Ogas", "--evm-version", "osaka"]
+# Lean's per-process memory cap for scripts/certify's builds, pinned to CI's: its own default (3000
+# MB) is too small for a clean build of some base modules, whose kernel then reports excessive
+# memory consumption rather than a proof failure.
+LEAN_MEMORY = "6000"
+# Build output that says Lean ran out of a resource rather than refuting a proof.
+RESOURCE_MARKS = ("excessive memory consumption", "(deterministic) timeout", "maximum number of heartbeats",
+                  "maximum recursion depth", "out of memory", "Killed")
 # Opcodes outside the envelope in the runtime bytecode: calls, creation, self-destruct, gas and
 # return data reads. The loop checker's fragment rejects them too; this check only names them early.
 BAD_OPS = {0xF0: "CREATE", 0xF1: "CALL", 0xF2: "CALLCODE", 0xF4: "DELEGATECALL", 0xF5: "CREATE2",
@@ -62,6 +69,11 @@ class Blocked(Exception):
 
 class Failed(Exception):
     pass
+
+
+def resource_failures(lines):
+    """The build output lines that say Lean ran out of memory, time or heartbeats."""
+    return [l.strip() for l in lines if any(m in l for m in RESOURCE_MARKS)]
 
 
 def sha256_file(p):
@@ -886,12 +898,12 @@ def main():
             record["packages_from"] = str(pk)
         log(f"== generic: solidity-lean {base} + inputs {inputs}; scripts/certify")
         env = dict(os.environ, SOLIDITY_LEAN_DIR=str(lean_dir), CERTIFY_ALLOW_UNPINNED="1", CERTIFY_CLEAN_BUILD="1",
-                   SOLC=a.solc, SOLAR=str(solar))
+                   SOLC=a.solc, SOLAR=str(solar), LEAN_MEMORY=LEAN_MEMORY)
         env.pop("CERTIFY_REPLAY_TRUST_UPSTREAM", None)
         cmd = ["bash", str(ROOT / "scripts" / "certify"), str(d / f"{name}.sol"), "--name", name, "--contract", contract, "--require-final"]
         if a.no_negatives:
             cmd.append("--no-negatives")
-        record["scripts_certify"] = {"command": cmd, "env": {k: env[k] for k in ("SOLIDITY_LEAN_DIR", "CERTIFY_ALLOW_UNPINNED", "CERTIFY_CLEAN_BUILD", "SOLC", "SOLAR")}}
+        record["scripts_certify"] = {"command": cmd, "env": {k: env[k] for k in ("SOLIDITY_LEAN_DIR", "CERTIFY_ALLOW_UNPINNED", "CERTIFY_CLEAN_BUILD", "SOLC", "SOLAR", "LEAN_MEMORY")}}
         logf = rec_dir / "certify.log"
         with open(logf, "w") as lf:
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
@@ -904,7 +916,15 @@ def main():
         record["lean_toolchain"]["lean-toolchain"] = (lean_dir / "lean-toolchain").read_text().strip()
         inner = d / "record.json"
         if p.returncode != 0 or not inner.exists():
-            tail = logf.read_text().strip().splitlines()[-3:]
+            lines = logf.read_text().strip().splitlines()
+            tail = lines[-3:]
+            hit = resource_failures(lines)
+            if hit or p.returncode in (137, -9):
+                # Not a refutation: a build ran out of memory, time or heartbeats.
+                record["resources_exhausted"] = {"count": len(hit), "first": hit[:3], "exit": p.returncode,
+                                                 "lean_memory": LEAN_MEMORY}
+                finish("REJECTED", 1, f"REJECTED: resources: {len(hit)} resource failure(s) in the build, not a "
+                       f"proof failure (LEAN_MEMORY={LEAN_MEMORY}): {(hit or tail)[0][:300]}")
             finish("REJECTED", 1, f"REJECTED: scripts/certify: exits {p.returncode}: {' | '.join(tail)}")
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
