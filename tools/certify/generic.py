@@ -919,6 +919,11 @@ def main():
             lines = logf.read_text().strip().splitlines()
             tail = lines[-3:]
             hit = resource_failures(lines)
+            spec_rej = [l.split("spec_connect: ", 1)[1].strip() for l in lines if "spec_connect: REJECTED: spec:" in l]
+            if spec_rej and not hit:
+                # spec_connect.py elaborated its module and a theorem of it does not check: the spec
+                # is false of the code (or beyond the tactics), named by that theorem.
+                finish("REJECTED", 1, spec_rej[0][:600])
             if hit or p.returncode in (137, -9):
                 # Not a refutation: a build ran out of memory, time or heartbeats.
                 record["resources_exhausted"] = {"count": len(hit), "first": hit[:3], "exit": p.returncode,

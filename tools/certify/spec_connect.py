@@ -211,6 +211,39 @@ def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
     ]
 
 
+def failing_theorems(text, out_lines):
+    """The theorems of the written module that the errors in Lean's output text fall in, with
+    each one's first error, in order: (theorem, line, message)."""
+    found = {}
+    for m in re.finditer(r":(\d+):\d+: error: (.*)", text):
+        if "#guard_msgs" in m.group(2):
+            # The axiom checks at the end fail only because a theorem above them did.
+            continue
+        line = int(m.group(1))
+        thm = next((re.match(r"theorem (\S+)", out_lines[k]).group(1) for k in range(min(line, len(out_lines)) - 1, -1, -1)
+                    if out_lines[k].startswith("theorem ")), "the module header")
+        found.setdefault(thm, (line, m.group(2).strip()))
+    return [(t, l, msg) for t, (l, msg) in found.items()]
+
+
+def check_output(args):
+    """Elaborate the written module before any theorem is named as connected, so that a false spec
+    is refused here, by the theorem that does not check, rather than later as a build error of the
+    published statement's proof."""
+    res = subprocess.run(shlex.split(args.lean) + [str(args.out)], cwd=args.cwd, capture_output=True,
+                         text=True, check=False)
+    text = res.stdout + res.stderr
+    if res.returncode == 0 and "sorryAx" not in text and ": error" not in text:
+        return
+    bad = failing_theorems(text, args.out.read_text().splitlines())
+    sys.stderr.write(text[-4000:])
+    if bad:
+        thm, line, msg = bad[0]
+        more = f" (and {', '.join(t for t, _, _ in bad[1:])})" if len(bad) > 1 else ""
+        sys.exit(f"spec_connect: REJECTED: spec: {thm} does not check{more}: {msg} ({args.out.name}:{line})")
+    sys.exit(f"spec_connect: REJECTED: spec: {args.out.name} does not check (exit {res.returncode})")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -466,6 +499,7 @@ def main():
         ]
     out += [f"end {args.module_name}", ""]
     args.out.write_text("\n".join(out).replace("`", chr(96)))
+    check_output(args)
     for _, name, fid, *_ in fns:
         print(f"{args.module_name}.{fid}_{'tree' if args.tree_only else 'holds'}")
 

@@ -248,5 +248,20 @@ class ResourceFailures(unittest.TestCase):
         self.assertEqual(generic.resource_failures(log), [])
 
 
+class SpecConnectCheck(unittest.TestCase):
+    """spec_connect.py names the theorem a false spec fails in, before anything says connected."""
+
+    def test_failing_theorem_named(self):
+        import spec_connect
+
+        out = ["namespace M", "theorem clear_meets0 : P := by", "  first", "  | (a)", "  | (b)", "",
+               "theorem clear_succeeds : Q := by", "  omega"]
+        text = ("SpecConnect.lean:5:5: error: omega could not prove the goal:\n"
+                "SpecConnect.lean:8:2: error: omega could not prove the goal:\n")
+        self.assertEqual(spec_connect.failing_theorems(text, out),
+                         [("clear_meets0", 5, "omega could not prove the goal:"),
+                          ("clear_succeeds", 8, "omega could not prove the goal:")])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
