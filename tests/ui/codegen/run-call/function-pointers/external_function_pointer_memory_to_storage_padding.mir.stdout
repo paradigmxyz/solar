@@ -1,0 +1,73 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_memory_to_storage_padding.sol:C ===
+@module C
+; function target() external [selector 0xd4b83992]
+fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function f() external returns (uint64 r) [selector 0x26121ff0]
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = shl v1, 32
+    v3 = or v2, 0xd4b83992
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = gt v4, 0xffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = add v4, 1
+    v7 = storage_array_data_slot 0
+    v8 = add v7, v4
+    v9 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    sstore v8, v9 !metadata(storage=symbolic(v8))
+    sstore 0, v6 !metadata(storage=slot(0))
+    mstore 0, 0 !metadata(memory=scratch)
+    v10 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v10))
+    v11 = alloc zeroed checked 64
+    mstore v11, 1
+    v12 = mload v11
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = lt v12, v13
+    jumpi v14, bb1, bb2
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v15 = phi [bb1: v12], [bb4: v19]
+    v16 = lt v15, v13
+    jumpi v16, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb2
+  bb2:                                            ; preds = bb0, bb5
+    sstore 0, v12 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb2, bb7
+    v20 = phi [bb2: 0], [bb7: v30]
+    v21 = lt v20, v12
+    jumpi v21, bb7, bb8
+  bb8:                                            ; preds = bb6
+    mstore 0, 0 !metadata(memory=scratch)
+    v31 = keccak256 0, 32 !metadata(memory=scratch)
+    v32 = sload v31 !metadata(storage=symbolic(v31))
+    v33 = shr v32, 192
+    ret v33
+  bb7:                                            ; preds = bb6
+    v22 = shl v20, 5
+    v23 = ptradd v11, v22
+    v24 = ptradd v23, 32
+    v25 = mload v24
+    v26 = shr v25, 64
+    v27 = storage_array_data_slot 0
+    v28 = add v27, v20
+    v29 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    sstore v28, v29 !metadata(storage=symbolic(v28))
+    v30 = add v20, 1
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v17 = storage_array_data_slot 0
+    v18 = add v17, v15
+    sstore v18, 0 !metadata(storage=symbolic(v18))
+    v19 = add v15, 1
+    jump bb3
+}

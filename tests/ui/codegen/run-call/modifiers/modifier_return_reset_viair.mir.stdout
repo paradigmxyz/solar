@@ -3,10 +3,7 @@
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = or v1, 1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, 1 !metadata(storage=slot(0))
     ret
 }
 
@@ -25,23 +22,20 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     v3 = phi [bb3: 1], [bb4: 0]
     jump bb2
   bb2:                                            ; preds = bb5
+    sstore 0, 0 !metadata(storage=slot(0))
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v6 = or v5, 0
-    sstore 0, v6 !metadata(storage=slot(0))
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = trunc i256 v7 to i8
-    v9 = ne v8, i8 0
-    jumpi v9, bb7, bb8
+    v5 = trunc i256 v4 to i8
+    v6 = ne v5, i8 0
+    jumpi v6, bb7, bb8
   bb8:                                            ; preds = bb2
     jump bb9
   bb7:                                            ; preds = bb2
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v10 = phi [bb7: 1], [bb8: 0]
+    v7 = phi [bb7: 1], [bb8: 0]
     jump bb6
   bb6:                                            ; preds = bb9
     jump bb1
   bb1:                                            ; preds = bb6
-    ret v10
+    ret v7
 }

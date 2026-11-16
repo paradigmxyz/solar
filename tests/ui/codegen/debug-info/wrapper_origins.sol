@@ -28,7 +28,7 @@
 // RUNTIME: revert !metadata(span=[[F]], exit=revert)
 
 // CREATION-LABEL: (creation) ===
-// CREATION: bb0 [invoke=constructor@[[CTOR:[0-9]+..[0-9]+]]]
+// CREATION: bb0 [dispatch, invoke=constructor@[[CTOR:[0-9]+..[0-9]+]]]
 // CREATION: lt !metadata(span=[[CTOR]])
 // CREATION: callvalue !metadata(span=[[CTOR]])
 // CREATION: jumpi !metadata(span=[[CTOR]])

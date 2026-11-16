@@ -1,0 +1,32 @@
+//@compile-flags: -Zevm-ir-pipeline=tail-merge
+@module TailMergePc
+@optimize size
+
+bb0:
+  push 0
+  calldataload
+  push bb2
+  jumpi
+  jump bb1
+
+bb1:
+  push 1
+  push 0
+  mstore
+  pc
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+bb2:
+  push 2
+  push 0
+  mstore
+  pc
+  push 0
+  mstore
+  push 32
+  push 0
+  return

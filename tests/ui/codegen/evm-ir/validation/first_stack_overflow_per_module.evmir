@@ -1,0 +1,14 @@
+//@ compile-flags: --emit=bin-runtime
+// Only the first block that passes the limit is reported, by index, and the bytecode is emitted.
+//~? WARN: `dup` in block 0 grows the EVM stack to 1025 words
+@module module
+
+bb0 [stack=1023]:
+  dup 1
+  dup 1
+  jump bb1
+
+bb1:
+  push 0
+  push 0
+  stop

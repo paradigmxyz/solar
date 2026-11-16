@@ -22,7 +22,10 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -54,7 +57,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.function_labels[&func_id];
             self.asm.define_external_entry_label(label);
             self.mark_debug_external_entry_label(label, func);
-            self.mark_debug_function_invoke(func);
+            self.mark_debug_function_invoke(func, true);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, module, plan);
@@ -106,7 +109,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &func.blocks[BlockId::ENTRY].label_metadata,
             );
         }
-        self.mark_debug_function_invoke(func);
+        self.mark_debug_function_invoke(func, true);
         self.comment_function_entry(func, false, true);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
@@ -164,7 +167,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 None => self.asm.define_label(label),
             }
             self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
-            self.mark_debug_function_invoke(func);
+            self.mark_debug_function_invoke(func, false);
             self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, module, plan);
@@ -198,6 +201,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // instructions, so the buffer loads, and the values bound to the extra results, are the
         // same in both.
         if self.capture_mir {
+            let published = plan
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|block| &block.steps)
+                .filter_map(|step| match step {
+                    &Step::Publish { inst, .. } => Some(inst),
+                    _ => None,
+                })
+                .collect::<FxHashSet<_>>();
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (index, &inst) in block.instructions.iter().enumerate() {
                     let InstKind::ICall { function: Callee::Function(callee), .. } =
@@ -212,15 +225,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let Some(protocol) = call_projection(func, block_id, index, arity) else {
                         continue;
                     };
-                    let published = plan
-                        .blocks
-                        .iter()
-                        .flatten()
-                        .flat_map(|block| &block.steps)
-                        .any(|step| {
-                            matches!(step, Step::Publish { callee: target, .. } if *target == callee)
-                        });
-                    if protocol.extras.iter().any(Option::is_some) || !published {
+                    if protocol.extras.iter().any(Option::is_some) || !published.contains(&inst) {
                         self.stack_return_sites.insert(
                             (func_id, inst),
                             StackReturn {
@@ -428,12 +433,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stackified_step(func_id, func, step, cold);
                 self.asm.set_debug_origin(insertion);
             } else {
-                self.emit_stackified_step(func_id, func, step, cold);
+                self.emit_block_step(func_id, func, block, step, cold);
             }
         }
         self.set_terminator_origin(func, block);
+        let mut assignments = self.edge_assignments(func, block, &plan.exit);
         for step in terminator {
-            self.emit_stackified_step(func_id, func, step, cold);
+            let origin = match *step {
+                Step::Materialize(value) => assignments
+                    .iter()
+                    .position(|&(stored, _)| stored == value)
+                    .map(|index| assignments.remove(index).1),
+                _ => None,
+            };
+            if let Some(origin) = origin {
+                let terminator_origin = self.asm.debug_origin();
+                self.set_origins(origin);
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(terminator_origin);
+            } else {
+                self.emit_block_step(func_id, func, block, step, cold);
+            }
         }
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
@@ -528,6 +548,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits one step of `block`'s own code, as opposed to a trampoline's.
+    fn emit_block_step(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        block: BlockId,
+        step: &Step,
+        cold: bool,
+    ) {
+        match step {
+            Step::BeginTerminator => self.set_terminator_origin(func, block),
+            step => self.emit_stackified_step(func_id, func, step, cold),
+        }
+    }
+
     fn emit_stackified_step(
         &mut self,
         func_id: FunctionId,
@@ -560,6 +595,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.set_origins(metadata);
                 }
             }
+            Step::BeginTerminator => {
+                unreachable!("only a block's own code restarts its terminator")
+            }
             Step::Shared { value, origins } => {
                 if self.capture_debug_info {
                     let current = self.asm.debug_origin();
@@ -572,7 +610,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee, _) => {
+            &Step::Call(callee) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -583,7 +621,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
             }
-            &Step::Publish { callee, arity, params } => {
+            &Step::Publish { callee, arity, params, .. } => {
                 // [result(m-1), ..., result1, result0]
                 // swap1; push frame[return + 32 * k]; mstore   (k = 1..m)
                 // push frame[return]; push 0x20; mstore
@@ -642,6 +680,30 @@ impl<'gcx> EvmCodegen<'gcx> {
             let metadata = &func.blocks[block].terminator_metadata;
             self.set_origins(metadata);
         }
+    }
+
+    /// Returns the assignments, as the value each stored and its source context, whose constants
+    /// the code of the edge out of `block` may push, or none when `exit` is not a jump.
+    ///
+    /// NOTE: A jump is an edge that leaves `block` unconditionally, so its code runs exactly once
+    /// per execution of `block`. The assignments in [`InstructionMetadata::edge_assignments`]
+    /// ran in `block`, so the push of the value of one runs exactly when the assignment does and
+    /// may carry its span, as a copy carries the location of the instruction it replaces. An edge
+    /// out of a block that branches keeps the origin of its terminator: its code runs on one arm
+    /// only. Only a push of a constant is matched, by its value: the planner does not record
+    /// which phi a `DUP` or a reload serves, so a copy of a variable keeps the origin of the
+    /// terminator rather than take the span of an arbitrary assignment.
+    fn edge_assignments<'f>(
+        &self,
+        func: &'f Function,
+        block: BlockId,
+        exit: &Exit,
+    ) -> Vec<(ValueId, &'f InstructionMetadata)> {
+        if !self.capture_debug_info || !matches!(exit, Exit::Jump(_)) {
+            return Vec::new();
+        }
+        let assignments = func.blocks[block].terminator_metadata.edge_assignments();
+        assignments.iter().map(|assignment| (assignment.value, &assignment.origin)).collect()
     }
 
     /// Attributes the push of a retained constant to `origins`, the combined origin of its readers

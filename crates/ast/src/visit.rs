@@ -129,7 +129,7 @@ declare_visitors! {
             let ItemEnum { name, variants } = enum_;
             self.visit_ident #_mut(name)?;
             for variant in variants.iter #_mut() {
-                self.visit_ident #_mut(variant)?;
+                self.visit_ident #_mut(&#mut variant.name)?;
             }
             ControlFlow::Continue(())
         }

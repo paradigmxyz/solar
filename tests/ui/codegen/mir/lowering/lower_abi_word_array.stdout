@@ -1,0 +1,108 @@
+; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_word_array.sol:WordArray ===
+@module WordArray
+; function words(uint256[] calldata a) external pure returns (uint256[] calldata) [selector 0xdc95fc7e]
+fn @words() [selector=0xdc95fc7e, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb2, bb3
+  bb3:                                            ; preds = bb0
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = sub v1, 4
+    v6 = sub v5, 32
+    v7 = lt v6, v3
+    jumpi v7, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v8 = calldataload v4
+    v9 = add v4, 32
+    v10 = sub v1, v9
+    v11 = shr v10, 5
+    v12 = lt v11, v8
+    jumpi v12, bb4, bb6
+  bb6:                                            ; preds = bb5
+    v13 = inttoptr i256 v9 to ptr<calldata>
+    v14 = make_calldata_slice v13, v8
+    jump bb1
+  bb1:                                            ; preds = bb6
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v15 = abi_encode [memory_array<word>], scratch, args v14
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    returndata v16, v17
+  bb4 [cold]:                                     ; preds = bb3, bb5
+    revert 0, 0
+  bb2 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function narrow(uint8[] memory a) external pure returns (uint8[] memory) [selector 0xb8ad5bd3]
+fn @narrow() [selector=0xb8ad5bd3, abi_wrapper, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb2, bb3
+  bb3:                                            ; preds = bb0
+    v2 = calldataload 4
+    v3 = add v2, 4
+    v4 = sub v0, 4
+    v5 = sub v4, 32
+    v6 = lt v5, v2
+    jumpi v6, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v7 = calldataload v3
+    v8 = add v3, 32
+    v9 = gt v7, 0x7ffffffffffffff
+    jumpi v9, bb6, bb7
+  bb7:                                            ; preds = bb5
+    v10 = add v7, 1
+    v11 = mul v10, 32
+    v12 = alloc checked v11
+    mstore v12, v7
+    v13 = mul v7, 32
+    v14 = sub v0, v8
+    v15 = shr v14, 5
+    v16 = lt v15, v7
+    jumpi v16, bb4, bb8
+  bb8:                                            ; preds = bb7
+    v17 = ne v7, 0
+    jumpi v17, bb9, bb12
+  bb9:                                            ; preds = bb8
+    v18 = mul v7, 32
+    v19 = add v8, v18
+    jump bb10
+  bb10:                                           ; preds = bb9, bb10
+    v20 = phi [bb9: v8], [bb10: v24]
+    v21 = phi [bb9: 0], [bb10: v23]
+    v22 = calldataload v20
+    v23 = or v22, v21
+    v24 = add v20, 32
+    v25 = lt v24, v19
+    jumpi v25, bb10, bb11
+  bb11:                                           ; preds = bb10
+    v26 = gt v23, 255
+    jumpi v26, bb4, bb13
+  bb13:                                           ; preds = bb11
+    jump bb12
+  bb12:                                           ; preds = bb8, bb13
+    v27 = inttoptr i256 v8 to ptr<calldata>
+    v28 = make_calldata_slice v27, v13
+    v29 = ptradd v12, 32
+    v30 = extract_value slice<calldata>, v28, 0
+    v31 = extract_value slice<calldata>, v28, 1
+    calldatacopy v29, v30, v31
+    jump bb1
+  bb1:                                            ; preds = bb12
+    v32 = abi_encode [memory_array<word<uint8>>], scratch, args v12
+    v33 = extract_value slice<memory>, v32, 0
+    v34 = extract_value slice<memory>, v32, 1
+    returndata v33, v34
+  bb6 [cold]:                                     ; preds = bb5
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb4 [cold]:                                     ; preds = bb3, bb7, bb11
+    revert 0, 0
+  bb2 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}

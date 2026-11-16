@@ -40,7 +40,8 @@ struct EthdebugFunctionInvoke {
     identifier: Option<String>,
     declaration: EthdebugSourceRange,
     jump: bool,
-    target: EthdebugInvocationTarget,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target: Option<EthdebugInvocationTarget>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -276,7 +277,6 @@ pub(crate) fn make_ethdebug_program(
         .ok()
         .map(|range| EthdebugRange { offset: range.start, length: range.end - range.start });
 
-    let mut previous = None;
     let instructions = debug_info
         .instructions(bytecode)
         .map(|instruction| {
@@ -291,9 +291,7 @@ pub(crate) fn make_ethdebug_program(
                 .map(|argument| format!("0x{}", alloy_primitives::hex::display(argument)))
                 .into_iter()
                 .collect();
-            let context =
-                make_ethdebug_context(gcx, &source_ids, bytecode, previous.as_ref(), &instruction);
-            previous = Some(instruction);
+            let context = make_ethdebug_context(gcx, &source_ids, &instruction);
             EthdebugInstruction {
                 offset: instruction.offset as usize,
                 operation: EthdebugOperation { mnemonic, arguments },
@@ -331,8 +329,6 @@ fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction<'_>) -> 
 fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction<'_>>,
     instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugContext> {
     let location = instruction.location;
@@ -357,9 +353,9 @@ fn make_ethdebug_context(
         _ if location.all_source_spans => (None, Vec::new(), contexts),
         _ => (None, contexts, Vec::new()),
     };
-    let invoke = location.function_invoke.and_then(|function| {
-        make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
-    });
+    let invoke = location
+        .function_invoke
+        .and_then(|function| make_ethdebug_function_invoke(gcx, source_ids, function, instruction));
     let (r#return, revert) = match (location.function_exit, instruction.opcode) {
         (Some(DebugFunctionExit::Return), 0x00 | 0x56 | 0x57 | 0xf3) => {
             (Some(EthdebugFunctionExit {}), None)
@@ -383,18 +379,20 @@ fn make_ethdebug_context(
 fn make_ethdebug_function_invoke(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction<'_>>,
     function: DebugFunction,
     instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugFunctionInvoke> {
-    // NOTE: Constructors, entry labels, dynamic jumps, and optimized fallthroughs
-    // are not statically identified internal calls. Leave their invocation
-    // unknown rather than inventing a jump target or changing executable code.
-    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)?;
-    let target = EthdebugInvocationTarget {
-        pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
-    };
+    // The event marks the first instruction of the callee: its entry `JUMPDEST`, which is where
+    // the ethdebug format places an internal call's `invoke`.
+    // NOTE: Code that nothing jumps into, such as an inlined body or a constructor without
+    // helpers, starts at another instruction, and there is no jump target to point at.
+    let target = (instruction.opcode == op::JUMPDEST).then_some(EthdebugInvocationTarget {
+        pointer: EthdebugCodePointer {
+            location: "code",
+            offset: instruction.offset as usize,
+            length: 1,
+        },
+    });
     Some(EthdebugFunctionInvoke {
         identifier: (function.identifier != solar_interface::sym::_anonymous)
             .then(|| function.identifier.to_string()),

@@ -1,0 +1,26 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+// The thunk's jump leaves `caller` and is replaced by a copy of the shared return body. The copy's
+// `RETURN` is the instruction that leaves, so the exit moves there, not to the first instruction.
+@module InlineReturnExit
+
+// CHECK-LABEL: (after cfg-simplify)
+// CHECK: {{^[ +].*}}bb3:
+// CHECK-NOT: {{^[ +].*exit=return}}
+// CHECK: + return !metadata(exit=return)
+bb0:
+  push bb3
+  pop
+  stop
+bb1:
+  jump bb3
+bb2:
+  jump bb3
+bb3:
+  jump bb4 !metadata(span=10..20, exit=return)
+bb4:
+  push 128
+  mstore
+  push 32
+  push 128
+  return

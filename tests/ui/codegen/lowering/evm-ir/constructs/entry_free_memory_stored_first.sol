@@ -8,16 +8,16 @@
 // The slot's initial value matters only to a read that some path reaches before a store.
 
 // The allocation stores the pointer before assembly reads it, so the entry skips the
-// initialization: after the dispatch comes the folded allocation limit check, not an `mstore`.
+// initialization: after the dispatch comes the folded final pointer, not an `mstore` of the
+// initial one.
 // CHECK-LABEL: @module StoredFirst_runtime
 // CHECK: push 0x26121ff0
 // CHECK-NEXT: sub
 // CHECK-NEXT: push bb{{[0-9]+}}
 // CHECK-NEXT: jumpi
 // CHECK-NEXT: push 192
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: push 64
-// CHECK-NEXT: shr
+// CHECK-NEXT: push 0
+// CHECK-NEXT: mstore
 contract StoredFirst {
     function f() external pure returns (uint256 p) {
         bytes memory b = new bytes(32);
@@ -34,6 +34,8 @@ contract StoredFirst {
 // CHECK-NEXT: sub
 // CHECK-NEXT: push bb{{[0-9]+}}
 // CHECK-NEXT: jumpi
+// CHECK-NEXT: push 192
+// CHECK-NEXT: dup 1
 // CHECK-NEXT: push 128
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: push 64

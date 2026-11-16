@@ -329,6 +329,8 @@ str_enum! {
     pub enum CompilerOutput {
         /// JSON ABI.
         Abi,
+        /// AST JSON.
+        Ast,
         /// Creation bytecode (deployment).
         Bin,
         /// Runtime bytecode (deployed).

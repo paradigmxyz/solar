@@ -330,7 +330,7 @@ pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
             let body = &func.blocks[block];
             (
                 body.terminator.clone().expect("loop blocks are terminated"),
-                body.terminator_metadata.clone(),
+                body.terminator_metadata.without_operand_facts(),
             )
         };
         terminator.visit_operands_mut(|value| *value = copy.value(*value));

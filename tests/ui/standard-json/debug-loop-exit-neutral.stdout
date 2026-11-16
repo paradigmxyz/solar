@@ -555,6 +555,19 @@
                         "offset": 20,
                         "length": 238
                       }
+                    },
+                    "invoke": {
+                      "identifier": "previous",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 20,
+                          "length": 238
+                        }
+                      },
+                      "jump": true
                     }
                   }
                 },
@@ -1054,8 +1067,7 @@
                           }
                         }
                       }
-                    ],
-                    "revert": {}
+                    ]
                   }
                 }
               ]

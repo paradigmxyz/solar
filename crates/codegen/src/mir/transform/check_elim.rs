@@ -2558,6 +2558,13 @@ impl<'a> CheckEliminator<'a> {
             }
             // `byte` extracts one byte and yields zero past the word.
             InstKind::Byte(..) => Range::new(U256::ZERO, U256::from(255)),
+            // The count of leading zeros falls as the operand grows, and is the whole width
+            // for zero.
+            InstKind::Clz(a) if integer_bits(func, a) == bits => {
+                let ra = self.range_of(func, a, depth);
+                let zeros = |value: U256| U256::from(bits as usize - value.bit_len());
+                Range::new(zeros(ra.hi), zeros(ra.lo))
+            }
             InstKind::Not(a) => {
                 let ra = self.range_of(func, a, depth);
                 Range::new(ra.hi ^ full.hi, ra.lo ^ full.hi)

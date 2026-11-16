@@ -387,6 +387,12 @@ impl<'a> FileResolver<'a> {
         first.map(Some).map_err(|e| ResolveError::ReadFile(found.swap_remove(0), e))
     }
 
+    /// Returns the normalized source unit name that `path` refers to when imported from `parent`,
+    /// whether or not a file has it.
+    pub fn import_unit_name(&self, path: &Path, parent: &Path) -> PathBuf {
+        normalize_unit(&self.import_source_unit_name(path, parent))
+    }
+
     /// Returns the source unit name that `path` refers to when imported from `parent`.
     fn import_source_unit_name<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
         let names = self.importer_names(parent);

@@ -60,16 +60,13 @@ fn @pickNegated(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x2c44b1a0, 
 ; function store(bool a) external returns (bool) [selector 0x35561014]
 fn @store(arg0: i1) -> i1 [selector=0x35561014, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = zext i1 arg0 to i256
-    v3 = and v2, 255
-    v4 = or v1, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = trunc i256 v5 to i8
-    v7 = ne v6, i8 0
-    ret v7
+    v0 = zext i1 arg0 to i256
+    v1 = and v0, 255
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = trunc i256 v2 to i8
+    v4 = ne v3, i8 0
+    ret v4
 }
 
 ; function negated(bool a) external pure returns (bool) [selector 0x9dfb2ec5]

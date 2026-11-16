@@ -1,7 +1,7 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationSemantics, BlockId, CalldataTail,
+    AbiEncodeMode, AllocationFailure, AllocationSemantics, BlockId, CallPolicy, CalldataTail,
     FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
     Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
     PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
@@ -162,6 +162,27 @@ impl<'a> FunctionBuilder<'a> {
         let previous = self.current_debug_context.modifier_depth();
         self.current_debug_context.set_modifier_depth(depth);
         previous
+    }
+
+    /// Returns the source context attached to newly emitted instructions.
+    #[must_use]
+    pub fn debug_context(&self) -> InstructionMetadata {
+        self.current_debug_context.debug_context()
+    }
+
+    /// Records, on the jump that ends `block`, that an assignment stored `value`, which a phi of
+    /// the jump's target takes. `origin` is the [`Self::debug_context`] taken when `value` was
+    /// assigned in `block`. Does nothing when `block` does not end in a jump.
+    pub fn add_edge_assignment(
+        &mut self,
+        block: BlockId,
+        value: ValueId,
+        origin: InstructionMetadata,
+    ) {
+        let block = &mut self.func.blocks[block];
+        if matches!(block.terminator, Some(Terminator::Jump(_))) {
+            block.terminator_metadata.add_edge_assignment(value, origin);
+        }
     }
 
     /// Inherits source context while replacing an instruction or control transfer.
@@ -1139,24 +1160,46 @@ impl<'a> FunctionBuilder<'a> {
         self.address_value(value, EvmMemoryLayout::DYNAMIC_HEADER_SIZE.saturating_add(offset))
     }
 
+    /// Stages the bytes of a dynamic memory object or slice for a consumer that reads them at
+    /// once. Calldata and returndata bytes are copied to free memory without reserving them, as
+    /// a memory slice; memory bytes are read where they lie.
+    pub fn stage_bytes(&mut self, value: ValueId) -> ValueId {
+        match self.copy_bytes_to_free_memory(value) {
+            Some((data, len)) => {
+                // staged = make_slice data, len
+                self.make_slice(data, len, PtrLocation::Memory)
+            }
+            None => value,
+        }
+    }
+
     /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
     /// first copied to free memory.
     pub fn keccak256_bytes(&mut self, value: ValueId) -> ValueId {
-        let (data, len) = match self.func.value_slice_location(value) {
-            Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
-                // data = fmp
-                // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value
-                // value, 1)
-                let source = self.slice_ptr(value);
-                let len = self.slice_len(value);
-                let data = self.fmp();
-                self.copy_heap(data, source, len, location);
-                (data, len)
-            }
-            _ => (self.memory_data(value), self.memory_len(value)),
+        let (data, len) = match self.copy_bytes_to_free_memory(value) {
+            Some(range) => range,
+            None => (self.memory_data(value), self.memory_len(value)),
         };
         // hash = keccak256 data, len
         self.keccak256(data, len)
+    }
+
+    /// Copies calldata or returndata bytes to the free memory pointer without reserving them, and
+    /// returns the copy's address and length. Memory bytes need no copy and return `None`.
+    fn copy_bytes_to_free_memory(&mut self, value: ValueId) -> Option<(ValueId, ValueId)> {
+        let location @ (PtrLocation::Calldata | PtrLocation::Returndata) =
+            self.func.value_slice_location(value)?
+        else {
+            return None;
+        };
+        // data = fmp
+        // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value value,
+        // 1)
+        let source = self.slice_ptr(value);
+        let len = self.slice_len(value);
+        let data = self.fmp();
+        self.copy_heap(data, source, len, location);
+        Some((data, len))
     }
 
     /// Loads a direct struct field.
@@ -1776,20 +1819,18 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
     }
 
-    /// Emits a low-level address call over a bytes object.
-    pub fn address_call(
+    /// Emits an `extcall` over a bytes object or memory slice, or over no bytes at all, and
+    /// returns its success flag.
+    pub fn extcall(
         &mut self,
-        kind: AddressCallKind,
+        policy: CallPolicy,
         address: ValueId,
-        input: ValueId,
+        input: Option<ValueId>,
         gas: Option<ValueId>,
         value: Option<ValueId>,
     ) -> ValueId {
-        // success = address_call(address, input, gas?, value?)
-        self.emit_inst(
-            InstKind::AddressCall { kind, address, input, gas, value },
-            Some(MirType::I1),
-        )
+        // success = extcall <policy> address, input?, gas?, value?
+        self.emit_inst(InstKind::ExtCall { policy, address, input, gas, value }, Some(MirType::I1))
     }
 
     /// Copies the current returndata into a fresh bytes object.
@@ -1799,21 +1840,6 @@ impl<'a> FunctionBuilder<'a> {
             InstKind::builtin(crate::Builtin::ReturndataBytes, []),
             Some(MirType::MEMPTR),
         )
-    }
-
-    /// Sends value with the Solidity stipend, returning success.
-    pub fn send(&mut self, address: ValueId, amount: ValueId) -> ValueId {
-        // success = send address, amount
-        self.emit_inst(
-            InstKind::builtin(crate::Builtin::Send, [address, amount]),
-            Some(MirType::I256),
-        )
-    }
-
-    /// Transfers value with the Solidity stipend and propagates failure returndata.
-    pub fn transfer(&mut self, address: ValueId, amount: ValueId) {
-        // transfer address, amount
-        self.emit_void_inst(InstKind::builtin(crate::Builtin::Transfer, [address, amount]));
     }
 
     /// Emits a call instruction (external call).

@@ -582,8 +582,7 @@
                           }
                         }
                       }
-                    ],
-                    "revert": {}
+                    ]
                   }
                 },
                 {
@@ -599,6 +598,26 @@
                       "range": {
                         "offset": 19,
                         "length": 84
+                      }
+                    },
+                    "invoke": {
+                      "identifier": "checked",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 19,
+                          "length": 84
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 38,
+                          "length": 1
+                        }
                       }
                     }
                   }
@@ -833,6 +852,26 @@
                       "range": {
                         "offset": 104,
                         "length": 89
+                      }
+                    },
+                    "invoke": {
+                      "identifier": "length",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 104,
+                          "length": 89
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 55,
+                          "length": 1
+                        }
                       }
                     }
                   }
@@ -1317,7 +1356,7 @@
                 }
               ]
             },
-            "sourceMap": "0:195:0:-:0;;;;;;;;;;;;;;;:::i;:::-;;;;:::i;-1:-1:-1:-;;;;19:84:0;;;75:15;;;19:84;;92:9;;;;;104:89;;;;;;;;;;;;;;;;;;;;;;;172:19;;;;"
+            "sourceMap": "0:195:0:-:0;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;19:84:0;;;75:15;;;19:84;;92:9;;;;;104:89;;;;;;;;;;;;;;;;;;;;;;;172:19;;;;"
           }
         }
       }

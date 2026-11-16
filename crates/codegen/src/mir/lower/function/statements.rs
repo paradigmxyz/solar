@@ -59,7 +59,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let value =
                     self.bind_word(*id, value, initializer.map_or(stmt.span, |expr| expr.span))?;
-                self.values.insert(*id, value);
+                self.assign_local(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
                 if ids.iter().flatten().any(|&id| {
@@ -84,7 +84,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, access.slot, span)?;
-                                self.values.insert(*id, value);
+                                self.assign_local(*id, value);
                                 continue;
                             }
                             self.storage_refs.insert(*id, access);
@@ -98,7 +98,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.convert_tuple_component(value, source_ty, ty, expr.span)?;
                             let span = self.cx.gcx.hir.variable(*id).span;
                             let value = self.bind_word(*id, value, span)?;
-                            self.values.insert(*id, value);
+                            self.assign_local(*id, value);
                         }
                     }
                     return Some(());
@@ -157,7 +157,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )?;
                     for (id, value) in ids.iter().flatten().zip(values) {
                         let value = self.materialize_raw_scalar(*id, value);
-                        self.values.insert(*id, value);
+                        self.assign_local(*id, value);
                     }
                     return Some(());
                 }
@@ -177,7 +177,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             self.convert_tuple_component(value, source, target, expr.span)?;
                         let span = self.cx.gcx.hir.variable(*id).span;
                         let value = self.bind_word(*id, value, span)?;
-                        self.values.insert(*id, value);
+                        self.assign_local(*id, value);
                     }
                 }
             }
@@ -237,7 +237,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.set_storage_ref_slot(id, slot);
                             } else {
                                 let value = self.bind_word(id, value, stmt.span)?;
-                                self.values.insert(id, value);
+                                self.assign_local(id, value);
                             }
                         }
                     }
@@ -326,7 +326,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let span = operand.span;
         let value = self.convert_operand(operand)?;
         let value = self.bind_word(id, value, span)?;
-        self.values.insert(id, value);
+        self.assign_local(id, value);
         Some(())
     }
 
@@ -668,14 +668,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 self.validate_calldata_static_argument(value, parameter_ty);
-                // The dispatcher validates the elements of an argument that only ABI decoding
-                // passes when an encoding takes it.
-                if Self::is_calldata_word_array(&abi_type)
-                    && self.needs_calldata_aggregate_validation(value, parameter_ty)
-                    && !self.is_decoded_external_argument(value)
-                {
-                    self.validate_calldata_word_array(value, parameter_ty);
-                }
                 if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);
                 }

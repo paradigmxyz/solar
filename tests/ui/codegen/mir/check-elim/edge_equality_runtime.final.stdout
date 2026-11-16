@@ -41,30 +41,27 @@ fn @sizes() {
 ; function pack(bytes memory data) external pure returns (bytes memory) [selector 0x62b0ae87]
 fn @pack() {
   bb0:
-    v26 = icall @decode_calldata_type
-    v0 = mload v26
+    v24 = icall @decode_calldata_type
+    v0 = mload v24
     v1 = eq v0, 64
     jumpi v1, bb2, bb1
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
   bb2:                                            ; preds = bb0
-    v40 = add v26, 32
-    v54 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v55 = add v54, 128
-    mstore 64, v55 !metadata(memory=scratch)
-    mstore v54, 96
-    v42 = add v54, 32
-    mcopy v42, v40, 64
-    v45 = add v54, 96
-    mstore v45, 64
-    v47 = add v54, 96
-    v48 = add v47, 32
-    mstore v48, 0
-    v35 = add v42, 96
-    mstore v35, 0
-    v50 = sub v54, 32
-    mstore v50, 32
-    returndata v50, 160
+    v38 = add v24, 32
+    v49 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v50 = add v49, 128
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v49, 96
+    v40 = add v49, 32
+    mcopy v40, v38, 64
+    v43 = add v49, 96
+    mstore v43, 64
+    v33 = add v40, 96
+    mstore v33, 0
+    v45 = sub v49, 32
+    mstore v45, 32
+    returndata v45, 160
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
@@ -78,29 +75,29 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v35 = add v6, 63
-    v10 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v30 = add v6, 63
+    v10 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v11 = lt v10, v6
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, v10 !metadata(alloc_ptr)
-    v38 = shr v30, 64
-    v31 = lt v30, v29
-    v40 = zext i1 v31 to i256
-    v41 = or v38, v40
-    v43 = zext i1 v11 to i256
-    v44 = or v41, v43
-    v37 = ne v44, 0
-    jumpi v37, bb3, bb5
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v10 !metadata(alloc_ptr)
+    v33 = shr v25, 64
+    v26 = lt v25, v24
+    v35 = zext i1 v26 to i256
+    v36 = or v33, v35
+    v38 = zext i1 v11 to i256
+    v39 = or v36, v38
+    v32 = ne v39, 0
+    jumpi v32, bb3, bb5
   bb5:                                            ; preds = bb2
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v6
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v6
     v13 = sub v0, v7
     v14 = lt v13, v6
     jumpi v14, bb1, bb4
   bb4:                                            ; preds = bb5
-    v25 = add v29, 32
-    calldatacopy v25, v7, v6
-    ret v29
+    v21 = add v24, 32
+    calldatacopy v21, v7, v6
+    ret v24
   bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

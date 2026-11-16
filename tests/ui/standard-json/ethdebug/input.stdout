@@ -530,6 +530,19 @@
                         "offset": 13,
                         "length": 74
                       }
+                    },
+                    "invoke": {
+                      "identifier": "f",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 13,
+                          "length": 74
+                        }
+                      },
+                      "jump": true
                     }
                   }
                 },
@@ -963,8 +976,7 @@
                           }
                         }
                       }
-                    ],
-                    "revert": {}
+                    ]
                   }
                 },
                 {

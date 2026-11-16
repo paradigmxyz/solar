@@ -56,12 +56,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -189,7 +186,7 @@ fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[]
     v4 = shl v3, 32
     v5 = or v4, 0x7cf5dab0
     v6 = abi_encode [function, word], object, selector 0xec460bea00000000000000000000000000000000000000000000000000000000, args v5, 7
-    v7 = address_staticcall v0, v6, gas v1
+    v7 = extcall static v0, v6, gas v1
     v8 = icall returndata_bytes<>
     v9 = eq v7, false
     icall revert_if<empty>, v9

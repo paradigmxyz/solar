@@ -8,7 +8,7 @@ error: library cannot have non-constant state variable
    ╭▸ ROOT/tests/ui/resolve/library_requirements.sol:LL:CC
    │
 LL │     uint256 y;
-   ╰╴    ━━━━━━━━━━
+   ╰╴    ━━━━━━━━━
 
 error[2571]: libraries cannot be inherited from
    ╭▸ ROOT/tests/ui/resolve/library_requirements.sol:LL:CC

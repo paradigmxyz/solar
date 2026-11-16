@@ -114,8 +114,8 @@
       jumpi v2, bb4, bb3
     bb3 [cold]:                                     ; preds = bb2
       v3 = trunc i256 arg0 to i160
-      v4 = icall send<>, v3, 0
-      icall transfer<>, v3, 0
+      v4 = extcall v3, gas 0, value 0
+      v5 = extcall v3, gas 0, value 0
       revert_returndata
     bb4:                                            ; preds = bb2
       jump bb1

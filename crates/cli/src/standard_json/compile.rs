@@ -27,9 +27,14 @@ use solar_interface::{
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::{FileLoader, RealFileLoader},
 };
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::ContractId,
+    output::{AstJson, SourceAstJson},
+};
 use std::{
     borrow::Cow,
+    cell::OnceCell,
     fs::File,
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -135,17 +140,18 @@ fn write_empty_standard_json_output(
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let output = CompilerOutput::default();
+    let output: CompilerOutput<'_> = CompilerOutput::default();
     let diagnostics = diagnostics.read();
-    finish_standard_json_output(output, source_map, opts, &diagnostics, out)
+    finish_standard_json_output(output, source_map, opts, &diagnostics, None, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
-fn finish_standard_json_output<'a>(
-    mut output: CompilerOutput<'a>,
+fn finish_standard_json_output<'a, 'gcx>(
+    mut output: CompilerOutput<'a, ContractOutput<'a>, SourceOutput<'_, 'gcx>>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
+    ast_json: Option<&AstJson<'gcx>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
     let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map, opts.color)
@@ -161,12 +167,36 @@ fn finish_standard_json_output<'a>(
 
     // Raw contracts would not be indented, and with nothing to parallelize, buffering every
     // serialized contract only raises peak memory.
+    // The contracts are serialized before the sources are written ahead, which would occupy
+    // the threads that serialize them.
     if opts.pretty_json || output.contracts.is_empty() || rayon::current_num_threads() == 1 {
-        crate::emit::to_json(out, &output, opts.pretty_json)
+        let attached = attached_asts(&output);
+        render_asts(ast_json, &attached, || crate::emit::to_json(out, &output, opts.pretty_json))
     } else {
-        crate::emit::to_json(out, &output.serialize_contracts()?, false)
+        let output = output.serialize_contracts()?;
+        let attached = attached_asts(&output);
+        render_asts(ast_json, &attached, || crate::emit::to_json(out, &output, false))
     }
     .map_err(Into::into)
+}
+
+/// Returns the ASTs of the sources of the output, in the order of the output.
+fn attached_asts<'a, 'gcx, C>(
+    output: &CompilerOutput<'_, C, SourceOutput<'a, 'gcx>>,
+) -> Vec<SourceAstJson<'a, 'gcx>> {
+    output.sources.iter().flatten().filter_map(|(_, source)| source.ast).collect()
+}
+
+/// Calls `write` while the ASTs, which it writes in this order, are written ahead.
+fn render_asts<'gcx, R: Send>(
+    ast_json: Option<&AstJson<'gcx>>,
+    attached: &[SourceAstJson<'_, 'gcx>],
+    write: impl FnOnce() -> R + Send,
+) -> R {
+    match ast_json {
+        Some(ast_json) => ast_json.render(attached, write),
+        None => write(),
+    }
 }
 
 /// Applies `settings.debug`, enforcing solc's selection rules.
@@ -314,6 +344,7 @@ fn compile(
         }));
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
+    opts.unstable.keep_asts = output_selection.requests_ast();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -325,6 +356,8 @@ fn compile(
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
+            // The AST JSON must outlive the output that borrows it.
+            let ast_json = OnceCell::new();
             let mut output = CompilerOutput::default();
             let result = (|| {
                 let mut parsed_sources = FxIndexMap::default();
@@ -350,6 +383,16 @@ fn compile(
                 )?;
                 compiler.gcx().dcx().has_errors()?;
                 output.sources = Some(parsed_sources);
+                if output_selection.requests_ast() {
+                    let gcx = compiler.gcx();
+                    let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
+                    let sources = output.sources.iter_mut().flatten();
+                    for ((name, source), id) in sources.zip(gcx.sources.indices()) {
+                        if output_selection.ast(name) {
+                            source.ast = ast_json.source(id);
+                        }
+                    }
+                }
                 if control_flow.is_break() {
                     return Ok(());
                 }
@@ -475,6 +518,7 @@ fn compile(
                 Arc::clone(&source_map),
                 opts,
                 &diagnostics,
+                ast_json.get(),
                 &mut *out,
             ));
             result
@@ -610,14 +654,17 @@ fn disallowed_io(path: &Path) -> io::Error {
 }
 
 #[tracing::instrument(name = "source_outputs", level = "debug", skip_all)]
-fn source_outputs_from_compiler(
+fn source_outputs_from_compiler<'a, 'gcx>(
     compiler: &solar_sema::CompilerRef<'_>,
-) -> FxIndexMap<String, SourceOutput> {
+) -> FxIndexMap<String, SourceOutput<'a, 'gcx>> {
     let gcx = compiler.gcx();
     gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            (
+                source.file.name.display().to_string(),
+                SourceOutput { id: id.index() as u32, ast: None },
+            )
         })
         .collect()
 }

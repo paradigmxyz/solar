@@ -12,15 +12,12 @@
 //@ run-call-fail: entryBytes 1099511627776
 //@ run-call: loopEmit 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3 => 0
 //@ run-call: afterInternalStaging 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 4 => 0
-//@ run-call: decodeTail 0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000021aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000000000000000000000000000000000000000000000000000000000 => 0
 //@ run-call: literalAtEntry => 0x4141414141414141414141414141414141414141414141414141414141414141414141414141414141
 //@ run-call: literalAfterEmit 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4141414141414141414141414141414141414141414141414141414141414141414141414141414141
-//@ run-call: decodeTailAfterEmit 0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000021aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000000000000000000000000000000000000000000000000000000000 => 0
 
 // Memory above the free memory pointer is zero until something writes there. Allocation skips the
-// zero fill of such memory, and a decoded `bytes` its zero padding, and keeps both once a write
-// at or above the pointer may have dirtied the memory. Every function reads back what the
-// allocation must have zeroed.
+// zero fill of such memory and keeps it once a write at or above the pointer may have dirtied
+// the memory. Every function reads back what the allocation must have zeroed.
 contract Test {
     event Data(bytes data);
 
@@ -131,14 +128,6 @@ contract Test {
         return or(new uint256[](n)) | orBytes(new bytes(n * 32));
     }
 
-    // The padding after the decoded bytes is zero, and the bytes after it too.
-    function decodeTail(bytes calldata raw) external pure returns (uint256 word) {
-        bytes memory data = abi.decode(raw, (bytes));
-        assembly ("memory-safe") {
-            word := mload(add(add(data, 0x20), mload(data)))
-        }
-    }
-
     function literalAtEntry() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     }
@@ -147,13 +136,5 @@ contract Test {
     function literalAfterEmit(bytes calldata data) external returns (bytes memory) {
         emit Data(data);
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    }
-
-    function decodeTailAfterEmit(bytes calldata raw) external returns (uint256 word) {
-        emit Data(raw);
-        bytes memory data = abi.decode(raw, (bytes));
-        assembly ("memory-safe") {
-            word := mload(add(add(data, 0x20), mload(data)))
-        }
     }
 }

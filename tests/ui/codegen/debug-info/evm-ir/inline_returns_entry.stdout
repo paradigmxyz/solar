@@ -1,0 +1,22 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/inline_returns_entry.evmir (before inline-returns) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/inline_returns_entry.evmir (after inline-returns) ===
+  @module InlineReturnsEntry
+  bb0:
+    push 1
+    jumpi bb6, bb7
+  bb5:
+    stop
+  bb6:
+    push bb5
+    push 7
+-   jump bb8
++   swap 1 !metadata(invoke=callee@1..10)
++   jump
+  bb7:
+    push bb5
+    push 9
+    jump bb8
+  bb8 [invoke=callee@1..10]:
+    swap 1
+    jump
+  

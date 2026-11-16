@@ -26,8 +26,9 @@ first. Repeat --compiler NAME='COMMAND ARGS' to replace these defaults with any 
 accept standard JSON on stdin and return standard JSON on stdout, or wrappers
 with that interface. Commands run without a shell. Use absolute paths for wrapper
 arguments. Original compiler settings are preserved except outputSelection, which
-requests ABI and creation/runtime bytecode to force code generation. This checks
-compilation success, not bytecode equality or runtime equivalence.
+requests ABI and creation/runtime bytecode to force code generation, and the AST
+of every source with --ast. This checks compilation success, not bytecode
+equality or runtime equivalence.
 
 The DuckDB database tracks imports and attempts. Successful jobs are skipped;
 cached failures still stop the run unless --continue-on-failure is set. Use
@@ -115,6 +116,8 @@ OUTPUTS = {
         ]
     }
 }
+# AST export is expensive in solc, so only runs started with --ast request it.
+AST_OUTPUTS = {"*": {"": ["ast"], **OUTPUTS["*"]}}
 
 
 def json_text(value):
@@ -293,11 +296,11 @@ def require_sources(db):
         )
 
 
-def make_input(db, compilation_id):
+def make_input(db, compilation_id, ast=False):
     result = db.execute("SELECT * FROM compilations WHERE id = ?", [compilation_id])
     record = dict(zip([column[0] for column in result.description], result.fetchone()))
     settings = json.loads(record["compiler_settings"])
-    settings["outputSelection"] = OUTPUTS
+    settings["outputSelection"] = AST_OUTPUTS if ast else OUTPUTS
     sources = db.execute(
         """
         SELECT path, content FROM links LEFT JOIN sources USING (source_hash)
@@ -426,14 +429,14 @@ def compiler_info(spec, root):
     return info
 
 
-def output_error(directory, result, target=None):
+def output_error(directory, result, target=None, ast=False):
     if result["error"]:
         return result["error"]
     if result["returncode"] != 0:
         return f"exit status {result['returncode']}"
     try:
         output = json.loads((directory / "stdout.txt").read_text(encoding="utf-8"))
-        contracts = contract_outputs(output)
+        contracts = contract_outputs(output, require_contracts=not ast)
         if target and target != "*:*":
             path, _, name = target.rpartition(":")
             if name not in contracts.get(path, {}):
@@ -476,7 +479,7 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
     try:
         while row := reader.fetchone():
             compilation_id = row[0]
-            request, record = make_input(db, compilation_id)
+            request, record = make_input(db, compilation_id, args.ast)
             request_text = None
             for compiler in compilers:
                 if executable_state(compiler["command"][0]) != compiler["file_state"]:
@@ -569,7 +572,9 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                     != compiler["file_state"]
                 ):
                     result["error"] = "CompilerChanged"
-                reason = output_error(directory, result, record["fully_qualified_name"])
+                reason = output_error(
+                    directory, result, record["fully_qualified_name"], args.ast
+                )
                 if (
                     not reason
                     and args.max_rss_mb
@@ -697,6 +702,11 @@ def add_compiler_arguments(runner):
     )
     runner.add_argument("--retry-failures", action="store_true")
     runner.add_argument(
+        "--ast",
+        action="store_true",
+        help="Also request the AST of every source, for the ast check",
+    )
+    runner.add_argument(
         "--tag",
         default="",
         help="Distinguish wrapper dependencies, environment, or experiments",
@@ -783,6 +793,7 @@ class Tests(unittest.TestCase):
             retry_failures=False,
             limit=None,
             tag="",
+            ast=False,
         )
 
     def fake(self, name, body):
@@ -906,6 +917,24 @@ class Tests(unittest.TestCase):
                 self.assertEqual(
                     result, None if abi == [] else "missing or malformed ABI output"
                 )
+
+    def test_ast_output_is_opt_in(self):
+        self.seed()
+        selection = make_input(self.db, "one")[0]["settings"]["outputSelection"]
+        self.assertNotIn("", selection["*"])
+        selection = make_input(self.db, "one", ast=True)[0]["settings"][
+            "outputSelection"
+        ]
+        self.assertEqual(selection["*"][""], ["ast"])
+        self.assertEqual(selection["*"]["*"], OUTPUTS["*"]["*"])
+        write_json(self.root / "stdout.txt", {"sources": {"C.sol": {"id": 0}}})
+        result = {"error": None, "returncode": 0}
+        self.assertIsNone(output_error(self.root, result, ast=True))
+        self.assertIn("missing contract outputs", output_error(self.root, result))
+        write_json(self.root / "stdout.txt", {})
+        self.assertIn(
+            "missing contract outputs", output_error(self.root, result, ast=True)
+        )
 
     def mutable_compiler(self):
         path = self.root / "compiler"

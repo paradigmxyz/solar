@@ -1,0 +1,35 @@
+; === ROOT/tests/ui/codegen/mir/bit-scan/before_osaka.sol:BeforeOsaka ===
+@module BeforeOsaka
+; function log2(uint256 x) external pure returns (uint256 r) [selector 0x5456bf13]
+fn @log2(arg0: i256) -> i256 [selector=0x5456bf13, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v2 = shl v1, 7
+    v3 = shr arg0, v2
+    v4 = gt v3, 0xffffffffffffffff
+    v5 = zext i1 v4 to i256
+    v6 = shl v5, 6
+    v7 = or v2, v6
+    v8 = shr arg0, v7
+    v9 = gt v8, 0xffffffff
+    v10 = zext i1 v9 to i256
+    v11 = shl v10, 5
+    v12 = or v7, v11
+    v13 = shr arg0, v12
+    v14 = gt v13, 0xffff
+    v15 = zext i1 v14 to i256
+    v16 = shl v15, 4
+    v17 = or v12, v16
+    v18 = shr arg0, v17
+    v19 = gt v18, 255
+    v20 = zext i1 v19 to i256
+    v21 = shl v20, 3
+    v22 = or v17, v21
+    v23 = shr arg0, v22
+    v24 = shr 0x8421084210842108cc6318c6db6d54be, v23
+    v25 = and v24, 31
+    v26 = byte v25, 0x706060506020504060203020504030106050205030304010505030400000000
+    v27 = or v22, v26
+    ret v27
+}

@@ -1,0 +1,56 @@
+//@ filecheck:
+// The getter of a constant is pure whatever its base is, and that of another variable is not.
+// CHECK: "name": "viaThis"
+// CHECK: "memberName": "BPS"
+// CHECK: "isPure": true
+// CHECK: "name": "viaInstance"
+// CHECK: "memberName": "BPS"
+// CHECK: "isPure": true
+// CHECK: "name": "notConstant"
+// CHECK: "memberName": "stored"
+// CHECK: "isPure": false
+// A type that a library declares makes the tuple of an `abi.decode` impure, and an elementary
+// type does not.
+// CHECK: "name": "decodeLibraryType"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "memberName": "Tuple"
+// CHECK: "isPure": false
+// CHECK: "isPure": false
+// CHECK: "name": "decodeElementaryType"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "nodeType": "ElementaryTypeNameExpression"
+// CHECK: "isPure": true
+// CHECK: "isPure": true
+// A tuple that is written to is not pure, whether it is assigned or deleted.
+// CHECK: "name": "swap"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "isPure": false
+// CHECK: "lValueRequested": true
+// CHECK: "name": "clear"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "isPure": false
+// CHECK: "lValueRequested": true
+// Indexing a calldata slice, or calldata, is not an lvalue, and indexing memory is.
+// CHECK: "name": "indexSlice"
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "name": "indexMemory"
+// CHECK: "isLValue": true
+// CHECK: "isLValue": true
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

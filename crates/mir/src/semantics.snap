@@ -15,7 +15,7 @@ store_storage_bytes_literal: -
 clear_storage_words: -
 validate_abi: -
 abi_encode_packed: -
-address_call: -
+extcall: -
 add: opcode(add)
 sub: opcode(sub)
 mul: opcode(mul)

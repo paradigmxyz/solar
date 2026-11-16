@@ -1,0 +1,23 @@
+//@ filecheck:
+// A member that nothing calls is attached to its array as a pointer.
+// CHECK: "memberName": "pop"
+// CHECK: "typeIdentifier": "t_function_arraypop_nonpayable$_t_array$_t_uint256_$dyn_storage_ptr_$returns$__$attached_to$_t_array$_t_uint256_$dyn_storage_ptr_$"
+// CHECK: "typeString": "function (uint256[] storage pointer)"
+// CHECK: "memberName": "pop"
+// CHECK: "typeString": "function (bytes storage pointer)"
+// A public library function takes its calldata receiver in memory.
+// CHECK: "memberName": "first"
+// CHECK: "typeIdentifier": "t_function_delegatecall_pure$_t_bytes_memory_ptr_$returns$_t_bytes1_$attached_to$_t_bytes_memory_ptr_$"
+// CHECK: "typeString": "function (bytes memory) pure returns (bytes1)"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

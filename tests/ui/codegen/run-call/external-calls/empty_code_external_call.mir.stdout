@@ -175,7 +175,7 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
 fn @lowLevel() -> i1 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
-    v1 = address_call i160 0, ptr<memory> 96, gas v0
+    v1 = extcall i160 0, ptr<memory> 96, gas v0
     ret v1
 }
 

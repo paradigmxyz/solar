@@ -516,17 +516,16 @@ bb71 [continuation]:
   push 0
   keccak256
   add
-  dup 1
+  push 255
+  dup 2
   sload
-  swap 2
+  swap 3
   push 31
   and
   push 31
   sub
   push 3
   shl
-  push 255
-  swap 1
   shl
   not
   swap 1
@@ -703,9 +702,7 @@ bb74 [continuation]:
   push 255
   not
   and
-  push 32
-  dup 4
-  add
+  push 192
   mstore
   pop
   jump bb67

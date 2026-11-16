@@ -220,6 +220,11 @@ impl<'hir> Hir<'hir> {
         }
     }
 
+    /// Returns the ID of the source unit, which follows the IDs of the items.
+    pub fn source_unit_id(&self, id: SourceId) -> usize {
+        self.item_count() + id.index()
+    }
+
     /// Returns an ID that is unique across all HIR item kinds.
     pub fn global_item_id(&self, id: impl Into<ItemId>) -> usize {
         self.global_item_id_(id.into())

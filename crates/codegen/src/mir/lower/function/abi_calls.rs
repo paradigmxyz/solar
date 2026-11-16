@@ -7,8 +7,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty.encodes_as_slot()
     }
 
-    /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
-    /// lies once [`Self::validate_calldata_word_array`] validated its elements.
+    /// Whether `abi_type` is a calldata array of words, which an encoding validates and copies
+    /// from where it lies.
     pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
         matches!(
             abi_type,
@@ -17,9 +17,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    /// Validates the elements of the calldata array of words `value` where they lie, before an
-    /// encoding copies them: solc's IR pipeline validates each element it encodes, reading past
-    /// the end of the calldata as zeros, and never checks the array's range.
+    /// Validates the elements of the calldata array of words `value` where they lie, before a
+    /// packed encoding copies them: solc's IR pipeline validates each element it encodes, reading
+    /// past the end of the calldata as zeros, and never checks the array's range.
     pub(super) fn validate_calldata_word_array(&mut self, value: ValueId, ty: Ty<'gcx>) {
         let Some(element) = self.array_element_type(ty) else { return };
         // for index in 0..slice_len(value):
@@ -525,11 +525,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let validated_static =
             self.validate_calldata_static_argument_inner(value, ty, needs_validation);
         let word_array = needs_validation && Self::is_calldata_word_array(&abi_type);
-        // The dispatcher validates the elements of an argument that only ABI decoding passes
-        // when an encoding takes it.
-        if word_array && !self.is_decoded_external_argument(value) {
-            self.validate_calldata_word_array(value, ty);
-        }
         // The encoder validates a dynamic calldata aggregate while it encodes it from where it
         // lies.
         let needs_materialization = needs_validation && !word_array && !abi_type.is_dynamic();

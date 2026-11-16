@@ -200,13 +200,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.validate_enum(ty, value);
                 self.builder.cast(value, types::TypeLowerer::mir_type(ty))
             }
-            TyKind::Fn(_) => value,
             TyKind::Elementary(ElementaryType::Bool) => self.builder.ne_zero(value),
             _ if matches!(
                 types::TypeLowerer::value_layout(ty),
                 crate::mir::ValueLayout::Int(_)
                     | crate::mir::ValueLayout::UInt(_)
                     | crate::mir::ValueLayout::Address
+                    | crate::mir::ValueLayout::Function
             ) =>
             {
                 self.builder.cast(value, types::TypeLowerer::mir_type(ty))

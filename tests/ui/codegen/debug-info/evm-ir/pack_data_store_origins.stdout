@@ -21,9 +21,9 @@
 -   push 0x3333333333333333333333333333333333333333333333333333333333333333 !metadata(span=7..8)
 -   swap 1 !metadata(span=7..8)
 -   mstore !metadata(span=7..8)
-+   push 96 !metadata(all=[3..4, 5..6, 7..8])
++   push 96 !metadata(all=[3..4, 5..6, 7..8], invoke=f@1..40)
 +   push_data literal_0 !metadata(all=[3..4, 5..6, 7..8])
 +   dup 3 !metadata(all=[3..4, 5..6, 7..8])
-+   codecopy !metadata(all=[3..4, 5..6, 7..8], invoke=f@1..40)
++   codecopy !metadata(all=[3..4, 5..6, 7..8])
     stop !metadata(span=9..10)
   

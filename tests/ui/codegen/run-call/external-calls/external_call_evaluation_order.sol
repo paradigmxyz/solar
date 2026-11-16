@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ compile-flags: --allow=9207 --allow=5878
 //@ run-call: externalReceiver => 14
 //@ run-call: callOptions => 234
 //@ run-call: dirtyGasOption => false

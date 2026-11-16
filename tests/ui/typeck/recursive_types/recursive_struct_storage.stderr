@@ -2,7 +2,7 @@ error: getter must return at least one value
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     S public s;
-   │     ━━━━━━━━━━━
+   │     ━━━━━━━━━━
    ╰╴
 note: the struct has all its members omitted, therefore the getter cannot return any values
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC

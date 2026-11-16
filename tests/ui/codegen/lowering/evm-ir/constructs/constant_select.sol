@@ -83,6 +83,7 @@ contract ConstantSelect {
     // SIZE-NEXT: [[CHECKED]]{{( \[[a-z, ]+\])?}}:
     // SIZE-NEXT: push {{bb[0-9]+}}
     // SIZE-NEXT: jumpi
+    // SIZE-NEXT: push 96
     // SIZE-NEXT: push 0xe2179b8e
     // SIZE-NEXT: push 224
     // SIZE-NEXT: shl
