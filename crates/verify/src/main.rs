@@ -5,6 +5,7 @@ mod bvlower;
 mod ghost;
 mod interval;
 mod lean;
+mod loop_heads;
 mod memalias;
 mod mutate;
 mod operator;
@@ -66,6 +67,10 @@ struct Cli {
     /// `--infer-bound-measures`: when no distance a loop's guard bounds decreases, also try the
     /// bound alone as the measure.
     infer_bound_measures: bool,
+    /// `--emit-loop-heads FILE`: write the loop-head manifest (see `loop_heads`).
+    emit_loop_heads: Option<PathBuf>,
+    /// `--check-loop-heads FILE`: build the manifest and reject FILE if it differs.
+    check_loop_heads: Option<PathBuf>,
 }
 
 impl Cli {
@@ -113,6 +118,8 @@ fn parse_cli() -> Cli {
         lean_spec_bytecode_sha256: String::new(),
         infer_absint: false,
         infer_bound_measures: false,
+        emit_loop_heads: None,
+        check_loop_heads: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -140,6 +147,8 @@ fn parse_cli() -> Cli {
             "--seed" => c.seed = it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
             "--instrument" => c.instrument = it.next().map(PathBuf::from),
             "--emit-lean-spec" => c.emit_lean_spec = it.next().map(PathBuf::from),
+            "--emit-loop-heads" => c.emit_loop_heads = it.next().map(PathBuf::from),
+            "--check-loop-heads" => c.check_loop_heads = it.next().map(PathBuf::from),
             "--lean-spec-module" => c.lean_spec_module = it.next(),
             "--lean-spec-compiler" => c.lean_spec_compiler = it.next().unwrap_or_default(),
             "--lean-spec-bytecode-sha256" => {
@@ -163,6 +172,9 @@ fn parse_cli() -> Cli {
                      --spec-check  test the trusted contracts (@custom:trusted bodies, interface\n\
                      \x20          specs, the Math.mulDiv summary) against their code in the file\n\
                      --spec-check-runs N  samples per tested function (default 256); --seed N\n\
+                     --emit-loop-heads OUT.json  write what each SSA term at every loop head denotes\n\
+                     \x20          (storage slot, parameter, local), bound to the source and compiler\n\
+                     --check-loop-heads FILE.json  build that manifest and reject FILE if it differs\n\
                      --no-infer  use hand-written loop invariants only (no inference)\n\
                      --show-inferred  print the loop invariants and measures inference proved\n\
                      --infer-absint  also take loop facts abstract interpretation finds (octagons,\n\
@@ -375,6 +387,8 @@ fn main() {
         && cli.dump_lean.is_none()
         && cli.emit_lean.is_none()
         && cli.instrument.is_none()
+        && cli.emit_loop_heads.is_none()
+        && cli.check_loop_heads.is_none()
     {
         run_parallel(&cli);
     }
@@ -385,6 +399,13 @@ fn main() {
     let mut smt_log = String::new();
     let mut json_rows: Vec<String> = vec![];
     let mut statuses = lean::Statuses::new();
+    let want_heads = cli.emit_loop_heads.is_some() || cli.check_loop_heads.is_some();
+    if want_heads && cli.files.len() != 1 {
+        eprintln!("error: --emit-loop-heads and --check-loop-heads take one file");
+        std::process::exit(2);
+    }
+    let mut heads: Vec<loop_heads::FnHeads> = vec![];
+    let mut heads_manifest: Option<Result<serde_json::Value, String>> = None;
     if let Some(dir) = &cli.emit_lean {
         if let Err(e) = std::fs::create_dir_all(dir) {
             eprintln!("error: cannot create {}: {e}", dir.display());
@@ -477,6 +498,14 @@ fn main() {
                     } else {
                         "failed"
                     };
+                    if want_heads {
+                        heads.push(loop_heads::FnHeads {
+                            name: name.clone(),
+                            contract: c.name.clone(),
+                            status: status.into(),
+                            heads: std::mem::take(&mut rep.loop_heads),
+                        });
+                    }
                     statuses.insert(name, status.into());
                     if cli.json {
                         let esc = |x: &str| x.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ");
@@ -555,9 +584,69 @@ fn main() {
                     }
                 }
             }
+            if want_heads {
+                heads_manifest = Some(if loaded.units.len() != 1 {
+                    Err("the file imports other files: its storage layout would need them".into())
+                } else {
+                    let options = serde_json::json!({
+                        "strict": cli.strict,
+                        "infer": !cli.no_infer,
+                        "infer_absint": cli.infer_absint,
+                        "infer_bound_measures": cli.infer_bound_measures,
+                        "only": cli.only,
+                        "dry_run": cli.dry_run,
+                    });
+                    loop_heads::manifest(&sess, &path.display().to_string(), &loaded.file.src, options, &heads)
+                });
+            }
         }
         Ok(())
     });
+    if want_heads {
+        let built = match heads_manifest {
+            Some(Ok(m)) => m,
+            Some(Err(e)) => {
+                eprintln!("error: loop-head manifest: {e}");
+                std::process::exit(2);
+            }
+            None => {
+                eprintln!("error: loop-head manifest: the file was not verified");
+                std::process::exit(2);
+            }
+        };
+        if let Some(out) = &cli.emit_loop_heads {
+            let text = serde_json::to_string_pretty(&built).expect("manifest JSON") + "\n";
+            if let Err(e) = std::fs::write(out, text) {
+                eprintln!("error: cannot write {}: {e}", out.display());
+                std::process::exit(2);
+            }
+        }
+        if let Some(given) = &cli.check_loop_heads {
+            // The manifest is JSON, not a source the session loads.
+            #[allow(clippy::disallowed_methods)]
+            let given: serde_json::Value = match std::fs::read_to_string(given)
+                .map_err(|e| e.to_string())
+                .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("error: --check-loop-heads {}: {e}", given.display());
+                    std::process::exit(2);
+                }
+            };
+            // The manifest alone decides: a verification failure shows as a function's status.
+            match loop_heads::check(&given, &built) {
+                None => {
+                    println!("loop-head manifest matches");
+                    std::process::exit(0);
+                }
+                Some(why) => {
+                    eprintln!("error: stale loop-head manifest: {why}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
     if let Some(p) = &cli.dump_smt {
         let _ = std::fs::write(p, &smt_log);
     }
