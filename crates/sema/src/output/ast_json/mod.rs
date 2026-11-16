@@ -138,11 +138,12 @@ pub struct AstJson<'gcx> {
     /// Whether the output is indented. Compact output caches the written descriptions of types,
     /// and writes sources ahead in parallel.
     pretty: bool,
-    /// The sources written ahead by [`AstJson::render`].
+    /// The sources written ahead by [`AstJson::write_large`] and [`AstJson::render`].
     ahead: OnceLock<Ahead>,
 }
 
-/// The sources that [`AstJson::render`] writes ahead of the output, in the order of the output.
+/// The sources that [`AstJson::write_large`] and [`AstJson::render`] write ahead of the output, in
+/// the order of the output.
 struct Ahead {
     /// The sources in the order of the output.
     order: Vec<SourceId>,
@@ -216,6 +217,7 @@ impl<'gcx> AstJson<'gcx> {
             return write();
         }
         let ahead = self.ahead.get_or_init(|| Ahead::new(self.gcx, sources));
+        debug_assert!(ahead.order.iter().eq(sources.iter().map(|source| &source.id)));
         rayon::scope(|scope| {
             for _ in 0..threads {
                 scope.spawn(|_| self.write_ahead(ahead, 2 * threads));
@@ -226,7 +228,8 @@ impl<'gcx> AstJson<'gcx> {
     }
 
     /// Writes the sources of `ahead` in order, until the output has them all or ends, and never
-    /// more than `window` sources before the one that the output reaches.
+    /// more than `window` sources before the one that the output reaches, skipping those that
+    /// [`AstJson::write_large`] wrote.
     fn write_ahead(&self, ahead: &Ahead, window: usize) {
         loop {
             let id = {
@@ -244,7 +247,7 @@ impl<'gcx> AstJson<'gcx> {
                     return;
                 };
                 state.started += 1;
-                // `write_large` already took it.
+                // `write_large` already wrote it.
                 if !matches!(state.slots[id], Slot::Pending) {
                     continue;
                 }
@@ -255,7 +258,7 @@ impl<'gcx> AstJson<'gcx> {
         }
     }
 
-    /// Writes the sources that hold more than a thread's share of the text of these sources on
+    /// Writes the sources that hold at least a thread's share of the text of these sources on
     /// the thread pool of the session, so that a later [`AstJson::render`] of them only copies
     /// them. Such a source takes longer to write than the others take together on the other
     /// threads, so `render` would wait for it. Call this where the workers would otherwise be
