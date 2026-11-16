@@ -422,8 +422,8 @@ fn license(file: &SourceFile, items: &[ast::Item<'_>]) -> Option<String> {
 struct Cx<'a, 'gcx> {
     json: &'a AstJson<'gcx>,
     ids: &'a Ids,
-    /// The written `typeDescriptions` that only depend on a type, which most of them do. Pretty
-    /// output has none, since it indents inside them.
+    /// The written `typeDescriptions` of the source. Pretty output has none, since it indents
+    /// inside them.
     types: Option<&'a ty::TypeCache<'gcx>>,
     /// The purity of the expressions, which an expression takes from its operands.
     pure: &'a PureMemo,
