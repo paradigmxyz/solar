@@ -8,12 +8,10 @@ use solar_sema::Gcx;
 /// A loop condition desugars to `if (cond) body else break`, whose `break` takes the span of the
 /// loop, so only the text of the span tells a source statement from the desugared jump.
 pub(crate) fn is_loop_jump(gcx: Gcx<'_>, metadata: &InstructionMetadata) -> bool {
+    let files = gcx.sess.source_map().files();
     metadata.source_spans().any(|span| {
-        let Ok(source) = gcx.sess.source_map().span_to_snippet(span) else { return false };
-        ["break", "continue"].iter().any(|keyword| {
-            source.strip_prefix(keyword).is_some_and(|rest| {
-                !rest.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '$')
-            })
-        })
+        let Ok(source) = files.span_to_snippet(span) else { return false };
+        let word = source.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'));
+        matches!(word.into_iter().next(), Some("break" | "continue"))
     })
 }

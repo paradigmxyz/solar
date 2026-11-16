@@ -8,16 +8,16 @@
 
 // CHECK-LABEL: (runtime) ===
 // CHECK: [entry, invoke=loop@
-// CHECK: push bb{{[0-9]+}} !metadata(span=1274..1280, keep_with_next)
-// CHECK-NEXT: jump !metadata(span=1274..1280)
-// CHECK: push bb{{[0-9]+}} !metadata(span=1208..1217, keep_with_next)
-// CHECK-NEXT: jump !metadata(span=1208..1217)
+// CHECK: push bb{{[0-9]+}} !metadata(span=[[BREAK:[0-9]+\.\.[0-9]+]], keep_with_next)
+// CHECK-NEXT: jump !metadata(span=[[BREAK]])
+// CHECK: push bb{{[0-9]+}} !metadata(span=[[CONTINUE:[0-9]+\.\.[0-9]+]], keep_with_next)
+// CHECK-NEXT: jump !metadata(span=[[CONTINUE]])
 // CHECK: [entry, invoke=set@
-// CHECK: push bb{{[0-9]+}} !metadata(span=1573..1580, keep_with_next)
-// CHECK-NEXT: jump !metadata(span=1573..1580, exit=return)
+// CHECK: push bb{{[0-9]+}} !metadata(span=[[SET:[0-9]+\.\.[0-9]+]], keep_with_next)
+// CHECK-NEXT: jump !metadata(span=[[SET]], exit=return)
 // CHECK: [invoke=_forward@
-// CHECK-NEXT: push bb{{[0-9]+}} !metadata(span=1737..1746, keep_with_next)
-// CHECK-NEXT: jump !metadata(span=1737..1746, exit=return)
+// CHECK-NEXT: push bb{{[0-9]+}} !metadata(span=[[FORWARD:[0-9]+\.\.[0-9]+]], keep_with_next)
+// CHECK-NEXT: jump !metadata(span=[[FORWARD]], exit=return)
 contract C {
     uint256 public total;
 

@@ -388,7 +388,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for step in &steps {
                 self.emit_stackified_step(func_id, func, step, cold);
             }
-            self.emit_stackified_jump(target, None, false);
+            self.emit_stackified_jump(target, None);
         }
         self.asm.repeating_code = repeating;
         if self.capture_debug_info {
@@ -467,10 +467,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         };
         match &plan.exit {
-            Exit::Jump(target) => {
-                let pinned = self.keeps_loop_jump(func, block);
-                self.emit_stackified_jump(resolve(*target), next, pinned);
+            Exit::Jump(target) if self.keeps_loop_jump(func, block) => {
+                // push target; jump !metadata(keep_with_next)
+                self.asm.emit_push_label(self.block_labels[&resolve(*target)]);
+                self.asm.keep_last_with_next();
+                self.asm.emit_op(op::JUMP);
             }
+            Exit::Jump(target) => self.emit_stackified_jump(resolve(*target), next),
             Exit::Branch { then_edge, else_edge } => {
                 let falls =
                     |edge: &Edge| edge.trampoline.is_none() && next == Some(resolve(edge.target));
@@ -490,7 +493,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for step in fall.trampoline.iter().flatten() {
                     self.emit_stackified_step(func_id, func, step, cold);
                 }
-                self.emit_stackified_jump(resolve(fall.target), next, false);
+                self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {
                 // The scrutinee is on top of the words every target expects below it. Targets
@@ -749,15 +752,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             && is_loop_jump(self.gcx, &func.blocks[block].terminator_metadata)
     }
 
-    /// Jumps to `target` unless it is the next block in the layout. A `pinned` jump is always
-    /// emitted, and its label push is kept with it so that no pass turns it into an edge.
-    fn emit_stackified_jump(&mut self, target: BlockId, next: Option<BlockId>, pinned: bool) {
-        if pinned || next != Some(target) {
+    /// Jumps to `target` unless it is the next block in the layout.
+    fn emit_stackified_jump(&mut self, target: BlockId, next: Option<BlockId>) {
+        if next != Some(target) {
             // push target; jump
             self.asm.emit_push_label(self.block_labels[&target]);
-            if pinned {
-                self.asm.keep_last_with_next();
-            }
             self.asm.emit_op(op::JUMP);
         } else if self.capture_debug_info {
             self.asm.mark_fallthrough();

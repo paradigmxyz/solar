@@ -18,7 +18,7 @@
 //! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
 //! preserve stack lifetimes.
 //!
-//! ## Loop Jumps at `-O none`
+//! ## Loop Jumps at `-Onone`
 //! An unoptimized function keeps the block of each `break` and `continue` statement, so that the
 //! statement and the branch path into it keep an instruction of their own. Block merging and empty
 //! block elimination skip a block whose jump has the origin of such a statement, found by the
@@ -75,7 +75,7 @@ impl MirPass for CfgSimplify {
 
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
