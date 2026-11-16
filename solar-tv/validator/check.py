@@ -741,31 +741,57 @@ def main() -> int:
             )
             programs = list(result.pair)
         else:
-            programs = [
-                load(
-                    args.ir,
-                    path,
+            try:
+                programs = [
+                    load(
+                        args.ir,
+                        path,
+                        solar,
+                        args.timeout,
+                        gas_mode=args.gas,
+                        evm_version=version,
+                        function=args.function,
+                        window=args.window,
+                        region=args.region,
+                        stack_height=args.stack_height,
+                        world_path=args.world,
+                        replay_executable=rust_replay,
+                    )
+                    for path in (args.before, args.after)
+                ]
+            except Unsupported as error:
+                # Scalar window inputs do not contain a caller or calldata.
+                # A universal contextual proof can supply those missing inputs;
+                # never substitute defaults or replace an actual counterexample.
+                if (
+                    args.ir != "evmir"
+                    or not args.window
+                    or str(error)
+                    not in {
+                        "unmodeled EVM IR instruction: caller",
+                        "unmodeled EVM IR instruction: calldataload",
+                    }
+                ):
+                    raise
+                result = prefix.check(
+                    (args.before, args.after),
                     solar,
+                    rust_replay,
                     args.timeout,
-                    gas_mode=args.gas,
-                    evm_version=version,
-                    function=args.function,
-                    window=args.window,
-                    region=args.region,
-                    stack_height=args.stack_height,
-                    world_path=args.world,
-                    replay_executable=rust_replay,
+                    args.window,
+                    version,
+                    args.gas,
                 )
-                for path in (args.before, args.after)
-            ]
-            result = check(
-                programs[0],
-                programs[1],
-                args.timeout,
-                replay_command=replay,
-                replay_executable=rust_replay,
-                verbose=args.verbose,
-            )
+                programs = list(result.pair)
+            else:
+                result = check(
+                    programs[0],
+                    programs[1],
+                    args.timeout,
+                    replay_command=replay,
+                    replay_executable=rust_replay,
+                    verbose=args.verbose,
+                )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
         status = (
             "timeout"
@@ -815,8 +841,20 @@ def main() -> int:
                 "stack_height": args.stack_height,
             }
             record["whole_pass"] = False
-            if args.prefix:
-                record["region"]["proof"] = "universal-stack-prefix"
+            if (
+                args.prefix
+                or result.program
+                and result.program.scope == "prefix-window"
+            ):
+                shared = result.program and result.program.import_evidence.get(
+                    "shared_prologue_operations"
+                )
+                record["region"]["proof"] = (
+                    "universal-memory-prefix" if shared else "universal-stack-prefix"
+                )
+                if args.stack_height is not None:
+                    record["region"]["requested_stack_height"] = args.stack_height
+                record["region"]["stack_height"] = None
             if args.region and len(programs) == 2:
                 record["region"]["blocks_before"] = list(
                     regions.blocks(programs[0].canonical_ir)
