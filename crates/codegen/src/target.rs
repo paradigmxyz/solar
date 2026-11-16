@@ -541,13 +541,14 @@ impl Target {
 
     /// Whether a width test, that a word fits in `bits` bits when `fits` and that it does not
     /// otherwise, is the shift `x >> bits` against zero rather than the comparison with its limit
-    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` reads the word of a test of the other sense
-    /// for free, and a `value` pays for its zero test: an `ISZERO` to turn the word into a fit, or
-    /// [`Self::ne_zero`] to turn it into a boolean. The comparison pays the push of its limit, as
-    /// the compact-push pass leaves it, which grows with `bits`. The shift wins when it is no
-    /// dearer in bytes and gas and cheaper in one; equal prices keep the comparison. A shift that
-    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
-    /// Without shifts only the comparison exists.
+    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` that jumps when the word is nonzero reads it
+    /// for free: one that jumps when the test holds, for a test that the word does not fit, and
+    /// one that jumps when it fails, for a fits test. Any other read pays for its zero test: an
+    /// `ISZERO` to turn the word into a fit, or [`Self::ne_zero`] to turn it into a boolean. The
+    /// comparison pays the push of its limit, as the compact-push pass leaves it, which grows with
+    /// `bits`. The shift wins when it is no dearer in bytes and gas and cheaper in one; equal
+    /// prices keep the comparison. A shift that saves bytes and costs gas is taken as a compact
+    /// recipe is, by [`Self::compacts_immediate`]. Without shifts only the comparison exists.
     pub(crate) fn shifts_bits_test(
         &self,
         bits: u32,
@@ -559,12 +560,13 @@ impl Target {
             return false;
         }
         let zero_tests = match (fits, branch) {
-            (false, true) => Cost::ZERO,
-            (true, _) => self.opcode(op::ISZERO),
+            (_, true) => Cost::ZERO,
+            (true, false) => self.opcode(op::ISZERO),
             (false, false) => self.ne_zero().0,
         };
         let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
-        let compare = if fits {
+        // A branch that jumps when a fits test fails inverts the comparison to `x > 2^bits - 1`.
+        let compare = if fits && !branch {
             self.emitted_push(U256::ONE << bits, in_loop) + self.opcode(op::LT)
         } else {
             self.emitted_push((U256::ONE << bits) - U256::ONE, in_loop) + self.opcode(op::GT)
@@ -1896,6 +1898,12 @@ mod tests {
         // A limit as short as the shift's own push keeps the comparison on equal prices.
         assert!(!gas.shifts_bits_test(8, false, true, false));
         assert!(!gas.shifts_bits_test(1, true, false, false));
+        // A branch that jumps when `x < 2^16` fails reads `x >> 16` for free, a byte shorter than
+        // the inverted `x > 0xffff`; as a value, the shift's `ISZERO` makes it dearer than
+        // `x < 0x10000`. At `2^8` the inverted limit is a `PUSH1` and ties.
+        assert!(gas.shifts_bits_test(16, true, true, false));
+        assert!(!gas.shifts_bits_test(16, true, false, false));
+        assert!(!gas.shifts_bits_test(8, true, true, false));
         // Without shifts only the comparison exists.
         let legacy = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
         assert!(!legacy.shifts_bits_test(64, false, true, false));

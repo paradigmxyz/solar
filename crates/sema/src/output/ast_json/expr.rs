@@ -209,7 +209,10 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         ty: Ty<'gcx>,
         function_kind: Option<&'static str>,
     ) -> TypeDescriptions<'a, 'gcx> {
-        TypeDescriptions { expr: true, function_kind, ..TypeDescriptions::new(self, ty, true) }
+        let mut descriptions = TypeDescriptions::new(self, ty, true);
+        descriptions.key.expr = true;
+        descriptions.key.function_kind = function_kind;
+        descriptions
     }
 }
 
