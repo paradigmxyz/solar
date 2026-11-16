@@ -3,9 +3,8 @@
 use super::{Cx, Empty, IdentPath, Node, Params, Sym, W, name};
 use crate::{
     builtins::Builtin,
-    eval::ConstValue,
     hir,
-    ty::{Component, Gcx, Ty, TyFn, TyFnKind, TyKind, TySolcPrinter},
+    ty::{Component, Gcx, Literal, Ty, TyFn, TyFnKind, TyKind, TySolcPrinter},
 };
 use alloy_primitives::U256;
 use serde::ser::{Error as _, Serialize, Serializer};
@@ -13,23 +12,35 @@ use serde_json::value::RawValue;
 use solar_ast::{self as ast, DataLocation, ElementaryType};
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Span, kw, sym};
-use std::cell::RefCell;
+use std::{cell::RefCell, fmt, hash::Hash};
 
-/// The written `typeDescriptions` of the types: for the type, whether solc marks it as a pointer,
-/// and whether it is the type of an expression.
-pub(super) type TypeCache<'gcx> = RefCell<FxHashMap<(Ty<'gcx>, bool, bool), Box<RawValue>>>;
+/// The written `typeDescriptions` of a source by what decides them.
+#[derive(Default)]
+pub(super) struct TypeCache<'gcx> {
+    /// Keyed by the type, the pointer mark and `expr`, which decide most descriptions. The small
+    /// key keeps the map small.
+    plain: RefCell<FxHashMap<(Ty<'gcx>, bool, bool), Box<RawValue>>>,
+    /// Those of literals, tuples, call options and builtin functions.
+    other: RefCell<FxHashMap<TypeKey<'gcx>, Box<RawValue>>>,
+}
 
 /// The `typeDescriptions` of a declaration or a type name.
 pub(super) struct TypeDescriptions<'a, 'gcx> {
     pub(super) gcx: Gcx<'gcx>,
     pub(super) cache: Option<&'a TypeCache<'gcx>>,
+    pub(super) key: TypeKey<'gcx>,
+}
+
+/// What decides the `typeDescriptions` of a type.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(super) struct TypeKey<'gcx> {
     pub(super) ty: Ty<'gcx>,
     /// Whether solc marks the reference types as pointers.
     pub(super) pointer: bool,
     /// Whether it is the type of an expression, which solc prints with data locations.
     pub(super) expr: bool,
     /// The value of the literal of the type.
-    pub(super) literal: Option<&'gcx ConstValue>,
+    pub(super) literal: Option<Literal<'gcx>>,
     /// What solc knows of the components of a tuple expression.
     pub(super) components: Vec<Component<'gcx>>,
     /// Whether the call options `gas`, `value` and `salt` are set on the function.
@@ -41,9 +52,7 @@ pub(super) struct TypeDescriptions<'a, 'gcx> {
 impl<'a, 'gcx> TypeDescriptions<'a, 'gcx> {
     /// The descriptions of a declaration or a type name.
     pub(super) fn new(cx: Cx<'a, 'gcx>, ty: Ty<'gcx>, pointer: bool) -> Self {
-        Self {
-            gcx: cx.gcx,
-            cache: cx.types,
+        let key = TypeKey {
             ty,
             pointer,
             expr: false,
@@ -51,59 +60,64 @@ impl<'a, 'gcx> TypeDescriptions<'a, 'gcx> {
             components: Vec::new(),
             call_options: [false; 3],
             function_kind: None,
-        }
+        };
+        Self { gcx: cx.gcx, cache: cx.types, key }
     }
 }
 
-impl TypeDescriptions<'_, '_> {
-    /// Writes the descriptions, or the written ones if only the type decides them.
+impl<'gcx> TypeDescriptions<'_, 'gcx> {
+    /// Writes the descriptions, or the written ones if they were written before.
     fn serialize_cached<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let only_type = self.literal.is_none()
-            && self.components.is_empty()
-            && self.call_options == [false; 3]
-            && self.function_kind.is_none();
-        let Some(cache) = self.cache.filter(|_| only_type) else { return self.write(s) };
-        let key = (self.ty, self.pointer, self.expr);
-        if let Some(written) = cache.borrow().get(&key) {
+        let Some(cache) = self.cache else { return self.write(s) };
+        let TypeKey { ty, pointer, expr, literal, components, call_options, function_kind } =
+            &self.key;
+        if literal.is_none()
+            && components.is_empty()
+            && *call_options == [false; 3]
+            && function_kind.is_none()
+        {
+            self.serialize_in(s, &cache.plain, &(*ty, *pointer, *expr))
+        } else {
+            self.serialize_in(s, &cache.other, &self.key)
+        }
+    }
+
+    /// Writes the descriptions, or the ones written for `key` in `cache`.
+    fn serialize_in<S: Serializer, K: Clone + Eq + Hash>(
+        &self,
+        s: S,
+        cache: &RefCell<FxHashMap<K, Box<RawValue>>>,
+        key: &K,
+    ) -> Result<S::Ok, S::Error> {
+        if let Some(written) = cache.borrow().get(key) {
             return written.serialize(s);
         }
         let written = serde_json::value::to_raw_value(&Uncached(self)).map_err(S::Error::custom)?;
         let result = written.serialize(s);
-        cache.borrow_mut().insert(key, written);
+        cache.borrow_mut().insert(key.clone(), written);
         result
     }
 
     fn write<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self {
-            gcx,
-            ty,
-            pointer,
-            expr,
-            literal,
-            ref components,
-            call_options,
-            function_kind,
-            ..
-        } = *self;
-        let printer = |buf| {
-            TySolcPrinter::new(gcx, buf)
-                .literal(literal)
-                .components(components.clone())
-                .call_options(call_options)
-                .function_kind(function_kind)
-        };
-        let (mut identifier, mut string) = (String::new(), String::new());
-        printer(&mut identifier).print_identifier(ty, pointer).unwrap();
-        if expr {
-            printer(&mut string).locations(pointer).print(ty)
-        } else {
-            printer(&mut string).print(ty)
-        }
-        .unwrap();
+        let TypeKey { ty, pointer, expr, .. } = self.key;
+        let identifier = fmt::from_fn(|f| self.printer(f).print_identifier(ty, pointer));
+        let string = fmt::from_fn(|f| {
+            let printer = self.printer(f);
+            if expr { printer.locations(pointer) } else { printer }.print(ty)
+        });
         let mut m = Node::object(s)?;
-        m.entry("typeIdentifier", &identifier);
-        m.entry("typeString", &string);
+        m.entry("typeIdentifier", &format_args!("{identifier}"));
+        m.entry("typeString", &format_args!("{string}"));
         m.end()
+    }
+
+    fn printer<W: fmt::Write>(&self, buf: W) -> TySolcPrinter<'_, 'gcx, W> {
+        let key = &self.key;
+        TySolcPrinter::new(self.gcx, buf)
+            .literal(key.literal)
+            .components(&key.components)
+            .call_options(key.call_options)
+            .function_kind(key.function_kind)
     }
 }
 
@@ -224,9 +238,6 @@ impl Serialize for ExprType<'_, '_, '_> {
                 });
             }
         }
-        let literal_ty =
-            |ty: Ty<'_>| ty.is_number_literal() || matches!(ty.kind, TyKind::StringLiteral(..));
-        let literal = literal_ty(ty).then(|| gcx.const_eval().eval_expr(expr).ok()).flatten();
         let components = tuple_components(gcx, expr);
         let call_options = match expr.peel_parens().kind {
             hir::ExprKind::CallOptions(_, options) => [kw::Gas, sym::value, sym::salt]
@@ -238,27 +249,23 @@ impl Serialize for ExprType<'_, '_, '_> {
             hir::ExprKind::New(_) => Some("objectcreation"),
             _ => builtin.map(Builtin::solc_kind),
         };
-        let descriptions = TypeDescriptions {
-            gcx,
-            cache: cx.types,
+        let key = TypeKey {
             ty,
             // The pointer only marks the references, which the types of a function do not have.
             pointer: !(ty.is_value_type() && !matches!(ty.kind, TyKind::Fn(_)))
                 && is_pointer(gcx, expr),
             expr: true,
-            literal,
+            literal: literal(gcx, expr, ty),
             components,
             call_options,
             function_kind,
         };
-        descriptions.serialize(s)
+        TypeDescriptions { gcx, cache: cx.types, key }.serialize(s)
     }
 }
 
 /// Returns what solc knows of the components of a tuple expression.
 fn tuple_components<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Vec<Component<'gcx>> {
-    let literal_ty =
-        |ty: Ty<'_>| ty.is_number_literal() || matches!(ty.kind, TyKind::StringLiteral(..));
     let expr = expr.peel_parens();
     let hir::ExprKind::Tuple(components) = expr.kind else { return Vec::new() };
     if !expr_ty(gcx, expr).is_some_and(|ty| matches!(ty.kind, TyKind::Tuple(_))) {
@@ -271,15 +278,21 @@ fn tuple_components<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Vec<Compone
                 return Component { literal: None, pointer: true, empty: true, components: vec![] };
             };
             Component {
-                literal: expr_ty(gcx, component)
-                    .filter(|ty| literal_ty(*ty))
-                    .and_then(|_| gcx.const_eval().eval_expr(component).ok()),
+                literal: expr_ty(gcx, component).and_then(|ty| literal(gcx, component, ty)),
                 pointer: is_pointer(gcx, component),
                 empty: false,
                 components: tuple_components(gcx, component),
             }
         })
         .collect()
+}
+
+/// Returns the value of the expression that its type prints, if it is a number or string literal.
+fn literal<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>, ty: Ty<'gcx>) -> Option<Literal<'gcx>> {
+    if !ty.is_number_literal() && !matches!(ty.kind, TyKind::StringLiteral(..)) {
+        return None;
+    }
+    Literal::new(gcx.const_eval().eval_expr(expr).ok()?)
 }
 
 /// Returns the type of the expression, which type checking leaves out for a type in an

@@ -44,7 +44,7 @@ use thread_local::ThreadLocal;
 pub use crate::natspec::NatSpecView;
 
 mod print;
-pub(crate) use print::{Component, TySolcPrinter};
+pub(crate) use print::{Component, Literal, TySolcPrinter};
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;

@@ -4,6 +4,7 @@ use alloy_primitives::{hex, keccak256};
 use num_bigint::BigInt;
 use num_traits::Signed;
 use solar_ast::{DataLocation, ElementaryType};
+use solar_interface::ByteSymbol;
 use std::fmt;
 
 impl<'gcx> Gcx<'gcx> {
@@ -188,7 +189,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
 /// This is mainly used in the `internalType` field of the ABI.
 ///
 /// Example: <https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358>
-pub(crate) struct TySolcPrinter<'gcx, W> {
+pub(crate) struct TySolcPrinter<'a, 'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     data_locations: bool,
@@ -196,9 +197,9 @@ pub(crate) struct TySolcPrinter<'gcx, W> {
     /// JSON. See [`Self::locations`].
     location: Option<Location>,
     /// The value of the number or string literal that the type belongs to.
-    literal: Option<&'gcx ConstValue>,
+    literal: Option<Literal<'gcx>>,
     /// What solc knows of the components of a tuple expression.
-    components: Vec<Component<'gcx>>,
+    components: &'a [Component<'gcx>],
     /// Whether the call options `gas`, `value` and `salt` are set on the function type.
     call_options: [bool; 3],
     /// How deep the printed type is nested in other types.
@@ -207,11 +208,32 @@ pub(crate) struct TySolcPrinter<'gcx, W> {
     function_kind: Option<&'static str>,
 }
 
+/// What the type of a number or string literal prints of its value.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Literal<'gcx> {
+    /// A number: the numerator and, for a fraction, the denominator.
+    Number(&'gcx BigInt, Option<&'gcx BigInt>),
+    /// The bytes of a string.
+    String(ByteSymbol),
+}
+
+impl<'gcx> Literal<'gcx> {
+    /// Returns what the type of a literal prints of its value, if it prints any.
+    pub(crate) fn new(value: &'gcx ConstValue) -> Option<Self> {
+        match value {
+            ConstValue::Int(int) => Some(Self::Number(int.as_bigint(), None)),
+            ConstValue::Rational(ratio) => Some(Self::Number(ratio.numer(), Some(ratio.denom()))),
+            ConstValue::Bytes(value, _) => Some(Self::String(*value)),
+            _ => None,
+        }
+    }
+}
+
 /// A component of a tuple expression.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Component<'gcx> {
     /// The value of the component, if it is a literal.
-    pub(crate) literal: Option<&'gcx ConstValue>,
+    pub(crate) literal: Option<Literal<'gcx>>,
     /// Whether solc types the component as a pointer.
     pub(crate) pointer: bool,
     /// Whether the component is left out: solc has no type for it.
@@ -227,7 +249,7 @@ struct Location {
     pointer: bool,
 }
 
-impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
+impl<'a, 'gcx, W: fmt::Write> TySolcPrinter<'a, 'gcx, W> {
     pub(crate) fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
         Self {
             gcx,
@@ -235,7 +257,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             data_locations: false,
             location: None,
             literal: None,
-            components: Vec::new(),
+            components: &[],
             call_options: [false; 3],
             depth: 0,
             function_kind: None,
@@ -253,13 +275,13 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
     }
 
     /// Sets the value of the literal that the printed type belongs to.
-    pub(crate) fn literal(mut self, value: Option<&'gcx ConstValue>) -> Self {
-        self.literal = value;
+    pub(crate) fn literal(mut self, literal: Option<Literal<'gcx>>) -> Self {
+        self.literal = literal;
         self
     }
 
     /// Sets what solc knows of the components of the printed tuple.
-    pub(crate) fn components(mut self, components: Vec<Component<'gcx>>) -> Self {
+    pub(crate) fn components(mut self, components: &'a [Component<'gcx>]) -> Self {
         self.components = components;
         self
     }
@@ -385,7 +407,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.print(ty)?;
                 self.buf.write_str(" with call options")
             }
-            TyKind::StringLiteral(_, _) if let Some(ConstValue::Bytes(value, _)) = self.literal => {
+            TyKind::StringLiteral(_, _) if let Some(Literal::String(value)) = self.literal => {
                 let value = value.as_byte_str();
                 if value.iter().all(|&byte| (0x20..0x7f).contains(&byte)) {
                     write!(self.buf, "literal_string \"{}\"", String::from_utf8_lossy(value))
@@ -398,11 +420,11 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, "{kind}_string_literal[{len}]")
             }
             TyKind::IntLiteral(..) | TyKind::RationalLiteral
-                if let Some(value) = self.literal.and_then(literal_ratio) =>
+                if let Some(Literal::Number(num, den)) = self.literal =>
             {
-                match value {
-                    (num, None) => write!(self.buf, "int_const {}", readable(num)),
-                    (num, Some(den)) => {
+                match den {
+                    None => write!(self.buf, "int_const {}", readable(num)),
+                    Some(den) => {
                         write!(self.buf, "rational_const {} / {}", readable(num), readable(den))
                     }
                 }
@@ -523,14 +545,14 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
 
     /// Prints the type of a component of a tuple.
     fn print_component(&mut self, index: usize, ty: Ty<'gcx>) -> fmt::Result {
-        let Some(component) = self.components.get(index).cloned() else {
+        let Some(component) = self.components.get(index) else {
             return self.print(ty);
         };
         if component.empty {
             return Ok(());
         }
         let literal = std::mem::replace(&mut self.literal, component.literal);
-        let components = std::mem::replace(&mut self.components, component.components);
+        let components = std::mem::replace(&mut self.components, &component.components);
         let result =
             self.in_location(DataLocation::Storage, component.pointer, |this| this.print(ty));
         self.components = components;
@@ -704,11 +726,11 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, "t_magic_{name}")
             }
             TyKind::Module(id) => write!(self.buf, "t_module_{}", self.gcx.hir.source_unit_id(id)),
-            TyKind::StringLiteral(..) if let Some(ConstValue::Bytes(value, _)) = self.literal => {
+            TyKind::StringLiteral(..) if let Some(Literal::String(value)) = self.literal => {
                 write!(self.buf, "t_stringliteral_{}", hex::encode(keccak256(value.as_byte_str())))
             }
             TyKind::IntLiteral(..) | TyKind::RationalLiteral
-                if let Some((num, den)) = self.literal.and_then(literal_ratio) =>
+                if let Some(Literal::Number(num, den)) = self.literal =>
             {
                 let sign = if num.is_negative() { "minus_" } else { "" };
                 write!(self.buf, "t_rational_{sign}{}_by_", num.magnitude())?;
@@ -754,7 +776,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             if i > 0 {
                 self.buf.write_str("_$_")?;
             }
-            let Some(component) = self.components.get(i).cloned() else {
+            let Some(component) = self.components.get(i) else {
                 self.identifier(ty, loc, pointer || (i == 0 && receiver))?;
                 continue;
             };
@@ -762,21 +784,12 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 continue;
             }
             let literal = std::mem::replace(&mut self.literal, component.literal);
-            let components = std::mem::replace(&mut self.components, component.components);
+            let components = std::mem::replace(&mut self.components, &component.components);
             self.identifier(ty, loc, component.pointer || (i == 0 && receiver))?;
             self.components = components;
             self.literal = literal;
         }
         self.buf.write_str("_$")
-    }
-}
-
-/// Returns the numerator and, for a fraction, the denominator of the value of a number literal.
-fn literal_ratio(value: &ConstValue) -> Option<(&BigInt, Option<&BigInt>)> {
-    match value {
-        ConstValue::Int(int) => Some((int.as_bigint(), None)),
-        ConstValue::Rational(ratio) => Some((ratio.numer(), Some(ratio.denom()))),
-        _ => None,
     }
 }
 
