@@ -146,7 +146,18 @@ def record(
                 ]
             )
     else:
-        if program and program.symbolic_mir is not None:
+        if program and program.scope == "effect-tree":
+            assumptions.extend(
+                [
+                    "acyclic scalar MIR effect tree from the independently parsed source; trusted constructor renderer",
+                    "every ordered opcode request, operand, arbitrary result word and terminal boundary is preserved",
+                    "all stateful effect handlers, including early failure and arbitrary aliasing; no empty-world or successful-access assumption",
+                    "compositional interaction certificate, not a full-state interpreter proof; calls, allocations, layout queries, GAS sampling and code observers excluded",
+                    "SSTORE remains a request that may fail; scalar gas costs and their effect on the EIP-2200 sentry are outside this unpriced MIR certificate",
+                    "abstract scalar steps unpriced; no physical gas, backend layout or whole-contract claim",
+                ]
+            )
+        elif program and program.symbolic_mir is not None:
             assumptions.extend(
                 [
                     "direct typed SSA source execution; supplied acyclic call graph; no backend lowering, implicit FMP or ABI entry setup",
@@ -272,7 +283,9 @@ def record(
                 "region": {
                     "kind": "function",
                     "name": program.selector,
-                    "proof": "universal-caller-state",
+                    "proof": "compositional-effect-tree"
+                    if program.scope == "effect-tree"
+                    else "universal-caller-state",
                     "work_bounds": [side.symbolic_mir["fuel"] for side in result.pair],
                     "supplied_functions": len(
                         program.symbolic_mir["model"]["functions"]

@@ -122,23 +122,18 @@ elab "split_mir_guard" : tactic => do
   let goal ← getMainGoal
   goal.withContext do
     let target ← goal.getType
-    -- Only the proposition must be closed at this position. Branches may use
-    -- the surrounding continuation's bound variables; splitting the closed
-    -- proposition remains valid under that binder.
-    let predicate := fun e => (e.isAppOfArity ``ite 5 || e.isAppOfArity ``dite 5) &&
-      !e.getAppArgs[1]!.hasLooseBVars
-    let some first := target.find? predicate | throwError "no unresolved MIR guard"
-    let mut term := first
-    -- Resolve nested predicates before splitting the interpreter result. The
-    -- latter would generalize away the relation between a branch and its frame.
-    while (term.getAppArgs[1]!.find? predicate).isSome do
-      term := (term.getAppArgs[1]!.find? predicate).get!
+    -- Lean's split traversal ignores proofs and implicit instance arguments,
+    -- and resolves nested conditions before the surrounding control decision.
+    -- A raw expression walk can instead select a conditional in a Decidable
+    -- instance that the execution simplifier deliberately never traverses.
+    let some term ← findSplit? target .ite | throwError "no unresolved MIR guard"
     let name ← mkFreshUserName `guard
     let (yes,no) ← goal.byCases term.getAppArgs[1]! name
     replaceMainGoal [yes.mvarId,no.mvarId]
-    -- Rewrite the exact guard before arithmetic normalization turns, for
-    -- example, `¬ a < b` into `b ≤ a` and obscures the branch predicate.
-    evalTactic (← `(tactic| all_goals simp only [$(mkIdent name):term]))
+    -- Rewrite only the selected guard, keeping the rest of symbolic execution
+    -- opaque. A no-change branch must not roll the entire split back.
+    evalTactic (← `(tactic| all_goals
+      simp (config := {failIfUnchanged := false}) only [$(mkIdent name):term]))
 
 -- A partially applied conditional is a function, not a branch to split.
 example : (@ite Nat) = (@ite Nat) := by
@@ -155,5 +150,18 @@ example (cfg : Config) (functions : Functions) (function block index : Nat) (fra
     run 10 cfg functions ⟨⟨function,block,index,true,none,none⟩,[],frame⟩ = result := by
   fail_if_success simp only [↓reduceRun]
   exact known
+
+private def ignoreDecision (p : Prop) [Decidable p] (value : Nat) : Nat := value
+
+example (p q r : Prop) [Decidable p] [Decidable q] [Decidable r] (a b : Nat) :
+    @ignoreDecision p (if q then inferInstance else inferInstance) (if r then a else b) =
+      (if r then a else b) := by
+  split_mir_guard
+  · rename_i guard
+    guard_hyp guard : r
+    simp_all [ignoreDecision]
+  · rename_i guard
+    guard_hyp guard : ¬r
+    simp_all [ignoreDecision]
 
 end SolarTV.MIR.State

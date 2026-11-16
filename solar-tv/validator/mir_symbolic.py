@@ -1,10 +1,12 @@
 """Automatic typed SSA checks over arbitrary caller frames and environments.
 
-Use the independent Rust source export and the existing direct Lean interpreter;
-there is no scalar expression projection or synthesized initial world. Every
-accepted pair must complete for all typed arguments and every stated initial
-frame. Equal model errors, work exhaustion and unproved memory ranges do not
-satisfy the relation. Concrete fixtures are used only to confirm counterexamples.
+The default proof uses the independent Rust source export and direct Lean
+interpreter, without a synthesized initial world. Both executions must complete
+for all typed arguments and every stated initial frame. Large scalar bodies may
+instead use a separately reported compositional effect-tree certificate; that
+route retains a trusted renderer boundary rather than claiming direct-state
+correspondence. Equal model errors, work exhaustion and unproved memory ranges
+cannot satisfy the direct relation. Fixtures only confirm counterexamples.
 """
 
 import hashlib
@@ -14,7 +16,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from . import audit, mir, mir_state, native
+from . import audit, mir, mir_effects, mir_state, native
 from .common import Inconclusive, Program, Unsupported
 
 
@@ -239,6 +241,21 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
     a, b = programs
     if a.interface != b.interface:
         raise Unsupported("symbolic MIR interfaces or declarations differ")
+    # Large call-free effectful bodies can spend most of their proof budget
+    # unfolding identical storage and memory. Try the exact interaction-trace
+    # obligation first; it is explicitly reported as a different certificate.
+    if (
+        sum(
+            len(block["instructions"])
+            for function in a.symbolic_mir["model"]["functions"]
+            for block in function["blocks"]
+        )
+        >= 40
+    ):
+        try:
+            return mir_effects.check(a, b, timeout, replay_executable)
+        except Unsupported:
+            pass
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stdout + build.stderr)
