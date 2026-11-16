@@ -146,7 +146,18 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "effect-tree":
+        if program and program.scope == "effectful-prefix":
+            assumptions.extend(
+                [
+                    "all incoming stack lengths and words; exact 1024-word stack limits",
+                    "same ordered opcode requests and arguments; arbitrary replies, aliasing, state changes, effect failures and dynamic charges",
+                    "kernel-proved per-interaction scalar cost refinement; every original success preserves the entire stack/world with no less gas",
+                    "generic gas-independent effect handlers; calls, code/GAS observers and gas-sensitive storage writes excluded",
+                    "trusted stack/effect renderer and handler correspondence, not a full-state interpreter correspondence proof",
+                    "identical complete suffix, terminal and successor; gas-insensitive continuation; logical relocation context, no physical code-placement or whole-contract claim",
+                ]
+            )
+        elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
                     "acyclic scalar MIR effect tree from the independently parsed source; trusted constructor renderer",
@@ -222,7 +233,7 @@ def record(
             )
         if (
             not program
-            or program.scope != "prefix-window"
+            or program.scope not in {"prefix-window", "effectful-prefix"}
             and program.symbolic_mir is None
         ):
             assumptions.append(
@@ -256,7 +267,9 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": (
-            program.gas if program and program.scope == "prefix-window" else policy
+            program.gas
+            if program and program.scope in {"prefix-window", "effectful-prefix"}
+            else policy
         )
         or (
             "semantic-effects"
@@ -272,6 +285,19 @@ def record(
         ),
         "assumptions": assumptions,
         "inputs": sources,
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "window",
+                    "name": program.selector,
+                    "proof": "universal-effectful-stack-prefix",
+                    "stack_height": None,
+                },
+            }
+            if program and program.scope == "effectful-prefix"
+            else {}
+        ),
         **(
             {"import_correspondence": [side.import_evidence for side in result.pair]}
             if result.pair and any(side.import_evidence for side in result.pair)

@@ -221,6 +221,14 @@ def check(paths, solar, executable, timeout, entry, version, policy):
             raise Unsupported(
                 "shared memory prologue exceeds the stack budget"
             ) from None
+        except Unsupported:
+            from . import evm_effects
+
+            # A projected heap cannot represent symbolic addresses. A distinct
+            # interaction certificate retains every effect and dynamic charge.
+            return evm_effects.check(
+                texts, models, entry, catalog, version, policy, timeout
+            )
         tails = [
             {**model, "instructions": model["instructions"][common:]}
             for model in models

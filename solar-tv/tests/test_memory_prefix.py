@@ -184,7 +184,7 @@ class MemoryPrefixTests(unittest.TestCase):
             results[1].stderr,
         )
 
-    def test_dynamic_shared_memory_address_stays_unsupported(self):
+    def test_dynamic_shared_memory_uses_effect_correspondence(self):
         text = (self.examples / "before.evmir").read_text()
         before, after = self.folder / "before.evmir", self.folder / "after.evmir"
         for path, side in ((before, "before"), (after, "after")):
@@ -192,8 +192,9 @@ class MemoryPrefixTests(unittest.TestCase):
             path.write_text(
                 text.replace("  push 160\n  push 64\n  mstore\n", "  mload\n")
             )
-        _, record = self.check(before, after, "--prefix", "bb1", status=2)
-        self.assertIn("must be constant", record["diagnostic"])
+        _, record = self.check(before, after, "--prefix", "bb1")
+        self.assertEqual(record["region"]["proof"], "universal-effectful-stack-prefix")
+        self.assertIsNone(record["region"]["stack_height"])
 
     def test_exact_shared_prologue_keeps_early_faults(self):
         before, after = self.folder / "before.evmir", self.folder / "after.evmir"
