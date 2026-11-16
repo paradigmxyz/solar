@@ -156,7 +156,7 @@ def translate(
         if memory
         else "EVM.Execution",
         function
-        + " ⟨calldatasize, returndatasize⟩ ["
+        + " ⟨calldatasize, returndatasize, 0, []⟩ ["
         + ", ".join(ops)
         + "] "
         + terminal
@@ -175,11 +175,13 @@ def translate(
     )
 
 
-def instructions(body, constants, *, memory, gas=None):
+def instructions(body, constants, *, memory, gas=None, context=False):
     """Render instructions and optionally track/check abstract memory addresses.
 
     A source-graph certificate renders the independent operation identity with
     constants=None; its separate tree import retains the existing bounds checks.
+    Context reads require an explicitly universal context. Fixed scalar-window
+    inputs do not encode caller or calldata and must continue rejecting them.
     """
     estimate = 0
     words = 0
@@ -194,7 +196,15 @@ def instructions(body, constants, *, memory, gas=None):
             if constants is not None:
                 constants.insert(0, None)
             continue
-        if line in vocabulary.UNARY | vocabulary.BINARY | vocabulary.TERNARY | {
+        if context and line in {"caller", "calldataload"}:
+            operation = f".{line}"
+            if constants is not None:
+                if line == "calldataload":
+                    if not constants:
+                        raise Unsupported("region CALLDATALOAD lacks its offset")
+                    constants = constants[1:]
+                constants.insert(0, None)
+        elif line in vocabulary.UNARY | vocabulary.BINARY | vocabulary.TERNARY | {
             "calldatasize",
             "returndatasize",
             "pop",

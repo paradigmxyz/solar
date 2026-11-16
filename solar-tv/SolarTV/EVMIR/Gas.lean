@@ -49,10 +49,10 @@ def pureCost (op : EVM.Op) (fork : Fork := .cancun) : Nat :=
   | .addmod | .mulmod => 8
   | .exp => 10
   | .exchange _ _ => if fork.atLeast .amsterdam then 3 else 9
-  | .pop | .calldatasize | .returndatasize => 2
+  | .pop | .calldatasize | .returndatasize | .caller => 2
   | .push value => if value = 0 && fork.atLeast .shanghai then 2 else 3
   | .eq | .sub | .add | .and | .or | .xor | .iszero | .not | .dup _ | .swap _
-    | .lt | .gt | .slt | .sgt | .byte | .shl | .shr | .sar => 3
+    | .lt | .gt | .slt | .sgt | .byte | .shl | .shr | .sar | .calldataload => 3
 
 def baseCost (op : Memory.Op) (fork : Fork := .cancun) : Nat :=
   match op with

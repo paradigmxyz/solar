@@ -73,7 +73,7 @@ class DynamicGasTests(unittest.TestCase):
                     },
                 )
                 examples.append(
-                    f"example : EVM.Gas.execute ⟨0, 0⟩ [{operations}] "
+                    f"example : EVM.Gas.execute ⟨0, 0, 0, []⟩ [{operations}] "
                     f"(.control .stop) [] (Memory.initial [] 0) {GAS} = "
                     f"⟨.execution (.success []), {GAS - charge}⟩ := by decide +kernel"
                 )

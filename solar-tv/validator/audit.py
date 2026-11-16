@@ -162,6 +162,7 @@ def record(
                     "all incoming stack lengths and values; exact 1024-word overflow and underflow checks",
                     "effect-free fixed-price prefix; identical complete logical continuation; no code-image or interprocedural claim",
                     "arbitrary live world; no zero-memory or empty-storage assumption",
+                    "arbitrary 160-bit caller and calldata bytes; size words are independently quantified, a conservative superset of real frame inputs",
                     "all gas budgets and gas-sensitive continuation"
                     if program.gas == "exact"
                     else "sufficient gas; resource refinement and gas-insensitive continuation",
@@ -172,6 +173,7 @@ def record(
                 [
                     "complete acyclic EVM region to terminal outcomes; all incoming stack lengths and values, including exact overflow checks",
                     "arbitrary projected memory; no assumed incoming constants, dynamic or escaping labels, code-image observations or physical gas claim",
+                    "arbitrary 160-bit caller and calldata bytes; size words are independently quantified, a conservative superset of real frame inputs",
                 ]
             )
         elif layer == "mir":

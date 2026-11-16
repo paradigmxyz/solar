@@ -76,6 +76,15 @@ Unknown-height complete terminal regions now have a second route. The checked
 CFG expansion and actual entry obligation quantify every incoming stack and
 projected memory state, including underflow, overflow and a transfer's temporary
 label push. No height, incoming constant or zero-initialized heap is assumed.
+Caller addresses and calldata bytes are also arbitrary. `CALLDATALOAD` uses the
+same zero-extending byte reader as direct frame execution, and `CALLER` widens
+the frame's 160-bit address. Frame construction is covered by kernel-checked
+correspondence lemmas. Size words are independently quantified, a conservative
+superset of consistent frame contexts. Fixed scalar-window inputs still reject
+these reads rather than defaulting their missing inputs to zero.
+An iterative analysis of the independent source graph and reflected stack
+effects guides finite underflow/overflow proof splits. These are tactic hints,
+not assumptions: the theorem still quantifies every stack and live memory.
 The importer still checks constant access ranges; dynamic targets, unknown
 addresses, cycles and physical gas remain outside this route. Counterexamples
 on hypothetical stacks are not claimed to be reachable compiler failures.
@@ -142,14 +151,19 @@ The current sample, with the exact same 24 selected IDs, uses a 30-second budget
 | Contract | Captured checks | Selected | Verified | Unsupported |
 | --- | ---: | ---: | ---: | ---: |
 | Solady WETH | 329 | 8 | 3 | 5 |
-| OpenZeppelin ERC20Mock | 372 | 8 | 4 | 4 |
+| OpenZeppelin ERC20Mock | 372 | 8 | 5 | 3 |
 | Morpho Blue | 1,515 | 8 | 1 | 7 |
 
 All ABI and creation/runtime bytecode fingerprints remain identical to the
 earlier run, and capture remains bytecode-neutral. There are no counterexamples,
-timeouts, inconclusive checks or errors. Four additional EVM checks use universal
-terminal-region proofs: WETH block layout, ERC20Mock tail merge and loop layout,
-and Morpho tail merge. All retain independent source-CFG certificates.
+timeouts, inconclusive checks or errors. Five additional EVM checks use universal
+terminal-region proofs: WETH block layout, ERC20Mock tail merge, loop layout and
+block layout, and Morpho tail merge. All retain independent source-CFG
+certificates. The ERC20Mock layout pair's custom-error path reads the caller and
+consumes incoming stack words. Real layout and calldata CSE examples
+are in `examples/evmir/caller-tail/` and `examples/evmir/calldata-prefix/`.
+Broken caller and calldata reads are rejected by universal proofs and have
+concrete counterexamples checked by both Lean and the independent Rust replay.
 
 ERC20Mock's complete `burn` / `_update` `spell-width-tests` pair now also closes
 with the same Lean heartbeat limit, over arbitrary caller state. Source tables
@@ -160,9 +174,9 @@ branches. No helper is replaced by an assumed effect summary. The reduced real
 pair is in `examples/mir/erc20-width-guard/`; a smaller stateful pair and a broken
 padding guard with kernel/native replay are in `examples/mir/width-guard/`.
 
-The ten-second control run verifies 7 checks, with 16 unsupported and the larger
+The ten-second control run verifies 8 checks, with 15 unsupported and the larger
 MIR proof still timing out. It takes about 23 seconds at the larger budget. The
-budget difference is explicit; this is not an eight-of-24 result at ten seconds.
+budget difference is explicit; this is not a nine-of-24 result at ten seconds.
 
 ## Remaining obligations
 

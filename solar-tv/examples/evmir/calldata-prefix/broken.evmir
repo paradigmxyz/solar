@@ -1,0 +1,12 @@
+@module CalldataPrefix
+bb0:
+  push 4
+  calldataload
+  push 5
+  calldataload
+  xor
+  push 0
+  mstore
+  push 32
+  push 0
+  return

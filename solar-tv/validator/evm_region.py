@@ -98,7 +98,7 @@ def translate(text: str, entry: str, height: int | None) -> Program:
                 break
             try:
                 added, constants, _, _ = evmir.instructions(
-                    [line], constants, memory=True
+                    [line], constants, memory=True, context=height is None
                 )
             except IndexError:
                 raise Unsupported(
@@ -151,7 +151,7 @@ def translate(text: str, entry: str, height: int | None) -> Program:
         ("evm-region", str(height), "memory"),
         inputs,
         "EVM.Memory.Execution",
-        f"EVM.Region.execute ⟨calldatasize, returndatasize⟩ (__IMPORT___code) [{','.join(stack)}] ({memory.INITIAL})",
+        f"EVM.Region.execute ⟨calldatasize, returndatasize, 0, []⟩ (__IMPORT___code) [{','.join(stack)}] ({memory.INITIAL})",
         (*(256 for _ in range(2 + height)), *memory.WIDTHS),
         canonical_ir=projection,
         memory=True,
@@ -168,7 +168,7 @@ def cyclic(text, entry, height):
         ("evm-cyclic-region", str(height)),
         ["calldatasize", "returndatasize"],
         "Correspondence.Graph EVM.Region.State EVM.Memory.Execution",
-        "__IMPORT___graph ⟨calldatasize,returndatasize⟩",
+        "__IMPORT___graph ⟨calldatasize,returndatasize,0,[]⟩",
         (256, 256),
         canonical_ir=text,
         replay_ir=text,
@@ -187,7 +187,8 @@ def check_universal(a, b, timeout):
         or a.evm_version != b.evm_version
     ):
         raise Unsupported("universal EVM region interfaces differ")
-    peak = max(a.stack_peak, b.stack_peak)
+    required = max(a.stack_required, b.stack_required)
+    peak = required + max(a.stack_peak, b.stack_peak)
     if peak > 32:
         raise Unsupported("universal region exceeds the 32-word proof budget")
     build = build_model(timeout)
@@ -226,10 +227,21 @@ def check_universal(a, b, timeout):
         for i in range(peak + 1)
     ]
     proof += [f"simp [{unfold}, {hypotheses}]"]
+
+    def cases(index):
+        if index == required:
+            return "\n".join(proof)
+        return (
+            "cases stack with\n"
+            + f"| nil => simp [{unfold}]\n"
+            + f"| cons word{index} stack =>\n"
+            + "\n".join("  " + line for line in cases(index + 1).splitlines())
+        )
+
     theorem = (
         "theorem pair_correct (ctx : EVM.Context) (stack : EVM.Stack) (memory : Memory.State) :\n"
         " before ctx stack memory = after ctx stack memory := by\n"
-        + "\n".join("  " + line for line in proof)
+        + "\n".join("  " + line for line in cases(0).splitlines())
         + "\n#print axioms pair_correct\n"
     )
     with tempfile.TemporaryDirectory(prefix="solar-tv-universal-region-") as directory:

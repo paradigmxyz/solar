@@ -40,6 +40,7 @@ class Program:
     import_evidence: dict | None = None
     symbolic_mir: dict | None = None
     stack_peak: int = 0
+    stack_required: int = 0
 
 
 def lines(text: str) -> list[str]:
