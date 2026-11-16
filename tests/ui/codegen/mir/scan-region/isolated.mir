@@ -1,6 +1,6 @@
-//@compile-flags: -Zmir-pipeline=bit-scan
+//@compile-flags: -Zmir-pipeline=scan-region
 //@filecheck:
-@module BitScan
+@module ScanRegion
 
 // A search that accumulates its shift and ends in a nibble table: the index of the highest set
 // bit, zero for zero.
