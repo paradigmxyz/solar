@@ -14,9 +14,12 @@ Exit status and the last line printed:
   2  CHECKED <tier reached>: the run proved less than the requested tier (each status in the record)
   3  BLOCKED: <reason>: the source is outside the supported envelope (README.md lists it; recursion
      is outside it); nothing was proved or claimed
-  4  UNSUPPORTED-lifecycle: <stage>: --tier lifecycle observed every stage of the creation (the init
-     code, the runtime bytes it returns, the storage after construction) and they agree, but the
-     named stage has no kernel proof yet: nothing is certified, and the run never exits 0
+  4  UNSUPPORTED-lifecycle: kernel: <reason>: --tier lifecycle observed every stage of the creation
+     (the init code, the runtime bytes it returns, the storage after construction) and they agree,
+     but the kernel proves neither the deployment nor its refutation: a constructor outside the
+     generic creation frame (an opcode it does not evaluate, such as SLOAD, KECCAK256, a call, a log
+     or CREATE; a payable constructor; a revert path), or a base without the frame. Nothing is
+     certified
   1  ERROR: <message>: the driver or a step failed
 
 --tier lifecycle (with --constructor-args W,... for a constructor with static word parameters) is
@@ -25,7 +28,14 @@ by EthLib, which must succeed and return the runtime bytes (solar's bin-runtime,
 the constructor fills at their placeholders only), and SolidCore's constructor, called with the
 same argument values, must leave the storage EthLib's run leaves. It states that as
 Verify.Lifecycle.Statement (solidity-lean Verify/Lifecycle/Route.lean). A disagreement is
-REJECTED with its stage.
+REJECTED with its stage. The kernel stage then writes Certified/NAME/Lifecycle.lean from the run's
+own init code, runtime code, arguments and the probe's storage, and builds it in the run's clone of
+the base (one Lean thread, -KleanMemory=6000): Deploys (initArgs init ws) code s by the generic
+creation frame (Verify/Lifecycle/CreationFrame.lean, deploys_of_check, one kernel evaluation) and
+exists d, DeployedAtWith fuel c (wordArgs ws) d s by kernel_rfl, composed as
+Certified.NAME.Lifecycle.statement. Only that build passing is CERTIFIED (exit 0, tier lifecycle);
+when it fails and the kernel proves the refutation (not_deploys_of_refutes) instead, the run is
+REJECTED at the kernel stage.
 
 The record (DIR/record.json) holds every pin: the solar commit and binary digest, the solidity-lean
 base and input commits, the Lean toolchain digest, solc, the options, the source, spec and
@@ -1323,20 +1333,401 @@ def lifecycle_stages(res, plain, imm):
             or f"SolidCore's constructor and EthLib's run leave the same {len(src)} slot(s) (compared on SolidCore's slots)",
         }
     )
-    st.append(
-        {
-            "stage": "kernel",
-            "ok": False,
-            "detail": "no kernel proof: EthLib's processMessage does not reduce in the kernel, so Deploys (initArgs initcode ws) code s "
-            "has no generic proof yet, and the generated source check does not state DeployedAtWith",
-        }
-    )
     return st
 
 
-def lifecycle_run(a, record, solar, src, src_sha, name, contract, ast, work, finish):
+# The opcodes the generic creation frame (solidity-lean Verify/Lifecycle/CreationFrame.lean, run)
+# evaluates: PUSH0..PUSH32, DUP, SWAP, POP, the stack's one- and two-operand opcodes, CALLVALUE,
+# CODESIZE, CODECOPY, MLOAD, MSTORE, SSTORE, JUMP, JUMPI, JUMPDEST and RETURN. REVERT and INVALID
+# end the failure paths, which a deployment never runs; a creation that reaches one is no
+# deployment, and the frame's check is then false.
+FRAME_OPS = set(range(0x5F, 0xA0)) | {
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06,
+    0x07,
+    0x0B,
+    0x10,
+    0x11,
+    0x12,
+    0x13,
+    0x14,
+    0x15,
+    0x16,
+    0x17,
+    0x18,
+    0x19,
+    0x1A,
+    0x1B,
+    0x1C,
+    0x1D,
+    0x34,
+    0x38,
+    0x39,
+    0x50,
+    0x51,
+    0x52,
+    0x55,
+    0x56,
+    0x57,
+    0x5B,
+    0xF3,
+    0xFD,
+    0xFE,
+}
+OP_NAMES = {
+    0x00: "STOP",
+    0x08: "ADDMOD",
+    0x09: "MULMOD",
+    0x0A: "EXP",
+    0x20: "KECCAK256",
+    0x30: "ADDRESS",
+    0x31: "BALANCE",
+    0x32: "ORIGIN",
+    0x33: "CALLER",
+    0x35: "CALLDATALOAD",
+    0x36: "CALLDATASIZE",
+    0x37: "CALLDATACOPY",
+    0x3A: "GASPRICE",
+    0x3B: "EXTCODESIZE",
+    0x3C: "EXTCODECOPY",
+    0x3D: "RETURNDATASIZE",
+    0x3E: "RETURNDATACOPY",
+    0x3F: "EXTCODEHASH",
+    0x40: "BLOCKHASH",
+    0x41: "COINBASE",
+    0x42: "TIMESTAMP",
+    0x43: "NUMBER",
+    0x44: "PREVRANDAO",
+    0x45: "GASLIMIT",
+    0x46: "CHAINID",
+    0x47: "SELFBALANCE",
+    0x48: "BASEFEE",
+    0x49: "BLOBHASH",
+    0x4A: "BLOBBASEFEE",
+    0x53: "MSTORE8",
+    0x54: "SLOAD",
+    0x58: "PC",
+    0x59: "MSIZE",
+    0x5A: "GAS",
+    0x5C: "TLOAD",
+    0x5D: "TSTORE",
+    0x5E: "MCOPY",
+    0xA0: "LOG0",
+    0xA1: "LOG1",
+    0xA2: "LOG2",
+    0xA3: "LOG3",
+    0xA4: "LOG4",
+    0xF0: "CREATE",
+    0xF1: "CALL",
+    0xF2: "CALLCODE",
+    0xF4: "DELEGATECALL",
+    0xF5: "CREATE2",
+    0xFA: "STATICCALL",
+    0xFF: "SELFDESTRUCT",
+}
+
+
+def creation_prefix(init, plain):
+    """The constructor's code: the init code before the runtime copy it carries (solar appends
+    bin-runtime, with zero placeholders for immutables, to the constructor)."""
+    return init[: len(init) - len(plain)] if plain and init.endswith(plain) else init
+
+
+def frame_outside(prefix):
+    """The opcodes of the constructor's code PREFIX the generic creation frame does not evaluate,
+    each with its first offset; PUSH data is skipped."""
+    found, i = {}, 0
+    while i < len(prefix):
+        op = prefix[i]
+        if op not in FRAME_OPS:
+            found.setdefault(OP_NAMES.get(op, f"0x{op:02x}"), i)
+        i += 1 + (op - 0x5F if 0x60 <= op <= 0x7F else 0)
+    return found
+
+
+def constructor_payable(ast, contract):
+    for d in ast.get("nodes", []):
+        if d.get("nodeType") == "ContractDefinition" and d.get("name") == contract:
+            for n in d.get("nodes", []):
+                if (
+                    n.get("nodeType") == "FunctionDefinition"
+                    and n.get("kind") == "constructor"
+                ):
+                    return n.get("stateMutability") == "payable"
+    return False
+
+
+def immutable_patches(deployed, plain):
+    """The words a constructor wrote over PLAIN's immutable placeholders to give DEPLOYED, as
+    (offset, word) pairs: each run of differing bytes is the low end of one big-endian word.
+    None when no such patching gives DEPLOYED (then the run's code is DEPLOYED as a literal)."""
+    if len(deployed) != len(plain):
+        return None
+    out, i = [], 0
+    while i < len(plain):
+        if deployed[i] == plain[i]:
+            i += 1
+            continue
+        j = i
+        while j < len(plain) and deployed[j] != plain[j]:
+            j += 1
+        start = max(0, j - 32)
+        if out and start < out[-1][0] + 32:
+            start = out[-1][0] + 32
+        out.append((start, int.from_bytes(deployed[start:j], "big")))
+        i = j
+    got = bytearray(plain)
+    for off, w in out:
+        got[off : off + 32] = w.to_bytes(32, "big")
+    got = bytes(got[: len(plain)])
+    return (
+        out
+        if got == deployed and all(off + 32 <= len(plain) for off, _ in out)
+        else None
+    )
+
+
+def lean_bytes(b):
+    return (
+        f"NatCode.ofNat {int.from_bytes(b, 'big')} {len(b)}" if b else "ByteArray.empty"
+    )
+
+
+def lifecycle_lean(
+    ns,
+    src_import,
+    unit,
+    contract,
+    sigs,
+    init,
+    plain,
+    deployed,
+    ws,
+    storage,
+    refute=False,
+):
+    """The lifecycle module of a run (or, with REFUTE, its refutation): solar's init code INIT and
+    runtime PLAIN as this run compiled them, the argument words WS the run was given and the storage
+    STORAGE of SolidCore's constructor as the probe printed it. Untrusted text: the kernel checks
+    every literal. Deploys is Creation.deploys_of_check, one kernel evaluation of the generic
+    creation frame; the source half is Route.deployedAtWith by kernel_rfl, as the generic source
+    check's DeployedAt is. The runtime code is PLAIN with the immutable words the constructor
+    patched in (DEPLOYED's differences), so an unpatched immutable is refuted."""
+    patches = immutable_patches(deployed, plain)
+    if patches is None:
+        code = lean_bytes(deployed)
+    else:
+        code = "runtime"
+        for off, w in patches:
+            code = f"patchWord ({code}) {off} {hex(w)}"
+    sel = []
+    for i, g in enumerate(sigs):
+        sel.append(
+            f"def selSig{i} : SolidCore.Solidity.Shared.Word :=\n  SolidCore.Solidity.Source.ABI.selectorFromSignature {lean_str(g['sig'])}\n\n"
+            f"kernel_rfl selSig{i}_eq selSig{i} {hex(g['sel'])}\n"
+        )
+    table = "".join(
+        f"  if s = {lean_str(g['sig'])} then {hex(g['sel'])}\n  else" for g in sigs
+    )
+    splits = nested_splits([f"selSig{i}_eq" for i in range(len(sigs))])
+    head = f"""import Verify.Lifecycle.CreationFrame
+import Verify.Lifecycle.Route
+import Verify.Lifecycle.KernelIndex
+import SolidCore.Refinement.KernelRfl
+import {src_import}
+
+-- Generated by solar's tools/certify/generic.py from this run's init code, arguments and storage;
+-- do not edit. Untrusted data and composition: every literal below is checked by the kernel.
+
+namespace {ns}
+
+open EthLib.Base EthLib.Execution EthLib.Execution.Evm EthLib.Execution.Evm.Logic
+open SolidCore.Solidity SolidCore.Refinement Verify.Lifecycle Verify.Lifecycle.Creation
+
+/-- The interpreter fuel of SolidCore's runs. -/
+def fuel : Nat := 4096
+
+/-- The steps of the generic creation frame's evaluator. -/
+def frameFuel : Nat := 4096
+
+/-- solar's init code for §{contract}§, as this run compiled it. -/
+def init : ByteArray := {lean_bytes(init)}
+
+/-- solar's runtime code (§bin-runtime§), immutables as placeholders. -/
+def runtime : ByteArray := {lean_bytes(plain)}
+
+/-- The runtime code the creation installs: solar's, with each immutable the constructor patches. -/
+def code : ByteArray := {code}
+
+/-- The constructor's argument words, as this run was given them. -/
+def ws : List Nat := [{", ".join(str(w) for w in ws)}]
+
+/-- What the constructor leaves in storage, as the probe printed it (checked below). -/
+def storageLit : List (Nat × Nat) := [{", ".join(f"({k}, {v})" for k, v in storage)}]
+"""
+    if refute:
+        return (
+            head
+            + f"""
+/-- The generic creation frame's refutation of this creation. -/
+def refutesB : Bool := refutes frameFuel (initArgs init ws) code storageLit
+
+-- The kernel's evaluation, added as a declaration: a false check is a kernel error, never a
+-- reduction outside the kernel.
+kernel_decide refutesB_eq refutesB
+
+/-- This creation does not install §code§ with §storageLit§. -/
+theorem refuted : ¬ Deploys (initArgs init ws) code storageLit :=
+  not_deploys_of_refutes frameFuel refutesB_eq
+
+/-- info: '{ns}.refuted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms refuted
+
+end {ns}
+""".replace("§", "\u0060")
+        )
+    return (
+        head
+        + f"""
+/-- SolidCore's checked §{contract}§. -/
+def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
+  TypeCheck.CheckedInput.contract {unit} {lean_str(contract)}
+
+/-! ## Selectors, each by Keccak-256 once, then by table -/
+
+{chr(10).join(sel)}
+/-- §ABI.selectorFromSignature§, with the contract's signatures by table. -/
+def selectorTable (s : String) : SolidCore.Solidity.Shared.Word :=
+{table} SolidCore.Solidity.Source.ABI.selectorFromSignature s
+
+theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable := by
+  funext s
+  unfold selectorTable
+{splits}
+/-- The generic creation frame's check of this creation. -/
+def checkB : Bool := check frameFuel (initArgs init ws) code storageLit
+
+-- The kernel's evaluation, added as a declaration: a false check is a kernel error, never a
+-- reduction outside the kernel.
+kernel_decide checkB_eq checkB
+
+/-- EthLib's creation of §init§ with §ws§ installs §code§ and leaves §storageLit§. -/
+theorem deploys : Deploys (initArgs init ws) code storageLit :=
+  deploys_of_check frameFuel checkB_eq
+
+/-- Whether the contract checks and its constructor, called with §ws§, leaves §storageLit§ and no logs. -/
+def life? : Bool :=
+  match contract? with
+  | .ok c => deployedAtWith fuel c (wordArgs ws) storageLit
+  | .error _ => false
+
+kernel_rfl life_eq life? true using selector_eq mkIdx_eq
+
+/-- **The lifecycle statement**: the checked contract's constructor on §ws§ leaves §storageLit§,
+and solar's init code with §ws§ deploys §code§ with the same storage. -/
+theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws storageLit := by
+  have h := life_eq
+  unfold life? at h
+  split at h
+  next c hc => exact ⟨c, hc, deploys, deployedAtWith_of h⟩
+  next => simp at h
+
+/-- info: '{ns}.statement' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms statement
+
+end {ns}
+""".replace("§", "\u0060")
+    )
+
+
+def storage_list(text):
+    """The probe's storage entries in the probe's order (SolidCore's d.storage.toList, which
+    DeployedAtWith states exactly)."""
+    return [(int(k), int(v)) for k, v in re.findall(r"\((\d+), (\d+)\)", text or "")]
+
+
+def lifecycle_kernel(
+    build,
+    ns,
+    src_import,
+    unit,
+    contract,
+    sigs,
+    init,
+    plain,
+    deployed,
+    ws,
+    storage,
+    outside,
+):
+    """The kernel stage: {"stage", "ok", "detail", "verdict"}. verdict "proved" when BUILD accepts
+    the lifecycle module (Deploys by the generic creation frame, and DeployedAtWith), "refuted"
+    when it accepts the refutation instead, "outside" for a constructor outside the frame's shape
+    or one neither module proves. BUILD(module, text) is (ok, log)."""
+    if outside:
+        return {
+            "stage": "kernel",
+            "ok": False,
+            "verdict": "outside",
+            "detail": "the constructor is outside the generic creation frame: "
+            + ", ".join(outside),
+        }
+    text = lifecycle_lean(
+        ns, src_import, unit, contract, sigs, init, plain, deployed, ws, storage
+    )
+    ok, out = build("Lifecycle", text)
+    if ok:
+        return {
+            "stage": "kernel",
+            "ok": True,
+            "verdict": "proved",
+            "lean": text,
+            "detail": "the kernel proves Deploys (initArgs init ws) code s by the generic creation frame and "
+            "∃ d, DeployedAtWith fuel c (wordArgs ws) d s (Verify.Lifecycle.Statement)",
+        }
+    rtext = lifecycle_lean(
+        ns,
+        src_import,
+        unit,
+        contract,
+        sigs,
+        init,
+        plain,
+        deployed,
+        ws,
+        storage,
+        refute=True,
+    )
+    rok, _ = build("LifecycleRefute", rtext)
+    if rok:
+        return {
+            "stage": "kernel",
+            "ok": False,
+            "verdict": "refuted",
+            "lean": rtext,
+            "detail": "the kernel proves the creation does not deploy this code and storage (not_deploys_of_refutes)",
+        }
+    errs = " | ".join(l for l in out.splitlines() if "error" in l)[:400]
+    return {
+        "stage": "kernel",
+        "ok": False,
+        "verdict": "outside",
+        "detail": f"the kernel proves neither the deployment nor its refutation (a revert path, or a frame outside the shape): {errs}",
+    }
+
+
+def lifecycle_run(
+    a, record, solar, src, src_sha, name, contract, ast, work, finish, fns, rec_dir
+):
     """--tier lifecycle: the creation stages, ending UNSUPPORTED-lifecycle (exit 4) at the first
-    stage with no kernel proof, REJECTED (exit 1) at a stage that disagrees, never exit 0."""
+    stage with no kernel proof, REJECTED (exit 1) at a stage that disagrees or a creation the
+    kernel refutes, CERTIFIED (exit 0) only when the kernel proves the generated lifecycle module."""
     types = constructor_params(ast, contract)
     ws = constructor_words(types, a.constructor_args)
     imm = immutables(ast, contract)
@@ -1412,20 +1803,99 @@ def lifecycle_run(a, record, solar, src, src_sha, name, contract, ast, work, fin
     life["stages"] = stages = lifecycle_stages(res, plain, imm)
     for q in stages:
         log(f"lifecycle {q['stage']}: {'ok' if q['ok'] else 'NO'}: {q['detail']}")
-    first = next(q for q in stages if not q["ok"])
-    if first["stage"] != "kernel":
+    first = next((q for q in stages if not q["ok"]), None)
+    if first is not None:
         finish(
             "REJECTED",
             1,
             f"REJECTED: lifecycle: {first['stage']}: {first['detail']}",
             tier_reached="none",
         )
+    plain_b = bytes.fromhex(plain)
+    outside = [
+        f"{op} at {off}"
+        for op, off in frame_outside(creation_prefix(init, plain_b)).items()
+    ]
+    if constructor_payable(ast, contract):
+        outside.append(
+            "a payable constructor (the frame runs the creation with no value)"
+        )
+    if not (lean_dir / "Verify" / "Lifecycle" / "CreationFrame.lean").exists():
+        outside.append(
+            f"the base {base[:12]} has no generic creation frame (Verify/Lifecycle/CreationFrame.lean)"
+        )
+    sigs = [{"sig": f["sig"], "sel": f["sel"]} for f in fns]
+    kq = lifecycle_kernel(
+        lambda mod, t: lifecycle_build(
+            lean_dir, name, source_lean(body), mod, t, a.probe_cache or None
+        ),
+        f"Certified.{name}.Lifecycle",
+        f"{name}.Source",
+        f"Certified.{name}.Src.importedSourceUnit",
+        contract,
+        sigs,
+        init,
+        plain_b,
+        bytes.fromhex(res["runtime"]),
+        ws,
+        storage_list(res.get("storage")),
+        outside,
+    )
+    stages.append({k: kq[k] for k in ("stage", "ok", "detail")})
+    log(f"lifecycle kernel: {'YES' if kq['ok'] else 'NO'}: {kq['detail']}")
+    if "lean" in kq:
+        f = rec_dir / f"{name}.{'Lifecycle' if kq['ok'] else 'LifecycleRefute'}.lean"
+        f.write_text(kq["lean"])
+        life["lean_sha256"] = hashlib.sha256(kq["lean"].encode()).hexdigest()
+    if kq["verdict"] == "proved":
+        life["statement"] = (
+            f"Certified.{name}.Lifecycle.statement : ∃ c, contract? = .ok c ∧ Verify.Lifecycle.Statement fuel c init code ws storageLit"
+        )
+        finish(
+            "CERTIFIED",
+            0,
+            f"CERTIFIED: lifecycle: {kq['detail']}",
+            tier_reached="lifecycle",
+        )
+    if kq["verdict"] == "refuted":
+        finish(
+            "REJECTED",
+            1,
+            f"REJECTED: lifecycle: kernel: {kq['detail']}",
+            tier_reached="none",
+        )
     finish(
         "UNSUPPORTED-lifecycle",
         4,
-        f"UNSUPPORTED-lifecycle: kernel: {first['detail']}",
+        f"UNSUPPORTED-lifecycle: kernel: {kq['detail']}",
         tier_reached="none",
     )
+
+
+def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
+    """Build the run's module Certified/NAME/MOD.lean (with Source.lean) in the run's clone of the
+    base, one Lean thread at a time: (ok, output)."""
+    d = lean_dir / "Certified" / name
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "Source.lean").write_text(source_text)
+    (d / f"{mod}.lean").write_text(text)
+    lf = lean_dir / "lakefile.lean"
+    if f"lean_lib «{name}»" not in lf.read_text():
+        with open(lf, "a") as f:
+            f.write(
+                f'\nlean_lib «{name}» where\n  srcDir := "Certified"\n  globs := #[.submodules `{name}]\n'
+            )
+    if cache and not (lean_dir / ".lake").exists():
+        rc, _, err = run(
+            ["cp", "-a", str(pathlib.Path(cache) / ".lake"), str(lean_dir / ".lake")]
+        )
+        if rc != 0:
+            raise Failed(f"cannot copy the probe cache: {err[:200]}")
+    env = dict(os.environ, LEAN_NUM_THREADS="1")
+    rc, out, err = run(
+        ["lake", "build", "-KleanMemory=6000", f"{name}.{mod}"], cwd=lean_dir, env=env
+    )
+    return rc == 0, out + err
 
 
 def frontend(lean_dir, src, src_sha, name, contract, solc):
@@ -2414,7 +2884,18 @@ def main():
         record["solar"]["binary_commit"] = m.group(1) if m else None
         if tier == "lifecycle":
             lifecycle_run(
-                a, record, solar, src, src_sha, name, contract, ast, work, finish
+                a,
+                record,
+                solar,
+                src,
+                src_sha,
+                name,
+                contract,
+                ast,
+                work,
+                finish,
+                fns,
+                rec_dir,
             )
         plain, err = solar_runtime(solar, src, contract)
         if plain is None:
