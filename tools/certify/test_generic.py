@@ -15,19 +15,36 @@ import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import generic  # noqa: E402
+import generic
 
 NAME, CONTRACT = "meter_ca0b7786", "Meter"
-BOUND = (f"Certified/{NAME}/Source.lean is the front end's AST of {CONTRACT} in "
-         f"Certified/{NAME}/{NAME}.sol (solc {generic.SOLC_VERSION})")
+BOUND = (
+    f"Certified/{NAME}/Source.lean is the front end's AST of {CONTRACT} in "
+    f"Certified/{NAME}/{NAME}.sol (solc {generic.SOLC_VERSION})"
+)
 
 
 def full_record(source=BOUND, source_ast=BOUND):
     return {
-        "name": NAME, "contract": CONTRACT, "final": {"statement": "x"}, "source_ast": source_ast,
-        "statuses": {"equivalence": "proved", "termination": "proved", "resources": "proved",
-                     "spec": "none", "source": source, "provenance": "clean", "strongest": False},
-        "replay": {"closure": 10, "replayed_count": 10, "trusted_count": 0, "unaccounted": []},
+        "name": NAME,
+        "contract": CONTRACT,
+        "final": {"statement": "x"},
+        "source_ast": source_ast,
+        "statuses": {
+            "equivalence": "proved",
+            "termination": "proved",
+            "resources": "proved",
+            "spec": "none",
+            "source": source,
+            "provenance": "clean",
+            "strongest": False,
+        },
+        "replay": {
+            "closure": 10,
+            "replayed_count": 10,
+            "trusted_count": 0,
+            "unaccounted": [],
+        },
     }
 
 
@@ -42,9 +59,18 @@ class SourceBound(unittest.TestCase):
             "empty": ("", BOUND),
             "unknown": ("unknown", "unknown"),
             "missing": (None, None),
-            "not bound": ("not bound: the checked SolidCore source AST is not regenerated", None),
-            "other contract": (BOUND.replace("AST of Meter", "AST of Gate"), BOUND.replace("AST of Meter", "AST of Gate")),
-            "other file": (BOUND.replace("Source.lean", "Src.lean"), BOUND.replace("Source.lean", "Src.lean")),
+            "not bound": (
+                "not bound: the checked SolidCore source AST is not regenerated",
+                None,
+            ),
+            "other contract": (
+                BOUND.replace("AST of Meter", "AST of Gate"),
+                BOUND.replace("AST of Meter", "AST of Gate"),
+            ),
+            "other file": (
+                BOUND.replace("Source.lean", "Src.lean"),
+                BOUND.replace("Source.lean", "Src.lean"),
+            ),
             "record disagrees": (BOUND, ""),
         }
         for label, (src, ast) in cases.items():
@@ -69,16 +95,35 @@ class ReplayManifest(unittest.TestCase):
         (d / "inputs/Certified" / NAME / "shape.json").write_text("{}\n")
         (d / "certify.log").write_text("log\n")
         files = {str(q.relative_to(d)): sha(q) for q in d.rglob("*") if q.is_file()}
-        rec = {"status": "COMPILED", "source": {"sha256": files["Meter.sol"]}, "run_files": files}
+        rec = {
+            "status": "COMPILED",
+            "source": {"sha256": files["Meter.sol"]},
+            "run_files": files,
+        }
         (d / "record.json").write_text(json.dumps(rec))
         return d
 
     def replay(self, d):
         # --solidity-lean points nowhere: a run directory that passes the checks fails later, at
         # the fresh run, with a different message.
-        p = subprocess.run([sys.executable, str(HERE / "generic.py"), "--replay", str(d), "--solidity-lean", "/nonexistent",
-                            "--work", str(d.parent / "w")], capture_output=True, text=True)
-        return p.returncode, p.stdout.strip().splitlines()[-1] if p.stdout.strip() else ""
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(HERE / "generic.py"),
+                "--replay",
+                str(d),
+                "--solidity-lean",
+                "/nonexistent",
+                "--work",
+                str(d.parent / "w"),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return p.returncode, p.stdout.strip().splitlines()[
+            -1
+        ] if p.stdout.strip() else ""
 
     def test_stray_outside_inputs(self):
         with tempfile.TemporaryDirectory() as t:
@@ -86,7 +131,10 @@ class ReplayManifest(unittest.TestCase):
             (d / "stray.txt").write_text("x\n")
             code, line = self.replay(d)
             self.assertEqual(code, 1)
-            self.assertIn("REJECTED: replay: files the record's manifest does not list: ['stray.txt']", line)
+            self.assertIn(
+                "REJECTED: replay: files the record's manifest does not list: ['stray.txt']",
+                line,
+            )
 
     def test_stray_nested(self):
         with tempfile.TemporaryDirectory() as t:
@@ -116,7 +164,7 @@ class ReplayManifest(unittest.TestCase):
     def test_clean_passes_the_checks(self):
         with tempfile.TemporaryDirectory() as t:
             d = self.make(pathlib.Path(t))
-            code, line = self.replay(d)
+            _code, line = self.replay(d)
             self.assertNotIn("differs from the record", line)
             self.assertNotIn("manifest does not list", line)
 
@@ -126,11 +174,26 @@ def git_init(d, files):
     for rel, text in files.items():
         (d / rel).parent.mkdir(parents=True, exist_ok=True)
         (d / rel).write_text(text)
-    g = ["git", "-C", str(d), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+    g = [
+        "git",
+        "-C",
+        str(d),
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "commit.gpgsign=false",
+    ]
     subprocess.run([*g[:3], "init", "-q"], check=True)
     subprocess.run([*g, "add", "-A"], check=True)
     subprocess.run([*g, "commit", "-q", "-m", "base"], check=True)
-    return subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    return subprocess.run(
+        ["git", "-C", str(d), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
 
 
 def lean_fixture(root):
@@ -138,33 +201,71 @@ def lean_fixture(root):
     package at its pinned revision with one built olean."""
     cache = root / "cache"
     pkg = cache / ".lake/packages/Pkg"
-    rev = git_init(pkg, {"Pkg/Foo.lean": "def foo := 1\n", "Pkg/Bar.lean": "def bar := 2\n", ".gitignore": ".lake\n"})
+    rev = git_init(
+        pkg,
+        {
+            "Pkg/Foo.lean": "def foo := 1\n",
+            "Pkg/Bar.lean": "def bar := 2\n",
+            ".gitignore": ".lake\n",
+        },
+    )
     (pkg / ".lake/build/lib/lean/Pkg").mkdir(parents=True)
     (pkg / ".lake/build/lib/lean/Pkg/Foo.olean").write_bytes(b"olean foo")
-    manifest = json.dumps({"version": "1.1.0", "packages": [{"name": "Pkg", "type": "git", "rev": rev},
-                                                            {"name": "local", "type": "path", "rev": None}]})
+    manifest = json.dumps(
+        {
+            "version": "1.1.0",
+            "packages": [
+                {"name": "Pkg", "type": "git", "rev": rev},
+                {"name": "local", "type": "path", "rev": None},
+            ],
+        }
+    )
     repo = root / "sl"
-    base = git_init(repo, {"lakefile.lean": "-- lakefile\n", "lean-toolchain": "leanprover/lean4:v4.35.0\n",
-                           "lake-manifest.json": manifest, "SolidCore/A.lean": "-- a\n"})
+    base = git_init(
+        repo,
+        {
+            "lakefile.lean": "-- lakefile\n",
+            "lean-toolchain": "leanprover/lean4:v4.35.0\n",
+            "lake-manifest.json": manifest,
+            "SolidCore/A.lean": "-- a\n",
+        },
+    )
     return repo, base, cache
 
 
 def claims_record():
     """A certified run's certify-record.json (scripts/certify's record) and the driver's record.json."""
     cr = full_record()
-    cr["statuses"].update(spec="proved", strongest=True, excluded=["deployment", "events"])
-    cr["final"] = {"theorem": f"Certified.{NAME}.Final.final", "statement": "code = runtime ∧ Expected src spec runtime",
-                   "shape": "SolidCore.Verify.Generic.Expected", "assumptions": [], "excluded": ["deployment", "events"],
-                   "nonvacuous": f"Certified.{NAME}.Final.NonVacuous"}
-    cr["replay"].update(replayed=[{"module": f"M{i}", "olean_sha256": f"{i:064x}"} for i in range(10)],
-                        trusted={}, replayed_beyond_plan=[], checker={"path": "/x/leanchecker", "sha256": "c" * 64})
+    cr["statuses"].update(
+        spec="proved", strongest=True, excluded=["deployment", "events"]
+    )
+    cr["final"] = {
+        "theorem": f"Certified.{NAME}.Final.final",
+        "statement": "code = runtime ∧ Expected src spec runtime",
+        "shape": "SolidCore.Verify.Generic.Expected",
+        "assumptions": [],
+        "excluded": ["deployment", "events"],
+        "nonvacuous": f"Certified.{NAME}.Final.NonVacuous",
+    }
+    cr["replay"].update(
+        replayed=[{"module": f"M{i}", "olean_sha256": f"{i:064x}"} for i in range(10)],
+        trusted={},
+        replayed_beyond_plan=[],
+        checker={"path": "/x/leanchecker", "sha256": "c" * 64},
+    )
     cr["caveats"] = []
     cr["end_to_end_statement"] = {}
     ok, need_c, comps = generic.strict(cr, "certified")
-    rec = {"name": NAME, "contract": CONTRACT, "requested_tier": "certified", "status": "CERTIFIED",
-           "strict": {"tier": "certified", "holds": ok, "components": need_c},
-           "tier_reached": generic.reached_tier(comps), "published_statement": cr["end_to_end_statement"],
-           **{k: json.loads(json.dumps(cr[k])) for k in generic.CLAIM_KEYS}}
+    rec = {
+        "name": NAME,
+        "contract": CONTRACT,
+        "requested_tier": "certified",
+        "status": "CERTIFIED",
+        "strict": {"tier": "certified", "holds": ok, "components": need_c},
+        "tier_reached": generic.reached_tier(comps),
+        "published_statement": cr["end_to_end_statement"],
+        **{k: json.loads(json.dumps(cr[k])) for k in generic.CLAIM_KEYS},
+    }
     return cr, rec
 
 
@@ -185,14 +286,32 @@ class ReplayClaims(unittest.TestCase):
         (d / "inputs/Certified" / NAME / "Source.lean").write_text("-- generated\n")
         (d / "inputs/lakefile.lean").write_text("-- lakefile\n")
         files = {str(q.relative_to(d)): sha(q) for q in d.rglob("*") if q.is_file()}
-        ins = {r[len("inputs/"):]: v for r, v in files.items() if r.startswith("inputs/")}
+        ins = {
+            r[len("inputs/") :]: v for r, v in files.items() if r.startswith("inputs/")
+        }
         pin, digest = generic.pinned_packages(self.repo, base)
-        rec.update(source={"sha256": files["Meter.sol"]}, run_files=files,
-                   solidity_lean={"base": base, "base_tree": generic.git(self.repo, "rev-parse", base + "^{tree}"),
-                                  "executed_tree": generic.inputs_tree(self.repo, base, d / "inputs", sorted(ins)),
-                                  "inputs_commit": "a" * 40, "inputs": sorted(ins), "inputs_sha256": ins},
-                   packages={"pinned": pin, "digest": digest, "cache_sha256": hashlib.sha256(man.encode()).hexdigest()})
-        rec["caveats"] = cr["caveats"] = [f"solidity-lean at {'a' * 40}, not the pinned {'b' * 40}"]
+        rec.update(
+            source={"sha256": files["Meter.sol"]},
+            run_files=files,
+            solidity_lean={
+                "base": base,
+                "base_tree": generic.git(self.repo, "rev-parse", base + "^{tree}"),
+                "executed_tree": generic.inputs_tree(
+                    self.repo, base, d / "inputs", sorted(ins)
+                ),
+                "inputs_commit": "a" * 40,
+                "inputs": sorted(ins),
+                "inputs_sha256": ins,
+            },
+            packages={
+                "pinned": pin,
+                "digest": digest,
+                "cache_sha256": hashlib.sha256(man.encode()).hexdigest(),
+            },
+        )
+        rec["caveats"] = cr["caveats"] = [
+            f"solidity-lean at {'a' * 40}, not the pinned {'b' * 40}"
+        ]
         (d / "certify-record.json").write_text(json.dumps(cr))
         files["certify-record.json"] = sha(d / "certify-record.json")
         if edit:
@@ -217,8 +336,13 @@ class ReplayClaims(unittest.TestCase):
             (out / "record.json").write_text(json.dumps(fresh))
             return subprocess.CompletedProcess(cmd, 0)
 
-        a = argparse.Namespace(replay=str(d), work=str(d.parent / "w"), solidity_lean=str(self.repo),
-                               packages_from=str(self.cache) if packages_from else None, probe_cache=None)
+        a = argparse.Namespace(
+            replay=str(d),
+            work=str(d.parent / "w"),
+            solidity_lean=str(self.repo),
+            packages_from=str(self.cache) if packages_from else None,
+            probe_cache=None,
+        )
         buf = io.StringIO()
         saved = generic.subprocess.run
         generic.subprocess.run = fake_run
@@ -244,14 +368,29 @@ class ReplayClaims(unittest.TestCase):
             r["statuses"]["excluded"] = []
 
         cases = {
-            "final.theorem renamed": (lambda r: r["final"].update(theorem="Certified.other.Final.final"), "final.theorem"),
-            "final.statement edited": (lambda r: r["final"].update(statement="True"), "final.statement"),
-            "replay.closure raised": (lambda r: r["replay"].update(closure=11), "replay.closure"),
+            "final.theorem renamed": (
+                lambda r: r["final"].update(theorem="Certified.other.Final.final"),
+                "final.theorem",
+            ),
+            "final.statement edited": (
+                lambda r: r["final"].update(statement="True"),
+                "final.statement",
+            ),
+            "replay.closure raised": (
+                lambda r: r["replay"].update(closure=11),
+                "replay.closure",
+            ),
             "replayed module dropped": (drop_module, "replay.replayed"),
             "excluded emptied": (empty_excluded, "final.excluded"),
-            "statuses.excluded emptied": (lambda r: r["statuses"].update(excluded=[]), "statuses.excluded"),
+            "statuses.excluded emptied": (
+                lambda r: r["statuses"].update(excluded=[]),
+                "statuses.excluded",
+            ),
             "caveats emptied": (lambda r: r.update(caveats=None), "caveats"),
-            "strict holds forged": (lambda r: r["strict"].update(holds=False), "strict.holds"),
+            "strict holds forged": (
+                lambda r: r["strict"].update(holds=False),
+                "strict.holds",
+            ),
         }
         for label, (edit, field) in cases.items():
             with self.subTest(label), tempfile.TemporaryDirectory() as t:
@@ -274,7 +413,9 @@ class ReplayClaims(unittest.TestCase):
         cases = {
             "final.statement": lambda r: r["final"].update(statement="True"),
             "statuses.excluded": lambda r: r["statuses"].update(excluded=[]),
-            "replay.closure": lambda r: r["replay"].update(closure=11, replayed_count=11),
+            "replay.closure": lambda r: r["replay"].update(
+                closure=11, replayed_count=11
+            ),
             "replay.replayed": lambda r: r["replay"]["replayed"].pop(),
         }
         for field, edit in cases.items():
@@ -295,7 +436,10 @@ class ReplayClaims(unittest.TestCase):
             (d / "record.json").write_text(json.dumps(rec))
             code, line = self.replay(d)
             self.assertEqual(code, 1, line)
-            self.assertIn(f"REJECTED: replay: inputs/Certified/{NAME}/Source.lean is not the generated input", line)
+            self.assertIn(
+                f"REJECTED: replay: inputs/Certified/{NAME}/Source.lean is not the generated input",
+                line,
+            )
 
     def test_archived_input_added(self):
         with tempfile.TemporaryDirectory() as t:
@@ -307,16 +451,21 @@ class ReplayClaims(unittest.TestCase):
             (d / "record.json").write_text(json.dumps(rec))
             code, line = self.replay(d)
             self.assertEqual(code, 1, line)
-            self.assertIn("REJECTED: replay: inputs/Extra.lean is not the generated input", line)
+            self.assertIn(
+                "REJECTED: replay: inputs/Extra.lean is not the generated input", line
+            )
 
     def test_fresh_caveats_differ(self):
         with tempfile.TemporaryDirectory() as t:
-            code, line = self.replay(self.make(pathlib.Path(t)), lambda r: r.update(caveats=[]))
+            code, line = self.replay(
+                self.make(pathlib.Path(t)), lambda r: r.update(caveats=[])
+            )
             self.assertEqual(code, 1, line)
             self.assertTrue(line.startswith("REJECTED: replay: caveats"), line)
 
     def test_fresh_inputs_commit_may_differ(self):
         """A fresh run commits the same inputs at another time: only that hash differs in its caveats."""
+
         def recommit(r):
             r["solidity_lean"]["inputs_commit"] = "c" * 40
             r["caveats"] = [x.replace("a" * 40, "c" * 40) for x in r["caveats"]]
@@ -332,7 +481,6 @@ class ReplayClaims(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             code, line = self.replay(self.make(pathlib.Path(t)), redigest)
             self.assertEqual(code, 0, line)
-
 
 
 class ExecutedTree(unittest.TestCase):
@@ -368,14 +516,35 @@ class ExecutedTree(unittest.TestCase):
             for q in ("Certified/x/S.lean", "lakefile.lean"):
                 (repo / q).parent.mkdir(parents=True, exist_ok=True)
                 (repo / q).write_bytes((ins / q).read_bytes())
-            g = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+            g = [
+                "git",
+                "-C",
+                str(repo),
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+            ]
             subprocess.run([*g, "add", "-A"], check=True)
             subprocess.run([*g, "commit", "-q", "-m", "inputs"], check=True)
             want = generic.git(repo, "rev-parse", "HEAD^{tree}")
             objs = sorted((repo / ".git/objects").rglob("*"))
-            self.assertEqual(generic.inputs_tree(repo, base, ins, ["Certified/x/S.lean", "lakefile.lean"]), want)
-            self.assertEqual(sorted((repo / ".git/objects").rglob("*")), objs, "inputs_tree wrote into the repository")
-            self.assertNotEqual(generic.inputs_tree(repo, base, ins, ["Certified/x/S.lean"]), want)
+            self.assertEqual(
+                generic.inputs_tree(
+                    repo, base, ins, ["Certified/x/S.lean", "lakefile.lean"]
+                ),
+                want,
+            )
+            self.assertEqual(
+                sorted((repo / ".git/objects").rglob("*")),
+                objs,
+                "inputs_tree wrote into the repository",
+            )
+            self.assertNotEqual(
+                generic.inputs_tree(repo, base, ins, ["Certified/x/S.lean"]), want
+            )
 
     def test_control_passes(self):
         with tempfile.TemporaryDirectory() as t:
@@ -392,8 +561,15 @@ class ExecutedTree(unittest.TestCase):
             def rehash(rec, d):
                 rec["run_files"]["inputs/" + q] = sha(d / "inputs" / q)
                 rec["solidity_lean"]["inputs_sha256"][q] = sha(d / "inputs" / q)
+
             self.rewrite(d, rehash)
-            self.rejected(d, "is not base", fresh_edit=lambda r: r["solidity_lean"]["inputs_sha256"].update({q: sha(d / "inputs" / q)}))
+            self.rejected(
+                d,
+                "is not base",
+                fresh_edit=lambda r: r["solidity_lean"]["inputs_sha256"].update(
+                    {q: sha(d / "inputs" / q)}
+                ),
+            )
 
     def test_unlisted_file_in_executed_tree(self):
         """A record whose executed tree holds a file beyond the listed inputs (an edited base file)."""
@@ -402,30 +578,46 @@ class ExecutedTree(unittest.TestCase):
             extra = pathlib.Path(t) / "extra"
             (extra / "SolidCore").mkdir(parents=True)
             (extra / "SolidCore/A.lean").write_text("-- edited base\n")
-            for q in json.loads((d / "record.json").read_text())["solidity_lean"]["inputs"]:
+            for q in json.loads((d / "record.json").read_text())["solidity_lean"][
+                "inputs"
+            ]:
                 (extra / q).parent.mkdir(parents=True, exist_ok=True)
                 (extra / q).write_bytes((d / "inputs" / q).read_bytes())
 
             def forge(rec, d):
                 sl = rec["solidity_lean"]
-                sl["executed_tree"] = generic.inputs_tree(self.repo, sl["base"], extra, [*sl["inputs"], "SolidCore/A.lean"])
+                sl["executed_tree"] = generic.inputs_tree(
+                    self.repo, sl["base"], extra, [*sl["inputs"], "SolidCore/A.lean"]
+                )
+
             self.rewrite(d, forge)
             self.rejected(d, "is not base")
 
     def test_no_executed_tree(self):
         """A record from before this check (such as rc2-acc5-siblingok's) is refused, not passed on its keys."""
         with tempfile.TemporaryDirectory() as t:
-            d = self.rewrite(self.make(pathlib.Path(t)), lambda r, d: r["solidity_lean"].pop("executed_tree"))
+            d = self.rewrite(
+                self.make(pathlib.Path(t)),
+                lambda r, d: r["solidity_lean"].pop("executed_tree"),
+            )
             self.rejected(d, "pins no executed tree")
 
     def test_base_tree_forged(self):
         with tempfile.TemporaryDirectory() as t:
-            d = self.rewrite(self.make(pathlib.Path(t)), lambda r, d: r["solidity_lean"].update(base_tree="0" * 40))
+            d = self.rewrite(
+                self.make(pathlib.Path(t)),
+                lambda r, d: r["solidity_lean"].update(base_tree="0" * 40),
+            )
             self.rejected(d, "base_tree")
 
     def test_package_set_not_pinned(self):
         with tempfile.TemporaryDirectory() as t:
-            d = self.rewrite(self.make(pathlib.Path(t)), lambda r, d: r["packages"]["pinned"]["packages"][0].__setitem__(1, "f" * 40))
+            d = self.rewrite(
+                self.make(pathlib.Path(t)),
+                lambda r, d: r["packages"]["pinned"]["packages"][0].__setitem__(
+                    1, "f" * 40
+                ),
+            )
             self.rejected(d, "pinned toolchain and packages")
 
     def test_cache_olean_added(self):
@@ -433,20 +625,29 @@ class ExecutedTree(unittest.TestCase):
         24 EthLib oleans are this case): only the cache manifest sees it."""
         with tempfile.TemporaryDirectory() as t:
             d = self.make(pathlib.Path(t))
-            (self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Bar.olean").write_bytes(b"olean bar")
-            line = self.rejected(d, "the --packages-from cache is not the run's: 1 added, 0 removed, 0 changed")
+            (
+                self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Bar.olean"
+            ).write_bytes(b"olean bar")
+            line = self.rejected(
+                d,
+                "the --packages-from cache is not the run's: 1 added, 0 removed, 0 changed",
+            )
             self.assertIn("Pkg/.lake/build/lib/lean/Pkg/Bar.olean", line)
 
     def test_cache_olean_changed(self):
         with tempfile.TemporaryDirectory() as t:
             d = self.make(pathlib.Path(t))
-            (self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Foo.olean").write_bytes(b"other")
+            (
+                self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Foo.olean"
+            ).write_bytes(b"other")
             self.rejected(d, "0 added, 0 removed, 1 changed")
 
     def test_cache_foreign_olean(self):
         with tempfile.TemporaryDirectory() as t:
             d = self.make(pathlib.Path(t))
-            (self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Evil.olean").write_bytes(b"x")
+            (
+                self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Evil.olean"
+            ).write_bytes(b"x")
             self.rejected(d, "have no source at their package's pinned revision")
 
     def test_cache_package_other_revision(self):
@@ -454,14 +655,31 @@ class ExecutedTree(unittest.TestCase):
             d = self.make(pathlib.Path(t))
             pkg = self.cache / ".lake/packages/Pkg"
             (pkg / "Pkg/Foo.lean").write_text("def foo := 3\n")
-            subprocess.run(["git", "-C", str(pkg), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
-                            "commit", "-qam", "other"], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(pkg),
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-qam",
+                    "other",
+                ],
+                check=True,
+            )
             self.rejected(d, "not the pinned")
 
     def test_cache_package_edited(self):
         with tempfile.TemporaryDirectory() as t:
             d = self.make(pathlib.Path(t))
-            (self.cache / ".lake/packages/Pkg/Pkg/Foo.lean").write_text("def foo := 9\n")
+            (self.cache / ".lake/packages/Pkg/Pkg/Foo.lean").write_text(
+                "def foo := 9\n"
+            )
             self.rejected(d, "edited or untracked")
 
     def test_cache_extra_package(self):
@@ -475,7 +693,9 @@ class ExecutedTree(unittest.TestCase):
             d = self.make(pathlib.Path(t))
             m = d / "packages-cache.sha256"
             m.write_text(m.read_text() + "0" * 64 + "  ./Pkg/x\n")
-            self.rewrite(d, lambda r, d: r["run_files"].update({"packages-cache.sha256": sha(m)}))
+            self.rewrite(
+                d, lambda r, d: r["run_files"].update({"packages-cache.sha256": sha(m)})
+            )
             self.rejected(d, "not the manifest packages.cache_sha256 pins")
 
     def test_record_without_cache_manifest(self):
@@ -488,16 +708,28 @@ class ExecutedTree(unittest.TestCase):
             def drop(rec, d):
                 rec["run_files"].pop("packages-cache.sha256")
                 rec["packages"]["cache_sha256"] = None
+
             self.rewrite(d, drop)
-            self.rejected(d, "pins no package cache manifest", fresh_edit=lambda r: r["packages"].update(cache_sha256=None))
+            self.rejected(
+                d,
+                "pins no package cache manifest",
+                fresh_edit=lambda r: r["packages"].update(cache_sha256=None),
+            )
 
     def test_cache_run_replayed_without_cache(self):
         with tempfile.TemporaryDirectory() as t:
-            self.rejected(self.make(pathlib.Path(t)), "replay with --packages-from", packages_from=False)
+            self.rejected(
+                self.make(pathlib.Path(t)),
+                "replay with --packages-from",
+                packages_from=False,
+            )
 
     def test_fresh_cache_digest_differs(self):
         with tempfile.TemporaryDirectory() as t:
-            code, line = self.replay(self.make(pathlib.Path(t)), lambda r: r["packages"].update(cache_sha256="e" * 64))
+            code, line = self.replay(
+                self.make(pathlib.Path(t)),
+                lambda r: r["packages"].update(cache_sha256="e" * 64),
+            )
             self.assertEqual(code, 1, line)
             self.assertIn("packages", line)
 
@@ -509,9 +741,25 @@ def run_driver(src_text, spec, root):
     """The driver up to its first refusal; its envelope and spec checks run before any build."""
     src = root / "C.sol"
     src.write_text(src_text)
-    p = subprocess.run([sys.executable, str(HERE / "generic.py"), str(src), spec, "--solidity-lean", "/nonexistent",
-                        "--work", str(root / "w"), "--record-dir", str(root / "r"), "--solc", str(SOLC)],
-                       capture_output=True, text=True)
+    p = subprocess.run(
+        [
+            sys.executable,
+            str(HERE / "generic.py"),
+            str(src),
+            spec,
+            "--solidity-lean",
+            "/nonexistent",
+            "--work",
+            str(root / "w"),
+            "--record-dir",
+            str(root / "r"),
+            "--solc",
+            str(SOLC),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     return p.returncode, (p.stdout.strip().splitlines() or [""])[-1]
 
 
@@ -521,40 +769,52 @@ HEAD = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n"
 @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
 class SpecGates(unittest.TestCase):
     def test_environment_clause_blocked(self):
-        src = HEAD + """contract C { uint256 public x;
+        src = (
+            HEAD
+            + """contract C { uint256 public x;
     /// @custom:succeeds-if msg.value == 0
     /// @custom:requires block.chainid == 424242
     /// @custom:ensures x == 8
     function f() external { x = 1; } }"""
+        )
         with tempfile.TemporaryDirectory() as t:
             code, line = run_driver(src, "natspec", pathlib.Path(t))
             self.assertEqual(code, 3)
             self.assertTrue(line.startswith("BLOCKED: environment"), line)
 
     def test_msg_value_clause_allowed(self):
-        src = HEAD + """contract C { uint256 public x;
+        src = (
+            HEAD
+            + """contract C { uint256 public x;
     /// @custom:succeeds-if msg.value == 0
     /// @custom:ensures x == 1
     function f() external { x = 1; } }"""
+        )
         with tempfile.TemporaryDirectory() as t:
-            code, line = run_driver(src, "natspec", pathlib.Path(t))
+            _code, line = run_driver(src, "natspec", pathlib.Path(t))
             self.assertNotIn("BLOCKED", line)
             self.assertNotIn("succeeds-if", line)
 
     def test_no_succeeds_if_refused(self):
-        src = HEAD + """contract C { uint256 public x;
+        src = (
+            HEAD
+            + """contract C { uint256 public x;
     /// @custom:ensures x == 1
     function f() external { x = 1; } }"""
+        )
         with tempfile.TemporaryDirectory() as t:
             code, line = run_driver(src, "natspec", pathlib.Path(t))
             self.assertEqual(code, 1)
             self.assertIn("REJECTED: spec: no function has @custom:succeeds-if", line)
 
     def test_spec_none_needs_no_succeeds_if(self):
-        src = HEAD + """contract C { uint256 public x;
+        src = (
+            HEAD
+            + """contract C { uint256 public x;
     function f() external { x = 1; } }"""
+        )
         with tempfile.TemporaryDirectory() as t:
-            code, line = run_driver(src, "none", pathlib.Path(t))
+            _code, line = run_driver(src, "none", pathlib.Path(t))
             self.assertNotIn("succeeds-if", line)
 
 
@@ -564,20 +824,30 @@ class RecursionBoundary(unittest.TestCase):
 
     def blocked(self, body):
         with tempfile.TemporaryDirectory() as t:
-            return run_driver(HEAD + "contract C {\n" + body + "\n}", "none", pathlib.Path(t))
+            return run_driver(
+                HEAD + "contract C {\n" + body + "\n}", "none", pathlib.Path(t)
+            )
 
     def test_self_recursion(self):
         code, line = self.blocked("""    uint256 public x;
     function decrement(uint256 n) public { if (n > 0) { x = n; decrement(n - 1); } }""")
         self.assertEqual(code, 3, line)
-        self.assertIn("BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself", line)
+        self.assertIn(
+            "BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself",
+            line,
+        )
 
     def test_mutual_recursion(self):
-        code, line = self.blocked("""    function even(uint256 n) internal pure returns (bool) { return n == 0 ? true : odd(n - 1); }
+        code, line = (
+            self.blocked("""    function even(uint256 n) internal pure returns (bool) { return n == 0 ? true : odd(n - 1); }
     function odd(uint256 n) internal pure returns (bool) { return n == 0 ? false : even(n - 1); }
     function f(uint256 n) external pure returns (bool) { return even(n); }""")
+        )
         self.assertEqual(code, 3, line)
-        self.assertIn("BLOCKED: recursion (1x, first line 4: unsupported: even and odd can call each other", line)
+        self.assertIn(
+            "BLOCKED: recursion (1x, first line 4: unsupported: even and odd can call each other",
+            line,
+        )
 
     def test_recursion_through_a_modifier(self):
         code, line = self.blocked("""    uint256 public x;
@@ -589,16 +859,18 @@ class RecursionBoundary(unittest.TestCase):
         self.assertIn("unsupported: g and h and m can call each other", line)
 
     def test_call_through_a_function_value(self):
-        code, line = self.blocked("""    function g(uint256 n) internal pure returns (uint256) { return n + 1; }
+        code, line = (
+            self.blocked("""    function g(uint256 n) internal pure returns (uint256) { return n + 1; }
     function f(uint256 n) external pure returns (uint256) {
         function (uint256) internal pure returns (uint256) h = g;
         return h(n);
     }""")
+        )
         self.assertEqual(code, 3, line)
         self.assertIn("unsupported: a call through an internal function value", line)
 
     def test_acyclic_calls_pass(self):
-        code, line = self.blocked("""    uint256 public x;
+        _code, line = self.blocked("""    uint256 public x;
     modifier m() { require(x < 10); _; }
     function g(uint256 n) internal pure returns (uint256) { return n + 1; }
     function h(uint256 n) internal pure returns (uint256) { return g(g(n)); }
@@ -610,18 +882,54 @@ class RecursionBoundary(unittest.TestCase):
 def final_py(shape, root, hexcode="6001"):
     sp = root / "shape.json"
     sp.write_text(json.dumps(shape))
-    p = subprocess.run([sys.executable, str(HERE / "final.py"), str(sp), "--name", "c_1", "--contract", "C", "--hex", hexcode,
-                        "--out", str(root / "F.lean"), "--statement-out", str(root / "S.lean")], capture_output=True, text=True)
-    return p.returncode, p.stderr.strip(), (root / "S.lean").read_text() if (root / "S.lean").exists() else ""
+    p = subprocess.run(
+        [
+            sys.executable,
+            str(HERE / "final.py"),
+            str(sp),
+            "--name",
+            "c_1",
+            "--contract",
+            "C",
+            "--hex",
+            hexcode,
+            "--out",
+            str(root / "F.lean"),
+            "--statement-out",
+            str(root / "S.lean"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return (
+        p.returncode,
+        p.stderr.strip(),
+        (root / "S.lean").read_text() if (root / "S.lean").exists() else "",
+    )
 
 
 def expected_shape(**over):
-    s = {"kind": "certified", "statement": "expected", "contract": "L.contract?", "fuel": "L.fuel",
-         "valid": "V", "allowed_export": True, "spec_export": {"ctx": "X.ctxOfCall", "step": "X.idStep"},
-         "nonvacuous": "P.nonvacuous", "gas": "fun _ => 7", "env": [], "spec": "s", "spec_modules": ["L"],
-         "proof_module": "P", "proof": "P.published", "source_unit": "Src.importedSourceUnit",
-         "source_contract": "C", "storage": "L.storageLit",
-         "entries": [{"signature": "f()", "fn": "L.fn0", "sel": 1, "arity": 0}]}
+    s = {
+        "kind": "certified",
+        "statement": "expected",
+        "contract": "L.contract?",
+        "fuel": "L.fuel",
+        "valid": "V",
+        "allowed_export": True,
+        "spec_export": {"ctx": "X.ctxOfCall", "step": "X.idStep"},
+        "nonvacuous": "P.nonvacuous",
+        "gas": "fun _ => 7",
+        "env": [],
+        "spec": "s",
+        "spec_modules": ["L"],
+        "proof_module": "P",
+        "proof": "P.published",
+        "source_unit": "Src.importedSourceUnit",
+        "source_contract": "C",
+        "storage": "L.storageLit",
+        "entries": [{"signature": "f()", "fn": "L.fn0", "sel": 1, "arity": 0}],
+    }
     s.update(over)
     return s
 
@@ -631,25 +939,38 @@ class ExpectedStatement(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             code, err, stmt = final_py(expected_shape(), pathlib.Path(t))
             self.assertEqual(code, 0, err)
-            self.assertIn("_root_.SolidCore.Verify.Generic.Expected _root_.Certified.c_1.Final.src", stmt)
-            self.assertIn("Contexts ctx := ctx = _root_.SolidCore.Verify.Generic.Context.default", stmt)
+            self.assertIn(
+                "_root_.SolidCore.Verify.Generic.Expected _root_.Certified.c_1.Final.src",
+                stmt,
+            )
+            self.assertIn(
+                "Contexts ctx := ctx = _root_.SolidCore.Verify.Generic.Context.default",
+                stmt,
+            )
             self.assertIn("assumptions := []", stmt)
 
     def test_refused(self):
         cases = {
             "assumptions": expected_shape(env=["True"]),
-            "no non-vacuity": {k: v for k, v in expected_shape().items() if k != "nonvacuous"},
+            "no non-vacuity": {
+                k: v for k, v in expected_shape().items() if k != "nonvacuous"
+            },
             "compiled kind": expected_shape(kind="compiled", allowed_export=None),
-            "post not from the export": {**{k: v for k, v in expected_shape().items() if k != "spec_export"}, "post": "Q"},
+            "post not from the export": {
+                **{k: v for k, v in expected_shape().items() if k != "spec_export"},
+                "post": "Q",
+            },
             "no entries": expected_shape(entries=[]),
             "tactic in an input": expected_shape(gas="by decide"),
             "other statement": expected_shape(statement="shapes"),
         }
         for label, shape in cases.items():
-            with self.subTest(label):
-                with tempfile.TemporaryDirectory() as t:
-                    code, err, _ = final_py({k: v for k, v in shape.items() if v is not None}, pathlib.Path(t))
-                    self.assertNotEqual(code, 0, label)
+            with self.subTest(label), tempfile.TemporaryDirectory() as t:
+                code, _err, _ = final_py(
+                    {k: v for k, v in shape.items() if v is not None},
+                    pathlib.Path(t),
+                )
+                self.assertNotEqual(code, 0, label)
 
 
 class SpecConnectEmission(unittest.TestCase):
@@ -660,7 +981,15 @@ class SpecConnectEmission(unittest.TestCase):
         import spec_connect
 
         lines = spec_connect.succeeds_block(
-            "set", 1, "", "  tree_meets_fixed [set_tree, set_spec,]", [], [], "TreeMeetsFixed", "M", "B"
+            "set",
+            1,
+            "",
+            "  tree_meets_fixed [set_tree, set_spec,]",
+            [],
+            [],
+            "TreeMeetsFixed",
+            "M",
+            "B",
         )
         text = "\n".join(lines)
         self.assertNotIn("tree_succeeds [", text)
@@ -673,7 +1002,10 @@ class ResourceFailures(unittest.TestCase):
     """A kernel that runs out of memory is reported as resources, never as a refuted proof."""
 
     def test_kernel_memory(self):
-        log = ["X.lean:97:4: (kernel) excessive memory consumption detected", "error: build failed"]
+        log = [
+            "X.lean:97:4: (kernel) excessive memory consumption detected",
+            "error: build failed",
+        ]
         self.assertEqual(len(generic.resource_failures(log)), 1)
 
     def test_proof_failure_is_not_resources(self):
@@ -701,7 +1033,13 @@ class Utf8Boundary(unittest.TestCase):
             src = pathlib.Path(td) / "final.out"
             src.write_text(line + "\n")
             logf = pathlib.Path(td) / "certify.log"
-            cmd = ["bash", "-c", 'echo "neg: refused ($(cut -c1-160 "$1"))"; exit 3', "-", str(src)]
+            cmd = [
+                "bash",
+                "-c",
+                'echo "neg: refused ($(cut -c1-160 "$1"))"; exit 3',
+                "-",
+                str(src),
+            ]
             with contextlib.redirect_stdout(io.StringIO()) as out:
                 rc = generic.stream(cmd, logf)
             self.assertEqual(rc, 3)
@@ -716,10 +1054,20 @@ class Utf8Boundary(unittest.TestCase):
         line = self.boundary_line()
         src = (self.HERE / "final_neg.sh").read_text()
         fn = next(l for l in src.splitlines() if l.startswith("clip() {"))
-        r = subprocess.run(["bash", "-c", fn + "\nclip"], input=line.encode(), capture_output=True)
+        r = subprocess.run(
+            ["bash", "-c", fn + "\nclip"],
+            input=line.encode(),
+            capture_output=True,
+            check=False,
+        )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.decode("utf-8"), line.encode()[:159].decode())
-        r = subprocess.run(["bash", "-c", fn + "\nclip"], input=b"x" * 200, capture_output=True)
+        r = subprocess.run(
+            ["bash", "-c", fn + "\nclip"],
+            input=b"x" * 200,
+            capture_output=True,
+            check=False,
+        )
         self.assertEqual(r.stdout, b"x" * 160)
         self.assertNotIn("cut -c1-160", src)
 
@@ -730,13 +1078,27 @@ class SpecConnectCheck(unittest.TestCase):
     def test_failing_theorem_named(self):
         import spec_connect
 
-        out = ["namespace M", "theorem clear_meets0 : P := by", "  first", "  | (a)", "  | (b)", "",
-               "theorem clear_succeeds : Q := by", "  omega"]
-        text = ("SpecConnect.lean:5:5: error: omega could not prove the goal:\n"
-                "SpecConnect.lean:8:2: error: omega could not prove the goal:\n")
-        self.assertEqual(spec_connect.failing_theorems(text, out),
-                         [("clear_meets0", 5, "omega could not prove the goal:"),
-                          ("clear_succeeds", 8, "omega could not prove the goal:")])
+        out = [
+            "namespace M",
+            "theorem clear_meets0 : P := by",
+            "  first",
+            "  | (a)",
+            "  | (b)",
+            "",
+            "theorem clear_succeeds : Q := by",
+            "  omega",
+        ]
+        text = (
+            "SpecConnect.lean:5:5: error: omega could not prove the goal:\n"
+            "SpecConnect.lean:8:2: error: omega could not prove the goal:\n"
+        )
+        self.assertEqual(
+            spec_connect.failing_theorems(text, out),
+            [
+                ("clear_meets0", 5, "omega could not prove the goal:"),
+                ("clear_succeeds", 8, "omega could not prove the goal:"),
+            ],
+        )
 
 
 class SpecRejectionPath(unittest.TestCase):
@@ -744,18 +1106,32 @@ class SpecRejectionPath(unittest.TestCase):
     captured output refuses cleanly even when the capture is empty (no bad array subscript)."""
 
     def test_rejected_line_is_the_verdict(self):
-        log = ["spec_connect: REJECTED: spec: set_meets0 does not check: omega could not prove the goal: (SpecConnect.lean:67)",
-               "certify: error: spec_connect.py refuses functions of C (above): their spec is not proved"]
-        self.assertEqual(generic.spec_rejection(log),
-                         ["REJECTED: spec: set_meets0 does not check: omega could not prove the goal: (SpecConnect.lean:67)"])
+        log = [
+            "spec_connect: REJECTED: spec: set_meets0 does not check: omega could not prove the goal: (SpecConnect.lean:67)",
+            "certify: error: spec_connect.py refuses functions of C (above): their spec is not proved",
+        ]
+        self.assertEqual(
+            generic.spec_rejection(log),
+            [
+                "REJECTED: spec: set_meets0 does not check: omega could not prove the goal: (SpecConnect.lean:67)"
+            ],
+        )
 
     def test_guard_on_empty_capture(self):
         script = (HERE.parent.parent / "scripts" / "certify").read_text()
-        guard = next(l.strip() for l in script.splitlines() if "spec_connect.py refuses functions of" in l and "exit 0" in l)
+        guard = next(
+            l.strip()
+            for l in script.splitlines()
+            if "spec_connect.py refuses functions of" in l and "exit 0" in l
+        )
         for capture in ("true", "echo 'exit 1'"):
-            prog = ("set -euo pipefail; contract=C; die() { echo \"certify: error: $*\" >&2; exit 1; }\n"
-                    f"mapfile -t holds < <({capture})\n{guard}\necho passed\n")
-            p = subprocess.run(["bash", "-c", prog], capture_output=True, text=True)
+            prog = (
+                'set -euo pipefail; contract=C; die() { echo "certify: error: $*" >&2; exit 1; }\n'
+                f"mapfile -t holds < <({capture})\n{guard}\necho passed\n"
+            )
+            p = subprocess.run(
+                ["bash", "-c", prog], capture_output=True, text=True, check=False
+            )
             self.assertEqual(p.returncode, 1, capture)
             self.assertIn("their spec is not proved", p.stderr)
             self.assertNotIn("bad array subscript", p.stderr)
@@ -768,8 +1144,11 @@ class FrontendLocation(unittest.TestCase):
 
     def test_same_body_from_two_paths(self):
         import os
+
         lean = os.environ.get("SOLIDITY_LEAN_DIR")
-        solc = os.environ.get("SOLC", str(pathlib.Path.home() / ".cache/solc/solc-0.8.35"))
+        solc = os.environ.get(
+            "SOLC", str(pathlib.Path.home() / ".cache/solc/solc-0.8.35")
+        )
         if not lean or not pathlib.Path(solc).exists():
             self.skipTest("needs SOLIDITY_LEAN_DIR and solc")
         src = (HERE / "examples" / "counter.sol").read_bytes()
@@ -780,7 +1159,9 @@ class FrontendLocation(unittest.TestCase):
                 p = pathlib.Path(d) / sub / "counter.sol"
                 p.parent.mkdir(parents=True)
                 p.write_bytes(src)
-                rc, body, err = generic.frontend(lean, p, sha, "counter_x", "Counter", solc)
+                rc, body, err = generic.frontend(
+                    lean, p, sha, "counter_x", "Counter", solc
+                )
                 self.assertEqual(rc, 0, err)
                 bodies.append(body)
         self.assertEqual(bodies[0], bodies[1])

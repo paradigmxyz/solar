@@ -24,7 +24,13 @@ ket = "ket"
 Mke = "Mke"
 numer = "numer"
 Pn = "Pn"
+thm = "thm"
 typ = "typ"
+belows = "belows"
+lits = "lits"
+nd = "nd"
+fnd = "fnd"
+hsi = "hsi"
 
 [type.py.extend-identifiers]
 som = "som"
