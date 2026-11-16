@@ -273,7 +273,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for _ in 0..plan.blocks.len() {
                     match plan.blocks[target].as_ref().map(|plan| (&plan.steps, &plan.exit)) {
                         Some((steps, Exit::Jump(next)))
-                            if steps.is_empty() && target != BlockId::ENTRY && target != block =>
+                            if steps.is_empty()
+                                && target != BlockId::ENTRY
+                                && target != block
+                                && !self.keeps_loop_jump(func, target) =>
                         {
                             target = *next;
                         }

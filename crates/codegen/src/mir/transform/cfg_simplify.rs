@@ -18,8 +18,10 @@
 //! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
 //! preserve stack lifetimes.
 //!
-//! ## Loop Jumps at `-Onone`
-//! An unoptimized function keeps the block of each `break` and `continue` statement, so that the
+//! ## Debuggable `-Onone`
+//! An unoptimized function keeps every terminal block, as the origin of a shared block merges
+//! those of its copies and the legacy source map writes it as -1, so a merged `return true;` loses
+//! its anchor. It also keeps the block of each `break` and `continue` statement, so that the
 //! statement and the branch path into it keep an instruction of their own. Block merging and empty
 //! block elimination skip a block whose jump has the origin of such a statement, found by the
 //! text of the origin: the `break` that desugars a loop condition takes the origin of the loop and
@@ -246,11 +248,14 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 }
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
-fn run(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> bool {
+fn run(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     let mut changed = simplify_degenerate_terminators(func);
-    changed |= merge_blocks(func, keep_loop_jumps);
-    changed |= eliminate_empty_blocks(func, keep_loop_jumps);
-    changed |= deduplicate_terminal_blocks(func);
+    changed |= merge_blocks(func, unoptimized);
+    changed |= eliminate_empty_blocks(func, unoptimized);
+    // An unoptimized function keeps each terminal block: a shared one has no single origin.
+    if unoptimized.is_none() {
+        changed |= deduplicate_terminal_blocks(func);
+    }
     changed |= simplify_trivial_phis(func);
     changed
 }
@@ -552,9 +557,9 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
     Some(if taken { *then_block } else { *else_block })
 }
 
-/// Runs CFG simplification iteratively until no more changes. With `keep_loop_jumps`, an
-/// unoptimized function keeps the jump of each `break` and `continue` statement.
-fn run_to_fixpoint(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> bool {
+/// Runs CFG simplification iteratively until no more changes. `unoptimized` is set for a function
+/// compiled at `-Onone`; see the module docs for what it keeps.
+fn run_to_fixpoint(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -566,7 +571,7 @@ fn run_to_fixpoint(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> boo
     }
 
     let mut changed = false;
-    while run(func, keep_loop_jumps) {
+    while run(func, unoptimized) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)
@@ -576,11 +581,11 @@ fn run_to_fixpoint(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> boo
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> bool {
+fn merge_blocks(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
-        while let Some(target) = can_merge(func, block_id)
-            .filter(|_| !ends_in_kept_jump(func, block_id, keep_loop_jumps))
+        while let Some(target) =
+            can_merge(func, block_id).filter(|_| !ends_in_kept_jump(func, block_id, unoptimized))
         {
             do_merge(func, block_id, target);
             merged = true;
@@ -589,11 +594,11 @@ fn merge_blocks(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> bool {
     merged
 }
 
-/// Returns whether the block ends in the jump of a `break` or `continue` statement that
-/// `keep_loop_jumps` asks to keep: it is the one instruction coverage can anchor the statement
-/// and its branch path to.
-fn ends_in_kept_jump(func: &Function, block: BlockId, keep_loop_jumps: Option<Gcx<'_>>) -> bool {
-    keep_loop_jumps.is_some_and(|gcx| is_loop_jump(gcx, &func.blocks[block].terminator_metadata))
+/// Returns whether the block ends in the jump of a `break` or `continue` statement in an
+/// unoptimized function: it is the one instruction coverage can anchor the statement and its
+/// branch path to.
+fn ends_in_kept_jump(func: &Function, block: BlockId, unoptimized: Option<Gcx<'_>>) -> bool {
+    unoptimized.is_some_and(|gcx| is_loop_jump(gcx, &func.blocks[block].terminator_metadata))
 }
 
 /// Checks if block_id can be merged with its successor.
@@ -674,8 +679,8 @@ fn fold_target_phis_for_merge(
 }
 
 /// Eliminates empty blocks that only contain an unconditional jump, except the jump of a `break`
-/// or `continue` statement when `keep_loop_jumps` is set.
-fn eliminate_empty_blocks(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>) -> bool {
+/// or `continue` statement in an unoptimized function.
+fn eliminate_empty_blocks(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
     // changes neither reachability nor dominance among the other blocks, so one snapshot
     // answers every round; the eliminated block is never a forwarder again.
@@ -689,7 +694,7 @@ fn eliminate_empty_blocks(func: &mut Function, keep_loop_jumps: Option<Gcx<'_>>)
         for block_id in func.blocks.indices() {
             if empty_forwarder_target(func, block_id).is_none()
                 || (func.blocks[block_id].predecessors.is_empty() && cfg().is_reachable(block_id))
-                || ends_in_kept_jump(func, block_id, keep_loop_jumps)
+                || ends_in_kept_jump(func, block_id, unoptimized)
             {
                 continue;
             }

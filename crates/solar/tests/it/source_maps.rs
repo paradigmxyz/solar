@@ -632,50 +632,27 @@ fn shared_custom_error_keeps_distinct_condition_origins() {
                 .expect("each rejection must keep its own condition location");
             destinations.push(instructions[index - 1]["operation"]["arguments"][0].clone());
         }
-        assert_eq!(destinations[0], destinations[1], "both guards share the same error body");
-        // NOTE: The shared body cannot have either call's unique source location. Coverage
-        // must distinguish the incoming edges instead of counting the common destination, so no
-        // entry from the shared label through its `REVERT` may name only one of the merged paths.
-        let target =
-            u64::from_str_radix(destinations[0].as_str().unwrap().trim_start_matches("0x"), 16)
-                .unwrap();
-        let label = instructions
-            .iter()
-            .position(|inst| {
-                inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
-            })
-            .expect("the guards jump to a `JUMPDEST`");
-        let revert = label
-            + instructions[label..]
+        // NOTE: An unoptimized build keeps each guard's error body apart, so the bodies keep the
+        // location of their own `revert` and no instruction from the label through its `REVERT`
+        // is unmapped.
+        assert_ne!(destinations[0], destinations[1], "each guard keeps its own error body");
+        for destination in &destinations {
+            let target =
+                u64::from_str_radix(destination.as_str().unwrap().trim_start_matches("0x"), 16)
+                    .unwrap();
+            let label = instructions
                 .iter()
-                .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
-                .expect("the shared body reverts");
-        let shared = entries[label..=revert]
-            .iter()
-            .zip(&instructions[label..=revert])
-            .map(|(entry, inst)| {
-                format!(
-                    "{} {}:{}:{}",
-                    inst["operation"]["mnemonic"].as_str().unwrap(),
-                    entry[0],
-                    entry[1],
-                    entry[2]
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert_data_eq!(
-            shared,
-            str![[r#"
-JUMPDEST -1:-1:-1
-PUSH4 -1:-1:-1
-PUSH0 -1:-1:-1
-MSTORE -1:-1:-1
-PUSH1 -1:-1:-1
-PUSH1 -1:-1:-1
-REVERT -1:-1:-1
-"#]]
-        );
+                .position(|inst| {
+                    inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
+                })
+                .expect("the guards jump to a `JUMPDEST`");
+            let revert = label
+                + instructions[label..]
+                    .iter()
+                    .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
+                    .expect("the error body reverts");
+            assert!(entries[label..=revert].iter().all(|entry| entry[2] == id as i64));
+        }
         // The source-only assignments in `_state` have no instructions. Its return still
         // identifies successful completion of the helper, independently of those locations.
         let start = source.find("function _state()").unwrap();
