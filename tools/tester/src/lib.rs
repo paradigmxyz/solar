@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
+    time::Duration,
 };
 use ui_test::{
     CommentParser, Errored, Revisioned,
@@ -34,7 +35,6 @@ mod run_call;
 mod solc;
 mod standard_json;
 mod utils;
-mod watchdog;
 
 /// Runs all the tests.
 ///
@@ -96,11 +96,6 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
     let status_emitter = (text_emitter, gha_emitter);
 
-    // A killed compiler's partial output would overwrite the expected output when blessing.
-    if !args.bless {
-        watchdog::spawn();
-    }
-
     ui_test::run_tests_generic(
         configs,
         move |path, config| {
@@ -113,10 +108,6 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         },
         status_emitter,
     )?;
-
-    if watchdog::killed() {
-        return Err(eyre!("the watchdog killed a process that ran for too long"));
-    }
 
     Ok(())
 }
@@ -172,6 +163,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             envs: vec![(solar_config::version::TEST_VERSION_ENV.into(), Some("1".into()))],
             cfg_flag: None,
         },
+        // A hung compiler would stall the run until nextest kills it, naming no fixture.
+        command_timeout: Some(Duration::from_secs(120)),
         output_conflict_handling: ui_test::error_on_output_conflict,
         bless_command: Some("cargo bless".into()),
         out_dir: ui_out_dir().join(mode.to_str()),
