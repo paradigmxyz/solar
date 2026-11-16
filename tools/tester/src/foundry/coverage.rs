@@ -442,8 +442,11 @@ fn run_leg(config: &TestConfig, leg: &'static Leg) -> LegRun {
         let stderr = String::from_utf8_lossy(&output.stderr);
         // Solc cannot compile every project with every setting; that is its limit, not a leg
         // that failed to run. The compiler under test never gets this allowance.
+        // Solc words the Yul error differently across versions.
         if matches!(leg.compiler, ForgeCompiler::Solc)
-            && (stderr.contains("Stack too deep") || stderr.contains("too deep in the stack"))
+            && ["Stack too deep", "too deep in the stack", "too deep inside the stack"]
+                .iter()
+                .any(|message| stderr.contains(message))
         {
             let reason = "solc cannot compile this project with these settings: stack too deep";
             eprintln!("[{label}] SKIPPED: {reason}");
