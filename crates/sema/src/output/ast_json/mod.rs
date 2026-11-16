@@ -37,6 +37,7 @@ use crate::{
     typeck::override_checker::is_fully_implemented,
 };
 use alloy_primitives::hex;
+use rayon::prelude::*;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::value::RawValue;
 use solar_ast::{self as ast, CommentKind, DocComments, token::TokenLitKind};
@@ -137,17 +138,31 @@ pub struct AstJson<'gcx> {
     /// Whether the output is indented. Compact output caches the written descriptions of types,
     /// and writes sources ahead in parallel.
     pretty: bool,
-    /// The sources written ahead by [`AstJson::render`].
+    /// The sources written ahead by [`AstJson::write_large`] and [`AstJson::render`].
     ahead: OnceLock<Ahead>,
 }
 
-/// The sources that [`AstJson::render`] writes ahead of the output, in the order of the output.
+/// The sources that [`AstJson::write_large`] and [`AstJson::render`] write ahead of the output, in
+/// the order of the output.
 struct Ahead {
     /// The sources in the order of the output.
     order: Vec<SourceId>,
     state: Mutex<AheadState>,
     /// Signals a source written, a source taken, or the end of the output.
     changed: Condvar,
+}
+
+impl Ahead {
+    fn new(gcx: Gcx<'_>, sources: &[SourceAstJson<'_, '_>]) -> Self {
+        let order = sources.iter().map(|source| source.id).collect();
+        let state = AheadState {
+            slots: gcx.sources.iter().map(|_| Slot::Pending).collect(),
+            started: 0,
+            taken: 0,
+            closed: false,
+        };
+        Self { order, state: Mutex::new(state), changed: Condvar::new() }
+    }
 }
 
 struct AheadState {
@@ -201,15 +216,8 @@ impl<'gcx> AstJson<'gcx> {
         if self.pretty || !self.gcx.sess.is_parallel() || sources.len() < 2 {
             return write();
         }
-        let order = sources.iter().map(|source| source.id).collect();
-        let state = AheadState {
-            slots: self.gcx.sources.iter().map(|_| Slot::Pending).collect(),
-            started: 0,
-            taken: 0,
-            closed: false,
-        };
-        let ahead = Ahead { order, state: Mutex::new(state), changed: Condvar::new() };
-        let ahead = self.ahead.get_or_init(|| ahead);
+        let ahead = self.ahead.get_or_init(|| Ahead::new(self.gcx, sources));
+        debug_assert!(ahead.order.iter().eq(sources.iter().map(|source| &source.id)));
         rayon::scope(|scope| {
             for _ in 0..threads {
                 scope.spawn(|_| self.write_ahead(ahead, 2 * threads));
@@ -220,7 +228,8 @@ impl<'gcx> AstJson<'gcx> {
     }
 
     /// Writes the sources of `ahead` in order, until the output has them all or ends, and never
-    /// more than `window` sources before the one that the output reaches.
+    /// more than `window` sources before the one that the output reaches, skipping those that
+    /// [`AstJson::write_large`] wrote.
     fn write_ahead(&self, ahead: &Ahead, window: usize) {
         loop {
             let id = {
@@ -231,27 +240,69 @@ impl<'gcx> AstJson<'gcx> {
                 {
                     state = ahead.changed.wait(state).unwrap();
                 }
+                // The output writes the sources it reached before any worker started them, and
+                // takes those that `write_large` wrote.
+                state.started = state.started.max(state.taken);
                 let Some(&id) = ahead.order.get(state.started).filter(|_| !state.closed) else {
                     return;
                 };
                 state.started += 1;
+                // `write_large` already wrote it.
+                if !matches!(state.slots[id], Slot::Pending) {
+                    continue;
+                }
                 state.slots[id] = Slot::Writing;
                 id
             };
-            let source = Direct(SourceAstJson { json: self, id });
-            let raw =
-                panic::catch_unwind(AssertUnwindSafe(|| serde_json::value::to_raw_value(&source)));
-            let (slot, panic) = match raw {
-                Ok(Ok(raw)) => (Slot::Written(raw), None),
-                Ok(Err(_)) => (Slot::Pending, None),
-                Err(panic) => (Slot::Pending, Some(panic)),
-            };
-            ahead.state.lock().unwrap().slots[id] = slot;
-            ahead.changed.notify_all();
-            // The output writes a source that panicked itself, instead of waiting for it.
-            if let Some(panic) = panic {
-                panic::resume_unwind(panic);
+            self.write_slot(ahead, id);
+        }
+    }
+
+    /// Writes the sources that hold at least a thread's share of the text of these sources on
+    /// the thread pool of the session, so that a later [`AstJson::render`] of them only copies
+    /// them. Such a source takes longer to write than the others take together on the other
+    /// threads, so `render` would wait for it. Call this where the workers would otherwise be
+    /// idle; the written sources stay in memory until the output takes them.
+    pub fn write_large(&self, sources: &[SourceAstJson<'_, 'gcx>]) {
+        if self.pretty || !self.gcx.sess.is_parallel() || sources.len() < 2 {
+            return;
+        }
+        let len = |id: SourceId| self.gcx.sources[id].file.src.len();
+        let total = sources.iter().map(|source| len(source.id)).sum::<usize>();
+        let threads = rayon::current_num_threads();
+        let large = sources
+            .iter()
+            .map(|source| source.id)
+            .filter(|&id| len(id) * threads >= total)
+            .collect::<Vec<_>>();
+        if large.is_empty() {
+            return;
+        }
+        let ahead = self.ahead.get_or_init(|| Ahead::new(self.gcx, sources));
+        {
+            let mut state = ahead.state.lock().unwrap();
+            for &id in &large {
+                state.slots[id] = Slot::Writing;
             }
+        }
+        large.into_par_iter().with_max_len(1).for_each(|id| self.write_slot(ahead, id));
+    }
+
+    /// Writes a started source into its slot.
+    fn write_slot(&self, ahead: &Ahead, id: SourceId) {
+        let source = Direct(SourceAstJson { json: self, id });
+        let raw =
+            panic::catch_unwind(AssertUnwindSafe(|| serde_json::value::to_raw_value(&source)));
+        let (slot, panic) = match raw {
+            Ok(Ok(raw)) => (Slot::Written(raw), None),
+            Ok(Err(_)) => (Slot::Pending, None),
+            Err(panic) => (Slot::Pending, Some(panic)),
+        };
+        ahead.state.lock().unwrap().slots[id] = slot;
+        ahead.changed.notify_all();
+        // The output writes a source that panicked itself, instead of waiting for it.
+        if let Some(panic) = panic {
+            panic::resume_unwind(panic);
         }
     }
 
