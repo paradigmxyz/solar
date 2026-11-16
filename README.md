@@ -9,6 +9,8 @@
 
 Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
 
+Read the [Solar v0.3 announcement](https://www.paradigm.xyz/writing/solar-100-faster-solidity): 100× faster Solidity.
+
 <p align="center">
     <picture align="center">
         <img alt="Solar cover" src="/assets/cover.png">
