@@ -4,8 +4,8 @@ use super::{
     AbiEncodeMode, AllocationFailure, AllocationSemantics, BlockId, CallPolicy, CalldataTail,
     FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
     Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
-    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
-    Terminator, Value, ValueId,
+    OperandOrigin, PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias,
+    StructId, Terminator, Value, ValueId,
 };
 use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
@@ -88,8 +88,10 @@ pub struct FunctionBuilder<'a> {
     placed_blocks: Option<GrowableBitSet<BlockId>>,
     /// The assignments and folds whose value no instruction has read yet.
     unread_origins: FxHashMap<ValueId, Unread>,
-    /// The block whose code the operand origins of `current_debug_context` hold for. Code in
-    /// another block runs only if the code that split the block did not leave.
+    /// The operand origins of the instruction being expanded, by value, for the code that reads
+    /// the value in `operand_origins_block`. Code in another block runs only if the code that
+    /// split the block did not leave.
+    expansion_origins: FxHashMap<ValueId, OperandOrigin>,
     operand_origins_block: BlockId,
     /// The [`crate::OperandOrigin::id`] of the next assignment or fold noted.
     next_origin_id: u32,
@@ -144,6 +146,7 @@ impl<'a> FunctionBuilder<'a> {
             semantic: false,
             placed_blocks: None,
             unread_origins: FxHashMap::default(),
+            expansion_origins: FxHashMap::default(),
             operand_origins_block: BlockId::ENTRY,
             next_origin_id: 0,
         }
@@ -299,16 +302,18 @@ impl<'a> FunctionBuilder<'a> {
     /// Inherits source context while replacing an instruction or control transfer.
     pub fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
         self.current_debug_context.preserve_debug_loc(metadata);
+        self.expansion_origins.clear();
     }
 
-    /// Inherits the source context of an instruction that is expanded into several, which all read
-    /// what it reads, and so share its operand origins.
+    /// Inherits the source context of an instruction that is expanded into several, each of which
+    /// takes the operand origins of the values it reads that the instruction did.
     ///
-    /// Only the code in the current block shares them: after the expansion splits the block, the
+    /// Only the code in the current block takes them: after the expansion splits the block, the
     /// code in the next one runs only if the code before the split did not leave.
     pub fn set_expansion_context(&mut self, metadata: &InstructionMetadata) {
-        self.current_debug_context.preserve_debug_loc(metadata);
-        self.current_debug_context.inherit_operand_origins(metadata);
+        self.set_debug_context(metadata);
+        self.expansion_origins
+            .extend(metadata.operand_origins().iter().map(|record| (record.value, record.clone())));
         self.operand_origins_block = self.current_block;
     }
 
@@ -320,8 +325,29 @@ impl<'a> FunctionBuilder<'a> {
 
     fn set_current_debug_context(&self, metadata: &mut InstructionMetadata) {
         metadata.preserve_debug_loc(&self.current_debug_context);
-        if self.current_block == self.operand_origins_block {
-            metadata.inherit_operand_origins(&self.current_debug_context);
+    }
+
+    /// Gives `metadata`, of an instruction or terminator reading `operands`, the origins of the
+    /// operands that the instruction being expanded read first.
+    fn inherit_operand_origins(
+        &self,
+        operands: impl IntoIterator<Item = ValueId>,
+        metadata: &mut InstructionMetadata,
+    ) {
+        if self.current_block != self.operand_origins_block {
+            return;
+        }
+        for operand in operands {
+            if let Some(record) = self.expansion_origins.get(&operand)
+                && !metadata.operand_origins().iter().any(|taken| taken.value == operand)
+            {
+                metadata.add_operand_origin(
+                    operand,
+                    record.origin.clone(),
+                    record.in_loop,
+                    record.id,
+                );
+            }
         }
     }
 
@@ -806,6 +832,9 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
         self.set_current_debug_context(&mut inst.metadata);
+        if !self.expansion_origins.is_empty() {
+            self.inherit_operand_origins(inst.kind.operands(), &mut inst.metadata);
+        }
         // A phi reads its operands on the edges into its block, not in it.
         if !self.unread_origins.is_empty() && !matches!(inst.kind, InstKind::Phi(_)) {
             self.take_operand_origins(inst.kind.operands(), &mut inst.metadata);
@@ -2225,6 +2254,9 @@ impl<'a> FunctionBuilder<'a> {
         }
         let mut metadata = InstructionMetadata::EMPTY;
         self.set_current_debug_context(&mut metadata);
+        if !self.expansion_origins.is_empty() {
+            self.inherit_operand_origins(terminator.operands(), &mut metadata);
+        }
         if !self.unread_origins.is_empty() {
             self.take_operand_origins(terminator.operands(), &mut metadata);
         }

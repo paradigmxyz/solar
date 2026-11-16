@@ -95,8 +95,8 @@ impl InstructionMetadata {
     /// records are source context, so they follow the origins. Replacing the origins by those of
     /// another instruction ([`Self::preserve_debug_loc`]), merging, combining or dropping them, and
     /// copying only the source context ([`Self::debug_context`]) drop the records. A lowering that
-    /// expands the instruction into several that read the same operands keeps them with
-    /// [`Self::inherit_operand_origins`].
+    /// expands the instruction into several gives each the records of the operands it reads, with
+    /// [`crate::FunctionBuilder::set_expansion_context`].
     #[must_use]
     pub fn operand_origins(&self) -> &[OperandOrigin] {
         self.operand_origins.0.as_deref().map_or(&[], |origins| origins.0.as_slice())
@@ -108,11 +108,6 @@ impl InstructionMetadata {
     pub fn add_operand_origin(&mut self, value: ValueId, origin: Self, in_loop: bool, id: u32) {
         let origins = &mut Arc::make_mut(self.operand_origins.0.get_or_insert_default()).0;
         origins.push(OperandOrigin { value, origin, in_loop, id });
-    }
-
-    /// Takes the operand origins of `from`, whose operands this instruction reads too.
-    pub fn inherit_operand_origins(&mut self, from: &Self) {
-        self.operand_origins.0.clone_from(&from.operand_origins.0);
     }
 
     /// Drops the operand origins, for code that no longer runs exactly when the assignments do.
@@ -1288,16 +1283,16 @@ mod tests {
     }
 
     #[test]
-    fn operand_origins_follow_an_inheriting_expansion_only() {
+    fn operand_origins_follow_their_instruction_only() {
         let mut origin = InstructionMetadata::EMPTY;
         origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
         let mut reader = InstructionMetadata::EMPTY;
-        reader.add_operand_origin(ValueId::from_usize(3), origin, false, 0);
+        reader.add_operand_origin(ValueId::from_usize(3), origin.clone(), false, 0);
 
         let mut replacement = InstructionMetadata::EMPTY;
         replacement.preserve_debug_loc(&reader);
         assert!(replacement.operand_origins().is_empty());
-        replacement.inherit_operand_origins(&reader);
+        replacement.add_operand_origin(ValueId::from_usize(3), origin.clone(), false, 0);
         assert_eq!(replacement.operand_origins().len(), 1);
         assert!(reader.debug_context().operand_origins().is_empty());
 
@@ -1306,8 +1301,7 @@ mod tests {
         assert_eq!(reader.operand_origins()[0].value, ValueId::from_usize(3));
 
         let mut bare = InstructionMetadata::EMPTY;
-        assert_eq!(bare, InstructionMetadata::EMPTY);
-        bare.inherit_operand_origins(&reader);
+        bare.add_operand_origin(ValueId::from_usize(3), origin.clone(), false, 0);
         assert_eq!(bare, InstructionMetadata::EMPTY);
         let mut preserved = reader.clone();
         preserved.preserve_debug_loc(&replacement);
