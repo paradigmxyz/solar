@@ -191,10 +191,6 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.env.insert(t.clone(), v);
         }
         let (head_guard, head_env) = (self.guard.clone(), self.env.clone());
-        if self.trial == 0 {
-            let keep = self.loop_vars(cond, next, body, &targets);
-            self.record_loop_head(s.span, &keep, &targets, &entry_env);
-        }
         let mut measure = None;
         if infer {
             let measures = if decs.is_empty() { Self::guard_measures(cond) } else { vec![] };

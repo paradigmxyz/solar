@@ -26,7 +26,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod horn;
 mod infer;
-mod loop_head;
 mod sample;
 mod yul;
 
@@ -58,11 +57,7 @@ pub(crate) struct FnReport {
     pub warnings: Vec<String>,
     /// What inference concluded about each loop of the function (its real run).
     pub inferred: Vec<infer::Inferred>,
-    /// The head of each loop the real run reached, in the order it reached them.
-    pub loop_heads: Vec<loop_head::LoopHead>,
 }
-
-pub(crate) use loop_head::LoopHead;
 
 #[derive(Clone)]
 struct Frame {
@@ -178,8 +173,6 @@ pub(crate) struct Vc<'p, 'a> {
     inferred: Vec<infer::Inferred>,
     /// Loop heads of the real run, for the Horn-clause fallback.
     loop_recs: Vec<infer::LoopRec>,
-    /// The heads of the loops the real run reached (see `loop_head`).
-    loop_heads: Vec<loop_head::LoopHead>,
     /// Candidates the Horn-clause fallback proposed, per loop span.
     horn_hints: FxHashMap<Span, Vec<infer::Cand<'p, 'a>>>,
     /// The function being verified.
@@ -292,7 +285,6 @@ impl<'p, 'a> Vc<'p, 'a> {
             trial: 0,
             inferred: vec![],
             loop_recs: vec![],
-            loop_heads: vec![],
             horn_hints: FxHashMap::default(),
             cur_func: None,
             failed_goals: vec![],
@@ -1452,7 +1444,6 @@ impl<'p, 'a> Vc<'p, 'a> {
             unsupported: r.err(),
             warnings: std::mem::take(&mut self.warnings),
             inferred: std::mem::take(&mut self.inferred),
-            loop_heads: std::mem::take(&mut self.loop_heads),
         }
     }
 
@@ -1473,7 +1464,6 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.cur_func = Some(f);
         self.inferred.clear();
         self.loop_recs.clear();
-        self.loop_heads.clear();
         self.failed_goals.clear();
         at
     }
@@ -5003,7 +4993,6 @@ impl<'p, 'a> Vc<'p, 'a> {
             unsupported: r.err(),
             warnings: vec![],
             inferred: vec![],
-            loop_heads: vec![],
         }
     }
 

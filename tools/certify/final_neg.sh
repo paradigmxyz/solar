@@ -23,6 +23,11 @@
 # CERTIFY_LEAN_MEMORY caps each Lean process (MB, default 3000); CERTIFY_WRAP is a command prefix.
 set -euo pipefail
 
+# The first 160 bytes of stdin, without a trailing partial UTF-8 character: a byte cut can land
+# inside a multibyte character of a Lean message (such as the hygienic x✝), and the driver reads
+# this output as UTF-8.
+clip() { python3 -c 'import sys; sys.stdout.write(sys.stdin.buffer.read()[:160].decode("utf-8", "ignore"))'; }
+
 die() { echo "final_neg: error: $*" >&2; exit 1; }
 [[ $# -eq 5 ]] || die "usage: final_neg.sh LEAN_DIR EXAMPLES NAME CONTRACT HEX"
 lean_dir=$1 examples=$2 name=$3 contract=$4 hex=$5
@@ -73,7 +78,7 @@ json.dump(d, open(sys.argv[2], "w"))
 EOF
     if ! python3 "$here/final.py" "$d/shape.json" --name "$name" --contract "$contract" --hex "$vhex" \
         --out "$d/Final.lean" --statement-out "$d/Statement.lean" --record "$d/record.json" > /dev/null 2> "$d/final.err"; then
-        echo "$label: refused by final.py ($(head -c 160 "$d/final.err"))"
+        echo "$label: refused by final.py ($(clip < "$d/final.err"))"
         return
     fi
     if [[ -n "$extra" ]]; then
@@ -81,17 +86,17 @@ EOF
             { cat "$d/extra.out" >&2; die "$label: the hostile proof module does not build"; }
     fi
     if ! compile "$olean" "$name.Statement" "$d/Statement.lean" > "$d/statement.out" 2>&1; then
-        echo "$label: refused by the kernel, statement ($(grep -m1 -E 'error' "$d/statement.out" | cut -c1-160))"
+        echo "$label: refused by the kernel, statement ($(grep -m1 -E 'error' "$d/statement.out" | clip))"
         return
     fi
     if ! compile "$olean" "$name.Final" "$d/Final.lean" > "$d/final.out" 2>&1; then
-        echo "$label: refused by the kernel ($(grep -m1 -E 'error' "$d/final.out" | cut -c1-160))"
+        echo "$label: refused by the kernel ($(grep -m1 -E 'error' "$d/final.out" | clip))"
         return
     fi
     local vproof
     vproof="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proof_module"])' "$d/shape.json")"
     if ! lean_in "$olean" lean --run "$here/check_final.lean" "$name" "$vproof" > "$d/check.out" 2>&1; then
-        echo "$label: refused by the checker ($(grep -m1 -E 'check_final|error|exception' "$d/check.out" | cut -c1-160))"
+        echo "$label: refused by the checker ($(grep -m1 -E 'check_final|error|exception' "$d/check.out" | clip))"
         return
     fi
     # The variant's own modules (those compiled into its overlay) through the kernel; the rest of
@@ -101,7 +106,7 @@ EOF
         die "cannot list the modules of the variant $label"
     [[ -z "$vlist" ]] || mapfile -t vmods <<<"$vlist"
     if [[ ${#vmods[@]} -gt 0 ]] && ! lean_in "$olean" leanchecker "${vmods[@]}" > "$d/replay.out" 2>&1; then
-        echo "$label: refused by the kernel replay ($(grep -m1 -E 'kernel|error' "$d/replay.out" | cut -c1-160))"
+        echo "$label: refused by the kernel replay ($(grep -m1 -E 'kernel|error' "$d/replay.out" | clip))"
         return
     fi
     if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("strongest") else 1)' "$d/record.json"; then
