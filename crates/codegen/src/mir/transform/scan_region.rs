@@ -19,8 +19,8 @@
 //! A test of the upper half of a word `x` (a comparison with `2**128` or `2**128 - 1`, or a
 //! right shift by 128 bits) starts a region at its block. The pass runs the region from there on
 //! one input per class of inputs, zero and `2**m` for every `m`, and follows its branches until
-//! it reaches an instruction it cannot run: one with an effect, a check that may revert, or a
-//! branch whose condition it does not know.
+//! it reaches an instruction it cannot run: one with an effect, a checked operation whose result
+//! it does not know, or a branch whose condition it does not know.
 //!
 //! A run tracks three kinds of value. `x` shifted right by a known amount is one: a right
 //! shift by a known amount shifts it further, and a select or a phi passes it on. A comparison
@@ -410,7 +410,7 @@ impl Facts {
 }
 
 /// Whether a run evaluates the instruction when it passes it, rather than stopping there. A
-/// checked operation, which reverts for some operands, stops it like an effect.
+/// checked operation, which reverts for some operands, stops it unless the run knows its result.
 fn evaluates(instruction: &Instruction) -> bool {
     is_pure(instruction)
         && !instruction.kind.effects().control.any()
@@ -438,7 +438,7 @@ fn reach(
             None => incoming.iter().fold(0, |flags, &(_, value)| flags | flag(value)),
         };
     }
-    if !evaluates(instruction) {
+    if !is_pure(instruction) {
         return 0;
     }
     let known = |value| flag(value) & KNOWN != 0;
@@ -546,30 +546,45 @@ fn run(
         for (value, word) in phis {
             env.insert(value, word);
         }
-        // Every instruction up to the first one the run cannot run costs work, that one too.
-        let stops = &facts.stops[block];
-        let stop = stops.get(stops.partition_point(|&at| (at as usize) < index));
-        let end = stop.map_or(data.instructions.len(), |&at| at as usize);
-        let passed = u32::try_from(end - index + usize::from(stop.is_some())).unwrap_or(u32::MAX);
-        let Some(left) = work.checked_sub(passed) else {
-            *work = 0;
-            return None;
-        };
-        *work = left;
         let list = slice.get(&block).unwrap_or(&facts.base_insts[block]);
-        let from = list.partition_point(|&at| (at as usize) < index);
-        for &at in &list[from..] {
-            if at as usize >= end {
+        loop {
+            // Every instruction up to the first one the run cannot run costs work, that one too.
+            let stops = &facts.stops[block];
+            let stop = stops.get(stops.partition_point(|&at| (at as usize) < index));
+            let end = stop.map_or(data.instructions.len(), |&at| at as usize);
+            let passed =
+                u32::try_from(end - index + usize::from(stop.is_some())).unwrap_or(u32::MAX);
+            let Some(left) = work.checked_sub(passed) else {
+                *work = 0;
+                return None;
+            };
+            *work = left;
+            let from = list.partition_point(|&at| (at as usize) < index);
+            for &at in &list[from..] {
+                if at as usize >= end {
+                    break;
+                }
+                let instruction = func.inst(data.instructions[at as usize]);
+                if let Some(value) = instruction.result() {
+                    let result = eval(func, &instruction.kind, env, input, probe);
+                    env.insert(value, result);
+                }
+            }
+            index = end;
+            if stop.is_none() {
                 break;
             }
-            let instruction = func.inst(data.instructions[at as usize]);
-            if let Some(value) = instruction.result() {
-                let result = eval(func, &instruction.kind, env, input, probe);
+            // A checked operation on known values succeeds for every input of the class, as
+            // its operands depend on the class alone, so the run goes on past it.
+            let instruction = func.inst(data.instructions[index]);
+            if is_pure(instruction)
+                && let Some(value) = instruction.result()
+                && let result @ Word::Known(_) = eval(func, &instruction.kind, env, input, probe)
+            {
                 env.insert(value, result);
+                index += 1;
+                continue;
             }
-        }
-        index = end;
-        if stop.is_some() {
             return Some(Run { stop_block: block, stop_at: index, known: env.known(keep), blocks });
         }
         let next = match &data.terminator {
