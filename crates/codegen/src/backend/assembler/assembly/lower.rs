@@ -363,6 +363,15 @@ fn allocate_referenced_labels(
             });
         }
     }
+    // An unoptimized build keeps the entry `JUMPDEST` of every function, the instruction coverage
+    // anchors the function to, even when the only call falls into it.
+    if module.optimization.is_none() {
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            if block.metadata.call_effect.is_some() {
+                referenced.insert(block_id);
+            }
+        }
+    }
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
         if !referenced.contains(block_id)

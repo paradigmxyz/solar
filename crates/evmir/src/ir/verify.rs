@@ -241,12 +241,13 @@ impl<'a> Verifier<'a> {
     ///
     /// The flag forbids both a block boundary and an inserted instruction after the instruction
     /// carrying it, and neither is any use unless the successor is still the instruction the
-    /// sequence needs. The only sequence lowering glues is a pre-EIP-150 call's `GAS`-relative
+    /// sequence needs. Lowering glues two sequences. One is a pre-EIP-150 call's `GAS`-relative
     /// gas reserve, `push <reserve>; gas; sub; <call>`, whose margin pays for the `sub` and the
     /// call setup alone, so the pair is checked by shape: a glued `gas` is followed by a glued
-    /// `sub`, and a glued `sub` by the call opcode itself. Anything else carrying the flag has no
-    /// rule to check it and is rejected, which keeps a new use of the flag from passing
-    /// verification unverified.
+    /// `sub`, and a glued `sub` by the call opcode itself. The other is the label push of a
+    /// block's closing `jump`, which keeps the jump an executed `JUMP` instead of a fallthrough
+    /// edge. Anything else carrying the flag has no rule to check it and is rejected, which keeps
+    /// a new use of the flag from passing verification unverified.
     fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
         const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
         for (index, inst) in block.instructions.iter().enumerate() {
@@ -254,6 +255,14 @@ impl<'a> Verifier<'a> {
                 continue;
             }
             let Some(next) = block.instructions.get(index + 1) else {
+                if inst.pushed_block().is_some()
+                    && block
+                        .terminator
+                        .as_ref()
+                        .is_some_and(|term| term.kind == TerminatorKind::Op(op::JUMP))
+                {
+                    continue;
+                }
                 self.error_in_block(
                     block_id,
                     format_args!(
