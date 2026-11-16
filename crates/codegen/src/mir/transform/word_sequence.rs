@@ -40,7 +40,8 @@
 //! of such a test into that comparison as enabling recipes. The last run, the
 //! `spell-width-tests` pass in the lowered pipeline, sees the final uses and chooses the spelling
 //! with [`Target::shifts_bits_test`]: a branch or the `or` that joins tests for a branch reads a
-//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; an `and` of
+//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word, as does a
+//! branch to a cold block when a fits test fails, which jumps on `x >> k`; an `and` of
 //! a fits test and a zero test becomes one word zero test; a test of the width of a shift the block
 //! already computes reads that shift. Only comparisons, `or` and `and` are roots there.
 
@@ -409,6 +410,7 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
     let mut changed = cyclic.as_ref().is_some_and(|cyclic| spell_zero_tested(func, target, cyclic));
     let mut uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
+    let fails_to_cold = cold_failure_conditions(func, &uses);
     let mut masks = None;
     let mut ordered = Vec::new();
     let mut seen = FxHashSet::default();
@@ -448,6 +450,9 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let read = ConditionRead {
                 branch: is_branch_only,
+                fails_to_cold: func
+                    .inst_result_value(inst)
+                    .is_some_and(|value| fails_to_cold.contains(&value)),
                 in_loop: cyclic.as_ref().is_some_and(|cyclic| cyclic.contains(block)),
             };
             let mut best = None;
@@ -646,6 +651,9 @@ fn zero_tested_leaf(
 struct ConditionRead {
     /// A branch reads the word, through the `or` that joins it with other tests, if any.
     branch: bool,
+    /// A branch reads the word itself and goes to a cold block when it is false, so the backend
+    /// lays out the hot side first and jumps when the test fails.
+    fails_to_cold: bool,
     in_loop: bool,
 }
 
@@ -702,6 +710,25 @@ fn extend_through_or(
             }
         }
     }
+}
+
+/// Values whose only use is the condition of a branch in their defining block that goes to a cold
+/// block when they are false and to a hot one when they are true.
+fn cold_failure_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
+    func.blocks
+        .iter()
+        .filter_map(|block| {
+            let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            else {
+                return None;
+            };
+            (uses[condition] == 1
+                && func.blocks[else_block].hotness.is_cold()
+                && !func.blocks[then_block].hotness.is_cold()
+                && matches!(*func.value(condition), Value::Inst(def) if block.instructions.contains(&def)))
+            .then_some(condition)
+        })
+        .collect()
 }
 
 /// Values whose every use is the condition of a branch or check in their defining block, the

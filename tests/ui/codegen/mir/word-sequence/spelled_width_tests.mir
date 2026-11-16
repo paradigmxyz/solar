@@ -21,6 +21,37 @@ fn @branch_only(arg0: i256) -> i256 {
     ret arg0
 }
 
+// A branch that goes to a cold block when a fits test fails jumps on `x >> k` for free, so
+// `x < 2^8` is the shorter shift.
+// CHECK-LABEL: {{^[ +].*}}fn @fits_to_cold{{[( ]}}
+// CHECK: - {{v[0-9]+}} = lt arg0, 256
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 8
+// CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
+fn @fits_to_cold(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 0x100
+    jumpi v0, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    revert 0, 0
+}
+
+// With both sides hot the branch jumps when the test holds, which the shift pays an `iszero`
+// for, so the comparison, as short as that shift, stays.
+// CHECK-LABEL: {{^[ +].*}}fn @fits_both_hot{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: {{^ +}}v0 = lt arg0, 256
+fn @fits_both_hot(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 0x100
+    jumpi v0, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    ret 0
+}
+
 // A test that is also a value keeps the comparison, which costs less than shifting and then
 // normalizing the word to a boolean.
 // CHECK-LABEL: {{^[ +].*}}fn @also_value{{[( ]}}

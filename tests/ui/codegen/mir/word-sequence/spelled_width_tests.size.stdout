@@ -14,6 +14,28 @@
       revert 0, 0
   }
   
+  fn @fits_to_cold(arg0: i256) -> i256 {
+    bb0:
+-     v0 = lt arg0, 256
++     v1 = shr arg0, 8
++     v0 = eq v1, 0
+      jumpi v0, bb1, bb2
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+    bb1:                                            ; preds = bb0
+      ret arg0
+  }
+  
+  fn @fits_both_hot(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 256
+      jumpi v0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      ret 0
+    bb1:                                            ; preds = bb0
+      ret arg0
+  }
+  
   fn @also_value(arg0: i256) -> i1 {
     bb0:
 -     v0 = gt arg0, 0xffffffff
