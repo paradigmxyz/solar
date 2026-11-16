@@ -12,6 +12,8 @@ from .common import Program, ReplayTimeout
 
 
 def region(program: Program) -> str:
+    if program.scope == "effectful-prefix":
+        return f"EVM IR prefix {program.selector}, every incoming stack and live world"
     if program.scope == "universal-region":
         return f"EVM IR region {program.selector}, every incoming stack and projected memory"
     if program.symbolic_mir is not None:

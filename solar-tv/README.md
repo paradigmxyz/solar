@@ -84,6 +84,7 @@ before either a proof or a counterexample can be accepted.
 | MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
 | MIR compositional effects | Acyclic scalar functions with explicit opcode effects, without calls, allocations or layout queries. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
+| EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations, with an identical remaining suffix. | Every original success preserves the complete stack/world with no less gas, for arbitrary gas-independent effect handlers and dynamic charges. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
@@ -162,6 +163,34 @@ Calls, allocation, layout queries, GAS sampling and code observers are rejected.
 SSTORE stays a request that can fail, but changes in physical scalar gas costs
 and their effect on its gas sentry are outside this unpriced MIR certificate.
 Undefined operands and unmodeled operations cannot be discarded as dead lets.
+
+### EVM stack rewrites across effects
+
+When a shared prologue uses symbolic memory addresses, a projected heap cannot
+represent it. A separate interaction proof can retain those accesses instead:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/log-stack/{before,after}.evmir \
+  --prefix bb0 --report target/tv/log-stack.json
+```
+
+This reduced Morpho `peephole` pair removes two swaps around `LOG4`. The theorem
+quantifies every incoming stack, including underflow and the 1024-word limit,
+and every memory/log handler, including aliasing, faults and dynamic charges.
+Each request retains its opcode and ordered operands. Scalar charges may only
+decrease between successive effects. A kernel-checked expansion theorem binds
+the interaction tree to instruction-by-instruction charging.
+
+The audit records `universal-effectful-stack-prefix` and gas policy `refine`.
+Every original success must keep the full stack and world with no less gas.
+The suffix, terminal and physical successor must match, and the continuation
+must be gas-insensitive. Exact-gas mode is rejected rather than weakened.
+The schema-to-operation renderer, concrete handler correspondence and logical
+relocation context remain trusted. This is not a full-state bytecode proof or a
+physical placement certificate. Calls, control transfers inside the changed
+prefix, code/GAS observers and storage writes are excluded. A broken log-topic
+test is independently replayed in Lean and Rust using a concrete entry.
+Amsterdam's two-resource gas is outside this route and is rejected explicitly.
 
 EVM windows compare live stack values at outgoing edges before executing either
 successor. Terminal halts discard the remaining stack. The default check assumes
@@ -1207,8 +1236,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **11 of 24** with
-`--timeout 30`; 13 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **12 of 24** with
+`--timeout 30`; 12 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1220,8 +1249,10 @@ Morpho's calldata-expression reordering now verifies after its shared memory
 prologue, using the same checked source window and a charged composition proof.
 WETH's `transferFrom` width guard now verifies in about 1.2 seconds with a
 compositional effect-tree certificate; this is not a full-state execution proof.
+Morpho's swap cleanup around `LOG4` now also verifies with the effectful stack
+prefix certificate, without assuming a stack height or constant memory addresses.
 
-The original ten-second budget verifies **10 of 24**, with that larger MIR proof
+The original ten-second budget verifies **11 of 24**, with that larger MIR proof
 still timing out. It closes in about 25 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and

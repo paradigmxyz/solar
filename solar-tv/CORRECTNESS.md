@@ -127,6 +127,31 @@ that may fail; changes to physical gas before its sentry are not certified.
 Negative regressions change effect values/order, omit a store and change a
 terminal. A broken WETH width check also has a concrete kernel/native witness.
 
+An effectful EVM stack-prefix route retains memory/hash/log traffic without a
+bounded memory projection. The independent complete block export and reflected
+stack signatures supply its instructions. Scalar operations use the existing
+checked stack semantics and fork cost table. Each effect requests its opcode,
+consumed words and result shape. Handlers are arbitrary gas-independent state
+transitions, with arbitrary replies, failures and complete dynamic charges.
+
+`EVM.Effects.expansion_correct` relates that tree to instruction-by-instruction
+charging. `EVM.Effects.resource` proves that lower scalar charges between the
+same requests preserve every original success, including the complete stack,
+live world and no less remaining gas. The generated entry theorem applies both
+lemmas to the actual imported lists. All stack heights and words are quantified;
+underflow and the 1024-word limit are retained, never sampled away.
+
+The certificate is `universal-effectful-stack-prefix`. The remaining suffix,
+terminal and physical successor must match. It requires a gas-insensitive
+continuation and does not prove physical label placement or full-state handler
+correspondence. The parser, schema mapping and concrete handler binding remain
+trusted. Only memory/hash/log effects are admitted; calls, interior transfers,
+code/GAS observers and storage writes are excluded. Exact gas is not silently
+replaced by refinement. Changed log arguments and increased scalar charges fail
+validation. The reduced real Morpho pair is in `examples/evmir/log-stack/`; a
+concrete broken-topic entry has matching Lean and native counterexamples.
+Amsterdam's two-resource gas is rejected rather than projected onto one budget.
+
 ## Real-contract evaluation
 
 Run `solar-tv/evaluate --limit 8 --timeout 10 --seed 0 --output DIR` with a
@@ -190,7 +215,7 @@ The current sample, with the exact same 24 selected IDs, uses a 30-second budget
 | --- | ---: | ---: | ---: | ---: |
 | Solady WETH | 329 | 8 | 4 | 4 |
 | OpenZeppelin ERC20Mock | 372 | 8 | 5 | 3 |
-| Morpho Blue | 1,515 | 8 | 2 | 6 |
+| Morpho Blue | 1,515 | 8 | 3 | 5 |
 
 All ABI and creation/runtime bytecode fingerprints remain identical to the
 earlier run, and capture remains bytecode-neutral. There are no counterexamples,
@@ -219,12 +244,15 @@ WETH's complete `transferFrom` width-guard pair now verifies in about 1.2 second
 through the compositional route described above. Its unchanged storage/hash/log
 body is retained as exact effect requests instead of repeatedly evaluating that
 body. The reduced real pair and independently replayed wrong-width fixture are
-in `examples/mir/weth-width-guard/`. The same sample therefore verifies 11 of 24;
-13 remain unsupported, and check identities and bytecode hashes are unchanged.
+in `examples/mir/weth-width-guard/`.
 
-The ten-second control run verifies 10 checks, with 13 unsupported and the larger
+Morpho's `peephole-early` swap cleanup around `LOG4` now verifies through the
+effectful stack-prefix route above. The same sample therefore verifies 12 of 24;
+12 remain unsupported, and check identities and bytecode hashes are unchanged.
+
+The ten-second control run verifies 11 checks, with 12 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
-budget difference is explicit; this is not an eleven-of-24 result at ten seconds.
+budget difference is explicit; this is not a twelve-of-24 result at ten seconds.
 
 ## Remaining obligations
 
