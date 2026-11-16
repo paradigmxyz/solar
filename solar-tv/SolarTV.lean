@@ -24,6 +24,7 @@ import SolarTV.WordSafety
 import SolarTV.EVMIR.State.Normalize
 import SolarTV.EVMIR.Region
 import SolarTV.EVMIR.Prefix
+import SolarTV.EVMIR.MemoryPrefix
 import SolarTV.EVMIR.Transforms.TailMerge
 import SolarTV.EVMIR.ContextSafety
 import SolarTV.EVMIR.State.Observe
@@ -243,3 +244,19 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.EVM.ContextSafety.calldata_memory' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.ContextSafety.calldata_memory
+
+/-- info: 'SolarTV.EVM.MemoryPrefix.charged_append' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.MemoryPrefix.charged_append
+
+/-- info: 'SolarTV.EVM.MemoryPrefix.charged_scalar' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.MemoryPrefix.charged_scalar
+
+/-- info: 'SolarTV.EVM.MemoryPrefix.shared_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.MemoryPrefix.shared_exact
+
+/-- info: 'SolarTV.EVM.MemoryPrefix.shared_sufficient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.MemoryPrefix.shared_sufficient

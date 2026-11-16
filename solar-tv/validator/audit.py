@@ -168,6 +168,15 @@ def record(
                     else "sufficient gas; resource refinement and gas-insensitive continuation",
                 ]
             )
+            if program.import_evidence.get("shared_prologue_operations"):
+                assumptions.extend(
+                    [
+                        "identical memory prologue executes with dynamic and expansion charges; its faults and all live memory are preserved",
+                        "sufficient gas for the scalar rewrite after every successful prologue execution"
+                        if program.gas != "exact"
+                        else "all gas budgets, including faults within the shared memory prologue",
+                    ]
+                )
         elif program and program.scope == "universal-region":
             assumptions.extend(
                 [

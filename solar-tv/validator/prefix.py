@@ -1,8 +1,8 @@
 """Universal stack-prefix proofs with an unchanged contextual continuation.
 
-Import complete blocks independently through Rust, then split only at the first
-non-scalar instruction. No operation is dropped from the selected block: the
-entire suffix, terminal and physical successor must match. The prefix theorem
+Import complete blocks independently through Rust. An identical memory prologue
+may precede the changed scalar prefix; it is charged and executed, not erased.
+No operation is dropped: the entire suffix, terminal and successor must match. The theorem
 quantifies over every stack and live world, rather than inventing an entry height
 or a zero-initialized memory fixture. Failed proofs are unsupported, since an
 arbitrary stack counterexample need not be reachable in the original module.
@@ -18,7 +18,7 @@ from pathlib import Path
 from . import audit, evmir, native, regions
 from .common import Program, Unsupported
 
-UNFOLD = "EVM.Prefix.run, EVM.stepChecked, EVM.step"
+UNFOLD = "EVM.Prefix.run, EVM.stepChecked, EVM.step, Evm.add, BitVec.add_comm"
 
 
 def export(text, entry, version, executable, timeout):
@@ -194,6 +194,39 @@ def check(paths, solar, executable, timeout, entry, version, policy):
                 )
     old, suffix, need_a, peak_a, price_a = split(models[0], catalog, version)
     new, next_suffix, need_b, peak_b, price_b = split(models[1], catalog, version)
+    prologue = []
+    if suffix != next_suffix:
+        # Partition only at an identical leading instruction sequence. Its
+        # memory effects and charges remain in the generated execution theorem.
+        common = 0
+        for index, (left, right) in enumerate(
+            zip(models[0]["instructions"], models[1]["instructions"])
+        ):
+            if left != right:
+                break
+            if operation(left, catalog, version) is None:
+                # Keep common scalar producers inside the scalar proof. Moving
+                # them into the prologue would lose useful known stack values.
+                common = index + 1
+        if not 0 < common <= 64:
+            raise Unsupported("prefix continuation changed")
+        try:
+            prologue, _, _, _ = evmir.instructions(
+                models[0]["instructions"][:common],
+                [None] * 32,
+                memory=True,
+                context=True,
+            )
+        except IndexError:
+            raise Unsupported(
+                "shared memory prologue exceeds the stack budget"
+            ) from None
+        tails = [
+            {**model, "instructions": model["instructions"][common:]}
+            for model in models
+        ]
+        old, suffix, need_a, peak_a, price_a = split(tails[0], catalog, version)
+        new, next_suffix, need_b, peak_b, price_b = split(tails[1], catalog, version)
     if suffix != next_suffix:
         raise Unsupported("prefix continuation changed")
     if max(need_a, need_b) + max(peak_a, peak_b) > 32:
@@ -224,6 +257,7 @@ def check(paths, solar, executable, timeout, entry, version, policy):
                     json.dumps(model, sort_keys=True).encode()
                 ).hexdigest(),
                 "prefix_operations": len(code),
+                **({"shared_prologue_operations": len(prologue)} if prologue else {}),
                 "continuation": "identical complete suffix, terminal and physical successor",
                 "boundary": "trusted Rust parser/source export, schema and opcode mapping; logical code-insensitive continuation",
             },
@@ -242,7 +276,9 @@ def check(paths, solar, executable, timeout, entry, version, policy):
             ).splitlines()
         )
         + f"\ntheorem prices : EVM.Prefix.cost .{version} {'before = EVM.Prefix.cost .' + version + ' after' if exact else 'after ≤ EVM.Prefix.cost .' + version + ' before'} := by decide\n"
-        + "theorem contextual {World Result : Type} (ctx : EVM.Context)\n"
+    )
+    contextual = (
+        "theorem contextual {World Result : Type} (ctx : EVM.Context)\n"
         + (
             " (continuation : EVM.Stack → Nat → World → Result)"
             if exact
@@ -255,6 +291,9 @@ def check(paths, solar, executable, timeout, entry, version, policy):
         + f" (match EVM.Prefix.charged ctx .{version} after stack gas with | none => fault | some (next, remaining) => continuation next {'remaining ' if exact else ''}world) :=\n"
         + f" EVM.Prefix.{'contextual' if exact else 'sufficient_contextual'} ctx .{version} before after (stacks ctx) prices continuation fault stack gas {'enough ' if not exact else ''}world\n"
         + "#print axioms contextual\n"
+    )
+    theorem += (
+        shared_theorem(prologue, old, new, version, exact) if prologue else contextual
     )
     build = build_model(timeout)
     if build.returncode:
@@ -274,3 +313,47 @@ def check(paths, solar, executable, timeout, entry, version, policy):
     return audit.Result(
         "verified", stdout="verified\n", program=programs[0], pair=tuple(programs)
     )
+
+
+def shared_theorem(prologue, before, after, version, exact):
+    """Bind the scalar proof to charged execution of the common memory prefix."""
+
+    def fixed(name, ops):
+        proof = (
+            "simp only ["
+            + name
+            + ", List.mem_cons, List.not_mem_nil, or_false] at member\n"
+        )
+        if ops:
+            proof += "  rcases member with " + " | ".join("rfl" for _ in ops) + "\n"
+            proof += "  all_goals simp [EVM.Gas.cost, EVM.Gas.baseCost, EVM.Gas.touched, EVM.Gas.expansionCost]\n"
+        return (
+            f"theorem {name}_fixed : EVM.MemoryPrefix.Fixed .{version} {name} := by\n"
+            + "  intro op member stack memory\n  "
+            + proof
+        )
+
+    code = f"def prologue : List EVM.Memory.Op := [{','.join(prologue)}]\n"
+    code += fixed("before", before) + fixed("after", after)
+    code += (
+        "theorem contextual (ctx : EVM.Context) (stack : EVM.Stack) (gas : Nat) (memory : Memory.State)\n"
+        + (
+            ""
+            if exact
+            else f" (enough : ∀ next remaining heap, EVM.MemoryPrefix.charged ctx .{version} prologue stack gas memory = some (next,remaining,heap) → EVM.Prefix.cost .{version} before ≤ remaining)\n"
+        )
+        + " :\n"
+    )
+    observations = [
+        f"EVM.MemoryPrefix.charged ctx .{version} (prologue ++ {name}.map EVM.Memory.Op.stack) stack gas memory"
+        for name in ("before", "after")
+    ]
+    if not exact:
+        observations = [f"EVM.MemoryPrefix.forgetGas ({term})" for term in observations]
+    code += " " + " =\n ".join(observations) + " :=\n"
+    code += (
+        f" EVM.MemoryPrefix.shared_{'exact' if exact else 'sufficient'} ctx .{version} prologue before after before_fixed after_fixed (stacks ctx) prices stack gas memory"
+        + ("" if exact else " enough")
+        + "\n#print axioms contextual\n"
+    )
+    return code

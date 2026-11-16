@@ -1,0 +1,53 @@
+@module MemoryPrologue
+bb0:
+  push 0
+  jump bb1
+bb1 [entry]:
+  push 160
+  push 64
+  mstore
+  push 4
+  calldataload
+  push 36
+  calldatasize
+  lt
+  push 4
+  dup 3
+  add
+  swap 2
+  push 36
+  calldatasize
+  sub
+  lt
+  or
+  dup 2
+  calldataload
+  swap 2
+  push 32
+  add
+  swap 1
+  dup 2
+  calldatasize
+  sub
+  push 5
+  shr
+  dup 4
+  gt
+  or
+  push bb2
+  jumpi
+  jump bb3
+bb3:
+  push 0
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb2:
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
