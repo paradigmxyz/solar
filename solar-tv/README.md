@@ -1132,6 +1132,28 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/calldata-prefix/{before,broken}.
   --world solar-tv/examples/evmir/calldata-prefix/world.json
 ```
 
+### Rewrites after a shared memory prologue
+
+A changed scalar prefix can follow identical memory operations. The checker
+executes this shared prologue with its memory effects, dynamic/expansion charges
+and early faults, then proves the scalar rewrite for arbitrary resulting stacks.
+Append and scalar correspondence lemmas connect the two stages to sequential
+execution. Initial memory is never fixed to zero.
+
+Equal-price rewrites preserve every gas budget. Cheaper rewrites require enough
+gas for the scalar segment after a successful prologue and a gas-insensitive
+continuation; failure within the shared prologue remains observable. Reports use
+`universal-memory-prefix` and record the shared operation count. Windows missing
+caller/calldata inputs can use this stronger route without guessing those inputs
+or the entry height. Other unsupported cases remain explicit.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/memory-prologue/{before,after}.evmir \
+  --window bb1 --stack-height 1
+solar-tv/solar-tv evmir solar-tv/examples/evmir/memory-prologue/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/memory-prologue/world.json
+```
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1156,8 +1178,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **9 of 24** with
-`--timeout 30`; 15 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **10 of 24** with
+`--timeout 30`; 14 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1165,8 +1187,10 @@ merge. The ERC20Mock `spell-width-tests` pair also verifies over arbitrary calle
 state, including its unchanged storage/logging helper.
 ERC20Mock's layout of a custom-error path also verifies over its incoming stack
 and caller address.
+Morpho's calldata-expression reordering now verifies after its shared memory
+prologue, using the same checked source window and a charged composition proof.
 
-The original ten-second budget verifies **8 of 24**, with that larger MIR proof
+The original ten-second budget verifies **9 of 24**, with that larger MIR proof
 still timing out. It now closes in about 23 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and

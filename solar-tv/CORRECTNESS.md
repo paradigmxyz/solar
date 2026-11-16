@@ -89,6 +89,22 @@ The importer still checks constant access ranges; dynamic targets, unknown
 addresses, cycles and physical gas remain outside this route. Counterexamples
 on hypothetical stacks are not claimed to be reachable compiler failures.
 
+Scalar rewrites can also follow an identical memory prologue. The independent
+block export must agree on that entire prologue and on the remaining suffix,
+terminal and physical successor. `MemoryPrefix.charged` executes the shared
+operations, including dynamic and expansion charges, stores and early faults.
+Kernel-checked append/scalar lemmas bind the staged proof to one sequential
+instruction execution. The concrete scalar operations must prove their costs
+are fixed; an unverified static price cannot hide a dynamic EXP charge.
+
+Equal-cost scalar rewrites preserve all gas budgets. Cheaper rewrites require
+sufficient scalar gas after each successful prologue execution and an unchanged,
+gas-insensitive continuation. A prologue fault is never assumed away. Symbolic
+memory addresses, changed stores, changed continuations and code-image/call
+observers remain unsupported. A scalar window missing caller/calldata inputs may
+try this universal route; its requested height is recorded separately from the
+theorem's arbitrary incoming stack. Actual counterexamples are never replaced.
+
 ## Real-contract evaluation
 
 Run `solar-tv/evaluate --limit 8 --timeout 10 --seed 0 --output DIR` with a
@@ -152,7 +168,7 @@ The current sample, with the exact same 24 selected IDs, uses a 30-second budget
 | --- | ---: | ---: | ---: | ---: |
 | Solady WETH | 329 | 8 | 3 | 5 |
 | OpenZeppelin ERC20Mock | 372 | 8 | 5 | 3 |
-| Morpho Blue | 1,515 | 8 | 1 | 7 |
+| Morpho Blue | 1,515 | 8 | 2 | 6 |
 
 All ABI and creation/runtime bytecode fingerprints remain identical to the
 earlier run, and capture remains bytecode-neutral. There are no counterexamples,
@@ -164,6 +180,9 @@ consumes incoming stack words. Real layout and calldata CSE examples
 are in `examples/evmir/caller-tail/` and `examples/evmir/calldata-prefix/`.
 Broken caller and calldata reads are rejected by universal proofs and have
 concrete counterexamples checked by both Lean and the independent Rust replay.
+Morpho's `reorder-expressions` pair now verifies after a charged shared memory
+store. The reduced real-pass example and an independently replayed wrong-offset
+counterexample are in `examples/evmir/memory-prologue/`.
 
 ERC20Mock's complete `burn` / `_update` `spell-width-tests` pair now also closes
 with the same Lean heartbeat limit, over arbitrary caller state. Source tables
@@ -174,9 +193,9 @@ branches. No helper is replaced by an assumed effect summary. The reduced real
 pair is in `examples/mir/erc20-width-guard/`; a smaller stateful pair and a broken
 padding guard with kernel/native replay are in `examples/mir/width-guard/`.
 
-The ten-second control run verifies 8 checks, with 15 unsupported and the larger
+The ten-second control run verifies 9 checks, with 14 unsupported and the larger
 MIR proof still timing out. It takes about 23 seconds at the larger budget. The
-budget difference is explicit; this is not a nine-of-24 result at ten seconds.
+budget difference is explicit; this is not a ten-of-24 result at ten seconds.
 
 ## Remaining obligations
 
