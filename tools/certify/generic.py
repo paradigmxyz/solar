@@ -1170,6 +1170,32 @@ def gas_need(solar, src, name, contract, tmp):
     return 22100 * (stages["fuel"] * bmax) + 3 * words + words * words // 512
 
 
+def loop_resources(record, src, ast, contract):
+    """The fixed-fuel resource obligation of a source the envelope blocks on its loop
+    (tools/certify/fixed_fuel.py, Verify/Gas/FixedFuel). Out of gas is a resource rejection, apart
+    from a revert (a result the bound covers) and from a loop outside the counted shape (which
+    stays BLOCKED, with its reason). A bounded obligation is recorded and the run stays BLOCKED:
+    the loop still needs its invariant certificate."""
+    import fixed_fuel
+
+    try:
+        contract = fixed_fuel.contract_of(ast, contract)
+        with tempfile.TemporaryDirectory() as tmp:
+            ob = fixed_fuel.obligation(build_solar(), src, contract, ast, tmp)
+    except fixed_fuel.Unsupported as e:
+        record["resource_obligation"] = {
+            "kind": "fixed-fuel",
+            "verdict": "unsupported",
+            "why": str(e),
+        }
+        return
+    record["resource_obligation"] = ob
+    log(f"resource obligation (fixed fuel): {fixed_fuel.verdict_line(ob)[1]}")
+    if ob["verdict"] == "out-of-gas":
+        record["rejected_for"] = "resource: out of gas"
+        raise Failed(fixed_fuel.verdict_line(ob)[1][len("REJECTED: ") :])
+
+
 def source_bound(record):
     """A positive binding verdict only: source_bind.sh's line for this run's own generated source
     AST, its contract and source file, under the pinned solc. An empty, unknown or other value is
@@ -1869,9 +1895,19 @@ def main():
     try:
         log(f"== generic: {src} ({src_sha}) as {name}, requested tier {tier}")
         ast, contracts = solc_ast(a.solc, src)
-        contract, fns, events = envelope(
-            text, ast, contracts, a.contract, a.invariants, a.spec == "natspec"
-        )
+        try:
+            contract, fns, events = envelope(
+                text,
+                ast,
+                contracts,
+                a.contract,
+                a.invariants,
+                a.spec == "natspec",
+            )
+        except Blocked as b:
+            if any(r["feature"] == "loop" for r in b.reasons):
+                loop_resources(record, src, ast, a.contract)
+            raise
         record["contract"] = contract
         record["functions"] = [
             {
