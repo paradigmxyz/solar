@@ -23,7 +23,7 @@ pub struct InstructionMetadata {
     edge_assignments: Option<Box<EdgeAssignments>>,
     /// The assignments whose values this instruction reads first, after the assignment ran in its
     /// block.
-    operand_origins: Option<Box<OperandOrigins>>,
+    operand_origins: OperandOrigins,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
     /// Packed optional memory region, effect kind, and boolean flags.
@@ -36,7 +36,7 @@ impl InstructionMetadata {
         storage_alias: None,
         hir_expr: None,
         edge_assignments: None,
-        operand_origins: None,
+        operand_origins: OperandOrigins(None),
         debug_loc: DebugLoc::EMPTY,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
@@ -99,30 +99,30 @@ impl InstructionMetadata {
     /// [`Self::inherit_operand_origins`].
     #[must_use]
     pub fn operand_origins(&self) -> &[OperandOrigin] {
-        self.operand_origins.as_deref().map_or(&[], |origins| origins.0.as_slice())
+        self.operand_origins.0.as_deref().map_or(&[], |origins| origins.0.as_slice())
     }
 
     /// Records that the first read of `value` by this instruction follows an assignment that stored
     /// it, inside a loop or not. `origin` is the source context of the assignment, as
     /// [`Self::debug_context`] copies it.
     pub fn add_operand_origin(&mut self, value: ValueId, origin: Self, in_loop: bool) {
-        let origins = &mut self.operand_origins.get_or_insert_default().0;
+        let origins = &mut self.operand_origins.0.get_or_insert_default().0;
         origins.push(OperandOrigin { value, origin, in_loop });
     }
 
     /// Takes the operand origins of `from`, whose operands this instruction reads too.
     pub fn inherit_operand_origins(&mut self, from: &Self) {
-        self.operand_origins.clone_from(&from.operand_origins);
+        self.operand_origins.0.clone_from(&from.operand_origins.0);
     }
 
     /// Drops the operand origins, for code that no longer runs exactly when the assignments do.
     pub fn clear_operand_origins(&mut self) {
-        self.operand_origins = None;
+        self.operand_origins.0 = None;
     }
 
     /// Renames the values of the operand origins as the operands of the instruction are renamed.
     pub(crate) fn rewrite_operand_origins(&mut self, mut f: impl FnMut(&mut ValueId)) {
-        for record in self.operand_origins.iter_mut().flat_map(|origins| origins.0.iter_mut()) {
+        for record in self.operand_origins.0.iter_mut().flat_map(|origins| origins.0.iter_mut()) {
             f(&mut record.value);
         }
     }
@@ -164,7 +164,7 @@ impl InstructionMetadata {
             &other.debug_loc
         }));
         self.edge_assignments = None;
-        self.operand_origins = None;
+        self.operand_origins.0 = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -177,7 +177,7 @@ impl InstructionMetadata {
             &other.debug_loc
         }));
         self.edge_assignments = None;
-        self.operand_origins = None;
+        self.operand_origins.0 = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -185,7 +185,7 @@ impl InstructionMetadata {
     /// analysis metadata, and drops the operand origins.
     pub fn preserve_debug_loc(&mut self, from: &Self) {
         self.debug_loc.preserve(&from.debug_loc);
-        self.operand_origins = None;
+        self.operand_origins.0 = None;
         self.flags.set_display_source_span(from.displays_source_span());
     }
 
@@ -215,7 +215,7 @@ impl InstructionMetadata {
     /// Rule R3, drop: see [`DebugLoc::drop`].
     pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
         self.debug_loc.drop(kind);
-        self.operand_origins = None;
+        self.operand_origins.0 = None;
         self.flags.set_display_source_span(false);
     }
 
@@ -402,9 +402,12 @@ pub struct OperandOrigin {
 /// The operand origins of an instruction, boxed on those that have any, so others pay one word.
 ///
 /// They are source context only, so they never take part in comparing or hashing metadata: no
-/// pass may treat two instructions as different because of them.
+/// pass may treat two instructions as different because of them, not even for holding one.
 #[derive(Clone, Debug, Default)]
-struct OperandOrigins(Vec<OperandOrigin>);
+struct OperandOrigins(Option<Box<OperandOriginList>>);
+
+#[derive(Clone, Debug, Default)]
+struct OperandOriginList(Vec<OperandOrigin>);
 
 impl PartialEq for OperandOrigins {
     fn eq(&self, _: &Self) -> bool {
@@ -1288,6 +1291,10 @@ mod tests {
         assert_eq!(replacement.operand_origins()[0].value, ValueId::from_usize(4));
         assert_eq!(reader.operand_origins()[0].value, ValueId::from_usize(3));
 
+        let mut bare = InstructionMetadata::EMPTY;
+        assert_eq!(bare, InstructionMetadata::EMPTY);
+        bare.inherit_operand_origins(&reader);
+        assert_eq!(bare, InstructionMetadata::EMPTY);
         let mut preserved = reader.clone();
         preserved.preserve_debug_loc(&replacement);
         assert!(preserved.operand_origins().is_empty());
