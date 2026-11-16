@@ -1,0 +1,25 @@
+error: bad spec `forall uint256 i i > 0`: `forall` needs `::` before its body
+  ╭▸ tests/snapshots/spec_errors.sol:6:10
+  │
+6 │     /// @custom:ensures forall uint256 i i > 0
+  ╰╴         ━━━━━━━━━━━━━━
+
+error: could not parse spec `x == 1 x`: unexpected text after the expression
+  ╭▸ tests/snapshots/spec_errors.sol:9:10
+  │
+9 │     /// @custom:ensures x == 1 x
+  ╰╴         ━━━━━━━━━━━━━━
+
+error: @custom:check must be executable Solidity (no old(), quantifiers, ==> or <==>): it becomes a require: `x == old(x)`
+   ╭▸ tests/snapshots/spec_errors.sol:12:10
+   │
+12 │     /// @custom:check x == old(x)
+   ╰╴         ━━━━━━━━━━━━
+
+error: unsupported: spec comment `@custom:ghost x = 2` is attached to no statement: only @custom:assert and @custom:assume may end a block; put a statement after it
+   ╭▸ tests/snapshots/spec_errors.sol:17:13
+   │
+17 │         /// @custom:ghost x = 2
+   │             ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: in SpecErrors.orphan

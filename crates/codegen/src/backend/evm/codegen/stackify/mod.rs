@@ -160,6 +160,7 @@ mod cache;
 pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
+pub(crate) use plan::call_projection;
 mod rebuild;
 mod shuffle;
 
@@ -221,12 +222,13 @@ enum Step {
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
     Inst(InstId),
-    /// Calls an internal function whose arguments are prepared, with the physical height of the
-    /// stack below its arguments.
-    Call(FunctionId, usize),
-    /// Stores the extra results below the first result of a call to the callee's return area
-    /// and publishes it as the multi-return buffer.
-    Publish { callee: FunctionId, arity: usize, params: usize },
+    /// Calls an internal function whose arguments are prepared, from a call in `block`;
+    /// `below` is the caller's stack under the arguments, from the bottom, which the call leaves
+    /// as it is, and `height` the physical height of the stack below its arguments.
+    Call { callee: FunctionId, block: BlockId, below: Box<[Slot]>, height: usize },
+    /// Stores the extra results below the first result of the call `inst` to the callee's return
+    /// area and publishes it as the multi-return buffer.
+    Publish { inst: InstId, callee: FunctionId, arity: usize, params: usize },
 }
 
 /// The code that reads a word a [`Step::Shared`] push leaves on the stack.
@@ -329,6 +331,17 @@ struct FunctionPlan {
     /// The copy of the function this plan was made for, when it rebuilds values past crowded
     /// points instead of keeping them on the stack.
     rebuilt: Option<Box<Function>>,
+    /// Each block's entry layout and the blocks whose layouts float, kept only for
+    /// `-Zvalidate-backend`.
+    layouts: Option<PlannedLayouts>,
+}
+
+/// The entry layout of every planned block, and the blocks whose layouts name only the top of the
+/// stack.
+#[derive(Clone, Debug)]
+struct PlannedLayouts {
+    entries: IndexVec<BlockId, Option<Layout>>,
+    floating: DenseBitSet<BlockId>,
 }
 
 impl FunctionPlan {
@@ -362,6 +375,8 @@ struct ModuleInfo {
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
     emitting_entry: bool,
+    /// Whether plans keep their block layouts for `-Zvalidate-backend`.
+    records_layouts: bool,
 }
 
 impl ModuleInfo {
@@ -610,6 +625,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             objectives: module.functions.iter().map(|func| func.attributes.optimization).collect(),
             entry,
             emitting_entry,
+            records_layouts: self.gcx.sess.opts.unstable.emit_lean_stages.is_some(),
         };
 
         // Writes that may reach the spill area. A call into a function that may make one, itself

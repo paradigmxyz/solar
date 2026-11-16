@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# The generic certification driver's entry point: tools/certify/certify SOURCE.sol SPEC [options].
+# See tools/certify/generic.py for the arguments, exit statuses and the record.
+set -euo pipefail
+exec python3 "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/generic.py" "$@"

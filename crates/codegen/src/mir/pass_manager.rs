@@ -189,6 +189,7 @@ pub(crate) fn run_passes_inner(
                         .map(|objective| pass.runs_on(objective)),
                     module.functions.len(),
                 );
+                let phase = module.phase();
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = module.take_lowered_check();
@@ -198,6 +199,9 @@ pub(crate) fn run_passes_inner(
                     lowered_checked && !pass_changed && !analyses.unreported_edit,
                 );
                 analyses.finish_pass(pass_changed);
+                if let Err(error) = crate::lean_stages::mir_pass(gcx, pass_name, phase, module) {
+                    return (changed | pass_changed, Some(error));
+                }
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
                     // delete with their last other use.
