@@ -134,8 +134,11 @@ use solar_sema::Gcx;
 use std::{
     cell::Cell,
     cmp::Reverse,
-    collections::BinaryHeap,
-    sync::{Mutex, PoisonError},
+    collections::{BinaryHeap, HashMap},
+    sync::{
+        Mutex, PoisonError,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 /// Bound on the instructions of one cone.
@@ -152,6 +155,8 @@ const PROOF_WORK: u32 = 1 << 16;
 /// The work a rewrite earns per instruction it removes, up to [`PROOF_WORK`]. A library's scan
 /// removes 15 to 40 instructions.
 const WORK_PER_REMOVED: u32 = 2048;
+/// The steps of the proof keys one run of the pass may keep, a few tens of megabytes.
+const MAX_STORED_STEPS: usize = 1 << 18;
 
 pub(crate) struct BitScan;
 
@@ -392,14 +397,26 @@ enum Proved {
     Exceeds(u32),
 }
 
-/// The proofs of one run of the pass, shared by the functions of the module.
+/// The proofs of one run of the pass, shared by the functions of the module. The keys hold
+/// constants the source picks, so the maps use a seeded hasher, which no source can make collide.
+/// They keep at most [`MAX_STORED_STEPS`] steps of keys; past that a value runs its proof again
+/// and spends the same work, so only compile time changes.
 #[derive(Default)]
 struct Proofs {
+    /// The steps of the keys stored so far.
+    stored: AtomicUsize,
     /// The proofs of values, by the shape of what they evaluate.
-    shapes: Mutex<FxHashMap<Shape, Proved>>,
+    shapes: Mutex<HashMap<Shape, Proved>>,
     /// The proofs of the classes below a class of a highest bit, by what is left to evaluate
     /// there.
-    rests: Mutex<FxHashMap<Rest, Proved>>,
+    rests: Mutex<HashMap<Rest, Proved>>,
+}
+
+impl Proofs {
+    /// Whether a key of `steps` steps may still be stored.
+    fn store(&self, steps: usize) -> bool {
+        self.stored.fetch_add(steps, Ordering::Relaxed) < MAX_STORED_STEPS
+    }
 }
 
 /// What the classes below a class still evaluate: the steps without a word there, renamed as
@@ -814,15 +831,18 @@ impl<'a> Cone<'a> {
                 let holds =
                     cone.holds(func, needed, root, leading_zeros, one_bit, &mut scratch, proofs);
                 let starved = cone.starved.get();
-                let proved = if starved {
-                    Proved::Exceeds(budget)
-                } else {
-                    Proved::Done { holds, work: budget - cone.work.get() }
-                };
-                let mut proofs = proofs.shapes.lock().unwrap_or_else(PoisonError::into_inner);
-                let entry = proofs.entry(shape).or_insert(proved);
-                if !matches!(entry, Proved::Done { .. }) {
-                    *entry = proved;
+                let work = budget - cone.work.get();
+                if proofs.store(shape.steps.len()) {
+                    let proved = if starved {
+                        Proved::Exceeds(budget)
+                    } else {
+                        Proved::Done { holds, work }
+                    };
+                    let mut proofs = proofs.shapes.lock().unwrap_or_else(PoisonError::into_inner);
+                    let entry = proofs.entry(shape).or_insert(proved);
+                    if !matches!(entry, Proved::Done { .. }) {
+                        *entry = proved;
+                    }
                 }
                 holds && !starved
             }
@@ -883,7 +903,7 @@ impl<'a> Cone<'a> {
         (0..256).rev().all(|msb| {
             let expected = U256::from(if leading_zeros { 255 - msb } else { msb });
             let class = Class::with_msb(msb);
-            self.prove_class(func, needed, root, class, expected, words, Some(&proofs.rests))
+            self.prove_class(func, needed, root, class, expected, words, Some(proofs))
         })
     }
 
@@ -935,7 +955,7 @@ impl<'a> Cone<'a> {
         class: Class,
         expected: U256,
         words: &mut [Option<Word>],
-        rests: Option<&Mutex<FxHashMap<Rest, Proved>>>,
+        proofs: Option<&Proofs>,
     ) -> bool {
         let mut left = SmallVec::<[u32; 16]>::new();
         let blocked = self.evaluate_pending(func, pending, class, words, &mut left);
@@ -950,10 +970,10 @@ impl<'a> Cone<'a> {
                             self.prove_class(func, &left, root, class, expected, words, None)
                         })
                 };
-                match rests {
-                    Some(rests) if !self.starved.get() => {
+                match proofs {
+                    Some(proofs) if !self.starved.get() => {
                         let rest = self.rest(func, &left, root, class, bits, expected, words);
-                        self.prove_rest(rests, rest, || below(words))
+                        self.prove_rest(proofs, rest, || below(words))
                     }
                     _ => below(words),
                 }
@@ -1015,14 +1035,9 @@ impl<'a> Cone<'a> {
     /// Proves the classes below a class with `below`, unless another value proved the same
     /// `rest`: then it costs the work it took there, so that the values proved, and the work
     /// left, do not depend on which value ran it.
-    fn prove_rest(
-        &self,
-        rests: &Mutex<FxHashMap<Rest, Proved>>,
-        rest: Rest,
-        below: impl FnOnce() -> bool,
-    ) -> bool {
+    fn prove_rest(&self, proofs: &Proofs, rest: Rest, below: impl FnOnce() -> bool) -> bool {
         let budget = self.work.get();
-        let known = rests.lock().unwrap_or_else(PoisonError::into_inner).get(&rest).copied();
+        let known = proofs.rests.lock().unwrap_or_else(PoisonError::into_inner).get(&rest).copied();
         match known {
             Some(Proved::Done { holds, work }) if work <= budget => {
                 self.work.set(budget - work);
@@ -1033,15 +1048,18 @@ impl<'a> Cone<'a> {
             Some(Proved::Exceeds(work)) if budget <= work => self.starve(),
             _ => {
                 let holds = below();
-                let proved = if self.starved.get() {
-                    Proved::Exceeds(budget)
-                } else {
-                    Proved::Done { holds, work: budget - self.work.get() }
-                };
-                let mut rests = rests.lock().unwrap_or_else(PoisonError::into_inner);
-                let entry = rests.entry(rest).or_insert(proved);
-                if !matches!(entry, Proved::Done { .. }) {
-                    *entry = proved;
+                let work = budget - self.work.get();
+                if proofs.store(rest.steps.len()) {
+                    let proved = if self.starved.get() {
+                        Proved::Exceeds(budget)
+                    } else {
+                        Proved::Done { holds, work }
+                    };
+                    let mut rests = proofs.rests.lock().unwrap_or_else(PoisonError::into_inner);
+                    let entry = rests.entry(rest).or_insert(proved);
+                    if !matches!(entry, Proved::Done { .. }) {
+                        *entry = proved;
+                    }
                 }
                 holds
             }
