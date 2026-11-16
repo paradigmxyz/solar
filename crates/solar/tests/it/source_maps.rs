@@ -17,17 +17,19 @@ fn compile(mode: &str, outputs: &str) -> Value {
 }
 
 fn compile_with(mode: &str, outputs: &str, flags: &[&str]) -> Value {
+    compile_files(
+        &["src/Base.sol", "src/Decode.sol", "src/StaticBytes.sol", "src/Probe.sol"],
+        mode,
+        outputs,
+        flags,
+    )
+}
+
+fn compile_files(files: &[&str], mode: &str, outputs: &str, flags: &[&str]) -> Value {
     let output = Command::new(SOLAR)
         .current_dir(FIXTURES)
-        .args([
-            "src/Base.sol",
-            "src/Decode.sol",
-            "src/StaticBytes.sol",
-            "src/Probe.sol",
-            "--allow=2264",
-            "-O",
-            mode,
-        ])
+        .args(files)
+        .args(["--allow=2264", "-O", mode])
         .arg(format!("--emit={outputs}"))
         .args(flags)
         .output()
@@ -569,5 +571,70 @@ REVERT -1:-1:-1
             inst["operation"]["mnemonic"] == "JUMP"
                 && entries[index] == [start as i64, (end - start) as i64, id as i64]
         }));
+    }
+}
+
+#[test]
+fn external_calls_map_to_the_call_expression() {
+    let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Calls.sol")).unwrap();
+    let name = "src/Calls.sol:Calls";
+    for mode in ["none", "gas", "size"] {
+        let plain = compile_files(&["src/Calls.sol"], mode, "bin,bin-runtime", &[]);
+        let debug = compile_files(
+            &["src/Calls.sol"],
+            mode,
+            "bin,bin-runtime,srcmap-runtime,ethdebug-runtime",
+            &[],
+        );
+        let audited =
+            compile_files(&["src/Calls.sol"], mode, "bin,bin-runtime", &["-Zdebugify=report"]);
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+            assert_eq!(plain["contracts"][name][code], audited["contracts"][name][code], "{mode}");
+        }
+        let id = debug["sourceList"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|s| s == "src/Calls.sol")
+            .unwrap() as i64;
+        let contract = &debug["contracts"][name];
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+        let calls = instructions
+            .iter()
+            .enumerate()
+            .filter(|(_, inst)| {
+                ["CALL", "STATICCALL"].contains(&inst["operation"]["mnemonic"].as_str().unwrap())
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        // A low-level call in a tuple declaration, a `staticcall` and a `try` call. The
+        // statements start before the call expressions, so the call must not take their span.
+        let expressions = [
+            "address(target).call(data)",
+            "address(0x05).staticcall(input)",
+            "token.transfer(to, 1)",
+        ];
+        assert_eq!(calls.len(), expressions.len(), "{mode}");
+        for (call, expression) in calls.iter().copied().zip(expressions) {
+            let start = source.find(expression).unwrap();
+            let end = start + expression.len();
+            assert_eq!(
+                entries[call],
+                [start as i64, expression.len() as i64, id],
+                "{mode}: the call of {expression} must map to the call expression"
+            );
+            assert!(
+                entries[..call].iter().any(|&entry| in_statement(entry, id as usize, start, end)),
+                "{mode}: {expression} has no instruction before its call"
+            );
+        }
+        // The success test of the `try` belongs to the statement, not to the call.
+        let statement = source.find("try token.transfer").unwrap();
+        let branch = (calls[2]..instructions.len())
+            .find(|&index| instructions[index]["operation"]["mnemonic"] == "JUMPI")
+            .unwrap();
+        assert_eq!(entries[branch][0], statement as i64, "{mode}: the `try` branch");
     }
 }
