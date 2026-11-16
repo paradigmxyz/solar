@@ -97,7 +97,8 @@
 //! increase only when the bytes saved repay it under [`Target::deposit_repays_gas`], so estimated
 //! loop trips alone cannot fund more setup. Size mode reserves a jump's
 //! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
-//! materialization waits until the first use, or the terminator if only successors need it.
+//! the plan materializes the word at the first use, or the terminator if only successors need it,
+//! and the final hoist below may push it earlier.
 //!
 //! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
 //! without the operand copy trials, the result swap or constant retention, so the code may use
@@ -134,6 +135,13 @@
 //! Nothing bounds the stack at the EVM's 1024 words: a call chain that grows past it fails at run
 //! time, as in solc. The EVM IR verifier warns about code whose final depth provably exceeds it.
 //!
+//! The planner pushes each materialized word where its consumer needs it, on top of the words the
+//! block computed before, and sinks it with swaps when it belongs below them. Once the function's
+//! plan is final, the `hoist` pass pushes such a word where the stack has the height it ends at,
+//! and renumbers the copies and swaps in between, when the cost model prices the renumbered
+//! operations below the swaps it removes. It runs on the chosen plan only, in blocks that are not
+//! cold, and not at `-O none`.
+//!
 //! A function whose body, module facts, and cost model equal those of a function planned before in
 //! the compilation takes that plan instead of planning again; see `cache`.
 //!
@@ -163,6 +171,7 @@ use solar_data_structures::sync;
 mod cache;
 pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
+mod hoist;
 mod plan;
 mod rebuild;
 mod shuffle;
@@ -218,6 +227,8 @@ enum Step {
     Filler,
     /// Starts an instruction's debug metadata.
     Begin(InstId),
+    /// Starts the debug metadata of the block's terminator.
+    BeginTerminator,
     /// Pushes a retained constant, which serves several readers, under the combined origins of
     /// `origins`, and then restores the origin that was current.
     Shared { value: ValueId, origins: Box<[Reader]> },
@@ -748,6 +759,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) && self.prices_lower(info, func_id, &rebuilt, &plan)
         {
             plan = rebuilt;
+        }
+        if target.optimizes_stack_plans() {
+            hoist::hoist_plan(func, info, &target, &mut plan);
         }
         cache.insert(key, &plan);
         Ok(plan)

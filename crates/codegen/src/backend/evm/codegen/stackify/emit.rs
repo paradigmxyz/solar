@@ -432,7 +432,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stackified_step(func_id, func, step, cold);
                 self.asm.set_debug_origin(insertion);
             } else {
-                self.emit_stackified_step(func_id, func, step, cold);
+                self.emit_block_step(func_id, func, block, step, cold);
             }
         }
         self.set_terminator_origin(func, block);
@@ -534,6 +534,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits one step of `block`'s own code, as opposed to a trampoline's.
+    fn emit_block_step(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        block: BlockId,
+        step: &Step,
+        cold: bool,
+    ) {
+        match step {
+            Step::BeginTerminator => self.set_terminator_origin(func, block),
+            step => self.emit_stackified_step(func_id, func, step, cold),
+        }
+    }
+
     fn emit_stackified_step(
         &mut self,
         func_id: FunctionId,
@@ -565,6 +580,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let metadata = &func.inst(inst).metadata;
                     self.set_origins(metadata);
                 }
+            }
+            Step::BeginTerminator => {
+                unreachable!("only a block's own code restarts its terminator")
             }
             Step::Shared { value, origins } => {
                 if self.capture_debug_info {
@@ -674,7 +692,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stackified_step(func_id, func, step, cold);
                 self.asm.set_debug_origin(terminator_origin);
             } else {
-                self.emit_stackified_step(func_id, func, step, cold);
+                self.emit_block_step(func_id, func, block, step, cold);
             }
         }
     }

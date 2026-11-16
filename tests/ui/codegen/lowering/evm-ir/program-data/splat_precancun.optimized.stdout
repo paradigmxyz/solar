@@ -190,7 +190,11 @@ bb10 [continuation]:
   gt
   jump bb17
 bb11 [entry]:                                     ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
+  push 33
   push 128
+  push 1
+  push 248
+  shl
   push 160
   push bb20
   jump bb19
@@ -232,16 +236,10 @@ bb13 [loop]:
 bb20 [continuation]:
   dup 2
   mstore
-  swap 1
+  swap 2
   push 64
   add
-  push 1
-  push 248
-  shl
-  swap 1
   mstore
-  push 33
-  swap 1
   jump bb18
 bb21 [continuation]:
   dup 1
