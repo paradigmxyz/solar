@@ -133,7 +133,7 @@ class UniversalRegionTests(unittest.TestCase):
     def test_incoming_words_and_unmodeled_context_are_not_assumed(self):
         for body, diagnostic in (
             ("mload\n pop\n stop", "entry stack"),
-            ("caller\n pop\n stop", "unmodeled EVM"),
+            ("callvalue\n pop\n stop", "unmodeled EVM"),
             ("jump bb0", "cyclic"),
         ):
             with self.subTest(body=body):

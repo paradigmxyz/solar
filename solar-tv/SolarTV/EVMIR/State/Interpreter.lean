@@ -66,8 +66,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     let dynamic := if opcode = 0x0a then
       info.dynamic * ((256 - (frame.stack[1]?.getD 0).clz.toNat + 7) / 8) else 0
     if frame.gas < info.base + dynamic then stepExhausted world else
-    match EVM.step ⟨BitVec.ofNat 256 frame.environment.input.length,
-        BitVec.ofNat 256 frame.returnData.length⟩ op frame.stack with
+    match EVM.step (.ofEnvironment frame.environment frame.returnData) op frame.stack with
     | none => stepFailed world
     | some stack => next world {frame with gas := frame.gas - info.base - dynamic} stack
   else if 0x60 ≤ opcode ∧ opcode ≤ 0x7f then
@@ -80,7 +79,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     let op := if opcode < 0x90 then EVM.Op.dup ⟨opcode - 0x80, by omega⟩
       else EVM.Op.swap ⟨opcode - 0x90, by omega⟩
     if frame.gas < info.base then stepExhausted world else
-      match EVM.step ⟨0, 0⟩ op frame.stack with
+      match EVM.step ⟨0, 0, 0, []⟩ op frame.stack with
       | none => stepFailed world
       | some stack => next world {frame with gas := frame.gas - info.base} stack
   else

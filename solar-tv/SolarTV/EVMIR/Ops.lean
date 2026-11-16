@@ -1,5 +1,6 @@
 import EvmRules.Word
 import SolarTV.Word
+import SolarTV.State.ByteMemory
 
 /-! Scheduled EVM IR word operations, bounded stacks and terminal outcomes.
 Stack top is the head. The pure `step` gives operand semantics; `execute` adds
@@ -18,10 +19,18 @@ inductive Op where
   | calldatasize | returndatasize | push (value : Word)
   | pop | dup (index : Fin 256) | swap (index : Fin 256)
   | exchange (first second : Fin 32)
+  | caller | calldataload
 
 structure Context where
   calldataSize : Word
   returndataSize : Word
+  caller : BitVec 160 := 0
+  calldata : List (BitVec 8) := []
+
+/-- A concrete frame supplies consistent calldata size, contents and caller. -/
+def Context.ofEnvironment (environment : World.Environment) (returnData : List World.Byte) : Context :=
+  ⟨BitVec.ofNat 256 environment.input.length, BitVec.ofNat 256 returnData.length,
+    environment.caller, environment.input⟩
 
 abbrev Stack := List Word
 
@@ -62,6 +71,9 @@ def step (ctx : Context) : Op → Stack → Option Stack
   | .calldatasize, rest => some (ctx.calldataSize :: rest)
   | .returndatasize, rest => some (ctx.returndataSize :: rest)
   | .push value, rest => some (value :: rest)
+  | .caller, rest => some (ctx.caller.setWidth 256 :: rest)
+  | .calldataload, offset :: rest =>
+    some (Execution.readWord ctx.calldata offset.toNat :: rest)
   | _, _ => none
 
 /-! The bounded machine follows EVMYulLean 047f630, Data/Stack.lean and

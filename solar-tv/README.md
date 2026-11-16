@@ -1114,6 +1114,24 @@ The pass hook and sampler use this route for unknown-height terminal regions;
 capture identities stay unchanged. Failed universal checks stay unsupported,
 because their hypothetical entry states need not be reachable.
 
+These proofs also admit `CALLER` and `CALLDATALOAD` over arbitrary caller
+addresses and calldata bytes. Calldata reads preserve big-endian byte order and
+zero extension, and do not expand memory. The caller is widened from 160 bits.
+Size words are independently quantified, so the proof covers a conservative
+superset of real frame contexts. Regions that consume incoming words split out
+short stacks explicitly; underflow and transfer overflow remain observable.
+Fixed scalar-window inputs do not include these context values and still
+reject the operations rather than substituting zero.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/caller-tail/{before,after}.evmir \
+  --region bb1
+solar-tv/solar-tv evmir solar-tv/examples/evmir/calldata-prefix/{before,after}.evmir \
+  --prefix bb0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/calldata-prefix/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/calldata-prefix/world.json
+```
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1138,15 +1156,17 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **8 of 24** with
-`--timeout 30`; 16 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **9 of 24** with
+`--timeout 30`; 15 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
 merge. The ERC20Mock `spell-width-tests` pair also verifies over arbitrary caller
 state, including its unchanged storage/logging helper.
+ERC20Mock's layout of a custom-error path also verifies over its incoming stack
+and caller address.
 
-The original ten-second budget verifies **7 of 24**, with that larger MIR proof
+The original ten-second budget verifies **8 of 24**, with that larger MIR proof
 still timing out. It now closes in about 23 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and

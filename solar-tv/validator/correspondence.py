@@ -17,7 +17,7 @@ from .common import Inconclusive, Unsupported
 
 
 def certify(program, executable, timeout, *, entry_label, stack_height):
-    native.catalog(executable, timeout)
+    catalog = {row["name"]: row for row in native.catalog(executable, timeout)["evmir"]}
     response = subprocess.run(
         [executable, "--evm-model"],
         input=json.dumps(
@@ -60,7 +60,10 @@ def certify(program, executable, timeout, *, entry_label, stack_height):
         match node["kind"]:
             case "operation":
                 operations, _, _, _ = evmir.instructions(
-                    [node["operation"]], None, memory=True
+                    [node["operation"]],
+                    None,
+                    memory=True,
+                    context=program.scope == "universal-region",
                 )
                 if len(operations) != 1:
                     raise Unsupported("EVM graph operation was not preserved")
@@ -170,6 +173,7 @@ theorem __IMPORT___source_correct (ctx : EVM.Context) (state : EVM.Region.State)
         "boundary": "trusted compiler parser/source normalizer and opcode mapping; projected EVM stack/memory semantics",
     }
     if universal:
+        program.stack_required, program.stack_peak = stack_bounds(rows, entry, catalog)
         program.import_obligation = f"""
 theorem __IMPORT___entry_checked (ctx : EVM.Context) (stack : EVM.Stack) (memory : Memory.State) :
   Correspondence.evalGraph (__IMPORT___graph ctx) {fuel} {entry} (stack,memory) =
@@ -183,7 +187,7 @@ theorem __IMPORT___entry_checked (ctx : EVM.Context) (stack : EVM.Stack) (memory
     )
     program.import_obligation = f"""
 theorem __IMPORT___entry_checked {binders} :
-  Correspondence.evalGraph (__IMPORT___graph ⟨calldatasize,returndatasize⟩) {fuel} {entry}
+  Correspondence.evalGraph (__IMPORT___graph ⟨calldatasize,returndatasize,0,[]⟩) {fuel} {entry}
     ([{",".join(stack)}],({memory.INITIAL})) = some (__IMPORT__ {" ".join(inputs)}) := by
   rw [__IMPORT___source_correct]
   rfl
@@ -333,3 +337,62 @@ theorem __IMPORT___import_checked {binders} :
         "source_sha256": hashlib.sha256(program.canonical_ir.encode()).hexdigest(),
         "boundary": "trusted compiler parser/schema exporter and operation mapping; independent typed SSA interpreter",
     }
+
+
+def stack_bounds(rows, entry, catalog):
+    """Choose finite proof splits from the independent graph and opcode schema.
+
+    These bounds guide tactics only: the resulting theorem still quantifies
+    every stack, and an inaccurate bound cannot establish execution equality.
+    """
+    cached, active = {}, set()
+
+    pending = [(entry, False)]
+    while pending:
+        index, expanded = pending.pop()
+        if index in cached:
+            continue
+        node = rows[index]["node"]
+        if not expanded:
+            if index in active:
+                raise Unsupported("cyclic stack bounds require an invariant")
+            active.add(index)
+            match node["kind"]:
+                case "operation" | "jump":
+                    successors = [node["next"]]
+                case "branch":
+                    successors = [node["yes"], node["no"]]
+                case "terminal":
+                    successors = []
+                case _:
+                    raise Unsupported("unknown source stack effect")
+            pending.append((index, True))
+            pending.extend((target, False) for target in successors)
+            continue
+        match node["kind"]:
+            case "operation":
+                name = node["operation"]
+                if name.startswith("push "):
+                    name = "push1"
+                elif name.startswith(("dup ", "swap ")):
+                    name = name.replace(" ", "")
+                definition = catalog.get(name)
+                if not definition or definition["stack"] is None:
+                    raise Unsupported("region needs a concrete schema stack effect")
+                inputs, outputs = definition["stack"]
+                need, peak = cached[node["next"]]
+                delta = outputs - inputs
+                result = max(inputs, need - delta), max(0, delta, delta + peak)
+            case "jump":
+                need, peak = cached[node["next"]]
+                result = need, max(peak, node["growth"])
+            case "branch":
+                yes, no = cached[node["yes"]], cached[node["no"]]
+                result = max(1, yes[0] + 1, no[0] + 1), max(1, yes[1] - 1, no[1] - 1)
+            case "terminal":
+                result = (2 if node["operation"] in {"return", "revert"} else 0), 0
+            case _:
+                raise Unsupported("unknown source stack effect")
+        active.remove(index)
+        cached[index] = result
+    return cached[entry]
