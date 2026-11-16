@@ -91,7 +91,7 @@ pub struct FunctionBuilder<'a> {
     /// The block whose code the operand origins of `current_debug_context` hold for. Code in
     /// another block runs only if the code that split the block did not leave.
     operand_origins_block: BlockId,
-    /// The [`OperandOrigin::id`] of the next assignment or fold noted.
+    /// The [`crate::OperandOrigin::id`] of the next assignment or fold noted.
     next_origin_id: u32,
 }
 
@@ -114,7 +114,7 @@ struct UnreadOrigin {
     folded: bool,
     /// Whether the local the assignment stored the value in has been read since.
     read: bool,
-    /// The assignment's [`OperandOrigin::id`].
+    /// The assignment's [`crate::OperandOrigin::id`].
     id: u32,
 }
 
