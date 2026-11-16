@@ -332,12 +332,11 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(len(payload["sources"]), 208)
 
     def test_full_project_inputs_request_every_ast(self) -> None:
-        cases = {
-            case.project.name: case
+        tempo = next(
+            case
             for case in benchmark.TEST_CASES
-            if case.whole_project
-        }
-        tempo = cases["tempo-zones"]
+            if case.whole_project and case.project.name == "tempo-zones"
+        )
         archive = benchmark.load_project(tempo.project_path)
         input_text, _, _ = benchmark.compiler_input(tempo, None)
         selection = json.loads(input_text)["settings"]["outputSelection"]
@@ -351,8 +350,10 @@ class CorpusTests(unittest.TestCase):
                 for name, outputs in archive["settings"]["outputSelection"].items()
             },
         )
-        solady = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")
-        self.assertEqual(benchmark.with_file_ast(solady), solady)
+        # Seaport leaves four sources out of its selection, and they stay out.
+        for project_file in ("solady-0.1.26.json.gz", "seaport-1.6.json.gz"):
+            original = benchmark.full_project_standard_json_input(project_file)
+            self.assertEqual(benchmark.with_file_ast(original), original)
 
     def test_evm_version_override_replaces_project_pin(self) -> None:
         original = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")

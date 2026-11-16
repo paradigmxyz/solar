@@ -377,16 +377,17 @@ def full_project_standard_json_input(project_file: str) -> str:
 
 
 def with_file_ast(input_text: str) -> str:
-    """Requests the file-level `ast` output of every source of a Standard JSON input.
+    """Requests the file-level `ast` output of every selected source of a Standard JSON input.
 
-    Most project archives come from Forge build-info inputs, which request every source's AST;
-    this gives the others the same output, so every whole-project case measures it.
+    Most project archives come from Forge build-info inputs, which request the AST of every
+    selected source; this gives the others the same output, so every whole-project case measures
+    it. Sources outside the selection stay out: solc compiles every contract of a source with any
+    file-level output.
     """
     payload = json.loads(input_text)
-    selection = payload.setdefault("settings", {}).setdefault("outputSelection", {})
     changed = False
-    for source in payload["sources"]:
-        file_outputs = selection.setdefault(source, {}).setdefault("", [])
+    for outputs in payload.get("settings", {}).get("outputSelection", {}).values():
+        file_outputs = outputs.setdefault("", [])
         if "ast" not in file_outputs:
             file_outputs.append("ast")
             changed = True

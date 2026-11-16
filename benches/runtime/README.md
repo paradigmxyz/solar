@@ -8,9 +8,10 @@ second repository or its recursive submodules.
 `--mode runtime` (default) compiles each entry point's transitive import closure and skips the heavy
 full-project cases. `--mode compile-time` compiles those from full archived Standard JSON inputs,
 without deployment or runtime workloads. CI runs `--mode runtime compile-time`. Most archives keep
-Forge build-info inputs as captured, which request every source's AST; `benchmark.py` requests the
-file-level `ast` output for every source of the other whole-project archives too, so every compiler
-writes the AST of every project.
+Forge build-info inputs as captured, which request the AST of every selected source; `benchmark.py`
+requests the file-level `ast` output for every selected source of the other whole-project archives
+too, so every compiler writes the AST of every project. Sources outside an archive's selection stay
+out, since solc compiles every contract of a source with any file-level output.
 
 The [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines) runs the suite
 through the entry point it shares with Sourcify, ABI/JSON, and symbolic checks:
