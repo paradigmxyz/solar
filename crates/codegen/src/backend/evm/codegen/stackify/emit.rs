@@ -383,7 +383,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
-            self.emit_edge_steps(func_id, func, &steps, assignments, cold);
+            self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
             self.emit_stackified_jump(target, None);
         }
         self.asm.repeating_code = repeating;
@@ -440,7 +440,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Exit::Jump(target) => self.edge_assignments(func, block, target),
             _ => Vec::new(),
         };
-        self.emit_edge_steps(func_id, func, terminator, assignments, cold);
+        self.emit_edge_steps(func_id, func, block, terminator, assignments, cold);
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
@@ -674,6 +674,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         func_id: FunctionId,
         func: &Function,
+        block: BlockId,
         steps: &[Step],
         mut assignments: Vec<(ValueId, &InstructionMetadata)>,
         cold: bool,
