@@ -1238,8 +1238,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Difference: assigning a `bytes` or `string` calldata value to storage, pushing
   it onto a storage array, or using it as a `require` or `revert` reason
   reverts with empty data in `solar` when its nested ABI offset is `2**255`.
-  `solc` stores an empty value or reverts with `Error("")`. Both reject the
-  same input when the value is copied to memory.
+  Assigning or pushing a calldata array, or assigning a calldata struct, does
+  the same when a negative nested offset wraps its pointer above calldata, such
+  as `-0xa4` for `a[0]` of a `uint256[][]`. `solc` stores an empty value or
+  reverts with `Error("")`. Both reject the same input when the value is copied
+  to memory.
 - Rationale: only malformed calldata reaches it, and `solar` is the stricter
   of the two. These consumers share the copy to memory that rejects the
   address; telling them apart would thread a flag through every consumer for

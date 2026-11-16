@@ -4,12 +4,24 @@
 //@ run-call-fail: 0xcb976f6c000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000 => 0x
 //@ run-call-fail: 0x69f791d2000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000 => 0x
 //@ run-call-fail: 0x5950b770000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000 => 0x
+//@ run-call-fail: 0x4508dbbe00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff5c => 0x
+//@ run-call-fail: 0x7c1009d400000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff5c => 0x
+//@ run-call-fail: 0x8378e33e00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff5c => 0x
 
 // A nested ABI offset of `2**255` reverts when the `bytes` or `string` behind it is stored or used
-// as a revert reason, because those consumers copy it to memory first and the copy checks its
-// address as an unsigned value. solc stores an empty value, or reverts with `Error("")`. See
-// CODEGEN-023 in docs/SOLC_DIVERGENCE.md.
+// as a revert reason, and a negative offset that wraps the pointer of an array or struct reverts when
+// it is stored, because those consumers copy it to memory first and the copy checks its address as
+// an unsigned value. solc stores an empty value, or reverts with `Error("")`. See CODEGEN-023 in
+// docs/SOLC_DIVERGENCE.md.
 contract C {
+    struct S {
+        uint256 x;
+        uint256[] v;
+    }
+
+    uint256[] storedArray;
+    uint256[][] pushedArray;
+    S storedStruct;
     bytes stored;
     bytes[] pushed;
     string text;
@@ -35,5 +47,20 @@ contract C {
 
     function rev(string[] calldata a) external pure {
         revert(a[0]);
+    }
+
+    function storeArray(uint256[][] calldata a) external returns (uint256) {
+        storedArray = a[0];
+        return storedArray.length;
+    }
+
+    function pushArray(uint256[][] calldata a) external returns (uint256) {
+        pushedArray.push(a[0]);
+        return pushedArray.length;
+    }
+
+    function storeStruct(S[] calldata a) external returns (uint256) {
+        storedStruct = a[0];
+        return storedStruct.v.length;
     }
 }
