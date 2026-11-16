@@ -63,9 +63,11 @@ impl MirPass for DeferAlloc {
             let metadata = &mut module.functions[func_id].inst_mut(alloc).metadata;
             if !metadata.deferred_alloc() {
                 metadata.set_deferred_alloc();
+                analyses.invalidate_local_summary(func_id);
                 changed = true;
             }
         }
+        analyses.preserve_local_summaries();
         changed
     }
 }
