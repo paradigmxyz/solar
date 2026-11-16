@@ -87,12 +87,28 @@ def sha256_file(p):
 
 
 def run(cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", **kw)
     return r.returncode, r.stdout, r.stderr
 
 
 def log(msg):
     print(msg, flush=True)
+
+
+def stream(cmd, logf, **kw):
+    """Run cmd, copying its merged output to logf and to stdout as it comes; return its exit.
+
+    The output is decoded with replacement: a byte that is not UTF-8 (such as a message cut
+    inside a multibyte character) must not end the driver.
+    """
+    with open(logf, "w") as lf:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                             errors="replace", **kw)
+        for line in p.stdout:
+            lf.write(line)
+            lf.flush()
+            sys.stdout.write(line)
+        return p.wait()
 
 
 # --- the envelope, from the solc AST ---------------------------------------------------------
@@ -1032,17 +1048,11 @@ def main():
             cmd.append("--no-negatives")
         record["scripts_certify"] = {"command": cmd, "env": {k: env[k] for k in ("SOLIDITY_LEAN_DIR", "CERTIFY_ALLOW_UNPINNED", "CERTIFY_CLEAN_BUILD", "SOLC", "CERTIFY_SOLAR_SHA256", "LEAN_MEMORY")}}
         logf = rec_dir / "certify.log"
-        with open(logf, "w") as lf:
-            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
-            for line in p.stdout:
-                lf.write(line)
-                lf.flush()
-                sys.stdout.write(line)
-            p.wait()
-        record["scripts_certify"]["exit"] = p.returncode
+        rc = stream(cmd, logf, env=env)
+        record["scripts_certify"]["exit"] = rc
         record["lean_toolchain"]["lean-toolchain"] = (lean_dir / "lean-toolchain").read_text().strip()
         inner = d / "record.json"
-        if p.returncode != 0 or not inner.exists():
+        if rc != 0 or not inner.exists():
             lines = logf.read_text().strip().splitlines()
             tail = lines[-3:]
             hit = resource_failures(lines)
@@ -1051,13 +1061,13 @@ def main():
                 # spec_connect.py elaborated its module and a theorem of it does not check: the spec
                 # is false of the code (or beyond the tactics), named by that theorem.
                 finish("REJECTED", 1, spec_rej[0][:600])
-            if hit or p.returncode in (137, -9):
+            if hit or rc in (137, -9):
                 # Not a refutation: a build ran out of memory, time or heartbeats.
-                record["resources_exhausted"] = {"count": len(hit), "first": hit[:3], "exit": p.returncode,
+                record["resources_exhausted"] = {"count": len(hit), "first": hit[:3], "exit": rc,
                                                  "lean_memory": LEAN_MEMORY}
                 finish("REJECTED", 1, f"REJECTED: resources: {len(hit)} resource failure(s) in the build, not a "
                        f"proof failure (LEAN_MEMORY={LEAN_MEMORY}): {(hit or tail)[0][:300]}")
-            finish("REJECTED", 1, f"REJECTED: scripts/certify: exits {p.returncode}: {' | '.join(tail)}")
+            finish("REJECTED", 1, f"REJECTED: scripts/certify: exits {rc}: {' | '.join(tail)}")
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
         ok, need_c, comps = strict(dict(rec, name=name, contract=contract), tier)

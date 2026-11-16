@@ -426,6 +426,49 @@ class ResourceFailures(unittest.TestCase):
         self.assertEqual(generic.resource_failures(log), [])
 
 
+class Utf8Boundary(unittest.TestCase):
+    """A message cut at 160 bytes inside a multibyte character does not decide the verdict."""
+
+    HERE = pathlib.Path(__file__).resolve().parent
+
+    def boundary_line(self):
+        # A long work path that puts the 3-byte hygienic x\u271d of a Lean message at bytes 159-161.
+        msg = "error: Tactic \x60rcases\x60 failed: \x60x\u271d : ?m.318\x60 is not an inductive datatype"
+        head = "/Final.lean:24:11: " + msg.split("\u271d")[0]
+        work = "/w/" + "p" * (159 - len(head.encode()) - 3)
+        line = work + "/Final.lean:24:11: " + msg
+        self.assertEqual(line.encode().index("\u271d".encode()), 159)
+        return line
+
+    def test_byte_cut_streams(self):
+        line = self.boundary_line()
+        with tempfile.TemporaryDirectory() as td:
+            src = pathlib.Path(td) / "final.out"
+            src.write_text(line + "\n")
+            logf = pathlib.Path(td) / "certify.log"
+            cmd = ["bash", "-c", 'echo "neg: refused ($(cut -c1-160 "$1"))"; exit 3', "-", str(src)]
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                rc = generic.stream(cmd, logf)
+            self.assertEqual(rc, 3)
+            self.assertIn("\ufffd", logf.read_text())
+            self.assertEqual(out.getvalue(), logf.read_text())
+
+    def test_run_replaces(self):
+        rc, out, _ = generic.run(["bash", "-c", "printf 'a\\342\\234b'"])
+        self.assertEqual((rc, out), (0, "a\ufffdb"))
+
+    def test_final_neg_clip(self):
+        line = self.boundary_line()
+        src = (self.HERE / "final_neg.sh").read_text()
+        fn = next(l for l in src.splitlines() if l.startswith("clip() {"))
+        r = subprocess.run(["bash", "-c", fn + "\nclip"], input=line.encode(), capture_output=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.decode("utf-8"), line.encode()[:159].decode())
+        r = subprocess.run(["bash", "-c", fn + "\nclip"], input=b"x" * 200, capture_output=True)
+        self.assertEqual(r.stdout, b"x" * 160)
+        self.assertNotIn("cut -c1-160", src)
+
+
 class SpecConnectCheck(unittest.TestCase):
     """spec_connect.py names the theorem a false spec fails in, before anything says connected."""
 
