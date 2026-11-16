@@ -329,6 +329,9 @@ fn deduplicate_terminal_blocks(func: &mut Function, keep_statements: bool) -> bo
 
 /// Returns whether the block reverts after it stores the `Panic(uint256)` selector at address 0,
 /// as every panic revert does.
+///
+/// NOTE: Inline assembly that stores that word at address 0 and reverts matches too, so its
+/// statements still merge at `-Onone`. Sema rejects a user-defined `error Panic(uint256)`.
 fn reverts_with_panic(func: &Function, block: BlockId) -> bool {
     let block = &func.blocks[block];
     matches!(block.terminator, Some(Terminator::Revert { .. }))
