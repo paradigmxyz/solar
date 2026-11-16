@@ -9,7 +9,8 @@
 
 mod codegen;
 use codegen::PlanCache;
-pub(crate) use codegen::select;
+pub(crate) use codegen::{call_projection, select};
+pub(crate) mod schedule_map;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
 mod debug_info;

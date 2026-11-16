@@ -1,0 +1,20 @@
+error: postcondition not satisfied
+   ╭▸ examples/Counter.sol:15:10
+   │
+15 │     /// @custom:ensures count == old(count) + 1
+   │          ━━━━━━━━━━━━━━
+   │
+   ├ note: in Counter.increment
+   ├ note: failing spec: count == old(count) + 1
+   ╰ note: solver returned unknown (--dry-run)
+
+error: contract invariant not preserved
+   ╭▸ examples/Counter.sol:16:5
+   │
+16 │     function increment() external {
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: in Counter.increment
+   ├ note: failing spec: count <= limit
+   ├ note: spec declared at line 4; checked at line 16
+   ╰ note: solver returned unknown (--dry-run)

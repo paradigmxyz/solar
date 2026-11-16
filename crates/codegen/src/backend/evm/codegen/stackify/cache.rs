@@ -286,6 +286,7 @@ impl FunctionPlan {
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
+            layouts: self.layouts.clone(),
         })
     }
 }
@@ -335,7 +336,9 @@ fn remap_steps(
         .iter()
         .map(|step| {
             Some(match step {
-                Step::Call(callee) => Step::Call(map(*callee)?),
+                Step::Call { callee, block, below } => {
+                    Step::Call { callee: map(*callee)?, block: *block, below: below.clone() }
+                }
                 &Step::Publish { inst, callee, arity, params } => {
                     Step::Publish { inst, callee: map(callee)?, arity, params }
                 }
