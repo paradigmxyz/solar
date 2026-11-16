@@ -933,7 +933,9 @@ impl Target {
     /// it, and each `not(31)` of its loops as a `PUSH32`, 30 bytes longer than `PUSH1 31 NOT`, to
     /// save 3 gas an iteration. From [`Self::LOOP_COPY_MIN_RUNS`] on, the build trades bytes for
     /// runtime gas, as it does for loop copies, and the push is priced over the full count, as
-    /// solc does.
+    /// solc does. NOTE: unlike loop copies, which [`Self::MAX_LOOP_COPY_BYTES`] bounds, literals
+    /// have no code size backstop: a contract near the EIP-170 limit may pass it, with the size
+    /// warning, as under solc at the same runs.
     pub(crate) fn compacts_immediate(
         &self,
         saved_bytes: u64,
