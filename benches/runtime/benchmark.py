@@ -376,6 +376,23 @@ def full_project_standard_json_input(project_file: str) -> str:
     return project_full_standard_json_input(project_file)
 
 
+def with_file_ast(input_text: str) -> str:
+    """Requests the file-level `ast` output of every source of a Standard JSON input.
+
+    Most project archives come from Forge build-info inputs, which request every source's AST;
+    this gives the others the same output, so every whole-project case measures it.
+    """
+    payload = json.loads(input_text)
+    selection = payload.setdefault("settings", {}).setdefault("outputSelection", {})
+    changed = False
+    for source in payload["sources"]:
+        file_outputs = selection.setdefault(source, {}).setdefault("", [])
+        if "ast" not in file_outputs:
+            file_outputs.append("ast")
+            changed = True
+    return json.dumps(payload) if changed else input_text
+
+
 def with_evm_version(input_text: str, evm_version: str | None) -> str:
     if evm_version is None:
         return input_text
@@ -416,7 +433,9 @@ def compiler_input(
     if test_case.project is not None:
         assert test_case.project_file is not None
         if test_case.whole_project:
-            input_text = project_full_standard_json_input(test_case.project_file)
+            input_text = with_file_ast(
+                project_full_standard_json_input(test_case.project_file)
+            )
             timeout = 900
         else:
             input_text = project_standard_json_input(
