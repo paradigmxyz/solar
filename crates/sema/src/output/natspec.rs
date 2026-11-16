@@ -1,7 +1,7 @@
 //! NatSpec outputs matching solc's Standard JSON output fields.
 
 use super::DocumentationKind;
-use crate::{ast, hir, ty::Gcx};
+use crate::{ast, hir, natspec::LocalTags, ty::Gcx};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::Span;
@@ -283,7 +283,7 @@ struct DocItem {
     content: String,
 }
 
-/// Returns the NatSpec items of `doc_id` with their text joined and trimmed like solc.
+/// Returns the NatSpec items of `item_id` with their text joined and trimmed like solc.
 ///
 /// solc's scanner joins the lines of a doc comment with newlines, dropping the leading `///` of
 /// each line and the leading whitespace and first `*` of each line of a block comment, and
@@ -291,18 +291,22 @@ struct DocItem {
 /// appends every later line to the tag before it, with a space unless the line starts with one.
 /// A `///` line without a tag is such a continuation, so it extends the item before it instead of
 /// being a notice of its own.
+///
+/// Only the last group of doc comments counts, for the tags, the `@inheritdoc` target and whether
+/// the item inherits implicitly. The target's items are joined on their own and follow the local
+/// ones, without the kinds the local ones replace.
 fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
-    let doc_id = gcx.hir.item(item_id).doc();
-    let natspec = gcx.natspec_doc_comments(doc_id);
-    if natspec.is_empty() {
+    let resolved = gcx.natspec_resolution(item_id);
+    let ignored = ignored_doc_comments(gcx, gcx.hir.item(item_id).doc());
+    let read = |span: Span| !ignored.is_some_and(|ignored| ignored.contains(span));
+    let local =
+        resolved.local_items().iter().copied().filter(|item| read(item.span)).collect::<Vec<_>>();
+    let target = resolved.inheritdoc_target().filter(|&(span, _)| read(span));
+    if local.is_empty() && target.is_none() {
         return inherited_doc_items(gcx, item_id);
     }
-    let ignored = ignored_doc_comments(gcx, doc_id);
     let mut items: Vec<DocItem> = Vec::new();
-    for item in natspec.iter().copied() {
-        if ignored.is_some_and(|ignored| ignored.contains(item.span)) {
-            continue;
-        }
+    for &item in &local {
         let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
         let line_comment = untagged
             && gcx
@@ -343,6 +347,12 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             }
         }
         items.push(DocItem { kind: item.kind, content });
+    }
+    if let Some((_, target)) = target {
+        let local_tags = LocalTags::from_items(&local);
+        items.extend(
+            doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
+        );
     }
     items
 }

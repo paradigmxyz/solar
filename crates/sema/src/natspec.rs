@@ -24,6 +24,16 @@ impl<'gcx> ResolvedNatSpec<'gcx> {
     pub(crate) fn items(self) -> &'gcx [hir::NatSpecItem] {
         self.items
     }
+
+    /// The item's own tags, without the inherited ones.
+    pub(crate) fn local_items(self) -> &'gcx [hir::NatSpecItem] {
+        &self.items[..self.local_len]
+    }
+
+    /// The span of the `@inheritdoc` tag and the item it names.
+    pub(crate) fn inheritdoc_target(self) -> Option<(Span, hir::ItemId)> {
+        self.inheritdoc_target
+    }
 }
 
 pub(crate) fn references<'gcx>(
@@ -141,7 +151,7 @@ struct CallableVariables<'gcx> {
 bitflags::bitflags! {
     /// Tracks which documentation tags are locally defined.
     #[derive(Clone, Copy, Debug, Default)]
-    struct LocalTags: u8 {
+    pub(crate) struct LocalTags: u8 {
         const NOTICE = 1 << 0;
         const DEV    = 1 << 1;
         const TITLE  = 1 << 2;
@@ -167,7 +177,7 @@ bitflags::bitflags! {
 }
 
 impl LocalTags {
-    fn from_items(items: &[hir::NatSpecItem]) -> Self {
+    pub(crate) fn from_items(items: &[hir::NatSpecItem]) -> Self {
         let mut tags = Self::empty();
         for item in items {
             match item.kind {
@@ -183,6 +193,21 @@ impl LocalTags {
             }
         }
         tags
+    }
+
+    /// Whether an inherited tag of `kind` survives these local tags: a local tag replaces the
+    /// inherited ones of its kind, and custom and internal tags are not inherited.
+    pub(crate) fn inherits(self, kind: &hir::NatSpecKind) -> bool {
+        use hir::NatSpecKind as HirKind;
+        match kind {
+            HirKind::Notice => !self.contains(Self::NOTICE),
+            HirKind::Dev => !self.contains(Self::DEV),
+            HirKind::Title => !self.contains(Self::TITLE),
+            HirKind::Author => !self.contains(Self::AUTHOR),
+            HirKind::Param { .. } => !self.contains(Self::PARAM),
+            HirKind::Return { .. } => !self.contains(Self::RETURN),
+            HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => false,
+        }
     }
 }
 
@@ -771,27 +796,9 @@ impl<'gcx> Resolver<'gcx> {
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
-        use hir::NatSpecKind as HirKind;
-
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
-
-        for item in inherited_tags.iter() {
-            let should_inherit = match &item.kind {
-                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
-                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
-                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
-                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
-                HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
-                HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
-                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
-                HirKind::Inheritdoc { .. } => false,
-            };
-
-            if should_inherit {
-                merged.push(*item);
-            }
-        }
-
+        merged
+            .extend(inherited_tags.iter().filter(|item| local_tags.inherits(&item.kind)).copied());
         self.gcx.arena().alloc_slice_copy(&merged)
     }
 

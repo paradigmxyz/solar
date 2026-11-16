@@ -56,3 +56,23 @@ contract C {
         revert L.Failed(3);
     }
 }
+
+contract B {
+    /// @notice base k
+    function k() public virtual {}
+
+    /// @notice base m
+    function m() public virtual {}
+}
+
+contract D is B {
+    /// @notice ignored, so k inherits
+
+    ///
+    function k() public override {}
+
+    /// @inheritdoc B
+
+    /// @dev only this
+    function m() public override {}
+}
