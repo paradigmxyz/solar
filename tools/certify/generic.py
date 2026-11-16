@@ -14,7 +14,18 @@ Exit status and the last line printed:
   2  CHECKED <tier reached>: the run proved less than the requested tier (each status in the record)
   3  BLOCKED: <reason>: the source is outside the supported envelope (README.md lists it; recursion
      is outside it); nothing was proved or claimed
+  4  UNSUPPORTED-lifecycle: <stage>: --tier lifecycle observed every stage of the creation (the init
+     code, the runtime bytes it returns, the storage after construction) and they agree, but the
+     named stage has no kernel proof yet: nothing is certified, and the run never exits 0
   1  ERROR: <message>: the driver or a step failed
+
+--tier lifecycle (with --constructor-args W,... for a constructor with static word parameters) is
+about the creation, not the calls: solar's init code with the ABI-encoded arguments appended is run
+by EthLib, which must succeed and return the runtime bytes (solar's bin-runtime, with immutables
+the constructor fills at their placeholders only), and SolidCore's constructor, called with the
+same argument values, must leave the storage EthLib's run leaves. It states that as
+Verify.Lifecycle.Statement (solidity-lean Verify/Lifecycle/Route.lean). A disagreement is
+REJECTED with its stage.
 
 The record (DIR/record.json) holds every pin: the solar commit and binary digest, the solidity-lean
 base and input commits, the Lean toolchain digest, solc, the options, the source, spec and
@@ -237,7 +248,9 @@ def param_of(p, enums):
     return None
 
 
-def envelope(text, ast, contracts, contract, invariants, natspec=False):
+def envelope(
+    text, ast, contracts, contract, invariants, natspec=False, lifecycle=False
+):
     reasons = []
 
     def block(feature, node, detail):
@@ -324,13 +337,15 @@ def envelope(text, ast, contracts, contract, invariants, natspec=False):
                     n,
                     f"{n.get('kind')} {n.get('name') or ''} is payable",
                 )
-            if n.get("kind") == "constructor" and n.get("parameters", {}).get(
-                "parameters"
+            if (
+                n.get("kind") == "constructor"
+                and n.get("parameters", {}).get("parameters")
+                and not lifecycle
             ):
                 block(
                     "constructor parameters",
                     n,
-                    "the generic stage runs the constructor with no arguments (Wide.DeployedAt), so its storage is unknown",
+                    "the generic stage runs the constructor with no arguments (Wide.DeployedAt), so its storage is unknown; --tier lifecycle with --constructor-args takes static word arguments",
                 )
             if n.get("kind") in ("receive", "fallback"):
                 block(
@@ -566,6 +581,123 @@ def recursion_cycles(cdef, variables):
         )
         cycles.append((names, site[first]))
     return cycles, values
+
+
+def constructor_params(ast, contract):
+    """The ABI types of CONTRACT's constructor parameters, [] without a constructor."""
+    for d in ast.get("nodes", []):
+        if d.get("nodeType") == "ContractDefinition" and d.get("name") == contract:
+            for n in d.get("nodes", []):
+                if (
+                    n.get("nodeType") == "FunctionDefinition"
+                    and n.get("kind") == "constructor"
+                ):
+                    return [
+                        q.get("typeDescriptions", {}).get("typeString", "")
+                        for q in n["parameters"]["parameters"]
+                    ]
+    return []
+
+
+def immutables(ast, contract):
+    """The names of CONTRACT's immutable state variables."""
+    for d in ast.get("nodes", []):
+        if d.get("nodeType") == "ContractDefinition" and d.get("name") == contract:
+            return [
+                n["name"]
+                for n in d.get("nodes", [])
+                if n.get("nodeType") == "VariableDeclaration"
+                and n.get("mutability") == "immutable"
+            ]
+    return []
+
+
+def constructor_words(types, text):
+    """The argument words of --constructor-args TEXT (comma-separated, decimal or 0x) for the
+    constructor parameter TYPES: static words only (uintN, address, bool), each within its type,
+    else Blocked."""
+    vals = [v.strip() for v in (text or "").split(",") if v.strip()]
+    if len(vals) != len(types):
+        raise Blocked(
+            [
+                {
+                    "feature": "constructor parameters",
+                    "where": "",
+                    "detail": f"the constructor takes {len(types)} argument(s) ({', '.join(types) or 'none'}); --constructor-args gives {len(vals)}",
+                }
+            ]
+        )
+    ws = []
+    for t, v in zip(types, vals):
+        try:
+            w = int(v, 0)
+        except ValueError:
+            raise Blocked(
+                [
+                    {
+                        "feature": "constructor parameters",
+                        "where": "",
+                        "detail": f"{v!r} is not a number",
+                    }
+                ]
+            ) from None
+        m = re.fullmatch(r"uint(\d*)", t)
+        bits = (
+            int(m.group(1) or 256)
+            if m
+            else 160
+            if t == "address"
+            else 1
+            if t == "bool"
+            else None
+        )
+        if bits is None:
+            raise Blocked(
+                [
+                    {
+                        "feature": "constructor parameters",
+                        "where": "",
+                        "detail": f"{t}: the lifecycle route takes static uintN, address and bool arguments only",
+                    }
+                ]
+            )
+        if not 0 <= w < 2**bits:
+            raise Blocked(
+                [
+                    {
+                        "feature": "constructor parameters",
+                        "where": "",
+                        "detail": f"{v} is outside {t}",
+                    }
+                ]
+            )
+        ws.append(w)
+    return ws
+
+
+def runtime_problem(deployed, plain, imm):
+    """Why the runtime bytes the init code returned are not solar's bin-runtime PLAIN, or None:
+    equal, or with immutables IMM the same length and different only where PLAIN holds a zero
+    byte (an immutable's placeholder the constructor fills)."""
+    a, b = bytes.fromhex(deployed), bytes.fromhex(plain)
+    if a == b:
+        return None
+    if not imm:
+        return f"the init code returns {len(a)} bytes ({hashlib.sha256(a).hexdigest()[:12]}), not solar's bin-runtime ({len(b)} bytes, {hashlib.sha256(b).hexdigest()[:12]})"
+    if len(a) != len(b):
+        return f"the init code returns {len(a)} bytes, solar's bin-runtime has {len(b)}"
+    bad = [i for i in range(len(b)) if a[i] != b[i] and b[i] != 0]
+    return (
+        f"the returned runtime differs from bin-runtime outside an immutable placeholder (offset {bad[0]})"
+        if bad
+        else None
+    )
+
+
+def storage_pairs(text):
+    return sorted(
+        (int(k), int(v)) for k, v in re.findall(r"\((\d+), (\d+)\)", text or "")
+    )
 
 
 def scan_bytecode(hexcode):
@@ -1020,6 +1152,280 @@ def decide_route(res, fns, reasons, witness, probe_dir, contract):
                 f"caller route: any (gas bound of the checker with contexts: {any_gas})",
             )
     return "0x2000", None, [], f"caller route: the fixed caller 0x2000 ({why})"
+
+
+def lifecycle_probe_lean(name, contract, creation, ws):
+    """The lifecycle probe (never part of a proof): EthLib's run of the creation code CREATION (the
+    init code with the encoded arguments) in the creation frame, and SolidCore's constructor on the
+    argument words WS, printed for the driver to compare."""
+    byts = ", ".join(str(b) for b in creation)
+    return f"""import SolidCore.Refinement.Wide.Refines
+import {name}.Source
+
+namespace Certified.{name}.LifeProbe
+
+open SolidCore.Refinement SolidCore.Solidity SolidCore.Solidity.Source EthLib.Base
+
+def fuel : Nat := 4096
+
+def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
+  TypeCheck.CheckedInput.contract Certified.{name}.Src.importedSourceUnit {lean_str(contract)}
+
+def creation : ByteArray := ⟨#[{byts}]⟩
+
+def args : List TypeCheck.CoreValue := ({ws} : List Nat).map Value.word
+
+def hex (l : List Nat) : String :=
+  String.join (l.map fun b => (if b < 16 then "0" else "") ++ String.ofList (Nat.toDigits 16 b))
+
+def main : IO Unit := do
+  match contract? with
+  | .error _ => IO.println "PROBE typecheck: error"
+  | .ok c =>
+  IO.println "PROBE typecheck: ok"
+  let keys : List Nat := match TypeCheck.CheckedContract.constructWithContext? fuel c (Wide.ctxOf c)
+      State.empty SolidCore.Refinement.selfAddress 0 args with
+    | some (CallResult.returned d _) => d.storage.toList.map (·.1)
+    | _ => []
+  match TypeCheck.CheckedContract.constructWithContext? fuel c (Wide.ctxOf c) State.empty
+      SolidCore.Refinement.selfAddress 0 args with
+  | some (CallResult.returned d _) =>
+    IO.println ("PROBE constructor: returns" ++ (if d.events.isEmpty then "" else ", with logs"))
+    IO.println ("PROBE storage: " ++ reprStr d.storage.toList)
+  | some _ => IO.println "PROBE constructor: does not return (reverts or fails)"
+  | none => IO.println "PROBE constructor: undefined"
+  -- The creation frame of SolidCore.Refinement.Deploy: no call data, no value, the empty storage.
+  match Target.run creation ({{ calldata := .empty, callvalue := 0, storage := [] }} : Call) with
+  | none => IO.println "PROBE ethlib: none"
+  | some o =>
+    IO.println ("PROBE ethlib: success " ++ toString o.success)
+    IO.println ("PROBE runtime: " ++ hex o.output)
+    IO.println ("PROBE ethlib storage: " ++ reprStr (keys.map fun k => (k, o.storage k)))
+    IO.println ("PROBE ethlib logs: " ++ toString o.logs.length)
+
+end Certified.{name}.LifeProbe
+
+#eval Certified.{name}.LifeProbe.main
+"""
+
+
+def run_lifecycle_probe(
+    lean_dir, work, name, contract, source_text, creation, ws, cache
+):
+    """The lifecycle probe in a separate clone of the base, as run_probe: nothing it prints is
+    trusted, and it only decides whether the stages agree."""
+    pl = work / "life-probe"
+    git(work, "clone", "-q", "--shared", str(lean_dir), str(pl))
+    git(pl, "submodule", "update", "-q", "--init", "--recursive", check=False)
+    if cache:
+        rc, _, err = run(
+            ["cp", "-a", str(pathlib.Path(cache) / ".lake"), str(pl / ".lake")]
+        )
+        if rc != 0:
+            raise Failed(f"cannot copy the probe cache: {err[:200]}")
+    d = pl / "Certified" / name
+    d.mkdir(parents=True)
+    (d / "Source.lean").write_text(source_text)
+    (d / "LifeProbe.lean").write_text(
+        lifecycle_probe_lean(name, contract, creation, ws)
+    )
+    with open(pl / "lakefile.lean", "a") as f:
+        f.write(lakefile_lib(name, contract))
+    env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
+    rc, out, err = run(
+        ["lake", "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"],
+        cwd=pl,
+        env=env,
+    )
+    if rc != 0:
+        raise Failed(
+            "lifecycle: the probe's build fails: "
+            + " | ".join(l for l in (out + err).splitlines() if l.startswith("error"))[
+                :400
+            ]
+        )
+    rc, out, err = run(
+        ["lake", "env", "lean", str(d / "LifeProbe.lean")], cwd=pl, env=env
+    )
+    res = {}
+    for l in out.splitlines():
+        if l.startswith("PROBE "):
+            what, _, verdict = l[len("PROBE ") :].partition(": ")
+            res[what] = verdict
+    if rc != 0 or "typecheck" not in res:
+        raise Failed(
+            "lifecycle: the probe fails: "
+            + " | ".join(l for l in (out + err).splitlines() if "error" in l)[:400]
+        )
+    shutil.rmtree(pl, ignore_errors=True)
+    return res
+
+
+def lifecycle_stages(res, plain, imm):
+    """The lifecycle stages from the probe's result RES and solar's bin-runtime PLAIN, in creation
+    order, each {"stage", "ok", "detail"}; the first that fails is the run's REJECTED stage."""
+    st = []
+    ok = res.get("typecheck") == "ok"
+    st.append(
+        {
+            "stage": "source",
+            "ok": ok,
+            "detail": "SolidCore's type checker accepts the source"
+            if ok
+            else "SolidCore's type checker rejects the source",
+        }
+    )
+    eth = res.get("ethlib", "")
+    ok = eth == "success true"
+    st.append(
+        {
+            "stage": "initcode",
+            "ok": ok,
+            "detail": "EthLib runs the init code with the encoded arguments to success"
+            if ok
+            else f"EthLib's run of the init code with the encoded arguments: {eth or 'no result'}",
+        }
+    )
+    why = (
+        runtime_problem(res.get("runtime", ""), plain, imm)
+        if ok
+        else "no runtime bytes"
+    )
+    st.append(
+        {
+            "stage": "runtime bytes",
+            "ok": why is None,
+            "detail": why
+            or (
+                "the returned runtime bytes are solar's bin-runtime"
+                + (" with its immutables filled" if res.get("runtime") != plain else "")
+            ),
+        }
+    )
+    cons = res.get("constructor", "")
+    src, tgt = (
+        storage_pairs(res.get("storage")),
+        storage_pairs(res.get("ethlib storage")),
+    )
+    if not cons.startswith("returns"):
+        why = f"SolidCore's constructor {cons or 'gave no result'}"
+    elif "with logs" in cons or res.get("ethlib logs", "0") != "0":
+        why = "the constructor emits logs; the lifecycle statement has none"
+    elif src != tgt:
+        why = f"SolidCore's constructor leaves {src[:4]}, EthLib's run {tgt[:4]}"
+    else:
+        why = None
+    st.append(
+        {
+            "stage": "storage",
+            "ok": why is None,
+            "detail": why
+            or f"SolidCore's constructor and EthLib's run leave the same {len(src)} slot(s) (compared on SolidCore's slots)",
+        }
+    )
+    st.append(
+        {
+            "stage": "kernel",
+            "ok": False,
+            "detail": "no kernel proof: EthLib's processMessage does not reduce in the kernel, so Deploys (initArgs initcode ws) code s "
+            "has no generic proof yet, and the generated source check does not state DeployedAtWith",
+        }
+    )
+    return st
+
+
+def lifecycle_run(a, record, solar, src, src_sha, name, contract, ast, work, finish):
+    """--tier lifecycle: the creation stages, ending UNSUPPORTED-lifecycle (exit 4) at the first
+    stage with no kernel proof, REJECTED (exit 1) at a stage that disagrees, never exit 0."""
+    types = constructor_params(ast, contract)
+    ws = constructor_words(types, a.constructor_args)
+    imm = immutables(ast, contract)
+    rc, out, err = run([str(solar), str(src), *OPTIONS, "--emit=bin,bin-runtime"])
+    if rc != 0:
+        raise Failed(f"solar does not compile the source: {err.strip()[:400]}")
+    j = next(
+        (
+            v
+            for k, v in json.loads(out)["contracts"].items()
+            if k.rsplit(":", 1)[1] == contract
+        ),
+        None,
+    )
+    if not j or not j.get("bin"):
+        raise Failed(f"no init code for {contract} in solar's output")
+    init, plain = bytes.fromhex(j["bin"]), j.get("bin-runtime", "")
+    creation = init + b"".join(w.to_bytes(32, "big") for w in ws)
+    life = record["lifecycle"] = {
+        "constructor_params": types,
+        "args": [hex(w) for w in ws],
+        "immutables": imm,
+        "initcode_sha256": hashlib.sha256(init).hexdigest(),
+        "initcode_size": len(init),
+        "creation_sha256": hashlib.sha256(creation).hexdigest(),
+        "bin_runtime_sha256": hashlib.sha256(bytes.fromhex(plain)).hexdigest(),
+        "statement": "Verify.Lifecycle.Statement fuel c initcode code ws s (solidity-lean Verify/Lifecycle/Route.lean, 03ae48d9)",
+    }
+    log(
+        f"lifecycle: init code {len(init)} bytes, {len(ws)} argument word(s), immutables {imm or 'none'}"
+    )
+    lean_src = pathlib.Path(a.solidity_lean).resolve()
+    base = git(
+        lean_src,
+        "rev-parse",
+        (a.base or (HERE / "solidity-lean.rev").read_text().strip()) + "^{commit}",
+    )
+    record["solidity_lean"] = {"base": base}
+    lean_dir = work / "solidity-lean"
+    if lean_dir.exists():
+        raise Failed(f"{lean_dir} exists: the work directory must be fresh")
+    work.mkdir(parents=True, exist_ok=True)
+    git(work, "clone", "-q", "--no-checkout", "--shared", str(lean_src), str(lean_dir))
+    git(lean_dir, "checkout", "-q", "--detach", base)
+    git(lean_dir, "submodule", "update", "-q", "--init", "--recursive", check=False)
+    rc, body, err = frontend(lean_dir, src, src_sha, name, contract, a.solc)
+    if rc != 0:
+        raise Blocked(
+            [
+                {
+                    "feature": "source frontend",
+                    "where": "",
+                    "detail": "the solc-AST front end refuses the source: "
+                    + err.strip()[-300:],
+                }
+            ]
+        )
+    res = run_lifecycle_probe(
+        lean_dir,
+        work,
+        name,
+        contract,
+        source_lean(body),
+        creation,
+        ws,
+        a.probe_cache or None,
+    )
+    if res.get("runtime"):
+        life["runtime_sha256"] = hashlib.sha256(
+            bytes.fromhex(res["runtime"])
+        ).hexdigest()
+    life["storage"] = storage_pairs(res.get("storage"))
+    life["stages"] = stages = lifecycle_stages(res, plain, imm)
+    for q in stages:
+        log(f"lifecycle {q['stage']}: {'ok' if q['ok'] else 'NO'}: {q['detail']}")
+    first = next(q for q in stages if not q["ok"])
+    if first["stage"] != "kernel":
+        finish(
+            "REJECTED",
+            1,
+            f"REJECTED: lifecycle: {first['stage']}: {first['detail']}",
+            tier_reached="none",
+        )
+    finish(
+        "UNSUPPORTED-lifecycle",
+        4,
+        f"UNSUPPORTED-lifecycle: kernel: {first['detail']}",
+        tier_reached="none",
+    )
 
 
 def frontend(lean_dir, src, src_sha, name, contract, solc):
@@ -1842,13 +2248,19 @@ def main():
     )
     ap.add_argument("--invariants")
     ap.add_argument("--contract")
-    ap.add_argument("--tier", choices=["compiled", "functional", "certified"])
+    ap.add_argument(
+        "--tier", choices=["compiled", "functional", "certified", "lifecycle"]
+    )
     ap.add_argument(
         "--solidity-lean", help="a solidity-lean git checkout to clone the base from"
     )
     ap.add_argument(
         "--base",
         help="the solidity-lean base commit (default tools/certify/solidity-lean.rev)",
+    )
+    ap.add_argument(
+        "--constructor-args",
+        help="--tier lifecycle: the constructor's static argument words, comma-separated",
     )
     ap.add_argument("--work", help="a fresh work directory")
     ap.add_argument("--record-dir")
@@ -1887,6 +2299,8 @@ def main():
     if a.spec not in ("natspec", "none"):
         raise SystemExit("certify: SPEC must be natspec or none")
     tier = a.tier or ("certified" if a.spec == "natspec" else "compiled")
+    if a.constructor_args is not None and tier != "lifecycle":
+        ap.error("--constructor-args needs --tier lifecycle")
     text = src.read_text()
     src_sha = hashlib.sha256(text.encode()).hexdigest()
     base_name = re.sub(r"[^a-z0-9_]", "_", src.stem.lower()).strip("_") or "c"
@@ -1956,7 +2370,13 @@ def main():
         log(f"== generic: {src} ({src_sha}) as {name}, requested tier {tier}")
         ast, contracts = solc_ast(a.solc, src)
         contract, fns, events = envelope(
-            text, ast, contracts, a.contract, a.invariants, a.spec == "natspec"
+            text,
+            ast,
+            contracts,
+            a.contract,
+            a.invariants,
+            a.spec == "natspec",
+            tier == "lifecycle",
         )
         record["contract"] = contract
         record["functions"] = [
@@ -1970,7 +2390,7 @@ def main():
         record["environment"] = ENVIRONMENT
         log(f"envelope (source): inside; functions {', '.join(f['sig'] for f in fns)}")
         witness = None
-        if a.spec == "natspec":
+        if a.spec == "natspec" and tier != "lifecycle":
             spec_desc_natspec = "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)"
             # The statement's non-vacuity needs a call the spec requires to succeed: a function with
             # @custom:succeeds-if. Without one the allowed statuses reject nothing, and the certified
@@ -1992,6 +2412,10 @@ def main():
         # The commit the binary embeds (its build's), recorded apart from the driver's checkout.
         m = re.search(r"Commit SHA: ([0-9a-f]{40})", vout or "")
         record["solar"]["binary_commit"] = m.group(1) if m else None
+        if tier == "lifecycle":
+            lifecycle_run(
+                a, record, solar, src, src_sha, name, contract, ast, work, finish
+            )
         plain, err = solar_runtime(solar, src, contract)
         if plain is None:
             raise Failed(f"solar does not compile the source: {err.strip()[:400]}")

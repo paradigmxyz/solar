@@ -1168,5 +1168,406 @@ class FrontendLocation(unittest.TestCase):
         self.assertIn("counter_x.sol", bodies[0])
 
 
+LIFE = HERE / "examples" / "lifecycle"
+# solar 0479b90a's bin-runtime of the three examples (-Ogas --evm-version osaka).
+LIFE_RUNTIME = {
+    "NoArgCtor": "346026575f3560e01c80630c55699c14601d5780636d4ce63c036026575b5f545f5260205ff35b5f5ffd",
+    "ArgCtor": "346027575f3560e01c80630c55699c14602b5780636d4ce63c14602b5780638da5cb5b146034575b5f5ffd5b5f545f5260205ff3"
+    "5b60015460601b60601c5f5260205ff3",
+    "ImmutableCtor": "346027575f3560e01c80636d4ce63c14602b578063a4d66daf14602b578063a56dfe4a146053575b5f5ffd5b7f"
+    + "00" * 32
+    + "5f5260205ff35b5f545f5260205ff3",
+}
+
+
+def life_probe(
+    example,
+    storage,
+    runtime=None,
+    ethlib_storage=None,
+    ethlib="success true",
+    constructor="returns",
+    logs="0",
+):
+    """A lifecycle probe result as run_lifecycle_probe parses it (PROBE lines)."""
+    pairs = lambda xs: "[" + ", ".join(f"({k}, {v})" for k, v in xs) + "]"
+    return {
+        "typecheck": "ok",
+        "constructor": constructor,
+        "storage": pairs(storage),
+        "ethlib": ethlib,
+        "runtime": LIFE_RUNTIME[example] if runtime is None else runtime,
+        "ethlib storage": pairs(storage if ethlib_storage is None else ethlib_storage),
+        "ethlib logs": logs,
+    }
+
+
+# What the real probe printed for the three examples with solar 0479b90a and solidity-lean 49d1d7f5:
+# NoArgCtor sets slot 0 to 7; ArgCtor(42, 0xbeef) sets slots 0 and 1; ImmutableCtor(1000) sets
+# slot 0 to 1001 and fills the immutable's PUSH32 placeholder with 1000.
+REAL = {
+    "NoArgCtor": ("", life_probe("NoArgCtor", [(0, 7)])),
+    "ArgCtor": ("42,0xbeef", life_probe("ArgCtor", [(0, 42), (1, 0xBEEF)])),
+    "ImmutableCtor": (
+        "1000",
+        life_probe(
+            "ImmutableCtor",
+            [(0, 1001)],
+            runtime=LIFE_RUNTIME["ImmutableCtor"].replace(
+                "7f" + "00" * 32, "7f" + (1000).to_bytes(32, "big").hex()
+            ),
+        ),
+    ),
+}
+
+
+class LifecycleHelpers(unittest.TestCase):
+    """The lifecycle tier's argument, runtime and storage checks."""
+
+    def test_words(self):
+        self.assertEqual(generic.constructor_words([], ""), [])
+        self.assertEqual(
+            generic.constructor_words(["uint256", "address"], "42, 0xbeef"),
+            [42, 0xBEEF],
+        )
+        self.assertEqual(
+            generic.constructor_words(["bool", "uint8"], "1,255"), [1, 255]
+        )
+
+    def test_words_refused(self):
+        for types, text, needle in [
+            (["uint256", "address"], "42", "takes 2 argument"),
+            ([], "1", "takes 0 argument"),
+            (["address"], "0x" + "1" * 41, "outside address"),
+            (["uint8"], "256", "outside uint8"),
+            (["bool"], "2", "outside bool"),
+            (["uint256"], "-1", "outside uint256"),
+            (["int256"], "1", "static uintN, address and bool"),
+            (["string"], "1", "static uintN"),
+            (["uint256"], "x", "not a number"),
+        ]:
+            with self.assertRaises(generic.Blocked) as e:
+                generic.constructor_words(types, text)
+            self.assertIn(needle, str(e.exception.reasons), (types, text))
+
+    def test_runtime(self):
+        rt = LIFE_RUNTIME["ImmutableCtor"]
+        filled = REAL["ImmutableCtor"][1]["runtime"]
+        self.assertIsNone(generic.runtime_problem(rt, rt, []))
+        self.assertIsNone(generic.runtime_problem(filled, rt, ["limit"]))
+        self.assertIn(
+            "not solar's bin-runtime", generic.runtime_problem(filled, rt, [])
+        )
+        self.assertIn(
+            "outside an immutable placeholder",
+            generic.runtime_problem("ff" + rt[2:], rt, ["limit"]),
+        )
+        self.assertIn(
+            "solar's bin-runtime has",
+            generic.runtime_problem(filled + "00", rt, ["limit"]),
+        )
+
+    def test_storage_pairs(self):
+        self.assertEqual(
+            generic.storage_pairs("[(1, 48879), (0, 42)]"), [(0, 42), (1, 48879)]
+        )
+        self.assertEqual(generic.storage_pairs("[]"), [])
+
+
+class LifecycleStages(unittest.TestCase):
+    """Every lifecycle run ends at a stage that fails: the kernel when the observed stages agree
+    (UNSUPPORTED-lifecycle), else the first stage that disagrees (REJECTED)."""
+
+    def first(self, example, res, imm=()):
+        st = generic.lifecycle_stages(res, LIFE_RUNTIME[example], list(imm))
+        self.assertEqual(
+            [q["stage"] for q in st],
+            ["source", "initcode", "runtime bytes", "storage", "kernel"],
+        )
+        self.assertFalse(st[-1]["ok"], "the kernel stage must never pass yet")
+        return next(q for q in st if not q["ok"])
+
+    def test_real_examples_agree(self):
+        for ex, (_, res) in REAL.items():
+            self.assertEqual(
+                self.first(ex, res, ["limit"] if ex == "ImmutableCtor" else [])[
+                    "stage"
+                ],
+                "kernel",
+                ex,
+            )
+
+    def test_immutable_without_immutables(self):
+        self.assertEqual(
+            self.first("ImmutableCtor", REAL["ImmutableCtor"][1])["stage"],
+            "runtime bytes",
+        )
+
+    def test_storage_disagrees(self):
+        res = life_probe(
+            "ArgCtor", [(0, 42), (1, 0xBEEF)], ethlib_storage=[(0, 42), (1, 0)]
+        )
+        q = self.first("ArgCtor", res)
+        self.assertEqual(q["stage"], "storage")
+        self.assertIn("EthLib's run", q["detail"])
+
+    def test_init_reverts(self):
+        self.assertEqual(
+            self.first("ArgCtor", life_probe("ArgCtor", [], ethlib="success false"))[
+                "stage"
+            ],
+            "initcode",
+        )
+        self.assertEqual(
+            self.first("ArgCtor", life_probe("ArgCtor", [], ethlib="none"))["stage"],
+            "initcode",
+        )
+
+    def test_constructor_fails_or_logs(self):
+        self.assertEqual(
+            self.first("ArgCtor", life_probe("ArgCtor", [], constructor="undefined"))[
+                "stage"
+            ],
+            "storage",
+        )
+        self.assertEqual(
+            self.first(
+                "ArgCtor",
+                life_probe("ArgCtor", [(0, 1)], constructor="returns, with logs"),
+            )["stage"],
+            "storage",
+        )
+        self.assertEqual(
+            self.first("ArgCtor", life_probe("ArgCtor", [(0, 1)], logs="1"))["stage"],
+            "storage",
+        )
+
+    def test_source_rejected(self):
+        self.assertEqual(
+            self.first(
+                "NoArgCtor", dict(life_probe("NoArgCtor", [(0, 7)]), typecheck="error")
+            )["stage"],
+            "source",
+        )
+
+
+class LifecycleRun(unittest.TestCase):
+    """lifecycle_run end to end with solar, git, the front end and the probe replaced: it exits 4
+    with UNSUPPORTED-lifecycle when every observed stage agrees and 1 at a stage that does not, and
+    never 0."""
+
+    def drive(self, example, args, res, ast=None):
+        src = LIFE / f"{example}.sol"
+        bins = {
+            "bin": "6080" + LIFE_RUNTIME[example],
+            "bin-runtime": LIFE_RUNTIME[example],
+        }
+        if ast is None:
+            ast = {
+                "nodes": [
+                    {"nodeType": "ContractDefinition", "name": example, "nodes": []}
+                ]
+            }
+        saved = (
+            generic.run,
+            generic.git,
+            generic.frontend,
+            generic.run_lifecycle_probe,
+            generic.log,
+        )
+        seen = {}
+
+        def fake_run(cmd, *a, **kw):
+            return 0, json.dumps({"contracts": {f"{src}:{example}": bins}}), ""
+
+        def fake_probe(
+            lean_dir, work, name, contract, source_text, creation, ws, cache
+        ):
+            seen["creation"], seen["ws"] = creation, ws
+            return res
+
+        def finish(status, code, line, **extra):
+            seen.update(status=status, code=code, line=line)
+            raise SystemExit(code)
+
+        generic.run, generic.git = fake_run, (lambda *a, **kw: "b" * 40)
+        generic.frontend = lambda *a, **kw: (0, "-- body", "")
+        generic.run_lifecycle_probe, generic.log = fake_probe, (lambda *a, **kw: None)
+        record = {}
+        try:
+            with tempfile.TemporaryDirectory() as t, self.assertRaises(SystemExit):
+                a = argparse.Namespace(
+                    constructor_args=args,
+                    solidity_lean=t,
+                    base="b" * 40,
+                    solc="solc",
+                    probe_cache=None,
+                )
+                generic.lifecycle_run(
+                    a,
+                    record,
+                    "solar",
+                    src,
+                    "0" * 64,
+                    "x",
+                    example,
+                    ast,
+                    pathlib.Path(t) / "w",
+                    finish,
+                )
+        finally:
+            (
+                generic.run,
+                generic.git,
+                generic.frontend,
+                generic.run_lifecycle_probe,
+                generic.log,
+            ) = saved
+        self.assertNotEqual(seen["code"], 0)
+        return seen, record
+
+    def ctor_ast(self, example, types, imm=()):
+        params = [{"typeDescriptions": {"typeString": t}} for t in types]
+        nodes = [
+            {
+                "nodeType": "FunctionDefinition",
+                "kind": "constructor",
+                "parameters": {"parameters": params},
+            }
+        ]
+        nodes += [
+            {"nodeType": "VariableDeclaration", "name": n, "mutability": "immutable"}
+            for n in imm
+        ]
+        return {
+            "nodes": [
+                {"nodeType": "ContractDefinition", "name": example, "nodes": nodes}
+            ]
+        }
+
+    def test_no_arg_constructor(self):
+        seen, rec = self.drive(
+            "NoArgCtor", None, REAL["NoArgCtor"][1], self.ctor_ast("NoArgCtor", [])
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        self.assertTrue(seen["line"].startswith("UNSUPPORTED-lifecycle: kernel: "))
+        self.assertEqual(seen["ws"], [])
+        self.assertEqual(rec["lifecycle"]["storage"], [(0, 7)])
+
+    def test_constructor_with_args(self):
+        seen, rec = self.drive(
+            "ArgCtor",
+            "42,0xbeef",
+            REAL["ArgCtor"][1],
+            self.ctor_ast("ArgCtor", ["uint256", "address"]),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        init = bytes.fromhex("6080" + LIFE_RUNTIME["ArgCtor"])
+        self.assertEqual(
+            seen["creation"],
+            init + (42).to_bytes(32, "big") + (0xBEEF).to_bytes(32, "big"),
+        )
+        self.assertEqual(rec["lifecycle"]["args"], ["0x2a", "0xbeef"])
+        self.assertEqual(
+            rec["lifecycle"]["creation_sha256"],
+            hashlib.sha256(seen["creation"]).hexdigest(),
+        )
+
+    def test_immutables(self):
+        seen, rec = self.drive(
+            "ImmutableCtor",
+            "1000",
+            REAL["ImmutableCtor"][1],
+            self.ctor_ast("ImmutableCtor", ["uint256"], ["limit"]),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        self.assertEqual(rec["lifecycle"]["immutables"], ["limit"])
+        self.assertNotEqual(
+            rec["lifecycle"]["runtime_sha256"], rec["lifecycle"]["bin_runtime_sha256"]
+        )
+
+    def test_disagreement_rejected(self):
+        res = life_probe(
+            "ArgCtor", [(0, 42), (1, 0xBEEF)], ethlib_storage=[(0, 41), (1, 0xBEEF)]
+        )
+        seen, _ = self.drive(
+            "ArgCtor",
+            "42,0xbeef",
+            res,
+            self.ctor_ast("ArgCtor", ["uint256", "address"]),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("REJECTED", 1))
+        self.assertTrue(
+            seen["line"].startswith("REJECTED: lifecycle: storage: "), seen["line"]
+        )
+
+    def test_wrong_arity_blocked(self):
+        with self.assertRaises(generic.Blocked):
+            self.drive(
+                "ArgCtor",
+                "42",
+                REAL["ArgCtor"][1],
+                self.ctor_ast("ArgCtor", ["uint256", "address"]),
+            )
+
+
+@unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+class LifecycleEnvelope(unittest.TestCase):
+    """The examples through solc: constructor parameters stay outside the other tiers' envelope,
+    and the lifecycle tier reads their types and the immutables."""
+
+    def test_examples(self):
+        want = {
+            "NoArgCtor": ([], []),
+            "ArgCtor": (["uint256", "address"], []),
+            "ImmutableCtor": (["uint256"], ["limit"]),
+        }
+        for ex, (types, imm) in want.items():
+            src = LIFE / f"{ex}.sol"
+            ast, contracts = generic.solc_ast(str(SOLC), src)
+            self.assertEqual(generic.constructor_params(ast, ex), types, ex)
+            self.assertEqual(generic.immutables(ast, ex), imm, ex)
+            generic.envelope(src.read_text(), ast, contracts, None, None, False, True)
+            if types:
+                with self.assertRaises(generic.Blocked) as e:
+                    generic.envelope(
+                        src.read_text(), ast, contracts, None, None, False, False
+                    )
+                self.assertIn("--tier lifecycle", str(e.exception.reasons))
+
+    def test_cli(self):
+        with tempfile.TemporaryDirectory() as t:
+            src = LIFE / "ArgCtor.sol"
+            p = subprocess.run(
+                [
+                    sys.executable,
+                    str(HERE / "generic.py"),
+                    str(src),
+                    "none",
+                    "--constructor-args",
+                    "1,2",
+                    "--solidity-lean",
+                    "/nonexistent",
+                    "--work",
+                    t + "/w",
+                    "--record-dir",
+                    t + "/r",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(p.returncode, 2)
+            self.assertIn("--constructor-args needs --tier lifecycle", p.stderr)
+            p = subprocess.run(
+                [sys.executable, str(HERE / "generic.py"), "--help"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertIn("lifecycle", p.stdout)
+            self.assertIn("UNSUPPORTED-lifecycle", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
