@@ -737,7 +737,9 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
             }
             // An unoptimized build keeps the entry of a function apart, the instruction coverage
             // anchors the function to.
-            if module.optimization.is_none() && module.blocks[target].metadata.call_effect.is_some()
+            let entry = &module.blocks[target].metadata;
+            if entry.call_effect.is_some()
+                && entry.optimization.unwrap_or(module.optimization).is_none()
             {
                 break;
             }

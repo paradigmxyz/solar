@@ -367,6 +367,7 @@ fn allocate_referenced_labels(
         let original = block.label as usize;
         // An unoptimized build keeps the entry `JUMPDEST` of every function, the instruction
         // coverage anchors the function to, even when the only call falls into it.
+        // NOTE: A function that never returns declares no call effect, so its entry is not kept.
         let entry = block.metadata.call_effect.is_some()
             && block.metadata.optimization.unwrap_or(module.optimization).is_none();
         if entry {
