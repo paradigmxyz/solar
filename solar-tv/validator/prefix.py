@@ -189,8 +189,10 @@ def check(paths, solar, executable, timeout, entry, version, policy):
             if definition and (
                 definition["observes_code"] or definition["sets_returndata"]
             ):
-                raise Unsupported(
-                    "prefix continuation requires code-image/call correspondence"
+                from . import suffix
+
+                return suffix.check(
+                    texts, models, entry, catalog, version, policy, timeout
                 )
     old, suffix, need_a, peak_a, price_a = split(models[0], catalog, version)
     new, next_suffix, need_b, peak_b, price_b = split(models[1], catalog, version)

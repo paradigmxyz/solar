@@ -146,7 +146,18 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "effectful-prefix":
+        if program and program.scope == "shared-prefix-suffix":
+            assumptions.extend(
+                [
+                    "exact independently exported common instruction prefix is passed identically to a shared state/gas executor; its interpreter binding remains trusted",
+                    "prefix GAS reads, precompile execution, memory, returndata and every early halt are preserved; no prefix instruction is deleted or replaced by entry defaults",
+                    "prefix STATICCALLs require canonical push-one/GAS targets for the always-active recovery precompile; arbitrary external calls, relocations and code-image observers excluded",
+                    "suffix quantifies every incoming stack, context and live world, including stack underflow and the 1024-word limit",
+                    "kernel-proved suffix interaction refinement preserves every original success, exit and complete stack/world with no less gas; suffix handlers and continuation are gas-insensitive",
+                    "universally quantified shared per-label PUSH/JUMPI charges; identical terminal and physical successor; logical relocation context, no physical code-placement or whole-contract claim",
+                ]
+            )
+        elif program and program.scope == "effectful-prefix":
             assumptions.extend(
                 [
                     "all incoming stack lengths and words; exact 1024-word stack limits",
@@ -241,7 +252,8 @@ def record(
             )
         if (
             not program
-            or program.scope not in {"prefix-window", "effectful-prefix"}
+            or program.scope
+            not in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
             and program.symbolic_mir is None
         ):
             assumptions.append(
@@ -276,7 +288,9 @@ def record(
         "target": target,
         "gas_policy": (
             program.gas
-            if program and program.scope in {"prefix-window", "effectful-prefix"}
+            if program
+            and program.scope
+            in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
             else policy
         )
         or (
@@ -299,13 +313,15 @@ def record(
                 "region": {
                     "kind": "window",
                     "name": program.selector,
-                    "proof": "universal-branching-effect-prefix"
+                    "proof": "universal-post-precompile-suffix"
+                    if program.scope == "shared-prefix-suffix"
+                    else "universal-branching-effect-prefix"
                     if program.import_evidence.get("conditional_transfers")
                     else "universal-effectful-stack-prefix",
                     "stack_height": None,
                 },
             }
-            if program and program.scope == "effectful-prefix"
+            if program and program.scope in {"effectful-prefix", "shared-prefix-suffix"}
             else {}
         ),
         **(

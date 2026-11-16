@@ -185,6 +185,37 @@ remain explicit trusted boundaries. Unpaired transfers and missing labels are
 rejected. `examples/evmir/decoder-branches/` reduces Morpho's real `block-cse`
 pair; the tests also check a wrong store offset independently in Lean and Rust.
 
+An additional `universal-post-precompile-suffix` certificate retains an exact
+common prefix that contains GAS and recovery-precompile calls. The independent
+block exporter supplies the entire prefix, including immediate operands; the
+audit binds its hash and instruction count. An arbitrary shared executor
+receives that same sequence on both sides. Its result carries either an
+arbitrary halt outcome or the updated context, stack, gas and complete world.
+No shared instruction is discarded or replaced by an entry-state assumption.
+
+`EVM.Suffix.stopped` preserves every early prefix halt exactly, including any
+failure and its observable state. `EVM.Suffix.resource` composes the successful
+prefix with the checked suffix interaction refinement. Every original suffix
+success retains its edge, full stack/world and no less gas. Stack faults and
+temporary label slots remain in the suffix execution model. The scalar
+predicate lemmas cover both equality outcomes over complete 256-bit words.
+
+Admission permits only canonical `push 1; gas; staticcall` prefix calls. The
+target-position and always-active recovery-precompile lemmas are kernel-checked.
+Code-image observers, relocations and arbitrary external calls are rejected;
+suffix handlers and the unchanged continuation must be gas-insensitive. The
+shared prefix-executor binding and source renderer remain trusted, as do the
+shared logical label prices. There is no full-state interpreter, physical
+placement or whole-contract certificate. Exact gas and Amsterdam's two-resource
+gas are rejected. Prefixes are limited to 256 operations and suffixes to the
+existing 64-operation/32-word proof budget.
+
+The real WETH pair binds all 103 common prefix instructions. The reduced pair
+in `examples/evmir/post-precompile/` includes a concrete broken-predicate
+counterexample independently checked by Lean and Rust. Negative regressions
+change the prefix, call target or predicate; early prefix OOG also has a direct
+exact-gas regression.
+
 ## Real-contract evaluation
 
 Run `solar-tv/evaluate --limit 8 --timeout 10 --seed 0 --output DIR` with a
@@ -282,12 +313,14 @@ in `examples/mir/weth-width-guard/`.
 Morpho's `peephole-early` swap cleanup around `LOG4` now verifies through the
 effectful stack-prefix route above. Its decoder's `block-cse` pair also verifies
 through all four early guards. WETH's `DOMAIN_SEPARATOR` SCCP pair verifies
-through its allocating helper. The same sample therefore verifies 14 of 24;
-10 remain unsupported, and check identities and bytecode hashes are unchanged.
+through its allocating helper. Its post-precompile predicate peephole verifies
+through the shared-prefix/suffix route. The same sample therefore verifies
+15 of 24; 9 remain unsupported, and check identities and bytecode hashes are
+unchanged.
 
-The ten-second control run verifies 13 checks, with 10 unsupported and the larger
+The ten-second control run verifies 14 checks, with 9 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
-budget difference is explicit; this is not a fourteen-of-24 result at ten seconds.
+budget difference is explicit; this is not a fifteen-of-24 result at ten seconds.
 
 ## Remaining obligations
 
