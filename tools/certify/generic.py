@@ -1449,6 +1449,140 @@ def frame_outside(prefix):
     return found
 
 
+def creation_halt(creation, steps=100000):
+    """Where the creation CREATION (init code and argument words) stops, run without value over
+    the opcodes of the generic creation frame (FRAME_OPS), as (halt, pc): "return", "revert"
+    (REVERT), "invalid" (INVALID, a bad jump or a stack fault), or "outside" (an opcode the frame
+    does not evaluate, or more than STEPS steps). It decides nothing the kernel relies on: it
+    only lets a constructor whose creation reverts end UNSUPPORTED before any Lean build, since
+    REVERT also ends the guard paths of every constructor solar compiles and is not refused where
+    the run never reaches it."""
+    M, code = 1 << 256, creation
+    dests, i = set(), 0
+    while i < len(code):
+        if code[i] == 0x5B:
+            dests.add(i)
+        i += 1 + (code[i] - 0x5F if 0x60 <= code[i] <= 0x7F else 0)
+
+    def sgn(x):
+        return x - M if x >> 255 else x
+
+    def mem_at(mem, off, n):
+        if n and off + n > len(mem):
+            mem.extend(bytes(-(-(off + n) // 32) * 32 - len(mem)))
+
+    bin_ops = {
+        0x01: lambda a, b: (a + b) % M,
+        0x02: lambda a, b: a * b % M,
+        0x03: lambda a, b: (a - b) % M,
+        0x04: lambda a, b: a // b if b else 0,
+        0x06: lambda a, b: a % b if b else 0,
+        0x05: lambda a, b: (
+            (abs(sgn(a)) // abs(sgn(b)) * (-1 if (sgn(a) < 0) != (sgn(b) < 0) else 1))
+            % M
+            if b
+            else 0
+        ),
+        0x07: lambda a, b: (
+            (abs(sgn(a)) % abs(sgn(b)) * (-1 if sgn(a) < 0 else 1)) % M if b else 0
+        ),
+        0x0B: lambda a, b: (
+            b
+            if a >= 31
+            else (
+                (b | (M - (1 << (8 * a + 8))))
+                if (b >> (8 * a + 7)) & 1
+                else b & ((1 << (8 * a + 8)) - 1)
+            )
+        ),
+        0x10: lambda a, b: int(a < b),
+        0x11: lambda a, b: int(a > b),
+        0x12: lambda a, b: int(sgn(a) < sgn(b)),
+        0x13: lambda a, b: int(sgn(a) > sgn(b)),
+        0x14: lambda a, b: int(a == b),
+        0x16: lambda a, b: a & b,
+        0x17: lambda a, b: a | b,
+        0x18: lambda a, b: a ^ b,
+        0x1A: lambda a, b: (b >> (8 * (31 - a))) & 0xFF if a < 32 else 0,
+        0x1B: lambda a, b: (b << a) % M if a < 256 else 0,
+        0x1C: lambda a, b: b >> a if a < 256 else 0,
+        0x1D: lambda a, b: (sgn(b) >> min(a, 256)) % M,
+    }
+    pc, st, mem = 0, [], bytearray()
+    for _ in range(steps):
+        if pc >= len(code):
+            return "invalid", pc
+        op = code[pc]
+        try:
+            if op == 0xFD:
+                return "revert", pc
+            if op not in FRAME_OPS or op == 0xFE:
+                return ("invalid" if op == 0xFE else "outside"), pc
+            if op == 0xF3:
+                return "return", pc
+            if op in bin_ops:
+                a, b = st.pop(), st.pop()
+                st.append(bin_ops[op](a, b))
+            elif op == 0x15:
+                st.append(int(st.pop() == 0))
+            elif op == 0x19:
+                st.append(M - 1 - st.pop())
+            elif op in (0x5F, 0x34):
+                st.append(0)
+            elif 0x60 <= op <= 0x7F:
+                n = op - 0x5F
+                st.append(
+                    int.from_bytes(code[pc + 1 : pc + 1 + n].ljust(n, b"\0"), "big")
+                )
+                pc += n
+            elif 0x80 <= op <= 0x8F:
+                st.append(st[-(op - 0x7F)])
+            elif 0x90 <= op <= 0x9F:
+                k = op - 0x8E
+                st[-1], st[-k] = st[-k], st[-1]
+            elif op == 0x38:
+                st.append(len(code))
+            elif op == 0x50:
+                st.pop()
+            elif op == 0x5B:
+                pass
+            elif op == 0x56:
+                d = st.pop()
+                if d not in dests:
+                    return "invalid", pc
+                pc = d
+                continue
+            elif op == 0x57:
+                d, c = st.pop(), st.pop()
+                if c:
+                    if d not in dests:
+                        return "invalid", pc
+                    pc = d
+                    continue
+            elif op == 0x51:
+                off = st.pop()
+                mem_at(mem, off, 32)
+                st.append(int.from_bytes(mem[off : off + 32], "big"))
+            elif op == 0x52:
+                off, v = st.pop(), st.pop()
+                mem_at(mem, off, 32)
+                mem[off : off + 32] = v.to_bytes(32, "big")
+            elif op == 0x39:
+                dst, off, n = st.pop(), st.pop(), st.pop()
+                mem_at(mem, dst, n)
+                mem[dst : dst + n] = (
+                    code[off : off + n].ljust(n, b"\0") if off < len(code) else bytes(n)
+                )
+            elif op == 0x55:
+                st.pop(), st.pop()
+            if len(st) > 1024:
+                return "invalid", pc
+        except IndexError, MemoryError, OverflowError:
+            return "invalid", pc
+        pc += 1
+    return "outside", pc
+
+
 def constructor_payable(ast, contract):
     for d in ast.get("nodes", []):
         if d.get("nodeType") == "ContractDefinition" and d.get("name") == contract:
@@ -1746,6 +1880,20 @@ def lifecycle_run(
         raise Failed(f"no init code for {contract} in solar's output")
     init, plain = bytes.fromhex(j["bin"]), j.get("bin-runtime", "")
     creation = init + b"".join(w.to_bytes(32, "big") for w in ws)
+    halt, at = creation_halt(creation)
+    if halt in ("revert", "invalid"):
+        record["lifecycle"] = {
+            "args": [hex(w) for w in ws],
+            "halt": halt,
+            "halt_pc": at,
+        }
+        finish(
+            "UNSUPPORTED-lifecycle",
+            4,
+            f"UNSUPPORTED-lifecycle: kernel: a revert path: the creation with these arguments reaches "
+            f"{halt.upper()} at {at}, outside the generic creation frame; nothing is built",
+            tier_reached="none",
+        )
     life = record["lifecycle"] = {
         "constructor_params": types,
         "args": [hex(w) for w in ws],
