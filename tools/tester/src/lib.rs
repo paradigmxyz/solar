@@ -111,6 +111,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         status_emitter,
     )?;
 
+    if watchdog::killed() {
+        return Err(eyre!("the watchdog killed a process that ran for too long"));
+    }
+
     Ok(())
 }
 

@@ -3,19 +3,31 @@
 //! `ui_test` waits for each child process with no deadline, so one hung compiler stalls the whole
 //! run until `cargo-nextest` times it out and kills it, with no hint of which fixture hung. A
 //! thread polls `ps` for children of the test runner and kills any that has run for [`LIMIT`].
-//! The runner then sees an abnormal exit and reports that fixture as a failure, with its command,
-//! like any other failed test, and the other fixtures still run. The kill is also logged to
+//! The runner then sees an abnormal exit and usually reports that fixture as a failed test, with
+//! its command, and the other fixtures still run. A fixture that expects no exit status could pass
+//! on the output printed before the kill, so [`killed`] also fails the run. Each kill is logged to
 //! stderr.
 //!
-//! Only Unix has `ps` and `kill` in the form this uses; elsewhere the watchdog does nothing.
+//! This covers only the compiler and `FileCheck` children. It does not cover a hang in the runner
+//! itself, such as in the interpreters of `run-call` fixtures, and it needs the Unix `ps` and
+//! `kill`; elsewhere the watchdog does nothing.
 
-use std::{collections::HashSet, process::Command, thread, time::Duration};
+use std::{
+    collections::HashSet,
+    process::Command,
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+    time::Duration,
+};
 
 /// The time a child may run before it is killed. Normal fixtures take seconds at most.
 const LIMIT: Duration = Duration::from_secs(120);
 
 /// The time between polls.
 const POLL: Duration = Duration::from_secs(10);
+
+/// Whether the watchdog has killed a child.
+static KILLED: AtomicBool = AtomicBool::new(false);
 
 /// Starts the watchdog thread, which lasts until the process exits.
 pub(crate) fn spawn() {
@@ -35,6 +47,7 @@ pub(crate) fn spawn() {
                             child.command,
                             child.elapsed.as_secs()
                         );
+                        KILLED.store(true, Ordering::Relaxed);
                         let _ =
                             Command::new("kill").args(["-KILL", &child.pid.to_string()]).status();
                     }
@@ -43,6 +56,11 @@ pub(crate) fn spawn() {
             }
         });
     }
+}
+
+/// Returns whether the watchdog has killed a child.
+pub(crate) fn killed() -> bool {
+    KILLED.load(Ordering::Relaxed)
 }
 
 /// A child process of the test runner.
