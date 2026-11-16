@@ -1,0 +1,34 @@
+@module FunctionDce
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+fn @f() -> i256 [selector=0x01020304, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @live
+    ret v0
+}
+fn @unused() -> i256 {
+  bb0:
+    v0 = icall @unused_leaf
+    ret v0
+}
+fn @live() -> i256 {
+  bb0:
+    ret 7
+}
+fn @unused_leaf() -> i256 {
+  bb0:
+    ret 11
+}
+fn @spin() [selector=0x02030405, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall @spin
+    ret
+}
+fn @loop() [selector=0x03040506, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb1
+}

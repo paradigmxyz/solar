@@ -146,7 +146,16 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "shared-prefix-suffix":
+        if program and program.scope == "function-pruning":
+            assumptions.extend(
+                [
+                    "complete compiler-validated MIR modules; every retained declaration and named reference is unchanged; all external entries remain and retained call targets are closed",
+                    "symbolic function identities; arbitrary shared primitive step, mutable state, caller continuations and terminal observations; exact equality for every step bound, including cycles and recursive calls",
+                    "structural named-call-machine certificate; compiler parser/display, reference extraction and machine binding remain trusted",
+                    "no instruction-semantics, physical gas, numeric function-pointer or backend layout claim; removed functions are not valid entry points",
+                ]
+            )
+        elif program and program.scope == "shared-prefix-suffix":
             assumptions.extend(
                 [
                     "exact independently exported common instruction prefix is passed identically to a shared state/gas executor; its interpreter binding remains trusted",
@@ -238,7 +247,7 @@ def record(
             )
             if program:
                 assumptions.append(f"entry stack height {program.interface[1]}")
-        if program and program.scope:
+        if program and program.scope and program.scope != "function-pruning":
             assumptions.append(
                 "function-local proof with supplied callees; no whole-pass claim"
                 if program.symbolic_mir is not None
@@ -253,7 +262,12 @@ def record(
         if (
             not program
             or program.scope
-            not in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
+            not in {
+                "prefix-window",
+                "effectful-prefix",
+                "shared-prefix-suffix",
+                "function-pruning",
+            }
             and program.symbolic_mir is None
         ):
             assumptions.append(
@@ -287,7 +301,9 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": (
-            program.gas
+            "unpriced-structural"
+            if program and program.scope == "function-pruning"
+            else program.gas
             if program
             and program.scope
             in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
@@ -307,6 +323,20 @@ def record(
         ),
         "assumptions": assumptions,
         "inputs": sources,
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "rooted-function-table-correspondence",
+                    "retained": program.import_evidence["retained"],
+                    "removed": program.import_evidence["removed"],
+                    "external_entries": program.import_evidence["external_entries"],
+                },
+            }
+            if program and program.scope == "function-pruning"
+            else {}
+        ),
         **(
             {
                 "whole_pass": False,

@@ -60,6 +60,27 @@ against the original interpreters. It is additional evidence, not an all-input
 proof of those implementations. The permitted proof axioms remain `propext`,
 `Classical.choice` and `Quot.sound`; generated positive proofs reject others.
 
+Deletion-only MIR function tables have a separate structural certificate in
+`MIR/Transforms/FunctionDCE.lean`. Each surviving declaration is identical,
+including its interface, attributes and instructions. The kernel checks that
+every surviving named reference is closed over the retained table and every
+external root remains. An induction proves equality of execution for every step
+bound, with arbitrary primitive steps, state, saved caller continuations and
+observations. Calls, tail calls, returns, cycles and recursion are included;
+there is no termination assumption or fixed unrolling depth.
+
+This is a named-call-machine theorem, not an instruction interpreter import
+certificate. The compiler parser/display, extraction of named references and
+binding to that call machine are trusted. The theorem permits entry only into
+the retained closed set: a removed function is never validated as an entry.
+Numeric function-pointer dispatchers and backend-memory records are rejected.
+Physical gas, code placement and numeric function identities remain outside the
+claim. Reports distinguish this module-level structural certificate from local
+instruction proofs and retain `whole_pass: false`. Changed surviving bodies,
+global declarations or phases, deleted external roots and missing call targets
+are unsupported. A changed live result has an independent semantic
+counterexample in `examples/mir/function-dce/`.
+
 Unknown-height block windows also admit a narrower contextual prefix proof.
 An independent Rust export includes every instruction and the terminal. Only a
 fixed-price scalar/stack prefix may differ, and the complete remaining suffix
@@ -277,9 +298,9 @@ The current sample, with the exact same 24 selected IDs, uses a 30-second budget
 
 | Contract | Captured checks | Selected | Verified | Unsupported |
 | --- | ---: | ---: | ---: | ---: |
-| Solady WETH | 329 | 8 | 4 | 4 |
+| Solady WETH | 329 | 8 | 7 | 1 |
 | OpenZeppelin ERC20Mock | 372 | 8 | 5 | 3 |
-| Morpho Blue | 1,515 | 8 | 3 | 5 |
+| Morpho Blue | 1,515 | 8 | 4 | 4 |
 
 All ABI and creation/runtime bytecode fingerprints remain identical to the
 earlier run, and capture remains bytecode-neutral. There are no counterexamples,
@@ -314,13 +335,14 @@ Morpho's `peephole-early` swap cleanup around `LOG4` now verifies through the
 effectful stack-prefix route above. Its decoder's `block-cse` pair also verifies
 through all four early guards. WETH's `DOMAIN_SEPARATOR` SCCP pair verifies
 through its allocating helper. Its post-precompile predicate peephole verifies
-through the shared-prefix/suffix route. The same sample therefore verifies
-15 of 24; 9 remain unsupported, and check identities and bytecode hashes are
-unchanged.
+through the shared-prefix/suffix route. WETH's removal of its two unreferenced
+token-transfer hooks now verifies through rooted function-table correspondence.
+The same sample therefore verifies 16 of 24; 8 remain unsupported, and check
+identities and bytecode hashes are unchanged.
 
-The ten-second control run verifies 14 checks, with 9 unsupported and the larger
+The ten-second control run verifies 15 checks, with 8 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
-budget difference is explicit; this is not a fifteen-of-24 result at ten seconds.
+budget difference is explicit; this is not a sixteen-of-24 result at ten seconds.
 
 ## Remaining obligations
 
