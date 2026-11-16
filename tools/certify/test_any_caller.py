@@ -55,13 +55,19 @@ class Positive(unittest.TestCase):
         self.assertNotIn("StageFrom", fixed)
 
     def test_shape_records_the_route(self):
-        shape = generic.shape_json("who_1", "Who", [WHO], 100, "none", caller="any")
+        # The route "any" carries the checker with contexts' gas bound, on the published statement.
+        shape = generic.shape_json(
+            "who_1", "Who", [WHO], 100, "none", "who", any_gas=200
+        )
         self.assertEqual(shape["generic"]["caller"], "any")
         self.assertEqual(shape["generic"]["check_sym"], "check_sym_stage0")
         self.assertEqual(shape["generic"]["check_value_sym"], "checkValueSym_stage0")
+        self.assertEqual(shape["any_caller"]["gas"], "fun _ => 200")
+        # The fixed route names no caller (final.py reads that as 0x2000) and no check for every caller.
         fixed = generic.shape_json("num_1", "Num", [NUM], 100, "none")
-        self.assertEqual(fixed["generic"]["caller"], "0x2000")
+        self.assertNotIn("caller", fixed["generic"])
         self.assertNotIn("check_sym", fixed["generic"])
+        self.assertNotIn("any_caller", fixed)
 
     def test_probe_asks_both_checks(self):
         text = generic.probe_lean("who_1", "Who", [WHO, NUM])
