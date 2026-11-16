@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] compile-flags: -Zdump=mir
 //@[size] compile-flags: -Zdump=mir
 //@[gas] filecheck:

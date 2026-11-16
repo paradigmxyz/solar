@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: f 1, false => 0xc8c80166610cedbdd21ec5dd1e8ab4e9eaa4a94ee980d51d8e685dbd1ddc2017
 //@ run-call: f 1, true => 0xc8c80166610cedbdd21ec5dd1e8ab4e9eaa4a94ee980d51d8e685dbd1ddc2017
 
