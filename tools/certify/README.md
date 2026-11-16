@@ -84,6 +84,31 @@ CI's `certify Counter` job runs test.sh and then the driver on
 To move the pin, update [solidity-lean.rev](solidity-lean.rev) to a solidity-lean commit and
 run the driver on Counter.
 
+## The generic driver's supported subset
+
+[generic.py](generic.py) (`tools/certify/certify SOURCE.sol SPEC`) takes any contract inside a
+stated subset of Solidity and refuses everything else before any build, with exit 3 and a
+`BLOCKED: <feature> (...)` line naming the first place each feature appears; the record's
+`status` is `BLOCKED` and its `blocked` list holds every refusal. A `BLOCKED` run proves
+and claims nothing. The subset is one self-contained file with one concrete contract that has no
+bases, no constructor parameters and no fallback or receive function, and none of:
+
+- imports;
+- inline assembly;
+- external calls (including try/catch, low-level calls and calls of external functions), contract
+  creation and payable functions or value transfers;
+- reads of other accounts (`code`, `codehash`, `balance`) and of `selfdestruct`, `gasleft` or
+  `blockhash`;
+- loops;
+- recursion: a function or modifier that can reach itself through internal calls or modifier
+  invocations (directly or through others), and calls through internal function values, whose
+  callee the source does not name. The generic stage proofs need a cut point at every back edge,
+  and a recursive call site has none. [RECURSION.md](RECURSION.md) sketches what supporting it
+  would take.
+
+A natspec spec may in addition read only `msg.value` from the environment. Nothing in the subset
+is selected by contract name or hash.
+
 ## The published statement
 
 A contract with `Certified/NAME/shape.json` gets one published theorem,
