@@ -263,6 +263,16 @@ The runner writes one `coverage-<project>.json` per project to
 `SOLAR_FOUNDRY_REPORT_DIR`, or `target/foundry-coverage` by default. It holds
 each leg's status, totals, and differences, and every item with its anchored
 flag and hits in each leg; an item that a leg does not list is `null` there.
+Each item also carries `source`, the snippet the debug report prints after the
+item (`-> "..."`), as forge prints and truncates it, with escapes such as `\n`
+left as written, so mismatches can be read without rerunning forge.
+
+Set `SOLAR_FOUNDRY_COVERAGE_LEGS` to a comma-separated list of leg names, such
+as `SOLAR_FOUNDRY_COVERAGE_LEGS=solc-legacy,solar-none`, to run only those legs
+for a fast rerun. An unknown name fails the run. Legs that did not run are
+absent from the summary and the JSON (`legs`, each leg's `diff_from`, and every
+item's `legs`), and a comparison against one is left out without failing; a
+missing `solc-legacy` prints `no solc-legacy report` in the baseline columns.
 
 Anchor lines name their item by source ID, which differs between builds, so a
 project that compiles in several builds (mixed pragmas) can leave anchors

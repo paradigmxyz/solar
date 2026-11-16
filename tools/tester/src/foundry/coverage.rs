@@ -121,6 +121,8 @@ struct ItemData {
     hits: u64,
     /// Whether any contract's anchors reference the item.
     anchored: bool,
+    /// The source snippet the report prints after the item, as forge truncated it.
+    source: String,
 }
 
 /// The items of one `forge coverage --report debug` run.
@@ -140,6 +142,8 @@ struct ParsedItem {
     lines: (usize, usize),
     bytes: (usize, usize),
     hits: u64,
+    /// The snippet that follows listed items; anchor lines have none.
+    source: Option<String>,
 }
 
 fn item_regex() -> &'static Regex {
@@ -150,6 +154,7 @@ fn item_regex() -> &'static Regex {
             r#"|Function "(?<function>[^"]*)")"#,
             r" \(location: \(source ID: (?<source>\d+), lines: (?<l0>\d+)\.\.(?<l1>\d+),",
             r" bytes: (?<b0>\d+)\.\.(?<b1>\d+)\), hits: (?<hits>\d+)\)",
+            r#"(?: -> "(?<src>.*)")?"#,
         ))
         .unwrap()
     })
@@ -177,6 +182,7 @@ fn parse_item(text: &str) -> Option<ParsedItem> {
         lines: (number("l0")?, number("l1")?),
         bytes: (number("b0")?, number("b1")?),
         hits: caps["hits"].parse().ok()?,
+        source: caps.name("src").map(|source| source.as_str().to_string()),
     })
 }
 
@@ -224,6 +230,9 @@ fn parse_debug_report(stdout: &str) -> DebugReport {
                 data.lines = item.lines;
             }
             data.hits += item.hits;
+            if data.source.is_empty() {
+                data.source = item.source.unwrap_or_default();
+            }
         } else if let Some(header) = line.strip_suffix(':')
             && !line.starts_with(['-', ' '])
         {
@@ -339,6 +348,25 @@ fn forge_supports_keep_optimizer() -> bool {
     })
 }
 
+/// The legs `SOLAR_FOUNDRY_COVERAGE_LEGS` lists, or all of them. Panics on an unknown name.
+fn selected_legs() -> Vec<&'static Leg> {
+    let Ok(list) = std::env::var("SOLAR_FOUNDRY_COVERAGE_LEGS") else {
+        return LEGS.iter().collect();
+    };
+    list.split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            LEGS.iter().find(|leg| leg.name == name).unwrap_or_else(|| {
+                panic!(
+                    "unknown coverage leg `{name}`; known legs: {}",
+                    LEGS.map(|leg| leg.name).join(", ")
+                )
+            })
+        })
+        .collect()
+}
+
 /// Runs `forge coverage --report debug` for one leg of a project.
 fn run_leg(config: &TestConfig, leg: &'static Leg) -> LegRun {
     let label = format!("{}/{}", config.name, leg.name);
@@ -451,13 +479,13 @@ fn run_leg(config: &TestConfig, leg: &'static Leg) -> LegRun {
 
 /// Runs every leg of a project. Legs run in parallel unless the project prebuilds profiles into
 /// its own directory, which the legs would overwrite for each other.
-fn run_legs(config: &TestConfig) -> Vec<LegRun> {
+fn run_legs(config: &TestConfig, legs: &[&'static Leg]) -> Vec<LegRun> {
     if !config.prebuild_profiles.is_empty() {
-        return LEGS.iter().map(|leg| run_leg(config, leg)).collect();
+        return legs.iter().map(|&leg| run_leg(config, leg)).collect();
     }
     thread::scope(|scope| {
         let handles =
-            LEGS.iter().map(|leg| scope.spawn(move || run_leg(config, leg))).collect::<Vec<_>>();
+            legs.iter().map(|&leg| scope.spawn(move || run_leg(config, leg))).collect::<Vec<_>>();
         handles
             .into_iter()
             .map(|handle| handle.join().unwrap_or_else(|panic| resume_unwind(panic)))
@@ -572,6 +600,12 @@ fn write_report(config: &TestConfig, runs: &[LegRun]) {
                 .iter()
                 .find_map(|(_, report)| report.items.get(key))
                 .map_or((0, 0), |data| data.lines);
+            let source = reported
+                .iter()
+                .find_map(|(_, report)| {
+                    Some(&report.items.get(key)?.source).filter(|source| !source.is_empty())
+                })
+                .map_or("", String::as_str);
             let legs = reported
                 .iter()
                 .map(|(name, report)| {
@@ -586,6 +620,7 @@ fn write_report(config: &TestConfig, runs: &[LegRun]) {
                 "kind": key.kind,
                 "bytes": [key.bytes.0, key.bytes.1],
                 "lines": [lines.0, lines.1],
+                "source": source,
                 "legs": legs,
             })
         })
@@ -621,6 +656,8 @@ fn write_report(config: &TestConfig, runs: &[LegRun]) {
 pub fn run_coverage_suite(solar: &Path) {
     let _ = SOLAR_BINARY.set(select_solar_binary(solar));
     assert!(forge_available(), "forge not found in PATH");
+    let legs = selected_legs();
+    assert!(!legs.is_empty(), "SOLAR_FOUNDRY_COVERAGE_LEGS lists no legs");
     let selected = std::env::var("SOLAR_FOUNDRY_PROJECT").ok();
     let include_external =
         std::env::var_os("SOLAR_FOUNDRY_COVERAGE_EXTERNAL").is_some_and(|value| value != "0");
@@ -637,7 +674,7 @@ pub fn run_coverage_suite(solar: &Path) {
     let mut failures = Vec::new();
     for config in &configs {
         let runs = catch_unwind(AssertUnwindSafe(|| {
-            let runs = run_legs(config);
+            let runs = run_legs(config, &legs);
             print_summary(config, &runs);
             write_report(config, &runs);
             runs
@@ -686,16 +723,20 @@ Anchors for Contract "A" (solc 0.8.38, source ID 1):
     fn parses_items_and_anchors() {
         let report = parse_debug_report(REPORT);
         let expected = [
-            (key("src/A.sol", "Line", (221, 359)), (10, 16), 4, true),
-            (key("src/A.sol", "Function f", (221, 359)), (10, 16), 4, true),
-            (key("src/A.sol", "Branch 11/1", (290, 335)), (11, 14), 0, true),
+            (key("src/A.sol", "Line", (221, 359)), (10, 16), 4, true, "function f() {}"),
+            (key("src/A.sol", "Function f", (221, 359)), (10, 16), 4, true, "function f() {}"),
+            (key("src/A.sol", "Branch 11/1", (290, 335)), (11, 14), 0, true, "if (x) {}"),
             // Duplicates of one location sum their hits.
-            (key("src/A.sol", "Statement", (316, 324)), (12, 13), 5, false),
-            (key("src/B.sol", "Statement", (7, 9)), (5, 6), 1, false),
+            (key("src/A.sol", "Statement", (316, 324)), (12, 13), 5, false, "return 1"),
+            (key("src/B.sol", "Statement", (7, 9)), (5, 6), 1, false, "x"),
         ];
         assert_eq!(report.items.len(), expected.len());
-        for (key, lines, hits, anchored) in expected {
-            assert_eq!(report.items[&key], ItemData { lines, hits, anchored }, "{key:?}");
+        for (key, lines, hits, anchored, source) in expected {
+            assert_eq!(
+                report.items[&key],
+                ItemData { lines, hits, anchored, source: source.to_string() },
+                "{key:?}"
+            );
         }
         // The last anchor names a source ID that no listed item has.
         assert_eq!(report.unresolved_anchors, 1);
