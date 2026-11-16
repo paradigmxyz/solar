@@ -1,0 +1,82 @@
+; === ROOT/tests/ui/codegen/run-call/memory/heap_prefix_unreachable_step.sol:HeapPrefixUnreachableStep ===
+@module HeapPrefixUnreachableStep
+; function hashed(uint256 x) external pure returns (uint32) [selector 0xec727bea]
+fn @hashed(arg0: i256) -> i32 [selector=0xec727bea, pure, abi_params=[uint256], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = keccak256_packed (uint256 arg0)
+    v2 = trunc i256 v1 to i32
+    v3 = mload v0
+    v4 = gt v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffc9c37fff
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = ptradd v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff9386fffe0
+    v7 = ptradd v6, 32
+    v8 = mload v7
+    v9 = trunc i256 v8 to i32
+    v10 = xor v9, v2
+    v11 = zext i32 v10 to i256
+    v12 = ptradd v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff9386fffe0
+    v13 = ptradd v12, 32
+    mstore v13, v11
+    v14 = mload v0
+    v15 = gt v14, 0
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v0, 32
+    v18 = mload v17
+    v19 = trunc i256 v18 to i32
+    ret v19
+}
+
+; function plain(uint256 x) external pure returns (uint32) [selector 0x11546183]
+fn @plain(arg0: i256) -> i32 [selector=0x11546183, pure, abi_params=[uint256], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = trunc i256 arg0 to i32
+    v2 = mload v0
+    v3 = gt v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffc9c37fff
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff9386fffe0
+    v6 = ptradd v5, 32
+    v7 = mload v6
+    v8 = trunc i256 v7 to i32
+    v9 = xor v8, v1
+    v10 = zext i32 v9 to i256
+    v11 = ptradd v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff9386fffe0
+    v12 = ptradd v11, 32
+    mstore v12, v10
+    v13 = mload v0
+    v14 = gt v13, 0
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    v17 = mload v16
+    v18 = trunc i256 v17 to i32
+    ret v18
+}
+
+; function guarded(bool outOfBounds) external pure returns (uint256) [selector 0x7d45cb47]
+fn @guarded(arg0: i1) -> i256 [selector=0x7d45cb47, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v1 = mload v0
+    v2 = gt v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffc9c37fff
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff9386fffe0
+    v5 = ptradd v4, 32
+    mstore v5, 1
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v6 = mload v0
+    ret v6
+}

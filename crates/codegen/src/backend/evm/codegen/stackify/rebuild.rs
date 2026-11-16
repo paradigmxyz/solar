@@ -179,25 +179,35 @@ pub(super) fn rebuild_values(
     let containing = |block: BlockId| {
         loops.all_loops().filter(move |lp| lp.blocks.contains(block)).map(|lp| lp.header)
     };
+    // The readers of each value in program order, once per instruction or terminator, with
+    // whether the reader is a phi.
+    let mut readers = FxHashMap::<ValueId, SmallVec<[(BlockId, usize, bool); 4]>>::default();
+    for (block, data) in func.blocks.iter_enumerated() {
+        let mut note = |value: ValueId, index: usize, phi: bool| {
+            let sites = readers.entry(value).or_default();
+            if sites.last().is_none_or(|&(b, i, _)| (b, i) != (block, index)) {
+                sites.push((block, index, phi));
+            }
+        };
+        for (index, &inst) in data.instructions.iter().enumerate() {
+            let kind = &func.inst(inst).kind;
+            let phi = matches!(kind, InstKind::Phi(_));
+            kind.visit_operands(|value| note(value, index, phi));
+        }
+        if let Some(term) = &data.terminator {
+            term.visit_operands(|value| note(value, data.instructions.len(), false));
+        }
+    }
     // The uses of a value that `wanted` accepts by block and position, or `None` when one of them
     // is a phi input, which cannot take a copy.
     let uses_where = |value: ValueId, wanted: &dyn Fn(BlockId, usize) -> bool| -> Option<Uses> {
         let mut uses = Uses::new();
-        for (block, data) in func.blocks.iter_enumerated() {
-            for (index, &inst) in data.instructions.iter().enumerate() {
-                let kind = &func.inst(inst).kind;
-                if wanted(block, index) && kind.operands().contains(&value) {
-                    if matches!(kind, InstKind::Phi(_)) {
-                        return None;
-                    }
-                    uses.push((block, index));
+        for &(block, index, phi) in readers.get(&value).map_or(&[][..], |sites| sites) {
+            if wanted(block, index) {
+                if phi {
+                    return None;
                 }
-            }
-            let end = data.instructions.len();
-            if wanted(block, end)
-                && data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value))
-            {
-                uses.push((block, end));
+                uses.push((block, index));
             }
         }
         Some(uses)

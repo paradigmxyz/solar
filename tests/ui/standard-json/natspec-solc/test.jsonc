@@ -1,0 +1,31 @@
+// The documentation outputs list the same comments, tags, events and errors as solc 0.8.38.
+// CHECK-LABEL: "C": {
+// CHECK: "userdoc": {
+// CHECK: "f()": {
+// CHECK-NEXT: "notice": "last comment"
+// CHECK: "E()": {
+// CHECK-NEXT: "notice": "Userdoc for file-level event E."
+// CHECK: "LibraryEvent(uint32)": {
+// CHECK-NEXT: "notice": "Defined in library L"
+// CHECK: "notice": "Library error"
+// CHECK: "notice": "Something failed."
+// CHECK: "notice": "X failed."
+// CHECK: "devdoc": {
+// CHECK: "details": "Multiplies by 7"
+// CHECK: "details": "Devdoc for file-level E."
+// CHECK: "details": "Library event"
+// CHECK: "pair": {
+// CHECK-NOT: "return":
+// CHECK: "a": "first",
+// CHECK: "value": {
+// CHECK-NEXT: "return": "the value",
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": ["userdoc", "devdoc"]
+      }
+    }
+  }
+}
