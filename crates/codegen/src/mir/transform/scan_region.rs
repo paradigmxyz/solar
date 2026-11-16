@@ -102,8 +102,8 @@
 //! scan.
 //!
 //! The zero input and a few classes run first and reject most regions, and a region of one block
-//! whose rewrite cannot pay with any form those runs leave stops there, charging at least the
-//! work the other classes would take.
+//! whose rewrite cannot pay with any form those runs leave stops there, charging the work the
+//! other classes would take without forking.
 
 use super::word_sequence::is_pure;
 use crate::{
@@ -853,7 +853,7 @@ fn rewrite_region(
                 Reached::Fork { depth, cursor } => {
                     let fixed = class.probe >> (m - class.window) as usize;
                     let extra = depth - class.window;
-                    for low in 0..1u32 << extra {
+                    for low in (0..1u32 << extra).rev() {
                         let top = (fixed << extra as usize) | U256::from(low);
                         let probe = top << (m - depth) as usize;
                         let class = Class { probe, window: depth, ..class };
@@ -899,8 +899,8 @@ fn rewrite_region(
 
     // Confined runs all stop at the same place, so the region and what the rewrite can remove
     // are known now. When no value can take a form cheaper than what replacing them all removes,
-    // the other classes cannot change the answer: charge at least the work they would take and
-    // stop.
+    // the other classes cannot change the answer: charge the work they would take without
+    // forking and stop.
     if confined && hopeless(func, facts, target, entry, input, one_bit, &plausible, &zero, &runs) {
         let instructions = &func.blocks[entry].instructions;
         let from = start
@@ -910,7 +910,7 @@ fn rewrite_region(
                 .count();
         let passed = zero.stop_at - from + usize::from(zero.stop_at < instructions.len());
         let classes = 256 - PROBES.len();
-        let total = (passed as u64).saturating_mul(classes as u64);
+        let total = ((passed + plausible.len()) as u64).saturating_mul(classes as u64);
         *work = u32::try_from(u64::from(*work).saturating_sub(total)).unwrap_or(0);
         return false;
     }
