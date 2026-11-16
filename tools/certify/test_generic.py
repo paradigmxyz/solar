@@ -7,6 +7,7 @@ import contextlib
 import hashlib
 import io
 import json
+import re
 import pathlib
 import subprocess
 import sys
@@ -531,6 +532,44 @@ class FrontendLocation(unittest.TestCase):
         self.assertEqual(bodies[0], bodies[1])
         self.assertIn("counter_x.sol", bodies[0])
 
+
+class MappingErasure(unittest.TestCase):
+    """The generic source check erases public mapping getters and `delete` of mapping entries:
+    the driver's probe, on the base at tools/certify/solidity-lean.rev, finds every function's
+    source tree and MIR tree defined and equal. Needs SOLIDITY_LEAN_DIR (a checkout holding the
+    pinned base, with its .lake built or PROBE_CACHE naming one that is), solc and a solar."""
+
+    def probe(self, example, contract):
+        import os
+        lean = os.environ.get("SOLIDITY_LEAN_DIR")
+        solc = os.environ.get("SOLC", str(SOLC))
+        if not lean or not pathlib.Path(solc).exists():
+            self.skipTest("needs SOLIDITY_LEAN_DIR and solc")
+        cache = os.environ.get("PROBE_CACHE", lean)
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            p = subprocess.run([sys.executable, str(HERE / "generic.py"), str(HERE / "examples" / example), "none",
+                                "--contract", contract, "--solidity-lean", lean, "--work", str(root / "w"),
+                                "--record-dir", str(root / "r"), "--solc", solc, "--probe-cache", cache,
+                                "--packages-from", cache, "--prepare-only"],
+                               capture_output=True, text=True)
+        out = p.stdout + p.stderr
+        verdicts = dict(re.findall(r"^PROBE fn (\S+): (.*)$", out, re.M))
+        self.assertTrue(verdicts, out[-2000:])
+        return verdicts
+
+    def test_public_mapping_getters(self):
+        verdicts = self.probe("mapping_getter.sol", "MappingGetter")
+        for sig in ("balance(address)", "seen(uint256)", "allowed(address,address)"):
+            self.assertEqual(verdicts.get(sig), "agree", verdicts)
+        self.assertEqual(set(verdicts.values()), {"agree"}, verdicts)
+
+    def test_delete_mapping_entries(self):
+        verdicts = self.probe("mapping_delete.sol", "MappingDelete")
+        for sig in ("clear(address)", "aliasWrite(address,address,uint256)", "unmark(uint256)",
+                    "revoke(address,address)", "revokeRead(address,address)"):
+            self.assertEqual(verdicts.get(sig), "agree", verdicts)
+        self.assertEqual(set(verdicts.values()), {"agree"}, verdicts)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
