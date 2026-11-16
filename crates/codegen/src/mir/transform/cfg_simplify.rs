@@ -327,12 +327,16 @@ fn deduplicate_terminal_blocks(func: &mut Function, keep_statements: bool) -> bo
     !merges.is_empty()
 }
 
-/// Returns whether the block stores the `Panic(uint256)` selector, as every panic revert does.
+/// Returns whether the block reverts after it stores the `Panic(uint256)` selector at address 0,
+/// as every panic revert does.
 fn reverts_with_panic(func: &Function, block: BlockId) -> bool {
-    func.blocks[block].instructions.iter().any(|&id| {
-        matches!(func.inst(id).kind, InstKind::Store(_, value, _)
-            if func.value_u256(value) == Some(PANIC_SELECTOR >> 224))
-    })
+    let block = &func.blocks[block];
+    matches!(block.terminator, Some(Terminator::Revert { .. }))
+        && block.instructions.iter().any(|&id| {
+            matches!(func.inst(id).kind, InstKind::Store(address, value, _)
+                if func.value_u256(address) == Some(U256::ZERO)
+                    && func.value_u256(value) == Some(PANIC_SELECTOR >> 224))
+        })
 }
 
 /// Builds the alpha-equivalence key of a terminal block, or `None` if the

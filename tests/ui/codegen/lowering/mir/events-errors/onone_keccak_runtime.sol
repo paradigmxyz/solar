@@ -10,6 +10,10 @@
 // fold at every level: uses cannot each run an initializer that names other constants.
 
 // GAS-NOT: keccak256
+library L {
+    string internal constant NAME = "a library constant that is longer than thirty-one bytes";
+}
+
 contract C {
     // NONE-LABEL: fn @constructor{{[( ]}}
     // NONE: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
@@ -48,6 +52,13 @@ contract C {
     // NONE: ret 0x{{[0-9a-f]+}}
     function constantBytes() external pure returns (bytes32) {
         return keccak256(bytes(TEXT));
+    }
+
+    // NONE-LABEL: fn @memberConstant{{[( ]}}
+    // NONE-NOT: keccak256
+    // NONE: ret 0x{{[0-9a-f]+}}
+    function memberConstant() external pure returns (bytes32) {
+        return keccak256(bytes(L.NAME));
     }
 
     // NONE-LABEL: fn @slot{{[( ]}}

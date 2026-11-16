@@ -335,6 +335,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             value => Some(self.builder.imm(value.as_word()?)),
         }
     }
+
     /// Whether this function is compiled without optimization.
     pub(super) fn is_unoptimized(&self) -> bool {
         self.cx.module.objective_of(self.builder.func()).is_none()
@@ -384,7 +385,7 @@ impl<'gcx> Visit<'gcx> for ComputesKeccak<'_, 'gcx, '_> {
         {
             let data = self.lowerer.peel_type_conversions(data, |_, _| true);
             if !(matches!(data.kind, ExprKind::Lit(_))
-                || data.as_variable().is_some_and(|id| gcx.hir.variable(id).is_constant()))
+                || gcx.resolved_variable(data).is_some_and(|id| gcx.hir.variable(id).is_constant()))
             {
                 return ControlFlow::Break(());
             }
