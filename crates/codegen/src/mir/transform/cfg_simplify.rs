@@ -756,7 +756,10 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool, on
     if entered {
         merge_forwarder_label(func, block_id, target, only_entry);
     }
-    let assignments = func.blocks[block_id].terminator_metadata.edge_assignments().to_vec();
+    let assignments = (func.blocks[block_id].terminator_metadata.edge_assignments().iter())
+        .filter(|assignment| assignment.edge.is_none())
+        .cloned()
+        .collect::<Vec<_>>();
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
     for &pred in &predecessors {

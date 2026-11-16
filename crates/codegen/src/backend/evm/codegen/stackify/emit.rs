@@ -713,7 +713,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
         (block.terminator_metadata.edge_assignments().iter())
-            .filter(|assignment| assignment.edge.map_or(jump, |edge| edge == target))
+            .filter(
+                |assignment| {
+                    if jump { assignment.edge.is_none() } else { assignment.edge == Some(target) }
+                },
+            )
             .map(|assignment| (assignment.value, &assignment.origin))
             .collect()
     }

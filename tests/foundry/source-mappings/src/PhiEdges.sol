@@ -3,9 +3,11 @@ pragma solidity ^0.8.0;
 
 contract PhiEdges {
     uint256 stored;
+
     modifier pass() {
         _;
     }
+
     function loopEntry(uint256 n) external pure returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < n; i++) {
@@ -13,6 +15,7 @@ contract PhiEdges {
         }
         return sum;
     }
+
     function armConstant(bool c, uint256 a) external returns (uint256) {
         uint256 x = a + 1;
         if (c) {
@@ -21,6 +24,7 @@ contract PhiEdges {
         }
         return x + a;
     }
+
     function earlyReturn(uint256 n) external pass returns (bool) {
         if (n > 3) {
             stored = 1;
@@ -28,6 +32,7 @@ contract PhiEdges {
         }
         return false;
     }
+
     function branchingAssignment(bool c, uint256 a) external pure returns (uint256) {
         uint256 r = 5;
         if (c) {
@@ -35,6 +40,7 @@ contract PhiEdges {
         }
         return r + a;
     }
+
     function checkedArm(bool c, uint256 a) external pure returns (uint256) {
         uint256 x = a + 1;
         if (c) {
@@ -43,6 +49,7 @@ contract PhiEdges {
         }
         return x + a;
     }
+
     function threadedArm(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {

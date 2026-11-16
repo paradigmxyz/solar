@@ -85,6 +85,11 @@ impl InstructionMetadata {
         }
     }
 
+    /// Drops the assignments of the edges of this terminator.
+    pub fn clear_edge_assignments(&mut self) {
+        self.edge_assignments = None;
+    }
+
     /// Renumbers the targets of the assignments of edges with `remap`, dropping those whose target
     /// it removes.
     pub fn remap_edge_targets(&mut self, remap: impl Fn(BlockId) -> Option<BlockId>) {
