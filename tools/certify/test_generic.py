@@ -1608,6 +1608,26 @@ class LifecycleRun(unittest.TestCase):
         self.assertIn("SLOAD at", seen["line"])
         self.assertNotIn("built", seen)
 
+    def test_revert_path_outside(self):
+        # A constructor whose creation reverts with the run's argument, compiled by solar from
+        # generated text: exit 4 before the clone, the probe or any Lean build.
+        bins = solar_bins("RevertCtor", REVERT_CTOR)
+        if bins is None:
+            self.skipTest("needs solar")
+        seen, rec = self.drive(
+            "RevertCtor",
+            "1",
+            REAL["ArgCtor"][1],
+            self.ctor_ast("RevertCtor", ["uint256"]),
+            bins=bins,
+            frame=True,
+            build=lambda mod, text: (True, ""),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        self.assertIn("a revert path", seen["line"])
+        self.assertEqual(rec["lifecycle"]["halt"], "revert")
+        self.assertNotIn("built", seen)
+
     def test_wrong_arity_blocked(self):
         with self.assertRaises(generic.Blocked):
             self.drive(
@@ -1631,6 +1651,20 @@ contract SloadCtor {
 
     constructor() {
         y = x + 1;
+    }
+}
+"""
+
+# A constructor that reverts unless its argument exceeds 5, as generated text.
+REVERT_CTOR = """// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract RevertCtor {
+    uint256 public x;
+
+    constructor(uint256 a) {
+        require(a > 5);
+        x = a;
     }
 }
 """
@@ -1678,6 +1712,44 @@ class LifecycleFrame(unittest.TestCase):
             self.assertEqual(
                 generic.frame_outside(generic.creation_prefix(init, plain)), {}, ex
             )
+
+    def test_creation_halt(self):
+        # The four examples return with their arguments, though each carries REVERT on its guard
+        # paths; a creation that reaches REVERT or INVALID is found before any build.
+        args = {
+            "NoArgCtor": [],
+            "ArgCtor": [42, 0xBEEF],
+            "PairCtor": [42, 0xBEEF],
+            "ImmutableCtor": [1000],
+        }
+        for ex, ws in args.items():
+            bins = solar_bins(ex, src=LIFE / f"{ex}.sol")
+            if bins is None:
+                self.skipTest("needs solar")
+            init = bytes.fromhex(bins["bin"])
+            self.assertIn(
+                0xFD,
+                generic.creation_prefix(init, bytes.fromhex(bins["bin-runtime"])),
+                ex,
+            )
+            creation = init + b"".join(w.to_bytes(32, "big") for w in ws)
+            self.assertEqual(generic.creation_halt(creation)[0], "return", ex)
+            self.assertEqual(
+                generic.creation_halt(init + b"\0" * (32 * len(ws) - 1))[0],
+                "revert" if ws else "return",
+                ex,
+            )
+        bins = solar_bins("RevertCtor", REVERT_CTOR)
+        init = bytes.fromhex(bins["bin"])
+        self.assertEqual(
+            generic.creation_halt(init + (1).to_bytes(32, "big"))[0], "revert"
+        )
+        self.assertEqual(
+            generic.creation_halt(init + (6).to_bytes(32, "big"))[0], "return"
+        )
+        self.assertEqual(generic.creation_halt(bytes.fromhex("fe"))[0], "invalid")
+        self.assertEqual(generic.creation_halt(bytes.fromhex("6003565b"))[0], "invalid")
+        self.assertEqual(generic.creation_halt(bytes.fromhex("5f54"))[0], "outside")
 
     def test_patches(self):
         plain = bytes.fromhex(LIFE_RUNTIME["ImmutableCtor"])
