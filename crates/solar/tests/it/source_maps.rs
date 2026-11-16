@@ -344,6 +344,119 @@ fn tail_call_entry_label_maps_to_definition() {
 }
 
 #[test]
+fn tail_calls_keep_the_call_location() {
+    let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/TailCalls.sol")).unwrap();
+    let function = |header: &str| {
+        let start = source.find(header).unwrap();
+        start..start + source[start..].find("\n    }").unwrap() + "\n    }".len()
+    };
+    let transfer = function("function _transfer(");
+    let update_call =
+        source[transfer.clone()].find("_update(from, to, value)").unwrap() + transfer.start;
+    let forward = function("function _forward(");
+    let mix_call = source[forward.clone()].find("_mix(a, b)").unwrap() + forward.start;
+    let mix = function("function _mix(");
+    for mode in ["none", "gas", "size"] {
+        let plain = compile_files(&["src/TailCalls.sol"], mode, "bin,bin-runtime", &[]);
+        let debug = compile_files(
+            &["src/TailCalls.sol"],
+            mode,
+            "bin,bin-runtime,srcmap-runtime,ethdebug-runtime",
+            &[],
+        );
+        let name = "src/TailCalls.sol:TailCalls";
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+        }
+        let id = debug["sourceList"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|s| s == "src/TailCalls.sol")
+            .unwrap();
+        let contract = &debug["contracts"][name];
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+        let call_jumps = |call: usize, len: usize| {
+            instructions
+                .iter()
+                .enumerate()
+                .filter(|(index, inst)| {
+                    inst["operation"]["mnemonic"] == "JUMP"
+                        && entries[*index][2] == id as i64
+                        && entries[*index][0] == call as i64
+                        && entries[*index][1] == len as i64
+                })
+                .count()
+        };
+        // The condition before the call must not keep the tail jump.
+        assert_eq!(
+            call_jumps(update_call, "_update(from, to, value)".len()),
+            1,
+            "{mode}: `_update(from, to, value)` tail jump"
+        );
+        // Layout falls `_forward` through into `_mix` at `-Osize`, leaving no jump to map.
+        if mode != "size" {
+            assert_eq!(call_jumps(mix_call, "_mix(a, b)".len()), 1, "{mode}: `_mix(a, b)`");
+        }
+        // A function that starts with an assembly block still enters under its definition.
+        assert!(
+            instructions.iter().enumerate().any(|(index, inst)| {
+                inst["operation"]["mnemonic"] == "JUMPDEST"
+                    && in_statement(entries[index], id, mix.start, mix.end)
+                    && entries[index][0] == mix.start as i64
+            }),
+            "{mode}: `_mix` entry"
+        );
+    }
+}
+#[test]
+fn phi_operand_copies_map_to_their_assignments() {
+    let path = Path::new(FIXTURES).join("src/PhiEdges.sol");
+    let source = RealFileLoader.load_file(&path).unwrap();
+    let compile = |mode: &str, outputs: &str| {
+        let output = Command::new(SOLAR)
+            .arg(&path)
+            .args(["--allow=2264", "-O", mode])
+            .arg(format!("--emit={outputs}"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+        let contract = debug["contracts"].as_object().unwrap().values().next().unwrap();
+        let baseline = plain["contracts"].as_object().unwrap().values().next().unwrap();
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(contract[code], baseline[code], "{mode}: debug info changed the {code}");
+        }
+        if mode != "none" {
+            continue;
+        }
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let mapped = |statement: &str| {
+            let start = source.find(statement).unwrap();
+            let end = start + statement.len();
+            entries.iter().any(|&entry| in_statement(entry, 0, start, end))
+        };
+        // The copy of each constant on an unconditional edge runs once per run of its assignment:
+        // the loop's entry constants, the constant of an `if` arm, and the value of a `return`
+        // that leaves through the modifier's continuation.
+        for statement in ["uint256 sum = 0", "uint256 i = 0", "x = 7", "return true"] {
+            assert!(mapped(statement), "{statement} lost its instruction");
+        }
+        // The copy on a conditional edge runs on one path only, so it keeps the origin of the
+        // branch: `r = 5` also ran on the path that took the branch, and `x = 11` ran before the
+        // overflow check of the next statement.
+        for statement in ["uint256 r = 5", "x = 11"] {
+            assert!(!mapped(statement), "{statement} took the origin of a conditional edge");
+        }
+    }
+}
+
+#[test]
 fn state_initializers_and_base_arguments_map_to_their_source() {
     let source =
         RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Initializers.sol")).unwrap();
