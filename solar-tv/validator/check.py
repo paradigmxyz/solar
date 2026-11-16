@@ -844,13 +844,17 @@ def main() -> int:
             if (
                 args.prefix
                 or result.program
-                and result.program.scope == "prefix-window"
+                and result.program.scope in {"prefix-window", "effectful-prefix"}
             ):
                 shared = result.program and result.program.import_evidence.get(
                     "shared_prologue_operations"
                 )
                 record["region"]["proof"] = (
-                    "universal-memory-prefix" if shared else "universal-stack-prefix"
+                    "universal-effectful-stack-prefix"
+                    if result.program and result.program.scope == "effectful-prefix"
+                    else "universal-memory-prefix"
+                    if shared
+                    else "universal-stack-prefix"
                 )
                 if args.stack_height is not None:
                     record["region"]["requested_stack_height"] = args.stack_height
