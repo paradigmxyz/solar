@@ -157,6 +157,13 @@ def record(
                     "identical complete suffix, terminal and successor; gas-insensitive continuation; logical relocation context, no physical code-placement or whole-contract claim",
                 ]
             )
+            if program.import_evidence.get("conditional_transfers"):
+                assumptions.extend(
+                    [
+                        "adjacent static label PUSH/JUMPI pairs retain taken exits, live stacks and temporary label stack slots",
+                        "universally quantified shared per-label PUSH/JUMPI charge context; concrete relocation/price correspondence remains trusted",
+                    ]
+                )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
@@ -291,7 +298,9 @@ def record(
                 "region": {
                     "kind": "window",
                     "name": program.selector,
-                    "proof": "universal-effectful-stack-prefix",
+                    "proof": "universal-branching-effect-prefix"
+                    if program.import_evidence.get("conditional_transfers")
+                    else "universal-effectful-stack-prefix",
                     "stack_height": None,
                 },
             }
