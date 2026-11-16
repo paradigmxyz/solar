@@ -122,13 +122,18 @@ impl InstructionMetadata {
 
     /// Renames the values of the operand origins as the operands of the instruction are renamed.
     pub(crate) fn rewrite_operand_origins(&mut self, mut f: impl FnMut(&mut ValueId)) {
-        for record in self
-            .operand_origins
-            .0
-            .iter_mut()
-            .flat_map(|origins| Arc::make_mut(origins).0.iter_mut())
-        {
-            f(&mut record.value);
+        let Some(origins) = self.operand_origins.0.as_mut() else { return };
+        // The records are shared by the instructions of an expansion: rewrite a copy only when a
+        // value changes.
+        let renames = origins.0.iter().any(|record| {
+            let mut value = record.value;
+            f(&mut value);
+            value != record.value
+        });
+        if renames {
+            for record in &mut Arc::make_mut(origins).0 {
+                f(&mut record.value);
+            }
         }
     }
 
