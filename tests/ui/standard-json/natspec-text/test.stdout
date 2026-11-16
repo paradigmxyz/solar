@@ -1,0 +1,93 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f()": {
+              "notice": "block notice   continued"
+            },
+            "h()": {
+              "notice": "Plain block"
+            },
+            "i()": {
+              "notice": "single "
+            }
+          },
+          "notice": "line one   line two",
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f()": {
+              "details": "dev text"
+            },
+            "g()": {
+              "returns": {
+                "a": "first   more",
+                "b": "second"
+              }
+            },
+            "j(uint256)": {
+              "params": {
+                "x": "the value that continues"
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "I": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "k(uint256)": {
+              "notice": "inherited notice"
+            },
+            "m(uint256)": {
+              "notice": "renamed parameter"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "k(uint256)": {
+              "details": "inherited dev",
+              "custom:tag": "not inherited"
+            }
+          },
+          "version": 1
+        }
+      },
+      "E": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "k(uint256)": {
+              "notice": "inherited notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "k(uint256)": {
+              "details": "inherited dev"
+            }
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}

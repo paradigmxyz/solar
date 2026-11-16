@@ -1,0 +1,53 @@
+//@ compile-flags: -Zevm-ir-pipeline=outline --optimize-runs 1
+//@ filecheck:
+@module SharedBodyOrigins
+
+// The shared body runs for one of its sites, so each instruction takes the merged locations of the
+// sites' instructions at its position.
+// A position every site agrees on keeps its single span, and a position that a site leaves
+// without a location has none, since the body also runs for that site.
+// CHECK: + [[STUB:bb[0-9]+]] {{\[ret=.*\]}}:
+// CHECK: {{^[ +].*}}push 1 !metadata(span=1..5){{$}}
+// CHECK: {{^[ +].*}}pop !metadata(spans=[6..10, 26..30]){{$}}
+// CHECK-COUNT-6: {{^[ +].*}}pop !metadata(spans=[6..10, 26..30]){{$}}
+// CHECK: {{^[ +].*}}pop{{$}}
+// The return jump takes each site's last located instruction: the last `pop` of the first site,
+// and the `push` before the unlocated last `pop` of the second.
+// CHECK: + jump !metadata(spans=[6..10, 1..5]){{$}}
+bb0:
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  jump bb1 !metadata(span=11..15)
+
+bb1:
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=1..5)
+  pop
+  stop !metadata(span=31..35)

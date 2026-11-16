@@ -2,13 +2,13 @@ error: only constant variables are allowed at file level
    ╭▸ ROOT/tests/ui/typeck/variables/var_mutability.sol:LL:CC
    │
 LL │ uint a = 0;
-   ╰╴━━━━━━━━━━━
+   ╰╴━━━━━━━━━━
 
 error: only constant variables are allowed at file level
    ╭▸ ROOT/tests/ui/typeck/variables/var_mutability.sol:LL:CC
    │
 LL │ uint immutable c = 0;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━
+   ╰╴━━━━━━━━━━━━━━━━━━━━
 
 error: mutability is not allowed here
    ╭▸ ROOT/tests/ui/typeck/variables/var_mutability.sol:LL:CC

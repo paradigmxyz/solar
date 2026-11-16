@@ -1,0 +1,399 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/outline_parameter_entries.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/outline_parameter_entries.evmir (after outline) ===
+  @module OutlineParameterEntries
+  bb0:
++   push bb19 !metadata(invoke=first@1..10)
++   push 2
+    push 1
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   push 2 !metadata(invoke=first@1..10)
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   jump bb1
++   jump bb17
+  bb1:
++   push bb20 !metadata(invoke=second@11..20)
++   push 4
+    push 3
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   push 4 !metadata(invoke=second@11..20)
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   jump bb2
++   jump bb17
+  bb2:
+-   push 5
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
++   push bb21
+    push 6
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   jump bb3
++   push 5
++   jump bb17
+  bb3:
+-   push 7
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
++   push bb22
+    push 8
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   stop
++   push 7
++   jump bb17
+  bb4:
+-   push 13
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
++   push bb23
+    push 14
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   stop
++   push 13
++   jump bb18
+  bb5:
+-   push 15
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
++   push bb24
+    push 16
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   stop
++   push 15
++   jump bb18
+  bb6:
++   push bb25
++   push 18
+    push 17
++   jump bb18
++ bb7:
++   push bb26
++   push 20
++   push 19
++   jump bb18
++ bb8:
++   push 17
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    push 18
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   stop
+- bb7:
++   push bb13
++   swap 1
++   jump bb12
++ bb9:
+    push 19
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    push 20
++   push bb14
++   swap 1
++   jump bb12
++ bb10:
++   push 21
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+-   stop
+- bb8:
+-   push 17
++   push 22
++   push bb15
++   swap 1
++   jump bb12
++ bb11:
++   push 23
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+-   push 18
++   push 24
++   push bb16
++   swap 1
++   jump bb12
++ bb12 [ret=1, inputs=2, outputs=15]:
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
+    dup 1
++   swap 1
++   swap 2
++   swap 3
++   swap 4
++   swap 5
++   swap 6
++   swap 7
++   swap 8
++   swap 9
++   swap 10
++   swap 11
++   swap 12
++   swap 13
++   swap 14
++   swap 15
++   jump
++ bb13 [continuation]:
+    stop
+- bb9:
+-   push 19
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   push 20
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
++ bb14 [continuation]:
+    stop
+- bb10:
+-   push 21
++ bb15 [continuation]:
++   stop
++ bb16 [continuation]:
++   stop
++ bb17 [ret=2, inputs=3, outputs=0]:
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+-   push 22
++   swap 1
++   add
+    not
+    not
+    not
+    not
+    not
+    not
+    not
++   pop
++   jump
++ bb18 [ret=2, inputs=3, outputs=2]:
+    not
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   stop
+- bb11:
+-   push 23
+    not
+    not
+    not
+    not
+    not
+    not
+    not
++   swap 1
+    not
+-   push 24
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+-   not
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
+-   dup 1
++   swap 1
++   swap 2
++   jump
++ bb19 [continuation]:
++   jump bb1
++ bb20 [continuation]:
++   jump bb2
++ bb21 [continuation]:
++   jump bb3
++ bb22 [continuation]:
++   stop
++ bb23 [continuation]:
++   stop
++ bb24 [continuation]:
++   stop
++ bb25 [continuation]:
++   stop
++ bb26 [continuation]:
+    stop
+  

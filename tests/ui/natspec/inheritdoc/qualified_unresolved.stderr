@@ -1,0 +1,36 @@
+warning[9397]: tag `@inheritdoc` references inexistent contract "M"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_unresolved.sol:LL:CC
+   │
+LL │     /// @inheritdoc M
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "M.Missing"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_unresolved.sol:LL:CC
+   │
+LL │     /// @inheritdoc M.Missing
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base.f"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_unresolved.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base.f
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base."
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_unresolved.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base.
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base.o"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_unresolved.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base.o
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract ""
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_unresolved.sol:LL:CC
+   │
+LL │     /// @inheritdoc
+   ╰╴         ━━━━━━━━━━
+

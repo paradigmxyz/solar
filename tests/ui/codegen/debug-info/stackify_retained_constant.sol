@@ -5,8 +5,8 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "debugify: [^\n]*\n" -> ""
 
-// One materialization of P is retained for several consumers. It has no unique source consumer,
-// so its location is unknown instead of inventing a definition or leaving an unexplained gap.
+// One materialization of P is retained for several consumers, so it takes their merged location
+// instead of leaving an unexplained gap.
 contract RetainedConstant {
     uint256 constant P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff;
 

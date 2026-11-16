@@ -1,0 +1,136 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole --evm-version=amsterdam
+@module FoldDupSources
+
+// The word a `DUP` copies is followed backwards through swaps, exchanges, pops and the stack
+// effect of any other instruction, and `iszero` of the copy folds only where a push left it.
+
+// A swap moves the known word to the copied position.
+bb0:
+  push 5
+  push 7
+  swap 1
+  dup 2
+  iszero
+  swap 2
+  pop
+  pop
+  push 0
+  mstore
+  stop
+
+// An exchange does too.
+bb1:
+  push 5
+  push 6
+  push 7
+  exchange 1, 2
+  dup 3
+  iszero
+  swap 3
+  pop
+  pop
+  pop
+  push 0
+  mstore
+  stop
+
+// A pop shifts it deeper, as an instruction that pushes one word does.
+bb2:
+  push 5
+  calldatasize
+  pop
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// An instruction that pops two words shifts it by its stack effect.
+bb3:
+  push 5
+  push 0
+  push 0
+  mstore
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// A copy of an unknown word is not constant.
+bb4:
+  calldatasize
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// A copy of a word from a non-constant producer is not constant.
+bb5:
+  push 5
+  calldatasize
+  swap 1
+  pop
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// A push more than 24 instructions before the copy is out of reach.
+bb6:
+  push 5
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  calldatasize
+  pop
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// A jump may land on an inline `JUMPDEST` and skip the push before it, so the copy is not constant.
+bb7:
+  push 5
+  jumpdest
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop

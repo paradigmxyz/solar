@@ -1,14 +1,14 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=byte-loops -Zdebugify=check
+//@ compile-flags: -Ogas -Zmir-pipeline=byte-loops -Zdump=mir -Zdebugify=check
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 @module ByteLoopGatherOrigins
 
 // A memory gather skips the empty count, so its first word load is the original first load.
-// CHECK-LABEL: fn @memory(
+// CHECK-LABEL: {{^[ +].*}}fn @memory{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload {{v[0-9]+}} !metadata(span=50..60)
 fn @memory(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
-    jump bb1
+    jump bb1 !metadata(span=1..5)
   bb1:
     v0 = phi [bb0: 0], [bb2: v14]
     v1 = phi [bb0: 0], [bb2: v13]
@@ -32,13 +32,13 @@ fn @memory(arg0: ptr<memory>, arg1: i256) -> i256 {
     ret v1
 }
 
-// A dynamic calldata gather can read even when the old body would not run. Drop its
-// speculative load's location instead of pretending the source expression executed.
-// CHECK-LABEL: fn @calldata(
-// CHECK: + {{v[0-9]+}} = calldataload {{v[0-9]+}}{{$}}
+// A dynamic calldata gather can read even when the old body would not run. Its load takes the
+// loop statement's location instead of pretending the source expression executed.
+// CHECK-LABEL: {{^[ +].*}}fn @calldata{{[( ]}}
+// CHECK: + {{v[0-9]+}} = calldataload {{v[0-9]+}} !metadata(span=1..5){{$}}
 fn @calldata(arg0: slice<calldata>, arg1: i256) -> i256 {
   bb0:
-    jump bb1
+    jump bb1 !metadata(span=1..5)
   bb1:
     v0 = phi [bb0: 0], [bb2: v15]
     v1 = phi [bb0: 0], [bb2: v14]

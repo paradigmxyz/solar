@@ -2,7 +2,7 @@ error: constant variable must be initialized
    ╭▸ ROOT/tests/ui/typeck/constants/uninitialized_constant_eval.sol:LL:CC
    │
 LL │     uint256 constant ZERO;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 1 previous error
 

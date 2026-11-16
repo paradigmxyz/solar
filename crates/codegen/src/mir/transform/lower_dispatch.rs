@@ -95,7 +95,9 @@ impl MirPass for LowerDispatch {
             );
             return false;
         }
-        let changed = lower_dispatch(module, gcx.sess.opts.revert_strings);
+        let changed = lower_dispatch(module, analyses, gcx.sess.opts.revert_strings);
+        // Only the guarded wrappers change; the entry is appended.
+        analyses.preserve_local_summaries();
         if module.dispatch_entry().is_none() {
             analyses
                 .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
@@ -104,7 +106,11 @@ impl MirPass for LowerDispatch {
     }
 }
 
-fn lower_dispatch(module: &mut Module, revert_strings: RevertStrings) -> bool {
+fn lower_dispatch(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+    revert_strings: RevertStrings,
+) -> bool {
     // An existing entry already makes selector routing explicit.
     if module.dispatch_entry().is_some() {
         return false;
@@ -159,6 +165,7 @@ fn lower_dispatch(module: &mut Module, revert_strings: RevertStrings) -> bool {
             //   => jump success
             func.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(success));
             func.blocks[reject].predecessors.retain(|pred| *pred != BlockId::ENTRY);
+            analyses.invalidate_local_summary(func_id);
         }
     }
 
@@ -312,9 +319,15 @@ fn build_entry(
             builder.branch(short, default_block, select_block);
         }
 
+        // NOTE: solc maps a fallback's `callvalue` check to the contract (`ContractCompiler.cpp`
+        // L485). Our fallback and receive blocks are routes that run only for that function, as
+        // selector routes do, and a function's own `callvalue` check maps to its declaration, so
+        // these blocks take the declaration.
         if let Some((target, receive_block)) = receive_block {
+            set_origin(&mut builder, module.function(target).declaration_span);
             builder.switch_to_block(receive_block);
             builder.tail_call(target, Vec::new());
+            set_origin(&mut builder, contract_span);
         }
 
         // Selector switch; the default goes to the fallback when present.
@@ -332,6 +345,7 @@ fn build_entry(
         }
 
         if let Some((target, default_block)) = fallback_block {
+            set_origin(&mut builder, module.function(target).declaration_span);
             builder.switch_to_block(default_block);
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(target)) {
                 let go = builder.create_block();

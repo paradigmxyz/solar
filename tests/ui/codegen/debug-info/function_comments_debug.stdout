@@ -14,7 +14,7 @@ bb0:                                              ; runtime dispatch entry + fun
   sub !metadata(span=230..345)
   push bb3 !metadata(span=230..345)
   jumpi !metadata(span=230..345)
-  push 68 !metadata(span=247..343, invoke=add@247..343)
+  push 68 !metadata(span=247..343, invoke=add@247..343, dispatch)
   calldatasize !metadata(span=247..343)
   lt !metadata(span=247..343)
   push bb3 !metadata(span=247..343)
@@ -38,7 +38,7 @@ bb0:                                              ; runtime dispatch entry + fun
 bb3 [cold] !metadata(spans=[230..345, 247..343]):
   push 0 !metadata(spans=[230..345, 247..343])
   push 0 !metadata(spans=[230..345, 247..343])
-  revert !metadata(spans=[230..345, 247..343], exit=revert)
+  revert !metadata(spans=[230..345, 247..343])
 bb7 [cold]:
   push 17 !metadata(span=331..336)
   push 32 !metadata(span=331..336)

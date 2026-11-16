@@ -5,7 +5,7 @@ use crate::{
 use alloy_primitives::U256;
 use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
-use solar_data_structures::map::FxIndexMap;
+use solar_data_structures::map::{FxHashMap, FxIndexMap};
 
 /// Storage layout in solc's Standard JSON `storageLayout` and `transientStorageLayout` output
 /// fields.
@@ -105,11 +105,21 @@ struct StorageLayoutBuilder<'gcx> {
     contract_name: String,
     location: DataLocation,
     types: FxIndexMap<String, StorageLayoutType>,
+    /// The number of slots of each struct laid out so far.
+    ///
+    /// Laying out a struct again only finds the types it added to `types` the first time.
+    struct_slots: FxHashMap<hir::StructId, U256>,
 }
 
 impl<'gcx> StorageLayoutBuilder<'gcx> {
     fn new(gcx: Gcx<'gcx>, contract_name: String, location: DataLocation) -> Self {
-        Self { gcx, contract_name, location, types: FxIndexMap::default() }
+        Self {
+            gcx,
+            contract_name,
+            location,
+            types: FxIndexMap::default(),
+            struct_slots: FxHashMap::default(),
+        }
     }
 
     fn build_contract(mut self, contract_id: hir::ContractId) -> StorageLayoutOutput {
@@ -436,7 +446,14 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 };
                 slots.max(U256::ONE)
             }
-            TyKind::Struct(id) => self.layout_members(self.gcx.hir.strukt(id).fields).1,
+            TyKind::Struct(id) => {
+                if let Some(&slots) = self.struct_slots.get(&id) {
+                    return slots;
+                }
+                let slots = self.layout_members(self.gcx.hir.strukt(id).fields).1;
+                self.struct_slots.insert(id, slots);
+                slots
+            }
             _ => U256::ONE,
         }
     }

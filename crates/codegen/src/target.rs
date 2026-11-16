@@ -20,9 +20,10 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
-        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
-        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
+        AbiLayout, AbiType, BlockId, Builtin, CallOutput, CallPolicy, Callee, CheckedOp, Function,
+        FunctionAttributes, Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op,
+        Terminator, ValueId, analysis::AddressSpace, immutable::immutable_push_type_size,
+        memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -305,6 +306,17 @@ impl Target {
             removed_bytes
         };
         !self.optimization.is_none() && added_bytes <= allowed
+    }
+
+    /// Live words a caller may hold across an inlined body plus the body's own peak:
+    /// [`Self::SIZE_INLINE_STACK_BUDGET`] under the size objective,
+    /// [`Self::INLINE_STACK_BUDGET`] otherwise.
+    pub(crate) const fn inline_stack_budget(&self) -> usize {
+        if self.optimization.is_size() {
+            Self::SIZE_INLINE_STACK_BUDGET
+        } else {
+            Self::INLINE_STACK_BUDGET
+        }
     }
 
     /// Whether the model prices creation code, which only the gas objective does.
@@ -807,7 +819,12 @@ impl Target {
 
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
-        let kind = &func.inst(inst).kind;
+        self.kind_estimate(func, &func.inst(inst).kind)
+    }
+
+    /// Estimated code of an operation on values of `func`, whether it is in the function yet or
+    /// not: the operation and the pushes of its immediate operands.
+    pub(crate) fn kind_estimate(&self, func: &Function, kind: &InstKind) -> Cost {
         let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
@@ -1370,8 +1387,14 @@ impl Target {
     /// the sixteen words a `DUP` or `SWAP` reaches, leaving headroom for operand staging. A
     /// hot-leaf clone inside a loop body also keeps the loop's carried words resident through
     /// every join it adds; at ten words, two of the Base64 decoder's four lookups stayed calls
-    /// that drained every carried word, and twelve took 15% off decoding.
+    /// that drained every carried word, and twelve took 15% off decoding. A single-block clone
+    /// never reaches deeper than its call, so the inline loop exempts it.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
+    /// [`Self::INLINE_STACK_BUDGET`] under the size objective: fourteen words, still two short
+    /// of the sixteen a `DUP` or `SWAP` reaches. A size build pays for a call's protocol in
+    /// bytes at every site and for a spill only where it occurs. At fourteen words the project
+    /// corpus's `-Osize` bytecode shrank by 0.02%, and no contract grew by more than 0.5%.
+    pub(crate) const SIZE_INLINE_STACK_BUDGET: usize = 14;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
     /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
     /// leaves the block's own temporaries room.
@@ -1504,13 +1527,6 @@ impl Target {
                 function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
                 ..
             } => Cost::new(32, 9),
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160),
-                ..
-            } => Cost::new(800, 64),
-            InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
-                Cost::new(900, 100)
-            }
             InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
                 Cost::new(24, 8)
             }
@@ -1529,13 +1545,11 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::AddressCall { .. } => Cost::new(720, 12),
+            InstKind::ExtCall { policy, address, .. } => {
+                self.extcall(*policy, func.extcall_clears_word(*address))
+            }
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
-            }
-            InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
-            InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
-                Cost::new(740, 20)
             }
             InstKind::Call { .. }
             | InstKind::CallCode { .. }
@@ -1602,6 +1616,17 @@ impl Target {
     /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
     pub(crate) fn select_stack_ops(&self) -> Cost {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
+
+    /// Estimated code of an `extcall`, as `lower-builtins` expands it, excluding the staging
+    /// of its input: the call with its gas and ranges, and for a word output the clear that the
+    /// expansion emits first when `clears_word` says so.
+    pub(crate) fn extcall(&self, policy: CallPolicy, clears_word: bool) -> Cost {
+        let mut cost = Cost::new(720, 12);
+        if policy.output == CallOutput::Word && clears_word {
+            cost += self.push(U256::ZERO).times(2) + self.opcode(op::MSTORE);
+        }
+        cost
     }
 
     /// Estimated code of an operation that hashes a storage slot, as the opcode sequence
@@ -1707,7 +1732,7 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Immediate, Instruction, PtrLocation, Value};
+    use crate::mir::{ExtCallKind, Immediate, Instruction, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1829,6 +1854,26 @@ mod tests {
                 assert_eq!(target.op_has_variable_gas(&kind.op()), version >= EvmVersion::Berlin);
             }
         }
+    }
+
+    #[test]
+    fn address_calls_price_their_policy() {
+        let target = Target::with(
+            EvmVersion::Cancun,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let price = |output, clears_word| {
+            target.extcall(CallPolicy { kind: ExtCallKind::Static, output }, clears_word)
+        };
+        let call = price(CallOutput::None, false);
+        assert_eq!(call, Cost::new(720, 12));
+        // A word output that a callee may leave short is zeroed before the call.
+        assert_eq!(price(CallOutput::Word, false), call);
+        assert_eq!(
+            price(CallOutput::Word, true),
+            call + target.push(U256::ZERO).times(2) + target.opcode(op::MSTORE)
+        );
     }
 
     #[test]
@@ -2611,6 +2656,7 @@ mod tests {
         let reach = usize::from(op::DUP16 - op::DUP1) + 1;
         for budget in [
             Target::INLINE_STACK_BUDGET,
+            Target::SIZE_INLINE_STACK_BUDGET,
             Target::DIRECT_REUSE_LIVE_BUDGET,
             Target::LOOP_CARRY_BUDGET,
             Target::SHALLOW_CARRIED_WORDS,

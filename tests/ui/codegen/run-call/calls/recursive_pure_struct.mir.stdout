@@ -1,0 +1,77 @@
+; === ROOT/tests/ui/codegen/run-call/calls/recursive_pure_struct.sol:C ===
+@module C
+; function make() internal pure returns (S memory)
+fn @make() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = alloc 32
+    v3 = icall @make
+    v4 = mload v3
+    mstore v2, v4
+    v5 = mload v2
+    mstore v1, v5
+    ret v1
+}
+
+; function ping() internal pure returns (S memory)
+fn @ping() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = alloc 32
+    v3 = alloc 32
+    v4 = icall @pong
+    v5 = mload v4
+    mstore v3, v5
+    v6 = mload v3
+    mstore v2, v6
+    v7 = mload v2
+    mstore v1, v7
+    ret v1
+}
+
+; function pong() internal pure returns (S memory)
+fn @pong() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = alloc 32
+    v3 = alloc 32
+    v4 = icall @ping
+    v5 = mload v4
+    mstore v3, v5
+    v6 = mload v3
+    mstore v2, v6
+    v7 = mload v2
+    mstore v1, v7
+    ret v1
+}
+
+; function f() external pure returns (uint256) [selector 0x26121ff0]
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32
+    v1 = icall @make
+    v2 = mload v1
+    mstore v0, v2
+    v3 = mload v0
+    ret v3
+}
+
+; function g() external pure returns (uint256) [selector 0xe2179b8e]
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32
+    v1 = alloc 32
+    v2 = icall @ping
+    v3 = mload v2
+    mstore v1, v3
+    v4 = mload v1
+    mstore v0, v4
+    v5 = mload v0
+    ret v5
+}

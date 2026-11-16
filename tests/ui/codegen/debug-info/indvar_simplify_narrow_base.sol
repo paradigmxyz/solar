@@ -2,8 +2,8 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "debugify: [^\n]*\n" -> ""
-// Widening a narrow base for a preheader address recurrence must deliberately drop the
-// location, just like the other setup operations hoisted out of the source expression.
+// Widening a narrow base for a preheader address recurrence takes the loop statement's location,
+// like the other setup operations of the recurrence.
 contract NarrowBase {
     // CHECK-LABEL: fn @narrowBase(
     // CHECK: add

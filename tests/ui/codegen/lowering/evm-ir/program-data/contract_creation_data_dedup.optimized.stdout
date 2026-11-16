@@ -43,9 +43,7 @@ bb6 [entry]:                                      ; function payload() external 
   push 128
   dup 2
   mstore
-  dup 2
-  dup 2
-  add
+  dup 3
   push 128
   push_data literal_0
   dup 3
@@ -63,7 +61,7 @@ bb6 [entry]:                                      ; function payload() external 
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
 @module Factory_runtime
 @data
-  Child_creation_code_0: hex"34600d5760cf8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a060405260c0602060a0608081528181016080604f82396080015f90520360208152f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  Child_creation_code_0: hex"34600d5760cd8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a060405260c0602060a060808152826080604d82396080015f90520360208152f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:                                              ; runtime dispatch entry
   callvalue
@@ -105,7 +103,7 @@ bb6:                                              ; function first() external re
   push 128
   push 64
   mstore
-  push 224
+  push 222
   push 128
   dup 2
   push_data Child_creation_code_0
@@ -146,7 +144,7 @@ bb18 [entry]:                                     ; function pair() external ret
   push 128
   push 64
   mstore
-  push 224
+  push 222
   push 128
   dup 2
   push_data Child_creation_code_0
@@ -158,7 +156,7 @@ bb18 [entry]:                                     ; function pair() external ret
   iszero
   push bb26
   jumpi
-  push 224
+  push 222
   push 128
   dup 2
   push_data Child_creation_code_0

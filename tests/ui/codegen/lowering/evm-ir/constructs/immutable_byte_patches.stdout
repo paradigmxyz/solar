@@ -26,9 +26,7 @@ bb0:                                              ; constructor(uint8 unsignedVa
   codesize
   sub
   add
-  push 96
-  dup 3
-  add
+  push 384
   gt
   callvalue
   or
@@ -41,9 +39,7 @@ bb0:                                              ; constructor(uint8 unsignedVa
   gt
   push bb5
   jumpi
-  push 32
-  dup 3
-  add
+  push 320
   mload
   dup 1
   push 0

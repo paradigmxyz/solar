@@ -2,7 +2,8 @@
 //@ compile-flags: -Zevm-ir-pipeline=peephole
 //@[paris] compile-flags: --evm-version=paris
 //@[osaka] compile-flags: --evm-version=osaka
-//@ filecheck:
+//@[paris] filecheck: --check-prefixes=CHECK,PARIS
+//@[osaka] filecheck: --check-prefixes=CHECK,OSAKA
 @module FoldEconomics
 
 // Compact materialization needs nine gas but replaces a 60-gas EXP.
@@ -18,3 +19,48 @@ bb0:
   push 32
   push 0
   return
+
+// A `DUP` of a known constant is a constant operand, so the sum folds: `push 160` is shorter and
+// cheaper than `push 32; dup 2; add`.
+// CHECK-LABEL: bb1:
+// CHECK: - push 32
+// CHECK-NEXT: - dup 2
+// CHECK-NEXT: - add
+// CHECK-NEXT: + push 160
+bb1:
+  push 128
+  push 32
+  dup 2
+  add
+  push 0
+  mstore
+  stop
+
+// A `DUP` of zero becomes `PUSH0` where the target has it, and stays where it does not.
+// CHECK-LABEL: bb2:
+// PARIS-NOT: - dup 2
+// PARIS: dup 2
+// OSAKA: - dup 2
+// OSAKA-NEXT: + push 0
+bb2:
+  push 0
+  push 7
+  dup 2
+  push 0
+  mstore
+  push 32
+  mstore
+  pop
+  stop
+
+// A `DUP` of another constant is a byte shorter than a push, so it stays.
+// CHECK-LABEL: bb3:
+// CHECK: dup 1
+bb3:
+  push 7
+  dup 1
+  push 0
+  mstore
+  push 32
+  mstore
+  stop

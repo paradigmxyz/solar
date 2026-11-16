@@ -1,20 +1,21 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=loop-version -Zdebugify=check
+//@ compile-flags: -Ogas -Zmir-pipeline=loop-version -Zdump=mir -Zdebugify=check
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
-// The new version-selection test has no source counterpart. Its loads and comparisons must
-// not claim that a loop iteration ran, while the cloned store keeps its own source location.
+// The new version-selection test runs when the loop statement starts, so its loads and
+// comparisons take the loop statement's location, not an iteration's, while the cloned store
+// keeps its own source location.
 @module VersionDebugInfo
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
-// CHECK: + {{v[0-9]+}} = mload arg0
-// CHECK: + {{v[0-9]+}} = lt
-// CHECK: + jumpi
+// CHECK: + {{v[0-9]+}} = mload arg0 !metadata(span=1..5){{$}}
+// CHECK: + {{v[0-9]+}} = lt {{.*}} !metadata(span=1..5){{$}}
+// CHECK: + jumpi {{.*}} !metadata(span=1..5){{$}}
 // CHECK: + mstore {{v[0-9]+}}, {{v[0-9]+}} !metadata(span=40..50)
 fn @copy(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) {
   bb0:
     v0 = mload arg0 !metadata(span=10..20)
     v1 = mload arg1 !metadata(span=20..30)
-    jump bb1
+    jump bb1 !metadata(span=1..5)
   bb1:
     v2 = phi [bb0: 0], [bb2: v14]
     v3 = lt v2, arg2

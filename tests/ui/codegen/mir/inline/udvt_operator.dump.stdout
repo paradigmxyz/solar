@@ -1,0 +1,153 @@
+; === ROOT/tests/ui/codegen/mir/inline/udvt_operator.sol:Operator ===
+@module Operator
+@phase lowered
+; backend-memory-v1
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x6c7b07bc => bb2]
+  bb2:                                            ; preds = bb1
+    tail_call @run
+  bb3 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function run(Ratio r, Ratio limit, uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f) external pure returns (uint256 s) [selector 0x6c7b07bc]
+fn @run() {
+  bb0:
+    v37 = calldataload 4
+    v57 = shr v37, 96
+    v35 = calldatasize
+    v36 = lt v35, 260
+    v59 = zext i1 v36 to i256
+    v60 = or v57, v59
+    v39 = calldataload 36
+    v62 = shr v39, 96
+    v64 = or v60, v62
+    v54 = ne v64, 0
+    jumpi v54, bb4, bb5
+  bb5:                                            ; preds = bb0
+    v56 = calldataload 36
+    v55 = calldataload 4
+    v41 = calldataload 68
+    v42 = calldataload 100
+    v43 = calldataload 132
+    v44 = calldataload 164
+    v45 = calldataload 196
+    v46 = calldataload 228
+    jump bb1
+  bb1:                                            ; preds = bb3, bb5
+    v0 = phi [bb5: v55], [bb3: v50]
+    v8 = phi [bb5: 0], [bb3: v14]
+    v9 = phi [bb5: 0], [bb3: v15]
+    v10 = phi [bb5: 0], [bb3: v16]
+    v11 = phi [bb5: 0], [bb3: v17]
+    v12 = phi [bb5: 0], [bb3: v18]
+    v13 = phi [bb5: 0], [bb3: v19]
+    v14 = add v41, v8
+    v15 = add v42, v9
+    v16 = add v43, v10
+    v17 = add v44, v11
+    v18 = add v45, v12
+    v19 = add v46, v13
+    v33 = eq v56, v0
+    jumpi v33, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v49 = add v0, 1
+    v50 = and v49, 0xffffffffffffffffffffffff
+    jump bb1
+  bb2:                                            ; preds = bb1
+    v28 = xor v14, v15
+    v29 = xor v28, v16
+    v30 = xor v29, v17
+    v31 = xor v30, v18
+    v32 = xor v31, v19
+    mstore 0, v32 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; === ROOT/tests/ui/codegen/mir/inline/udvt_operator.sol:Unwrapped ===
+@module Unwrapped
+@phase lowered
+; backend-memory-v1
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x6c7b07bc => bb2]
+  bb2:                                            ; preds = bb1
+    tail_call @run
+  bb3 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function run(Ratio r, Ratio limit, uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f) external pure returns (uint256 s) [selector 0x6c7b07bc]
+fn @run() {
+  bb0:
+    v35 = calldataload 4
+    v55 = shr v35, 96
+    v33 = calldatasize
+    v34 = lt v33, 260
+    v57 = zext i1 v34 to i256
+    v58 = or v55, v57
+    v37 = calldataload 36
+    v60 = shr v37, 96
+    v62 = or v58, v60
+    v52 = ne v62, 0
+    jumpi v52, bb4, bb5
+  bb5:                                            ; preds = bb0
+    v54 = calldataload 36
+    v53 = calldataload 4
+    v39 = calldataload 68
+    v40 = calldataload 100
+    v41 = calldataload 132
+    v42 = calldataload 164
+    v43 = calldataload 196
+    v44 = calldataload 228
+    jump bb1
+  bb1:                                            ; preds = bb3, bb5
+    v0 = phi [bb5: v53], [bb3: v48]
+    v8 = phi [bb5: 0], [bb3: v14]
+    v9 = phi [bb5: 0], [bb3: v15]
+    v10 = phi [bb5: 0], [bb3: v16]
+    v11 = phi [bb5: 0], [bb3: v17]
+    v12 = phi [bb5: 0], [bb3: v18]
+    v13 = phi [bb5: 0], [bb3: v19]
+    v14 = add v39, v8
+    v15 = add v40, v9
+    v16 = add v41, v10
+    v17 = add v42, v11
+    v18 = add v43, v12
+    v19 = add v44, v13
+    v20 = eq v54, v0
+    jumpi v20, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v47 = add v0, 1
+    v48 = and v47, 0xffffffffffffffffffffffff
+    jump bb1
+  bb2:                                            ; preds = bb1
+    v28 = xor v14, v15
+    v29 = xor v28, v16
+    v30 = xor v29, v17
+    v31 = xor v30, v18
+    v32 = xor v31, v19
+    mstore 0, v32 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}

@@ -114,7 +114,7 @@ fn @rejectDirtyCalldata() -> i256 [selector=0xe0d4a2a5, abi_params=[], abi_retur
     mstore v7, 257
     v8 = address
     v9 = gas
-    v10 = address_call v8, v5, gas v9
+    v10 = extcall v8, v5, gas v9
     v11 = eq v10, false
     icall require<short_string>, v11, 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
     ret 1

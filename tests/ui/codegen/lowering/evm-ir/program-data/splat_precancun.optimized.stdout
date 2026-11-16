@@ -146,21 +146,16 @@ bb7 [entry]:                                      ; function hash() external pur
   push bb8
   jump bb16
 bb16 [ret=0, inputs=1, outputs=1]:                ; function data() internal pure returns (bytes memory)
-  push 128
-  push 224
-  dup 2
-  add
+  push 352
   push 64
   mstore
+  push 128
   push 161
-  dup 2
-  mstore
-  push 161
-  push 32
+  dup 1
   dup 3
-  add
+  mstore
   push_data literal_0
-  swap 1
+  push 160
   codecopy
   swap 1
   jump
@@ -200,9 +195,7 @@ bb11 [entry]:                                     ; function shortHash() externa
   push 1
   push 248
   shl
-  push 32
-  dup 3
-  add
+  push 160
   push bb20
   jump bb19
 bb19 [ret=0, inputs=1, outputs=1]:
@@ -211,14 +204,10 @@ bb19 [ret=0, inputs=1, outputs=1]:
   jump
 bb12 [entry]:                                     ; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
   push 128
-  dup 1
-  dup 2
-  add
+  push 256
   push 64
   mstore
-  push 32
-  dup 2
-  add
+  push 160
   push bb21
   jump bb19
 bb15 [loop]:
@@ -256,9 +245,7 @@ bb21 [continuation]:
   dup 1
   dup 3
   mstore
-  push 64
-  dup 4
-  add
+  push 192
   mstore
   swap 1
   push 96

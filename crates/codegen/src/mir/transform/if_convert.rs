@@ -51,14 +51,17 @@
 //! lists before running CFG cleanup, avoiding a whole-function cleanup for each
 //! diamond.
 //!
-//! Debug locations follow LLVM's preserve and drop rules. Hoisted arm instructions lose their
-//! locations because they now execute on both paths. The generated select computes the phi's
-//! result and preserves its location. solc maps the whole `if` statement to its branch
-//! (libsolidity/codegen/ContractCompiler.cpp L1160), and the conditional `c ? a : b` to its
-//! expression (libsolidity/codegen/ExpressionCompiler.cpp L290); our join phi carries this
-//! construct's location. A phi without a source location supplies none to its replacement:
-//! choosing an arm instead would claim that the arm ran. The branch becomes a jump that keeps
-//! its metadata.
+//! Debug locations follow LLVM's rule with solc's span. LLVM's `hoistAllInstructionsInto` gives
+//! hoisted arm code the location of the branch it replaces, and the select takes its phi's.
+//! solc maps the whole `if` statement to its branch (libsolidity/codegen/ContractCompiler.cpp
+//! L1160), and the conditional `c ? a : b` to its expression
+//! (libsolidity/codegen/ExpressionCompiler.cpp L290). Our `if` branch carries only its
+//! condition, but the join phi of an `if` or conditional carries the construct, so the code that
+//! replaces the branch takes the location of the first phi, and each select that of its own phi.
+//! A site without selects has no phi to read and takes the branch's context. Hoisted code runs
+//! whenever the construct runs and for it, so no arm's own span is used: the arm may not have
+//! been taken. A phi without a source location supplies none to its replacement. The branch
+//! becomes a jump that keeps its metadata.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -498,18 +501,16 @@ fn convert(func: &mut Function, site: &Site) {
     }
     let start = func.blocks[block].instructions.len();
     let condition = boolean_condition(func, block, site.condition);
+    for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
+        let moved = std::mem::take(&mut func.blocks[arm].instructions);
+        func.blocks[block].instructions.extend(moved);
+    }
+    // NOTE: Hoisted arm code runs whenever the construct runs and for it, so it takes the
+    // construct's span and depth; no arm's own span, since the arm may not have been taken. This
+    // matches LLVM's `hoistAllInstructionsInto` for the same transform.
     for index in start..func.blocks[block].instructions.len() {
         let inst = func.blocks[block].instructions[index];
         func.inst_mut(inst).metadata.preserve_debug_loc(&context);
-    }
-    for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
-        let moved = std::mem::take(&mut func.blocks[arm].instructions);
-        // NOTE: LLVM's dropLocation rule applies when code is hoisted into a block where its
-        // original source arm need not run. Do not substitute a surviving phi's location.
-        for &inst in &moved {
-            func.inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
-        }
-        func.blocks[block].instructions.extend(moved);
     }
     let then_pred = site.then_arm.unwrap_or(block);
     let else_pred = site.else_arm.unwrap_or(block);

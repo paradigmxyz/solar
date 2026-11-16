@@ -5,18 +5,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, arg0, 3
     sstore 0, v0 !metadata(storage=slot(0))
-    v1 = sload 1 !metadata(storage=slot(1))
-    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v3 = or v2, 0x1111111111111111111111111111111111111111
-    sstore 1, v3 !metadata(storage=slot(1))
-    v4 = sload 2 !metadata(storage=slot(2))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = or v5, 0x1111111111111111111111111111111111111111
-    sstore 2, v6 !metadata(storage=slot(2))
-    v7 = sload 3 !metadata(storage=slot(3))
-    v8 = and v7, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v9 = or v8, 0x1111111111111111111111111111111111111111
-    sstore 3, v9 !metadata(storage=slot(3))
+    sstore 1, 0x1111111111111111111111111111111111111111 !metadata(storage=slot(1))
+    sstore 2, 0x1111111111111111111111111111111111111111 !metadata(storage=slot(2))
+    sstore 3, 0x1111111111111111111111111111111111111111 !metadata(storage=slot(3))
     ret
 }
 

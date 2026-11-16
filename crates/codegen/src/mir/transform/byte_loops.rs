@@ -157,10 +157,12 @@
 //! Not handled yet: fills longer than a word, and loops that compare or gather into an integer
 //! with left shifts.
 //!
-//! NOTE: Setup and formulas summarize the loop and have no iteration-specific checkpoint.
-//! A bulk store can keep the body's unique store origin only when a positive bound or a retained
-//! zero-count skip proves that body executed. Untested possibly-empty copies remain unmapped.
+//! NOTE: Setup and formulas run in the preheader, once when the loop statement starts, so they
+//! take the loop statement's location, which the preheader's terminator carries. A bulk store can
+//! keep the body's unique store origin only when a positive bound or a retained zero-count skip
+//! proves that body executed; an untested possibly-empty copy takes the loop statement's location.
 
+use super::utils::terminator_debug_context;
 use crate::mir::{
     AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
     FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module, PanicCode,
@@ -1471,12 +1473,10 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     .map(|inst| func.inst(inst).metadata.debug_context());
     // A gather that skips an empty count keeps its result phi, now joining the skip and the setup.
     let mut kept_phi = None;
+    let generated = terminator_debug_context(func, lp.preheader, DebugLocKind::CompilerGenerated);
     let mut builder = FunctionBuilder::new_semantic(func);
-    // NOTE: These guards and bulk-address formulas are introduced for the replacement, not
-    // source expressions from one loop iteration. LLVM's compiler-generated location keeps
-    // them distinct from the loads and stores whose computations are preserved below.
-    let mut generated = InstructionMetadata::EMPTY;
-    generated.drop_debug_loc(DebugLocKind::CompilerGenerated);
+    // NOTE: Preheader code runs when the loop statement starts, never for one iteration, so it
+    // takes the loop statement's location. The loads and stores below keep their own.
     builder.set_debug_context(&generated);
     builder.switch_to_block(lp.preheader);
     match shape {
@@ -1506,10 +1506,8 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             let context = if skips || literal.is_some_and(|bound| bound > 0) {
                 builder.func().inst(load).metadata.debug_context()
             } else {
-                // A zero-length calldata gather may execute this new load speculatively.
-                let mut context = InstructionMetadata::EMPTY;
-                context.drop_debug_loc(DebugLocKind::Dropped);
-                context
+                // A zero-length calldata gather may execute this new load without the body.
+                generated.clone()
             };
             let word = load_word(&mut builder, &access, &context);
             builder.set_debug_context(&generated);
@@ -1818,8 +1816,8 @@ fn fresh_guarded_copy(
         unreachable!("a guarded copy reads and writes memory")
     };
     let entry = builder.current_block();
-    let mut generated = InstructionMetadata::EMPTY;
-    generated.drop_debug_loc(DebugLocKind::CompilerGenerated);
+    let generated =
+        terminator_debug_context(builder.func(), lp.preheader, DebugLocKind::CompilerGenerated);
     let from = memory_data_address(builder, src);
     let data = memory_data_address(builder, dst);
     let from = builder.cast(from, MirType::I256);

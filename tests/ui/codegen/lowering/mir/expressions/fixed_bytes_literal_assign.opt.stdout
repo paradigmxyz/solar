@@ -51,11 +51,7 @@ fn @patch() {
 ; function store() external returns (bytes1) [selector 0x975057e7]
 fn @store() {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = or v1, 45
-    sstore 0, v2 !metadata(storage=slot(0))
-    v4 = shl v2, 248
-    mstore 0, v4 !metadata(memory=scratch)
+    sstore 0, 45 !metadata(storage=slot(0))
+    mstore 0, 0x2d00000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 32
 }

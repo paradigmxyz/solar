@@ -90,7 +90,7 @@ impl Word {
     pub(super) fn into_native<'gcx>(
         self,
         lowerer: &mut FunctionLowerer<'gcx, '_>,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
     ) -> Self {
         let Some(ty) = lowerer.cx.gcx.type_of_expr(expr.id) else { return self };
         if lowerer.in_inline_assembly || !ty.is_value_type() || self.raw {
@@ -120,7 +120,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// converts after the operand's `LocationSetter` has popped, and via-IR
     /// `endVisit(FunctionCall)` (IRGeneratorForStatements.cpp:961) sets the call's location
     /// before it converts.
-    pub(super) fn operand(&mut self, expr: &hir::Expr<'_>) -> Option<Operand> {
+    pub(super) fn operand(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Operand> {
         let word = self.lower_expr(expr)?;
         // Only an expression left untyped by a reported error has no type.
         Some(Operand(match self.cx.gcx.type_of_expr(expr.id) {
@@ -137,11 +137,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn raw_bitwise(
         &mut self,
         kind: BinOpKind,
-        (lhs_expr, lhs): (&hir::Expr<'_>, Word),
-        (rhs_expr, rhs): (&hir::Expr<'_>, Word),
+        (lhs_expr, lhs): (&'gcx hir::Expr<'gcx>, Word),
+        (rhs_expr, rhs): (&'gcx hir::Expr<'gcx>, Word),
         ty: Ty<'gcx>,
     ) -> Option<Word> {
-        let operand_ty = |expr: &hir::Expr<'_>| self.cx.gcx.type_of_expr(expr.id);
+        let operand_ty = |expr: &'gcx hir::Expr<'gcx>| self.cx.gcx.type_of_expr(expr.id);
         let (lhs_ty, rhs_ty) = (operand_ty(lhs_expr)?, operand_ty(rhs_expr)?);
         if !matches!(kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
             || !(arithmetic_kind(ty).is_some() || operators::fixed_bytes_width(ty).is_some())
@@ -200,13 +200,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.validate_enum(ty, value);
                 self.builder.cast(value, types::TypeLowerer::mir_type(ty))
             }
-            TyKind::Fn(_) => value,
             TyKind::Elementary(ElementaryType::Bool) => self.builder.ne_zero(value),
             _ if matches!(
                 types::TypeLowerer::value_layout(ty),
                 crate::mir::ValueLayout::Int(_)
                     | crate::mir::ValueLayout::UInt(_)
                     | crate::mir::ValueLayout::Address
+                    | crate::mir::ValueLayout::Function
             ) =>
             {
                 self.builder.cast(value, types::TypeLowerer::mir_type(ty))

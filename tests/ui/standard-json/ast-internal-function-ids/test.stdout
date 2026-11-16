@@ -1,0 +1,1103 @@
+{
+  "sources": {
+    "Ids.sol": {
+      "id": 0,
+      "ast": {
+        "id": 21,
+        "src": "0:1138:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Ids.sol",
+        "exportedSymbols": {
+          "Base": [
+            2
+          ],
+          "Derived": [
+            3
+          ],
+          "Parenthesized": [
+            4
+          ],
+          "Plain": [
+            1
+          ],
+          "Pointers": [
+            0
+          ]
+        },
+        "nodes": [
+          {
+            "id": 0,
+            "src": "0:270:0",
+            "nodeType": "ContractDefinition",
+            "name": "Pointers",
+            "nameLocation": "9:8:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Pointers",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 5,
+                "src": "24:32:0",
+                "nodeType": "FunctionDefinition",
+                "name": "used",
+                "nameLocation": "33:4:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 23,
+                  "src": "37:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 22,
+                  "src": "54:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "internal",
+                "body": {
+                  "id": 24,
+                  "src": "54:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 6,
+                "src": "62:34:0",
+                "nodeType": "FunctionDefinition",
+                "name": "unused",
+                "nameLocation": "71:6:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 26,
+                  "src": "77:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 25,
+                  "src": "94:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "internal",
+                "body": {
+                  "id": 27,
+                  "src": "94:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 7,
+                "src": "102:33:0",
+                "nodeType": "FunctionDefinition",
+                "name": "other",
+                "nameLocation": "111:5:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 29,
+                  "src": "116:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 28,
+                  "src": "133:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "internal",
+                "body": {
+                  "id": 30,
+                  "src": "133:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 8,
+                "src": "141:127:0",
+                "nodeType": "FunctionDefinition",
+                "name": "run",
+                "nameLocation": "150:3:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 32,
+                  "src": "153:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 31,
+                  "src": "168:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "public",
+                "body": {
+                  "id": 33,
+                  "src": "168:100:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 34,
+                      "src": "178:34:0",
+                      "nodeType": "VariableDeclarationStatement",
+                      "assignments": [
+                        18
+                      ],
+                      "declarations": [
+                        {
+                          "id": 18,
+                          "src": "178:26:0",
+                          "nodeType": "VariableDeclaration",
+                          "name": "f",
+                          "nameLocation": "203:1:0",
+                          "typeName": {
+                            "id": 35,
+                            "src": "178:26:0",
+                            "nodeType": "FunctionTypeName",
+                            "visibility": "internal",
+                            "stateMutability": "pure",
+                            "parameterTypes": {
+                              "id": 36,
+                              "src": "186:2:0",
+                              "nodeType": "ParameterList",
+                              "parameters": []
+                            },
+                            "returnParameterTypes": {
+                              "id": 37,
+                              "src": "203:0:0",
+                              "nodeType": "ParameterList",
+                              "parameters": []
+                            },
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                              "typeString": "function () pure"
+                            }
+                          },
+                          "constant": false,
+                          "mutability": "mutable",
+                          "stateVariable": false,
+                          "storageLocation": "default",
+                          "visibility": "internal",
+                          "scope": 33,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          }
+                        }
+                      ],
+                      "initialValue": {
+                        "id": 38,
+                        "src": "207:5:0",
+                        "nodeType": "Identifier",
+                        "name": "other",
+                        "referencedDeclaration": 7,
+                        "overloadedDeclarations": [],
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                          "typeString": "function () pure"
+                        }
+                      }
+                    },
+                    {
+                      "id": 39,
+                      "src": "222:8:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 40,
+                        "src": "222:8:0",
+                        "nodeType": "Assignment",
+                        "operator": "=",
+                        "leftHandSide": {
+                          "id": 41,
+                          "src": "222:1:0",
+                          "nodeType": "Identifier",
+                          "name": "f",
+                          "referencedDeclaration": 18,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          }
+                        },
+                        "rightHandSide": {
+                          "id": 42,
+                          "src": "226:4:0",
+                          "nodeType": "Identifier",
+                          "name": "used",
+                          "referencedDeclaration": 5,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          }
+                        },
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                          "typeString": "function () pure"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    },
+                    {
+                      "id": 43,
+                      "src": "240:3:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 44,
+                        "src": "240:3:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 45,
+                          "src": "240:1:0",
+                          "nodeType": "Identifier",
+                          "name": "f",
+                          "referencedDeclaration": 18,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": []
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    },
+                    {
+                      "id": 46,
+                      "src": "253:8:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 47,
+                        "src": "253:8:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 48,
+                          "src": "253:6:0",
+                          "nodeType": "Identifier",
+                          "name": "unused",
+                          "referencedDeclaration": 6,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": []
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                },
+                "functionSelector": "c0406226"
+              }
+            ],
+            "scope": 21,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              0
+            ],
+            "internalFunctionIDs": {
+              "5": 1,
+              "7": 2
+            }
+          },
+          {
+            "id": 1,
+            "src": "272:115:0",
+            "nodeType": "ContractDefinition",
+            "name": "Plain",
+            "nameLocation": "281:5:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Plain",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 9,
+                "src": "293:34:0",
+                "nodeType": "FunctionDefinition",
+                "name": "called",
+                "nameLocation": "302:6:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 50,
+                  "src": "308:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 49,
+                  "src": "325:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 1,
+                "visibility": "internal",
+                "body": {
+                  "id": 51,
+                  "src": "325:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 10,
+                "src": "333:52:0",
+                "nodeType": "FunctionDefinition",
+                "name": "run",
+                "nameLocation": "342:3:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 53,
+                  "src": "345:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 52,
+                  "src": "360:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 1,
+                "visibility": "public",
+                "body": {
+                  "id": 54,
+                  "src": "360:25:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 55,
+                      "src": "370:8:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 56,
+                        "src": "370:8:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 57,
+                          "src": "370:6:0",
+                          "nodeType": "Identifier",
+                          "name": "called",
+                          "referencedDeclaration": 9,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": []
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                },
+                "functionSelector": "c0406226"
+              }
+            ],
+            "scope": 21,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              1
+            ]
+          },
+          {
+            "id": 2,
+            "src": "389:169:0",
+            "nodeType": "ContractDefinition",
+            "name": "Base",
+            "nameLocation": "398:4:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Base",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 11,
+                "src": "409:40:0",
+                "nodeType": "FunctionDefinition",
+                "name": "baseFunction",
+                "nameLocation": "418:12:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 59,
+                  "src": "430:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 58,
+                  "src": "447:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 2,
+                "visibility": "internal",
+                "body": {
+                  "id": 60,
+                  "src": "447:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 12,
+                "src": "455:101:0",
+                "nodeType": "FunctionDefinition",
+                "name": "pick",
+                "nameLocation": "464:4:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 62,
+                  "src": "468:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 61,
+                  "src": "493:26:0",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 19,
+                      "src": "494:25:0",
+                      "nodeType": "VariableDeclaration",
+                      "name": "",
+                      "nameLocation": "-1:-1:-1",
+                      "typeName": {
+                        "id": 63,
+                        "src": "494:25:0",
+                        "nodeType": "FunctionTypeName",
+                        "visibility": "internal",
+                        "stateMutability": "pure",
+                        "parameterTypes": {
+                          "id": 64,
+                          "src": "502:2:0",
+                          "nodeType": "ParameterList",
+                          "parameters": []
+                        },
+                        "returnParameterTypes": {
+                          "id": 65,
+                          "src": "518:0:0",
+                          "nodeType": "ParameterList",
+                          "parameters": []
+                        },
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                          "typeString": "function () pure"
+                        }
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 12,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                        "typeString": "function () pure"
+                      }
+                    }
+                  ]
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 2,
+                "visibility": "internal",
+                "body": {
+                  "id": 66,
+                  "src": "520:36:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 67,
+                      "src": "530:19:0",
+                      "nodeType": "Return",
+                      "expression": {
+                        "id": 68,
+                        "src": "537:12:0",
+                        "nodeType": "Identifier",
+                        "name": "baseFunction",
+                        "referencedDeclaration": 11,
+                        "overloadedDeclarations": [],
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                          "typeString": "function () pure"
+                        }
+                      },
+                      "functionReturnParameters": 61
+                    }
+                  ]
+                }
+              }
+            ],
+            "scope": 21,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              2
+            ]
+          },
+          {
+            "id": 3,
+            "src": "640:193:0",
+            "nodeType": "ContractDefinition",
+            "name": "Derived",
+            "nameLocation": "649:7:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [
+              {
+                "id": 69,
+                "src": "660:4:0",
+                "nodeType": "InheritanceSpecifier",
+                "baseName": {
+                  "id": 70,
+                  "src": "660:4:0",
+                  "nodeType": "IdentifierPath",
+                  "name": "Base",
+                  "nameLocations": [
+                    "660:4:0"
+                  ],
+                  "referencedDeclaration": 2
+                }
+              }
+            ],
+            "canonicalName": "Derived",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 13,
+                "src": "671:39:0",
+                "nodeType": "FunctionDefinition",
+                "name": "ownFunction",
+                "nameLocation": "680:11:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 72,
+                  "src": "691:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 71,
+                  "src": "708:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 3,
+                "visibility": "internal",
+                "body": {
+                  "id": 73,
+                  "src": "708:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 14,
+                "src": "716:115:0",
+                "nodeType": "FunctionDefinition",
+                "name": "run",
+                "nameLocation": "725:3:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 75,
+                  "src": "728:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 74,
+                  "src": "743:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 3,
+                "visibility": "public",
+                "body": {
+                  "id": 76,
+                  "src": "743:88:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 77,
+                      "src": "753:40:0",
+                      "nodeType": "VariableDeclarationStatement",
+                      "assignments": [
+                        20
+                      ],
+                      "declarations": [
+                        {
+                          "id": 20,
+                          "src": "753:26:0",
+                          "nodeType": "VariableDeclaration",
+                          "name": "f",
+                          "nameLocation": "778:1:0",
+                          "typeName": {
+                            "id": 78,
+                            "src": "753:26:0",
+                            "nodeType": "FunctionTypeName",
+                            "visibility": "internal",
+                            "stateMutability": "pure",
+                            "parameterTypes": {
+                              "id": 79,
+                              "src": "761:2:0",
+                              "nodeType": "ParameterList",
+                              "parameters": []
+                            },
+                            "returnParameterTypes": {
+                              "id": 80,
+                              "src": "778:0:0",
+                              "nodeType": "ParameterList",
+                              "parameters": []
+                            },
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                              "typeString": "function () pure"
+                            }
+                          },
+                          "constant": false,
+                          "mutability": "mutable",
+                          "stateVariable": false,
+                          "storageLocation": "default",
+                          "visibility": "internal",
+                          "scope": 76,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          }
+                        }
+                      ],
+                      "initialValue": {
+                        "id": 81,
+                        "src": "782:11:0",
+                        "nodeType": "Identifier",
+                        "name": "ownFunction",
+                        "referencedDeclaration": 13,
+                        "overloadedDeclarations": [],
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                          "typeString": "function () pure"
+                        }
+                      }
+                    },
+                    {
+                      "id": 82,
+                      "src": "803:3:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 83,
+                        "src": "803:3:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 84,
+                          "src": "803:1:0",
+                          "nodeType": "Identifier",
+                          "name": "f",
+                          "referencedDeclaration": 20,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": []
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    },
+                    {
+                      "id": 85,
+                      "src": "816:8:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 86,
+                        "src": "816:8:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 87,
+                          "src": "816:6:0",
+                          "nodeType": "FunctionCall",
+                          "expression": {
+                            "id": 88,
+                            "src": "816:4:0",
+                            "nodeType": "Identifier",
+                            "name": "pick",
+                            "referencedDeclaration": 12,
+                            "overloadedDeclarations": [],
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_internal_pure$__$returns$_t_function_internal_pure$__$returns$__$_$",
+                              "typeString": "function () pure returns (function () pure)"
+                            },
+                            "argumentTypes": []
+                          },
+                          "names": [],
+                          "nameLocations": [],
+                          "arguments": [],
+                          "tryCall": false,
+                          "kind": "functionCall",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": [],
+                          "isLValue": false,
+                          "isPure": false,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                },
+                "functionSelector": "c0406226"
+              }
+            ],
+            "scope": 21,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              3,
+              2
+            ],
+            "internalFunctionIDs": {
+              "11": 1,
+              "13": 2
+            }
+          },
+          {
+            "id": 4,
+            "src": "940:197:0",
+            "nodeType": "ContractDefinition",
+            "name": "Parenthesized",
+            "nameLocation": "949:13:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Parenthesized",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 15,
+                "src": "969:34:0",
+                "nodeType": "FunctionDefinition",
+                "name": "direct",
+                "nameLocation": "978:6:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 90,
+                  "src": "984:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 89,
+                  "src": "1001:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 4,
+                "visibility": "internal",
+                "body": {
+                  "id": 91,
+                  "src": "1001:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 16,
+                "src": "1009:41:0",
+                "nodeType": "FunctionDefinition",
+                "name": "parenthesized",
+                "nameLocation": "1018:13:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 93,
+                  "src": "1031:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 92,
+                  "src": "1048:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 4,
+                "visibility": "internal",
+                "body": {
+                  "id": 94,
+                  "src": "1048:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                }
+              },
+              {
+                "id": 17,
+                "src": "1056:79:0",
+                "nodeType": "FunctionDefinition",
+                "name": "run",
+                "nameLocation": "1065:3:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 96,
+                  "src": "1068:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 95,
+                  "src": "1083:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 4,
+                "visibility": "public",
+                "body": {
+                  "id": 97,
+                  "src": "1083:52:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 98,
+                      "src": "1093:8:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 99,
+                        "src": "1093:8:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 100,
+                          "src": "1093:6:0",
+                          "nodeType": "Identifier",
+                          "name": "direct",
+                          "referencedDeclaration": 15,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": []
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    },
+                    {
+                      "id": 101,
+                      "src": "1111:17:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 102,
+                        "src": "1111:17:0",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 103,
+                          "src": "1111:15:0",
+                          "nodeType": "TupleExpression",
+                          "isInlineArray": false,
+                          "components": [
+                            {
+                              "id": 104,
+                              "src": "1112:13:0",
+                              "nodeType": "Identifier",
+                              "name": "parenthesized",
+                              "referencedDeclaration": 16,
+                              "overloadedDeclarations": [],
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                                "typeString": "function () pure"
+                              }
+                            }
+                          ],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$__$returns$__$",
+                            "typeString": "function () pure"
+                          },
+                          "argumentTypes": [],
+                          "isLValue": false,
+                          "isPure": false,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$__$",
+                          "typeString": "tuple()"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                },
+                "functionSelector": "c0406226"
+              }
+            ],
+            "scope": 21,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              4
+            ],
+            "internalFunctionIDs": {
+              "16": 1
+            }
+          }
+        ]
+      }
+    }
+  }
+}

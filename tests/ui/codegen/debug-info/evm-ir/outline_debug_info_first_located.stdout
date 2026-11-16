@@ -41,22 +41,22 @@
 -   pop !metadata(span=26..30)
 -   push 1 !metadata(span=21..25)
 -   pop !metadata(span=26..30)
-+   pop
-+   push 1
-+   pop
-+   push 1
-+   pop
-+   push 1
-+   pop
-+   push 1
-+   pop
-+   push 1
-+   pop
-+   push 1
-+   pop
-+   push 1
-+   pop
-+   jump
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   jump !metadata(spans=[6..10, 26..30])
 + bb3 [continuation]:
 +   jump bb1 !metadata(span=11..15)
 + bb4 [continuation]:

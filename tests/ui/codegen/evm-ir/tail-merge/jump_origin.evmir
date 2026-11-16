@@ -1,0 +1,38 @@
+//@ compile-flags: -Zevm-ir-pipeline=tail-merge --optimize-runs 1
+//@ filecheck:
+@module JumpOrigin
+
+// The jump into the shared tail takes the location of the first removed instruction or terminator
+// that has one, here the terminator.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + jump [[TAIL:bb[0-9]+]] !metadata(span=26..30){{$}}
+bb0:
+  push 11 !metadata(span=1..5)
+  push 22
+  push 33
+  push 44
+  push 55
+  revert !metadata(span=26..30)
+
+// Without a located removed instruction or terminator, the jump copies the first removed
+// instruction.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: + jump [[TAIL]] !metadata(compiler_generated){{$}}
+bb1:
+  push 99 !metadata(span=41..45)
+  push 22 !metadata(compiler_generated)
+  push 33
+  push 44
+  push 55
+  revert
+
+// The first removed instruction, when it has a location, is the one the jump takes.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: + jump [[TAIL]] !metadata(span=76..80){{$}}
+bb2:
+  push 77 !metadata(span=71..75)
+  push 22 !metadata(span=76..80)
+  push 33
+  push 44
+  push 55
+  revert

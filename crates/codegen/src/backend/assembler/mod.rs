@@ -9,8 +9,8 @@
 
 use crate::{
     backend::evm::{
-        DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
-        op::WORD_BYTES,
+        DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, SourceOrigins,
+        ir, op, op::WORD_BYTES,
     },
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
@@ -19,7 +19,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_evmir::debug::DebugLocKind;
-use solar_interface::{Span, Symbol, config::OptimizationMode, sym};
+use solar_interface::{Symbol, config::OptimizationMode, sym};
 use solar_sema::Gcx;
 
 pub(crate) mod assembly;
@@ -117,6 +117,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) pending_comment: Option<String>,
     /// Source span attached to newly emitted EVM IR operations.
     pub(in crate::backend) current_source_spans: DebugSpans,
+    /// Whether the current source origins all hold, instead of being alternatives.
+    pub(in crate::backend) current_all_source_spans: bool,
     /// Why new EVM IR operations have no source origin, when they have none.
     pub(in crate::backend) current_debug_loc_kind: DebugLocKind,
     /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
@@ -201,6 +203,7 @@ impl<'gcx> Assembler<'gcx> {
             current_block: None,
             pending_comment: None,
             current_source_spans: DebugSpans::new(),
+            current_all_source_spans: false,
             current_debug_loc_kind: DebugLocKind::Normal,
             current_modifier_depth: 0,
             fallthrough_origins: FxHashMap::default(),
@@ -475,8 +478,10 @@ impl<'gcx> Assembler<'gcx> {
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.gcx, program.source_spans.is_some());
         for (idx, inst) in program.instructions.iter().enumerate() {
-            let source_spans =
-                program.source_spans.as_ref().map_or(&[][..], |spans| spans[idx].as_slice());
+            let origins =
+                program.source_spans.as_ref().map_or_else(SourceOrigins::default, |origins| {
+                    SourceOrigins { spans: origins[idx].spans.as_slice(), all: origins[idx].all }
+                });
             let function_invoke =
                 program.function_invokes.as_ref().and_then(|invokes| invokes[idx]);
             let function_exit = program.function_exits.as_ref().and_then(|exits| exits[idx]);
@@ -485,21 +490,21 @@ impl<'gcx> Assembler<'gcx> {
             out.set_modifier_depth(modifier_depth);
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
-                    out.emit_op(opcode, source_spans);
+                    out.emit_op(opcode, origins);
                 }
                 AsmInstKind::OpImmediate(opcode, immediate) => {
-                    out.emit_op_immediate(opcode, immediate, source_spans);
+                    out.emit_op_immediate(opcode, immediate, origins);
                 }
                 AsmInstKind::PushInline(value) => {
-                    out.emit_push_value(U256::from(value), source_spans);
+                    out.emit_push_value(U256::from(value), origins);
                 }
                 AsmInstKind::Push(index) => {
-                    out.emit_push_value(self.push_value(index), source_spans);
+                    out.emit_push_value(self.push_value(index), origins);
                 }
                 AsmInstKind::PushLibrary(id) => {
                     out.library_relocations
                         .push(LibraryRelocation { offset: out.bytecode.len() + 1, library: id });
-                    out.emit_push_fixed_width(U256::ZERO, 20, source_spans);
+                    out.emit_push_fixed_width(U256::ZERO, 20, origins);
                 }
                 AsmInstKind::PushLabel(label) => {
                     let target_offset = label_offsets
@@ -507,14 +512,14 @@ impl<'gcx> Assembler<'gcx> {
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
-                    out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
+                    out.emit_push_fixed_width(U256::from(target_offset), width, origins);
                 }
                 AsmInstKind::PushLabelFixed(label, width) => {
                     let target_offset = label_offsets
                         .get(&label)
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-                    out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
+                    out.emit_push_fixed_width(U256::from(target_offset), width, origins);
                 }
                 AsmInstKind::PushPackedLabels(labels) => {
                     let labels = &program.packed_labels[labels];
@@ -542,18 +547,18 @@ impl<'gcx> Assembler<'gcx> {
                         value |= target << (index * usize::from(labels.label_width) * 8);
                     }
                     let width = labels.labels.len() * usize::from(labels.label_width);
-                    out.emit_push_fixed_width(value, width as u8, source_spans);
+                    out.emit_push_fixed_width(value, width as u8, origins);
                 }
                 AsmInstKind::PushData(data) => {
                     let target_offset = resolve_data_offset(program, &data_offsets, data);
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
-                    out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
+                    out.emit_push_fixed_width(U256::from(target_offset), width, origins);
                 }
                 AsmInstKind::PushImmutable(id) => {
-                    out.emit_push_immutable(self.immutable_push(id), source_spans);
+                    out.emit_push_immutable(self.immutable_push(id), origins);
                 }
                 AsmInstKind::Label(_) => {
-                    out.emit_op(op::JUMPDEST, source_spans);
+                    out.emit_op(op::JUMPDEST, origins);
                 }
                 AsmInstKind::Data(data) => {
                     let data = &program.data[data];
@@ -632,19 +637,19 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         self.modifier_depth = depth;
     }
 
-    fn emit_op(&mut self, opcode: u8, source_spans: &[Span]) {
+    fn emit_op(&mut self, opcode: u8, origins: SourceOrigins<'_>) {
         let offset = self.bytecode.len();
         self.bytecode.push(opcode);
-        self.record_instruction(offset, source_spans);
+        self.record_instruction(offset, origins);
     }
 
-    fn emit_op_immediate(&mut self, opcode: u8, immediate: u8, source_spans: &[Span]) {
+    fn emit_op_immediate(&mut self, opcode: u8, immediate: u8, origins: SourceOrigins<'_>) {
         let offset = self.bytecode.len();
         self.bytecode.extend([opcode, immediate]);
-        self.record_instruction(offset, source_spans);
+        self.record_instruction(offset, origins);
     }
 
-    fn emit_push_immutable(&mut self, push: ImmutablePush, source_spans: &[Span]) {
+    fn emit_push_immutable(&mut self, push: ImmutablePush, origins: SourceOrigins<'_>) {
         let offset = self.bytecode.len();
         self.immutable_refs.push(ImmutableRef {
             id: push.id,
@@ -654,7 +659,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         let byte_width = push.type_size.bytes();
         self.bytecode.push(op::push(byte_width));
         self.bytecode.extend(std::iter::repeat_n(0, usize::from(byte_width)));
-        self.record_instruction(offset, source_spans);
+        self.record_instruction(offset, origins);
     }
 
     fn encoded_push_len(&self, value: U256) -> usize {
@@ -662,12 +667,12 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 
     /// Emits a PUSH instruction with automatically sized width.
-    fn emit_push_value(&mut self, value: U256, source_spans: &[Span]) {
-        self.emit_push_fixed_width(value, self.push_width(value), source_spans);
+    fn emit_push_value(&mut self, value: U256, origins: SourceOrigins<'_>) {
+        self.emit_push_fixed_width(value, self.push_width(value), origins);
     }
 
     /// Emits a PUSH instruction with a specific width.
-    fn emit_push_fixed_width(&mut self, value: U256, width: u8, source_spans: &[Span]) {
+    fn emit_push_fixed_width(&mut self, value: U256, width: u8, origins: SourceOrigins<'_>) {
         assert!(self.push_width(value) <= width, "value does not fit fixed PUSH width");
         let offset = self.bytecode.len();
         if width == 0 {
@@ -679,7 +684,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             let start = WORD_BYTES - width as usize;
             self.bytecode.extend_from_slice(&bytes[start..]);
         }
-        self.record_instruction(offset, source_spans);
+        self.record_instruction(offset, origins);
     }
 
     fn emit_push_zero(&mut self) {
@@ -715,12 +720,12 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         }
     }
 
-    fn record_instruction(&mut self, offset: usize, source_spans: &[Span]) {
+    fn record_instruction(&mut self, offset: usize, origins: SourceOrigins<'_>) {
         let Some(debug_info) = &mut self.debug_info else { return };
         debug_info.record(
             offset,
             self.bytecode[offset],
-            source_spans,
+            origins,
             self.function_invoke,
             self.function_exit,
             self.modifier_depth,

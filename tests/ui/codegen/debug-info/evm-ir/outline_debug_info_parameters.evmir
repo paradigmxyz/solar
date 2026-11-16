@@ -2,8 +2,9 @@
 //@ filecheck:
 @module DebugInfoParameters
 
-// The stub has no locations. Each site's call sequence takes the first location of its run and
-// keeps the parameter pushes' own. A site with no located instruction gets none.
+// Each site's call sequence takes the first location of its run and keeps the parameter pushes'
+// own. A site with no located instruction gets none, and the stub, which also runs for that site,
+// has none either.
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push [[RET0:bb[0-9]+]] !metadata(span=1..2)
 // CHECK-NEXT: push 2 !metadata(span=10..11)

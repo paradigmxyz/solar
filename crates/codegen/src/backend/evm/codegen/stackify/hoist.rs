@@ -18,11 +18,11 @@
 //!
 //! ## What moves
 //!
-//! A *run* is a sequence of [`Step::Materialize`] and `SWAP` steps that starts at a
-//! materialization and ends at its last swap. Simulating the run on the words it touches shows
-//! whether it only inserts the pushed words below other words, and where: the words that were
-//! on the stack keep their order, and each pushed word ends under a fixed number of them. A
-//! pushed word that ends at height `a`, counted from the block's start, can be pushed instead
+//! A *run* is a sequence of [`Step::Materialize`] or [`Step::Shared`] push and `SWAP` steps that
+//! starts at a materialization and ends at its last swap. Simulating the run on the words it
+//! touches shows whether it only inserts the pushed words below other words, and where: the words
+//! that were on the stack keep their order, and each pushed word ends under a fixed number of them.
+//! A pushed word that ends at height `a`, counted from the block's start, can be pushed instead
 //! at the latest kept step `k` where the stack is `a` high, if no step from `k` on
 //!
 //! - pops a word below height `a`, which would pop the pushed word or reach under it,
@@ -56,10 +56,10 @@
 //!
 //! A moved push keeps the origin it had before the move, not the one of the instruction it lands
 //! in: [`Step::Begin`] or [`Step::BeginTerminator`] sets that origin before the push and the
-//! origin of the place it lands in after it. The emitter gives the code before a block's first
-//! instruction the origin of that instruction, so a push that lands there gets no origin instead
-//! of one that would replace it. The steps hold no code, so the bytecode does not depend on
-//! whether debug info is on.
+//! origin of the place it lands in after it. A [`Step::Shared`] push sets its own origin and
+//! needs neither. The emitter gives the code before a block's first instruction the origin of
+//! that instruction, so a push that lands there takes it too, as scheduler code does. The steps
+//! hold no code, so the bytecode does not depend on whether debug info is on.
 
 use super::{BlockPlan, FunctionPlan, ModuleInfo, Step};
 use crate::{
@@ -80,8 +80,16 @@ const MAX_HOIST_STEPS: usize = 128;
 /// the same sequences, which outlining shares until a push moves out of one of the copies.
 const MAX_BLOCK_STEPS: usize = 256;
 
+/// The value that `step` pushes when it is a push the pass may move.
+fn pushed_value(step: &Step) -> Option<ValueId> {
+    match *step {
+        Step::Materialize(value) | Step::Shared { value, .. } => Some(value),
+        _ => None,
+    }
+}
+
 /// Hoists the pushed words of each non-cold block of `plan`, a plan for `func` or for the copy of
-/// it in `plan.rebuilt`, and raises the plan's peak by the most that any block pushed earlier.
+/// it in `plan.rebuilt`.
 pub(super) fn hoist_plan(
     func: &Function,
     info: &ModuleInfo,
@@ -90,16 +98,13 @@ pub(super) fn hoist_plan(
 ) {
     let func = plan.rebuilt.as_deref().unwrap_or(func);
     let hoister = Hoister { func, info, target };
-    let mut extra = 0;
     for (block, block_plan) in plan.blocks.iter_mut_enumerated() {
         if let Some(block_plan) = block_plan
             && !func.blocks[block].hotness.is_cold()
         {
-            extra = extra.max(hoister.hoist_block(block_plan));
+            hoister.hoist_block(block_plan);
         }
     }
-    // Each step of a block holds at most `extra` more words than it did.
-    plan.peak += extra;
 }
 
 struct Hoister<'a> {
@@ -111,8 +116,8 @@ struct Hoister<'a> {
 /// The debug origin the code at some point of a block takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Origin {
-    /// The instruction a [`Step::Begin`] names, or none.
-    Inst(Option<InstId>),
+    /// The instruction a [`Step::Begin`] names.
+    Inst(InstId),
     /// The block's terminator.
     Terminator,
 }
@@ -132,8 +137,6 @@ struct Placed {
     step: Step,
     /// Words on the stack relative to the block's start.
     height: isize,
-    /// Words that hoists added to the stack at this step.
-    extra: usize,
     origin: Origin,
 }
 
@@ -157,28 +160,25 @@ struct Kept<'a> {
     origin: Origin,
     /// Index in `steps` of the first step of the terminator, once reached.
     terminator: Option<usize>,
-    /// Index in `steps` of the first `Begin(Some(_))` of the body.
+    /// Index in `steps` of the first `Begin` of the body.
     first_inst: Option<usize>,
-    /// The most words that hoists added to the stack at any step.
-    extra: usize,
 }
 
 impl Hoister<'_> {
-    /// Returns the most words that hoists added to the stack at any step.
-    fn hoist_block(&self, block: &mut BlockPlan) -> usize {
+    fn hoist_block(&self, block: &mut BlockPlan) {
         if block.steps.len() > MAX_BLOCK_STEPS
-            || !block.steps.iter().any(|step| matches!(step, Step::Materialize(_)))
+            || !block.steps.iter().any(|step| pushed_value(step).is_some())
         {
-            return 0;
+            return;
         }
         let steps = std::mem::take(&mut block.steps);
         let split = block.terminator_start;
-        // The emitter gives the code before the first `Begin(Some(_))` of the body the origin of
+        // The emitter gives the code before the first `Begin` of the body the origin of
         // that instruction, or the terminator's when there is none.
         let start_origin = steps[..split]
             .iter()
             .find_map(|step| match *step {
-                Step::Begin(Some(inst)) => Some(Origin::Inst(Some(inst))),
+                Step::Begin(inst) => Some(Origin::Inst(inst)),
                 _ => None,
             })
             .unwrap_or(Origin::Terminator);
@@ -189,7 +189,6 @@ impl Hoister<'_> {
             origin: start_origin,
             terminator: None,
             first_inst: None,
-            extra: 0,
         };
         let mut i = 0;
         while i < steps.len() {
@@ -197,7 +196,7 @@ impl Hoister<'_> {
                 kept.terminator = Some(kept.steps.len());
                 kept.origin = Origin::Terminator;
             }
-            if matches!(steps[i], Step::Materialize(_))
+            if pushed_value(&steps[i]).is_some()
                 && let Some(end) = self.run_end(&steps, i)
                 && kept.hoist(&steps[i..end], i, split)
             {
@@ -209,16 +208,15 @@ impl Hoister<'_> {
         }
         block.terminator_start = kept.terminator.unwrap_or(kept.steps.len());
         block.steps = kept.steps.into_iter().map(|placed| placed.step).collect();
-        kept.extra
     }
 
     /// The end of the run that starts at `start`, or `None` when it has no swap.
     fn run_end(&self, steps: &[Step], start: usize) -> Option<usize> {
         let mut end = None;
         for (offset, step) in steps[start..].iter().enumerate() {
-            match *step {
-                Step::Materialize(value) if self.hoistable(value) && !self.is_zero(value) => {}
-                Step::Stack(StackOp::Swap(_)) => end = Some(start + offset + 1),
+            match (pushed_value(step), step) {
+                (Some(value), _) if self.hoistable(value) && !self.is_zero(value) => {}
+                (None, Step::Stack(StackOp::Swap(_))) => end = Some(start + offset + 1),
                 _ => break,
             }
         }
@@ -246,7 +244,7 @@ impl Hoister<'_> {
             Step::Stack(StackOp::Dup(_)) => (0, 1, false),
             Step::Stack(StackOp::Pop) => (1, 0, false),
             Step::Stack(StackOp::Swap(_) | StackOp::Exchange(..)) => (0, 0, false),
-            Step::Materialize(value) => (0, 1, !self.hoistable(value)),
+            Step::Materialize(value) | Step::Shared { value, .. } => (0, 1, !self.hoistable(value)),
             Step::Reload(_) | Step::ReloadRet | Step::Filler => (0, 1, false),
             Step::Spill(_) | Step::SpillRet => (1, 0, false),
             Step::Begin(_) | Step::BeginTerminator => (0, 0, false),
@@ -267,7 +265,7 @@ impl Hoister<'_> {
                 | InstKind::HeapFloor => (0, 1, false),
                 ref kind => unreachable!("instruction `{}` has no stack effect", kind.mnemonic()),
             },
-            Step::Call(callee, _) => (self.info.params[callee], self.info.returns[callee], true),
+            Step::Call(callee) => (self.info.params[callee], self.info.returns[callee], true),
             Step::Publish { arity, .. } => (arity, 1, true),
         }
     }
@@ -279,7 +277,7 @@ impl Kept<'_> {
         let origin = self.origin;
         match step {
             Step::Begin(inst) => {
-                if inst.is_some() && self.first_inst.is_none() && self.terminator.is_none() {
+                if self.first_inst.is_none() && self.terminator.is_none() {
                     self.first_inst = Some(self.steps.len());
                 }
                 self.origin = Origin::Inst(inst);
@@ -287,7 +285,7 @@ impl Kept<'_> {
             Step::BeginTerminator => self.origin = Origin::Terminator,
             _ => {}
         }
-        self.steps.push(Placed { step, height: self.height, extra: 0, origin });
+        self.steps.push(Placed { step, height: self.height, origin });
         self.height += pushes as isize - pops as isize;
     }
 
@@ -302,23 +300,21 @@ impl Kept<'_> {
         let mut deepest = 0;
         let mut pushed = 0;
         for step in run {
-            match *step {
-                Step::Materialize(_) => pushed += 1,
+            match step {
                 Step::Stack(StackOp::Swap(n)) => {
-                    deepest = deepest.max((usize::from(n) + 1).saturating_sub(pushed));
+                    deepest = deepest.max((usize::from(*n) + 1).saturating_sub(pushed));
                 }
-                _ => unreachable!("a run holds only pushes and swaps"),
+                _ => pushed += 1,
             }
         }
         let mut words = (0..deepest).collect::<SmallVec<[usize; 24]>>();
         for (index, step) in run.iter().enumerate() {
-            match *step {
-                Step::Materialize(_) => words.push(usize::MAX - index),
+            match step {
                 Step::Stack(StackOp::Swap(n)) => {
                     let top = words.len() - 1;
-                    words.swap(top, top - usize::from(n));
+                    words.swap(top, top - usize::from(*n));
                 }
-                _ => unreachable!("a run holds only pushes and swaps"),
+                _ => words.push(usize::MAX - index),
             }
         }
         if !words.iter().filter(|&&word| word < deepest).copied().eq(0..deepest) {
@@ -396,17 +392,15 @@ impl Kept<'_> {
             return false;
         }
 
-        // Each push keeps the origin it had. The emitter takes the origin of the code before the
-        // first instruction from the first `Begin(Some(_))`, which another one in front of it
-        // would replace, so a push that lands there is marked unknown instead.
+        // Each push keeps the origin it had, except one that lands before the block's first
+        // instruction, which takes the origin of that instruction as the emitter gives it to the
+        // code there, and a shared push, which sets its own. A `Begin` in front of the first would
+        // replace the origin of the code before it.
         for insert in &mut inserts {
             let before_first = self.terminator.is_none_or(|t| insert.point < t)
                 && self.first_inst.is_none_or(|f| insert.point <= f);
-            if before_first
-                && matches!(insert.origin, Origin::Inst(Some(_)))
-                && insert.origin != self.landing(insert.point)
-            {
-                insert.origin = Origin::Inst(None);
+            if before_first || matches!(run[insert.index], Step::Shared { .. }) {
+                insert.origin = self.landing(insert.point);
             }
         }
 
@@ -467,23 +461,19 @@ impl Kept<'_> {
         let mut pushes = 0;
         for insert in inserts {
             if insert.origin != origin {
-                group.push(Placed { step: insert.origin.step(), height, extra: 0, origin });
+                group.push(Placed { step: insert.origin.step(), height, origin });
                 origin = insert.origin;
             }
-            group.push(Placed { step: run[insert.index].clone(), height, extra: 0, origin });
+            group.push(Placed { step: run[insert.index].clone(), height, origin });
             height += 1;
             pushes += 1;
         }
         if origin != landing {
-            group.push(Placed { step: landing.step(), height, extra: 0, origin });
+            group.push(Placed { step: landing.step(), height, origin });
         }
         let added = group.len();
-        // Pushed in another order, a word that needs scratch words above it may run higher.
-        self.extra = self.extra.max(pushes as usize);
         for placed in &mut self.steps[point..] {
             placed.height += pushes;
-            placed.extra += pushes as usize;
-            self.extra = self.extra.max(placed.extra);
         }
         self.steps.splice(point..point, group);
         if let Some(terminator) = &mut self.terminator

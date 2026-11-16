@@ -105,6 +105,8 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
         // Types no value or signature uses.
         let changed = !module.struct_types.is_empty();
         module.struct_types.clear();
+        // No function body changes.
+        analyses.preserve_local_summaries();
         return Ok(changed);
     }
     if module.functions.iter().any(|func| {

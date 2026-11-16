@@ -241,4 +241,41 @@ contract EventsTest {
         require(logs[0].topics[1] == keccak256("after"));
         require(logs[0].topics[2] == bytes32(uint256(3)));
     }
+
+    function test_EmitStagedBytes() public {
+        vm.recordLogs();
+        events.emitStagedBytes("hello");
+        events.emitStagedBytesSlice("hello");
+        events.emitStagedMemoryBytes("hello");
+        events.emitStagedText("hello");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 4);
+        require(logs[0].topics[1] == keccak256("hello"));
+        require(logs[1].topics[1] == keccak256("el"));
+        require(logs[2].topics[1] == keccak256("hello"));
+        require(logs[3].topics[1] == keccak256("hello"));
+    }
+
+    function test_EmitStagedPair() public {
+        vm.recordLogs();
+        events.emitStagedPair(Events.Pair(1, 2));
+        events.emitStagedMemoryPair(1, 2);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 2);
+        require(logs[0].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+        require(logs[1].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+    }
+
+    function test_EmitStagedMixed() public {
+        vm.recordLogs();
+        events.emitStagedMixed(Events.Pair(1, 2), "one", "data", "two");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 4);
+        require(logs[0].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+        require(logs[0].topics[2] == keccak256("one"));
+        require(logs[0].topics[3] == keccak256("two"));
+        (bytes memory data, uint256 count) = abi.decode(logs[0].data, (bytes, uint256));
+        require(keccak256(data) == keccak256("data") && count == 7);
+    }
 }

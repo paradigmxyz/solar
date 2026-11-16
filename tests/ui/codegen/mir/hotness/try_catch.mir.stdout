@@ -34,10 +34,7 @@ fn @bare(arg0: i256) -> i256 [selector=0x90f2b340, view, abi_params=[uint256], a
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     ret 100
   bb1:                                            ; preds = bb0
@@ -49,6 +46,9 @@ fn @bare(arg0: i256) -> i256 [selector=0x90f2b340, view, abi_params=[uint256], a
     ret v7
   bb3:
     ret 0
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function typed(uint256 x) public view returns (uint256) [selector 0x23048970]
@@ -62,35 +62,30 @@ fn @typed(arg0: i256) -> i256 [selector=0x23048970, view, abi_params=[uint256], 
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v8 = icall returndata_bytes<>
-    v9 = ptradd v8, 32
-    v10 = mload v8
-    v11 = make_memory_slice v9, v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = extract_value slice<memory>, v11, 0
-    v15 = mload v14
-    v16 = shr v15, 224
-    v17 = eq v16, 0x8c379a0
-    jumpi v17, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    jump bb6
-  bb4 [cold_hint]:                                ; preds = bb2
-    v18 = ptrtoint ptr<memory> v12 to i256
-    v19 = icall @try_decode_error_message, v18, v13
-    jump bb6
-  bb6 [cold_hint]:                                ; preds = bb4, bb5
-    v20 = phi [bb4: v19], [bb5: false]
-    jumpi v20, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb6
-    jumpi true, bb9, bb10
-  bb10 [cold_hint]:                               ; preds = bb8
-    revert v12, v13
-  bb9 [cold_hint]:                                ; preds = bb8
+    v8 = returndatasize
+    v9 = lt v8, 32
+    v10 = select v9, v8, 32
+    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = shr v11, 224
+    v13 = eq v12, 0x8c379a0
+    jumpi v13, bb6, bb5
+  bb6 [cold_hint]:                                ; preds = bb2
+    v14 = icall returndata_bytes<>
+    v15 = ptradd v14, 32
+    v16 = mload v14
+    v17 = make_memory_slice v15, v16
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = ptrtoint ptr<memory> v18 to i256
+    v20 = icall @try_decode_error_message, v19, v8
+    jumpi v20, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2, bb6
+    jump bb7
+  bb7 [cold_hint]:                                ; preds = bb5
     jump bb3
-  bb7 [cold_hint]:                                ; preds = bb6
-    v21 = mload v8
-    v22 = ptradd v8, 36
+  bb4 [cold_hint]:                                ; preds = bb6
+    v21 = mload v14
+    v22 = ptradd v14, 36
     v23 = sub v21, 4
     v24 = make_memory_slice v22, v23
     v25 = abi_decode [bytes], v24
@@ -104,9 +99,11 @@ fn @typed(arg0: i256) -> i256 [selector=0x23048970, view, abi_params=[uint256], 
     v6 = mload 0 !metadata(memory=scratch)
     v7 = checked_add uint256, v6, 2
     jump bb3
-  bb3:                                            ; preds = bb1, bb7, bb9
-    v28 = phi [bb1: v7], [bb7: v27], [bb9: 4]
+  bb3:                                            ; preds = bb1, bb4, bb7
+    v28 = phi [bb1: v7], [bb4: v27], [bb7: 4]
     ret v28
+  bb8 [cold_hint]:
+    revert_returndata
 }
 
 ; function looped(uint256 x) public view returns (uint256) [selector 0xd3fb4026]
@@ -121,10 +118,7 @@ fn @looped(arg0: i256) -> i256 [selector=0xd3fb4026, view, abi_params=[uint256],
     v4 = staticcall v1, v3, 28, 36, 0, 32
     jumpi v4, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4, bb8
@@ -158,6 +152,9 @@ fn @looped(arg0: i256) -> i256 [selector=0xd3fb4026, view, abi_params=[uint256],
     v17 = phi [bb1: v7], [bb7: v10]
     v18 = checked_add uint256, v17, 5
     ret v18
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

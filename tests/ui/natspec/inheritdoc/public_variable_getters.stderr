@@ -41,7 +41,7 @@ error: resolved NatSpec for variable `Child.factory`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
    │
 LL │     address public override factory;
-   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: inherits NatSpec from function `Base.factory()`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
@@ -63,7 +63,7 @@ error: resolved NatSpec for variable `Child.values`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
    │
 LL │     mapping(uint => uint) public override values;
-   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: inherits NatSpec from function `Base.values(uint256)`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC

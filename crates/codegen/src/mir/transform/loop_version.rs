@@ -189,11 +189,14 @@
 //! read before the loop under the same rule as other word tests; a zero-trip loop never gains a
 //! read of an otherwise untouched pointer. Large forged lengths select the original loop.
 
-use super::loop_split::{LoopCopy, clone_loop, redirect};
+use super::{
+    loop_split::{LoopCopy, clone_loop, redirect},
+    utils::terminator_debug_context,
+};
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-    InstId, InstKind, Instruction, InstructionMetadata, MirType, Module, PanicCode, PtrLocation,
-    RevertKind, Terminator, Value, ValueId,
+    InstId, InstKind, Instruction, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator,
+    Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, LoopInfo},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
     utils::{rebuild_predecessors, split_edge},
@@ -1277,11 +1280,11 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
     // preheader | latch: ... jump test
     let test = func.alloc_block_like(header);
     redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
+    let context = terminator_debug_context(func, plan.preheader, DebugLocKind::CompilerGenerated);
     let mut builder = FunctionBuilder::new_semantic(func);
-    // NOTE: Version-selection guards have no source counterpart. In particular, their loads
-    // can run before the source loop body, so they must not inherit its element locations.
-    let mut context = InstructionMetadata::default();
-    context.drop_debug_loc(DebugLocKind::CompilerGenerated);
+    // NOTE: The test runs in the preheader, or after the first iteration when a latch enters it,
+    // never once per iteration of the version it selects, so it takes the loop statement's
+    // location, not the loop body's.
     builder.set_debug_context(&context);
     builder.switch_to_block(test);
     let fast = builder.create_block();

@@ -19,13 +19,14 @@
 //! number of iterations, which no longer holds after replacing a loop. Later
 //! CFG and dead-code cleanup remove the old loop and unused final values.
 //!
-//! NOTE: Formulas summarize several iterations, so their debug locations stay
-//! unknown rather than inheriting an arbitrary iteration's source checkpoint.
+//! NOTE: The formulas run in the preheader, once when the loop statement starts, so they take the
+//! loop statement's location rather than an arbitrary iteration's.
 
+use super::utils::terminator_debug_context;
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module,
-        Terminator, Value, ValueId,
+        BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
+        ValueId,
         analysis::{Loop, LoopAnalyzer},
         pass::{MirPass, ModuleAnalyses, run_function_pass},
         utils::{fold_terminator_to_jump, invalidate_unreachable_block},
@@ -176,11 +177,10 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
 
 fn rewrite(func: &mut Function, plan: ClosedForm) {
     let mut replacements = FxHashMap::default();
+    let context = terminator_debug_context(func, plan.preheader, DebugLocKind::Dropped);
     let mut builder = FunctionBuilder::new(func);
-    // NOTE: These summaries are hoisted out of the body and run even for zero iterations.
-    // LLVM's dropLocation rule forbids attributing them to an iteration that did not execute.
-    let mut context = InstructionMetadata::default();
-    context.drop_debug_loc(DebugLocKind::Dropped);
+    // NOTE: Preheader code runs when the loop statement starts, never for one iteration, so it
+    // takes the loop statement's location.
     builder.set_debug_context(&context);
     builder.switch_to_block(plan.preheader);
     let mut triangular = None;

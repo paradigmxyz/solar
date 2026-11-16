@@ -34,31 +34,25 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v13 = ptradd v0, 64
     mstore v13, 9
     v14 = mload v0
-    v15 = sload 1 !metadata(storage=slot(1))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v17 = and v14, 0xffff
-    v18 = or v16, v17
-    sstore 1, v18 !metadata(storage=slot(1))
-    v19 = ptradd v0, 32
+    v15 = and v14, 0xffff
+    sstore 1, v15 !metadata(storage=slot(1))
+    v16 = ptradd v0, 32
+    v17 = mload v16
+    v18 = inttoptr i256 v17 to ptr<memory>
+    icall @store_storage_bytes, 2, v18
+    v19 = ptradd v0, 64
     v20 = mload v19
-    v21 = inttoptr i256 v20 to ptr<memory>
-    icall @store_storage_bytes, 2, v21
-    v22 = ptradd v0, 64
+    v21 = and v20, 0xffff
+    sstore 3, v21 !metadata(storage=slot(3))
+    v22 = ptradd v0, 96
     v23 = mload v22
-    v24 = sload 3 !metadata(storage=slot(3))
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v26 = and v23, 0xffff
-    v27 = or v25, v26
-    sstore 3, v27 !metadata(storage=slot(3))
-    v28 = ptradd v0, 96
-    v29 = mload v28
-    v30 = inttoptr i256 v29 to ptr<memory>
-    icall @store_storage_bytes, 4, v30
-    v31 = icall @load_storage_bytes, 2
-    v32 = icall @load_storage_bytes, 4
-    v33 = insert_value struct0, undef struct0, 0, v31
-    v34 = insert_value struct0, v33, 1, v32
-    ret v34
+    v24 = inttoptr i256 v23 to ptr<memory>
+    icall @store_storage_bytes, 4, v24
+    v25 = icall @load_storage_bytes, 2
+    v26 = icall @load_storage_bytes, 4
+    v27 = insert_value struct0, undef struct0, 0, v25
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
 ; function g() external returns (bytes memory, bytes memory) [selector 0xe2179b8e]
@@ -92,31 +86,25 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     v13 = ptradd v0, 64
     mstore v13, 9
     v14 = mload v0
-    v15 = sload 1 !metadata(storage=slot(1))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v17 = and v14, 0xffff
-    v18 = or v16, v17
-    sstore 1, v18 !metadata(storage=slot(1))
-    v19 = ptradd v0, 32
+    v15 = and v14, 0xffff
+    sstore 1, v15 !metadata(storage=slot(1))
+    v16 = ptradd v0, 32
+    v17 = mload v16
+    v18 = inttoptr i256 v17 to ptr<memory>
+    icall @store_storage_bytes, 2, v18
+    v19 = ptradd v0, 64
     v20 = mload v19
-    v21 = inttoptr i256 v20 to ptr<memory>
-    icall @store_storage_bytes, 2, v21
-    v22 = ptradd v0, 64
+    v21 = and v20, 0xffff
+    sstore 3, v21 !metadata(storage=slot(3))
+    v22 = ptradd v0, 96
     v23 = mload v22
-    v24 = sload 3 !metadata(storage=slot(3))
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v26 = and v23, 0xffff
-    v27 = or v25, v26
-    sstore 3, v27 !metadata(storage=slot(3))
-    v28 = ptradd v0, 96
-    v29 = mload v28
-    v30 = inttoptr i256 v29 to ptr<memory>
-    icall @store_storage_bytes, 4, v30
-    v31 = icall @load_storage_bytes, 2
-    v32 = icall @load_storage_bytes, 4
-    v33 = insert_value struct0, undef struct0, 0, v31
-    v34 = insert_value struct0, v33, 1, v32
-    ret v34
+    v24 = inttoptr i256 v23 to ptr<memory>
+    icall @store_storage_bytes, 4, v24
+    v25 = icall @load_storage_bytes, 2
+    v26 = icall @load_storage_bytes, 4
+    v27 = insert_value struct0, undef struct0, 0, v25
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
 ; function h() external returns (bytes memory, bytes memory) [selector 0xb8c9d365]
@@ -129,31 +117,25 @@ fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_byte
     v2 = ptradd v0, 96
     mstore v2, 96
     v3 = mload v0
-    v4 = sload 1 !metadata(storage=slot(1))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v6 = and v3, 0xffff
-    v7 = or v5, v6
-    sstore 1, v7 !metadata(storage=slot(1))
-    v8 = ptradd v0, 32
+    v4 = and v3, 0xffff
+    sstore 1, v4 !metadata(storage=slot(1))
+    v5 = ptradd v0, 32
+    v6 = mload v5
+    v7 = inttoptr i256 v6 to ptr<memory>
+    icall @store_storage_bytes, 2, v7
+    v8 = ptradd v0, 64
     v9 = mload v8
-    v10 = inttoptr i256 v9 to ptr<memory>
-    icall @store_storage_bytes, 2, v10
-    v11 = ptradd v0, 64
+    v10 = and v9, 0xffff
+    sstore 3, v10 !metadata(storage=slot(3))
+    v11 = ptradd v0, 96
     v12 = mload v11
-    v13 = sload 3 !metadata(storage=slot(3))
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v15 = and v12, 0xffff
-    v16 = or v14, v15
-    sstore 3, v16 !metadata(storage=slot(3))
-    v17 = ptradd v0, 96
-    v18 = mload v17
-    v19 = inttoptr i256 v18 to ptr<memory>
-    icall @store_storage_bytes, 4, v19
-    v20 = icall @load_storage_bytes, 2
-    v21 = icall @load_storage_bytes, 4
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v13 = inttoptr i256 v12 to ptr<memory>
+    icall @store_storage_bytes, 4, v13
+    v14 = icall @load_storage_bytes, 2
+    v15 = icall @load_storage_bytes, 4
+    v16 = insert_value struct0, undef struct0, 0, v14
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

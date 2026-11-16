@@ -1,0 +1,30 @@
+error[3656]: contract `C` has unimplemented functions
+   ╭▸ ROOT/tests/ui/overrides/unimplemented_fallback.sol:LL:CC
+   │
+LL │ contract C is A {}
+   │ ┬─────── ━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
+   ╰╴
+note: unimplemented function `fallback` defined in `A`
+   ╭▸ ROOT/tests/ui/overrides/unimplemented_fallback.sol:LL:CC
+   │
+LL │     fallback() external virtual;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[3656]: contract `D` has unimplemented functions
+   ╭▸ ROOT/tests/ui/overrides/unimplemented_fallback.sol:LL:CC
+   │
+LL │ contract D is B {}
+   │ ┬─────── ━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
+   ╰╴
+note: unimplemented function `receive` defined in `B`
+   ╭▸ ROOT/tests/ui/overrides/unimplemented_fallback.sol:LL:CC
+   │
+LL │     receive() external payable virtual;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

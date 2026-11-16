@@ -1,13 +1,13 @@
 //@ compile-flags: -Zmir-pipeline=if-convert
 //@ filecheck:
 // solc maps the branch of an `if` to the whole statement, which the join phi carries; our branch
-// carries only the condition. Selects take the phi's span, while hoisted arm operations lose
-// their locations because they also execute when their original source arm does not.
+// carries only the condition. The hoisted arms and the selects take the phi's span, not the
+// condition's or their old arm spans.
 @module BranchDebugContext
 
 // CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
-// CHECK: + {{v[0-9]+}} = add arg0, 1{{$}}
-// CHECK: + {{v[0-9]+}} = sub arg0, 1{{$}}
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=5..9)
+// CHECK: + {{v[0-9]+}} = sub arg0, 1 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = zext i1 arg1 to i256 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}} !metadata(span=5..9)
 fn @diamond(arg0: i256, arg1: i1) -> i256 {
@@ -25,7 +25,7 @@ fn @diamond(arg0: i256, arg1: i1) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @triangle{{[( ]}}
-// CHECK: + {{v[0-9]+}} = add arg0, 1{{$}}
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = zext i1 arg1 to i256 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg0 !metadata(span=5..9)
 fn @triangle(arg0: i256, arg1: i1) -> i256 {

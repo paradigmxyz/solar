@@ -11,8 +11,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing1.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing1.sol: File import callback not supported\n   ╭▸ P1.sol:LL:CC\n   │\nLL │ import \"./Missing1.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing1.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing1.sol: File not found.\n   ╭▸ P1.sol:LL:CC\n   │\nLL │ import \"./Missing1.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -39,8 +39,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing2.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing2.sol: File import callback not supported\n   ╭▸ P2.sol:LL:CC\n   │\nLL │ import \"./Missing2.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing2.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing2.sol: File not found.\n   ╭▸ P2.sol:LL:CC\n   │\nLL │ import \"./Missing2.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -53,8 +53,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing3.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing3.sol: File import callback not supported\n   ╭▸ P3.sol:LL:CC\n   │\nLL │ import \"./Missing3.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing3.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing3.sol: File not found.\n   ╭▸ P3.sol:LL:CC\n   │\nLL │ import \"./Missing3.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -81,8 +81,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing4.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing4.sol: File import callback not supported\n   ╭▸ P4.sol:LL:CC\n   │\nLL │ import \"./Missing4.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing4.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing4.sol: File not found.\n   ╭▸ P4.sol:LL:CC\n   │\nLL │ import \"./Missing4.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -123,8 +123,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing5.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing5.sol: File import callback not supported\n   ╭▸ P5.sol:LL:CC\n   │\nLL │ import \"./Missing5.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing5.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing5.sol: File not found.\n   ╭▸ P5.sol:LL:CC\n   │\nLL │ import \"./Missing5.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -151,8 +151,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing6.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing6.sol: File import callback not supported\n   ╭▸ P6.sol:LL:CC\n   │\nLL │ import \"./Missing6.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing6.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing6.sol: File not found.\n   ╭▸ P6.sol:LL:CC\n   │\nLL │ import \"./Missing6.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -165,8 +165,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing7.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing7.sol: File import callback not supported\n   ╭▸ P7.sol:LL:CC\n   │\nLL │ import \"./Missing7.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing7.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing7.sol: File not found.\n   ╭▸ P7.sol:LL:CC\n   │\nLL │ import \"./Missing7.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {
@@ -193,8 +193,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read Missing8.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read Missing8.sol: File import callback not supported\n   ╭▸ P8.sol:LL:CC\n   │\nLL │ import \"./Missing8.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read Missing8.sol: File not found.",
+      "formattedMessage": "error: couldn't read Missing8.sol: File not found.\n   ╭▸ P8.sol:LL:CC\n   │\nLL │ import \"./Missing8.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━━\n\n"
     },
     {
       "sourceLocation": {

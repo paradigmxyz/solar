@@ -107,9 +107,7 @@ bb6 [entry]:                                      ; function outer() external pu
   push 241
   dup 2
   mstore
-  dup 2
-  dup 2
-  add
+  push 192
   push 241
   push_data literal_0
   dup 3
@@ -136,9 +134,7 @@ bb7 [entry]:                                      ; function inner() external pu
   push 161
   dup 2
   mstore
-  dup 2
-  dup 2
-  add
+  push 192
   push 161
   push_data literal_0+48
   dup 3

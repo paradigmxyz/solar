@@ -1,0 +1,214 @@
+; === ROOT/tests/ui/codegen/run-call/calls/recursive_multi_return_scratch_read.sol:RecursiveMultiReturnScratchRead ===
+@module RecursiveMultiReturnScratchRead
+@types
+  struct0: {i1, i256}
+  struct1: {i256, i1}
+  struct2: {i256, i256}
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; function v() external pure returns (bool, uint256) [selector 0x7c2efcba]
+fn @v() -> struct0 [selector=0x7c2efcba, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, true
+    v1 = insert_value struct0, v0, 1, 7
+    ret v1
+}
+
+; function rec(uint256 x) internal returns (uint256, bool)
+fn @rec(arg0: i256) -> struct1 {
+  bb0:
+    v0 = gt arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v7 = insert_value struct1, undef struct1, 0, arg0
+    v8 = insert_value struct1, v7, 1, true
+    ret v8
+  bb1:                                            ; preds = bb0
+    v1 = checked_sub uint256, arg0, 1
+    v2 = icall @rec, v1
+    v3 = extract_value struct1, v2, 0
+    v4 = extract_value struct1, v2, 1
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
+}
+
+; function branch(uint256 x) external returns (uint256 k) [selector 0x1c13c0f4]
+fn @branch(arg0: i256) -> i256 [selector=0x1c13c0f4, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v15 = icall @rec, arg0
+    v16 = extract_value struct1, v15, 0
+    v17 = extract_value struct1, v15, 1
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v1 = address
+    v2 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = call v2, v3, 0, 28, 4, 0, 64
+    jumpi v4, bb5, bb4
+  bb4:                                            ; preds = bb1
+    revert_returndata
+  bb5:                                            ; preds = bb1
+    v5 = returndatasize
+    v6 = lt v5, 64
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = mload 32 !metadata(memory=scratch)
+    v10 = ne v7, 0
+    v11 = insert_value struct0, undef struct0, 0, v10
+    v12 = insert_value struct0, v11, 1, v9
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    jump bb3
+  bb3:                                            ; preds = bb5, bb2
+    v18 = phi [bb5: v14], [bb2: v16]
+    ret v18
+}
+
+; function sequence(uint256 x) external returns (uint256 k, uint256 j) [selector 0x711e3215]
+fn @sequence(arg0: i256) -> struct2 [selector=0x711e3215, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @rec, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = address
+    v4 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v5 = zext i160 v3 to i256
+    v6 = call v4, v5, 0, 28, 4, 0, 64
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = gt v9, 1
+    icall revert_if<empty>, v10
+    v11 = mload 32 !metadata(memory=scratch)
+    v12 = ne v9, 0
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v11
+    v15 = extract_value struct0, v14, 0
+    v16 = extract_value struct0, v14, 1
+    v17 = insert_value struct2, undef struct2, 0, v1
+    v18 = insert_value struct2, v17, 1, v16
+    ret v18
+}
+
+; function loop(uint256 x) external returns (uint256 k, uint256 j) [selector 0x0b7d796e]
+fn @loop(arg0: i256) -> struct2 [selector=0x0b7d796e, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v21]
+    v2 = phi [bb0: 0], [bb3: v18]
+    v3 = phi [bb0: 0], [bb3: v23]
+    v4 = lt v3, 2
+    jumpi v4, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    v24 = insert_value struct2, undef struct2, 0, v1
+    v25 = insert_value struct2, v24, 1, v2
+    ret v25
+  bb4:                                            ; preds = bb1
+    v5 = address
+    v6 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v7 = zext i160 v5 to i256
+    v8 = call v6, v7, 0, 28, 4, 0, 64
+    jumpi v8, bb8, bb7
+  bb7:                                            ; preds = bb4
+    revert_returndata
+  bb8:                                            ; preds = bb4
+    v9 = returndatasize
+    v10 = lt v9, 64
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = gt v11, 1
+    icall revert_if<empty>, v12
+    v13 = mload 32 !metadata(memory=scratch)
+    v14 = ne v11, 0
+    v15 = insert_value struct0, undef struct0, 0, v14
+    v16 = insert_value struct0, v15, 1, v13
+    v17 = extract_value struct0, v16, 0
+    v18 = extract_value struct0, v16, 1
+    v19 = checked_add uint256, v0, v3
+    v20 = icall @rec, v19
+    v21 = extract_value struct1, v20, 0
+    v22 = extract_value struct1, v20, 1
+    jump bb6
+  bb6:                                            ; preds = bb8
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v23 = checked_add uint256, v3, 1
+    jump bb1
+}
+
+; function sum(uint256 x) internal returns (uint256, bool)
+fn @sum(arg0: i256) -> struct1 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v3 = checked_sub uint256, arg0, 1
+    v4 = icall @sum, v3
+    v5 = extract_value struct1, v4, 0
+    v6 = extract_value struct1, v4, 1
+    v7 = address
+    v8 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v9 = zext i160 v7 to i256
+    v10 = call v8, v9, 0, 28, 4, 0, 64
+    jumpi v10, bb5, bb4
+  bb4:                                            ; preds = bb3
+    revert_returndata
+  bb5:                                            ; preds = bb3
+    v11 = returndatasize
+    v12 = lt v11, 64
+    icall revert_if<tuple_data_too_short>, v12
+    v13 = mload 0 !metadata(memory=scratch)
+    v14 = gt v13, 1
+    icall revert_if<empty>, v14
+    v15 = mload 32 !metadata(memory=scratch)
+    v16 = ne v13, 0
+    v17 = insert_value struct0, undef struct0, 0, v16
+    v18 = insert_value struct0, v17, 1, v15
+    v19 = extract_value struct0, v18, 0
+    v20 = extract_value struct0, v18, 1
+    v21 = checked_add uint256, v5, v20
+    v22 = insert_value struct1, undef struct1, 0, v21
+    v23 = insert_value struct1, v22, 1, true
+    ret v23
+  bb1:                                            ; preds = bb0
+    v1 = insert_value struct1, undef struct1, 0, 0
+    v2 = insert_value struct1, v1, 1, true
+    ret v2
+}
+
+; function nested(uint256 x) external returns (uint256 k) [selector 0x10b80908]
+fn @nested(arg0: i256) -> i256 [selector=0x10b80908, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @sum, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    ret v1
+}

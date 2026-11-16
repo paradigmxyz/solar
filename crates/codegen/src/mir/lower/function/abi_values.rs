@@ -5,7 +5,7 @@ use super::*;
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_abi_encode_builtin(
         &mut self,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
         let exprs = self.variadic_builtin_args(Builtin::AbiEncode, &args)?;
@@ -14,7 +14,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_abi_encode_builtin_args(
         &mut self,
-        exprs: &[hir::Expr<'_>],
+        exprs: &'gcx [hir::Expr<'gcx>],
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
         let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
@@ -23,7 +23,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_abi_encode_scratch(
         &mut self,
-        exprs: &[hir::Expr<'_>],
+        exprs: &'gcx [hir::Expr<'gcx>],
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
         let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
@@ -32,7 +32,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_abi_encode_arguments(
         &mut self,
-        exprs: &[hir::Expr<'_>],
+        exprs: &'gcx [hir::Expr<'gcx>],
     ) -> Option<(Arc<AbiLayout>, Box<[ValueId]>)> {
         // operands = lower_typed(args)
         // values, types = prepare_abi_arguments(resolve(operands))
@@ -48,7 +48,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
                     return this
                         .prepare_abi_encode_argument(expr, ty, value, AbiType::Bytes(location))
-                        .map(AbiOperand::Ready);
+                        .map(Step::Done);
                 }
                 this.lower_abi_operand(expr, memory_ty, |this, value| {
                     let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
@@ -65,7 +65,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((layout, values.into_boxed_slice()))
     }
 
-    pub(super) fn lower_selector_word(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    pub(super) fn lower_selector_word(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<ValueId> {
         let value = if let ExprKind::Lit(lit) = expr.peel_parens().kind
             && let LitKind::Str(_, bytes, _) = &lit.kind
         {
@@ -86,7 +86,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_abi_encode_with_signature(
         &mut self,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         let (signature, rest) =
             self.builtin_args_with_rest::<1>(Builtin::AbiEncodeWithSignature, &args)?;
@@ -97,7 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_encode_bytes(layout, Some(selector), values))
     }
 
-    fn lower_signature(&mut self, signature: &hir::Expr<'_>) -> Option<SignatureOperand> {
+    fn lower_signature(&mut self, signature: &'gcx hir::Expr<'gcx>) -> Option<SignatureOperand> {
         if let Some(selector) = Self::literal_signature_selector(signature) {
             // selector = keccak256(literal)[0..4] << 224
             return Some(SignatureOperand::Selector(self.builder.imm(selector)));
@@ -122,16 +122,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn signature_selector(&mut self, signature: SignatureOperand) -> ValueId {
-        // selector = keccak256(materialize(signature))[0..4] << 224
+        // selector = keccak256(signature)[0..4] << 224
         let signature = match signature {
             SignatureOperand::Selector(selector) => return selector,
             SignatureOperand::Bytes(value, PtrLocation::Storage) => self.load_storage_bytes(value),
             SignatureOperand::Bytes(value, location) => {
                 self.validate_calldata_bytes_argument(value, &AbiType::Bytes(location));
-                match self.builder.func().value_ty(value) {
-                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
-                    _ => value,
-                }
+                value
             }
         };
         let hash = self.builder.keccak256_bytes(signature);
@@ -140,14 +137,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.shl(selector, shift)
     }
 
-    fn literal_signature_selector(signature: &hir::Expr<'_>) -> Option<U256> {
+    fn literal_signature_selector(signature: &'gcx hir::Expr<'gcx>) -> Option<U256> {
         let ExprKind::Lit(lit) = &signature.peel_parens().kind else { return None };
         let LitKind::Str(_, value, _) = &lit.kind else { return None };
         let hash = keccak256(value.as_byte_str());
         Some(U256::from_be_slice(&hash[..4]) << 224)
     }
 
-    pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+    pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'gcx>) -> Option<ValueId> {
         // data = abi_encode_bytes(parameter_layout, function.selector, values)
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
@@ -193,7 +190,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             value,
                             AbiType::Bytes(location),
                         )
-                        .map(AbiOperand::Ready);
+                        .map(Step::Done);
                 }
                 this.lower_abi_operand(expr, memory_ty, |this, value| {
                     let abi_type = this.types.abi_type(memory_ty)?;
@@ -222,7 +219,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<CallResult> {
+    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'gcx>) -> Option<CallResult> {
         // data = input (a calldata slice) | materialize_memory_argument(input)
         // layout = intern_abi_layout(target_types)
         // value = abi_decode(layout, data)
@@ -364,30 +361,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         data_ptr: ValueId,
         data_len: ValueId,
-        selector_matches: ValueId,
     ) -> ValueId {
-        // valid = selector_matches ? try_decode_error_message(data) : false
-        let validate = self.builder.create_block();
-        let no_match = self.builder.create_block();
-        let done = self.builder.create_block();
-        self.builder.branch(selector_matches, validate, no_match);
-
-        self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
         // pointer = ptrtoint data to i256
         // valid = icall try_decode_error_message, pointer, length
         let data_ptr = self.builder.cast(data_ptr, MirType::I256);
-        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
-        let valid_block = self.builder.current_block();
-        self.builder.jump(done);
-
-        self.builder.switch_to_block(no_match);
-        let no_match_value = self.builder.imm_bool(false);
-        let no_match_block = self.builder.current_block();
-        self.builder.jump(done);
-
-        self.builder.switch_to_block(done);
-        self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+        self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1)
     }
 
     /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper.
@@ -444,15 +423,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .expect("error catch match helper construction cannot fail")
     }
 
-    pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let payload_ptr = self.builder.memory_data_at(data, 4);
-        self.builder.load(payload_ptr, PtrLocation::Memory)
+    /// Reads the code of a `Panic(uint256)` payload through scratch memory.
+    pub(super) fn lower_panic_catch_scratch_word(&mut self) -> ValueId {
+        // returndatacopy(0, 4, 32)
+        // code = mload(0)
+        let zero = self.builder.imm(U256::ZERO);
+        let four = self.builder.imm(4);
+        let word = self.builder.imm(32);
+        self.builder.copy(zero, four, word, PtrLocation::Returndata);
+        self.builder.load(zero, PtrLocation::Memory)
     }
 
     pub(super) fn lower_abi_encode_packed(
         &mut self,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         let exprs = self.variadic_builtin_args(builtin, &args)?;
         let parts = self.lower_packed_parts(exprs)?;
@@ -465,7 +450,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
         if !exprs.iter().all(|expr| self.is_scratch_packed_expr(expr)) {
@@ -479,7 +464,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    pub(super) fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_scratch_packed_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         if matches!(
             self.peel_bytes_conversion(expr).peel_parens().kind,
             ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Str(..))
@@ -509,7 +494,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    fn lower_packed_parts(&mut self, exprs: &[hir::Expr<'_>]) -> Option<Box<[PackedPart]>> {
+    fn lower_packed_parts(&mut self, exprs: &'gcx [hir::Expr<'gcx>]) -> Option<Box<[PackedPart]>> {
         // values = evaluate_arguments_in_order(args)
         // parts = describe_packed_shapes(values)
         let mut parts = Vec::with_capacity(exprs.len());
@@ -535,17 +520,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if self.is_dynamic_bytes_type(ty) {
                 let (value, location) = self.lower_bytes_operand(expr, memory_ty)?;
                 parts.push(Some(self.lower_packed_part(expr, ty, value, Some(location))?));
-            } else if self.is_storage_object_copy(source, memory_ty) {
-                storage.push((parts.len(), self.require_storage_access(source)?.slot, expr, ty));
-                parts.push(None);
             } else {
-                let value = self.lower_typed_expr(expr, memory_ty)?.clean(self, memory_ty);
-                parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
+                let operand = self.lower_operand(expr, memory_ty)?;
+                if operand.waits() {
+                    storage.push((parts.len(), operand, expr, ty));
+                    parts.push(None);
+                } else {
+                    let value = self.convert_operand(operand)?.clean(self, memory_ty);
+                    parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
+                }
             }
         }
-        for (index, slot, expr, ty) in storage {
-            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-            let value = self.load_storage_object(memory_ty, slot, expr.span)?;
+        for (index, operand, expr, ty) in storage {
+            let memory_ty = operand.target;
+            let value = self.convert_operand(operand)?.clean(self, memory_ty);
             parts[index] = Some(self.lower_packed_part(expr, ty, value, None)?);
         }
         Some(parts.into_iter().flatten().collect())
@@ -553,7 +541,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_packed_part(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         mut value: ValueId,
         location: Option<PtrLocation>,
@@ -936,52 +924,81 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_hash_precompile_call(
         &mut self,
         builtin: Builtin,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.cx.gcx.types.bytes_ref.memory;
-        // input = materialize(bytes)
+        // input = stage(bytes)
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
             let input = self.operand(input)?.id();
-            self.copy_calldata_bytes_unchecked(input)?
+            self.builder.stage_bytes(input)
         } else {
             let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, input, span)?
         };
-        // result = sha256(input) / ripemd160(input)
-        let kind = if builtin == Builtin::Sha256 {
-            InstKind::builtin(crate::mir::Builtin::Sha256, [input])
+        // The digest is a full word, so it can land in scratch memory.
+        // success = extcall static word (sha256 ? 2 : 3), input
+        // branch success, done, failed
+        // failed: revert_returndata
+        // done: digest = mload 0
+        let ripemd = builtin == Builtin::Ripemd160;
+        let address = self.builder.imm(if ripemd { 3 } else { 2 });
+        let policy = CallPolicy { kind: ExtCallKind::Static, output: CallOutput::Word };
+        let success = self.builder.extcall(policy, address, Some(input), None, None);
+        let digest = self.load_call_word(success);
+        if ripemd {
+            // result = digest << 96
+            let scale = self.builder.imm(1_u128 << 96);
+            Some(self.builder.mul(scale, digest))
         } else {
-            InstKind::builtin(crate::mir::Builtin::Ripemd160, [input])
-        };
-        Some(self.builder.emit_inst(kind, Some(MirType::I256)))
+            Some(digest)
+        }
     }
 
-    pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+    pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'gcx>) -> Option<ValueId> {
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
-        let hash = &values[0];
-        let v = &values[1];
-        let r = &values[2];
-        let s = &values[3];
-        let hash = self.operand(hash)?.id();
-        let v = self.operand(v)?.id();
-        let r = self.operand(r)?.id();
-        let s = self.operand(s)?.id();
+        let values = values
+            .iter()
+            .map(|value| self.operand(value).map(|operand| operand.id()))
+            .collect::<Option<Vec<_>>>()?;
+        // A rejected signature returns no data, so the output word is cleared first.
+        // base = fmp
+        // mstore(base, hash), mstore(base + 32, v), mstore(base + 64, r), mstore(base + 96, s)
+        // input = make_memory_slice base, 128
+        // success = extcall static word 1, input
+        // branch success, done, failed
+        // failed: revert_returndata
+        // done: result = mload 0
+        let base = self.builder.fmp();
+        let words = self.builder.cast_word(base);
+        for (offset, value) in (0..).step_by(32).zip(values) {
+            let address = self.builder.add_offset(words, offset);
+            let value = self.builder.cast_word(value);
+            self.builder.store(address, value);
+        }
+        let size = self.builder.imm(128);
+        let input = self.builder.make_slice(base, size, PtrLocation::Memory);
+        let address = self.builder.imm(1);
+        let policy = CallPolicy { kind: ExtCallKind::Static, output: CallOutput::Word };
+        let success = self.builder.extcall(policy, address, Some(input), None, None);
+        Some(self.load_call_word(success))
+    }
 
-        // result = ecrecover(hash, v, r, s)
-        Some(self.builder.emit_inst(
-            InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
-            Some(MirType::I256),
-        ))
+    /// Reverts with the returndata of a failed call, and otherwise loads the word that a call with
+    /// a word output left in scratch memory.
+    fn load_call_word(&mut self, success: ValueId) -> ValueId {
+        self.builder.revert_returndata_unless(success);
+        let scratch = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+        self.builder.load(scratch, PtrLocation::Memory)
     }
 
     /// `keccak256(abi.encode(..))` of one or two value-type words, hashed in scratch space like
     /// the packed form. Function values and untyped literals keep the general encoder.
     pub(super) fn lower_keccak_abi_encode_words(
         &mut self,
-        exprs: &[hir::Expr<'_>],
+        exprs: &'gcx [hir::Expr<'gcx>],
     ) -> Option<ValueId> {
         if !(1..=2).contains(&exprs.len()) {
             return None;
@@ -1016,7 +1033,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 }
 
 /// Whether the type is a calldata reference or a slice of one.
-fn lies_in_calldata(ty: Ty<'_>) -> bool {
+pub(super) fn lies_in_calldata(ty: Ty<'_>) -> bool {
     match ty.kind {
         TyKind::Slice(inner) => inner.is_ref_at(DataLocation::Calldata),
         _ => ty.is_ref_at(DataLocation::Calldata),

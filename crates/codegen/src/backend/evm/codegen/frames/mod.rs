@@ -21,7 +21,7 @@ use super::{
     WORD_BYTES, immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
-    BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
+    BlockId, Callee, EffectKind, InstructionMetadata, PtrLocation, RawMemoryAccess,
     analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
@@ -110,8 +110,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Records a function entry when debug output is requested.
-    pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(&mut self, func: &Function) {
+    /// Records a function entry when debug output is requested. `dispatched` tells that the
+    /// dispatcher or the deployment code enters `func`, not a call.
+    pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(
+        &mut self,
+        func: &Function,
+        dispatched: bool,
+    ) {
         if self.capture_debug_info
             && !func.declaration_span.is_dummy()
             && let Some(identifier) = func.debug_identifier
@@ -119,6 +124,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.mark_function_invoke(DebugFunction {
                 identifier,
                 declaration: func.declaration_span,
+                dispatched,
             });
         }
     }
@@ -135,28 +141,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             && !func.declaration_span.is_dummy()
             && func.debug_identifier.is_some()
         {
-            self.asm.set_label_origin(label, func.declaration_span, 0);
+            self.asm.set_label_origins(label, [func.declaration_span], 0);
         }
     }
 
-    /// Gives `label`, which starts `block` of `func`, the origin that MIR placed the block's label
-    /// under: the statement a block opens, or the function for its entry (solc's `LocationSetter`
-    /// scopes). A label with several origins gets none, as the source map writes a union as `-1`.
+    /// Gives `label`, which starts a block of a MIR function, the origin that MIR placed the
+    /// block's label under: the statement a block opens, or the function for its entry (solc's
+    /// `LocationSetter` scopes). A label with several origins keeps all of them.
     pub(in crate::backend::evm::codegen) fn mark_block_label_origin(
         &mut self,
         label: Label,
-        func: &Function,
-        block: BlockId,
+        origin: &InstructionMetadata,
     ) {
-        if !self.capture_debug_info {
-            return;
-        }
-        let metadata = &func.blocks[block].label_metadata;
-        let mut spans = metadata.source_spans();
-        if let Some(span) = spans.next()
-            && spans.next().is_none()
-        {
-            self.asm.set_label_origin(label, span, metadata.modifier_depth());
+        if self.capture_debug_info && origin.source_spans().next().is_some() {
+            self.asm.set_label_origins(label, origin.source_spans(), origin.modifier_depth());
         }
     }
 
@@ -997,7 +995,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// immediately before an object through any memory read or write. Reserve
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
-    /// adding a negative constant reserves the same prefix as subtracting its magnitude.
+    /// adding a negative constant reserves the same prefix as subtracting its magnitude. A step
+    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1327,10 +1326,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return Some(prefix);
             }
             if let Some(forward) = u256_to_u64(adjustment) {
-                Some(prefix.saturating_sub(forward))
-            } else {
-                Some(prefix.saturating_add(u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?))
+                return Some(prefix.saturating_sub(forward));
             }
+            let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
+            // NOTE: A step back this far never reaches the frames: it takes a heap pointer no
+            // execution can afford, and from any other one it wraps to the top of memory, as for a
+            // constant out-of-bounds index, whose bounds check reverts first.
+            if back >= EvmMemoryLayout::UNREACHABLE_MEMORY {
+                return None;
+            }
+            Some(prefix.saturating_add(back))
         };
         let offset = (|| match func.value(value) {
             Value::Arg(index) => {
@@ -1497,7 +1502,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let id = self.asm.new_deferred_const();
         // push heap_start; push FMP_SLOT; mstore
-        self.emit_with_contract_origin(|codegen| {
+        // NOTE: solc runs one contract-wide preamble before dispatch (`compileContract`); ours runs
+        // per entry after dispatch and stores that entry's own floor, so it belongs to the entry.
+        self.emit_with_origin(Some(module.functions[entry].declaration_span), |codegen| {
             codegen.asm.emit_push_deferred(id);
             codegen.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             codegen.asm.emit_op(op::MSTORE);

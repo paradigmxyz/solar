@@ -9,7 +9,9 @@
 //! declared type.
 //!
 //! The pass is required and runs after `lower-memory-objects` and before `lower-alloc`; the
-//! backend accepts no slice value.
+//! backend accepts no slice value. Builtins that consume slices must run through `lower-builtins`
+//! first: replacing their slices with pointers would lose the lengths, and memory slices could
+//! then be mistaken for objects with length headers. Reject such consumers before any edits.
 //!
 //! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
 //! slice parameter becomes a pointer and a length word. A returned slice whose producer is a real
@@ -24,7 +26,7 @@
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    MirType, Module, PhaseCategory, PtrLocation, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
@@ -46,11 +48,39 @@ impl MirPass for LowerSlices {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        if module.functions.iter().any(|func| {
+            func.instructions().any(|inst| {
+                let kind = &func.inst(inst).kind;
+                kind.op_def().phase_category == Some(PhaseCategory::Builtin)
+                    && kind
+                        .operands()
+                        .iter()
+                        .any(|&operand| func.value_slice_location(operand).is_some())
+            })
+        }) {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-slices` requires lowered builtin slice operands; run `lower-builtins` first")
+                    .emit(),
+            );
+            return false;
+        }
         // NOTE: Rewriting a projection of a lowered memory object into a load is not reported
-        // as a change on its own.
-        analyses.note_unreported_module_edit();
-        Self::run(module, analyses)
+        // as a change on its own. Every rewrite here involves a slice-typed value, parameter,
+        // or result, so a function without one stays as it is.
+        let touched = module
+            .functions
+            .iter_enumerated()
+            .filter(|(_, func)| Self::has_slices(func))
+            .map(|(func_id, _)| func_id)
+            .collect::<Vec<_>>();
+        let changed = Self::run(module, analyses);
+        for func_id in touched {
+            analyses.invalidate_local_summary(func_id);
+        }
+        analyses.preserve_local_summaries();
+        changed
     }
 }
 
@@ -489,6 +519,15 @@ impl LowerSlices {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
         true
+    }
+
+    /// Returns whether a function has a slice-typed value, parameter, or result.
+    fn has_slices(func: &Function) -> bool {
+        func.params.iter().any(Self::is_slice)
+            || func.return_components().iter().any(Self::is_slice)
+            || (0..func.num_values()).any(|index| {
+                func.value_ty(ValueId::from_usize(index)).is_some_and(|ty| Self::is_slice(&ty))
+            })
     }
 
     const fn is_slice(ty: &MirType) -> bool {

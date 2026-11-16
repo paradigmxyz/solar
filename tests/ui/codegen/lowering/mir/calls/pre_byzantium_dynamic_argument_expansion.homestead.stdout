@@ -135,10 +135,7 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v17 = call v15, v16, 0, v9, v10, v9, 192
     jumpi v17, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -163,6 +160,9 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb5:                                            ; preds = bb3, bb6
     v35 = phi [bb3: v34], [bb6: 7]
     ret v35
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function stringCall() external returns (uint256) [selector 0xbdbbac6d]

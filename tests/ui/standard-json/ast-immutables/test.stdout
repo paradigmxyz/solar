@@ -1,0 +1,475 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "ImmutableIdentity.sol": {
+      "id": 0,
+      "ast": {
+        "id": 8,
+        "src": "32:342:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "ImmutableIdentity.sol",
+        "exportedSymbols": {
+          "ImmutableIdentity": [
+            0
+          ]
+        },
+        "license": "MIT",
+        "nodes": [
+          {
+            "id": 9,
+            "src": "32:24:0",
+            "nodeType": "PragmaDirective",
+            "literals": [
+              "solidity",
+              "^",
+              "0.8",
+              ".30"
+            ]
+          },
+          {
+            "id": 0,
+            "src": "58:315:0",
+            "nodeType": "ContractDefinition",
+            "name": "ImmutableIdentity",
+            "nameLocation": "67:17:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "ImmutableIdentity",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 3,
+                "src": "91:34:0",
+                "nodeType": "VariableDeclaration",
+                "name": "ORIGINAL",
+                "nameLocation": "117:8:0",
+                "typeName": {
+                  "id": 10,
+                  "src": "91:7:0",
+                  "nodeType": "ElementaryTypeName",
+                  "name": "address",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "stateMutability": "nonpayable"
+                },
+                "constant": false,
+                "mutability": "immutable",
+                "stateVariable": true,
+                "storageLocation": "default",
+                "visibility": "private",
+                "scope": 0,
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                }
+              },
+              {
+                "id": 4,
+                "src": "131:32:0",
+                "nodeType": "VariableDeclaration",
+                "name": "LENDER",
+                "nameLocation": "157:6:0",
+                "typeName": {
+                  "id": 11,
+                  "src": "131:7:0",
+                  "nodeType": "ElementaryTypeName",
+                  "name": "address",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "stateMutability": "nonpayable"
+                },
+                "constant": false,
+                "mutability": "immutable",
+                "stateVariable": true,
+                "storageLocation": "default",
+                "visibility": "private",
+                "scope": 0,
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                }
+              },
+              {
+                "id": 1,
+                "src": "170:94:0",
+                "nodeType": "FunctionDefinition",
+                "name": "",
+                "nameLocation": "-1:-1:-1",
+                "kind": "constructor",
+                "stateMutability": "nonpayable",
+                "virtual": false,
+                "parameters": {
+                  "id": 13,
+                  "src": "181:16:0",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 5,
+                      "src": "182:14:0",
+                      "nodeType": "VariableDeclaration",
+                      "name": "lender",
+                      "nameLocation": "190:6:0",
+                      "typeName": {
+                        "id": 14,
+                        "src": "182:7:0",
+                        "nodeType": "ElementaryTypeName",
+                        "name": "address",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "stateMutability": "nonpayable"
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 1,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    }
+                  ]
+                },
+                "returnParameters": {
+                  "id": 12,
+                  "src": "198:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "public",
+                "body": {
+                  "id": 15,
+                  "src": "198:66:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 16,
+                      "src": "208:24:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 17,
+                        "src": "208:24:0",
+                        "nodeType": "Assignment",
+                        "operator": "=",
+                        "leftHandSide": {
+                          "id": 18,
+                          "src": "208:8:0",
+                          "nodeType": "Identifier",
+                          "name": "ORIGINAL",
+                          "referencedDeclaration": 3,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "rightHandSide": {
+                          "id": 19,
+                          "src": "219:13:0",
+                          "nodeType": "FunctionCall",
+                          "expression": {
+                            "id": 20,
+                            "src": "219:7:0",
+                            "nodeType": "ElementaryTypeNameExpression",
+                            "typeName": {
+                              "id": 21,
+                              "src": "219:7:0",
+                              "nodeType": "ElementaryTypeName",
+                              "name": "address",
+                              "typeDescriptions": {}
+                            },
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_type$_t_address_$",
+                              "typeString": "type(address)"
+                            },
+                            "argumentTypes": [
+                              {
+                                "typeIdentifier": "t_contract$_ImmutableIdentity_$0",
+                                "typeString": "contract ImmutableIdentity"
+                              }
+                            ],
+                            "isLValue": false,
+                            "isPure": true,
+                            "isConstant": false,
+                            "lValueRequested": false
+                          },
+                          "names": [],
+                          "nameLocations": [],
+                          "arguments": [
+                            {
+                              "id": 22,
+                              "src": "227:4:0",
+                              "nodeType": "Identifier",
+                              "name": "this",
+                              "referencedDeclaration": -28,
+                              "overloadedDeclarations": [],
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_contract$_ImmutableIdentity_$0",
+                                "typeString": "contract ImmutableIdentity"
+                              }
+                            }
+                          ],
+                          "tryCall": false,
+                          "kind": "typeConversion",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          },
+                          "isLValue": false,
+                          "isPure": false,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    },
+                    {
+                      "id": 23,
+                      "src": "242:15:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 24,
+                        "src": "242:15:0",
+                        "nodeType": "Assignment",
+                        "operator": "=",
+                        "leftHandSide": {
+                          "id": 25,
+                          "src": "242:6:0",
+                          "nodeType": "Identifier",
+                          "name": "LENDER",
+                          "referencedDeclaration": 4,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "rightHandSide": {
+                          "id": 26,
+                          "src": "251:6:0",
+                          "nodeType": "Identifier",
+                          "name": "lender",
+                          "referencedDeclaration": 5,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": 2,
+                "src": "270:101:0",
+                "nodeType": "FunctionDefinition",
+                "name": "values",
+                "nameLocation": "279:6:0",
+                "kind": "function",
+                "stateMutability": "view",
+                "virtual": false,
+                "parameters": {
+                  "id": 28,
+                  "src": "285:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 27,
+                  "src": "310:18:0",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 6,
+                      "src": "311:7:0",
+                      "nodeType": "VariableDeclaration",
+                      "name": "",
+                      "nameLocation": "-1:-1:-1",
+                      "typeName": {
+                        "id": 29,
+                        "src": "311:7:0",
+                        "nodeType": "ElementaryTypeName",
+                        "name": "address",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "stateMutability": "nonpayable"
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 2,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    {
+                      "id": 7,
+                      "src": "320:7:0",
+                      "nodeType": "VariableDeclaration",
+                      "name": "",
+                      "nameLocation": "-1:-1:-1",
+                      "typeName": {
+                        "id": 30,
+                        "src": "320:7:0",
+                        "nodeType": "ElementaryTypeName",
+                        "name": "address",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "stateMutability": "nonpayable"
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 2,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    }
+                  ]
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "external",
+                "body": {
+                  "id": 31,
+                  "src": "329:42:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 32,
+                      "src": "339:25:0",
+                      "nodeType": "Return",
+                      "expression": {
+                        "id": 33,
+                        "src": "346:18:0",
+                        "nodeType": "TupleExpression",
+                        "isInlineArray": false,
+                        "components": [
+                          {
+                            "id": 34,
+                            "src": "347:8:0",
+                            "nodeType": "Identifier",
+                            "name": "ORIGINAL",
+                            "referencedDeclaration": 3,
+                            "overloadedDeclarations": [],
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_address",
+                              "typeString": "address"
+                            }
+                          },
+                          {
+                            "id": 35,
+                            "src": "357:6:0",
+                            "nodeType": "Identifier",
+                            "name": "LENDER",
+                            "referencedDeclaration": 4,
+                            "overloadedDeclarations": [],
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_address",
+                              "typeString": "address"
+                            }
+                          }
+                        ],
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_tuple$_t_address_$_t_address_$",
+                          "typeString": "tuple(address,address)"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      },
+                      "functionReturnParameters": 27
+                    }
+                  ]
+                },
+                "functionSelector": "971217b7"
+              }
+            ],
+            "scope": 8,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "contracts": {
+    "ImmutableIdentity.sol": {
+      "ImmutableIdentity": {
+        "evm": {
+          "deployedBytecode": {
+            "immutableReferences": {
+              "3": [
+                {
+                  "start": 25,
+                  "length": 20
+                }
+              ],
+              "4": [
+                {
+                  "start": 46,
+                  "length": 20
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

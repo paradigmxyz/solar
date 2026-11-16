@@ -396,24 +396,14 @@ fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_par
 ; function emitBytes(bytes calldata value) external returns (uint256) [selector 0xc76f0635]
 fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 31
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v3 = add v2, 32
-    v4 = lt v3, v0
-    icall panic_if<0x41>, v4
-    v5 = alloc v3
-    mstore v5, v0
-    v6 = ptradd v5, 32
-    v7 = extract_value slice<calldata>, arg0, 0
-    v8 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v6, v7, v8
-    v9 = ptradd v5, 32
-    v10 = mload v5
-    v11 = keccak256 v9, v10
-    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v11
-    v12 = extract_value slice<calldata>, arg0, 1
-    ret v12
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = fmp
+    calldatacopy v2, v0, v1 !metadata(memory=heap)
+    v3 = keccak256 v2, v1
+    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v3
+    v4 = extract_value slice<calldata>, arg0, 1
+    ret v4
 }
 
 ; function copyArray(bytes[] calldata values) external pure returns (uint256) [selector 0x58bdfbf3]

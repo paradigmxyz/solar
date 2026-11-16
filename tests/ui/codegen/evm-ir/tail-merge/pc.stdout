@@ -1,0 +1,33 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/pc.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/pc.evmir (after tail-merge) ===
+  @module TailMergePc
+  bb0:
+    push 0
+    calldataload
+    push bb2
+    jumpi
+    jump bb1
+  bb1:
+    push 1
+    push 0
+    mstore
+    pc
+-   push 0
+-   mstore
+-   push 32
+-   push 0
+-   return
++   jump bb3
+  bb2:
+    push 2
+    push 0
+    mstore
+    pc
++   jump bb3
++ bb3:
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

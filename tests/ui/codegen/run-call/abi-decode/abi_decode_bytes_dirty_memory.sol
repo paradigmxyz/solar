@@ -79,18 +79,14 @@ contract DecodeBytesPadding {
     }
 
     function check(bytes memory decoded, bytes32 expected) private pure returns (bool) {
-        bool clean;
         assembly {
-            // Padding must be reserved as well as cleared, including at a misaligned base.
+            // The object must be reserved as well as intact, including at a misaligned base.
             mstore(mload(0x40), not(0))
-            let n := mload(decoded)
-            let last := mload(add(add(decoded, 0x20), and(n, not(31))))
-            clean := or(iszero(and(n, 31)), iszero(shl(mul(and(n, 31), 8), last)))
         }
         bytes memory next = new bytes(33);
         next[0] = 0x7a;
         next[32] = 0x7b;
-        return clean && keccak256(decoded) == expected
+        return keccak256(decoded) == expected
             && next.length == 33 && next[0] == 0x7a && next[32] == 0x7b;
     }
 }

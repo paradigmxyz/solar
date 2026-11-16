@@ -1,0 +1,50 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/search_latch.evmir (before loop-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/search_latch.evmir (after loop-layout) ===
+  @module SearchLatch
+  bb0:
+    push 4
+    push 0
+    push 0
+    jump bb1
+  bb1:
+    push 32
+    dup 3
+    add
+    jump bb2
+  bb2:
+    dup 1
+    dup 3
+    eq
+    push bb6
+    jumpi
+    dup 1
+    calldataload
+    dup 1
+    push 160
+    shr
+    push bb7
+    jumpi
+    dup 4
+    sub
+    push bb5
+    jumpi
+    jump bb6
+  bb6:
+    pop
+    push 1
+    add
+    dup 1
+    dup 3
+    gt
+    push bb1
+    jumpi
+    stop
+  bb5:
+    push 32
+    add
+    jump bb2
+  bb7 [cold]:
+    push 0
+    push 0
+    revert
+  

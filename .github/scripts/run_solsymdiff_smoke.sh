@@ -13,28 +13,41 @@ out="${SOLSYMDIFF_OUT:-$workspace/target/solsymdiff-smoke}"
 fixtures="$workspace/fuzz/fandango/symbolic-fixtures"
 mutate="$fixtures/mutate.py"
 fee5=0x0000000000000000000000000000000000000000000000000000000000000005
+fee7=0x0000000000000000000000000000000000000000000000000000000000000007
+fee9=0x0000000000000000000000000000000000000000000000000000000000000009
 
 cd "$workspace"
 mkdir -p "$out"
 export SOLSYMDIFF_SOLC="$solc"
 
 # check NAME EXPECTED_STATUS EXPECTED_LABEL COMPILER MUTATION ARGS...
+#
+# A mismatch must include EXPECTED_LABEL among the mismatched checks. An
+# incomplete result must have exactly the comma-separated EXPECTED_LABEL
+# checks incomplete and no mismatch.
 check() {
   local name="$1" status="$2" label="$3" compiler="$4" mutation="$5"
   shift 5
   local code=0
   SOLSYMDIFF_MUTATION="$mutation" python3 fuzz/bin/solsymdiff \
     --solc "$solc" --solar "$compiler" --forge "$forge" --solver "$solver" \
-    --output-root "$out" --timeout 900 --symbolic-caller \
+    --output-root "$out" --timeout 900 \
     "$@" > "$out/$name.json" || code=$?
   python3 - "$out/$name.json" "$name" "$status" "$label" <<'PY'
 import json, sys
 
 path, name, status, label = sys.argv[1:]
 result = json.load(open(path))
-checks = result.get("checks", [])
-failed = [c["label"] for c in checks if c["status"] == "mismatch"]
-if result["status"] != status or (label and label not in failed):
+labels = {}
+for check in result.get("checks", []):
+    labels.setdefault(check["status"], []).append(check["label"])
+if status == "mismatch":
+    ok = label in labels.get("mismatch", [])
+elif status == "incomplete":
+    ok = sorted(labels.get("incomplete", [])) == sorted(label.split(","))
+else:
+    ok = True
+if result["status"] != status or not ok:
     print(f"{name}: expected {status} {label}, got {result['status']}", file=sys.stderr)
     print(json.dumps(result, indent=2), file=sys.stderr)
     raise SystemExit(1)
@@ -47,24 +60,32 @@ bank_contract=(--source "$fixtures/Bank.sol" --contract Bank)
 bank=("${bank_contract[@]}" --all-functions)
 vault=(--source "$fixtures/Vault.sol" --contract Vault --all-functions)
 
-check bank bounded_agreement "" "$solar" "[]" "${bank[@]}" --constructor-args "$fee5"
-check vault-arbitrary-storage bounded_agreement "" "$solar" "[]" "${vault[@]}" \
-  --arbitrary-storage
+# Solc and Solar create different Child code, which Forge counts as a
+# difference, so the checks that reach `spawn` are incomplete.
+check bank incomplete "spawn(uint256),<other calldata>" "$solar" "[]" "${bank[@]}" \
+  --constructor-args "$fee5" --promise-no-reent
+# From arbitrary storage, Forge cannot replay its models of mapping reads, so
+# the checks that reach `bal` are incomplete.
+check vault-arbitrary-storage incomplete "bal(address),<other calldata>" "$solar" "[]" \
+  "${vault[@]}" --arbitrary-storage
 
-# These check that the harness catches each kind of difference, using solc and
+# These check that solsymdiff catches each kind of difference, using solc and
 # a mutated solc; they never run Solar.
 if [[ "${SOLSYMDIFF_SELF_TEST:-}" == 1 ]]; then
-  check bank-constructor mismatch "fee()" "$mutate" \
-    '["fee = f;", "fee = f == 7 ? 8 : f;"]' "${bank[@]}"
+  check bank-constructor-revert mismatch "<constructor>" "$mutate" \
+    '["require(f < 100);", "require(f < 100 && f != 9);"]' "${bank[@]}" \
+    --constructor-args "$fee9"
+  check bank-immutable mismatch "fee()" "$mutate" \
+    '["fee = f;", "fee = f == 7 ? 8 : f;"]' "${bank[@]}" --constructor-args "$fee7"
   check bank-created-contract mismatch "spawn(uint256)" "$mutate" \
     '["v = x;", "v = x == 5 ? 6 : x;"]' "${bank[@]}" --constructor-args "$fee5"
   check bank-fallback mismatch "<other calldata>" "$mutate" \
     '["count += 2;", "count += 3;"]' "${bank[@]}" --constructor-args "$fee5"
-  # Only reachable after a deposit, so only a two-call sequence finds it.
-  check bank-sequence mismatch "deposit() -> quote(uint256)" "$mutate" \
+  # Only reachable after a deposit, so empty storage never reaches it.
+  check bank-storage-dependent mismatch "quote(uint256)" "$mutate" \
     '["return x * fee / 100;", "return count == 1 ? 0 : x * fee / 100;"]' \
     "${bank_contract[@]}" --constructor-args "$fee5" --signature 'quote(uint256)' \
-    --depth 2
+    --arbitrary-storage
   check vault-unreachable-state mismatch "read()" "$mutate" \
     '["return total + level;", "return level == 7 ? 0 : total + level;"]' \
     "${vault[@]}" --arbitrary-storage

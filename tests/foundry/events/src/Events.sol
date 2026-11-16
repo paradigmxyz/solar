@@ -213,4 +213,42 @@ contract Events {
         lateText = "after";
         return 3;
     }
+
+    event StagedBytes(bytes indexed value);
+    event StagedText(string indexed value);
+    event StagedPair(Pair indexed value);
+
+    // Indexed hash inputs are staged at the free memory pointer, never reserved.
+    function emitStagedBytes(bytes calldata value) public {
+        emit StagedBytes(value);
+    }
+
+    function emitStagedBytesSlice(bytes calldata value) public {
+        emit StagedBytes(value[1:3]);
+    }
+
+    function emitStagedMemoryBytes(bytes memory value) public {
+        emit StagedBytes(value);
+    }
+
+    function emitStagedText(string calldata value) public {
+        emit StagedText(value);
+    }
+
+    function emitStagedPair(Pair calldata value) public {
+        emit StagedPair(value);
+    }
+
+    function emitStagedMemoryPair(uint256 first, uint256 second) public {
+        Pair memory value = Pair(first, second);
+        emit StagedPair(value);
+    }
+
+    event StagedMixed(Pair indexed pair, bytes indexed one, bytes data, bytes indexed two, uint256 count);
+
+    function emitStagedMixed(Pair calldata pair, bytes calldata one, bytes calldata data, bytes calldata two)
+        public
+    {
+        emit StagedMixed(pair, one, data, two, 7);
+    }
 }

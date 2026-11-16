@@ -170,23 +170,11 @@ bb18 [continuation]:                              ; store_storage_bytes (synthes
   push 32
   dup 2
   add
-  dup 4
-  dup 4
-  dup 3
-  calldatacopy
-  dup 4
-  add
-  calldatasize
-  swap 4
-  push 0
-  sub
-  push 31
-  and
+  swap 3
   swap 2
-  swap 4
   swap 1
+  swap 3
   calldatacopy
-  pop
   push bb20
   push 0
   sload
@@ -526,15 +514,11 @@ bb81:
   mul
   add
   push 128
-  push 64
-  dup 2
-  add
+  push 192
   push 4
   dup 3
   mstore
-  push 32
-  dup 3
-  add
+  push 160
   swap 3
   dup 4
   mstore

@@ -1,0 +1,56 @@
+//@ filecheck:
+// The module aliases of a cycle, which a source imports with `{ Plain, Glob }`, refer to the
+// directives of the source that declares them.
+// CHECK: "absolutePath": "auxiliary/Lib.sol"
+// CHECK: "Glob": [
+// CHECK-NEXT: [[GLOB:[0-9]+]]
+// CHECK: "Plain": [
+// CHECK-NEXT: [[PLAIN:[0-9]+]]
+// CHECK: "absolutePath": "Cycle.sol"
+// CHECK: "name": "Plain",
+// CHECK-NEXT: "overloadedDeclarations": [],
+// CHECK-NEXT: "referencedDeclaration": [[PLAIN]],
+// CHECK: "name": "Glob",
+// CHECK-NEXT: "overloadedDeclarations": [],
+// CHECK-NEXT: "referencedDeclaration": [[GLOB]],
+// A source that imports all symbols of another exports the alias of the directive that declares it,
+// and not that of another source with the same alias.
+// CHECK: "absolutePath": "First.sol"
+// CHECK: "Common": [
+// CHECK-NEXT: [[FIRST:[0-9]+]]
+// CHECK: "absolutePath": "Mid.sol"
+// CHECK: "S": [
+// CHECK-NEXT: [[MID_S:[0-9]+]]
+// CHECK: "absolutePath": "Second.sol"
+// CHECK: "Common": [
+// CHECK-NEXT: [[SECOND:[0-9]+]]
+// The alias `S` of a module that `T` names is the directive of that module, not the `S` of this
+// source.
+// CHECK: "absolutePath": "Top.sol"
+// CHECK: "S": [
+// CHECK-NEXT: [[TOP_S:[0-9]+]]
+// CHECK: "T": [
+// CHECK-NEXT: [[TOP_T:[0-9]+]]
+// CHECK: "name": "S",
+// CHECK-NEXT: "referencedDeclaration": [[TOP_S]],
+// CHECK: "name": "T",
+// CHECK-NEXT: "referencedDeclaration": [[TOP_T]],
+// CHECK: "referencedDeclaration": [[MID_S]],
+// CHECK: "absolutePath": "ViaFirst.sol"
+// CHECK: "Common": [
+// CHECK-NEXT: [[FIRST]]
+// CHECK: "absolutePath": "ViaSecond.sol"
+// CHECK: "Common": [
+// CHECK-NEXT: [[SECOND]]
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

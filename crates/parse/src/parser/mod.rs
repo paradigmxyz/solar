@@ -1320,10 +1320,14 @@ fn parse_natspec(
                 "dev" => ast::NatSpecKind::Dev,
                 "param" | "inheritdoc" => {
                     let name_start = rest_start;
-                    // Names are identifier prefixes, mirroring solc: `@param -`
-                    // documents an unnamed parameter with an empty name.
-                    let (name, content_start_pos) =
-                        crate::natspec::split_once_ident(content, rest_start, line_end);
+                    // Parameter names are identifier prefixes, mirroring solc: `@param -`
+                    // documents an unnamed parameter with an empty name. An `@inheritdoc`
+                    // reference is a word, which may be a path such as `M.Base`.
+                    let (name, content_start_pos) = if tag == "param" {
+                        crate::natspec::split_once_ident(content, rest_start, line_end)
+                    } else {
+                        crate::natspec::split_once_ws(content, rest_start, line_end)
+                    };
                     content_start = content_start_pos;
                     let name_lo = comment_span.lo() + PREFIX_BYTES + name_start as u32;
                     let name_span = Span::new(name_lo, name_lo + name.len() as u32);
