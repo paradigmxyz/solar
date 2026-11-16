@@ -54,15 +54,15 @@ fn @sum() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
-    jumpi v12, bb8, bb9
-  bb9:                                            ; preds = bb0
+    jumpi v12, bb7, bb8
+  bb8:                                            ; preds = bb0
     v13 = calldataload 4
     jump bb1
-  bb1:                                            ; preds = bb9
+  bb1:                                            ; preds = bb8
     jump bb2
-  bb2:                                            ; preds = bb1, bb7
-    v1 = phi [bb1: 0], [bb7: v9]
-    v2 = phi [bb1: 1], [bb7: v7]
+  bb2:                                            ; preds = bb1, bb6
+    v1 = phi [bb1: 0], [bb6: v9]
+    v2 = phi [bb1: 1], [bb6: v7]
     v3 = lt v13, v2
     v4 = eq v3, false
     jumpi v4, bb3, bb4
@@ -72,20 +72,16 @@ fn @sum() {
   bb3:                                            ; preds = bb2
     v9 = add v1, v2
     v10 = lt v9, v1
-    jumpi v10, bb6, bb7
-  bb7:                                            ; preds = bb3
+    jumpi v10, bb5, bb6
+  bb6:                                            ; preds = bb3
     v7 = add v2, 1
     v8 = lt v7, v2
     jumpi v8, bb5, bb2
-  bb5 [cold]:                                     ; preds = bb7
+  bb5 [cold]:                                     ; preds = bb6, bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6 [cold]:                                     ; preds = bb3
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb8 [cold]:                                     ; preds = bb0
+  bb7 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 

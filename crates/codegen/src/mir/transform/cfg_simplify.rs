@@ -19,9 +19,7 @@
 //! preserve stack lifetimes.
 //!
 //! ## Debuggable `-Onone`
-//! An unoptimized function keeps every terminal block, as the origin of a shared block merges
-//! those of its copies and the legacy source map writes it as -1, so a merged `return true;` loses
-//! its anchor. It also keeps the block of each `break` and `continue` statement, so that the
+//! An unoptimized function keeps the block of each `break` and `continue` statement, so that the
 //! statement and the branch path into it keep an instruction of their own. Block merging and empty
 //! block elimination skip a block whose jump has the origin of such a statement, found by the
 //! text of the origin: the `break` that desugars a loop condition takes the origin of the loop and
@@ -252,10 +250,7 @@ fn run(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     let mut changed = simplify_degenerate_terminators(func);
     changed |= merge_blocks(func, unoptimized);
     changed |= eliminate_empty_blocks(func, unoptimized);
-    // An unoptimized function keeps each terminal block: a shared one has no single origin.
-    if unoptimized.is_none() {
-        changed |= deduplicate_terminal_blocks(func);
-    }
+    changed |= deduplicate_terminal_blocks(func);
     changed |= simplify_trivial_phis(func);
     changed
 }
