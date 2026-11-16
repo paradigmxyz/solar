@@ -230,7 +230,7 @@ impl<'gcx> Literal<'gcx> {
 }
 
 /// A component of a tuple expression.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub(crate) struct Component<'gcx> {
     /// The value of the component, if it is a literal.
     pub(crate) literal: Option<Literal<'gcx>>,

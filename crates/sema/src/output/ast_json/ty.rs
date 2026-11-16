@@ -20,7 +20,8 @@ pub(super) struct TypeCache<'gcx> {
     /// Keyed by the type, the pointer mark and `expr`, which decide most descriptions. The small
     /// key keeps the map small.
     plain: RefCell<FxHashMap<(Ty<'gcx>, bool, bool), Box<RawValue>>>,
-    /// Those of literals, tuples, call options and builtin functions.
+    /// Those of literals, call options and builtin functions. Tuple expressions are written each
+    /// time: they rarely repeat, and their components are large to keep.
     other: RefCell<FxHashMap<TypeKey<'gcx>, Box<RawValue>>>,
 }
 
@@ -29,10 +30,12 @@ pub(super) struct TypeDescriptions<'a, 'gcx> {
     pub(super) gcx: Gcx<'gcx>,
     pub(super) cache: Option<&'a TypeCache<'gcx>>,
     pub(super) key: TypeKey<'gcx>,
+    /// What solc knows of the components of a tuple expression.
+    pub(super) components: Vec<Component<'gcx>>,
 }
 
-/// What decides the `typeDescriptions` of a type.
-#[derive(Clone, PartialEq, Eq, Hash)]
+/// What decides the `typeDescriptions` of a type, but the components of a tuple expression.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct TypeKey<'gcx> {
     pub(super) ty: Ty<'gcx>,
     /// Whether solc marks the reference types as pointers.
@@ -41,8 +44,6 @@ pub(super) struct TypeKey<'gcx> {
     pub(super) expr: bool,
     /// The value of the literal of the type.
     pub(super) literal: Option<Literal<'gcx>>,
-    /// What solc knows of the components of a tuple expression.
-    pub(super) components: Vec<Component<'gcx>>,
     /// Whether the call options `gas`, `value` and `salt` are set on the function.
     pub(super) call_options: [bool; 3],
     /// The kind of the builtin function of the type, such as `keccak256`.
@@ -57,44 +58,40 @@ impl<'a, 'gcx> TypeDescriptions<'a, 'gcx> {
             pointer,
             expr: false,
             literal: None,
-            components: Vec::new(),
             call_options: [false; 3],
             function_kind: None,
         };
-        Self { gcx: cx.gcx, cache: cx.types, key }
+        Self { gcx: cx.gcx, cache: cx.types, key, components: Vec::new() }
     }
 }
 
 impl<'gcx> TypeDescriptions<'_, 'gcx> {
     /// Writes the descriptions, or the written ones if they were written before.
     fn serialize_cached<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Some(cache) = self.cache else { return self.write(s) };
-        let TypeKey { ty, pointer, expr, literal, components, call_options, function_kind } =
-            &self.key;
-        if literal.is_none()
-            && components.is_empty()
-            && *call_options == [false; 3]
-            && function_kind.is_none()
-        {
-            self.serialize_in(s, &cache.plain, &(*ty, *pointer, *expr))
+        let Some(cache) = self.cache.filter(|_| self.components.is_empty()) else {
+            return self.write(s);
+        };
+        let TypeKey { ty, pointer, expr, literal, call_options, function_kind } = self.key;
+        if literal.is_none() && call_options == [false; 3] && function_kind.is_none() {
+            self.serialize_in(s, &cache.plain, (ty, pointer, expr))
         } else {
-            self.serialize_in(s, &cache.other, &self.key)
+            self.serialize_in(s, &cache.other, self.key)
         }
     }
 
     /// Writes the descriptions, or the ones written for `key` in `cache`.
-    fn serialize_in<S: Serializer, K: Clone + Eq + Hash>(
+    fn serialize_in<S: Serializer, K: Eq + Hash>(
         &self,
         s: S,
         cache: &RefCell<FxHashMap<K, Box<RawValue>>>,
-        key: &K,
+        key: K,
     ) -> Result<S::Ok, S::Error> {
-        if let Some(written) = cache.borrow().get(key) {
+        if let Some(written) = cache.borrow().get(&key) {
             return written.serialize(s);
         }
         let written = serde_json::value::to_raw_value(&Uncached(self)).map_err(S::Error::custom)?;
         let result = written.serialize(s);
-        cache.borrow_mut().insert(key.clone(), written);
+        cache.borrow_mut().insert(key, written);
         result
     }
 
@@ -115,7 +112,7 @@ impl<'gcx> TypeDescriptions<'_, 'gcx> {
         let key = &self.key;
         TySolcPrinter::new(self.gcx, buf)
             .literal(key.literal)
-            .components(&key.components)
+            .components(&self.components)
             .call_options(key.call_options)
             .function_kind(key.function_kind)
     }
@@ -256,11 +253,10 @@ impl Serialize for ExprType<'_, '_, '_> {
                 && is_pointer(gcx, expr),
             expr: true,
             literal: literal(gcx, expr, ty),
-            components,
             call_options,
             function_kind,
         };
-        TypeDescriptions { gcx, cache: cx.types, key }.serialize(s)
+        TypeDescriptions { gcx, cache: cx.types, key, components }.serialize(s)
     }
 }
 
