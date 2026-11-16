@@ -7,10 +7,12 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import pathlib
 import subprocess
 import sys
 import tempfile
+import typing
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -1275,17 +1277,15 @@ class LifecycleHelpers(unittest.TestCase):
 
 
 class LifecycleStages(unittest.TestCase):
-    """Every lifecycle run ends at a stage that fails: the kernel when the observed stages agree
-    (UNSUPPORTED-lifecycle), else the first stage that disagrees (REJECTED)."""
+    """The observed stages before the kernel: all agree for the real examples, else the first that
+    disagrees is the run's REJECTED stage."""
 
     def first(self, example, res, imm=()):
         st = generic.lifecycle_stages(res, LIFE_RUNTIME[example], list(imm))
         self.assertEqual(
-            [q["stage"] for q in st],
-            ["source", "initcode", "runtime bytes", "storage", "kernel"],
+            [q["stage"] for q in st], ["source", "initcode", "runtime bytes", "storage"]
         )
-        self.assertFalse(st[-1]["ok"], "the kernel stage must never pass yet")
-        return next(q for q in st if not q["ok"])
+        return next((q for q in st if not q["ok"]), {"stage": "kernel"})
 
     def test_real_examples_agree(self):
         for ex, (_, res) in REAL.items():
@@ -1353,15 +1353,18 @@ class LifecycleStages(unittest.TestCase):
 
 class LifecycleRun(unittest.TestCase):
     """lifecycle_run end to end with solar, git, the front end and the probe replaced: it exits 4
-    with UNSUPPORTED-lifecycle when every observed stage agrees and 1 at a stage that does not, and
-    never 0."""
+    with UNSUPPORTED-lifecycle when every observed stage agrees but the kernel stage has nothing to
+    prove (a base without the generic creation frame, a constructor outside its shape), 1 at a
+    stage that disagrees or a creation the kernel refutes, and 0 only when the kernel builds the
+    generated lifecycle module."""
 
-    def drive(self, example, args, res, ast=None):
+    def drive(self, example, args, res, ast=None, bins=None, frame=False, build=None):
         src = LIFE / f"{example}.sol"
-        bins = {
-            "bin": "6080" + LIFE_RUNTIME[example],
-            "bin-runtime": LIFE_RUNTIME[example],
-        }
+        if bins is None:
+            bins = {
+                "bin": "6080" + LIFE_RUNTIME[example],
+                "bin-runtime": LIFE_RUNTIME[example],
+            }
         if ast is None:
             ast = {
                 "nodes": [
@@ -1374,8 +1377,26 @@ class LifecycleRun(unittest.TestCase):
             generic.frontend,
             generic.run_lifecycle_probe,
             generic.log,
+            generic.lifecycle_build,
         )
         seen = {}
+
+        def fake_git(cwd, *args, **kw):
+            # The clone of a base with the generic creation frame, when FRAME.
+            if frame and args[:1] == ("checkout",):
+                (pathlib.Path(cwd) / "Verify" / "Lifecycle").mkdir(
+                    parents=True, exist_ok=True
+                )
+                (
+                    pathlib.Path(cwd) / "Verify" / "Lifecycle" / "CreationFrame.lean"
+                ).write_text("")
+            return "b" * 40
+
+        def fake_build(lean_dir, name, source_text, mod, text, cache):
+            seen.setdefault("built", []).append(mod)
+            return (build or (lambda mod, text: (False, "error: no Lean here")))(
+                mod, text
+            )
 
         def fake_run(cmd, *a, **kw):
             return 0, json.dumps({"contracts": {f"{src}:{example}": bins}}), ""
@@ -1390,7 +1411,11 @@ class LifecycleRun(unittest.TestCase):
             seen.update(status=status, code=code, line=line)
             raise SystemExit(code)
 
-        generic.run, generic.git = fake_run, (lambda *a, **kw: "b" * 40)
+        generic.run, generic.git, generic.lifecycle_build = (
+            fake_run,
+            fake_git,
+            fake_build,
+        )
         generic.frontend = lambda *a, **kw: (0, "-- body", "")
         generic.run_lifecycle_probe, generic.log = fake_probe, (lambda *a, **kw: None)
         record = {}
@@ -1403,6 +1428,8 @@ class LifecycleRun(unittest.TestCase):
                     solc="solc",
                     probe_cache=None,
                 )
+                rec_dir = pathlib.Path(t) / "rec"
+                rec_dir.mkdir()
                 generic.lifecycle_run(
                     a,
                     record,
@@ -1414,7 +1441,10 @@ class LifecycleRun(unittest.TestCase):
                     ast,
                     pathlib.Path(t) / "w",
                     finish,
+                    [],
+                    rec_dir,
                 )
+                seen["rec_files"] = sorted(q.name for q in rec_dir.iterdir())
         finally:
             (
                 generic.run,
@@ -1422,8 +1452,8 @@ class LifecycleRun(unittest.TestCase):
                 generic.frontend,
                 generic.run_lifecycle_probe,
                 generic.log,
+                generic.lifecycle_build,
             ) = saved
-        self.assertNotEqual(seen["code"], 0)
         return seen, record
 
     def ctor_ast(self, example, types, imm=()):
@@ -1501,6 +1531,83 @@ class LifecycleRun(unittest.TestCase):
             seen["line"].startswith("REJECTED: lifecycle: storage: "), seen["line"]
         )
 
+    def test_kernel_proves(self):
+        # Kernel YES only when the generated module builds: then CERTIFIED, exit 0, and only then.
+        seen, rec = self.drive(
+            "NoArgCtor",
+            None,
+            REAL["NoArgCtor"][1],
+            self.ctor_ast("NoArgCtor", []),
+            frame=True,
+            build=lambda mod, text: (mod == "Lifecycle", ""),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("CERTIFIED", 0))
+        self.assertEqual(seen["built"], ["Lifecycle"])
+        self.assertEqual(rec["lifecycle"]["stages"][-1]["stage"], "kernel")
+        self.assertTrue(rec["lifecycle"]["stages"][-1]["ok"])
+        self.assertIn("Certified.x.Lifecycle.statement", rec["lifecycle"]["statement"])
+
+    def test_kernel_refutes(self):
+        seen, rec = self.drive(
+            "NoArgCtor",
+            None,
+            REAL["NoArgCtor"][1],
+            self.ctor_ast("NoArgCtor", []),
+            frame=True,
+            build=lambda mod, text: (mod == "LifecycleRefute", ""),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("REJECTED", 1))
+        self.assertTrue(
+            seen["line"].startswith("REJECTED: lifecycle: kernel: "), seen["line"]
+        )
+        self.assertFalse(rec["lifecycle"]["stages"][-1]["ok"])
+
+    def test_kernel_neither(self):
+        seen, _ = self.drive(
+            "NoArgCtor",
+            None,
+            REAL["NoArgCtor"][1],
+            self.ctor_ast("NoArgCtor", []),
+            frame=True,
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        self.assertEqual(seen["built"], ["Lifecycle", "LifecycleRefute"])
+
+    def test_payable_outside(self):
+        ast = self.ctor_ast("NoArgCtor", [])
+        ast["nodes"][0]["nodes"][0]["stateMutability"] = "payable"
+        seen, _ = self.drive(
+            "NoArgCtor",
+            None,
+            REAL["NoArgCtor"][1],
+            ast,
+            frame=True,
+            build=lambda mod, text: (True, ""),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        self.assertIn("payable", seen["line"])
+        self.assertNotIn("built", seen)
+
+    def test_sload_outside(self):
+        # A constructor that reads storage, compiled by solar from generated text: exit 4, SLOAD named,
+        # and nothing built.
+        bins = solar_bins("SloadCtor", SLOAD_CTOR)
+        if bins is None:
+            self.skipTest("needs solar")
+        res = life_probe("NoArgCtor", [(1, 1)], runtime=bins["bin-runtime"])
+        seen, _ = self.drive(
+            "SloadCtor",
+            None,
+            res,
+            self.ctor_ast("SloadCtor", []),
+            bins=bins,
+            frame=True,
+            build=lambda mod, text: (True, ""),
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("UNSUPPORTED-lifecycle", 4))
+        self.assertIn("SLOAD at", seen["line"])
+        self.assertNotIn("built", seen)
+
     def test_wrong_arity_blocked(self):
         with self.assertRaises(generic.Blocked):
             self.drive(
@@ -1509,6 +1616,214 @@ class LifecycleRun(unittest.TestCase):
                 REAL["ArgCtor"][1],
                 self.ctor_ast("ArgCtor", ["uint256", "address"]),
             )
+
+
+SOLAR_BIN = pathlib.Path(
+    os.environ.get("SOLAR", HERE.parent.parent / "target" / "debug" / "solar")
+)
+# A constructor that reads storage (outside the generic creation frame), as generated text.
+SLOAD_CTOR = """// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract SloadCtor {
+    uint256 public x;
+    uint256 public y;
+
+    constructor() {
+        y = x + 1;
+    }
+}
+"""
+
+
+def solar_bins(contract, text=None, src=None):
+    """solar's bin and bin-runtime of CONTRACT with the driver's options, from TEXT (written to a
+    temporary file) or the file SRC; None without solar."""
+    if not SOLAR_BIN.exists():
+        return None
+    with tempfile.TemporaryDirectory() as t:
+        if src is None:
+            src = pathlib.Path(t) / f"{contract}.sol"
+            src.write_text(text)
+        out = subprocess.run(
+            [str(SOLAR_BIN), str(src), *generic.OPTIONS, "--emit=bin,bin-runtime"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    return next(
+        v
+        for k, v in json.loads(out)["contracts"].items()
+        if k.rsplit(":", 1)[1] == contract
+    )
+
+
+class LifecycleFrame(unittest.TestCase):
+    """The kernel stage's inputs: the opcodes outside the generic creation frame, and the immutable
+    patches the generated module states."""
+
+    def test_outside(self):
+        self.assertEqual(generic.frame_outside(bytes.fromhex("5f5455")), {"SLOAD": 1})
+        self.assertEqual(
+            generic.frame_outside(bytes.fromhex("7f" + "54" * 32 + "a0")), {"LOG0": 33}
+        )
+        self.assertEqual(
+            generic.frame_outside(bytes.fromhex("34600a57602060005ff35b5f5ffd")), {}
+        )
+        for ex in ("NoArgCtor", "ArgCtor", "PairCtor", "ImmutableCtor"):
+            bins = solar_bins(ex, src=LIFE / f"{ex}.sol")
+            if bins is None:
+                self.skipTest("needs solar")
+            init, plain = bytes.fromhex(bins["bin"]), bytes.fromhex(bins["bin-runtime"])
+            self.assertEqual(
+                generic.frame_outside(generic.creation_prefix(init, plain)), {}, ex
+            )
+
+    def test_patches(self):
+        plain = bytes.fromhex(LIFE_RUNTIME["ImmutableCtor"])
+        filled = bytes.fromhex(REAL["ImmutableCtor"][1]["runtime"])
+        self.assertEqual(generic.immutable_patches(plain, plain), [])
+        [(off, w)] = generic.immutable_patches(filled, plain)
+        self.assertEqual((w, plain[off - 1]), (1000, 0x7F))
+        self.assertIsNone(generic.immutable_patches(filled + b"\0", plain))
+
+
+BASE_DRIVER = "128b674ed"
+
+
+class NoConstructorRoute(unittest.TestCase):
+    """The lifecycle kernel stage leaves the other tiers' generated text byte-identical to the
+    driver it is built on (BASE_DRIVER), and their envelope unchanged for a source without
+    constructor parameters."""
+
+    def test_identical(self):
+        p = subprocess.run(
+            ["git", "-C", str(HERE), "show", f"{BASE_DRIVER}:tools/certify/generic.py"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if p.returncode != 0:
+            self.skipTest(f"no {BASE_DRIVER} in this checkout")
+        with tempfile.TemporaryDirectory() as t:
+            (pathlib.Path(t) / "generic_base.py").write_text(p.stdout)
+            sys.path.insert(0, t)
+            try:
+                import generic_base as old
+            finally:
+                sys.path.remove(t)
+        fns = [
+            {"sig": "get()", "sel": 0x6D4CE63C, "params": []},
+            {"sig": "set(uint256)", "sel": 0x60FE47B1, "params": [".uint 256"]},
+        ]
+        events = [{"sig": "E(uint256)", "topic": 0x1234}]
+        for m in (old, generic):
+            m.out = [
+                m.lowering_lean("n_x", "C", fns, events, "core", "[]"),
+                m.lowering_lean("n_x", "C", fns, events, "core", "[(0, 1)]", sym=True),
+                m.probe_lean("n_x", "C", fns),
+                m.lakefile_lib("n_x", "C"),
+            ]
+        self.assertEqual(old.out, generic.out)
+        if SOLC.exists():
+            src = LIFE / "NoArgCtor.sol"
+            ast, contracts = generic.solc_ast(str(SOLC), src)
+            self.assertEqual(
+                old.envelope(src.read_text(), ast, contracts, None, None, False),
+                generic.envelope(src.read_text(), ast, contracts, None, None, False),
+            )
+
+
+LEAN_PATH = os.environ.get("LIFECYCLE_LEAN_PATH")
+
+
+@unittest.skipUnless(
+    LEAN_PATH and SOLC.exists() and SOLAR_BIN.exists(),
+    "needs LIFECYCLE_LEAN_PATH (a solidity-lean build with Verify/Lifecycle), solc and solar",
+)
+class LifecycleKernel(unittest.TestCase):
+    """The kernel stage on Lean the driver generates from solar's own output: the four examples
+    prove Deploys and DeployedAtWith (Verify.Lifecycle.Statement); a wrong argument, a missing slot
+    and an unpatched immutable are refuted by the kernel instead. Each build is one Lean process,
+    one thread, at most 6000 MB."""
+
+    CASES: typing.ClassVar = {
+        "NoArgCtor": ([], [(0, 7)]),
+        "ArgCtor": ([42, 0xBEEF], [(0, 42), (1, 0xBEEF)]),
+        "PairCtor": ([42, 0xBEEF], [(0, 42), (1, 48921)]),
+        "ImmutableCtor": ([1000], [(0, 1001)]),
+    }
+
+    def build(self, mod, text):
+        with tempfile.TemporaryDirectory() as t:
+            f = pathlib.Path(t) / f"{mod}.lean"
+            f.write_text(text)
+            p = subprocess.run(
+                ["lean", "-M", "6000", "-j", "1", str(f)],
+                capture_output=True,
+                text=True,
+                env=dict(os.environ, LEAN_PATH=LEAN_PATH),
+                check=False,
+            )
+        return p.returncode == 0, p.stdout + p.stderr
+
+    def kernel(self, ex, ws, storage, deployed=None, plain=None):
+        src = LIFE / f"{ex}.sol"
+        ast, contracts = generic.solc_ast(str(SOLC), src)
+        _, fns, _ = generic.envelope(
+            src.read_text(), ast, contracts, ex, None, False, True
+        )
+        bins = solar_bins(ex, src=src)
+        init, rt = bytes.fromhex(bins["bin"]), bytes.fromhex(bins["bin-runtime"])
+        plain = rt if plain is None else plain
+        if deployed is None:
+            deployed = rt
+            if ex == "ImmutableCtor":
+                off = rt.index(bytes.fromhex("7f" + "00" * 32)) + 1
+                deployed = rt[:off] + (1000).to_bytes(32, "big") + rt[off + 32 :]
+        sigs = [{"sig": f["sig"], "sel": f["sel"]} for f in fns]
+        outside = [
+            f"{op} at {o}"
+            for op, o in generic.frame_outside(
+                generic.creation_prefix(init, rt)
+            ).items()
+        ]
+        return generic.lifecycle_kernel(
+            self.build,
+            f"Certified.T.{ex}",
+            f"Verify.Lifecycle.Examples.{ex}",
+            f"Verify.Lifecycle.Examples.{ex}.importedSourceUnit",
+            ex,
+            sigs,
+            init,
+            plain,
+            deployed,
+            ws,
+            storage,
+            outside,
+        )
+
+    def test_examples_prove(self):
+        for ex, (ws, storage) in self.CASES.items():
+            q = self.kernel(ex, ws, storage)
+            self.assertEqual(
+                (q["verdict"], q["ok"]), ("proved", True), (ex, q["detail"])
+            )
+            self.assertIn("theorem statement", q["lean"])
+
+    def test_wrong_arg_refuted(self):
+        q = self.kernel("ArgCtor", [41, 0xBEEF], [(0, 42), (1, 0xBEEF)])
+        self.assertEqual(q["verdict"], "refuted", q["detail"])
+
+    def test_missing_slot_refuted(self):
+        q = self.kernel("PairCtor", [42, 0xBEEF], [(0, 42)])
+        self.assertEqual(q["verdict"], "refuted", q["detail"])
+
+    def test_unpatched_immutable_refuted(self):
+        bins = solar_bins("ImmutableCtor", src=LIFE / "ImmutableCtor.sol")
+        rt = bytes.fromhex(bins["bin-runtime"])
+        q = self.kernel("ImmutableCtor", [1000], [(0, 1001)], deployed=rt)
+        self.assertEqual(q["verdict"], "refuted", q["detail"])
 
 
 @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
