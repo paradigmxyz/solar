@@ -9,8 +9,6 @@
 
 Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
 
-Read the [Solar v0.3 announcement](https://www.paradigm.xyz/writing/solar-100-faster-solidity): 100× faster Solidity.
-
 <p align="center">
     <picture align="center">
         <img alt="Solar cover" src="/assets/cover.png">
@@ -52,6 +50,8 @@ its project's settings), the generated contracts used **5% less gas**, cost **26
 deploy** and had **29% smaller bytecode** than those compiled with solc, as geometric means.
 See the [results](https://www.getfoundry.sh/perf/solar/?head=0303bb7d606a50ef158e34669b5851f47a1e054e#benchmarks) and
 [benchmark instructions](benches/runtime/README.md) for inputs, settings and how to reproduce them.
+
+Read more in the [Solar v0.3 announcement](https://www.paradigm.xyz/writing/solar-100-faster-solidity).
 
 ### How it works
 
