@@ -645,12 +645,17 @@ fn physical_cores(logical: usize) -> Option<usize> {
     if online.len() > logical {
         return Some(logical);
     }
-    // Count each core at its first sibling: hybrid CPUs mix cores with and without SMT.
+    let siblings = |cpu: usize| {
+        cpus(&format!("/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list"))
+    };
+    let per_core = siblings(*online.first()?)?.len();
+    if siblings(*online.last()?)?.len() == per_core {
+        return Some(online.len() / per_core.max(1));
+    }
+    // Hybrid CPUs mix cores with and without SMT, so count each core at its first sibling.
     let mut cores = 0;
     for cpu in online {
-        let siblings =
-            cpus(&format!("/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list"))?;
-        cores += usize::from(siblings.first() == Some(&cpu));
+        cores += usize::from(siblings(cpu)?.first() == Some(&cpu));
     }
     Some(cores)
 }
