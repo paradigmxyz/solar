@@ -237,6 +237,9 @@ impl<'gcx> AstJson<'gcx> {
                 {
                     state = ahead.changed.wait(state).unwrap();
                 }
+                // The output writes the sources it reached before any worker started them, and
+                // takes those that `write_large` wrote.
+                state.started = state.started.max(state.taken);
                 let Some(&id) = ahead.order.get(state.started).filter(|_| !state.closed) else {
                     return;
                 };
