@@ -623,7 +623,13 @@ impl Threads {
 
 fn get_threads() -> NonZeroUsize {
     static THREADS: OnceLock<NonZeroUsize> = OnceLock::new();
-    *THREADS.get_or_init(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
+    *THREADS.get_or_init(|| {
+        let logical = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
+        // A thread per logical core leaves idle workers spinning in work stealing on the sibling
+        // threads of the busy ones, which slows every project down.
+        NonZeroUsize::new(num_cpus::get_physical())
+            .map_or(logical, |physical| physical.min(logical))
+    })
 }
 
 str_enum! {

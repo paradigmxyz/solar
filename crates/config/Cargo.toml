@@ -26,6 +26,7 @@ smolgen = { workspace = true, optional = true, features = [
 [dependencies]
 alloy-primitives.workspace = true
 colorchoice.workspace = true
+num_cpus.workspace = true
 semver.workspace = true
 strum = { workspace = true, features = ["derive"] }
 

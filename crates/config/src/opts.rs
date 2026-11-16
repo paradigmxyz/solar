@@ -93,7 +93,7 @@ pub struct CompileOpts {
     )]
     pub language: Language,
 
-    /// Number of threads to use. Zero specifies the number of logical cores.
+    /// Number of threads to use. Zero specifies the number of physical cores.
     #[cfg_attr(feature = "clap", arg(long, short = 'j', visible_alias = "jobs", default_value_t))]
     pub threads: Threads,
     /// EVM version.
