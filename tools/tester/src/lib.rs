@@ -34,6 +34,7 @@ mod run_call;
 mod solc;
 mod standard_json;
 mod utils;
+mod watchdog;
 
 /// Runs all the tests.
 ///
@@ -94,6 +95,8 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
     let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
     let status_emitter = (text_emitter, gha_emitter);
+
+    watchdog::spawn();
 
     ui_test::run_tests_generic(
         configs,
