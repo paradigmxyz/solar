@@ -83,6 +83,15 @@ impl InstructionMetadata {
         }
     }
 
+    /// Renames the values of the edge assignments as the operands of the jump are renamed.
+    pub(crate) fn rewrite_edge_assignments(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        for assignment in
+            self.edge_assignments.iter_mut().flat_map(|assignments| &mut assignments.0)
+        {
+            f(&mut assignment.value);
+        }
+    }
+
     /// Returns the source span that produced this instruction.
     #[must_use]
     pub fn source_span(&self) -> Option<Span> {

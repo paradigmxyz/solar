@@ -1819,6 +1819,7 @@ impl<'a> Planner<'a> {
     #[inline(always)]
     fn stack_op(&self, sim: &mut Sim, op: StackOp) -> Result<(), Fail> {
         let height = sim.stack.len();
+        let mut step = Step::Stack(op);
         match op {
             StackOp::Dup(n) => {
                 let n = n as usize;
@@ -1827,6 +1828,10 @@ impl<'a> Planner<'a> {
                 }
                 let slot = sim.stack[height - n];
                 sim.stack.push(slot);
+                step = Step::Dup(
+                    n as u8,
+                    if let Slot::Value(value) = slot { Some(value) } else { None },
+                );
             }
             StackOp::Swap(n) => {
                 let n = n as usize;
@@ -1851,7 +1856,7 @@ impl<'a> Planner<'a> {
             .get(op)
             .or_else(|| self.target.stack_op(op))
             .expect("stack operation within reach");
-        sim.steps.push(Step::Stack(op));
+        sim.steps.push(step);
         Ok(())
     }
 

@@ -444,6 +444,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .iter()
                     .position(|&(stored, _)| stored == value)
                     .map(|index| assignments.remove(index).1),
+                // A copy of a value that several assignments stored serves one of them, and no
+                // record says which.
+                Step::Dup(_, Some(value)) | Step::Reload(value)
+                    if assignments.iter().filter(|&&(stored, _)| stored == value).count() == 1 =>
+                {
+                    assignments
+                        .iter()
+                        .position(|&(stored, _)| stored == value)
+                        .map(|index| assignments.remove(index).1)
+                }
                 _ => None,
             };
             if let Some(origin) = origin {
@@ -572,6 +582,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         match step {
             &Step::Stack(op) => self.asm.emit_stack_op(op),
+            &Step::Dup(n, _) => self.asm.emit_stack_op(StackOp::Dup(n)),
             &Step::Materialize(value) => self.emit_materialized(func, value),
             &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
             &Step::Spill(value) => {
@@ -682,17 +693,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Returns the assignments, as the value each stored and its source context, whose constants
-    /// the code of the edge out of `block` may push, or none when `exit` is not a jump.
+    /// Returns the assignments, as the value each stored and its source context, whose pushes and
+    /// copies the code of the edge out of `block` may carry, or none when `exit` is not a jump.
     ///
     /// NOTE: A jump is an edge that leaves `block` unconditionally, so its code runs exactly once
     /// per execution of `block`. The assignments in [`InstructionMetadata::edge_assignments`]
-    /// ran in `block`, so the push of the value of one runs exactly when the assignment does and
-    /// may carry its span, as a copy carries the location of the instruction it replaces. An edge
-    /// out of a block that branches keeps the origin of its terminator: its code runs on one arm
-    /// only. Only a push of a constant is matched, by its value: the planner does not record
-    /// which phi a `DUP` or a reload serves, so a copy of a variable keeps the origin of the
-    /// terminator rather than take the span of an arbitrary assignment.
+    /// ran in `block`, so the push or `DUP` of the value of one runs exactly when the assignment
+    /// does and may carry its span, as a copy carries the location of the instruction it
+    /// replaces. An edge out of a block that branches keeps the origin of its terminator: its
+    /// code runs on one arm only. A push is matched by its value. A `DUP` or a reload, which
+    /// [`Step::Dup`] and [`Step::Reload`] name by the value they copy, is matched only when one
+    /// assignment stored the value, since the planner does not record which phi a copy serves.
+    /// A word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
+    /// map.
     fn edge_assignments<'f>(
         &self,
         func: &'f Function,
