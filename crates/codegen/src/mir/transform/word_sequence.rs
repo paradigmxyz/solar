@@ -410,7 +410,6 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
     let mut changed = cyclic.as_ref().is_some_and(|cyclic| spell_zero_tested(func, target, cyclic));
     let mut uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
-    let fails_to_cold = cold_failure_conditions(func, &uses);
     let mut masks = None;
     let mut ordered = Vec::new();
     let mut seen = FxHashSet::default();
@@ -446,13 +445,19 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
                 ordered.push(inst);
                 continue;
             }
-            let is_branch_only =
-                func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
+            let value = func.inst_result_value(inst);
+            let is_branch_only = value.is_some_and(|value| branch_only.contains(&value));
             let read = ConditionRead {
                 branch: is_branch_only,
-                fails_to_cold: func
-                    .inst_result_value(inst)
-                    .is_some_and(|value| fails_to_cold.contains(&value)),
+                fails_to_cold: value.is_some_and(|value| {
+                    uses[value] == 1
+                        && matches!(func.blocks[block].terminator,
+                            Some(Terminator::Branch { condition, then_block, else_block })
+                                if condition == value
+                                    && func.blocks[else_block].hotness.is_cold()
+                                    && !func.blocks[then_block].hotness.is_cold()
+                                    && func.blocks[then_block].predecessors.len() == 1)
+                }),
                 in_loop: cyclic.as_ref().is_some_and(|cyclic| cyclic.contains(block)),
             };
             let mut best = None;
@@ -651,8 +656,10 @@ fn zero_tested_leaf(
 struct ConditionRead {
     /// A branch reads the word, through the `or` that joins it with other tests, if any.
     branch: bool,
-    /// A branch reads the word itself and goes to a cold block when it is false, so the backend
-    /// lays out the hot side first and jumps when the test fails.
+    /// A branch reads the word itself and goes to a cold block when it is false and to a hot one
+    /// that only it enters when it is true, so the backend places the hot block next and jumps
+    /// when the test fails. A hot block with other predecessors, such as a join or a loop header,
+    /// may be placed elsewhere, and the branch then jumps when the test holds.
     fails_to_cold: bool,
     in_loop: bool,
 }
@@ -710,25 +717,6 @@ fn extend_through_or(
             }
         }
     }
-}
-
-/// Values whose only use is the condition of a branch in their defining block that goes to a cold
-/// block when they are false and to a hot one when they are true.
-fn cold_failure_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
-    func.blocks
-        .iter()
-        .filter_map(|block| {
-            let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
-            else {
-                return None;
-            };
-            (uses[condition] == 1
-                && func.blocks[else_block].hotness.is_cold()
-                && !func.blocks[then_block].hotness.is_cold()
-                && matches!(*func.value(condition), Value::Inst(def) if block.instructions.contains(&def)))
-            .then_some(condition)
-        })
-        .collect()
 }
 
 /// Values whose every use is the condition of a branch or check in their defining block, the

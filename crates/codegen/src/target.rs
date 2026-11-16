@@ -565,7 +565,8 @@ impl Target {
             (false, false) => self.ne_zero().0,
         };
         let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
-        let compare = if fits {
+        // A branch that jumps when a fits test fails inverts the comparison to `x > 2^bits - 1`.
+        let compare = if fits && !branch {
             self.emitted_push(U256::ONE << bits, in_loop) + self.opcode(op::LT)
         } else {
             self.emitted_push((U256::ONE << bits) - U256::ONE, in_loop) + self.opcode(op::GT)
@@ -1897,10 +1898,12 @@ mod tests {
         // A limit as short as the shift's own push keeps the comparison on equal prices.
         assert!(!gas.shifts_bits_test(8, false, true, false));
         assert!(!gas.shifts_bits_test(1, true, false, false));
-        // A branch that jumps when `x < 2^8` fails reads `x >> 8` for free, a byte shorter than
-        // the limit's `PUSH2`; as a value, the shift's `ISZERO` makes it dearer.
-        assert!(gas.shifts_bits_test(8, true, true, false));
-        assert!(!gas.shifts_bits_test(8, true, false, false));
+        // A branch that jumps when `x < 2^16` fails reads `x >> 16` for free, a byte shorter than
+        // the inverted `x > 0xffff`; as a value, the shift's `ISZERO` makes it dearer than
+        // `x < 0x10000`. At `2^8` the inverted limit is a `PUSH1` and ties.
+        assert!(gas.shifts_bits_test(16, true, true, false));
+        assert!(!gas.shifts_bits_test(16, true, false, false));
+        assert!(!gas.shifts_bits_test(8, true, true, false));
         // Without shifts only the comparison exists.
         let legacy = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
         assert!(!legacy.shifts_bits_test(64, false, true, false));

@@ -16,14 +16,43 @@
   
   fn @fits_to_cold(arg0: i256) -> i256 {
     bb0:
--     v0 = lt arg0, 256
-+     v1 = shr arg0, 8
+-     v0 = lt arg0, 0x10000
++     v1 = shr arg0, 16
 +     v0 = eq v1, 0
       jumpi v0, bb1, bb2
     bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
     bb1:                                            ; preds = bb0
       ret arg0
+  }
+  
+  fn @fits_to_cold_join(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb1:                                            ; preds = bb0
+      v0 = lt arg0, 0x10000
+      jumpi v0, bb2, bb3
+    bb3 [cold]:                                     ; preds = bb1
+      revert 0, 0
+    bb2:                                            ; preds = bb0, bb1
+      ret arg0
+  }
+  
+  fn @fits_latch(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb3
+      v0 = phi [bb0: arg0], [bb3: v1]
+      v1 = add v0, 3
+      v2 = eq v1, 77
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      v3 = lt v1, 0x10000
+      jumpi v3, bb1, bb4
+    bb4 [cold]:                                     ; preds = bb3
+      revert 0, 0
+    bb2:                                            ; preds = bb1
+      ret v1
   }
   
   fn @fits_both_hot(arg0: i256) -> i256 {
