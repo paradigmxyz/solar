@@ -639,12 +639,20 @@ fn get_threads() -> NonZeroUsize {
 fn physical_cores(logical: usize) -> Option<usize> {
     // `num_cpus` parses `/proc/cpuinfo`, which takes about a millisecond on many-core machines;
     // the sysfs CPU lists are much cheaper.
-    let cpus = |path: &str| count_cpu_list(&std::fs::read_to_string(path).ok()?);
+    let cpus = |path: &str| cpu_list(&std::fs::read_to_string(path).ok()?);
+    let online = cpus("/sys/devices/system/cpu/online")?;
     // An affinity mask or CPU quota already limits the CPUs, and may not include siblings.
-    if cpus("/sys/devices/system/cpu/online")? > logical {
+    if online.len() > logical {
         return Some(logical);
     }
-    Some(logical / cpus("/sys/devices/system/cpu/cpu0/topology/thread_siblings_list")?.max(1))
+    // Count each core at its first sibling: hybrid CPUs mix cores with and without SMT.
+    let mut cores = 0;
+    for cpu in online {
+        let siblings =
+            cpus(&format!("/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list"))?;
+        cores += usize::from(siblings.first() == Some(&cpu));
+    }
+    Some(cores)
 }
 
 /// Returns the number of physical cores among `logical` available CPUs, if known.
@@ -665,13 +673,15 @@ fn physical_cores(_logical: usize) -> Option<usize> {
     None
 }
 
-/// Counts the CPUs in a Linux CPU list, such as `0-3,8,10-11`.
+/// Parses a Linux CPU list, such as `0-3,8,10-11`.
 #[cfg(target_os = "linux")]
-fn count_cpu_list(list: &str) -> Option<usize> {
-    list.trim().split(',').try_fold(0, |n, range| {
+fn cpu_list(list: &str) -> Option<Vec<usize>> {
+    let mut cpus = Vec::new();
+    for range in list.trim().split(',') {
         let (start, end) = range.split_once('-').unwrap_or((range, range));
-        Some(n + end.parse::<usize>().ok()?.checked_sub(start.parse().ok()?)? + 1)
-    })
+        cpus.extend(start.parse::<usize>().ok()?..=end.parse().ok()?);
+    }
+    Some(cpus)
 }
 
 str_enum! {
@@ -724,10 +734,9 @@ mod tests {
     #[test]
     #[cfg(target_os = "linux")]
     fn cpu_list() {
-        assert_eq!(count_cpu_list("0-47\n"), Some(48));
-        assert_eq!(count_cpu_list("0,24"), Some(2));
-        assert_eq!(count_cpu_list("0-3,8,10-11"), Some(7));
-        assert_eq!(count_cpu_list("3-1"), None);
-        assert_eq!(count_cpu_list(""), None);
+        assert_eq!(super::cpu_list("0-3\n"), Some(vec![0, 1, 2, 3]));
+        assert_eq!(super::cpu_list("0,24"), Some(vec![0, 24]));
+        assert_eq!(super::cpu_list("2-3,8,10-11"), Some(vec![2, 3, 8, 10, 11]));
+        assert_eq!(super::cpu_list(""), None);
     }
 }
