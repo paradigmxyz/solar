@@ -316,13 +316,15 @@ impl Facts {
 
         // What constants alone make known, to a fixed point through phis.
         let mut base = IndexVec::from_vec(vec![0u8; func.num_values()]);
-        let mut pending: Vec<InstId> = func.instructions().collect();
-        while let Some(inst) = pending.pop() {
+        let mut pending: Vec<(InstId, Option<ValueId>)> =
+            func.instructions().map(|inst| (inst, None)).collect();
+        while let Some((inst, changed)) = pending.pop() {
             let Some(value) = func.inst_result_value(inst) else { continue };
-            let new = reach(func, inst, |operand| constant_or(func, operand, base[operand]));
+            let new =
+                reach(func, inst, changed, |operand| constant_or(func, operand, base[operand]));
             if new | base[value] != base[value] {
                 base[value] |= new;
-                pending.extend(users[value].iter().copied());
+                pending.extend(users[value].iter().map(|&user| (user, Some(value))));
             }
         }
         let base_insts = func
@@ -375,19 +377,20 @@ impl Facts {
             }
         };
         let mut marked = Vec::new();
-        let mut pending: Vec<InstId> = self.users[input].to_vec();
-        while let Some(inst) = pending.pop() {
+        let mut pending: Vec<(InstId, Option<ValueId>)> =
+            self.users[input].iter().map(|&user| (user, Some(input))).collect();
+        while let Some((inst, changed)) = pending.pop() {
             let Some(value) = func.inst_result_value(inst) else { continue };
             if value == input {
                 continue;
             }
-            let new = reach(func, inst, |operand| flag(&flags, operand));
+            let new = reach(func, inst, changed, |operand| flag(&flags, operand));
             let old = flag(&flags, value);
             if new | old != old {
                 if flags.insert(value, new | old).is_none() {
                     marked.push(inst);
                 }
-                pending.extend(self.users[value].iter().copied());
+                pending.extend(self.users[value].iter().map(|&user| (user, Some(value))));
             }
         }
         let mut slice: FxHashMap<BlockId, Vec<u32>> = FxHashMap::default();
@@ -420,11 +423,20 @@ fn constant_or(func: &Function, value: ValueId, flags: u8) -> u8 {
 }
 
 /// What a run may see as the result of `inst`, given what it may see as each operand, following
-/// [`eval`] and the phis of [`run`].
-fn reach(func: &Function, inst: InstId, flag: impl Fn(ValueId) -> u8) -> u8 {
+/// [`eval`] and the phis of [`run`]. The flags only grow, so when only the operand `changed`
+/// grew since a phi was last reached, the phi gains just what that operand may be.
+fn reach(
+    func: &Function,
+    inst: InstId,
+    changed: Option<ValueId>,
+    flag: impl Fn(ValueId) -> u8,
+) -> u8 {
     let instruction = func.inst(inst);
     if let InstKind::Phi(incoming) = &instruction.kind {
-        return incoming.iter().fold(0, |flags, &(_, value)| flags | flag(value));
+        return match changed {
+            Some(value) => flag(value),
+            None => incoming.iter().fold(0, |flags, &(_, value)| flags | flag(value)),
+        };
     }
     if !evaluates(instruction) {
         return 0;
