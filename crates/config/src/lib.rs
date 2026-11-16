@@ -626,10 +626,11 @@ fn get_threads() -> NonZeroUsize {
     *THREADS.get_or_init(|| {
         let logical = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
         // A thread per logical core leaves idle workers spinning in work stealing on the sibling
-        // threads of the busy ones, which slows every project down.
+        // threads of the busy ones, which slows every project down. Keep two threads on a single
+        // SMT core, so it still gets the thread pool and its larger compiler-thread stacks.
         physical_cores(logical.get())
             .and_then(NonZeroUsize::new)
-            .map_or(logical, |physical| physical.min(logical))
+            .map_or(logical, |physical| physical.max(NonZeroUsize::new(2).unwrap()).min(logical))
     })
 }
 
