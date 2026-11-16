@@ -150,8 +150,16 @@ class ReplayClaims(unittest.TestCase):
         (d / "Meter.sol").write_text("contract Meter {}\n")
         (d / "certify.log").write_text("log\n")
         (d / "certify-record.json").write_text(json.dumps(cr))
+        (d / "inputs/Certified" / NAME).mkdir(parents=True)
+        (d / "inputs/Certified" / NAME / "Source.lean").write_text("-- generated\n")
+        (d / "inputs/lakefile.lean").write_text("-- lakefile\n")
         files = {str(q.relative_to(d)): sha(q) for q in d.rglob("*") if q.is_file()}
-        rec.update(source={"sha256": files["Meter.sol"]}, run_files=files)
+        ins = {r[len("inputs/"):]: v for r, v in files.items() if r.startswith("inputs/")}
+        rec.update(source={"sha256": files["Meter.sol"]}, run_files=files,
+                   solidity_lean={"inputs_commit": "a" * 40, "inputs": sorted(ins), "inputs_sha256": ins})
+        rec["caveats"] = cr["caveats"] = [f"solidity-lean at {'a' * 40}, not the pinned {'b' * 40}"]
+        (d / "certify-record.json").write_text(json.dumps(cr))
+        files["certify-record.json"] = sha(d / "certify-record.json")
         if edit:
             edit(rec)
         (d / "record.json").write_text(json.dumps(rec))
@@ -236,6 +244,48 @@ class ReplayClaims(unittest.TestCase):
                 code, line = self.replay(self.make(pathlib.Path(t)), edit)
                 self.assertEqual(code, 1, line)
                 self.assertTrue(line.startswith(f"REJECTED: replay: {field}"), line)
+
+    def test_archived_input_edited_and_rehashed(self):
+        """An archived generated input edited, with only its run_files digest updated: the pin
+        inputs_sha256 (which the fresh run reproduces) still names the generated one."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            f = d / "inputs/Certified" / NAME / "Source.lean"
+            f.write_text("-- edited\n")
+            rec = json.loads((d / "record.json").read_text())
+            rec["run_files"][f"inputs/Certified/{NAME}/Source.lean"] = sha(f)
+            (d / "record.json").write_text(json.dumps(rec))
+            code, line = self.replay(d)
+            self.assertEqual(code, 1, line)
+            self.assertIn(f"REJECTED: replay: inputs/Certified/{NAME}/Source.lean is not the generated input", line)
+
+    def test_archived_input_added(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            f = d / "inputs/Extra.lean"
+            f.write_text("-- extra\n")
+            rec = json.loads((d / "record.json").read_text())
+            rec["run_files"]["inputs/Extra.lean"] = sha(f)
+            (d / "record.json").write_text(json.dumps(rec))
+            code, line = self.replay(d)
+            self.assertEqual(code, 1, line)
+            self.assertIn("REJECTED: replay: inputs/Extra.lean is not the generated input", line)
+
+    def test_fresh_caveats_differ(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t)), lambda r: r.update(caveats=[]))
+            self.assertEqual(code, 1, line)
+            self.assertTrue(line.startswith("REJECTED: replay: caveats"), line)
+
+    def test_fresh_inputs_commit_may_differ(self):
+        """A fresh run commits the same inputs at another time: only that hash differs in its caveats."""
+        def recommit(r):
+            r["solidity_lean"]["inputs_commit"] = "c" * 40
+            r["caveats"] = [x.replace("a" * 40, "c" * 40) for x in r["caveats"]]
+
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t)), recommit)
+            self.assertEqual(code, 0, line)
 
     def test_fresh_olean_digests_may_differ(self):
         def redigest(r):

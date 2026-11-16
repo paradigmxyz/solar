@@ -727,6 +727,28 @@ def reached_tier(comps):
     return "compiled" if comps["equivalence"] and comps["resources"] else "none"
 
 
+def fresh_caveats(rec):
+    """The caveats with the run's own solidity-lean inputs commit named generically: a fresh run
+    commits the same inputs at another time, so only that hash may differ between two runs."""
+    c = dig(rec, ("solidity_lean", "inputs_commit"))
+    cav = rec.get("caveats")
+    return [x.replace(c, "<inputs commit>") if c and isinstance(x, str) else x for x in cav] if isinstance(cav, list) else cav
+
+
+def inputs_problem(rec, files):
+    """Why the archived inputs/ files are not the generated inputs the record pins
+    (solidity_lean.inputs and inputs_sha256, which the fresh run must reproduce), or None."""
+    sl = rec.get("solidity_lean") if isinstance(rec.get("solidity_lean"), dict) else {}
+    pinned, listed = sl.get("inputs_sha256"), sl.get("inputs")
+    if not isinstance(pinned, dict) or not isinstance(listed, list) or sorted(listed) != sorted(pinned):
+        return "solidity_lean.inputs and inputs_sha256 do not name the same generated inputs"
+    archived = {r[len("inputs/"):]: v for r, v in files.items() if r.startswith("inputs/")}
+    for q in sorted(set(archived) | set(pinned)):
+        if archived.get(q) != pinned.get(q):
+            return f"inputs/{q} is not the generated input solidity_lean.inputs_sha256 pins"
+    return None
+
+
 def replayed_modules(rec):
     return [m.get("module") if isinstance(m, dict) else m for m in (dig(rec, ("replay", "replayed")) or [])]
 
@@ -786,6 +808,8 @@ def replay_main(a):
     srcs = [r for r in files if r.endswith(".sol") and "/" not in r]
     if len(srcs) != 1 or files[srcs[0]] != dig(rec, ("source", "sha256")):
         out(1, "REJECTED: replay: the record's source digest is not its source file's")
+    if (why := inputs_problem(rec, files)) is not None:
+        out(1, f"REJECTED: replay: {why}")
     if (why := claims_problem(rec, d)) is not None:
         out(1, f"REJECTED: replay: {why}")
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -814,6 +838,9 @@ def replay_main(a):
         if (q := first_diff(dig(rec, path), dig(new, path), ".".join(path))) is not None:
             out(1, f"REJECTED: replay: {q} differs between the record and the fresh run "
                    f"(record {str(dig(rec, path))[:120]}, fresh {str(dig(new, path))[:120]})")
+    if (q := first_diff(fresh_caveats(rec), fresh_caveats(new), "caveats")) is not None:
+        out(1, f"REJECTED: replay: {q} differs between the record and the fresh run "
+               f"(record {str(fresh_caveats(rec))[:120]}, fresh {str(fresh_caveats(new))[:120]})")
     if replayed_modules(rec) != replayed_modules(new):
         out(1, "REJECTED: replay: replay.replayed (its modules) differs between the record and the fresh run")
     last = new.get("status", "")
