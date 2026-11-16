@@ -342,8 +342,13 @@ impl Continuation {
         }
     }
 
+    /// A cold continuation is never taken, so it leaves the other side as it is.
     fn join(self, other: Self) -> Self {
-        if self == other { self } else { Self::Mixed }
+        match (self, other) {
+            (Self::Cold, next) | (next, Self::Cold) => next,
+            _ if self == other => self,
+            _ => Self::Mixed,
+        }
     }
 
     fn of_terminator(module: &Module, body: &DenseBitSet<BlockId>, kind: &TerminatorKind) -> Self {
