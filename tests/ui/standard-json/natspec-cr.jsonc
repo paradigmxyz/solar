@@ -1,4 +1,12 @@
 // Consecutive `///` lines form one doc comment also when a lone CR ends them, as in solc.
+// CHECK: "userdoc"
+// CHECK: "f()"
+// CHECK-NEXT: "notice": "first"
+// CHECK: "devdoc"
+// CHECK: "f()"
+// CHECK-NEXT: "details": "second"
+// CHECK: "g()"
+// CHECK-NEXT: "details": "last"
 {
   "language": "Solidity",
   "sources": {
