@@ -971,3 +971,70 @@ fn storageptr() {
 fn infer_newton() {
     check("tests/cases/infer_newton.sol");
 }
+
+/// The loop-head manifest of Counter (`--emit-loop-heads`), exact, and its check: the manifest
+/// itself matches, and one of another source (its sha256) or with another slot is rejected.
+#[test]
+fn loop_heads() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cases/loop_heads");
+    let out = std::env::temp_dir().join(format!("solar-verify-loop-heads-{}", std::process::id()));
+    std::fs::create_dir_all(&out).unwrap();
+    let run = |args: &[&str]| {
+        let o = Command::new(env!("CARGO_BIN_EXE_solar-verify"))
+            .args(["--dry-run", "--no-infer"])
+            .args(args)
+            .arg("Counter.sol")
+            .current_dir(&dir)
+            .env("NO_COLOR", "1")
+            .env("SOLAR_TEST_VERSION", "1")
+            .output()
+            .expect("run solar-verify");
+        (
+            o.status.code(),
+            String::from_utf8_lossy(&o.stdout).into_owned(),
+            String::from_utf8_lossy(&o.stderr).into_owned(),
+        )
+    };
+    let emitted = out.join("Counter.loop-heads.json");
+    // The exit code is the verification's (a dry run verifies nothing); the manifest is written.
+    let (_, _, err) = run(&["--emit-loop-heads", emitted.to_str().unwrap()]);
+    assert!(!err.contains("loop-head manifest"), "{err}");
+    let text = std::fs::read_to_string(&emitted).unwrap();
+    assert_data_eq!(text.clone(), file!["cases/loop_heads/Counter.loop-heads.json"]);
+
+    let check = |m: &serde_json::Value| {
+        let p = out.join("given.json");
+        std::fs::write(&p, serde_json::to_string_pretty(m).unwrap()).unwrap();
+        run(&["--check-loop-heads", p.to_str().unwrap()])
+    };
+    let good: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let (code, stdout, err) = check(&good);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(stdout.contains("loop-head manifest matches"), "{stdout}");
+
+    let mut stale = good.clone();
+    stale["source"]["sha256"] = serde_json::json!("0".repeat(64));
+    let (code, _, err) = check(&stale);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("error: stale loop-head manifest: source.sha256 is"), "{err}");
+
+    let mut wrong = good;
+    let vars = wrong["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .flat_map(|f| f["loops"].as_array_mut().unwrap().iter_mut())
+        .flat_map(|l| l["vars"].as_array_mut().unwrap().iter_mut());
+    let mut moved = false;
+    for v in vars {
+        if v["name"] == "count" {
+            v["slot"] = serde_json::json!("1");
+            moved = true;
+        }
+    }
+    assert!(moved, "Counter.bump's loop binds count");
+    let (code, _, err) = check(&wrong);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("].slot is \"1\" in the manifest, \"0\""), "{err}");
+    let _ = std::fs::remove_dir_all(&out);
+}
