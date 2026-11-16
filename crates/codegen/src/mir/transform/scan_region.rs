@@ -36,9 +36,10 @@
 //! # Rewrite
 //!
 //! All runs must stop in one block, the region's last, and the blocks they pass must form a
-//! region its first block enters: the predecessors of every other block lie in it, and no run
-//! loops. A value of the last block that every run computed before stopping is a function of
-//! `m`, given by a table of 257 entries, and it is replaced when the table is one of
+//! region its first block enters: the predecessors of every other block lie in it, the last
+//! block leads back into none of them, and no run loops. A value of the last block that every
+//! run computed before stopping is a function of `m`, given by a table of 257 entries, and it is
+//! replaced when the table is one of
 //!
 //! ```text
 //! index >> k        (255 - clz(x | 1)) >> k, or with clz(x)
@@ -902,7 +903,7 @@ fn rewrite_region(
         let closed = if block == entry {
             preds.iter().all(|pred| !region.contains(pred))
         } else {
-            preds.iter().all(|pred| region.contains(pred))
+            preds.iter().all(|&pred| pred != last && region.contains(&pred))
         };
         if !closed {
             return false;

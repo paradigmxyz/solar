@@ -1,0 +1,105 @@
+; === ROOT/tests/ui/codegen/mir/scan-region/loop_after_scan.sol:LoopAfterScan ===
+@module LoopAfterScan
+; function sqrt(uint256 a) external pure returns (uint256 xn) [selector 0x677342ce]
+fn @sqrt(arg0: i256) -> i256 [selector=0x677342ce, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 0x100000000000000000000000000000000
+    v1 = eq v0, false
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v2 = shr arg0, 128
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v3 = phi [bb1: 0x10000000000000000], [bb2: 1]
+    v4 = phi [bb1: v2], [bb2: arg0]
+    v5 = lt v4, 0x10000000000000000
+    v6 = eq v5, false
+    jumpi v6, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v7 = shr v4, 64
+    v8 = shl v3, 32
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v9 = phi [bb4: v8], [bb5: v3]
+    v10 = phi [bb4: v7], [bb5: v4]
+    v11 = lt v10, 0x100000000
+    v12 = eq v11, false
+    jumpi v12, bb7, bb8
+  bb8:                                            ; preds = bb6
+    jump bb9
+  bb7:                                            ; preds = bb6
+    v13 = shr v10, 32
+    v14 = shl v9, 16
+    jump bb9
+  bb9:                                            ; preds = bb7, bb8
+    v15 = phi [bb7: v14], [bb8: v9]
+    v16 = phi [bb7: v13], [bb8: v10]
+    v17 = lt v16, 0x10000
+    v18 = eq v17, false
+    jumpi v18, bb10, bb11
+  bb11:                                           ; preds = bb9
+    jump bb12
+  bb10:                                           ; preds = bb9
+    v19 = shr v16, 16
+    v20 = shl v15, 8
+    jump bb12
+  bb12:                                           ; preds = bb10, bb11
+    v21 = phi [bb10: v20], [bb11: v15]
+    v22 = phi [bb10: v19], [bb11: v16]
+    v23 = lt v22, 256
+    v24 = eq v23, false
+    jumpi v24, bb13, bb14
+  bb14:                                           ; preds = bb12
+    jump bb15
+  bb13:                                           ; preds = bb12
+    v25 = shr v22, 8
+    v26 = shl v21, 4
+    jump bb15
+  bb15:                                           ; preds = bb13, bb14
+    v27 = phi [bb13: v26], [bb14: v21]
+    v28 = phi [bb13: v25], [bb14: v22]
+    v29 = lt v28, 16
+    v30 = eq v29, false
+    jumpi v30, bb16, bb17
+  bb17:                                           ; preds = bb15
+    jump bb18
+  bb16:                                           ; preds = bb15
+    v31 = shr v28, 4
+    v32 = shl v27, 2
+    jump bb18
+  bb18:                                           ; preds = bb16, bb17
+    v33 = phi [bb16: v32], [bb17: v27]
+    v34 = phi [bb16: v31], [bb17: v28]
+    v35 = lt v34, 4
+    v36 = eq v35, false
+    jumpi v36, bb19, bb20
+  bb20:                                           ; preds = bb18
+    jump bb21
+  bb19:                                           ; preds = bb18
+    v37 = shl v33, 1
+    jump bb21
+  bb21:                                           ; preds = bb19, bb20
+    v38 = phi [bb19: v37], [bb20: v33]
+    jump bb22
+  bb22:                                           ; preds = bb21, bb25
+    v39 = phi [bb21: arg0], [bb25: v39]
+    v40 = phi [bb21: v38], [bb25: v42]
+    v41 = phi [bb21: v34], [bb25: v41]
+    v42 = shl v40, 1
+    jump bb24
+  bb24:                                           ; preds = bb22
+    v43 = lt v42, v39
+    jumpi v43, bb25, bb26
+  bb26:                                           ; preds = bb24
+    jump bb23
+  bb23:                                           ; preds = bb26
+    ret v42
+  bb25:                                           ; preds = bb24
+    jump bb22
+  bb27:
+    invalid
+}
