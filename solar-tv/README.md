@@ -85,6 +85,7 @@ before either a proof or a counterexample can be accepted.
 | MIR compositional effects | Acyclic integer/pointer functions, supplied internal callees and explicit opcode/allocation effects, without layout queries. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
+| EVM post-precompile suffix | A changed tail after an exactly shared prefix, with canonical recovery-precompile calls and GAS reads retained. | All shared prefix halts are identical; successful suffixes preserve their exit and complete stack/world with no less gas. The shared prefix-executor binding remains trusted. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
@@ -232,6 +233,34 @@ shared, universally quantified per-label context supplies the physical PUSH and
 JUMPI charges, including PUSH0. Binding that context to relocated bytecode
 remains trusted. A changed exit is rejected, and a broken decoder store offset
 has a counterexample independently checked by Lean and the Rust interpreter.
+
+### EVM rewrites after precompiles
+
+WETH's predicate peephole replaces `EQ; ISZERO` with `SUB` after a recovery
+precompile call. The proof retains the full common prefix, including GAS, call
+failure, memory and returndata, rather than restarting with entry defaults:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/post-precompile/{before,after}.evmir \
+  --prefix bb0 --report target/tv/post-precompile.json
+solar-tv/solar-tv evmir solar-tv/examples/evmir/post-precompile/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/post-precompile/world.json
+```
+
+`universal-post-precompile-suffix` composes an arbitrary shared state/gas
+executor with the universal suffix proof. Both sides pass it the same complete
+instruction sequence. Every early prefix halt is preserved exactly; after a
+successful prefix, the proof quantifies the updated context, stack, remaining
+gas and world. The audit binds the prefix hash and instruction count. Its
+executor binding remains trusted; this is not full-state interpreter or physical
+code-placement correspondence.
+
+Admission is deliberately narrow: prefix calls must use the canonical
+`push 1; gas; staticcall` recovery target. Arbitrary external calls, relocations
+and code-image observers are rejected. The changed suffix and its continuation
+must be gas-insensitive. Exact-gas mode and Amsterdam's two-resource gas are
+rejected. The broken predicate has matching Lean/native counterexamples, and
+the tests also check exact preservation of an early out-of-gas outcome.
 
 EVM windows compare live stack values at outgoing edges before executing either
 successor. Terminal halts discard the remaining stack. The default check assumes
@@ -1277,8 +1306,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **14 of 24** with
-`--timeout 30`; 10 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **15 of 24** with
+`--timeout 30`; 9 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1296,8 +1325,10 @@ Its decoder's `block-cse` pair now verifies through the four conditional exits,
 preserving the same effect requests and live stack on every taken edge.
 WETH's `DOMAIN_SEPARATOR` SCCP pair also verifies through its allocating helper
 using the separately reported compositional call/effect certificate.
+Its post-precompile predicate peephole also verifies, with all 103 shared
+prefix instructions bound into the contextual suffix certificate.
 
-The original ten-second budget verifies **13 of 24**, with that larger MIR proof
+The original ten-second budget verifies **14 of 24**, with that larger MIR proof
 still timing out. It closes in about 25 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and

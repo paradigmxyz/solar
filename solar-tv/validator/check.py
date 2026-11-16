@@ -766,10 +766,14 @@ def main() -> int:
                 if (
                     args.ir != "evmir"
                     or not args.window
+                    or args.world
                     or str(error)
                     not in {
                         "unmodeled EVM IR instruction: caller",
                         "unmodeled EVM IR instruction: calldataload",
+                        "unmodeled EVM IR instruction: gas",
+                        "unmodeled EVM IR instruction: staticcall",
+                        "GAS requires --gas=exact or --gas=refine",
                         "expected a valid static JUMP destination",
                     }
                 ):
@@ -845,13 +849,16 @@ def main() -> int:
             if (
                 args.prefix
                 or result.program
-                and result.program.scope in {"prefix-window", "effectful-prefix"}
+                and result.program.scope
+                in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
             ):
                 shared = result.program and result.program.import_evidence.get(
                     "shared_prologue_operations"
                 )
                 record["region"]["proof"] = (
-                    "universal-branching-effect-prefix"
+                    "universal-post-precompile-suffix"
+                    if result.program and result.program.scope == "shared-prefix-suffix"
+                    else "universal-branching-effect-prefix"
                     if result.program
                     and result.program.scope == "effectful-prefix"
                     and result.program.import_evidence.get("conditional_transfers")

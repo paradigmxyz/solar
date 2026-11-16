@@ -92,13 +92,14 @@ def instructions(lines, catalog, version, labels=None):
     return rendered, required, peak
 
 
-def stack_proof(required, peak):
+def stack_proof(required, peak, extra=""):
     definitions = (
         "before, after, EVM.Effects.expand, EVM.Effects.Refines, EVM.stepChecked, "
         "EVM.step, EVM.Effects.guardStack, EVM.Gas.pureCost, Fork.atLeast, Evm.add, BitVec.add_comm, "
         "List.length_cons, Nat.add_assoc, "
         "List.getElem?_cons, List.set, Nat.add_lt_iff_lt_sub_right, "
         + ", ".join(f"index{i}" for i in range(16))
+        + extra
     )
 
     def body():

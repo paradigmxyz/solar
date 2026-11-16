@@ -18,4 +18,10 @@ theorem eq_iszero_jumpi (ctx : Context) (stack : Stack) (dst fallthrough : Word)
     simp [Evm.sub, BitVec.sub_eq_iff_eq_add]
   by_cases same : a = b <;> simp [execute, stepChecked, step, finish, Evm.eq, Evm.iszero, zero, same, h, h']
 
+theorem eq_iszero_zero (a b : Word) : Evm.iszero (Evm.eq a b) = 0#256 ↔ a = b := by
+  by_cases same : a = b <;> simp [Evm.eq,Evm.iszero,same]
+
+theorem sub_zero (a b : Word) : Evm.sub a b = 0#256 ↔ a = b := by
+  simp [Evm.sub,BitVec.sub_eq_iff_eq_add]
+
 end SolarTV.EVM

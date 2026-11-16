@@ -25,6 +25,7 @@ import SolarTV.EVMIR.State.Normalize
 import SolarTV.EVMIR.Region
 import SolarTV.EVMIR.Prefix
 import SolarTV.EVMIR.MemoryPrefix
+import SolarTV.EVMIR.Suffix
 import SolarTV.EVMIR.Transforms.TailMerge
 import SolarTV.EVMIR.ContextSafety
 import SolarTV.EVMIR.State.Observe
