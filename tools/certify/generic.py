@@ -12,7 +12,8 @@ local input commit on top of the solidity-lean base, and checked by the kernel t
 Exit status and the last line printed:
   0  TIER <tier>: the requested tier holds (the record's strict predicate, every component true)
   2  CHECKED <tier reached>: the run proved less than the requested tier (each status in the record)
-  3  BLOCKED: <reason>: the source is outside the supported envelope; nothing was proved or claimed
+  3  BLOCKED: <reason>: the source is outside the supported envelope (README.md lists it; recursion
+     is outside it); nothing was proved or claimed
   1  ERROR: <message>: the driver or a step failed
 
 The record (DIR/record.json) holds every pin: the solar commit and binary digest, the solidity-lean
@@ -56,7 +57,7 @@ BAD_OPS = {0xF0: "CREATE", 0xF1: "CALL", 0xF2: "CALLCODE", 0xF4: "DELEGATECALL",
 
 class Blocked(Exception):
     def __init__(self, reasons):
-        order = ["external call", "contract creation", "inline assembly", "value transfer", "loop", "bytecode"]
+        order = ["external call", "contract creation", "inline assembly", "value transfer", "loop", "recursion", "bytecode"]
         groups = {}
         for r in reasons:
             groups.setdefault(r["feature"], []).append(r)
@@ -229,6 +230,16 @@ def envelope(text, ast, contracts, contract, invariants, natspec=False):
                 block("external call", n, f"a call of an external function ({ty[:80]})")
         elif t == "Identifier" and n.get("name") in ("selfdestruct", "gasleft", "blockhash"):
             block("environment", n, f"{n['name']} is outside the source semantics' environment")
+    # Recursion: the generic stage proofs need a cut point at every back edge, and a recursive call
+    # site has none (the stage proofs have no measure to cut at), so the call graph must be acyclic.
+    variables = {n["id"] for n in walk(ast) if n.get("nodeType") == "VariableDeclaration" and "id" in n}
+    cycles, values = recursion_cycles(cdef, variables)
+    for names, call in cycles:
+        block("recursion", call, f"unsupported: {' and '.join(names)} can call {'itself' if len(names) == 1 else 'each other'} "
+              "(the generic stage needs an acyclic call graph; recursive calls have no cut points)")
+    for call in values:
+        block("recursion", call, "unsupported: a call through an internal function value, so the call graph is not known "
+              "to be acyclic")
     if natspec:
         # The published statement fixes the environment (one frame, Target.message's block and
         # transaction): a spec clause that reads the environment could be false there and make the
@@ -269,6 +280,83 @@ def envelope(text, ast, contracts, contract, invariants, natspec=False):
     if reasons:
         raise Blocked(reasons)
     return contract, fns, events
+
+
+def recursion_cycles(cdef, variables):
+    """The contract's recursion: each strongly connected component of its internal call graph that
+    has a cycle (functions or modifiers that can reach themselves), as (names, first call site), and
+    the calls through internal function values, whose callee the source does not name. The graph's
+    nodes are the contract's functions and modifiers; an edge is an internal call naming one of them
+    (an Identifier, or a MemberAccess such as C.f) or a modifier invocation. VARIABLES holds the ids
+    of the source's variable declarations (struct members included)."""
+    callables = {n["id"]: n for n in walk(cdef) if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition") and "id" in n}
+    edges, site, values = {}, {}, []
+    for cid, c in callables.items():
+        out = edges.setdefault(cid, [])
+        for n in walk(c):
+            t = n.get("nodeType")
+            if t == "ModifierInvocation":
+                ref = (n.get("modifierName") or {}).get("referencedDeclaration")
+            elif t == "FunctionCall" and n.get("kind") == "functionCall":
+                e = n.get("expression") or {}
+                ty = e.get("typeDescriptions", {}).get("typeString", "")
+                ref = e.get("referencedDeclaration")
+                internal_value = ty.startswith("function (") and " external" not in ty
+                # A named callee is a function value when it is a variable; a computed one (an index,
+                # a conditional, a call's result) always is. new and call options are creation and
+                # external calls, which the envelope refuses on their own.
+                named = e.get("nodeType") in ("Identifier", "MemberAccess")
+                other = ("ElementaryTypeNameExpression", "NewExpression", "FunctionCallOptions")
+                if internal_value and (ref in variables if named else e.get("nodeType") not in other):
+                    values.append(n)
+            else:
+                continue
+            if ref in callables:
+                out.append(ref)
+                site.setdefault((cid, ref), n)
+    # Tarjan's strongly connected components, iteratively.
+    index, low, on, stack, sccs = {}, {}, set(), [], []
+    for root in callables:
+        if root in index:
+            continue
+        index[root] = low[root] = len(index)
+        stack.append(root)
+        on.add(root)
+        work = [(root, iter(edges[root]))]
+        while work:
+            v, it = work[-1]
+            w = next(it, None)
+            if w is not None:
+                if w not in index:
+                    index[w] = low[w] = len(index)
+                    stack.append(w)
+                    on.add(w)
+                    work.append((w, iter(edges[w])))
+                elif w in on:
+                    low[v] = min(low[v], index[w])
+                continue
+            work.pop()
+            if work:
+                low[work[-1][0]] = min(low[work[-1][0]], low[v])
+            if low[v] == index[v]:
+                comp = []
+                while True:
+                    w = stack.pop()
+                    on.discard(w)
+                    comp.append(w)
+                    if w == v:
+                        break
+                sccs.append(comp)
+    cycles = []
+    for comp in sccs:
+        members = set(comp)
+        inner = [(x, y) for x in comp for y in edges[x] if y in members]
+        if not inner:
+            continue
+        first = min(inner, key=lambda xy: int(site[xy].get("src", "0:0:0").split(":")[0]))
+        names = sorted(callables[m].get("name") or callables[m].get("kind", "") for m in comp)
+        cycles.append((names, site[first]))
+    return cycles, values
 
 
 def scan_bytecode(hexcode):
