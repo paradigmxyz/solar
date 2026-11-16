@@ -255,32 +255,27 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
         starts.push(params.next_idx());
         params.extend(layouts.flatten(&ty).iter().copied());
     }
+    // aggregate_arg -> (field_arg0, ..., field_argN)
+    // An argument value that keeps no parameter, a struct or one the body no longer reads, becomes
+    // undefined: its old index may name another parameter or none.
     if func.params.iter().any(|ty| matches!(ty, MirType::Struct(_))) {
-        // An argument value the body no longer reads keeps its old index, which may name another
-        // parameter or none once the parameters change, so it becomes undefined.
+        let old_params = func.params.clone();
+        func.set_params(params);
         for index in 0..func.num_values() {
             let value = ValueId::from_usize(index);
-            if let Value::Arg(arg) = *func.value(value)
-                && values.binary_search(&value).is_err()
-            {
-                *func.value_mut(value) = Value::Undef(func.params[arg]);
-            }
-        }
-        func.set_params(params);
-    }
-    // aggregate_arg -> (field_arg0, ..., field_argN)
-    for value in values {
-        if let Value::Arg(index) = *func.value(value)
-            && let Some(&start) = starts.get(index)
-        {
-            if let Some(fields) = aggregates.get(&value) {
+            let Value::Arg(arg) = *func.value(value) else { continue };
+            let Some(&start) = starts.get(arg) else { continue };
+            *func.value_mut(value) = if let Some(fields) = aggregates.get(&value) {
                 for (offset, &field) in fields.iter().enumerate() {
                     let arg = func.alloc_arg(ArgIdx::new(start.index() + offset));
                     replacements.insert(field, arg);
                 }
+                Value::Undef(old_params[arg])
+            } else if values.binary_search(&value).is_ok() {
+                Value::Arg(start)
             } else {
-                *func.value_mut(value) = Value::Arg(start);
-            }
+                Value::Undef(old_params[arg])
+            };
         }
     }
     // result: aggregate -> result: leaf, or no result with return_abi = [leaf0, ..., leafN]
