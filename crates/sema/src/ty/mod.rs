@@ -122,19 +122,20 @@ pub(crate) struct AstFacts<'gcx> {
     /// The type solc gives an expression where it differs from the type of type checking: the
     /// common type of the operands of a comparison or a logical operation.
     pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    /// The Yul identifiers that name a variable or a library, with their suffix, ordered by
+    /// position.
     pub(crate) yul_references: Vec<YulReference>,
 }
 
-/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+/// A Yul identifier that names a variable or a library, such as `x`, `x.slot` or `L`.
 #[derive(Clone, Copy, Debug)]
 pub struct YulReference {
     /// The span of the identifier, with its suffix.
     pub span: Span,
     /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
     pub suffix: Option<Symbol>,
-    /// The variable the identifier names.
-    pub declaration: hir::VariableId,
+    /// The variable or library the identifier names.
+    pub declaration: hir::ItemId,
 }
 
 /// The target selected for a call callee expression.

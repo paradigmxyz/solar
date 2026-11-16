@@ -288,7 +288,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.record_yul_reference(
                         expr.span.to(member.span),
                         Some(member.name),
-                        declaration,
+                        declaration.into(),
                     );
                 }
                 return self.gcx.types.uint(256);
