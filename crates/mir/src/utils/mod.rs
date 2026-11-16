@@ -110,7 +110,8 @@ pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId 
     // pred -> new_block -> succ !metadata(pred terminator)
     let new_block = func.alloc_edge_block(pred, succ);
     func.blocks[new_block].terminator = Some(Terminator::Jump(succ));
-    func.blocks[new_block].terminator_metadata = func.blocks[pred].terminator_metadata.clone();
+    func.blocks[new_block].terminator_metadata =
+        func.blocks[pred].terminator_metadata.without_operand_facts();
     func.blocks[new_block].predecessors = smallvec![pred];
 
     // Retarget every occurrence of `succ` among `pred`'s successors.
