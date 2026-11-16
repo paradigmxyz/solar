@@ -121,33 +121,24 @@ Pick locations by the first rule that applies:
    LLVM's [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html):
    code that replaces one instruction, and cloned code, keep their location;
    merge locations only when new code replaces several instructions and
-   produces each of their outputs; drop a location that would mislead, such as on code
-   hoisted into another block. Never move a deleted instruction's location onto
-   surviving code; CSE keeps only the survivor's location.
+   produces each of their outputs; drop a location that would mislead, such as
+   on code hoisted into another block. Never move a deleted instruction's
+   location onto surviving code; CSE keeps only the survivor's location.
 3. **Our own rule**, only where neither applies, with the reason in the code
    comment and the PR body. Never add a rule only to lower an audit count.
 
 ## Testing
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
-  especially diagnostics, sema, and compiler output. The annotation syntax is
-  in [CONTRIBUTING.md](CONTRIBUTING.md#integration-tests).
+  especially diagnostics, sema, and compiler output.
 - Put each test in the directory for the layer it checks, as the
   [tester guide](tools/tester/README.md#test-layout) lists, and keep leaf
   directories under about 80 tests.
 - For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
   revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
-  outputs, use one test with `//@ revisions:` and revision-scoped directives
-  (`//@[rev] compile-flags: ...`).
+  outputs, use one test with `//@ revisions:` and revision-scoped directives.
   Use separate files only when the source text itself differs in purpose.
-- Use `//@ filecheck:` instead of a full snapshot when the snapshot is huge or
-  brittle, or the test checks order, presence, or absence; see the
-  [tester guide](tools/tester/README.md#filecheck).
-- Use `//@ run-call:` and `//@ run-call-fail:` for one isolated call, and
-  `tests/foundry/` (`cargo tq foundry`) for state, several transactions or
-  actors, events, or cheatcodes; see the
-  [tester guide](tools/tester/README.md#runtime-directives).
 - Put imported or secondary sources in `auxiliary/` next to the test, never
   `aux/` (Windows rejects it).
 - Assert formatted output in Rust tests with `snapbox` snapshots, not
@@ -155,6 +146,50 @@ Pick locations by the first rule that applies:
   offsets.
 - Python: run `bash scripts/check-python.sh` and use uv, never pip; see
   [CONTRIBUTING.md](CONTRIBUTING.md#python-tooling).
+
+### UI Test Annotations
+
+```solidity
+//@ compile-flags: --emit=abi
+contract Test {
+    uint x; //~ ERROR: message here
+    //~^ NOTE: note about previous line
+}
+```
+
+Annotations are `//~ ERROR:`, `WARN:`, `NOTE:`, `HELP:`, `ICE:`, and
+`//~ diagnostic_code`. `^` and `v` point to lines above and below, `|` adds
+another annotation for the same line, and `?` marks a diagnostic outside the
+test file.
+
+The runner infers the exit status: 1 with `ERROR` or `ICE` annotations, else 0.
+Add `//@ check-pass`, `//@ check-fail`, or `//@ failure-status: N` only when the
+inferred status is wrong.
+
+Other directives are `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
+`//@ ignore-host: windows`, and:
+
+- `//@ run-call: add 1, 2 => 3` deploys a fresh contract, calls the function,
+  and compares the ABI-encoded result; `//@ run-call-fail: fail()` requires a
+  failure. Use them for one isolated call, and `tests/foundry/`
+  (`cargo tq foundry`) for several transactions, state, actors, events,
+  cheatcodes, or complex setup. Lowered `.mir` and `.evmir` tests also run each
+  call through the MIR or EVM IR interpreter and name the function by signature
+  and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. See the
+  [tester guide](tools/tester/README.md#runtime-directives) for settings.
+- `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`.
+
+### FileCheck
+
+Do not check in huge outputs, such as a 1,500-line standard-JSON `.stdout` for a
+one-line fix; check the lines that matter with FileCheck. Use it also when a
+full snapshot is brittle or the test checks order, presence, or absence.
+
+Put `// CHECK:` lines directly above the function or block they cover, specific
+enough to catch the bug, and anchor them with `CHECK-LABEL` when the output has
+several sections. Use the default `CHECK` prefix unless revisions need more.
+Keep patterns short, capture changing values with `[[NAME:regex]]`, and keep
+one function's checks in one comment block.
 
 ### Codegen Passes
 
@@ -176,15 +211,16 @@ For requested comparisons with solc, use
 and read its [guide](tools/compiler-diff/README.md) first. Never hide errors or
 unsupported checks with expectations. Report coverage counts, record accepted
 differences in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md), and reduce each
-new failure from it or from `cargo tq foundry-external` into a regression test.
+new failure from compiler-diff or `cargo tq foundry-external` into a regression
+test.
 
 Do not chase parity on differences ordinary Solidity would not hit, such as
 revert data alone, assembly-forged values, dirty bits left by earlier storage
-writes, or absurd type sizes. Record them there too, with a UI test that pins
-our behavior. Malformed calldata may differ from solc only in revert data: never
-accept an input that solc rejects. Reject a parity fix that makes the compiler
-more complex or slower, or the generated code bigger or slower, unless ordinary
-Solidity hits the difference.
+writes, or absurd type sizes. Record them in SOLC_DIVERGENCE.md too, with a UI
+test that pins our behavior. Malformed calldata may differ from solc only in
+revert data: never accept an input that solc rejects. Reject a parity fix that
+makes the compiler more complex or slower, or the generated code bigger or
+slower, unless ordinary Solidity hits the difference.
 
 When porting a solc test, split `==== Source: ... ====` sections into
 `auxiliary/` and fix imports. If the port keeps the test's semantics one to one

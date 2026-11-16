@@ -66,17 +66,6 @@ small focused files.
   `debug-info/mir/` and `debug-info/evm-ir/` for IR sources, named
   `<pass>_<what>`.
 
-## FileCheck
-
-`//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the test's `.stdout`.
-Use it when a full snapshot would be brittle or huge, such as a 1,500-line
-standard-JSON output for a one-line fix, or when the test checks order,
-presence, or absence. Put `// CHECK:` lines directly above the function or block
-they cover, specific enough to catch the bug, and anchor them with
-`CHECK-LABEL` when the output has several sections. Use the default `CHECK`
-prefix unless revisions need more. Keep patterns short, capture changing values
-with `[[NAME:regex]]`, and keep one function's checks in one comment block.
-
 ## Runtime directives
 
 UI tests can run one isolated entry-point call per `run-call` or `run-call-fail`
