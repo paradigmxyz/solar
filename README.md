@@ -37,8 +37,8 @@ reaching **118×** on Morpho Blue.
 
 We forced via-IR on every project for solc, though most of these projects build without it by
 default. We picked six of the ten whole-project cases in our benchmark suite: v4-core has no solc
-result, and Seaport, Solmate and Solarray are not shown. With each project's own settings, on
-the same machine, we were **34× faster on average** over the six and **27×** over all nine.
+result, and Seaport, Solmate and Solarray are not shown. With each project's own settings,
+measured the same way, we were **34× faster on average** over the six and **27×** over all nine.
 
 We measured on `main` at [commit `e3deeab2`](https://github.com/paradigmxyz/solar/commit/e3deeab2ea4baec5bde4cd746523a567df9ed824)
 against solc 0.8.38, targeting Cancun. [Build from source](#binary-usage) to match it.
