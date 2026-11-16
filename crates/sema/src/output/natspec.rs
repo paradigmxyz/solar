@@ -1,7 +1,11 @@
 //! NatSpec outputs matching solc's Standard JSON output fields.
 
 use super::DocumentationKind;
-use crate::{ast, hir, natspec::LocalTags, ty::Gcx};
+use crate::{
+    hir,
+    natspec::{LocalTags, starts_group},
+    ty::Gcx,
+};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::Span;
@@ -403,18 +407,7 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
         return None;
     }
     let docs = gcx.hir.doc(doc_id).ast_comments();
-    let start = (1..docs.len()).rev().find(|&i| {
-        let (prev, doc) = (&docs[i - 1], &docs[i]);
-        let gap = gcx
-            .sess
-            .source_map()
-            .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
-            .unwrap_or_default();
-        // solc ends a line at LF, CR LF, or a lone CR.
-        !(prev.kind == ast::CommentKind::Line
-            && doc.kind == ast::CommentKind::Line
-            && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
-    })?;
+    let start = (1..docs.len()).rev().find(|&i| starts_group(gcx, &docs[i - 1], &docs[i]))?;
     Some(docs[0].span.with_hi(docs[start].span.lo()))
 }
 

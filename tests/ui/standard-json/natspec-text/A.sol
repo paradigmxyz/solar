@@ -81,3 +81,20 @@ contract L is F {
     /// continued
     function n() public override {}
 }
+
+interface IA {
+    /// @notice IA notice
+    function q() external;
+}
+
+interface IB {
+    /// @notice IB notice
+    function q() external;
+}
+
+contract M is IA, IB {
+    /// @inheritdoc IA
+
+    /// @inheritdoc IB
+    function q() external override(IA, IB) {}
+}

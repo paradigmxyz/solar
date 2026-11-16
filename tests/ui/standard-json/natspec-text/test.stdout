@@ -187,6 +187,54 @@
           },
           "version": 1
         }
+      },
+      "IA": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "q()": {
+              "notice": "IA notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "IB": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "q()": {
+              "notice": "IB notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "M": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "q()": {
+              "notice": "IB notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
       }
     }
   }
