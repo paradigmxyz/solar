@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -698,7 +699,8 @@ def strict(record, tier):
 REPLAY_KEYS = [("source", "sha256"), ("spec",), ("options",), ("functions",), ("environment",), ("bytecode_sha256",),
                ("gas_bound",), ("requested_tier",), ("solidity_lean", "base"), ("solidity_lean", "inputs_sha256"),
                ("solar", "commit"), ("solar", "binary_sha256"), ("solc", "sha256"), ("lean_toolchain", "recorded_digest"),
-               ("published_statement",), ("status",), ("strict",), ("tier_reached",)]
+               ("published_statement",), ("status",), ("strict",), ("tier_reached",),
+               ("solidity_lean", "executed_tree"), ("packages", "digest"), ("packages", "cache_sha256")]
 
 
 def dig(d, path):
@@ -765,6 +767,192 @@ def inputs_problem(rec, files):
     return None
 
 
+def inputs_tree(repo, base, files_dir, paths):
+    """The git tree of BASE with each repository path of PATHS set to the regular file
+    FILES_DIR/PATH: what the run's input commit holds, computed from the base and the listed
+    generated files alone, so a replay needs neither that commit nor the run's clone. Objects go to
+    a scratch directory, never into REPO."""
+    repo = pathlib.Path(repo)
+    rc, objs, err = run(["git", "-C", str(repo), "rev-parse", "--path-format=absolute", "--git-common-dir"])
+    if rc != 0:
+        raise Failed(f"{repo} is not a solidity-lean checkout: {err.strip()[:200]}")
+    with tempfile.TemporaryDirectory() as t:
+        # git refuses a repository whose object directory does not exist.
+        (pathlib.Path(t) / "objects").mkdir()
+        env = dict(os.environ, GIT_INDEX_FILE=str(pathlib.Path(t) / "index"), GIT_OBJECT_DIRECTORY=str(pathlib.Path(t) / "objects"),
+                   GIT_ALTERNATE_OBJECT_DIRECTORIES=str(pathlib.Path(objs.strip()) / "objects"))
+        rc, _, err = run(["git", "-C", str(repo), "read-tree", base], env=env)
+        if rc != 0:
+            raise Failed(f"cannot read the base {base} in {repo}: {err.strip()[:200]}")
+        for q in paths:
+            f = pathlib.Path(files_dir) / q
+            if f.is_symlink() or not f.is_file():
+                raise Failed(f"the generated input {q} is not a regular file")
+            rc, blob, err = run(["git", "-C", str(repo), "hash-object", "-w", "--no-filters", str(f)], env=env)
+            if rc == 0:
+                rc, _, err = run(["git", "-C", str(repo), "update-index", "--add", "--cacheinfo", f"100644,{blob.strip()},{q}"], env=env)
+            if rc != 0:
+                raise Failed(f"cannot add {q} to the base's tree: {err.strip()[:200]}")
+        rc, tree, err = run(["git", "-C", str(repo), "write-tree"], env=env)
+        if rc != 0:
+            raise Failed(f"cannot write the executed tree: {err.strip()[:200]}")
+    return tree.strip()
+
+
+def pinned_packages(repo, rev):
+    """The toolchain and package set a solidity-lean commit pins: its lean-toolchain and each git
+    package of its lake-manifest.json by name and revision, and that set's digest."""
+    try:
+        man = json.loads(git(repo, "show", f"{rev}:lake-manifest.json"))
+    except ValueError as e:
+        raise Failed(f"{rev}:lake-manifest.json is not JSON: {e}") from e
+    pin = {"lean-toolchain": git(repo, "show", f"{rev}:lean-toolchain"),
+           "packages": sorted([q["name"], q["rev"]] for q in man.get("packages", []) if q.get("type") == "git")}
+    return pin, hashlib.sha256(json.dumps(pin, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def packages_problem(pk, pin):
+    """Why the package cache PK (a .lake/packages) is not the pinned set PIN, or None: exactly the
+    pinned git packages, each its own checkout at its pinned revision with no edited or untracked
+    file. Ignored files (build outputs) are not git's to judge: cache_manifest and foreign_oleans
+    hold them."""
+    pk = pathlib.Path(pk)
+    if not pk.is_dir():
+        return f"{pk} is not a package cache"
+    want = dict(pin["packages"])
+    have = {q.name for q in pk.iterdir()}
+    if have != set(want):
+        return f"the cache's packages are not the pinned set (extra {sorted(have - set(want))}, missing {sorted(set(want) - have)})"
+    for n, rev in sorted(want.items()):
+        rc, top, _ = run(["git", "-C", str(pk / n), "rev-parse", "--show-toplevel"])
+        if rc != 0 or pathlib.Path(top.strip()).resolve() != (pk / n).resolve():
+            return f"package {n} is not a git checkout of its own"
+        rc, head, _ = run(["git", "-C", str(pk / n), "rev-parse", "HEAD"])
+        if rc != 0 or head.strip() != rev:
+            return f"package {n} is at {head.strip()[:12] or 'no commit'}, not the pinned {rev[:12]}"
+        rc, st, _ = run(["git", "-C", str(pk / n), "status", "--porcelain", "--untracked-files=all"])
+        if rc != 0 or st.strip():
+            return f"package {n} has edited or untracked files: {st.strip().splitlines()[:3]}"
+    return None
+
+
+def foreign_oleans(pk, pin):
+    """The oleans of the cache's packages with no source module at the package's pinned revision
+    (PACKAGE/.lake/build/lib/lean/M.olean without a tracked M.lean): nothing the pinned set builds."""
+    pk = pathlib.Path(pk)
+    bad = []
+    for n, _ in pin["packages"]:
+        lib = pk / n / ".lake" / "build" / "lib" / "lean"
+        if not lib.is_dir():
+            continue
+        rc, ls, _ = run(["git", "-C", str(pk / n), "ls-files"])
+        if rc != 0:
+            bad.append(f"{n}: cannot list its sources")
+            continue
+        srcs = set(ls.splitlines())
+        for q in sorted(lib.rglob("*.olean")):
+            mod = str(q.relative_to(lib))[: -len(".olean")]
+            if f"{mod}.lean" not in srcs:
+                bad.append(f"{n}/{mod}.olean")
+    return bad
+
+
+def file_digest(q):
+    h = hashlib.sha256()
+    with open(q, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def cache_manifest(pk):
+    """Every file of a package cache outside its packages' .git directories, as sha256sum lines
+    sorted by path: the sources and every build output (olean, ilean, trace) a run starts from, so
+    a file added to, removed from or changed in the cache after the run is a difference."""
+    pk = pathlib.Path(pk)
+    rows = []
+    for top, dirs, names in os.walk(pk):
+        dirs[:] = sorted(x for x in dirs if x != ".git")
+        for n in names:
+            q = pathlib.Path(top) / n
+            if q.is_symlink():
+                h = hashlib.sha256(("symlink:" + os.readlink(q)).encode()).hexdigest()
+            elif q.is_file():
+                h = file_digest(q)
+            else:
+                continue
+            rows.append((f"./{q.relative_to(pk)}", h))
+    return "".join(f"{h}  {rel}\n" for rel, h in sorted(rows))
+
+
+def manifest_diff(old, new):
+    """Paths added, removed and changed between two cache manifests."""
+    a = {l[66:]: l[:64] for l in old.splitlines() if l}
+    b = {l[66:]: l[:64] for l in new.splitlines() if l}
+    return (sorted(set(b) - set(a)), sorted(set(a) - set(b)), sorted(k for k in set(a) & set(b) if a[k] != b[k]))
+
+
+def executed_problem(rec, d, repo):
+    """Why the record's executed solidity-lean tree is not its base with the listed generated inputs
+    (the archived inputs/ files) and nothing else, rebuilt from REPO, or None."""
+    sl = rec.get("solidity_lean") if isinstance(rec.get("solidity_lean"), dict) else {}
+    want, base, paths = sl.get("executed_tree"), sl.get("base"), sl.get("inputs")
+    if not (isinstance(want, str) and re.fullmatch(r"[0-9a-f]{40}", want)):
+        return "the record pins no executed tree (solidity_lean.executed_tree), so the solidity-lean tree it ran is unchecked"
+    if not (isinstance(base, str) and isinstance(paths, list)):
+        return "the record names no base and generated inputs for its executed tree"
+    if not (repo and pathlib.Path(repo).is_dir()):
+        return f"no solidity-lean checkout at {repo!r} to rebuild the executed tree from its base"
+    try:
+        got = inputs_tree(repo, base, d / "inputs", paths)
+        base_tree = git(repo, "rev-parse", base + "^{tree}")
+    except Failed as e:
+        return f"cannot rebuild the executed tree: {e}"
+    if sl.get("base_tree") != base_tree:
+        return f"solidity_lean.base_tree is not the tree of base {base[:12]}"
+    if got != want:
+        return f"the executed tree {want[:12]} is not base {base[:12]} + the listed generated inputs (rebuilt {got[:12]})"
+    return None
+
+
+def packages_replay_problem(rec, d, repo, cache):
+    """Why the record's packages are not its base's pinned toolchain and package set, or the
+    --packages-from cache of this replay not the run's (its manifest, packages-cache.sha256), or
+    None."""
+    pk = rec.get("packages") if isinstance(rec.get("packages"), dict) else {}
+    base = dig(rec, ("solidity_lean", "base"))
+    if not pk.get("digest"):
+        return "packages: the record pins no package set (packages.digest)"
+    try:
+        pin, digest = pinned_packages(repo, base)
+    except Failed as e:
+        return f"packages: cannot read base's pinned package set: {e}"
+    if pk.get("digest") != digest or pk.get("pinned") != pin:
+        return f"packages: the record's package set is not base {str(base)[:12]}'s pinned toolchain and packages"
+    if not cache:
+        return "packages: the run started from a package cache; replay with --packages-from" if pk.get("cache_sha256") else None
+    if not pk.get("cache_sha256"):
+        return "packages: the record pins no package cache manifest, so the --packages-from cache cannot be checked against the run's"
+    c = pathlib.Path(cache) / ".lake" / "packages"
+    if (why := packages_problem(c, pin)) is not None:
+        return f"packages: {why}"
+    if bad := foreign_oleans(c, pin):
+        return f"packages: {len(bad)} olean(s) of the cache have no source at their package's pinned revision: {bad[:3]}"
+    try:
+        old = (d / "packages-cache.sha256").read_text()
+    except OSError:
+        return "packages: the record's cache manifest packages-cache.sha256 is missing"
+    if hashlib.sha256(old.encode()).hexdigest() != pk["cache_sha256"]:
+        return "packages: packages-cache.sha256 is not the manifest packages.cache_sha256 pins"
+    new = cache_manifest(c)
+    if new != old:
+        added, removed, changed = manifest_diff(old, new)
+        first = (added or removed or changed)[:3]
+        return (f"packages: the --packages-from cache is not the run's: {len(added)} added, {len(removed)} removed, "
+                f"{len(changed)} changed (first {first})")
+    return None
+
+
 def replayed_modules(rec):
     return [m.get("module") if isinstance(m, dict) else m for m in (dig(rec, ("replay", "replayed")) or [])]
 
@@ -827,6 +1015,11 @@ def replay_main(a):
     if (why := inputs_problem(rec, files)) is not None:
         out(1, f"REJECTED: replay: {why}")
     if (why := claims_problem(rec, d)) is not None:
+        out(1, f"REJECTED: replay: {why}")
+    repo = a.solidity_lean or rec.get("solidity_lean_source", "")
+    if (why := executed_problem(rec, d, repo)) is not None:
+        out(1, f"REJECTED: replay: {why}")
+    if (why := packages_replay_problem(rec, d, repo, a.packages_from)) is not None:
         out(1, f"REJECTED: replay: {why}")
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     fresh_dir = d.parent / f"{d.name}.replay-{stamp}"
@@ -1025,15 +1218,34 @@ def main():
             (rec_dir / "inputs" / q).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(lean_dir / q, rec_dir / "inputs" / q)
         record["run_files"] = {src.name: src_sha, **{f"inputs/{q}": sha256_file(lean_dir / q) for q in changed}}
+        # The executed tree: the input commit's tree must be the base's with exactly the listed
+        # generated inputs, which --replay rebuilds from the base and the archived inputs/ alone.
+        tree = git(lean_dir, "rev-parse", inputs + "^{tree}")
+        rebuilt = inputs_tree(lean_dir, base, rec_dir / "inputs", changed)
+        if rebuilt != tree:
+            raise Failed(f"executed tree: the input commit's tree {tree} is not base + the listed generated inputs ({rebuilt})")
+        record["solidity_lean"].update(base_tree=git(lean_dir, "rev-parse", base + "^{tree}"), executed_tree=tree)
+        pin, pin_digest = pinned_packages(lean_dir, base)
+        record["packages"] = {"pinned": pin, "digest": pin_digest, "cache_sha256": None}
         if a.prepare_only:
             finish("PREPARED", 1, f"PREPARED: {lean_dir} at {inputs} (no proof run)")
         if a.packages_from:
             pk = pathlib.Path(a.packages_from) / ".lake" / "packages"
+            if (why := packages_problem(pk, pin)) is not None:
+                raise Failed(f"packages: {why}")
+            if bad := foreign_oleans(pk, pin):
+                raise Failed(f"packages: {len(bad)} olean(s) of the cache have no source at their package's pinned revision: {bad[:3]}")
+            man = cache_manifest(pk)
             (lean_dir / ".lake").mkdir(exist_ok=True)
             rc, _, err = run(["cp", "-a", str(pk), str(lean_dir / ".lake" / "packages")])
             if rc != 0:
                 raise Failed(f"cannot copy the packages: {err[:200]}")
+            if cache_manifest(lean_dir / ".lake" / "packages") != man:
+                raise Failed("packages: the cache changed while it was copied")
+            (rec_dir / "packages-cache.sha256").write_text(man)
+            record["run_files"]["packages-cache.sha256"] = sha256_file(rec_dir / "packages-cache.sha256")
             record["packages_from"] = str(pk)
+            record["packages"]["cache_sha256"] = hashlib.sha256(man.encode()).hexdigest()
         log(f"== generic: solidity-lean {base} + inputs {inputs}; scripts/certify")
         # scripts/certify builds solar itself from this checkout (no SOLAR, no CERTIFY_SKIP_BUILD: a
         # binary it is handed is a provenance caveat whatever its digest), and must get the binary
@@ -1070,6 +1282,16 @@ def main():
             finish("REJECTED", 1, f"REJECTED: scripts/certify: exits {rc}: {' | '.join(tail)}")
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
+        # What scripts/certify ran: the input commit, with only this run's own directory changed
+        # by the run, and the pinned packages unedited.
+        ran = git(lean_dir, "rev-parse", "HEAD")
+        moved = [l[3:] for l in git(lean_dir, "status", "--porcelain", "--untracked-files=all").splitlines() if l]
+        outside = [q for q in moved if not q.startswith(f"Certified/{name}/")]
+        if ran != inputs or rec.get("solidity_lean") != inputs or outside:
+            finish("REJECTED", 1, f"REJECTED: executed tree: scripts/certify ran at {rec.get('solidity_lean')} (checkout {ran}), "
+                   f"not the input commit {inputs}, or changed files outside Certified/{name}/: {outside[:3]}")
+        if (why := packages_problem(lean_dir / ".lake" / "packages", pin)) is not None:
+            finish("REJECTED", 1, f"REJECTED: packages: after the run: {why}")
         ok, need_c, comps = strict(dict(rec, name=name, contract=contract), tier)
         reached = reached_tier(comps)
         res = dict(statuses=rec.get("statuses"), strict={"tier": tier, "holds": ok, "components": need_c},
