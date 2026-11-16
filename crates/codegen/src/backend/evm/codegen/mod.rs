@@ -160,9 +160,9 @@ pub struct EvmCodegen<'gcx> {
     /// Whether the block being emitted is in a loop.
     block_in_loop: bool,
     /// The assignments of the function being emitted whose value has been pushed under their
-    /// origin, as a value and the span of the assignment. A push that the code of one assignment
-    /// reaches twice, because the instruction that read first was expanded, keeps the first.
-    claimed_operand_origins: FxHashSet<(ValueId, Span)>,
+    /// origin, by [`OperandOrigin::id`]. A push that the code of one assignment reaches twice,
+    /// because the instruction that read first was expanded, keeps the first.
+    claimed_operand_origins: FxHashSet<u32>,
     /// The span of the contract definition, which backend code without a MIR instruction of its
     /// own is attributed to.
     contract_span: Option<Span>,

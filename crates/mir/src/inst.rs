@@ -105,9 +105,9 @@ impl InstructionMetadata {
     /// Records that the first read of `value` by this instruction follows an assignment that stored
     /// it, inside a loop or not. `origin` is the source context of the assignment, as
     /// [`Self::debug_context`] copies it.
-    pub fn add_operand_origin(&mut self, value: ValueId, origin: Self, in_loop: bool) {
+    pub fn add_operand_origin(&mut self, value: ValueId, origin: Self, in_loop: bool, id: u32) {
         let origins = &mut Arc::make_mut(self.operand_origins.0.get_or_insert_default()).0;
-        origins.push(OperandOrigin { value, origin, in_loop });
+        origins.push(OperandOrigin { value, origin, in_loop, id });
     }
 
     /// Takes the operand origins of `from`, whose operands this instruction reads too.
@@ -402,6 +402,9 @@ pub struct OperandOrigin {
     pub origin: InstructionMetadata,
     /// Whether the assignment is inside a loop, so only code in a loop can run as often.
     pub in_loop: bool,
+    /// Names the assignment among those of the function, so that the copies of the record that an
+    /// expansion makes stay one assignment, and another expansion of the same source does not.
+    pub id: u32,
 }
 
 /// The operand origins of an instruction, shared on those that have any, so others pay one word and
@@ -1284,7 +1287,7 @@ mod tests {
         let mut origin = InstructionMetadata::EMPTY;
         origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
         let mut reader = InstructionMetadata::EMPTY;
-        reader.add_operand_origin(ValueId::from_usize(3), origin, false);
+        reader.add_operand_origin(ValueId::from_usize(3), origin, false, 0);
 
         let mut replacement = InstructionMetadata::EMPTY;
         replacement.preserve_debug_loc(&reader);

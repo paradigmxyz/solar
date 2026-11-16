@@ -51,3 +51,27 @@ contract C {
         return x + 2 ** 128;
     }
 }
+
+// Two invocations of a modifier lower its body twice from one source statement. Each lowering is
+// its own assignment, so both copies of `x` take the declaration's origin.
+contract Twice {
+    uint256 s;
+
+    // CHECK-LABEL: ; function f(
+    // CHECK: dup 1 !metadata(span=[[#TAKE:]]..
+    // CHECK-SAME: [[#TAKE+4]])
+    // CHECK: dup 2 !metadata(span=[[#DECL:]]..
+    // CHECK-SAME: [[#DECL+14]])
+    // CHECK: dup 1 !metadata(span=[[#DECL]]..
+    modifier m(bool take, uint256 x) {
+        if (take) {
+            uint256 y = x;
+            s = y;
+        }
+        _;
+    }
+
+    function f(bool c, uint256 x) external m(c, x) m(!c, x) returns (uint256) {
+        return x;
+    }
+}

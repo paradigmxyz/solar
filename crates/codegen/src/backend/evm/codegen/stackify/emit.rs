@@ -738,12 +738,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             return emit(self);
         };
         let record = self.operand_origins.remove(index);
-        let Some(span) = record.origin.source_span() else { return emit(self) };
+        if record.origin.source_span().is_none() {
+            return emit(self);
+        }
         // Code in a loop that the assignment is not in, such as an expansion's own loop, runs more
         // often than the assignment, and code kept out of line, such as a revert path, less often.
         if cold
             || record.in_loop != self.block_in_loop
-            || !self.claimed_operand_origins.insert((value, span))
+            || !self.claimed_operand_origins.insert(record.id)
         {
             return emit(self);
         }

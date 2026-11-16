@@ -91,6 +91,8 @@ pub struct FunctionBuilder<'a> {
     /// The block whose code the operand origins of `current_debug_context` hold for. Code in
     /// another block runs only if the code that split the block did not leave.
     operand_origins_block: BlockId,
+    /// The [`OperandOrigin::id`] of the next assignment or fold noted.
+    next_origin_id: u32,
 }
 
 /// What a value that no instruction has read yet owes to the code that stored or folded it.
@@ -112,6 +114,8 @@ struct UnreadOrigin {
     folded: bool,
     /// Whether the local the assignment stored the value in has been read since.
     read: bool,
+    /// The assignment's [`OperandOrigin::id`].
+    id: u32,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -141,6 +145,7 @@ impl<'a> FunctionBuilder<'a> {
             placed_blocks: None,
             unread_origins: FxHashMap::default(),
             operand_origins_block: BlockId::ENTRY,
+            next_origin_id: 0,
         }
     }
 
@@ -228,6 +233,8 @@ impl<'a> FunctionBuilder<'a> {
     /// expression.
     pub fn note_assignment(&mut self, value: ValueId, origin: InstructionMetadata, in_loop: bool) {
         let block = self.current_block;
+        let id = self.next_origin_id;
+        self.next_origin_id += 1;
         match self.unread_origins.entry(value) {
             StdEntry::Vacant(entry) => {
                 entry.insert(Unread::Origin(UnreadOrigin {
@@ -236,6 +243,7 @@ impl<'a> FunctionBuilder<'a> {
                     in_loop,
                     folded: false,
                     read: false,
+                    id,
                 }));
             }
             StdEntry::Occupied(mut entry) => {
@@ -251,9 +259,11 @@ impl<'a> FunctionBuilder<'a> {
     pub fn note_fold(&mut self, value: ValueId, in_loop: bool) {
         let origin = self.debug_context();
         let block = self.current_block;
+        let id = self.next_origin_id;
+        self.next_origin_id += 1;
         self.unread_origins.insert(
             value,
-            Unread::Origin(UnreadOrigin { block, origin, in_loop, folded: true, read: true }),
+            Unread::Origin(UnreadOrigin { block, origin, in_loop, folded: true, read: true, id }),
         );
     }
 
@@ -281,7 +291,7 @@ impl<'a> FunctionBuilder<'a> {
             if let Some(Unread::Origin(unread)) = self.unread_origins.remove(&operand)
                 && unread.block == self.current_block
             {
-                metadata.add_operand_origin(operand, unread.origin, unread.in_loop);
+                metadata.add_operand_origin(operand, unread.origin, unread.in_loop, unread.id);
             }
         }
     }
