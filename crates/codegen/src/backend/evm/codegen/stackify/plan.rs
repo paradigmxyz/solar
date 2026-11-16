@@ -296,11 +296,6 @@ impl Reference {
     pub(super) fn progress(&self) -> &Progress {
         &self.progress
     }
-
-    /// The loop headers whose hints differ between the reference and `hints`.
-    fn changed(&self, hints: &FxHashMap<BlockId, Layout>) -> SmallVec<[BlockId; 4]> {
-        changed_hints(&self.hints, hints).collect()
-    }
 }
 
 /// The loop headers whose hinted layouts differ between `old` and `new`.
@@ -333,7 +328,12 @@ impl<'a> Settle<'a> {
         hints: &FxHashMap<BlockId, Layout>,
         beats: &'a dyn Fn(Cost) -> bool,
     ) -> Self {
-        Self { changed: reference.changed(hints), reference: Some(reference), beats, bound: true }
+        Self {
+            changed: changed_hints(&reference.hints, hints).collect(),
+            reference: Some(reference),
+            beats,
+            bound: true,
+        }
     }
 
     /// The reference alone: the replan stops only once it reaches a block in the reference's

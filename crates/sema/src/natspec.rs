@@ -198,15 +198,16 @@ impl LocalTags {
     /// Whether an inherited tag of `kind` survives these local tags: a local tag replaces the
     /// inherited ones of its kind, and custom and internal tags are not inherited.
     pub(crate) fn inherits(self, kind: &hir::NatSpecKind) -> bool {
-        use hir::NatSpecKind as HirKind;
         match kind {
-            HirKind::Notice => !self.contains(Self::NOTICE),
-            HirKind::Dev => !self.contains(Self::DEV),
-            HirKind::Title => !self.contains(Self::TITLE),
-            HirKind::Author => !self.contains(Self::AUTHOR),
-            HirKind::Param { .. } => !self.contains(Self::PARAM),
-            HirKind::Return { .. } => !self.contains(Self::RETURN),
-            HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => false,
+            hir::NatSpecKind::Notice => !self.contains(Self::NOTICE),
+            hir::NatSpecKind::Dev => !self.contains(Self::DEV),
+            hir::NatSpecKind::Title => !self.contains(Self::TITLE),
+            hir::NatSpecKind::Author => !self.contains(Self::AUTHOR),
+            hir::NatSpecKind::Param { .. } => !self.contains(Self::PARAM),
+            hir::NatSpecKind::Return { .. } => !self.contains(Self::RETURN),
+            hir::NatSpecKind::Custom { .. }
+            | hir::NatSpecKind::Internal { .. }
+            | hir::NatSpecKind::Inheritdoc { .. } => false,
         }
     }
 }
