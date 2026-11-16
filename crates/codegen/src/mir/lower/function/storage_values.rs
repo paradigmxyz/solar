@@ -174,6 +174,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {
                 let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let constant = match self.cx.gcx.const_eval().eval_expr(expr) {
+                    Ok(_) if self.keeps_keccak(expr) => None,
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
                     Ok(ConstValue::Int(value)) => {
                         value.as_u256().map(|value| self.builder.imm(value))

@@ -870,7 +870,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values: &[ValueId],
     ) -> Option<ValueId> {
         let function = self.cx.gcx.hir.function(function_id);
-        if function.state_mutability != StateMutability::Pure
+        // An unoptimized build keeps the call, so each call and the body's statements run apart.
+        if self.is_unoptimized()
+            || function.state_mutability != StateMutability::Pure
             || !function.modifiers.is_empty()
             || function.parameters.len() != values.len()
             || function.returns.len() != 1

@@ -25,11 +25,9 @@ fn @uncheckedMake(arg0: i256) -> ptr<memory> [pure] {
 ; function checkedCallee() external pure returns (uint256) [selector 0x07ed54cc]
 fn @checkedCallee() -> i256 [selector=0x07ed54cc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = alloc 32
-    v1 = checked_add uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    mstore v0, v1
-    v2 = mload v0
-    ret v2
+    v0 = icall @checkedMake, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = mload v0
+    ret v1
 }
 
 ; function uncheckedCallee() external pure returns (uint256) [selector 0xc2c44d8f]

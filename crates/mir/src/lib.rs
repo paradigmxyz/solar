@@ -85,7 +85,7 @@ mod builtin;
 pub use builtin::{Builtin, Callee, RequireKind};
 
 mod builder;
-pub use builder::{CountedLoop, ERROR_SELECTOR, FunctionBuilder, ToUint};
+pub use builder::{CountedLoop, ERROR_SELECTOR, FunctionBuilder, PANIC_SELECTOR, ToUint};
 
 mod display;
 

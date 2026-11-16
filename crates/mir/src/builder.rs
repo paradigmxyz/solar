@@ -62,7 +62,7 @@ impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 pub const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 
 /// The Panic(uint256) selector, `keccak256("Panic(uint256)")[..4]`, left-aligned in a word.
-const PANIC_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x4e48_7b71_u64 << 32]);
+pub const PANIC_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x4e48_7b71_u64 << 32]);
 
 /// Revert blocks shared while constructing one MIR function.
 #[derive(Default)]

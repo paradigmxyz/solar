@@ -3,8 +3,9 @@
 //@ run-call: f 4 => 4, 0x0000000000000000000000000000000000000000, false
 
 // A pure function that only returns a struct literal is inlined at its call
-// site. A storage parameter must stay a storage reference there, so a field
-// that reads it copies the referenced struct into memory.
+// site, except at `-Onone`, which calls it. A storage parameter must stay a
+// storage reference there, so a field that reads it copies the referenced
+// struct into memory.
 contract PureStructConstructorStorageParameter {
     struct Order {
         uint256 amount;

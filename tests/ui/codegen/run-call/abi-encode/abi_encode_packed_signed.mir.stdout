@@ -24,11 +24,15 @@ fn @signedError() -> i1 [selector=0x09d01655, abi_params=[], abi_returns=[word<b
     v6 = ptradd v4, 32
     v7 = mload v4
     v8 = keccak256 v6, v7
-    v9 = eq v8, 0x95bff50e2a2fa6333bc7685be2aa7d41f1e942ee0b7561121a4d170f5e14161d
+    v9 = abi_encode [word], object, selector 0x3f3cc61800000000000000000000000000000000000000000000000000000000, args 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = ptradd v9, 32
+    v11 = mload v9
+    v12 = keccak256 v10, v11
+    v13 = eq v8, v12
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v10 = phi [bb1: v9], [bb2: false]
-    ret v10
+    v14 = phi [bb1: v13], [bb2: false]
+    ret v14
 }
 
 ; function identity(int8 value) external pure returns (int8) [selector 0x87209429]

@@ -27,8 +27,9 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = keccak256 v14, v15
-    v17 = eq v16, 0x62e243217b24f0adeab63b697d9c38d64bd4cbf540c9915772ddc377b45b411c
-    ret v17
+    v17 = keccak256_packed (uint256 32, uint256 3, uint256 1, uint256 2, uint256 3)
+    v18 = eq v16, v17
+    ret v18
 }
 
 ; function bytesTail() external pure returns (bool) [selector 0x56818b01]

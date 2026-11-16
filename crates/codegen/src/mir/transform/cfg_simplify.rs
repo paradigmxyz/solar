@@ -39,12 +39,14 @@
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
 //! terminators retain the union of their original locations instead. A shared block keeps
-//! `cold_hint` only if every block it replaces has it.
+//! `cold_hint` only if every block it replaces has it. Unoptimized functions share only the
+//! blocks that revert with a `Panic(uint256)` payload, which no statement writes: each `revert`
+//! and `return` statement keeps a block of its own, which coverage anchors it to.
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
     BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata,
-    MirType, Module, Terminator, Value, ValueId,
+    MirType, Module, PANIC_SELECTOR, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
@@ -71,7 +73,11 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| simplify_function(func))
+        let objective = module.optimization;
+        run_function_pass(module, analyses, |func, _| {
+            let keep_statements = func.attributes.optimization.unwrap_or(objective).is_none();
+            run_to_fixpoint(func, keep_statements)
+        })
     }
 }
 
@@ -101,7 +107,7 @@ impl MirPass for BranchSimplify {
 
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
-    run_to_fixpoint(func)
+    run_to_fixpoint(func, false)
 }
 
 /// Function pass that only replaces trivial phis by their unique incoming value.
@@ -234,11 +240,11 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 }
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
-fn run(func: &mut Function) -> bool {
+fn run(func: &mut Function, keep_statements: bool) -> bool {
     let mut changed = simplify_degenerate_terminators(func);
     changed |= merge_blocks(func);
     changed |= eliminate_empty_blocks(func);
-    changed |= deduplicate_terminal_blocks(func);
+    changed |= deduplicate_terminal_blocks(func, keep_statements);
     changed |= simplify_trivial_phis(func);
     changed
 }
@@ -252,7 +258,10 @@ fn run(func: &mut Function) -> bool {
 /// function. The rewrite is phi-safe by construction: the kept block has
 /// no phis and a terminal block has no successors, so no phi inputs
 /// elsewhere can mention it.
-fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
+///
+/// With `keep_statements`, only blocks that revert with a panic merge, so every other terminal
+/// block, which a `revert` or `return` statement wrote, keeps its own instructions.
+fn deduplicate_terminal_blocks(func: &mut Function, keep_statements: bool) -> bool {
     // Equal keys imply equal terminator mnemonics and block lengths, so only
     // blocks sharing that shape with another candidate need a key.
     let shape = |block_id: BlockId| {
@@ -260,7 +269,8 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         let term = block.terminator.as_ref()?;
         (!block.predecessors.is_empty()
             && !matches!(term, Terminator::Invalid)
-            && !term.has_successors())
+            && !term.has_successors()
+            && (!keep_statements || reverts_with_panic(func, block_id)))
         .then(|| (term.mnemonic(), block.instructions.len()))
     };
     let mut shapes = FxHashMap::<_, usize>::default();
@@ -315,6 +325,14 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         func.blocks[dup].set_generated_terminator(Terminator::Invalid);
     }
     !merges.is_empty()
+}
+
+/// Returns whether the block stores the `Panic(uint256)` selector, as every panic revert does.
+fn reverts_with_panic(func: &Function, block: BlockId) -> bool {
+    func.blocks[block].instructions.iter().any(|&id| {
+        matches!(func.inst(id).kind, InstKind::Store(_, value, _)
+            if func.value_u256(value) == Some(PANIC_SELECTOR >> 224))
+    })
 }
 
 /// Builds the alpha-equivalence key of a terminal block, or `None` if the
@@ -541,7 +559,7 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function) -> bool {
+fn run_to_fixpoint(func: &mut Function, keep_statements: bool) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -553,7 +571,7 @@ fn run_to_fixpoint(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    while run(func) {
+    while run(func, keep_statements) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)

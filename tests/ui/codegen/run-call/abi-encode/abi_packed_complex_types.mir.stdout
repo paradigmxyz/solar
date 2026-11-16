@@ -62,10 +62,11 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v53 = ptradd v52, 32
     v54 = mload v52
     v55 = keccak256 v53, v54
-    v56 = insert_value struct0, undef struct0, 0, v51
-    v57 = insert_value struct0, v56, 1, v55
-    v58 = insert_value struct0, v57, 2, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
-    ret v58
+    v56 = keccak256_packed (uint160 i160 0x1234)
+    v57 = insert_value struct0, undef struct0, 0, v51
+    v58 = insert_value struct0, v57, 1, v55
+    v59 = insert_value struct0, v58, 2, v56
+    ret v59
   bb2:                                            ; preds = bb1
     v31 = add v29, 0
     v32 = sload v31 !metadata(storage=symbolic(v29))

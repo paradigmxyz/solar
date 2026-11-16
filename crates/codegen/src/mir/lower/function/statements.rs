@@ -48,6 +48,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Some(expr) = initializer
                     && let Ok(value) = self.cx.gcx.const_eval().eval_int(expr)
                     && let Some(value) = value.as_u256()
+                    && !self.keeps_keccak(expr)
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                     let value = self.builder.imm(value);

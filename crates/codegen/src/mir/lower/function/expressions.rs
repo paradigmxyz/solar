@@ -2,6 +2,8 @@
 
 use super::*;
 use crate::mir::Immediate;
+use solar_sema::hir::Visit;
+use std::ops::ControlFlow;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_string_literal_word(&mut self, bytes: &[u8]) -> ValueId {
@@ -333,6 +335,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             value => Some(self.builder.imm(value.as_word()?)),
         }
     }
+    /// Whether this function is compiled without optimization.
+    pub(super) fn is_unoptimized(&self) -> bool {
+        self.cx.module.objective_of(self.builder.func()).is_none()
+    }
+
+    /// Returns whether this function is unoptimized and `expr` hashes something other than a
+    /// literal or a constant with `keccak256`, so `-Onone` computes it at run time under its own
+    /// span, where solc's unoptimized output does.
+    pub(super) fn keeps_keccak(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.is_unoptimized() && (ComputesKeccak { lowerer: self }).visit_expr(expr).is_break()
+    }
 }
 
 /// Returns whether calling `callee` converts its argument to another type.
@@ -347,4 +360,35 @@ pub(super) fn is_type_conversion(gcx: Gcx<'_>, callee: &hir::Expr<'_>) -> bool {
             )
         })
         || gcx.type_of_expr(callee.id).is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)))
+}
+
+/// Finds a `keccak256` call in an expression, outside the constants it names: constant
+/// evaluation folds those whatever the optimization level, as it must where they form a DAG. A
+/// call that hashes a literal or a constant stays folded too.
+struct ComputesKeccak<'a, 'gcx, 'ctx> {
+    lowerer: &'a FunctionLowerer<'gcx, 'ctx>,
+}
+
+impl<'gcx> Visit<'gcx> for ComputesKeccak<'_, 'gcx, '_> {
+    type BreakValue = ();
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.lowerer.cx.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<()> {
+        let gcx = self.lowerer.cx.gcx;
+        if let Some((callee, args, _)) = expr.as_call()
+            && gcx.resolved_builtin(callee) == Some(Builtin::Keccak256)
+            && let hir::CallArgsKind::Unnamed([data]) = args.kind
+        {
+            let data = self.lowerer.peel_type_conversions(data, |_, _| true);
+            if !(matches!(data.kind, ExprKind::Lit(_))
+                || data.as_variable().is_some_and(|id| gcx.hir.variable(id).is_constant()))
+            {
+                return ControlFlow::Break(());
+            }
+        }
+        self.walk_expr(expr)
+    }
 }

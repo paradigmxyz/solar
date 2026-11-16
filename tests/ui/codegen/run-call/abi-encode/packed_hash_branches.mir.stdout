@@ -21,7 +21,9 @@ fn @hash(arg0: i1) -> i256 [selector=0x73f7012e, pure, abi_params=[bool], abi_re
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2
-    ret 0xb5553de315e0edf504d9150af82dafa5c4667fa618ed0a6f19c69b41166c5510
+    v1 = keccak256_packed (data hex"62")
+    ret v1
   bb1:                                            ; preds = bb0
-    ret 0x3ac225168df54212a25c1c01fd35bebfea408fdac2e31ddd6f80a4bbf9a5f1cb
+    v0 = keccak256_packed (data hex"61")
+    ret v0
 }

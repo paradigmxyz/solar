@@ -191,8 +191,12 @@ fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[wor
 fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = eq v0, 0xfe6e3819d29bc8bbc969033ee307460d468312dd6c89dad00153205fe9cb9eb2
-    ret v1
+    v1 = abi_encode [word, word, word, word, word], scratch, args 32, 3, 0, 0, 42
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = keccak256 v2, v3
+    v5 = eq v0, v4
+    ret v5
 }
 
 ; === ROOT/tests/ui/codegen/run-call/constructors/constructor_free_memory_indirect.sol:WithArgument ===

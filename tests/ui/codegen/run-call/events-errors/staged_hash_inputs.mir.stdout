@@ -279,7 +279,9 @@ fn @erc7201Memory(arg0: ptr<memory>) -> i256 [selector=0x8293e393, pure, abi_par
 ; function expectedSlot() private pure returns (uint256)
 fn @expectedSlot() -> i256 [pure] {
   bb0:
-    ret 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
+    v0 = keccak256_packed (uint256 0xb0ae1bb16fc1b16f3e2fb344bef6b08581bbec9f0228f7dd5fd38a8c141b3424)
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v1
 }
 
 ; function freePointer() private pure returns (uint256 pointer)

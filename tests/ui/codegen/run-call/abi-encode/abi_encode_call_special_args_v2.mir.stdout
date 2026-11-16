@@ -26,28 +26,46 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
 ; function test() external view returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    jumpi true, bb1, bb2
-  bb2:                                            ; preds = bb0
-    jump bb3
-  bb1:                                            ; preds = bb0
-    v0 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
     v1 = ptradd v0, 32
     v2 = mload v0
     v3 = keccak256 v1, v2
-    v4 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v4 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
     v5 = ptradd v4, 32
     v6 = mload v4
     v7 = keccak256 v5, v6
     v8 = eq v3, v7
+    jumpi v8, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v9 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v10 = ptradd v9, 32
+    v11 = mload v9
+    v12 = keccak256 v10, v11
+    v13 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v14 = ptradd v13, 32
+    v15 = mload v13
+    v16 = keccak256 v14, v15
+    v17 = eq v12, v16
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v9 = phi [bb1: v8], [bb2: false]
-    jumpi v9, bb4, bb5
+    v18 = phi [bb1: v17], [bb2: false]
+    jumpi v18, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
+    v19 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v20 = ptradd v19, 32
+    v21 = mload v19
+    v22 = keccak256 v20, v21
+    v23 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v24 = ptradd v23, 32
+    v25 = mload v23
+    v26 = keccak256 v24, v25
+    v27 = eq v22, v26
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v10 = phi [bb4: true], [bb5: false]
-    ret v10
+    v28 = phi [bb4: v27], [bb5: false]
+    ret v28
 }

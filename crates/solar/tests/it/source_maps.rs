@@ -594,7 +594,7 @@ fn debugify_sidecars_separate_compilations() {
 }
 
 #[test]
-fn shared_custom_error_keeps_distinct_condition_origins() {
+fn unoptimized_custom_error_reverts_keep_their_statements() {
     let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Probe.sol")).unwrap();
     for mode in ["none", "gas", "size"] {
         let plain = compile(mode, "bin,bin-runtime");
@@ -632,50 +632,37 @@ fn shared_custom_error_keeps_distinct_condition_origins() {
                 .expect("each rejection must keep its own condition location");
             destinations.push(instructions[index - 1]["operation"]["arguments"][0].clone());
         }
-        assert_eq!(destinations[0], destinations[1], "both guards share the same error body");
-        // NOTE: The shared body cannot have either call's unique source location. Coverage
-        // must distinguish the incoming edges instead of counting the common destination, so no
-        // entry from the shared label through its `REVERT` may name only one of the merged paths.
-        let target =
-            u64::from_str_radix(destinations[0].as_str().unwrap().trim_start_matches("0x"), 16)
-                .unwrap();
-        let label = instructions
-            .iter()
-            .position(|inst| {
-                inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
-            })
-            .expect("the guards jump to a `JUMPDEST`");
-        let revert = label
-            + instructions[label..]
+        // `-Onone` keeps one revert body per statement, so no path shares the other's location.
+        assert_ne!(destinations[0], destinations[1], "each guard reverts in its own body");
+        let revert = "revert Denied()";
+        let mut start = 0;
+        for destination in &destinations {
+            start += source[start..].find(revert).unwrap();
+            let target =
+                u64::from_str_radix(destination.as_str().unwrap().trim_start_matches("0x"), 16)
+                    .unwrap();
+            let label = instructions
                 .iter()
-                .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
-                .expect("the shared body reverts");
-        let shared = entries[label..=revert]
-            .iter()
-            .zip(&instructions[label..=revert])
-            .map(|(entry, inst)| {
-                format!(
-                    "{} {}:{}:{}",
-                    inst["operation"]["mnemonic"].as_str().unwrap(),
-                    entry[0],
-                    entry[1],
-                    entry[2]
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert_data_eq!(
-            shared,
-            str![[r#"
-JUMPDEST -1:-1:-1
-PUSH4 -1:-1:-1
-PUSH0 -1:-1:-1
-MSTORE -1:-1:-1
-PUSH1 -1:-1:-1
-PUSH1 -1:-1:-1
-REVERT -1:-1:-1
-"#]]
-        );
+                .position(|inst| {
+                    inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
+                })
+                .expect("the guard jumps to a `JUMPDEST`");
+            let end = label
+                + instructions[label..]
+                    .iter()
+                    .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
+                    .expect("the body reverts");
+            // The label belongs to the `if` that branches here, the rest to the `revert`.
+            let branch = source[..start].rfind("if (").unwrap();
+            assert!(in_statement(entries[label], id, branch, start + revert.len()), "{label}");
+            for entry in &entries[label + 1..=end] {
+                assert!(
+                    in_statement(*entry, id, start, start + revert.len()),
+                    "{entry:?} lies outside `{revert}` at {start}"
+                );
+            }
+            start += revert.len();
+        }
         // The source-only assignments in `_state` have no instructions. Its return still
         // identifies successful completion of the helper, independently of those locations.
         let start = source.find("function _state()").unwrap();

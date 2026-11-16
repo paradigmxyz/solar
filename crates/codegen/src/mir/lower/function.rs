@@ -879,6 +879,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && (solidity_value() || is_literal_operation(self.cx.gcx, expr))
             && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
             && !matches!(value, ConstValue::Bytes(..))
+            && !self.keeps_keccak(expr)
         {
             // Fractions have no runtime value.
             if let ConstValue::Rational(_) = value {
