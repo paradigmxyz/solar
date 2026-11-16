@@ -1,4 +1,5 @@
 import SolarTV.MIR.Transforms.DCE
+import SolarTV.MIR.Transforms.FunctionDCE
 import SolarTV.Correspondence
 import SolarTV.MIR.Import
 import SolarTV.MIR.Universal

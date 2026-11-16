@@ -204,6 +204,7 @@ def replay_command(
     stack_height: int | None = None,
     world: Path | None = None,
     prefix: str | None = None,
+    prune: bool = False,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -218,6 +219,8 @@ def replay_command(
     ]
     if prefix is not None:
         argv.extend(["--prefix", prefix])
+    if prune:
+        argv.append("--prune")
     if world is not None:
         argv.extend(["--world", str(world.resolve())])
     if gas is not None:

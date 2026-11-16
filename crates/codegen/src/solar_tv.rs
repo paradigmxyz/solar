@@ -90,6 +90,8 @@ impl<'a> Snapshot<'a> {
         }
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
+        // Deleted functions instead require rooted function-table correspondence;
+        // never validate a missing body as an executable function entry.
         // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()
@@ -99,7 +101,9 @@ impl<'a> Snapshot<'a> {
             && gas_policy.is_none()
             && region.is_some_and(|r| r.kind == "region")
             && rejection == Some("incoming EVM stack height is unknown");
-        let rejection = if prefix || universal_region { None } else { rejection };
+        let prune =
+            layer == "mir" && rejection == Some("function was removed or its identity changed");
+        let rejection = if prefix || universal_region || prune { None } else { rejection };
         let pair = tempfile::Builder::new()
             .prefix(&format!("{layer}-"))
             .tempdir_in(std::path::absolute(self.directory).map_err(io_error)?)
@@ -123,7 +127,9 @@ impl<'a> Snapshot<'a> {
                     command.arg(layer).arg(before_path).arg(after_path).arg("--solar").arg(solar);
                     command.arg("--report").arg(pair.path().join("result.json"));
                     command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
-                    if let Some(region) = region {
+                    if prune {
+                        command.arg("--prune");
+                    } else if let Some(region) = region {
                         command
                             .arg(if prefix {
                                 "--prefix".into()
@@ -219,7 +225,9 @@ impl<'a> Snapshot<'a> {
         if let Some(reason) = rejection {
             record["diagnostic"] = reason.into();
         }
-        if let Some(region) = region {
+        if let Some(region) = region
+            && !prune
+        {
             if !record["region"].is_object() {
                 record["region"] = serde_json::json!({});
             }

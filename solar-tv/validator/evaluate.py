@@ -164,7 +164,11 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             and region["kind"] == "region"
             and row["rejection"] == "incoming EVM stack height is unknown"
         )
-        if row["rejection"] and not (prefix or universal_region):
+        prune = (
+            row["layer"] == "mir"
+            and row["rejection"] == "function was removed or its identity changed"
+        )
+        if row["rejection"] and not (prefix or universal_region or prune):
             record = {
                 "version": 1,
                 "status": "unsupported",
@@ -191,7 +195,9 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 "--report",
                 target,
             ]
-            if region := row["region"]:
+            if prune:
+                command.append("--prune")
+            elif region := row["region"]:
                 command += [
                     "--prefix" if prefix else f"--{region['kind']}",
                     region["name"],

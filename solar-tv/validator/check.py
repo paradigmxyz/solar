@@ -670,6 +670,11 @@ def main() -> int:
     selection.add_argument(
         "--prefix", help="prove a block prefix for every incoming stack"
     )
+    selection.add_argument(
+        "--prune",
+        action="store_true",
+        help="prove deletion-only rooted MIR function tables",
+    )
     parser.add_argument(
         "--stack-height",
         type=int,
@@ -697,6 +702,7 @@ def main() -> int:
         stack_height=args.stack_height,
         world=args.world,
         prefix=args.prefix,
+        prune=args.prune,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -724,8 +730,25 @@ def main() -> int:
             stack_height=args.stack_height,
             world=args.world,
             prefix=args.prefix,
+            prune=args.prune,
         )
-        if args.prefix:
+        if args.prune:
+            if (
+                args.ir != "mir"
+                or args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--prune requires unpriced MIR without a world fixture or stack height"
+                )
+            from . import prune
+
+            result = prune.check(
+                (args.before, args.after), solar, version, args.timeout
+            )
+            programs = list(result.pair)
+        elif args.prefix:
             if args.ir != "evmir" or args.world or args.stack_height is not None:
                 raise Unsupported(
                     "--prefix requires EVM IR without a world fixture or fixed height"

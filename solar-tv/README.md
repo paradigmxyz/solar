@@ -1282,6 +1282,35 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/memory-prologue/{before,broken}.
   --world solar-tv/examples/evmir/memory-prologue/world.json
 ```
 
+### Removing unreachable MIR functions
+
+`--prune` checks deletion-only function-table changes. It preserves every
+external entry, requires every surviving declaration to be identical, and checks
+that all its named call targets survive. The kernel theorem covers calls,
+tail calls, saved return continuations and terminal observations for every step
+bound, including recursive calls and CFG cycles. It does not unroll loops to a
+fixed depth or claim that a removed function remains callable.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/function-dce/{before,after}.mir --prune
+solar-tv/solar-tv mir solar-tv/examples/mir/function-dce/{before,broken}.mir \
+  --function f
+```
+
+The first pair comes from the real `function-dce` pass. The second changes a
+surviving result and produces a counterexample checked by Lean and Rust replay.
+The live pass adapter automatically tries the table certificate for removed or
+renumbered functions; capture-only records keep their original selection.
+
+Reports call this `rooted-function-table-correspondence`, with module scope and
+an `unpriced-structural` gas policy. Primitive instruction semantics and state
+are shared abstract parameters. The compiler parser/display, named-reference
+extraction and binding to this call machine remain trusted. This is not an
+instruction-semantics, physical gas or backend-layout certificate. Numeric
+function-pointer dispatchers, backend-memory records, changed surviving bodies
+or globals, and modules without explicit entry points are unsupported. Each
+module is limited to 1 MiB and 128 functions.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1306,8 +1335,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **15 of 24** with
-`--timeout 30`; 9 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **16 of 24** with
+`--timeout 30`; 8 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1327,8 +1356,10 @@ WETH's `DOMAIN_SEPARATOR` SCCP pair also verifies through its allocating helper
 using the separately reported compositional call/effect certificate.
 Its post-precompile predicate peephole also verifies, with all 103 shared
 prefix instructions bound into the contextual suffix certificate.
+WETH's deletion of two unreferenced token-transfer hooks now verifies with the
+separately reported rooted function-table certificate described above.
 
-The original ten-second budget verifies **14 of 24**, with that larger MIR proof
+The original ten-second budget verifies **15 of 24**, with that larger MIR proof
 still timing out. It closes in about 25 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and
