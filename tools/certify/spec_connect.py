@@ -165,6 +165,43 @@ def tree_succeeds_tolerant(ds):
     return TREE_SUCCEEDS_TOLERANT.replace("@DS@", f"{ds}, *")
 
 
+# `tree_meets_fixed`'s steps for a spec without succeeds-if conditions, reading a returned word back
+# after the tree's branches are split: `words_byteOf` folds the 32 returned bytes of a computed word
+# (such as `x + y`) into that word once the branch is fixed, and `Nat.mod_lt` settles the range
+# check of its decoding. `tree_meets_map'` evaluates those bytes one by one instead, which for such
+# a word runs out of heartbeats or memory, so this proof is tried before it.
+TREE_MEETS_FIXED_WORD = """\
+intro args s iargs pre hl hargs hs hdec hst ht hreq hinv
+have hsm : ∀ k, s k % 2 ^ 256 = s k := fun k => Nat.mod_eq_of_lt (hs k)
+have hsi : ∀ k, ((s k : Nat) : Int) % 2 ^ 256 = s k := fun k =>
+  Int.emod_eq_of_lt (Int.natCast_nonneg _) (by have := hs k; omega)
+rcases args with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7, _ | ⟨_, _⟩⟩⟩⟩⟩⟩⟩⟩⟩ <;>
+  simp only [List.length_cons, List.length_nil] at hl <;> (try omega) <;>
+  simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
+    IsEmpty.forall_iff, implies_true, and_true] at hargs <;>
+  simp only [@DS@, List.head, List.getElem_cons_zero, List.getElem_cons_succ, decodeWords, Ty.ofWord,
+    hargs, ite_true, bind, pure, Option.bind,
+    Option.some.injEq] at hdec <;>
+  subst hdec <;>
+  refine ⟨fun hsucc => ?_, fun hne => ?_⟩ <;>
+  first
+  | (simp [@DS@] at hne; done)
+  | (simp only [@DS@, Tree.eval, Res.obs, words_byteOf, WExpr.eval, BinOp.eval, Generic.wordSize, hsm,
+        List.getD_cons_zero, List.getD_cons_succ] at hsucc ⊢
+     split_ifs at hsucc ⊢ <;>
+     (try simp only [words_byteOf] at hsucc ⊢) <;>
+     simp_all [@DS@, Res.obs, Writes.store, WExpr.eval, BinOp.eval, Bundle.satAll, Bundle.sat,
+       eval, slotOf, mkEnv, Env.cur, BinOp.apply, Ty.ofBits, Ty.ofWord, toWord, decodeWords, words,
+       Generic.wordSize, words_byteOf, Nat.cast_add, Nat.mod_lt, Nat.ofNat_pos] <;>
+     omega)"""
+
+
+def tree_meets_fixed_word(ds):
+    """The returned-word `TreeMeetsFixed` proof for the simp set `ds`, as one `first` alternative."""
+    lines = TREE_MEETS_FIXED_WORD.replace("@DS@", ds).splitlines()
+    return "(" + "\n     ".join(lines) + ")"
+
+
 def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
     """A function with succeeds-if conditions: the spec without them (the same tactic, with the
     conditions removed by FnSpec.noSucc), the conditions apart (TreeSucceeds), and both put
@@ -186,7 +223,10 @@ def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
         if not lits:
             # A tree with no branch (a function that only writes, such as one setting a slot to a
             # constant) leaves tree_meets_map' no if-then-else to split; tree_meets_fixed proves it.
-            proof0 = f"  first\n  | (tree_meets_map' [{ds0}] {sep})\n  | (tree_meets_fixed [{ds0}])"
+            # A heartbeat timeout is not an error `first` moves past, so the returned-word proof,
+            # which fails fast when it does not apply, goes first.
+            proof0 = (f"  first\n  | {tree_meets_fixed_word(ds0)}\n  | (tree_meets_map' [{ds0}] {sep})"
+                      f"\n  | (tree_meets_fixed [{ds0}])")
     else:
         proof0 = proof.replace("_spec,", "_spec, SolidCore.Spec.FnSpec.noSucc,", 1)
     comb = (

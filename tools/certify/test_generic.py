@@ -532,5 +532,33 @@ class FrontendLocation(unittest.TestCase):
         self.assertIn("counter_x.sol", bodies[0])
 
 
+class LeanMemory(unittest.TestCase):
+    """--lean-memory: the default stays 6000 MB and a value that is not a cap is refused."""
+
+    def test_values(self):
+        self.assertEqual(generic.LEAN_MEMORY, "6000")
+        self.assertEqual(generic.lean_memory_mb("12000"), "12000")
+        for bad in ("", "6G", "-1", "999"):
+            with self.assertRaises(generic.argparse.ArgumentTypeError):
+                generic.lean_memory_mb(bad)
+
+
+class SpecConnectWordProof(unittest.TestCase):
+    """A branch-free tree's spec without succeeds-if conditions tries the returned-word proof first,
+    keeps both earlier proofs as fallbacks, and names every definition of the simp set in it."""
+
+    def test_order(self):
+        import spec_connect
+        ds = "f_tree, f_spec, SolidCore.Spec.FnSpec.noSucc, M.spec, B, M.ctx"
+        block = spec_connect.succeeds_block("f", 1, "", "X", [], [], "TreeMeetsFixed", "M", "B")[3]
+        alts = [l for l in block.splitlines() if l.startswith("  | ")]
+        self.assertEqual(len(alts), 3)
+        self.assertTrue(alts[0].startswith("  | (intro args s iargs pre"))
+        self.assertIn("tree_meets_map' [" + ds + "]", alts[1])
+        self.assertEqual(alts[2], "  | (tree_meets_fixed [" + ds + "])")
+        self.assertEqual(block.count(ds), 6)
+        self.assertNotIn("@DS@", block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

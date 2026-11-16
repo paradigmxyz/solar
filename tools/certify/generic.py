@@ -41,7 +41,8 @@ ENVIRONMENT = "one frame, caller 0x2000, contract at 0x1000, the block and trans
 OPTIONS = ["-Ogas", "--evm-version", "osaka"]
 # Lean's per-process memory cap for scripts/certify's builds, pinned to CI's: its own default (3000
 # MB) is too small for a clean build of some base modules, whose kernel then reports excessive
-# memory consumption rather than a proof failure.
+# memory consumption rather than a proof failure. --lean-memory overrides it for one run, and the
+# record keeps the value used (`lean_memory`), which --replay passes on.
 LEAN_MEMORY = "6000"
 # Build output that says Lean ran out of a resource rather than refuting a proof.
 RESOURCE_MARKS = ("excessive memory consumption", "(deterministic) timeout", "maximum number of heartbeats",
@@ -796,6 +797,13 @@ def claims_problem(rec, d):
     return None
 
 
+def lean_memory_mb(v):
+    """--lean-memory's value: a whole number of MB, at least 1000, kept as the string Lean's -M takes."""
+    if not v.isdigit() or int(v) < 1000:
+        raise argparse.ArgumentTypeError(f"not a memory cap in MB (a whole number, at least 1000): {v!r}")
+    return str(int(v))
+
+
 def replay_main(a):
     """--replay DIR: refuse a finished run's directory unless its files are the record's and a
     fresh, cold run from its source reproduces every pin of the record."""
@@ -840,6 +848,9 @@ def replay_main(a):
     for flag, val in (("--packages-from", a.packages_from), ("--probe-cache", a.probe_cache)):
         if val:
             cmd += [flag, val]
+    if rec.get("lean_memory"):
+        # The cap the run used; a record from before --lean-memory ran at the default.
+        cmd += ["--lean-memory", str(rec["lean_memory"])]
     print(f"== replay: {' '.join(cmd)}", flush=True)
     p = subprocess.run(cmd)
     try:
@@ -881,6 +892,8 @@ def main():
     ap.add_argument("--no-negatives", action="store_true")
     ap.add_argument("--probe-cache", help="a checkout whose .lake the probe clone starts from (lake rebuilds what differs)")
     ap.add_argument("--prepare-only", action="store_true", help="stop after the input commit (development)")
+    ap.add_argument("--lean-memory", type=lean_memory_mb, default=LEAN_MEMORY, metavar="MB",
+                    help=f"Lean's per-process memory cap for scripts/certify (default {LEAN_MEMORY}), recorded as lean_memory")
     a = ap.parse_args()
     if a.replay:
         replay_main(a)
@@ -913,6 +926,7 @@ def main():
         "solar": {"commit": git(ROOT, "rev-parse", "HEAD"), "dirty": bool(git(ROOT, "status", "--porcelain", "--", "crates", "scripts", "tools/certify", "Cargo.toml", "Cargo.lock"))},
         "solc": {"version": SOLC_VERSION, "path": a.solc, "sha256": sha256_file(a.solc) if os.path.exists(a.solc) else None},
         "lean_toolchain": {"recorded_digest": (HERE / "toolchain.sha256").read_text().strip()},
+        "lean_memory": a.lean_memory,
     }
 
     def finish(status, code, line, **extra):
@@ -1040,7 +1054,7 @@ def main():
         # the driver built and compiled the source with: CERTIFY_SOLAR_SHA256 is that binary's digest,
         # so a different build is a caveat too.
         env = dict(os.environ, SOLIDITY_LEAN_DIR=str(lean_dir), CERTIFY_ALLOW_UNPINNED="1", CERTIFY_CLEAN_BUILD="1",
-                   SOLC=a.solc, CERTIFY_SOLAR_SHA256=record["solar"]["binary_sha256"], LEAN_MEMORY=LEAN_MEMORY)
+                   SOLC=a.solc, CERTIFY_SOLAR_SHA256=record["solar"]["binary_sha256"], LEAN_MEMORY=a.lean_memory)
         for k in ("CERTIFY_REPLAY_TRUST_UPSTREAM", "SOLAR", "CERTIFY_SKIP_BUILD", "CERTIFY_ALLOW_FOREIGN_SOLAR"):
             env.pop(k, None)
         cmd = ["bash", str(ROOT / "scripts" / "certify"), str(d / f"{name}.sol"), "--name", name, "--contract", contract, "--require-final"]
@@ -1064,9 +1078,9 @@ def main():
             if hit or rc in (137, -9):
                 # Not a refutation: a build ran out of memory, time or heartbeats.
                 record["resources_exhausted"] = {"count": len(hit), "first": hit[:3], "exit": rc,
-                                                 "lean_memory": LEAN_MEMORY}
+                                                 "lean_memory": a.lean_memory}
                 finish("REJECTED", 1, f"REJECTED: resources: {len(hit)} resource failure(s) in the build, not a "
-                       f"proof failure (LEAN_MEMORY={LEAN_MEMORY}): {(hit or tail)[0][:300]}")
+                       f"proof failure (LEAN_MEMORY={a.lean_memory}): {(hit or tail)[0][:300]}")
             finish("REJECTED", 1, f"REJECTED: scripts/certify: exits {rc}: {' | '.join(tail)}")
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
