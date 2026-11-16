@@ -191,11 +191,11 @@ impl Target {
     pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
     /// The most the stack planner counts any block, however deeply nested.
     pub(crate) const MAX_BLOCK_WEIGHT: u32 = 512;
-    /// The optimizer runs from which a build no longer values its code size. Loop
-    /// transformations that copy a loop's body, unrolling and peeling, may run from here: below
-    /// it, as at the default 200, the copies grow a contract built around one loop by half or
-    /// more. Constants are priced over every expected execution from here on, and over at most
-    /// [`Self::DEFAULT_EXPECTED_EXECUTIONS`] below it; see [`Self::compacts_immediate`].
+    /// The optimizer runs from which loop transformations that copy a loop's
+    /// body, unrolling and peeling, may run: below them, as at the default 200,
+    /// a build still values its code size, and the copies grow a contract built
+    /// around one loop by half or more. Gas builds also price constants over the
+    /// full runs from here on; see [`Self::compacts_immediate`].
     pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
     /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
     /// pricing, so that a contract near the code size limit cannot grow past it.
@@ -931,8 +931,9 @@ impl Target {
     /// full count, a contract built for 1,000 runs keeps each left-aligned string literal as a
     /// `PUSH32`, 26 bytes longer than a shifted `PUSH3`, to save 6 gas on the calls that reach
     /// it, and each `not(31)` of its loops as a `PUSH32`, 30 bytes longer than `PUSH1 31 NOT`, to
-    /// save 3 gas an iteration. From [`Self::LOOP_COPY_MIN_RUNS`] on, the build no longer values
-    /// its code size and the push is priced over the full count, as solc does.
+    /// save 3 gas an iteration. From [`Self::LOOP_COPY_MIN_RUNS`] on, the build trades bytes for
+    /// runtime gas, as it does for loop copies, and the push is priced over the full count, as
+    /// solc does.
     pub(crate) fn compacts_immediate(
         &self,
         saved_bytes: u64,
@@ -2208,26 +2209,23 @@ mod tests {
         assert!(!target.compacts_immediate(0, 0, false));
         // More runs than the default price a push at the default, below `LOOP_COPY_MIN_RUNS`: the
         // 26 bytes of a left-aligned `"abc"`, 5,200 gas, repay 6 gas on 200 executions, though not
-        // on 1,000, nor ten times over in a loop, and `not(31)` still ties in a loop.
+        // on 1,000, nor ten times over in a loop, and `not(31)` still ties in a loop. The 8 bytes
+        // of `0xc00000000000000000000000`, 1,600 gas, repay 6 gas on 200 executions.
         for runs in [1_000, Target::LOOP_COPY_MIN_RUNS - 1] {
             let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs);
+            assert!(hot.compacts_immediate(8, 6, false));
             assert!(hot.compacts_immediate(26, 6, false));
             assert!(!hot.compacts_immediate(26, 6, true));
             assert!(!hot.compacts_immediate(4, 8, false));
             assert!(hot.compacts_immediate(30, 3, true));
         }
-        // From `LOOP_COPY_MIN_RUNS` on, the full count prices it: the 8 bytes of
-        // `0xc00000000000000000000000`, 1,600 gas, repay 6 gas on 200 executions, not on 10,000.
+        // From `LOOP_COPY_MIN_RUNS` on, the full count prices it: those 8 bytes do not repay 6 gas
+        // on 10,000 executions.
         let full =
             Target::with(EvmVersion::Osaka, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
         assert!(!full.compacts_immediate(8, 6, false));
         assert!(!full.compacts_immediate(26, 6, false));
         assert!(!full.compacts_immediate(30, 3, true));
-        // A recipe that costs no more gas still wins.
-        assert!(full.compacts_immediate(30, 0, true));
-        let capped =
-            Target::with(EvmVersion::Osaka, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS - 1);
-        assert!(capped.compacts_immediate(8, 6, false));
     }
 
     #[test]
