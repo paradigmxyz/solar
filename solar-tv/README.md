@@ -82,6 +82,7 @@ before either a proof or a counterexample can be accepted.
 | --- | --- | --- |
 | MIR scalar projection | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
+| MIR compositional effects | Acyclic scalar functions with explicit opcode effects, without calls, allocations or layout queries. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
@@ -133,6 +134,34 @@ Counterexamples use concrete fixtures only after the universal proof fails,
 and require matching native replay. A concrete scenario that verifies never
 replaces the arbitrary-state proof. Erased pointer/layout preconditions and
 unproved pointer witnesses remain unsupported.
+
+### Compositional MIR effects
+
+Large scalar functions can instead prove equality of their effect trees. Every
+memory, storage, environment and log operation remains an ordered request with
+its opcode and operands. Results are universally quantified. The contextual
+theorem in [MIR/Effects.lean](SolarTV/MIR/Effects.lean) preserves every stateful
+interpretation, including aliasing and early failure; it assumes neither empty
+memory nor successful storage writes.
+
+```sh
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/weth-width-guard/{before,after}.mir \
+  --function transferFrom --report target/tv/weth.json
+# A broken address-width guard, with independent concrete replay:
+solar-tv/solar-tv mir \
+  solar-tv/examples/mir/weth-width-guard/{before,broken}.mir \
+  --function transferFrom --world solar-tv/examples/mir/weth-width-guard/world.json
+```
+
+This real `spell-width-tests` pair retains the complete WETH `transferFrom`
+body. Its audit says `compositional-effect-tree`, distinct from
+`universal-caller-state`. The Rust parser/schema export and effect-tree renderer
+remain trusted; this route has no full-state interpreter correspondence proof.
+Calls, allocation, layout queries, GAS sampling and code observers are rejected.
+SSTORE stays a request that can fail, but changes in physical scalar gas costs
+and their effect on its gas sentry are outside this unpriced MIR certificate.
+Undefined operands and unmodeled operations cannot be discarded as dead lets.
 
 EVM windows compare live stack values at outgoing edges before executing either
 successor. Terminal halts discard the remaining stack. The default check assumes
@@ -1178,8 +1207,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **10 of 24** with
-`--timeout 30`; 14 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **11 of 24** with
+`--timeout 30`; 13 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1189,9 +1218,11 @@ ERC20Mock's layout of a custom-error path also verifies over its incoming stack
 and caller address.
 Morpho's calldata-expression reordering now verifies after its shared memory
 prologue, using the same checked source window and a charged composition proof.
+WETH's `transferFrom` width guard now verifies in about 1.2 seconds with a
+compositional effect-tree certificate; this is not a full-state execution proof.
 
-The original ten-second budget verifies **9 of 24**, with that larger MIR proof
-still timing out. It now closes in about 23 seconds without increasing Lean's
+The original ten-second budget verifies **10 of 24**, with that larger MIR proof
+still timing out. It closes in about 25 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and
 a broken-width counterexample are in `examples/mir/width-guard/` and
