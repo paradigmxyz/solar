@@ -437,8 +437,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.set_terminator_origin(func, block);
+        let mut assignments = self.edge_assignments(func, block, &plan.exit);
         for step in terminator {
-            self.emit_stackified_step(func_id, func, step, cold);
+            let origin = match *step {
+                Step::Materialize(value) => assignments
+                    .iter()
+                    .position(|&(stored, _)| stored == value)
+                    .map(|index| assignments.remove(index).1),
+                _ => None,
+            };
+            if let Some(origin) = origin {
+                let terminator_origin = self.asm.debug_origin();
+                self.set_origins(origin);
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(terminator_origin);
+            } else {
+                self.emit_stackified_step(func_id, func, step, cold);
+            }
         }
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
@@ -647,6 +662,30 @@ impl<'gcx> EvmCodegen<'gcx> {
             let metadata = &func.blocks[block].terminator_metadata;
             self.set_origins(metadata);
         }
+    }
+
+    /// Returns the assignments, as the value each stored and its source context, whose constants
+    /// the code of the edge out of `block` may push, or none when `exit` is not a jump.
+    ///
+    /// NOTE: A jump is an edge that leaves `block` unconditionally, so its code runs exactly once
+    /// per execution of `block`. The assignments in [`InstructionMetadata::edge_assignments`]
+    /// ran in `block`, so the push of the value of one runs exactly when the assignment does and
+    /// may carry its span, as a copy carries the location of the instruction it replaces. An edge
+    /// out of a block that branches keeps the origin of its terminator: its code runs on one arm
+    /// only. Only a push of a constant is matched, by its value: the planner does not record
+    /// which phi a `DUP` or a reload serves, so a copy of a variable keeps the origin of the
+    /// terminator rather than take the span of an arbitrary assignment.
+    fn edge_assignments<'f>(
+        &self,
+        func: &'f Function,
+        block: BlockId,
+        exit: &Exit,
+    ) -> Vec<(ValueId, &'f InstructionMetadata)> {
+        if !self.capture_debug_info || !matches!(exit, Exit::Jump(_)) {
+            return Vec::new();
+        }
+        let assignments = func.blocks[block].terminator_metadata.edge_assignments();
+        assignments.iter().map(|assignment| (assignment.value, &assignment.origin)).collect()
     }
 
     /// Attributes the push of a retained constant to `origins`, the combined origin of its readers

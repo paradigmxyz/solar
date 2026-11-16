@@ -19,6 +19,8 @@ pub struct InstructionMetadata {
     debug_loc: DebugLoc,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<HirExprId>,
+    /// On the metadata of a jump: the assignments in its block whose values it passes to phis.
+    edge_assignments: Option<Box<EdgeAssignments>>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
     /// Packed optional memory region, effect kind, and boolean flags.
@@ -30,6 +32,7 @@ impl InstructionMetadata {
     pub const EMPTY: Self = Self {
         storage_alias: None,
         hir_expr: None,
+        edge_assignments: None,
         debug_loc: DebugLoc::EMPTY,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
@@ -55,6 +58,29 @@ impl InstructionMetadata {
     /// Sets the HIR expression that produced this instruction.
     pub fn set_hir_expr(&mut self, expr: Option<HirExprId>) {
         self.hir_expr = expr;
+    }
+
+    /// Returns the assignments, made in the block of this jump, whose values it passes to the phis
+    /// of its target.
+    ///
+    /// Each ran in the block before the jump, so code that the jump alone runs, such as the copy
+    /// of a phi operand, runs only after them, and the block runs it once per assignment. Merging
+    /// the jump with another drops them, as do the other ways to copy metadata that keep only the
+    /// source context.
+    #[must_use]
+    pub fn edge_assignments(&self) -> &[EdgeAssignment] {
+        self.edge_assignments.as_deref().map_or(&[], |assignments| assignments.0.as_slice())
+    }
+
+    /// Records an assignment in the block of this jump that stored `value`, which a phi of the
+    /// jump's target takes. `origin` is the source context the assignment was lowered under, as
+    /// [`Self::debug_context`] copies it.
+    pub fn add_edge_assignment(&mut self, value: ValueId, origin: Self) {
+        let assignment = EdgeAssignment { value, origin };
+        let assignments = &mut self.edge_assignments.get_or_insert_default().0;
+        if !assignments.contains(&assignment) {
+            assignments.push(assignment);
+        }
     }
 
     /// Returns the source span that produced this instruction.
@@ -93,6 +119,7 @@ impl InstructionMetadata {
             display |= other.displays_source_span();
             &other.debug_loc
         }));
+        self.edge_assignments = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -104,6 +131,7 @@ impl InstructionMetadata {
             display |= other.displays_source_span();
             &other.debug_loc
         }));
+        self.edge_assignments = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -188,7 +216,14 @@ impl InstructionMetadata {
     /// depth) are dropped.
     #[must_use]
     pub fn without_operand_facts(&self) -> Self {
-        let Self { storage_alias: _, debug_loc, hir_expr: _, loop_depth: _, flags } = self;
+        let Self {
+            storage_alias: _,
+            debug_loc,
+            hir_expr: _,
+            edge_assignments: _,
+            loop_depth: _,
+            flags,
+        } = self;
         let mut metadata = Self { debug_loc: debug_loc.clone(), flags: *flags, ..Self::EMPTY };
         metadata.flags.set_memory_region(None);
         metadata.flags.set_effect(None);
@@ -290,6 +325,19 @@ impl InstructionMetadata {
         self.flags.set_disjoint(value);
     }
 }
+
+/// An assignment whose value a jump passes to a phi of its target.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EdgeAssignment {
+    /// The value the assignment stored.
+    pub value: ValueId,
+    /// The source context of the assignment, as [`InstructionMetadata::debug_context`] copies it.
+    pub origin: InstructionMetadata,
+}
+
+/// The assignments of a jump, boxed on instructions that have any, so others pay one word.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+struct EdgeAssignments(Vec<EdgeAssignment>);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 struct MetadataFlags(u16);
@@ -1119,5 +1167,27 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::BytePos;
+
+    #[test]
+    fn merging_jumps_drops_the_edge_assignments() {
+        let mut origin = InstructionMetadata::EMPTY;
+        origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        let mut jump = InstructionMetadata::EMPTY;
+        jump.add_edge_assignment(ValueId::from_usize(0), origin);
+        assert_eq!(jump.edge_assignments().len(), 1);
+        assert!(jump.debug_context().edge_assignments().is_empty());
+
+        let mut combined = jump.clone();
+        combined.combine_debug_locs([&jump]);
+        assert!(combined.edge_assignments().is_empty());
+        jump.merge_debug_locs([]);
+        assert!(jump.edge_assignments().is_empty());
     }
 }
