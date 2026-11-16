@@ -242,6 +242,16 @@ fn split_guard(
     // continuation: suffix; original_terminator
     caller.blocks[continuation].instructions =
         caller.blocks[block].instructions.split_off(index + 1);
+    // The suffix and the call run on one path only.
+    for inst in caller.blocks[continuation].instructions.clone() {
+        caller.inst_mut(inst).metadata.clear_operand_origins();
+    }
+    caller.inst_mut(inst).metadata.clear_operand_origins();
+    let metadata = {
+        let mut metadata = metadata;
+        metadata.clear_operand_origins();
+        metadata
+    };
     caller.blocks[block].instructions.pop();
     caller.blocks[block].instructions.append(instructions);
     if let Some(terminator) = terminator {

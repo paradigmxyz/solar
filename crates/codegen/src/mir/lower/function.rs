@@ -889,7 +889,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(expr.span, "fractional value");
             }
             if let Some(value) = self.lower_const_value(value, expr.span) {
-                self.builder.note_fold(value, !self.loops.is_empty());
+                // A conversion or a ternary of constants is not arithmetic: its push stays with
+                // its reader.
+                if matches!(expr.kind, ExprKind::Binary(..) | ExprKind::Unary(..)) {
+                    self.builder.note_fold(value, !self.loops.is_empty());
+                }
                 return Some(Word::from_clean(value));
             }
         }

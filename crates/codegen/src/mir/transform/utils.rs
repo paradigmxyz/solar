@@ -114,6 +114,11 @@ pub(super) fn expand_block(
     let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
     builder.switch_to_block(block);
     for inst in instructions {
+        // The code after a split runs only if the code before it did not leave, so an instruction
+        // there no longer runs exactly when its assignments do.
+        if builder.current_block() != block {
+            builder.func_mut().inst_mut(inst).metadata.clear_operand_origins();
+        }
         let context = builder.func().inst(inst).metadata.clone();
         builder.set_expansion_context(&context);
         if !expand(builder, inst) {
@@ -125,6 +130,10 @@ pub(super) fn expand_block(
     // continuation: original terminator
     let end = builder.current_block();
     if let Some(terminator) = terminator {
+        let mut metadata = metadata;
+        if end != block {
+            metadata.clear_operand_origins();
+        }
         builder.func_mut().blocks[end].set_terminator(terminator, metadata);
     }
     if end != block {

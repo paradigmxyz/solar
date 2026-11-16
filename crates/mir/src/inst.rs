@@ -115,6 +115,11 @@ impl InstructionMetadata {
         self.operand_origins.clone_from(&from.operand_origins);
     }
 
+    /// Drops the operand origins, for code that no longer runs exactly when the assignments do.
+    pub fn clear_operand_origins(&mut self) {
+        self.operand_origins = None;
+    }
+
     /// Renames the values of the operand origins as the operands of the instruction are renamed.
     pub(crate) fn rewrite_operand_origins(&mut self, mut f: impl FnMut(&mut ValueId)) {
         for record in self.operand_origins.iter_mut().flat_map(|origins| origins.0.iter_mut()) {

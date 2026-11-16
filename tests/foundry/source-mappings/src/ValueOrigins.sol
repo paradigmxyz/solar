@@ -51,4 +51,10 @@ contract ValueOrigins {
         uint256 x = 5;
         return n * 3 + (x << 4);
     }
+
+    function afterCheckedAdd(uint256 a, uint256 b) external pure returns (uint256) {
+        uint256 scaled = 1000;
+        uint256 sum = a + b;
+        return scaled * sum;
+    }
 }

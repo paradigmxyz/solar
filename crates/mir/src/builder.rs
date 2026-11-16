@@ -88,6 +88,9 @@ pub struct FunctionBuilder<'a> {
     placed_blocks: Option<GrowableBitSet<BlockId>>,
     /// The assignments and folds whose value no instruction has read yet.
     unread_origins: FxHashMap<ValueId, Unread>,
+    /// The block whose code the operand origins of `current_debug_context` hold for. Code in
+    /// another block runs only if the code that split the block did not leave.
+    operand_origins_block: BlockId,
 }
 
 /// What a value that no instruction has read yet owes to the code that stored or folded it.
@@ -137,6 +140,7 @@ impl<'a> FunctionBuilder<'a> {
             semantic: false,
             placed_blocks: None,
             unread_origins: FxHashMap::default(),
+            operand_origins_block: BlockId::ENTRY,
         }
     }
 
@@ -289,9 +293,13 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Inherits the source context of an instruction that is expanded into several, which all read
     /// what it reads, and so share its operand origins.
+    ///
+    /// Only the code in the current block shares them: after the expansion splits the block, the
+    /// code in the next one runs only if the code before the split did not leave.
     pub fn set_expansion_context(&mut self, metadata: &InstructionMetadata) {
         self.current_debug_context.preserve_debug_loc(metadata);
         self.current_debug_context.inherit_operand_origins(metadata);
+        self.operand_origins_block = self.current_block;
     }
 
     /// Inherits the source context of a terminator being lowered in this block.
@@ -302,7 +310,9 @@ impl<'a> FunctionBuilder<'a> {
 
     fn set_current_debug_context(&self, metadata: &mut InstructionMetadata) {
         metadata.preserve_debug_loc(&self.current_debug_context);
-        metadata.inherit_operand_origins(&self.current_debug_context);
+        if self.current_block == self.operand_origins_block {
+            metadata.inherit_operand_origins(&self.current_debug_context);
+        }
     }
 
     /// Returns the current block.

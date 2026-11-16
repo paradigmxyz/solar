@@ -1679,6 +1679,12 @@ fn inline_call_impl(
         block.instructions.split_off(call_inst_index + 1)
     };
     caller.blocks[call_block].instructions.pop();
+    // The suffix runs only if the callee returns.
+    for &inst in &suffix {
+        caller.inst_mut(inst).metadata.clear_operand_origins();
+    }
+    let mut metadata = metadata;
+    metadata.clear_operand_origins();
     // continuation: suffix; old_terminator !metadata(caller)
     caller.blocks[continuation].instructions = suffix;
     if let Some(terminator) = old_terminator {

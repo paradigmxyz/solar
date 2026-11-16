@@ -1190,7 +1190,7 @@ impl<'a> Eliminator<'a> {
             block: load_block,
             key: Key::Read(key),
             result_ty,
-            metadata: instruction.metadata.clone(),
+            metadata: inserted_metadata(&instruction.metadata),
             insts: loads,
             incoming,
             insertions: insertions
@@ -1599,7 +1599,7 @@ impl<'a> Eliminator<'a> {
             block: target,
             key: Key::Pure(candidate_key),
             result_ty,
-            metadata: instruction.metadata.clone(),
+            metadata: inserted_metadata(&instruction.metadata),
             insts: vec![(inst, result)],
             incoming,
             insertions,
@@ -1697,4 +1697,12 @@ impl<'a> Eliminator<'a> {
         });
         Some(ExprKey { kind, immediates, ty })
     }
+}
+
+/// The metadata of a copy of `metadata`'s instruction that runs on one edge only: its operand
+/// origins hold for the instruction where it was.
+fn inserted_metadata(metadata: &InstructionMetadata) -> InstructionMetadata {
+    let mut metadata = metadata.clone();
+    metadata.clear_operand_origins();
+    metadata
 }

@@ -491,11 +491,17 @@ fn assigned_values_map_to_their_assignments() {
             assert!(mapped(statement), "{statement} lost its instruction");
         }
         // The first read of `y` is in an arm that runs only when `c` holds, one push of `9` serves
-        // both `a` and `b`, the only read of the value of `y` goes through `a`, and the fold of
-        // `x << 4` replaces the read of `x`: none of them can stand for its assignment.
-        for statement in
-            ["uint256 y = 77", "uint256 a = 9", "uint256 b = a", "uint256 y = a", "uint256 x = 5"]
-        {
+        // both `a` and `b`, the only read of the value of `y` goes through `a`, the fold of
+        // `x << 4` replaces the read of `x`, and the checked sum between `scaled` and its read
+        // can revert, which splits the block: none of them can stand for its assignment.
+        for statement in [
+            "uint256 y = 77",
+            "uint256 a = 9",
+            "uint256 b = a",
+            "uint256 y = a",
+            "uint256 x = 5",
+            "uint256 scaled = 1000",
+        ] {
             assert!(!mapped(statement), "{statement} took the origin of a read elsewhere");
         }
     }
