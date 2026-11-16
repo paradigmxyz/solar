@@ -74,3 +74,10 @@ contract K {
      */
     function g() public pure {}
 }
+
+contract L is F {
+    /// @inheritdoc F
+    /// @dev local dev
+    /// continued
+    function n() public override {}
+}

@@ -167,6 +167,26 @@
           },
           "version": 1
         }
+      },
+      "L": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "n()": {
+              "notice": "base notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "n()": {
+              "details": "local dev continued"
+            }
+          },
+          "version": 1
+        }
       }
     }
   }

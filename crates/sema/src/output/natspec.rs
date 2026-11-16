@@ -309,6 +309,8 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
         return inherited_doc_items(gcx, item_id);
     }
     let mut items: Vec<DocItem> = Vec::new();
+    // The items that start a tag; continuation lines replace no inherited tag.
+    let mut tagged = Vec::new();
     for &item in &local {
         let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
         let bare = !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t']);
@@ -352,9 +354,10 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             }
         }
         items.push(DocItem { kind: item.kind, content, bare });
+        tagged.push(item);
     }
     if let Some((_, target)) = target {
-        let local_tags = LocalTags::from_items(&local);
+        let local_tags = LocalTags::from_items(&tagged);
         items.extend(
             doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
         );
