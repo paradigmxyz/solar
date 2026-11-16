@@ -146,8 +146,8 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v29 = ptrtoint ptr<calldata> v20 to i256
     v30 = add v29, v28
     v31 = calldatasize
-    v32 = sub v31, v30
-    v33 = slt v32, 32
+    v32 = add v30, 32
+    v33 = lt v31, v32
     icall revert_if<calldata_tail_too_short>, v33
     v34 = calldataload v30
     v35 = ptrtoint ptr<calldata> v20 to i256
@@ -239,8 +239,8 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v29 = ptrtoint ptr<calldata> v20 to i256
     v30 = add v29, v28
     v31 = calldatasize
-    v32 = sub v31, v30
-    v33 = slt v32, 32
+    v32 = add v30, 32
+    v33 = lt v31, v32
     icall revert_if<calldata_tail_too_short>, v33
     v34 = calldataload v30
     v35 = ptrtoint ptr<calldata> v20 to i256

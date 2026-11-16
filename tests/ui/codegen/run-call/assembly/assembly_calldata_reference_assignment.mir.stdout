@@ -132,8 +132,8 @@ fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pur
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -165,8 +165,8 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -218,8 +218,8 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -265,8 +265,8 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -288,8 +288,8 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v20 = ptrtoint ptr<calldata> v5 to i256
     v21 = add v20, v19
     v22 = calldatasize
-    v23 = sub v22, v21
-    v24 = slt v23, 32
+    v23 = add v21, 32
+    v24 = lt v22, v23
     icall revert_if<calldata_tail_too_short>, v24
     v25 = calldataload v21
     v26 = ptrtoint ptr<calldata> v5 to i256
@@ -350,8 +350,8 @@ fn @dynamicOverflow(arg0: slice<calldata>) -> ptr<memory> [selector=0x51072adf, 
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -385,8 +385,8 @@ fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08
     icall panic_if<0x41>, v9
     v10 = calldatasize
     v11 = ptrtoint ptr<calldata> v7 to i256
-    v12 = sub v10, v11
-    v13 = slt v12, v8
+    v12 = add v11, v8
+    v13 = lt v10, v12
     icall revert_if<calldata_tail_too_short>, v13
     v14 = mul v6, 32
     v15 = gt v6, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -421,8 +421,8 @@ fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5
     icall panic_if<0x41>, v10
     v11 = calldatasize
     v12 = ptrtoint ptr<calldata> v8 to i256
-    v13 = sub v11, v12
-    v14 = slt v13, v9
+    v13 = add v12, v9
+    v14 = lt v11, v13
     icall revert_if<calldata_tail_too_short>, v14
     v15 = mul v7, 32
     v16 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -454,8 +454,8 @@ fn @dynamicWrappingEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x4c79759
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

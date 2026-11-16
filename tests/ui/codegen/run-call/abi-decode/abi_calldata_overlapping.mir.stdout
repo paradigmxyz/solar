@@ -10,8 +10,8 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -58,8 +58,8 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15
     v18 = calldatasize
-    v19 = sub v18, v17
-    v20 = slt v19, 32
+    v19 = add v17, 32
+    v20 = lt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = calldataload v17
     v22 = ptrtoint ptr<calldata> v1 to i256
