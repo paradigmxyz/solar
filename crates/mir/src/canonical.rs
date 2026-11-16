@@ -84,6 +84,7 @@ impl Function {
     /// changed. Returns whether any changed.
     pub fn rewrite_inst_operands(&mut self, inst: InstId, mut f: impl FnMut(&mut ValueId)) -> bool {
         let changed = self.inst_mut(inst).rewrite_operands(&mut f);
+        self.inst_mut(inst).metadata.rewrite_operand_origins(&mut f);
         if changed {
             self.canonicalize_inst(inst);
         }

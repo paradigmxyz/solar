@@ -557,6 +557,7 @@ impl Function {
     pub fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();
+        let mut replaced = 0;
         for value in self.live_values() {
             let Value::Immediate(immediate) = self.value(value) else { continue };
             match canonical.entry(immediate.clone()) {
@@ -564,6 +565,7 @@ impl Function {
                     let existing = *entry.get();
                     if existing != value {
                         replacements.insert(value, existing);
+                        replaced += 1;
                     }
                 }
                 StdEntry::Vacant(entry) => {
@@ -575,11 +577,9 @@ impl Function {
             return 0;
         }
 
-        let mut replaced = 0;
         self.rewrite_all_operands(|value| {
             if let Some(&immediate) = replacements.get(value) {
                 *value = immediate;
-                replaced += 1;
             }
         });
         replaced
@@ -624,6 +624,20 @@ impl Function {
             if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut canonicalize);
             }
+        }
+        // The operand origins follow the operands, but do not choose the canonical values.
+        let rename = |value: &mut ValueId| {
+            if let Value::Arg(index) = values[*value]
+                && let Some(existing) = canonical[index]
+            {
+                *value = existing;
+            }
+        };
+        for block in &mut self.blocks {
+            for &inst_id in &block.instructions {
+                instructions[inst_id].metadata.rewrite_operand_origins(rename);
+            }
+            block.terminator_metadata.rewrite_operand_origins(rename);
         }
         replaced
     }
@@ -897,8 +911,10 @@ impl Function {
                 let inst = self.blocks[block].instructions[index];
                 self.rewrite_inst_operands(inst, &mut f);
             }
-            if let Some(term) = &mut self.blocks[block].terminator {
+            let block = &mut self.blocks[block];
+            if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut f);
+                block.terminator_metadata.rewrite_operand_origins(&mut f);
             }
         }
     }

@@ -44,7 +44,7 @@ mod inst;
 pub use inst::{
     AbiEncodeMode, AllocationFailure, AllocationInitialization, AllocationSemantics, CallOutput,
     CallPolicy, EdgeAssignment, EffectKind, ExtCallKind, Instruction, InstructionMetadata,
-    MemoryRegion, StorageAlias,
+    MemoryRegion, OperandOrigin, StorageAlias,
 };
 
 mod arithmetic;

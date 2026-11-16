@@ -21,6 +21,9 @@ pub struct InstructionMetadata {
     hir_expr: Option<HirExprId>,
     /// On the metadata of a jump: the assignments in its block whose values it passes to phis.
     edge_assignments: Option<Box<EdgeAssignments>>,
+    /// The assignments whose values this instruction reads first, after the assignment ran in its
+    /// block.
+    operand_origins: Option<Box<OperandOrigins>>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
     /// Packed optional memory region, effect kind, and boolean flags.
@@ -33,6 +36,7 @@ impl InstructionMetadata {
         storage_alias: None,
         hir_expr: None,
         edge_assignments: None,
+        operand_origins: None,
         debug_loc: DebugLoc::EMPTY,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
@@ -83,6 +87,41 @@ impl InstructionMetadata {
         }
     }
 
+    /// Returns the assignments whose values this instruction reads first.
+    ///
+    /// NOTE: Each assignment ran in the block of this instruction, before it, so the code that
+    /// materializes the value for the first read runs exactly when the assignment does, and may
+    /// carry its origin: a constant or a copy has no instruction of its own at the assignment. The
+    /// records are source context, so they follow the origins. Replacing the origins by those of
+    /// another instruction ([`Self::preserve_debug_loc`]), merging, combining or dropping them, and
+    /// copying only the source context ([`Self::debug_context`]) drop the records. A lowering that
+    /// expands the instruction into several that read the same operands keeps them with
+    /// [`Self::inherit_operand_origins`].
+    #[must_use]
+    pub fn operand_origins(&self) -> &[OperandOrigin] {
+        self.operand_origins.as_deref().map_or(&[], |origins| origins.0.as_slice())
+    }
+
+    /// Records that the first read of `value` by this instruction follows an assignment that stored
+    /// it, inside a loop or not. `origin` is the source context of the assignment, as
+    /// [`Self::debug_context`] copies it.
+    pub fn add_operand_origin(&mut self, value: ValueId, origin: Self, in_loop: bool) {
+        let origins = &mut self.operand_origins.get_or_insert_default().0;
+        origins.push(OperandOrigin { value, origin, in_loop });
+    }
+
+    /// Takes the operand origins of `from`, whose operands this instruction reads too.
+    pub fn inherit_operand_origins(&mut self, from: &Self) {
+        self.operand_origins.clone_from(&from.operand_origins);
+    }
+
+    /// Renames the values of the operand origins as the operands of the instruction are renamed.
+    pub(crate) fn rewrite_operand_origins(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        for record in self.operand_origins.iter_mut().flat_map(|origins| origins.0.iter_mut()) {
+            f(&mut record.value);
+        }
+    }
+
     /// Returns the source span that produced this instruction.
     #[must_use]
     pub fn source_span(&self) -> Option<Span> {
@@ -120,6 +159,7 @@ impl InstructionMetadata {
             &other.debug_loc
         }));
         self.edge_assignments = None;
+        self.operand_origins = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -132,13 +172,15 @@ impl InstructionMetadata {
             &other.debug_loc
         }));
         self.edge_assignments = None;
+        self.operand_origins = None;
         self.flags.set_display_source_span(display);
     }
 
     /// Rule R1, preserve: see [`DebugLoc::preserve`]. Also copies the display flag, but no
-    /// analysis metadata.
+    /// analysis metadata, and drops the operand origins.
     pub fn preserve_debug_loc(&mut self, from: &Self) {
         self.debug_loc.preserve(&from.debug_loc);
+        self.operand_origins = None;
         self.flags.set_display_source_span(from.displays_source_span());
     }
 
@@ -168,6 +210,7 @@ impl InstructionMetadata {
     /// Rule R3, drop: see [`DebugLoc::drop`].
     pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
         self.debug_loc.drop(kind);
+        self.operand_origins = None;
         self.flags.set_display_source_span(false);
     }
 
@@ -221,6 +264,7 @@ impl InstructionMetadata {
             debug_loc,
             hir_expr: _,
             edge_assignments: _,
+            operand_origins: _,
             loop_depth: _,
             flags,
         } = self;
@@ -338,6 +382,36 @@ pub struct EdgeAssignment {
 /// The assignments of a jump, boxed on instructions that have any, so others pay one word.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 struct EdgeAssignments(Vec<EdgeAssignment>);
+
+/// An assignment whose value an instruction or terminator reads first.
+#[derive(Clone, Debug)]
+pub struct OperandOrigin {
+    /// The value the assignment stored.
+    pub value: ValueId,
+    /// The source context of the assignment, as [`InstructionMetadata::debug_context`] copies it.
+    pub origin: InstructionMetadata,
+    /// Whether the assignment is inside a loop, so only code in a loop can run as often.
+    pub in_loop: bool,
+}
+
+/// The operand origins of an instruction, boxed on those that have any, so others pay one word.
+///
+/// They are source context only, so they never take part in comparing or hashing metadata: no
+/// pass may treat two instructions as different because of them.
+#[derive(Clone, Debug, Default)]
+struct OperandOrigins(Vec<OperandOrigin>);
+
+impl PartialEq for OperandOrigins {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for OperandOrigins {}
+
+impl std::hash::Hash for OperandOrigins {
+    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 struct MetadataFlags(u16);
@@ -1189,5 +1263,34 @@ mod tests {
         assert!(combined.edge_assignments().is_empty());
         jump.merge_debug_locs([]);
         assert!(jump.edge_assignments().is_empty());
+    }
+
+    #[test]
+    fn operand_origins_follow_an_inheriting_expansion_only() {
+        let mut origin = InstructionMetadata::EMPTY;
+        origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        let mut reader = InstructionMetadata::EMPTY;
+        reader.add_operand_origin(ValueId::from_usize(3), origin, false);
+
+        let mut replacement = InstructionMetadata::EMPTY;
+        replacement.preserve_debug_loc(&reader);
+        assert!(replacement.operand_origins().is_empty());
+        replacement.inherit_operand_origins(&reader);
+        assert_eq!(replacement.operand_origins().len(), 1);
+        assert!(reader.debug_context().operand_origins().is_empty());
+
+        replacement.rewrite_operand_origins(|value| *value = ValueId::from_usize(4));
+        assert_eq!(replacement.operand_origins()[0].value, ValueId::from_usize(4));
+        assert_eq!(reader.operand_origins()[0].value, ValueId::from_usize(3));
+
+        let mut preserved = reader.clone();
+        preserved.preserve_debug_loc(&replacement);
+        assert!(preserved.operand_origins().is_empty());
+        let mut merged = reader.clone();
+        merged.merge_debug_locs([&replacement]);
+        assert!(merged.operand_origins().is_empty());
+        let mut dropped = reader;
+        dropped.drop_debug_loc(DebugLocKind::Dropped);
+        assert!(dropped.operand_origins().is_empty());
     }
 }

@@ -1,0 +1,47 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// A constant or a copy that takes the origin of its assignment, or of the expression that folded it,
+// holds no code of its own, so the bytecode is identical with and without a source map.
+// CHECK-LABEL: "A": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "C": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f(uint256 n, uint256[] calldata items) external pure returns (uint256 r) { uint256 base = 1000; uint256 k = n; uint256 length = items.length; assembly { r := 0x100 } r = r + base + k * 3 + length * 2 + n + 2 ** 128; } function g(bool c, uint256 a) external pure returns (uint256) { uint256 y = 77; if (c) { a = a + y; } return a; } } contract C { function f(uint256 n, uint256[] calldata items) external pure returns (uint256 r) { uint256 base = 1000; uint256 k = n; uint256 length = items.length; assembly { r := 0x100 } r = r + base + k * 3 + length * 2 + n + 2 ** 128; } function g(bool c, uint256 a) external pure returns (uint256) { uint256 y = 77; if (c) { a = a + y; } return a; } }"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "none"
+    },
+    "optimizer": {
+      "enabled": false
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap"
+        ],
+        "C": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

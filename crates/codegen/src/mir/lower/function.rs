@@ -222,6 +222,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// The last assignment to each local in each block, as its value and source context, for the
     /// phis that merge the local ([`Self::record_edge_assignment`]).
     assignments: FxHashMap<(VariableId, BlockId), (ValueId, InstructionMetadata)>,
+    /// The index of the first instruction of the statement being lowered, so an instruction below
+    /// it was lowered before the statement ([`Self::assign_local`]).
+    statement_start: usize,
     /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
     /// range check.
     unchecked_calldata_slices: FxHashSet<ValueId>,
@@ -562,6 +565,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             assignments: FxHashMap::default(),
+            statement_start: 0,
             unchecked_calldata_slices: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
@@ -885,6 +889,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(expr.span, "fractional value");
             }
             if let Some(value) = self.lower_const_value(value, expr.span) {
+                self.builder.note_fold(value, !self.loops.is_empty());
                 return Some(Word::from_clean(value));
             }
         }

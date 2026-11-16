@@ -457,6 +457,51 @@ fn phi_operand_copies_map_to_their_assignments() {
 }
 
 #[test]
+fn assigned_values_map_to_their_assignments() {
+    let source =
+        RealFileLoader.load_file(&Path::new(FIXTURES).join("src/ValueOrigins.sol")).unwrap();
+    let files = ["src/ValueOrigins.sol"];
+    for mode in ["none", "gas", "size"] {
+        let plain = compile_files(&files, mode, "bin,bin-runtime", &[]);
+        let debug =
+            compile_files(&files, mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime", &[]);
+        let contract = debug["contracts"].as_object().unwrap().values().next().unwrap();
+        let baseline = plain["contracts"].as_object().unwrap().values().next().unwrap();
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(contract[code], baseline[code], "{mode}: debug info changed the {code}");
+        }
+        if mode != "none" {
+            continue;
+        }
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let mapped = |statement: &str| {
+            let start = source.find(statement).unwrap();
+            let end = start + statement.len();
+            entries.iter().any(|&entry| in_statement(entry, 0, start, end))
+        };
+        // The first read of a constant, a copy or a folded expression runs in the block of its
+        // assignment, so its push or `DUP` stands for the assignment.
+        for statement in [
+            "uint256 base = 1000",
+            "uint256 k = i",
+            "uint256 length = items.length",
+            "r := 0x100",
+            "2 ** 128",
+        ] {
+            assert!(mapped(statement), "{statement} lost its instruction");
+        }
+        // The first read of `y` is in an arm that runs only when `c` holds, one push of `9` serves
+        // both `a` and `b`, the only read of the value of `y` goes through `a`, and the fold of
+        // `x << 4` replaces the read of `x`: none of them can stand for its assignment.
+        for statement in
+            ["uint256 y = 77", "uint256 a = 9", "uint256 b = a", "uint256 y = a", "uint256 x = 5"]
+        {
+            assert!(!mapped(statement), "{statement} took the origin of a read elsewhere");
+        }
+    }
+}
+
+#[test]
 fn state_initializers_and_base_arguments_map_to_their_source() {
     let source =
         RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Initializers.sol")).unwrap();

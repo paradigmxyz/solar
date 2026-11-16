@@ -114,8 +114,8 @@ pub(super) fn expand_block(
     let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
     builder.switch_to_block(block);
     for inst in instructions {
-        let context = builder.func().inst(inst).metadata.debug_context();
-        builder.set_debug_context(&context);
+        let context = builder.func().inst(inst).metadata.clone();
+        builder.set_expansion_context(&context);
         if !expand(builder, inst) {
             // continuation: original instruction
             let current = builder.current_block();

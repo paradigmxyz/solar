@@ -11,7 +11,10 @@ use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::GrowableBitSet,
+    map::{FxHashMap, StdEntry},
+};
 use solar_interface::Span;
 use solar_ir::link::LibraryId;
 
@@ -83,6 +86,29 @@ pub struct FunctionBuilder<'a> {
     semantic: bool,
     /// The blocks the builder has switched to, when it records block label origins.
     placed_blocks: Option<GrowableBitSet<BlockId>>,
+    /// The assignments and folds whose value no instruction has read yet.
+    unread_origins: FxHashMap<ValueId, Unread>,
+}
+
+/// What a value that no instruction has read yet owes to the code that stored or folded it.
+enum Unread {
+    /// Two assignments stored the value, so its first read stands for neither.
+    Ambiguous,
+    Origin(UnreadOrigin),
+}
+
+/// The source context of a value that no instruction has read since it was stored or folded.
+struct UnreadOrigin {
+    /// The block that stored the value.
+    block: BlockId,
+    /// The source context, as [`InstructionMetadata::debug_context`] copies it.
+    origin: InstructionMetadata,
+    /// Whether the assignment is inside a loop.
+    in_loop: bool,
+    /// Whether a fold computed the value, so the span of its expression is the exact one.
+    folded: bool,
+    /// Whether the local the assignment stored the value in has been read since.
+    read: bool,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -110,6 +136,7 @@ impl<'a> FunctionBuilder<'a> {
             revert_strings: RevertStrings::Default,
             semantic: false,
             placed_blocks: None,
+            unread_origins: FxHashMap::default(),
         }
     }
 
@@ -185,9 +212,86 @@ impl<'a> FunctionBuilder<'a> {
         }
     }
 
+    /// Notes that the current block stored `value` in a local under the source context `origin`,
+    /// as [`Self::debug_context`] took it, inside a loop or not. Once [`Self::note_local_read`]
+    /// reports a read of the local, the first instruction of the block to read `value` carries
+    /// `origin` for it, as an operand origin.
+    ///
+    /// NOTE: A constant or a copy has no instruction at its assignment, so its first read
+    /// materializes it. That read runs in the same block, after the assignment, and so runs
+    /// exactly when the assignment does. A value that two assignments stored before any read has no
+    /// such read to choose, and a value that a fold computed keeps the exact span of its
+    /// expression.
+    pub fn note_assignment(&mut self, value: ValueId, origin: InstructionMetadata, in_loop: bool) {
+        let block = self.current_block;
+        match self.unread_origins.entry(value) {
+            StdEntry::Vacant(entry) => {
+                entry.insert(Unread::Origin(UnreadOrigin {
+                    block,
+                    origin,
+                    in_loop,
+                    folded: false,
+                    read: false,
+                }));
+            }
+            StdEntry::Occupied(mut entry) => {
+                if !matches!(entry.get(), Unread::Origin(unread) if unread.folded) {
+                    entry.insert(Unread::Ambiguous);
+                }
+            }
+        }
+    }
+
+    /// Notes that the current block computed `value` by folding the expression the current source
+    /// context names. See [`Self::note_assignment`].
+    pub fn note_fold(&mut self, value: ValueId, in_loop: bool) {
+        let origin = self.debug_context();
+        let block = self.current_block;
+        self.unread_origins.insert(
+            value,
+            Unread::Origin(UnreadOrigin { block, origin, in_loop, folded: true, read: true }),
+        );
+    }
+
+    /// Notes that the local the last assignment of `value` stored it in is read, so the next
+    /// instruction to read `value` is the first read of that local. An instruction that reads
+    /// `value` through another name does not stand for the assignment.
+    pub fn note_local_read(&mut self, value: ValueId) {
+        if let Some(Unread::Origin(unread)) = self.unread_origins.get_mut(&value) {
+            unread.read = true;
+        }
+    }
+
+    /// Gives `metadata`, of an instruction or terminator in the current block that reads
+    /// `operands`, the origins of the values it reads first.
+    fn take_operand_origins(
+        &mut self,
+        operands: impl IntoIterator<Item = ValueId>,
+        metadata: &mut InstructionMetadata,
+    ) {
+        for operand in operands {
+            if !matches!(self.unread_origins.get(&operand), Some(Unread::Origin(unread)) if unread.read)
+            {
+                continue;
+            }
+            if let Some(Unread::Origin(unread)) = self.unread_origins.remove(&operand)
+                && unread.block == self.current_block
+            {
+                metadata.add_operand_origin(operand, unread.origin, unread.in_loop);
+            }
+        }
+    }
+
     /// Inherits source context while replacing an instruction or control transfer.
     pub fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
         self.current_debug_context.preserve_debug_loc(metadata);
+    }
+
+    /// Inherits the source context of an instruction that is expanded into several, which all read
+    /// what it reads, and so share its operand origins.
+    pub fn set_expansion_context(&mut self, metadata: &InstructionMetadata) {
+        self.current_debug_context.preserve_debug_loc(metadata);
+        self.current_debug_context.inherit_operand_origins(metadata);
     }
 
     /// Inherits the source context of a terminator being lowered in this block.
@@ -198,6 +302,7 @@ impl<'a> FunctionBuilder<'a> {
 
     fn set_current_debug_context(&self, metadata: &mut InstructionMetadata) {
         metadata.preserve_debug_loc(&self.current_debug_context);
+        metadata.inherit_operand_origins(&self.current_debug_context);
     }
 
     /// Returns the current block.
@@ -675,12 +780,16 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(value)
     }
 
-    fn make_inst(&self, kind: InstKind, result_ty: Option<MirType>) -> Instruction {
+    fn make_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> Instruction {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
         self.set_current_debug_context(&mut inst.metadata);
+        // A phi reads its operands on the edges into its block, not in it.
+        if !self.unread_origins.is_empty() && !matches!(inst.kind, InstKind::Phi(_)) {
+            self.take_operand_origins(inst.kind.operands(), &mut inst.metadata);
+        }
         inst
     }
 
@@ -882,9 +991,13 @@ impl<'a> FunctionBuilder<'a> {
                 _ => None,
             };
             if let Some(word) = word {
-                return self
-                    .func
-                    .alloc_value(Value::Immediate(Immediate::for_type(Some(ty), word)));
+                let converted =
+                    self.func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), word)));
+                // The same constant, in another type: the assignment still describes it.
+                if let Some(unread) = self.unread_origins.remove(&value) {
+                    self.unread_origins.insert(converted, unread);
+                }
+                return converted;
             }
         }
         if let Value::Inst(id) = self.func.value(value) {
@@ -2092,6 +2205,9 @@ impl<'a> FunctionBuilder<'a> {
         }
         let mut metadata = InstructionMetadata::EMPTY;
         self.set_current_debug_context(&mut metadata);
+        if !self.unread_origins.is_empty() {
+            self.take_operand_origins(terminator.operands(), &mut metadata);
+        }
         self.func.blocks[current].set_terminator(terminator, metadata);
     }
 

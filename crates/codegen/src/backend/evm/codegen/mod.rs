@@ -26,8 +26,8 @@ use crate::{
     link::{EmbeddedBytecodes, LibraryRelocation, Trailer},
     mir::{
         ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
-        InstId, InstKind, MemoryRegion, MirPhase, MirType, Module, StackReturn, Terminator, Value,
-        ValueId,
+        InstId, InstKind, MemoryRegion, MirPhase, MirType, Module, OperandOrigin, StackReturn,
+        Terminator, Value, ValueId,
         analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer, MemoryBase},
         immutable::{
             immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
@@ -155,6 +155,14 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    /// The assignments whose values the instruction or terminator being emitted reads first.
+    operand_origins: Vec<OperandOrigin>,
+    /// Whether the block being emitted is in a loop.
+    block_in_loop: bool,
+    /// The assignments of the function being emitted whose value has been pushed under their
+    /// origin, as a value and the span of the assignment. A push that the code of one assignment
+    /// reaches twice, because the instruction that read first was expanded, keeps the first.
+    claimed_operand_origins: FxHashSet<(ValueId, Span)>,
     /// The span of the contract definition, which backend code without a MIR instruction of its
     /// own is attributed to.
     contract_span: Option<Span>,
@@ -226,6 +234,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            operand_origins: Vec::new(),
+            block_in_loop: false,
+            claimed_operand_origins: FxHashSet::default(),
             contract_span: None,
             display_debug_info: false,
             run_pipeline: true,

@@ -237,6 +237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        self.claimed_operand_origins.clear();
         // The plan may be for a copy that rebuilds values at their uses.
         let rebuilt = plan.rebuilt.take();
         let func = rebuilt.as_deref().unwrap_or(func);
@@ -354,6 +355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(block_plan) = plan.blocks[block].as_ref() else { continue };
             let next = order.get(pos + 1).copied();
             self.asm.repeating_code = repeating || in_loop(self, block);
+            self.block_in_loop = loop_blocks.contains(block);
             let label_origin =
                 bypassed_origins.get(&block).unwrap_or(&func.blocks[block].label_metadata);
             if !func.blocks[block].predecessors.is_empty() {
@@ -380,6 +382,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
+            self.operand_origins.clear();
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             for step in &steps {
@@ -455,6 +458,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_block_step(func_id, func, block, step, cold);
             }
         }
+        // The code of the exit is not an operand of the terminator.
+        self.operand_origins.clear();
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
@@ -572,8 +577,20 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         match step {
             &Step::Stack(op) => self.asm.emit_stack_op(op),
-            &Step::Materialize(value) => self.emit_materialized(func, value),
-            &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
+            &Step::Dup(n, value) => {
+                self.emit_with_operand_origin(value, cold, |codegen| {
+                    codegen.asm.emit_stack_op(StackOp::Dup(n))
+                });
+            }
+            &Step::Materialize(value) => {
+                let claims = !matches!(func.value(value), Value::Inst(_));
+                self.emit_with_operand_origin(claims.then_some(value), cold, |codegen| {
+                    codegen.emit_materialized(func, value)
+                });
+            }
+            &Step::Reload(value) => self.emit_with_operand_origin(Some(value), cold, |codegen| {
+                codegen.emit_spill_load(func, codegen.spill_slots[&value])
+            }),
             &Step::Spill(value) => {
                 // push slot; mstore
                 self.emit_spill_slot_addr(func, self.spill_slots[&value]);
@@ -593,6 +610,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.capture_debug_info {
                     let metadata = &func.inst(inst).metadata;
                     self.set_origins(metadata);
+                    self.set_operand_origins(metadata);
                 }
             }
             Step::BeginTerminator => {
@@ -672,6 +690,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         });
         let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
         self.set_origins(metadata);
+        self.operand_origins.clear();
     }
 
     /// Attributes the code that follows to the block's terminator.
@@ -679,7 +698,59 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.capture_debug_info {
             let metadata = &func.blocks[block].terminator_metadata;
             self.set_origins(metadata);
+            self.set_operand_origins(metadata);
         }
+    }
+
+    /// Takes the operand origins of the instruction or terminator that the code that follows
+    /// prepares operands for.
+    fn set_operand_origins(&mut self, metadata: &InstructionMetadata) {
+        self.operand_origins.clear();
+        self.operand_origins.extend_from_slice(metadata.operand_origins());
+    }
+
+    /// Emits a push or copy of `value` under the origin of the assignment whose value the
+    /// instruction being emitted reads first, if it has one for `value` and no earlier push of the
+    /// function has claimed it.
+    ///
+    /// NOTE: The assignment ran in the block of the instruction, before it, so a push in a block
+    /// that always runs with the instruction runs exactly when the assignment does, and when the
+    /// instruction is the first to read the value, the push stands for the assignment: as with a
+    /// copy, the code that replaces the assignment keeps its location. A lowering that expands the
+    /// instruction gives all of its parts the record, so only the first push in the function
+    /// claims it, and none in a cold block or in a loop the assignment is not in, which run less
+    /// or more often than the assignment. A later push of `value`, for the same instruction or
+    /// another, keeps the origin of its reader. A value that stays on the stack and is moved by a
+    /// `SWAP` has no push to map. A retained constant that serves several readers
+    /// ([`Step::Shared`]) is not a push for one assignment, so it keeps the combined origin of its
+    /// readers.
+    fn emit_with_operand_origin(
+        &mut self,
+        value: Option<ValueId>,
+        cold: bool,
+        emit: impl FnOnce(&mut Self),
+    ) {
+        let Some(value) = value.filter(|_| !self.operand_origins.is_empty()) else {
+            return emit(self);
+        };
+        let Some(index) = self.operand_origins.iter().position(|record| record.value == value)
+        else {
+            return emit(self);
+        };
+        let record = self.operand_origins.remove(index);
+        let Some(span) = record.origin.source_span() else { return emit(self) };
+        // Code in a loop that the assignment is not in, such as an expansion's own loop, runs more
+        // often than the assignment, and code kept out of line, such as a revert path, less often.
+        if cold
+            || record.in_loop != self.block_in_loop
+            || !self.claimed_operand_origins.insert((value, span))
+        {
+            return emit(self);
+        }
+        let current = self.asm.debug_origin();
+        self.set_origins(&record.origin);
+        emit(self);
+        self.asm.set_debug_origin(current);
     }
 
     /// Returns the assignments, as the value each stored and its source context, whose constants

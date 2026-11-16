@@ -1215,7 +1215,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let block = self.builder.current_block();
         let origin = self.builder.debug_context();
         if origin.source_span().is_some() {
+            if self.has_no_code_at_statement(value) {
+                self.builder.note_assignment(value, origin.clone(), !self.loops.is_empty());
+            }
             self.assignments.insert((id, block), (value, origin));
+        }
+    }
+
+    /// Notes that the local `id` is read as `value`, which tells the builder that the next
+    /// instruction to read `value` stands for the assignment when the last assignment to `id` in
+    /// this block stored `value` ([`FunctionBuilder::note_assignment`]).
+    pub(super) fn note_local_read(&mut self, id: VariableId, value: ValueId) {
+        let block = self.builder.current_block();
+        if self.assignments.get(&(id, block)).is_some_and(|(assigned, _)| *assigned == value) {
+            self.builder.note_local_read(value);
+        }
+    }
+
+    /// Whether `value` has no code at the statement being lowered that assigns it: a constant, an
+    /// argument, a view of a value, or a value an earlier statement computed. The first read of
+    /// such a value materializes it ([`FunctionBuilder::note_assignment`]).
+    fn has_no_code_at_statement(&self, value: ValueId) -> bool {
+        match self.builder.func().value(value) {
+            Value::Immediate(_) | Value::Undef(_) | Value::Arg(_) => true,
+            Value::Inst(inst) => {
+                inst.index() < self.statement_start
+                    || matches!(self.builder.func().inst(*inst).kind, InstKind::ExtractValue { .. })
+            }
+            Value::Error(_) => false,
         }
     }
 

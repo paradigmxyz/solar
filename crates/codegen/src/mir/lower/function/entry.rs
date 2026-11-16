@@ -294,6 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
+                self.note_local_read(id, value);
                 let value = self.binding_word(value, id);
                 values.push(self.bind_word(id, value, self.cx.gcx.hir.variable(id).span)?);
             }

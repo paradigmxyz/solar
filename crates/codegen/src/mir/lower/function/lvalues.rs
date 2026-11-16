@@ -234,6 +234,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Reads the binding `id` as it is stored, which for a raw carrier is the raw word.
     pub(super) fn load_variable_word(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
         if let Some(value) = self.values.get(&id).copied() {
+            self.note_local_read(id, value);
             return Some(value);
         }
         if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {

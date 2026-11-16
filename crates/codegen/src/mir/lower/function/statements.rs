@@ -7,7 +7,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        let previous_start =
+            std::mem::replace(&mut self.statement_start, self.builder.func().num_insts());
         let result = self.lower_stmt_inner(stmt);
+        self.statement_start = previous_start;
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
