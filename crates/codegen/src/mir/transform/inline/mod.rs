@@ -17,8 +17,7 @@
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
 //! and one-word literals used once per emitted artifact. After memory lowering,
-//! a memory pointer is one word, so a helper returning `bytes memory` is priced
-//! like the same body returning a user-defined value type. Shared void
+//! a memory pointer is one word and no longer counts as a reference. Shared void
 //! forwarders that add arguments stay shared to avoid duplicating their setup.
 //!
 //! After memory lowering, frame allocation and multi-word return staging cannot
