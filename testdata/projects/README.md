@@ -32,8 +32,9 @@ Runtime workload definitions and upstream revisions are documented in
 under `crates/contracts/`: 67 sources, including 21 test files. It preserves the upstream
 via-IR pipeline, 200 optimizer runs, Osaka EVM target, and Foundry output selection, including
 storage layout. Unlike Forge's input, it sets `settings.metadata` to `appendCBOR: false` and
-`bytecodeHash: none`, like the other archives, so unchanged codegen gives identical bytecode;
-set them again after regenerating. Sources are inline, so the archive needs neither network access nor submodules.
+`bytecodeHash: none`, like the other archives, so unchanged codegen gives identical bytecode,
+and requests each source's AST with `"": ["ast"]`, as the other archives do; set both again
+after regenerating. Sources are inline, so the archive needs neither network access nor submodules.
 No Solidity tests were executed to produce it.
 
 The input was captured at the compiler handoff with Forge `1.6.0-v1.7.0`
