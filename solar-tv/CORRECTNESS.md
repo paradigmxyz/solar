@@ -105,6 +105,28 @@ observers remain unsupported. A scalar window missing caller/calldata inputs may
 try this universal route; its requested height is recorded separately from the
 theorem's arbitrary incoming stack. Actual counterexamples are never replaced.
 
+Large call-free scalar MIR bodies have a compositional effect-tree route. The
+independent Rust export supplies typed instructions and control edges. A trusted
+renderer expands the acyclic CFG, resolves phis simultaneously and evaluates
+scalar operations using the existing MIR word definitions. All other admitted
+opcodes remain requests with their identity, ordered operands and result shape.
+The proof quantifies every input and every request's result word. The theorem
+`MIR.Effects.contextual` lifts tree equality to equality under every stateful
+handler and terminal interpretation, including handlers that stop on a fault.
+No storage-key separation, empty memory or successful effect is assumed.
+
+This is an `independent-scalar-effect-tree` import and a
+`compositional-effect-tree` proof, not a `universal-caller-state` certificate.
+Unlike the pure scalar import certificate, it does not prove correspondence to
+the direct SSA interpreter: the schema exporter and constructor renderer remain
+trusted. Calls, allocation, layout queries, code-image reads, GAS sampling and
+undefined operands are rejected, including unused instructions. Expanded work
+is bounded to 4,096 instructions and 256 KiB of generated text; exceeding either
+is unsupported. Scalar steps are unpriced. SSTORE remains an arbitrary request
+that may fail; changes to physical gas before its sentry are not certified.
+Negative regressions change effect values/order, omit a store and change a
+terminal. A broken WETH width check also has a concrete kernel/native witness.
+
 ## Real-contract evaluation
 
 Run `solar-tv/evaluate --limit 8 --timeout 10 --seed 0 --output DIR` with a
@@ -166,7 +188,7 @@ The current sample, with the exact same 24 selected IDs, uses a 30-second budget
 
 | Contract | Captured checks | Selected | Verified | Unsupported |
 | --- | ---: | ---: | ---: | ---: |
-| Solady WETH | 329 | 8 | 3 | 5 |
+| Solady WETH | 329 | 8 | 4 | 4 |
 | OpenZeppelin ERC20Mock | 372 | 8 | 5 | 3 |
 | Morpho Blue | 1,515 | 8 | 2 | 6 |
 
@@ -193,9 +215,16 @@ branches. No helper is replaced by an assumed effect summary. The reduced real
 pair is in `examples/mir/erc20-width-guard/`; a smaller stateful pair and a broken
 padding guard with kernel/native replay are in `examples/mir/width-guard/`.
 
-The ten-second control run verifies 9 checks, with 14 unsupported and the larger
-MIR proof still timing out. It takes about 23 seconds at the larger budget. The
-budget difference is explicit; this is not a ten-of-24 result at ten seconds.
+WETH's complete `transferFrom` width-guard pair now verifies in about 1.2 seconds
+through the compositional route described above. Its unchanged storage/hash/log
+body is retained as exact effect requests instead of repeatedly evaluating that
+body. The reduced real pair and independently replayed wrong-width fixture are
+in `examples/mir/weth-width-guard/`. The same sample therefore verifies 11 of 24;
+13 remain unsupported, and check identities and bytecode hashes are unchanged.
+
+The ten-second control run verifies 10 checks, with 13 unsupported and the larger
+MIR proof still timing out. It takes about 25 seconds at the larger budget. The
+budget difference is explicit; this is not an eleven-of-24 result at ten seconds.
 
 ## Remaining obligations
 

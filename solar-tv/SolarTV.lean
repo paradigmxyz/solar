@@ -34,6 +34,7 @@ import SolarTV.EVMIR.Precompiles.Safety
 import SolarTV.MIR.State.Observe
 import SolarTV.MIR.State.Safety
 import SolarTV.MIR.State.Normalize
+import SolarTV.MIR.Effects
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -260,3 +261,7 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.EVM.MemoryPrefix.shared_sufficient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.MemoryPrefix.shared_sufficient
+
+/-- info: 'SolarTV.MIR.Effects.contextual' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.MIR.Effects.contextual
