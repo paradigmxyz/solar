@@ -16,8 +16,10 @@
 //! a direct constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
-//! and one-word literals used once per emitted artifact. Shared void forwarders
-//! that add arguments stay shared to avoid duplicating their setup.
+//! and one-word literals used once per emitted artifact. After memory lowering,
+//! a memory pointer is one word, so a helper returning `bytes memory` is priced
+//! like the same body returning a user-defined value type. Shared void
+//! forwarders that add arguments stay shared to avoid duplicating their setup.
 //!
 //! After memory lowering, frame allocation and multi-word return staging cannot
 //! be introduced again. At this stage the pass also partially clones returning
@@ -254,6 +256,7 @@ struct MirInlineSummary {
     /// its carried words inside the caller's.
     has_loop: bool,
     has_unsupported_terminator: bool,
+    /// Returns a slice, or a memory pointer before memory lowering.
     has_reference_return: bool,
     /// A one-block helper that forwards an argument, slice components, or one internal call.
     /// Such wrappers are safe to inline even when the value is memory-backed.
@@ -571,11 +574,6 @@ impl MirInliner {
             }
         }
 
-        let has_reference_return = module
-            .function(site.callee)
-            .return_components()
-            .iter()
-            .any(|&ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)));
         let memory_wrapper = is_memory_wrapper(module.function(site.callee));
         let tiny = summary.block_count == 1
             && summary.return_count == 1
@@ -587,7 +585,7 @@ impl MirInliner {
                 } else {
                     4
                 }
-            && (!has_reference_return
+            && (!summary.has_reference_return
                 || summary.is_transparent_forwarder
                 || (single_call && summary.is_small_literal_return))
             && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
@@ -608,7 +606,7 @@ impl MirInliner {
             && summary.block_count == 1
             && summary.instruction_count <= 64
             && !summary.has_icall
-            && !has_reference_return
+            && !summary.has_reference_return
             && !summary.has_control_flow;
         let storage = gas && self.shares_storage_read(module, caller, site);
         let bounded = summary.instruction_count <= 96

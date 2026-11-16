@@ -1,0 +1,89 @@
+; === ROOT/tests/ui/codegen/mir/inline/allocators/return_type.sol:Word ===
+@module Word
+; function one() external pure returns (uint256) [selector 0x901717d1]
+fn @one() -> i256 [selector=0x901717d1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @newBuilder
+    ret v0
+}
+
+; function two() external pure returns (uint256) [selector 0x5fdf05d7]
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @newBuilder
+    v1 = icall @newBuilder
+    v2 = checked_add uint256, v0, v1
+    ret v2
+}
+
+; function three() external pure returns (uint256) [selector 0x45caa117]
+fn @three() -> i256 [selector=0x45caa117, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @newBuilder
+    v1 = icall @newBuilder
+    v2 = checked_add uint256, v0, v1
+    v3 = icall @newBuilder
+    v4 = checked_add uint256, v2, v3
+    ret v4
+}
+
+; function newBuilder() pure returns (Builder b)
+fn @newBuilder() -> i256 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/mir/inline/allocators/return_type.sol:Bytes ===
+@module Bytes
+; function one() external pure returns (uint256) [selector 0x901717d1]
+fn @one() -> i256 [selector=0x901717d1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @newBytes
+    v1 = icall @addr, v0
+    ret v1
+}
+
+; function two() external pure returns (uint256) [selector 0x5fdf05d7]
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @newBytes
+    v1 = icall @addr, v0
+    v2 = icall @newBytes
+    v3 = icall @addr, v2
+    v4 = checked_add uint256, v1, v3
+    ret v4
+}
+
+; function three() external pure returns (uint256) [selector 0x45caa117]
+fn @three() -> i256 [selector=0x45caa117, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @newBytes
+    v1 = icall @addr, v0
+    v2 = icall @newBytes
+    v3 = icall @addr, v2
+    v4 = checked_add uint256, v1, v3
+    v5 = icall @newBytes
+    v6 = icall @addr, v5
+    v7 = checked_add uint256, v4, v6
+    ret v7
+}
+
+; function addr(bytes memory b) internal pure returns (uint256 p)
+fn @addr(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    ret v0
+}
+
+; function newBytes() pure returns (bytes memory b)
+fn @newBytes() -> ptr<memory> [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = add v0, 32
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+}
