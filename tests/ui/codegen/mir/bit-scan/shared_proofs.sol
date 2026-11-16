@@ -9,7 +9,8 @@
 //@ run-call: third 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 255
 //@ run-call: missFirst 3 => 1
 //@ run-call: missFirst 4 => 2
-//@ run-call: missSecond 8 => 2
+//@ run-call: missSecond 8 => 3
+//@ run-call: missSecond 14 => 2
 //@ run-call: missSecond 0xffff => 15
 
 // Functions that hold the same search share its proof. Each copy of a scan is rewritten, and
@@ -64,7 +65,8 @@ contract SharedProofs {
         }
     }
 
-    // The table's entry for eight is two: wrong for every word whose leading bits are 1000.
+    // The table's entry for fourteen is two: wrong for every word whose leading bits are 1110,
+    // which no probe tries, so the value reaches its proof and fails it.
     function missFirst(uint256 x) external pure returns (uint256 r) {
         assembly ("memory-safe") {
             r := shl(7, gt(x, 0xffffffffffffffffffffffffffffffff))
@@ -73,7 +75,7 @@ contract SharedProofs {
             r := or(r, shl(4, gt(shr(r, x), 0xffff)))
             r := or(r, shl(3, gt(shr(r, x), 0xff)))
             r := or(r, shl(2, gt(shr(r, x), 0xf)))
-            r := or(r, byte(shr(r, x), 0x0000010102020202020303030303030300000000000000000000000000000000))
+            r := or(r, byte(shr(r, x), 0x0000010102020202030303030303020300000000000000000000000000000000))
         }
     }
 
@@ -86,7 +88,7 @@ contract SharedProofs {
             r := or(r, shl(4, gt(shr(r, x), 0xffff)))
             r := or(r, shl(3, gt(shr(r, x), 0xff)))
             r := or(r, shl(2, gt(shr(r, x), 0xf)))
-            r := or(r, byte(shr(r, x), 0x0000010102020202020303030303030300000000000000000000000000000000))
+            r := or(r, byte(shr(r, x), 0x0000010102020202030303030303020300000000000000000000000000000000))
         }
     }
 }
