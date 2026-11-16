@@ -19,8 +19,8 @@
 //! A test of the upper half of a word `x` (a comparison with `2**128` or `2**128 - 1`, or a
 //! right shift by 128 bits) starts a region at its block. The pass runs the region from there on
 //! one input per class of inputs, zero and `2**m` for every `m`, and follows its branches until
-//! it reaches an instruction it cannot run: one with an effect, or a branch whose condition it
-//! does not know.
+//! it reaches an instruction it cannot run: one with an effect, a check that may revert, or a
+//! branch whose condition it does not know.
 //!
 //! A run tracks three kinds of value. `x` shifted right by a known amount is one: a right
 //! shift by a known amount shifts it further, and a select or a phi passes it on. A comparison
@@ -306,7 +306,7 @@ impl Facts {
                 place[inst] = Some((block, index));
                 let instruction = func.inst(inst);
                 instruction.kind.visit_operands(|operand| users[operand].push(inst));
-                if !is_pure(instruction) || matches!(instruction.kind, InstKind::Phi(_)) {
+                if !evaluates(instruction) {
                     block_stops.push(index);
                 }
             }
@@ -405,9 +405,12 @@ impl Facts {
     }
 }
 
-/// Whether a run evaluates the instruction when it passes it, rather than stopping there.
+/// Whether a run evaluates the instruction when it passes it, rather than stopping there. A
+/// checked operation, which reverts for some operands, stops it like an effect.
 fn evaluates(instruction: &Instruction) -> bool {
-    is_pure(instruction) && !matches!(instruction.kind, InstKind::Phi(_))
+    is_pure(instruction)
+        && !instruction.kind.effects().control.any()
+        && !matches!(instruction.kind, InstKind::Phi(_))
 }
 
 /// `KNOWN` for a constant, and `flags` otherwise.
@@ -422,7 +425,7 @@ fn reach(func: &Function, inst: InstId, flag: impl Fn(ValueId) -> u8) -> u8 {
     if let InstKind::Phi(incoming) = &instruction.kind {
         return incoming.iter().fold(0, |flags, &(_, value)| flags | flag(value));
     }
-    if !is_pure(instruction) {
+    if !evaluates(instruction) {
         return 0;
     }
     let known = |value| flag(value) & KNOWN != 0;
