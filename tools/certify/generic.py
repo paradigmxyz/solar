@@ -598,7 +598,7 @@ def nested_splits(eqs):
     return "\n".join(out) + "\n"
 
 
-def lowering_lean(name, contract, fns, events, core_lit, storage_lit):
+def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False):
     ns = f"Certified.{name}.Lowering"
     sels = "\n".join(
         f"/-- The selector of §{f['sig']}§. -/\nabbrev sel{i} : Nat := {hex(f['sel'])}\n"
@@ -639,8 +639,30 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit):
             f"  funext s\n  unfold digestTable\n{dsplits}\n"
         )
         using += " digest_eq"
+    # The check for every caller (caller_route, the any route only): Generic.checkSym and
+    # checkValue ... .allSym, with the caller a symbolic word, by the kernel's evaluation as the
+    # fixed-caller check is. The fixed route's module is unchanged.
+    sym_import = "import SolidCore.Refinement.Generic.StageFrom\n" if sym else ""
+    sym_thms = (
+        f"""
+set_option maxRecDepth 100000 in
+/-- The kernel's evaluation: the generic check for every caller (the caller a symbolic word)
+accepts stage0 for every function. -/
+theorem check_sym_stage0 :
+    Generic.checkSym fuel mirFuel coreLit SolarTV.Export.{contract}.stage0 fns = true := by
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+/-- The kernel's evaluation: stage0 reverts on a call with a value, whoever sends it. -/
+theorem checkValueSym_stage0 :
+    Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .allSym = true := by
+  decide +kernel
+"""
+        if sym
+        else ""
+    )
     return f"""import SolidCore.Refinement.Generic.Value
-import SolidCore.Refinement.KernelCopies
+{sym_import}import SolidCore.Refinement.KernelCopies
 import SolidCore.Refinement.KernelRfl
 import {name}.Source
 import {name}.gen.{contract}.Stage0
@@ -713,7 +735,7 @@ set_option maxRecDepth 100000 in
 theorem checkValue_stage0 :
     Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .all = true := by
   decide +kernel
-
+{sym_thms}
 theorem deployed_of {{c : TypeCheck.CheckedContract}} (hc : contract? = .ok c) :
     c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit := by
   have h := shape_eq
@@ -741,7 +763,20 @@ def probe_lean(name, contract, fns):
         f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
+    # The same check for every caller (Generic.checkFnSym): the source erased with msg.sender a
+    # symbolic word below 2^160, the module run with CALLER that word. caller_route reads it.
+    checks += "\n" + "\n".join(
+        f'  IO.println ("PROBE sym fn {f["sig"]}: " ++ (match core.findFunctionBySelector? {f["sel"]} with\n'
+        f'    | none => "no source function"\n'
+        f"    | some fn => match Generic.eraseFnSym (Generic.envOf core) fuel fn, "
+        f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
+        f'      | none, _ => "source tree undefined (erasure)"\n'
+        f'      | _, none => "MIR symbolic run undefined"\n'
+        f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
+        for f in fns
+    )
     return f"""import SolidCore.Refinement.Generic.Value
+import SolidCore.Refinement.Generic.StageFrom
 import {name}.Source
 import {name}.gen.{contract}.Stage0
 
@@ -820,6 +855,7 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
             f"{name}.Source",
             f"{name}.gen.{contract}.Stage0",
             "SolidCore.Refinement.Generic.Value",
+            "SolidCore.Refinement.Generic.StageFrom",
             "SolidCore.Refinement.KernelCopies",
             "SolidCore.Refinement.KernelRfl",
         ],
@@ -885,6 +921,107 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
     return res, summary, reasons
 
 
+# The word SolidCore's core literal spells msg.sender with.
+SENDER_ATOM = re.compile(r"(?<![\w.])(?:SolidCore\.Solidity\.Source\.)?Expr\.caller\b")
+
+
+def caller_route(res, fns):
+    """Which callers the generic source stage is about, from the probe's two checks: ("any", [])
+    when the check for every caller (PROBE sym fn: the source erased with msg.sender a symbolic
+    word, the module's CALLER that word) agrees for every function; otherwise the fixed caller
+    0x2000 of the fixed-caller check. A contract that reads msg.sender and fails the check for
+    every caller gets no route at all: a module that returns a constant for msg.sender, or reads
+    ADDRESS, ORIGIN or CALLER's low bits for it, passes the fixed check and fails this one, so the
+    run is BLOCKED (exit 3) naming each refused function. A contract that does not read msg.sender
+    keeps the fixed route whatever this check says (its module may read CALLER where the source
+    does not; the fixed check alone, at 0x2000, is then what its statement claims). Nothing here
+    is trusted: "any" only makes the run state check_sym_stage0, which the kernel decides."""
+    sym = {f["sig"]: res.get(f"sym fn {f['sig']}") for f in fns}
+    if fns and all(v == "agree" for v in sym.values()):
+        return "any", []
+    if not SENDER_ATOM.search(res.get("core", "")):
+        return "0x2000", []
+    return "0x2000", [
+        {
+            "feature": "msg.sender",
+            "where": sig,
+            "detail": f"{sig}: the generic check for every caller refuses it ({(v or 'no verdict')[:500]}); "
+            "a contract that reads msg.sender needs the check for every caller",
+        }
+        for sig, v in sym.items()
+        if v != "agree"
+    ]
+
+
+def ctx_route(tmp, contract):
+    """The gas bound of the checker with contexts and gas (AssembleCtxGas.checkXL) on this run's
+    export, for the caller route "any": (bound, None), or (None, why) when the checker cannot
+    certify the whole final EVM IR (a block outside its fragment, memory at offsets it does not
+    know, or an environment read it does not bind to every caller). Inferred from the probe's
+    export, as gas_need is; shape_gen.py infers it again from the run's own export and the kernel
+    checks it there (gas_le), so nothing here is trusted."""
+    import gen_ctxgas
+    import shape_gen
+
+    stages = shape_gen.last_stage((tmp / "Proofs" / "Stages.lean").read_text())
+    if stages["first"] != "stage0":
+        return None, f"the backend composition starts at {stages['first']}, not stage0"
+    try:
+        _, info = gen_ctxgas.generate(
+            tmp / "gen" / contract, f"probe.gen.{contract}", contract, stages["last"]
+        )
+    except gen_ctxgas.CtxGasError as e:
+        return (
+            None,
+            f"the checker with contexts and gas: {str(e).removeprefix('error: ')}",
+        )
+    if info["reads"]:
+        return (
+            None,
+            "the final EVM IR reads environment words the checker with contexts does not bind to the caller",
+        )
+    if info["F"]:
+        return None, f"the checker with contexts leaves blocks {info['F']} unchecked"
+    return gen_ctxgas.gas_bound(info, stages["fuel"]), None
+
+
+def decide_route(res, fns, reasons, witness, probe_dir, contract):
+    """The run's caller route: (caller, any_gas, reasons, note). "any" (with the checker with
+    contexts' gas bound) only when the probe agreed on the check for every caller for every
+    function, the run publishes the Expected statement (a spec witness) and the checker with
+    contexts certifies the probe's export; otherwise the fixed caller 0x2000, or, for a contract
+    that reads msg.sender and fails the check for every caller, msg.sender reasons (BLOCKED)."""
+    if reasons:
+        return (
+            "0x2000",
+            None,
+            [],
+            "caller route: the fixed caller 0x2000 (the probe refused)",
+        )
+    caller, creasons = caller_route(res, fns)
+    if creasons:
+        return "0x2000", None, creasons, "caller route: BLOCKED (msg.sender)"
+    if caller != "any":
+        return (
+            "0x2000",
+            None,
+            [],
+            "caller route: the fixed caller 0x2000 (the check for every caller refuses it)",
+        )
+    if witness is None:
+        why = "no specification, so no published Expected statement to add it to"
+    else:
+        any_gas, why = ctx_route(probe_dir, contract)
+        if why is None:
+            return (
+                "any",
+                any_gas,
+                [],
+                f"caller route: any (gas bound of the checker with contexts: {any_gas})",
+            )
+    return "0x2000", None, [], f"caller route: the fixed caller 0x2000 ({why})"
+
+
 def frontend(lean_dir, src, src_sha, name, contract, solc):
     """The solc-AST front end's Lean body of the source. The front end records the absolute path it
     read the source from (importedSourceName), so it reads a copy at a path fixed by the source's
@@ -916,7 +1053,9 @@ def source_lean(body):
     )
 
 
-def shape_json(name, contract, fns, gas, spec_desc, spec_witness=None, events=()):
+def shape_json(
+    name, contract, fns, gas, spec_desc, spec_witness=None, events=(), any_gas=None
+):
     ns = f"Certified.{name}.Lowering"
     valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({ns}.storageLit)"
     sigs = ", ".join(f["sig"] for f in fns)
@@ -995,6 +1134,30 @@ def shape_json(name, contract, fns, gas, spec_desc, spec_witness=None, events=()
                     for i, f in enumerate(fns)
                 ],
             }
+        )
+    if any_gas is not None:
+        # The caller route "any" (caller_route, ctx_route): Lowering.lean proves the check for every
+        # caller, shape_gen.py writes NAME.CtxGas and NAME.AnyCaller from this run's export, and
+        # final.py adds the equivalence in every real context to the published statement. Only on
+        # the published Expected statement, which is where final.py composes it.
+        if spec_witness is None:
+            raise Failed("the caller route any needs the published Expected statement")
+        shape["generic"].update(
+            {
+                "caller": "any",
+                "check_sym": "check_sym_stage0",
+                "check_value_sym": "checkValueSym_stage0",
+            }
+        )
+        shape["any_caller"] = {
+            "module": f"{name}.AnyCaller",
+            "proof": f"Certified.{name}.AnyCaller.published_any",
+            "gas": f"fun _ => {any_gas}",
+        }
+        shape["excluded"].append(
+            "callers: the equivalence of the exact bytecode with the source also holds from every caller "
+            "below 2^160 other than the contract, at the gas bound of the checker with contexts; the "
+            "specification, its allowed statuses and the rest of the statement keep the one frame above"
         )
     return shape
 
@@ -1898,17 +2061,34 @@ def main():
         res, summary, reasons = run_probe(
             lean_dir, work, name, contract, fns, source_text, a.probe_cache or None
         )
+        # The caller route: a msg.sender contract the check for every caller refuses fails closed.
+        caller, any_gas, creasons, note = decide_route(
+            res, fns, reasons, witness, work / "probe", contract
+        )
+        reasons += creasons
         record["probe"] = summary
         for l in summary:
             log(l)
         if reasons:
             raise Blocked(reasons)
+        log(note)
+        if caller == "any":
+            # Only on the any route: the fixed route's record is the fixed-frame record.
+            record["caller"] = caller
         d.mkdir(parents=True)
         shutil.copy(src, d / f"{name}.sol")
         (d / "options").write_text("\n".join(OPTIONS) + "\n")
         (d / "Source.lean").write_text(source_text)
         (d / "Lowering.lean").write_text(
-            lowering_lean(name, contract, fns, events, res["core"], res["storage"])
+            lowering_lean(
+                name,
+                contract,
+                fns,
+                events,
+                res["core"],
+                res["storage"],
+                sym=caller == "any",
+            )
         )
         # A placeholder of the proof module, which tools/certify/shape_gen.py regenerates in the run
         # (scripts/certify lists the statement's modules before step 6b writes it): its imports
@@ -1932,7 +2112,9 @@ def main():
         )
         (d / "shape.json").write_text(
             json.dumps(
-                shape_json(name, contract, fns, need, spec_desc, witness, events),
+                shape_json(
+                    name, contract, fns, need, spec_desc, witness, events, any_gas
+                ),
                 indent=2,
             )
             + "\n"

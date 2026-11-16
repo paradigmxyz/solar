@@ -1,0 +1,74 @@
+{
+  "kind": "certified",
+  "contract": "Certified.simplestorage_928cc159.Lowering.contract?",
+  "fuel": "Certified.simplestorage_928cc159.Lowering.fuel",
+  "valid": "SolidCore.Refinement.Shapes.genericValid (Certified.simplestorage_928cc159.Lowering.fns) (Certified.simplestorage_928cc159.Lowering.storageLit)",
+  "gas": "fun _ => 1944803",
+  "env": [],
+  "spec": "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)",
+  "spec_modules": [
+    "simplestorage_928cc159.Lowering",
+    "Verify.ShapeGeneric",
+    "Verify.Spec.TreeMap",
+    "Verify.ShapeSpecExport"
+  ],
+  "proof_module": "simplestorage_928cc159.Shape",
+  "proof": "Certified.simplestorage_928cc159.Shape.published",
+  "generic": {
+    "lowering": "simplestorage_928cc159.Lowering",
+    "ns": "Certified.simplestorage_928cc159.Lowering",
+    "style": "core",
+    "check": "check_stage0",
+    "check_value": "checkValue_stage0",
+    "fns": "Certified.simplestorage_928cc159.Lowering.fns",
+    "storage": "Certified.simplestorage_928cc159.Lowering.storageLit",
+    "spec_connect": {
+      "witness": "set",
+      "ghost_fixed": true,
+      "using": []
+    }
+  },
+  "excluded": [
+    "deployment: the init code is not covered; the statement is about the runtime bytecode from any storage that holds the slots the constructor writes, as SolidCore's constructor run with no arguments leaves them",
+    "source model trusted: SolidCore's checked contract (the solc AST through scripts/solc_ast_to_lean_source.py and the type checker) is the meaning of the source (frontend trust boundary)",
+    "calls: one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message; no external calls, GAS reads or return data in the code (the loop checker's fragment)",
+    "gas: the bound is the loop checker's (22100 per item times the final EVM IR's block fuel, plus memory), coarse; below it the bytecode may fail without effects, which equivalence admits",
+    "valid calls: get(), num(), set(uint256) ABI-encoded with clean argument words, any value below 2^256 (no function is payable: the value reverts on both sides), any storage covering the constructor's slots; other call data is outside the statement",
+    "spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence"
+  ],
+  "source_ast": {
+    "file": "Certified/simplestorage_928cc159/Source.lean",
+    "namespace": "Certified.simplestorage_928cc159.Src",
+    "contract": "SimpleStorage"
+  },
+  "allowed_export": true,
+  "spec_export": {
+    "ctx": "SolidCore.Refinement.Shapes.ctxOfCall",
+    "step": "SolidCore.Refinement.Shapes.idStep"
+  },
+  "nonvacuous": "Certified.simplestorage_928cc159.Shape.nonvacuous",
+  "statement": "expected",
+  "source_unit": "Certified.simplestorage_928cc159.Src.importedSourceUnit",
+  "source_contract": "SimpleStorage",
+  "storage": "Certified.simplestorage_928cc159.Lowering.storageLit",
+  "entries": [
+    {
+      "signature": "get()",
+      "fn": "Certified.simplestorage_928cc159.Lowering.fn0",
+      "sel": 1833756220,
+      "arity": 0
+    },
+    {
+      "signature": "num()",
+      "fn": "Certified.simplestorage_928cc159.Lowering.fn1",
+      "sel": 1316008412,
+      "arity": 0
+    },
+    {
+      "signature": "set(uint256)",
+      "fn": "Certified.simplestorage_928cc159.Lowering.fn2",
+      "sel": 1627277233,
+      "arity": 1
+    }
+  ]
+}
