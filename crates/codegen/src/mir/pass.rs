@@ -477,6 +477,9 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
 #[tracing::instrument(name = "mir_pipeline", level = "debug", skip_all)]
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    if module.phase() == MirPhase::Semantic {
+        clear_operand_origins_of_optimized_functions(module);
+    }
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
         let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
             Ok(pipeline) => pipeline,
@@ -510,17 +513,6 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     let mut changed = false;
     let mut local_summaries = LocalSummaryCache::default();
     if module.phase() == MirPhase::Semantic {
-        // NOTE: The operand origins of a read hold while it runs in the block of its assignments,
-        // which the passes that run without optimization keep. The ones that optimize move code
-        // between blocks, so optimized functions start without them.
-        if module.is_optimized() {
-            let optimization = module.optimization;
-            for func in &mut module.functions {
-                if !func.attributes.optimization.unwrap_or(optimization).is_none() {
-                    func.clear_operand_origins();
-                }
-            }
-        }
         let (pass_changed, error) =
             run_pipeline_stage(gcx, module, SEMANTIC_PIPELINE, &mut local_summaries);
         changed |= pass_changed;
@@ -536,6 +528,23 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     }
     changed |= run_pipeline_stage(gcx, module, LOWERED_PIPELINE, &mut local_summaries).0;
     changed
+}
+
+/// Drops the operand origins of the functions that the passes optimize.
+///
+/// NOTE: The operand origins of a read hold while it runs in the block of its assignments, which
+/// the passes that run without optimization keep. The ones that optimize move code between blocks,
+/// so optimized functions start without them.
+fn clear_operand_origins_of_optimized_functions(module: &mut Module) {
+    if !module.is_optimized() {
+        return;
+    }
+    let optimization = module.optimization;
+    for func in &mut module.functions {
+        if !func.attributes.optimization.unwrap_or(optimization).is_none() {
+            func.clear_operand_origins();
+        }
+    }
 }
 
 /// Runs a function-local transform over every bodied function in a module.
