@@ -187,6 +187,48 @@ def statuses(kind, spec=None, bound=False, vacuity=None):
     }
 
 
+def caller_route(shape):
+    """The callers the published statement is about. shape.json's generic.caller is "0x2000" (or
+    absent: the fixed frame, Context.default) or "any" (the driver's check for every caller,
+    tools/certify/generic.py's caller_route, accepted every function: Lowering.lean proves
+    check_sym_stage0 and checkValueSym_stage0). For "any" the statement adds the equivalence in
+    every real context from the gas bound any_caller.gas on (a `Call → Nat` term: the bound of the
+    checker with contexts and gas, AssembleCtxGas.checkXL, which may exceed the loop checker's), and
+    the proof is any_caller.proof, of module any_caller.module: a term of type
+
+        ∀ ctx : Generic.Context, ctx.Ok → ∃ c, CONTRACT = .ok c ∧ ∀ call, VALID call →
+          ∀ gas, GAS call ≤ gas → Generic.runAt ctx gas CODE call =
+            (solidCoreFrom ctx.caller FUEL).run c call
+
+    (CODE the fresh export's bytes, GAS any_caller.gas). Nothing here is trusted: the kernel checks the proof at the
+    statement's type. Every other combination fails closed, so a fixed-frame statement never
+    claims a caller it was not checked for, and a statement never omits a claim its shape names."""
+    gen = shape.get("generic")
+    caller = gen.get("caller", "0x2000") if isinstance(gen, dict) else "0x2000"
+    anyc = shape.get("any_caller")
+    if caller == "0x2000":
+        if anyc is not None:
+            fail(
+                "shape.json: any_caller is for generic.caller any; the fixed route claims one caller"
+            )
+        return None
+    if caller != "any":
+        fail(f"shape.json: generic.caller must be 0x2000 or any, not {caller!r}")
+    if not (
+        gen.get("check_sym") == "check_sym_stage0"
+        and gen.get("check_value_sym") == "checkValueSym_stage0"
+    ):
+        fail(
+            "shape.json: generic.caller any needs the check for every caller (check_sym, check_value_sym)"
+        )
+    if not (isinstance(anyc, dict) and set(anyc) == {"module", "proof", "gas"}):
+        fail("shape.json: generic.caller any needs any_caller {module, proof, gas}")
+    mod = anyc["module"]
+    if not isinstance(mod, str) or not NAME.match(mod):
+        fail("shape.json: any_caller.module must be a module name")
+    return mod, expr(anyc, "proof"), expr(anyc, "gas")
+
+
 def expected_mode(
     a,
     shape,
@@ -224,6 +266,7 @@ def expected_mode(
     if not isinstance(entries, list) or not entries:
         fail("shape.json: entries must list the external functions")
     storage = expr(shape, "storage")
+    route = caller_route(shape)
     ent_terms, witnesses = [], []
     for e in entries:
         if not (isinstance(e, dict) and set(e) == {"signature", "fn", "sel", "arity"}):
@@ -242,6 +285,30 @@ def expected_mode(
         )
         witnesses.append((e["sel"], e["arity"]))
     G = "_root_.SolidCore.Verify.Generic"
+    # The caller route "any": the same bytes and source in every real context (generic.caller any).
+    # The fixed route adds nothing, so its text is the fixed-frame statement byte for byte.
+    any_doc = any_stmt = any_import = any_proof = ""
+    if route is not None:
+        any_mod, any_term, any_gas = route
+        any_doc = (
+            " With the check for every caller, also: in every real context\n"
+            "(a caller below §2 ^ 160§ other than the contract), every valid call and every gas from the\n"
+            "bound of the checker with contexts on, the exact bytes run from that caller are the source\n"
+            "run from it."
+        )
+        any_stmt = (
+            f" ∧\n    ∀ ctx : {G}.Context, ctx.Ok → ∃ c, _root_.{ns}.src.checked = .ok c ∧\n"
+            f"      ∀ call, _root_.{ns}.spec.Valid ctx call → ∀ gas, ({any_gas}) call ≤ gas →\n"
+            f"        {G}.runAt ctx gas ({G}.runtimeCode _root_.{ns}.runtimeBytes) call =\n"
+            f"          (_root_.{ns}.src.semAt ctx).run c call"
+        )
+        any_import = f"import {any_mod}\n"
+        any_proof = f""",
+    fun ctx hctx => by
+      obtain ⟨c, hc, h⟩ := ({any_term}) ctx hctx
+      refine ⟨c, hc, fun call hv gas hg => ?_⟩
+      rw [{G}.runtimeCode_eq _root_.{ns}.bound]
+      exact h call hv gas hg"""
     imports = [
         "Verify.Generic.Expected",
         "Verify.ShapeBundle",
@@ -292,10 +359,10 @@ def spec : {G}.Spec where
   gas _ := {expr(shape, "gas")}
   assumptions := []
 
-/-- **The published statement.** -/
+/-- **The published statement.**{any_doc} -/
 def Statement : Prop :=
   _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧
-    {G}.Expected _root_.{ns}.src _root_.{ns}.spec _root_.{ns}.runtimeBytes
+    {G}.Expected _root_.{ns}.src _root_.{ns}.spec _root_.{ns}.runtimeBytes{any_stmt}
 
 set_option maxRecDepth 100000 in
 theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes :=
@@ -303,6 +370,14 @@ theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtim
 
 end {ns}
 """.replace("§", "\u0060")
+    )
+    expected_parts = (
+        f"{G}.all_lt_of_eq _root_.{ns}.bound, ⟨⟨_, rfl⟩, ?_, ?_, ?_, ?_⟩, ?_"
+    )
+    refine = (
+        f"refine ⟨_root_.{ns}.bound, {expected_parts}⟩"
+        if route is None
+        else f"refine ⟨_root_.{ns}.bound, ⟨{expected_parts}⟩{any_proof}⟩"
     )
     alts = " | ".join(["rfl"] * len(witnesses))
     wit = "\n".join(
@@ -314,14 +389,14 @@ end {ns}
     )
     final_text = f"""import {a.name}.Statement
 import {proof_mod}
-
+{any_import}
 -- Generated by solar's tools/certify/final.py; do not edit. The statement is
 -- Certified.{a.name}.Final.Statement of {a.name}.Statement, which does not import the proof
 -- module; the driver's checker requires §final§'s type to be exactly that constant.
 
 set_option maxRecDepth 100000 in
 theorem {ns}.final : _root_.{ns}.Statement := by
-  refine ⟨_root_.{ns}.bound, {G}.all_lt_of_eq _root_.{ns}.bound, ⟨⟨_, rfl⟩, ?_, ?_, ?_, ?_⟩, ?_⟩
+  {refine}
   · rintro _ rfl
     exact {G}.Context.default_ok
   · rintro _ rfl e he
