@@ -62,3 +62,15 @@ contract H is F {
     /// @dev local dev
     function n() public override {}
 }
+
+contract K {
+    /// @dev 
+    ///   Multiplies by 7
+    function f() public pure {}
+
+    /**
+     * @notice	
+     *   block nine
+     */
+    function g() public pure {}
+}

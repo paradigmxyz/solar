@@ -281,6 +281,9 @@ fn return_docs(
 struct DocItem {
     kind: hir::NatSpecKind,
     content: String,
+    /// Whether the line of the tag ends right after its name, so that the next line's leading
+    /// whitespace goes.
+    bare: bool,
 }
 
 /// Returns the NatSpec items of `item_id` with their text joined and trimmed like solc.
@@ -308,6 +311,7 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
     let mut items: Vec<DocItem> = Vec::new();
     for &item in &local {
         let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
+        let bare = !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t']);
         let line_comment = untagged
             && gcx
                 .sess
@@ -315,8 +319,9 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
                 .span_to_snippet(item.span)
                 .is_ok_and(|snippet| snippet.starts_with("///"));
         if line_comment && let Some(previous) = items.last_mut() {
-            // A tag with no text on its line takes the next line, without its leading whitespace.
-            if previous.content.is_empty() {
+            // A tag with nothing after it on its line takes the next line, without its leading
+            // whitespace.
+            if previous.content.is_empty() && previous.bare {
                 previous.content.push_str(item.content().trim_start_matches([' ', '\t']));
             } else {
                 append_doc_line(&mut previous.content, item.content());
@@ -340,13 +345,13 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             if line.is_empty() {
                 continue;
             }
-            if content.is_empty() {
+            if content.is_empty() && bare {
                 content.push_str(line.trim_start_matches([' ', '\t']));
             } else {
                 append_doc_line(&mut content, line);
             }
         }
-        items.push(DocItem { kind: item.kind, content });
+        items.push(DocItem { kind: item.kind, content, bare });
     }
     if let Some((_, target)) = target {
         let local_tags = LocalTags::from_items(&local);

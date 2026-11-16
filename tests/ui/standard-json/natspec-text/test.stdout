@@ -147,6 +147,26 @@
           },
           "version": 1
         }
+      },
+      "K": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "g()": {
+              "notice": "   block nine"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f()": {
+              "details": "   Multiplies by 7"
+            }
+          },
+          "version": 1
+        }
       }
     }
   }
