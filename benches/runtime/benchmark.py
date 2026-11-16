@@ -376,24 +376,6 @@ def full_project_standard_json_input(project_file: str) -> str:
     return project_full_standard_json_input(project_file)
 
 
-def with_file_ast(input_text: str) -> str:
-    """Requests the file-level `ast` output of every selected source of a Standard JSON input.
-
-    Most project archives come from Forge build-info inputs, which request the AST of every
-    selected source; this gives the others the same output, so every whole-project case measures
-    it. Sources outside the selection stay out: solc compiles every contract of a source with any
-    file-level output.
-    """
-    payload = json.loads(input_text)
-    changed = False
-    for outputs in payload.get("settings", {}).get("outputSelection", {}).values():
-        file_outputs = outputs.setdefault("", [])
-        if "ast" not in file_outputs:
-            file_outputs.append("ast")
-            changed = True
-    return json.dumps(payload) if changed else input_text
-
-
 def with_evm_version(input_text: str, evm_version: str | None) -> str:
     if evm_version is None:
         return input_text
@@ -434,9 +416,7 @@ def compiler_input(
     if test_case.project is not None:
         assert test_case.project_file is not None
         if test_case.whole_project:
-            input_text = with_file_ast(
-                project_full_standard_json_input(test_case.project_file)
-            )
+            input_text = project_full_standard_json_input(test_case.project_file)
             timeout = 900
         else:
             input_text = project_standard_json_input(
