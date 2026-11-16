@@ -83,7 +83,9 @@ impl InstructionMetadata {
         }
     }
 
-    /// Renames the values of the edge assignments as the operands of the jump are renamed.
+    /// Renames the values of the edge assignments, as [`crate::Function::rewrite_all_operands`]
+    /// renames the values a jump passes to its target's phis. Other rewrites leave them alone: a
+    /// record of a value that no longer exists matches no push.
     pub(crate) fn rewrite_edge_assignments(&mut self, mut f: impl FnMut(&mut ValueId)) {
         for assignment in
             self.edge_assignments.iter_mut().flat_map(|assignments| &mut assignments.0)
