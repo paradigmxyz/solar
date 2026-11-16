@@ -28,6 +28,54 @@ use `cargo test`, since nextest would read the filters as test names. `cargo t`
 runs every suite and `cargo bless` blesses every UI-mode suite, including
 standard JSON.
 
+## Test layout
+
+Put each UI test in the directory for the layer it checks, in a topic
+subdirectory when one fits, and keep `.stdout` and `.stderr` expectations beside
+their source. Put a new family of tests in its own subdirectory, keep a leaf
+directory under about 80 tests, and split a giant test source into small
+focused files.
+
+- Frontend: `tests/ui/parser/`, `resolve/`, and `typeck/`, such as
+  `typeck/conversions/` or `parser/using/`.
+- Solidity to MIR lowering, checked with an explicit `-Zdump=mir`:
+  `tests/ui/codegen/lowering/mir/<topic>/`.
+- MIR to EVM IR lowering (stack scheduling, spills, phis, resident words,
+  frames, switches, program data), checked with an explicit `-Zdump=evm-ir*` or
+  `disasm*`, or with `run-call` when the bug is in stack scheduling:
+  `tests/ui/codegen/lowering/evm-ir/<topic>/`.
+- Runtime behavior of a Solidity feature, checked with `run-call` and no
+  explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as `abi-decode`,
+  `storage-arrays`, or `modifiers`. FileCheck on the codegen matrix's `mir`
+  revision does not make a test a lowering test.
+- One MIR pass, run with `-Zmir-pipeline=<pass>`:
+  `tests/ui/codegen/mir/<pass>/`. `lower-abi`, `lower-dispatch`, and
+  `lower-evm-shaped` go in `tests/ui/codegen/mir/lowering/`.
+- One EVM IR pass, run with `-Zevm-ir-pipeline=<pass>`:
+  `tests/ui/codegen/evm-ir/<pass>/`.
+- Lowered MIR or EVM IR checked against its interpreter with `run-call`:
+  `tests/ui/codegen/mir/interp/` and `tests/ui/codegen/evm-ir/interp/`.
+- Round trips, whole pipelines, and validation: the existing `none/`,
+  `pipeline/`, and `validation/` directories under `mir/` and `evm-ir/`.
+- Bytecode layout through the disassembly: `tests/ui/codegen/disasm/`. Code
+  size and stack depth limits: `tests/ui/codegen/size-limits/`. Codegen dump,
+  timing, and tuning flags: `tests/ui/codegen/flags/`.
+- Source maps, debugify, origins, and debug info kept or dropped by a pass:
+  `tests/ui/codegen/debug-info/` for Solidity sources, and
+  `debug-info/mir/` and `debug-info/evm-ir/` for IR sources, named
+  `<pass>_<what>`.
+
+## FileCheck
+
+`//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the test's `.stdout`.
+Use it when a full snapshot would be brittle or huge, such as a 1,500-line
+standard-JSON output for a one-line fix, or when the test checks order,
+presence, or absence. Put `// CHECK:` lines directly above the function or block
+they cover, specific enough to catch the bug, and anchor them with
+`CHECK-LABEL` when the output has several sections. Use the default `CHECK`
+prefix unless revisions need more. Keep patterns short, capture changing values
+with `[[NAME:regex]]`, and keep one function's checks in one comment block.
+
 ## Runtime directives
 
 UI tests can run one isolated entry-point call per `run-call` or `run-call-fail`
