@@ -598,7 +598,7 @@ def nested_splits(eqs):
     return "\n".join(out) + "\n"
 
 
-def lowering_lean(name, contract, fns, events, core_lit, storage_lit):
+def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False):
     ns = f"Certified.{name}.Lowering"
     sels = "\n".join(
         f"/-- The selector of §{f['sig']}§. -/\nabbrev sel{i} : Nat := {hex(f['sel'])}\n"
@@ -639,8 +639,29 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit):
             f"  funext s\n  unfold digestTable\n{dsplits}\n"
         )
         using += " digest_eq"
+    # The check for every caller (caller_route): §Generic.checkSym§ and §checkValue ... .allSym§, with
+    # the caller a symbolic word, by the kernel's evaluation as the fixed-caller check is.
+    sym_import = "import SolidCore.Refinement.Generic.StageFrom\n" if sym else ""
+    sym_thms = (
+        """
+set_option maxRecDepth 100000 in
+/-- The kernel's evaluation: the generic check for every caller (the caller a symbolic word)
+accepts stage0 for every function. -/
+theorem check_sym_stage0 :
+    Generic.checkSym fuel mirFuel coreLit SolarTV.Export.{contract}.stage0 fns = true := by
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+/-- The kernel's evaluation: stage0 reverts on a call with a value, whoever sends it. -/
+theorem checkValueSym_stage0 :
+    Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .allSym = true := by
+  decide +kernel
+""".replace("{contract}", contract)
+        if sym
+        else ""
+    )
     return f"""import SolidCore.Refinement.Generic.Value
-import SolidCore.Refinement.KernelCopies
+{sym_import}import SolidCore.Refinement.KernelCopies
 import SolidCore.Refinement.KernelRfl
 import {name}.Source
 import {name}.gen.{contract}.Stage0
@@ -713,7 +734,7 @@ set_option maxRecDepth 100000 in
 theorem checkValue_stage0 :
     Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .all = true := by
   decide +kernel
-
+{sym_thms}
 theorem deployed_of {{c : TypeCheck.CheckedContract}} (hc : contract? = .ok c) :
     c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit := by
   have h := shape_eq
@@ -741,7 +762,20 @@ def probe_lean(name, contract, fns):
         f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
+    # The same check for every caller (Generic.checkFnSym): the source erased with msg.sender a
+    # symbolic word below 2^160, the module run with CALLER that word. caller_route reads it.
+    checks += "\n" + "\n".join(
+        f'  IO.println ("PROBE sym fn {f["sig"]}: " ++ (match core.findFunctionBySelector? {f["sel"]} with\n'
+        f'    | none => "no source function"\n'
+        f"    | some fn => match Generic.eraseFnSym (Generic.envOf core) fuel fn, "
+        f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
+        f'      | none, _ => "source tree undefined (erasure)"\n'
+        f'      | _, none => "MIR symbolic run undefined"\n'
+        f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
+        for f in fns
+    )
     return f"""import SolidCore.Refinement.Generic.Value
+import SolidCore.Refinement.Generic.StageFrom
 import {name}.Source
 import {name}.gen.{contract}.Stage0
 
@@ -820,6 +854,7 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
             f"{name}.Source",
             f"{name}.gen.{contract}.Stage0",
             "SolidCore.Refinement.Generic.Value",
+            "SolidCore.Refinement.Generic.StageFrom",
             "SolidCore.Refinement.KernelCopies",
             "SolidCore.Refinement.KernelRfl",
         ],
@@ -885,6 +920,38 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
     return res, summary, reasons
 
 
+# The word SolidCore's core literal spells msg.sender with.
+SENDER_ATOM = re.compile(r"(?<![\w.])(?:SolidCore\.Solidity\.Source\.)?Expr\.caller\b")
+
+
+def caller_route(res, fns):
+    """Which callers the generic source stage is about, from the probe's two checks: ("any", []) when
+    the check for every caller (PROBE sym fn) agrees for every function, so Lowering.lean proves
+    check_sym_stage0 and the stage holds for every sender below 2^160 (Generic.stageAtValueFrom);
+    otherwise the fixed caller 0x2000 of the fixed-caller check. A contract that reads msg.sender
+    gets no fixed-caller route: its meaning differs by caller, and a statement about one caller
+    would leave every other sender unchecked (a module that returns a constant for msg.sender, or
+    reads ADDRESS, CALLER's low bits or another word for it, passes the fixed check and fails this
+    one), so the run is BLOCKED (exit 3) naming each function the check for every caller refuses.
+    Nothing here is trusted: "any" only makes the run state check_sym_stage0, which the kernel
+    decides."""
+    sym = {f["sig"]: res.get(f"sym fn {f['sig']}") for f in fns}
+    if all(v == "agree" for v in sym.values()):
+        return "any", []
+    if not SENDER_ATOM.search(res.get("core", "")):
+        return "0x2000", []
+    return "0x2000", [
+        {
+            "feature": "msg.sender",
+            "where": sig,
+            "detail": f"{sig}: the generic check for every caller refuses it ({(v or 'no verdict')[:500]}); "
+            "a contract that reads msg.sender needs the check for every caller",
+        }
+        for sig, v in sym.items()
+        if v != "agree"
+    ]
+
+
 def frontend(lean_dir, src, src_sha, name, contract, solc):
     """The solc-AST front end's Lean body of the source. The front end records the absolute path it
     read the source from (importedSourceName), so it reads a copy at a path fixed by the source's
@@ -916,7 +983,9 @@ def source_lean(body):
     )
 
 
-def shape_json(name, contract, fns, gas, spec_desc, spec_witness=None, events=()):
+def shape_json(
+    name, contract, fns, gas, spec_desc, spec_witness=None, events=(), caller="0x2000"
+):
     ns = f"Certified.{name}.Lowering"
     valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({ns}.storageLit)"
     sigs = ", ".join(f["sig"] for f in fns)
@@ -995,6 +1064,14 @@ def shape_json(name, contract, fns, gas, spec_desc, spec_witness=None, events=()
                     for i, f in enumerate(fns)
                 ],
             }
+        )
+    # The callers of the source stage (caller_route): "any" when Lowering.lean proves the check for
+    # every caller. The published statement keeps its fixed frame (ENVIRONMENT) until final.py
+    # composes the stage for every caller; this only names the checks it would compose.
+    shape["generic"]["caller"] = caller
+    if caller == "any":
+        shape["generic"].update(
+            {"check_sym": "check_sym_stage0", "check_value_sym": "checkValueSym_stage0"}
         )
     return shape
 
@@ -1898,6 +1975,9 @@ def main():
         res, summary, reasons = run_probe(
             lean_dir, work, name, contract, fns, source_text, a.probe_cache or None
         )
+        # Hook (any-caller): the route of the source stage, and a msg.sender contract fails closed.
+        caller, creasons = caller_route(res, fns) if not reasons else ("0x2000", [])
+        reasons += creasons
         record["probe"] = summary
         for l in summary:
             log(l)
@@ -1908,7 +1988,15 @@ def main():
         (d / "options").write_text("\n".join(OPTIONS) + "\n")
         (d / "Source.lean").write_text(source_text)
         (d / "Lowering.lean").write_text(
-            lowering_lean(name, contract, fns, events, res["core"], res["storage"])
+            lowering_lean(
+                name,
+                contract,
+                fns,
+                events,
+                res["core"],
+                res["storage"],
+                sym=caller == "any",
+            )
         )
         # A placeholder of the proof module, which tools/certify/shape_gen.py regenerates in the run
         # (scripts/certify lists the statement's modules before step 6b writes it): its imports
@@ -1932,7 +2020,9 @@ def main():
         )
         (d / "shape.json").write_text(
             json.dumps(
-                shape_json(name, contract, fns, need, spec_desc, witness, events),
+                shape_json(
+                    name, contract, fns, need, spec_desc, witness, events, caller
+                ),
                 indent=2,
             )
             + "\n"
