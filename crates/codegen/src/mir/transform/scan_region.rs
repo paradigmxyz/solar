@@ -842,7 +842,7 @@ fn rewrite_region(
     let stays = last == entry
         && (zero.stop_at < func.blocks[entry].instructions.len()
             || !matches!(func.blocks[entry].terminator, Some(Terminator::Branch { .. })));
-    if stays && hopeless(func, facts, target, entry, &plausible, &zero, &runs) {
+    if stays && hopeless(func, facts, target, entry, input, &plausible, &zero, &runs) {
         let instructions = &func.blocks[entry].instructions;
         let from = start
             + instructions[start..]
@@ -914,7 +914,7 @@ fn rewrite_region(
 
     let mut replaced: FxHashSet<InstId> = proved.iter().map(|&(inst, ..)| inst).collect();
     let (mut removed, uses, branches) =
-        removal(func, facts, target, entry, last, &middle, &replaced);
+        removal(func, facts, target, entry, last, &middle, &replaced, input);
     // A proved value that only the removed code or other proved values read goes with them.
     proved.retain(|&(inst, value, ..)| {
         let dead = uses[value] == 0;
@@ -1003,8 +1003,10 @@ fn rewrite_region(
 }
 
 /// What replacing `replaced` removes: the middle blocks, the phis of the last block, and then
-/// every pure instruction of the entry and the last block that nothing reads any more. Returns
-/// the removed instructions, the uses left, and the branches the region loses.
+/// every pure instruction of the entry and the last block that nothing reads any more. The
+/// replacements read `input`, so it stays. Returns the removed instructions, the uses left, and
+/// the branches the region loses.
+#[allow(clippy::too_many_arguments)]
 fn removal(
     func: &Function,
     facts: &Facts,
@@ -1013,8 +1015,10 @@ fn removal(
     last: BlockId,
     middle: &[BlockId],
     replaced: &FxHashSet<InstId>,
+    input: ValueId,
 ) -> (FxHashSet<InstId>, IndexVec<ValueId, u32>, Cost) {
     let mut uses = facts.uses.clone();
+    uses[input] += 1;
     let mut removed: FxHashSet<InstId> = FxHashSet::default();
     let mut branches = Cost::ZERO;
     // The instructions whose result nothing may read any more, to sweep.
@@ -1091,17 +1095,19 @@ fn most_removed(
 /// that only removed code reads moves from the replaced to the removed instructions, which
 /// changes neither. The objective order grows with every dimension, so when the cheapest form
 /// of every value costs no less than that, no rewrite of the region is cheaper.
+#[allow(clippy::too_many_arguments)]
 fn hopeless(
     func: &Function,
     facts: &Facts,
     target: &Target,
     entry: BlockId,
+    input: ValueId,
     plausible: &[(InstId, ValueId)],
     zero: &Run,
     runs: &[(u32, Run)],
 ) -> bool {
     let replaced: FxHashSet<InstId> = plausible.iter().map(|&(inst, _)| inst).collect();
-    let (removed, _, branches) = removal(func, facts, target, entry, entry, &[], &replaced);
+    let (removed, _, branches) = removal(func, facts, target, entry, entry, &[], &replaced, input);
     let most = most_removed(func, target, &removed, &replaced) + branches;
     let forms = form_costs(target);
     plausible.iter().all(|(_, value)| {
