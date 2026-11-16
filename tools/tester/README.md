@@ -31,10 +31,9 @@ standard JSON.
 ## Test layout
 
 Put each UI test in the directory for the layer it checks, in a topic
-subdirectory when one fits, and keep `.stdout` and `.stderr` expectations beside
-their source. Put a new family of tests in its own subdirectory, keep a leaf
-directory under about 80 tests, and split a giant test source into small
-focused files.
+subdirectory when one fits. Put a new family of tests in its own subdirectory,
+keep a leaf directory under about 80 tests, and split a giant test source into
+small focused files.
 
 - Frontend: `tests/ui/parser/`, `resolve/`, and `typeck/`, such as
   `typeck/conversions/` or `parser/using/`.
@@ -56,7 +55,8 @@ focused files.
 - Lowered MIR or EVM IR checked against its interpreter with `run-call`:
   `tests/ui/codegen/mir/interp/` and `tests/ui/codegen/evm-ir/interp/`.
 - Round trips, whole pipelines, and validation: the existing `none/`,
-  `pipeline/`, and `validation/` directories under `mir/` and `evm-ir/`.
+  `pipeline/`, and `validation/` under `mir/`, and `none/` and `validation/`
+  under `evm-ir/`.
 - Bytecode layout through the disassembly: `tests/ui/codegen/disasm/`. Code
   size and stack depth limits: `tests/ui/codegen/size-limits/`. Codegen dump,
   timing, and tuning flags: `tests/ui/codegen/flags/`.

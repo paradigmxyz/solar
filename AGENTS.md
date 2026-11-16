@@ -40,10 +40,9 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   visitors.
 - `crates/sema`: name resolution and AST -> HIR (`ast_lowering/`), `hir/`,
   `ty/`, `typeck/`, and `output/` (ABI, NatSpec, storage layout).
-- `crates/mir`: the MIR data model, operation schema (`op_schema.rs`), text
-  format, and verifier. `crates/evmir`: the same for EVM IR, with the opcode
-  table (`op.rs`) and gas schedule. `crates/ir`: what both share.
-  `crates/mir-interpreter` and `crates/evmir-interpreter` run each IR.
+- `crates/mir` and `crates/evmir`: the data model, text format, and verifier
+  of each IR; `crates/ir`: what both share. `crates/mir-interpreter` and
+  `crates/evmir-interpreter` run them.
 - `crates/codegen`: HIR -> MIR (`mir/lower/`), MIR passes (`mir/transform/`,
   one file per pass; registry and pipelines in `mir/pass.rs`), stack
   scheduling (`backend/evm/codegen/`), EVM IR passes
@@ -120,7 +119,7 @@ Pick locations by the first rule that applies:
    and the PR body.
 2. **LLVM, rustc, and clang** decide how locations survive a rewrite. Follow
    LLVM's [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html):
-   a one-for-one replacement and cloned code keep the location; merge
+   code that replaces one instruction, and cloned code, keep its location; merge
    locations only when new code replaces several instructions and produces
    each of their outputs; drop a location that would mislead, such as on code
    hoisted into another block. Never move a deleted instruction's location onto
@@ -133,15 +132,14 @@ Pick locations by the first rule that applies:
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output. The annotation syntax is
   in [CONTRIBUTING.md](CONTRIBUTING.md#integration-tests).
-- Put each test in the directory for the layer it checks: frontend tests in
-  `parser/`, `resolve/`, or `typeck/`, and codegen tests by layer, pass, or
-  feature under `tests/ui/codegen/`, as the
-  [tester guide](tools/tester/README.md#test-layout) lists. Prefer many small
-  test files; split a leaf directory once it nears 80 tests.
+- Put each test in the directory for the layer it checks, as the
+  [tester guide](tools/tester/README.md#test-layout) lists, and keep leaf
+  directories under about 80 tests.
 - For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
   revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
-  outputs, use one test with `//@ revisions:` and revision-scoped directives.
+  outputs, use one test with `//@ revisions:` and revision-scoped directives
+  (`//@[rev] compile-flags: ...`).
   Use separate files only when the source text itself differs in purpose.
 - Use `//@ filecheck:` instead of a full snapshot when the snapshot is huge or
   brittle, or the test checks order, presence, or absence; see the
@@ -164,13 +162,12 @@ Before adding a pass, look for one to extend in `mir/transform/` and
 `backend/evm/ir/passes/`. Start every pass module with docs that let a reviewer
 understand it without the code: what it rewrites, the algorithm, its main
 safety and profitability limits, its place in the pipeline, and deliberate
-omissions. Keep the pass adapter small and beside the transform.
+omissions. Keep the pass adapter small and beside the transform; the pass
+manager only coordinates names, pipelines, and `dyn ModulePass` execution.
 
-Test passes with UI tests under `tests/ui/codegen/mir/<pass>/` or
-`tests/ui/codegen/evm-ir/<pass>/`, named after the pipeline flag. Check output
-with snapshots or FileCheck, and add runtime or differential tests when
-execution can change. Never write Rust unit tests that run whole passes;
-unit-test only small pure helpers.
+Test passes with UI tests, checked with snapshots or FileCheck, plus runtime or
+differential tests when execution can change. Never write Rust unit tests that
+run whole passes; unit-test only small pure helpers.
 
 ### Solc Parity
 
@@ -186,8 +183,8 @@ writes, or absurd type sizes. Record them in
 [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md) with a UI test that pins our
 behavior. Malformed calldata may differ from solc only in revert data: never
 accept an input that solc rejects. Reject a parity fix that makes the compiler
-more complex or slower, or the generated code bigger or slower, unless such a
-test shows the difference matters.
+more complex or slower, or the generated code bigger or slower, unless ordinary
+Solidity hits the difference.
 
 When porting a solc test, split `==== Source: ... ====` sections into
 `auxiliary/` and fix imports. If the port keeps the test's semantics one to one
@@ -198,10 +195,10 @@ directives or at the top. To update the tracked solc version, follow
 
 ## Diagnostics Style
 
-- Keep the main message short, with no full stop, and quote code with
-  backticks.
+- Keep the main message short. End no message, note, or help with a full
+  stop, and quote code with backticks.
 - Reuse solc's code for every diagnostic solc also emits, so `--allow` matches.
-  Give a solar-only diagnostic a code only when users need one, such as to
+  Give a diagnostic solc lacks a code only when users need one, such as to
   `--allow` a warning, and pick a number below 1000; solc uses 1000 to 9999.
 - Return `Result<(), ErrorGuaranteed>` rather than `bool` from emitting code
   where practical, and pass the guarantee to `mk_ty_err`. Never use
@@ -260,15 +257,17 @@ directives or at the top. To update the tracked solc version, follow
 - Leave a blank line between items and item groups (imports count as one),
   except for one struct with one `impl` or a run of similar `impl`s.
 - Use `IndexVec<I, T>` for every collection indexed by `I`; repeated
-  `x.index()` signals the wrong collection. Switch to `FxHashMap<I, T>` only
-  when measured occupancy shows sentinel entries dominate.
+  `x.index()` signals the wrong collection. Audit `IndexVec`s for sentinel
+  entries, and switch to `FxHashMap<I, T>` only when measured occupancy shows
+  sentinels dominate.
 - Never use `Vec<bool>`: use the bitsets in `crates/data-structures`, or a hash
-  set for sparse domains, and iterate with their iterators.
+  set for sparse domains. Iterate with their iterators, never by probing
+  `0..domain_size`.
 - Compare symbols with `sym::name`/`kw::Keyword`, not `.as_str()`. Never call
   `Symbol::intern` on a literal; add it to `symbols!` in
   `crates/interface/src/symbol.rs`.
-- Allocate AST nodes in the arena, with the helpers in
-  `crates/data-structures/src/bump_ext.rs`.
+- Allocate AST nodes in the arena; write in place where possible, else use the
+  helpers in `crates/data-structures/src/bump_ext.rs`.
 - In visitors, use `type BreakValue = Never` when the visitor never breaks, and
   call `walk_*` from every overridden `visit_*` to continue traversal.
 
@@ -301,6 +300,6 @@ casts. The rules most code touches:
 
 Rank changes by correctness and `-Ogas` runtime gas, then `-Ogas` and `-Osize`
 bytecode size, then compile time and memory; reject changes that only speed up
-compilation. Record a baseline before editing and follow the
+compilation. Follow the
 [local build workflow](benches/runtime/README.md#comparing-local-builds). For
 parser benchmarks, see [benches/README.md](benches/README.md).
