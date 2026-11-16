@@ -96,7 +96,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
     let status_emitter = (text_emitter, gha_emitter);
 
-    watchdog::spawn();
+    // A killed compiler's partial output would overwrite the expected output when blessing.
+    if !args.bless {
+        watchdog::spawn();
+    }
 
     ui_test::run_tests_generic(
         configs,
