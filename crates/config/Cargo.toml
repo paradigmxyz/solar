@@ -26,12 +26,14 @@ smolgen = { workspace = true, optional = true, features = [
 [dependencies]
 alloy-primitives.workspace = true
 colorchoice.workspace = true
-num_cpus.workspace = true
 semver.workspace = true
 strum = { workspace = true, features = ["derive"] }
 
 clap = { workspace = true, optional = true, features = ["derive"] }
 serde = { workspace = true, optional = true }
+
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "openbsd", target_os = "aix"))'.dependencies]
+num_cpus.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

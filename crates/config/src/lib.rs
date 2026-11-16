@@ -625,21 +625,52 @@ fn get_threads() -> NonZeroUsize {
     static THREADS: OnceLock<NonZeroUsize> = OnceLock::new();
     *THREADS.get_or_init(|| {
         let logical = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
-        // `num_cpus` counts physical cores only on these targets and may report 1 elsewhere.
-        let counts_physical = cfg!(any(
-            target_os = "linux",
-            target_os = "windows",
-            target_os = "macos",
-            target_os = "openbsd",
-            target_os = "aix",
-        ));
-        if !counts_physical {
-            return logical;
-        }
         // A thread per logical core leaves idle workers spinning in work stealing on the sibling
         // threads of the busy ones, which slows every project down.
-        NonZeroUsize::new(num_cpus::get_physical())
+        physical_cores(logical.get())
+            .and_then(NonZeroUsize::new)
             .map_or(logical, |physical| physical.min(logical))
+    })
+}
+
+/// Returns the number of physical cores among `logical` available CPUs, if known.
+#[cfg(target_os = "linux")]
+#[allow(clippy::disallowed_methods)] // Reads system files, not sources.
+fn physical_cores(logical: usize) -> Option<usize> {
+    // `num_cpus` parses `/proc/cpuinfo`, which takes about a millisecond on many-core machines;
+    // the sysfs CPU lists are much cheaper.
+    let cpus = |path: &str| count_cpu_list(&std::fs::read_to_string(path).ok()?);
+    // An affinity mask or CPU quota already limits the CPUs, and may not include siblings.
+    if cpus("/sys/devices/system/cpu/online")? > logical {
+        return Some(logical);
+    }
+    Some(logical / cpus("/sys/devices/system/cpu/cpu0/topology/thread_siblings_list")?.max(1))
+}
+
+/// Returns the number of physical cores among `logical` available CPUs, if known.
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "openbsd", target_os = "aix"))]
+fn physical_cores(_logical: usize) -> Option<usize> {
+    Some(num_cpus::get_physical())
+}
+
+/// Returns the number of physical cores among `logical` available CPUs, if known.
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "openbsd",
+    target_os = "aix",
+)))]
+fn physical_cores(_logical: usize) -> Option<usize> {
+    None
+}
+
+/// Counts the CPUs in a Linux CPU list, such as `0-3,8,10-11`.
+#[cfg(target_os = "linux")]
+fn count_cpu_list(list: &str) -> Option<usize> {
+    list.trim().split(',').try_fold(0, |n, range| {
+        let (start, end) = range.split_once('-').unwrap_or((range, range));
+        Some(n + end.parse::<usize>().ok()?.checked_sub(start.parse().ok()?)? + 1)
     })
 }
 
@@ -688,5 +719,15 @@ mod tests {
                 assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
             }
         }
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn cpu_list() {
+        assert_eq!(count_cpu_list("0-47\n"), Some(48));
+        assert_eq!(count_cpu_list("0,24"), Some(2));
+        assert_eq!(count_cpu_list("0-3,8,10-11"), Some(7));
+        assert_eq!(count_cpu_list("3-1"), None);
+        assert_eq!(count_cpu_list(""), None);
     }
 }
