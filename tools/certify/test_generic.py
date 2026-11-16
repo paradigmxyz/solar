@@ -558,6 +558,55 @@ class SpecGates(unittest.TestCase):
             self.assertNotIn("succeeds-if", line)
 
 
+@unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+class RecursionBoundary(unittest.TestCase):
+    """Recursion is outside the envelope: the driver refuses it as BLOCKED (exit 3) before any build."""
+
+    def blocked(self, body):
+        with tempfile.TemporaryDirectory() as t:
+            return run_driver(HEAD + "contract C {\n" + body + "\n}", "none", pathlib.Path(t))
+
+    def test_self_recursion(self):
+        code, line = self.blocked("""    uint256 public x;
+    function decrement(uint256 n) public { if (n > 0) { x = n; decrement(n - 1); } }""")
+        self.assertEqual(code, 3, line)
+        self.assertIn("BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself", line)
+
+    def test_mutual_recursion(self):
+        code, line = self.blocked("""    function even(uint256 n) internal pure returns (bool) { return n == 0 ? true : odd(n - 1); }
+    function odd(uint256 n) internal pure returns (bool) { return n == 0 ? false : even(n - 1); }
+    function f(uint256 n) external pure returns (bool) { return even(n); }""")
+        self.assertEqual(code, 3, line)
+        self.assertIn("BLOCKED: recursion (1x, first line 4: unsupported: even and odd can call each other", line)
+
+    def test_recursion_through_a_modifier(self):
+        code, line = self.blocked("""    uint256 public x;
+    modifier m() { g(); _; }
+    function g() internal { x += 1; h(); }
+    function h() internal m { x += 2; }
+    function f() external { g(); }""")
+        self.assertEqual(code, 3, line)
+        self.assertIn("unsupported: g and h and m can call each other", line)
+
+    def test_call_through_a_function_value(self):
+        code, line = self.blocked("""    function g(uint256 n) internal pure returns (uint256) { return n + 1; }
+    function f(uint256 n) external pure returns (uint256) {
+        function (uint256) internal pure returns (uint256) h = g;
+        return h(n);
+    }""")
+        self.assertEqual(code, 3, line)
+        self.assertIn("unsupported: a call through an internal function value", line)
+
+    def test_acyclic_calls_pass(self):
+        code, line = self.blocked("""    uint256 public x;
+    modifier m() { require(x < 10); _; }
+    function g(uint256 n) internal pure returns (uint256) { return n + 1; }
+    function h(uint256 n) internal pure returns (uint256) { return g(g(n)); }
+    function f(uint256 n) external m { x = h(n) + uint256(keccak256(abi.encode(n))) % 2; }""")
+        self.assertNotIn("recursion", line)
+        self.assertNotIn("BLOCKED", line)
+
+
 def final_py(shape, root, hexcode="6001"):
     sp = root / "shape.json"
     sp.write_text(json.dumps(shape))
