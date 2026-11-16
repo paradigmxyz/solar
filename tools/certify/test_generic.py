@@ -121,6 +121,34 @@ class ReplayManifest(unittest.TestCase):
             self.assertNotIn("manifest does not list", line)
 
 
+def git_init(d, files):
+    d.mkdir(parents=True, exist_ok=True)
+    for rel, text in files.items():
+        (d / rel).parent.mkdir(parents=True, exist_ok=True)
+        (d / rel).write_text(text)
+    g = ["git", "-C", str(d), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+    subprocess.run([*g[:3], "init", "-q"], check=True)
+    subprocess.run([*g, "add", "-A"], check=True)
+    subprocess.run([*g, "commit", "-q", "-m", "base"], check=True)
+    return subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def lean_fixture(root):
+    """A solidity-lean base commit that pins one git package, and a package cache holding that
+    package at its pinned revision with one built olean."""
+    cache = root / "cache"
+    pkg = cache / ".lake/packages/Pkg"
+    rev = git_init(pkg, {"Pkg/Foo.lean": "def foo := 1\n", "Pkg/Bar.lean": "def bar := 2\n", ".gitignore": ".lake\n"})
+    (pkg / ".lake/build/lib/lean/Pkg").mkdir(parents=True)
+    (pkg / ".lake/build/lib/lean/Pkg/Foo.olean").write_bytes(b"olean foo")
+    manifest = json.dumps({"version": "1.1.0", "packages": [{"name": "Pkg", "type": "git", "rev": rev},
+                                                            {"name": "local", "type": "path", "rev": None}]})
+    repo = root / "sl"
+    base = git_init(repo, {"lakefile.lean": "-- lakefile\n", "lean-toolchain": "leanprover/lean4:v4.35.0\n",
+                           "lake-manifest.json": manifest, "SolidCore/A.lean": "-- a\n"})
+    return repo, base, cache
+
+
 def claims_record():
     """A certified run's certify-record.json (scripts/certify's record) and the driver's record.json."""
     cr = full_record()
@@ -145,8 +173,11 @@ class ReplayClaims(unittest.TestCase):
 
     def make(self, root, edit=None):
         cr, rec = claims_record()
+        self.repo, base, self.cache = lean_fixture(root)
         d = root / "run"
         d.mkdir()
+        man = generic.cache_manifest(self.cache / ".lake/packages")
+        (d / "packages-cache.sha256").write_text(man)
         (d / "Meter.sol").write_text("contract Meter {}\n")
         (d / "certify.log").write_text("log\n")
         (d / "certify-record.json").write_text(json.dumps(cr))
@@ -155,8 +186,12 @@ class ReplayClaims(unittest.TestCase):
         (d / "inputs/lakefile.lean").write_text("-- lakefile\n")
         files = {str(q.relative_to(d)): sha(q) for q in d.rglob("*") if q.is_file()}
         ins = {r[len("inputs/"):]: v for r, v in files.items() if r.startswith("inputs/")}
+        pin, digest = generic.pinned_packages(self.repo, base)
         rec.update(source={"sha256": files["Meter.sol"]}, run_files=files,
-                   solidity_lean={"inputs_commit": "a" * 40, "inputs": sorted(ins), "inputs_sha256": ins})
+                   solidity_lean={"base": base, "base_tree": generic.git(self.repo, "rev-parse", base + "^{tree}"),
+                                  "executed_tree": generic.inputs_tree(self.repo, base, d / "inputs", sorted(ins)),
+                                  "inputs_commit": "a" * 40, "inputs": sorted(ins), "inputs_sha256": ins},
+                   packages={"pinned": pin, "digest": digest, "cache_sha256": hashlib.sha256(man.encode()).hexdigest()})
         rec["caveats"] = cr["caveats"] = [f"solidity-lean at {'a' * 40}, not the pinned {'b' * 40}"]
         (d / "certify-record.json").write_text(json.dumps(cr))
         files["certify-record.json"] = sha(d / "certify-record.json")
@@ -165,12 +200,15 @@ class ReplayClaims(unittest.TestCase):
         (d / "record.json").write_text(json.dumps(rec))
         return d
 
-    def replay(self, d, fresh_edit=None):
+    def replay(self, d, fresh_edit=None, packages_from=True):
         """replay_main in this process, its fresh run replaced by one that writes the record's own
         claims back (edited by fresh_edit): the checks run, no Lean does."""
         orig = json.loads((d / "record.json").read_text())
 
         def fake_run(cmd, *args, **kw):
+            if "--record-dir" not in cmd:
+                # git and the checks' own commands run.
+                return saved(cmd, *args, **kw)
             fresh = json.loads(json.dumps(orig))
             if fresh_edit:
                 fresh_edit(fresh)
@@ -179,8 +217,8 @@ class ReplayClaims(unittest.TestCase):
             (out / "record.json").write_text(json.dumps(fresh))
             return subprocess.CompletedProcess(cmd, 0)
 
-        a = argparse.Namespace(replay=str(d), work=str(d.parent / "w"), solidity_lean="/nonexistent",
-                               packages_from=None, probe_cache=None)
+        a = argparse.Namespace(replay=str(d), work=str(d.parent / "w"), solidity_lean=str(self.repo),
+                               packages_from=str(self.cache) if packages_from else None, probe_cache=None)
         buf = io.StringIO()
         saved = generic.subprocess.run
         generic.subprocess.run = fake_run
@@ -294,6 +332,174 @@ class ReplayClaims(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             code, line = self.replay(self.make(pathlib.Path(t)), redigest)
             self.assertEqual(code, 0, line)
+
+
+
+class ExecutedTree(unittest.TestCase):
+    """--replay holds the run to the solidity-lean tree it executed (the base plus the listed
+    generated inputs, rebuilt) and to the package cache it started from, not only to the nominal
+    keys."""
+
+    make = ReplayClaims.make
+    replay = ReplayClaims.replay
+
+    def rewrite(self, d, fn):
+        rec = json.loads((d / "record.json").read_text())
+        fn(rec, d)
+        (d / "record.json").write_text(json.dumps(rec))
+        return d
+
+    def rejected(self, d, needle, **kw):
+        code, line = self.replay(d, **kw)
+        self.assertEqual(code, 1, line)
+        self.assertTrue(line.startswith("REJECTED: replay: "), line)
+        self.assertIn(needle, line)
+        return line
+
+    def test_inputs_tree_is_the_input_commit(self):
+        """The rebuilt tree is git's own: commit the inputs on the base and compare trees."""
+        with tempfile.TemporaryDirectory() as t:
+            root = pathlib.Path(t)
+            repo, base, _ = lean_fixture(root)
+            ins = root / "ins"
+            (ins / "Certified/x").mkdir(parents=True)
+            (ins / "Certified/x/S.lean").write_text("-- s\n")
+            (ins / "lakefile.lean").write_text("-- lakefile\nlean_lib x\n")
+            for q in ("Certified/x/S.lean", "lakefile.lean"):
+                (repo / q).parent.mkdir(parents=True, exist_ok=True)
+                (repo / q).write_bytes((ins / q).read_bytes())
+            g = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+            subprocess.run([*g, "add", "-A"], check=True)
+            subprocess.run([*g, "commit", "-q", "-m", "inputs"], check=True)
+            want = generic.git(repo, "rev-parse", "HEAD^{tree}")
+            objs = sorted((repo / ".git/objects").rglob("*"))
+            self.assertEqual(generic.inputs_tree(repo, base, ins, ["Certified/x/S.lean", "lakefile.lean"]), want)
+            self.assertEqual(sorted((repo / ".git/objects").rglob("*")), objs, "inputs_tree wrote into the repository")
+            self.assertNotEqual(generic.inputs_tree(repo, base, ins, ["Certified/x/S.lean"]), want)
+
+    def test_control_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t)))
+            self.assertEqual(code, 0, line)
+
+    def test_tampered_generated_file(self):
+        """A generated input edited with every digest the record holds updated to match."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            q = f"Certified/{NAME}/Source.lean"
+            (d / "inputs" / q).write_text("-- edited\n")
+
+            def rehash(rec, d):
+                rec["run_files"]["inputs/" + q] = sha(d / "inputs" / q)
+                rec["solidity_lean"]["inputs_sha256"][q] = sha(d / "inputs" / q)
+            self.rewrite(d, rehash)
+            self.rejected(d, "is not base", fresh_edit=lambda r: r["solidity_lean"]["inputs_sha256"].update({q: sha(d / "inputs" / q)}))
+
+    def test_unlisted_file_in_executed_tree(self):
+        """A record whose executed tree holds a file beyond the listed inputs (an edited base file)."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            extra = pathlib.Path(t) / "extra"
+            (extra / "SolidCore").mkdir(parents=True)
+            (extra / "SolidCore/A.lean").write_text("-- edited base\n")
+            for q in json.loads((d / "record.json").read_text())["solidity_lean"]["inputs"]:
+                (extra / q).parent.mkdir(parents=True, exist_ok=True)
+                (extra / q).write_bytes((d / "inputs" / q).read_bytes())
+
+            def forge(rec, d):
+                sl = rec["solidity_lean"]
+                sl["executed_tree"] = generic.inputs_tree(self.repo, sl["base"], extra, [*sl["inputs"], "SolidCore/A.lean"])
+            self.rewrite(d, forge)
+            self.rejected(d, "is not base")
+
+    def test_no_executed_tree(self):
+        """A record from before this check (such as rc2-acc5-siblingok's) is refused, not passed on its keys."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.rewrite(self.make(pathlib.Path(t)), lambda r, d: r["solidity_lean"].pop("executed_tree"))
+            self.rejected(d, "pins no executed tree")
+
+    def test_base_tree_forged(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.rewrite(self.make(pathlib.Path(t)), lambda r, d: r["solidity_lean"].update(base_tree="0" * 40))
+            self.rejected(d, "base_tree")
+
+    def test_package_set_not_pinned(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.rewrite(self.make(pathlib.Path(t)), lambda r, d: r["packages"]["pinned"]["packages"][0].__setitem__(1, "f" * 40))
+            self.rejected(d, "pinned toolchain and packages")
+
+    def test_cache_olean_added(self):
+        """An olean added to the cache after the run, of a module the pinned package has (H1's
+        24 EthLib oleans are this case): only the cache manifest sees it."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            (self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Bar.olean").write_bytes(b"olean bar")
+            line = self.rejected(d, "the --packages-from cache is not the run's: 1 added, 0 removed, 0 changed")
+            self.assertIn("Pkg/.lake/build/lib/lean/Pkg/Bar.olean", line)
+
+    def test_cache_olean_changed(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            (self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Foo.olean").write_bytes(b"other")
+            self.rejected(d, "0 added, 0 removed, 1 changed")
+
+    def test_cache_foreign_olean(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            (self.cache / ".lake/packages/Pkg/.lake/build/lib/lean/Pkg/Evil.olean").write_bytes(b"x")
+            self.rejected(d, "have no source at their package's pinned revision")
+
+    def test_cache_package_other_revision(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            pkg = self.cache / ".lake/packages/Pkg"
+            (pkg / "Pkg/Foo.lean").write_text("def foo := 3\n")
+            subprocess.run(["git", "-C", str(pkg), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                            "commit", "-qam", "other"], check=True)
+            self.rejected(d, "not the pinned")
+
+    def test_cache_package_edited(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            (self.cache / ".lake/packages/Pkg/Pkg/Foo.lean").write_text("def foo := 9\n")
+            self.rejected(d, "edited or untracked")
+
+    def test_cache_extra_package(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            git_init(self.cache / ".lake/packages/Other", {"O.lean": "-- o\n"})
+            self.rejected(d, "not the pinned set")
+
+    def test_cache_manifest_file_edited(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            m = d / "packages-cache.sha256"
+            m.write_text(m.read_text() + "0" * 64 + "  ./Pkg/x\n")
+            self.rewrite(d, lambda r, d: r["run_files"].update({"packages-cache.sha256": sha(m)}))
+            self.rejected(d, "not the manifest packages.cache_sha256 pins")
+
+    def test_record_without_cache_manifest(self):
+        """A record that pins no cache manifest (H1's) is refused under --packages-from, never
+        passed on its nominal keys."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            (d / "packages-cache.sha256").unlink()
+
+            def drop(rec, d):
+                rec["run_files"].pop("packages-cache.sha256")
+                rec["packages"]["cache_sha256"] = None
+            self.rewrite(d, drop)
+            self.rejected(d, "pins no package cache manifest", fresh_edit=lambda r: r["packages"].update(cache_sha256=None))
+
+    def test_cache_run_replayed_without_cache(self):
+        with tempfile.TemporaryDirectory() as t:
+            self.rejected(self.make(pathlib.Path(t)), "replay with --packages-from", packages_from=False)
+
+    def test_fresh_cache_digest_differs(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t)), lambda r: r["packages"].update(cache_sha256="e" * 64))
+            self.assertEqual(code, 1, line)
+            self.assertIn("packages", line)
 
 
 SOLC = pathlib.Path.home() / ".cache/solc" / f"solc-{generic.SOLC_VERSION}"
