@@ -467,9 +467,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
                 let label = edge_label(self, taken);
                 self.emit_conditional_jump(label, invert);
-                for step in fall.trampoline.iter().flatten() {
-                    self.emit_stackified_step(func_id, func, step, cold);
-                }
+                let assignments = self.edge_assignments(func, block, fall.target);
+                let steps = fall.trampoline.as_deref().unwrap_or_default();
+                self.emit_edge_steps(func_id, func, block, steps, assignments, cold);
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {

@@ -211,6 +211,21 @@ pub fn replace_terminator(func: &mut Function, block: BlockId, terminator: Termi
     let kind = func.blocks[block].terminator.as_ref().map(std::mem::discriminant);
     if kind != Some(std::mem::discriminant(&terminator)) {
         func.blocks[block].terminator_metadata.clear_edge_assignments();
+    } else if !func.blocks[block].terminator_metadata.edge_assignments().is_empty()
+        && let Some(old) = func.blocks[block].terminator.clone()
+    {
+        // A record for an edge holds only while the same arm enters its target.
+        let arm = |terminator: &Terminator, target| match terminator {
+            Terminator::Branch { then_block, else_block, .. }
+                if (*then_block == target) != (*else_block == target) =>
+            {
+                Some(*then_block == target)
+            }
+            _ => None,
+        };
+        func.blocks[block].terminator_metadata.retain_edge_targets(|target| {
+            arm(&old, target).is_some() && arm(&old, target) == arm(&terminator, target)
+        });
     }
     // block: old_terminator -> terminator !metadata(old terminator)
     func.blocks[block].terminator = Some(terminator);

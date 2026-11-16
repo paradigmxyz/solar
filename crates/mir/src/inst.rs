@@ -90,6 +90,13 @@ impl InstructionMetadata {
         self.edge_assignments = None;
     }
 
+    /// Drops the assignments of the edges whose target `keep` rejects.
+    pub fn retain_edge_targets(&mut self, keep: impl Fn(BlockId) -> bool) {
+        if let Some(assignments) = &mut self.edge_assignments {
+            assignments.0.retain(|assignment| assignment.edge.is_none_or(&keep));
+        }
+    }
+
     /// Renumbers the targets of the assignments of edges with `remap`, dropping those whose target
     /// it removes.
     pub fn remap_edge_targets(&mut self, remap: impl Fn(BlockId) -> Option<BlockId>) {
@@ -1225,6 +1232,10 @@ mod tests {
         branch.add_edge_assignment(value, origin.clone(), Some(kept));
         branch.add_edge_assignment(value, origin.clone(), Some(removed));
         branch.add_edge_assignment(value, origin, None);
+
+        let mut dropped = branch.clone();
+        dropped.retain_edge_targets(|block| block == removed);
+        assert_eq!(dropped.edge_assignments().len(), 2);
 
         branch.remap_edge_targets(|block| (block == kept).then(|| BlockId::from_usize(0)));
         let edges = branch.edge_assignments().iter().map(|assignment| assignment.edge);

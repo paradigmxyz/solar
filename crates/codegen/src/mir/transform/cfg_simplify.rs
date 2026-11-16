@@ -778,10 +778,12 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool, on
 /// NOTE: LLVM has no counterpart: `SimplifyCFG` never moves a location onto an edge, because a
 /// debug location sits on an instruction. The push of a phi operand on the edge materializes the
 /// operand of the assignment the forwarder held, so the edge keeps that assignment's span as a
-/// replacement keeps the location it replaces (LLVM's Preserve rule). The forwarder ran exactly
-/// when `pred` took the edge into it, so the assignment runs exactly when the new edge is taken:
-/// on `pred`'s jump whenever `pred` runs, on one arm of its branch when only that arm enters
-/// `target`. With several predecessors, or both arms entering `target`, the assignment would run
+/// replacement keeps the location it replaces (LLVM's Preserve rule). The assignment ran in the
+/// forwarder's block, and the forwarder ran exactly when `pred` took the edge into it, so the
+/// assignment runs once per run of the new edge: on `pred`'s jump whenever `pred` runs, on one arm
+/// of its branch when only that arm enters `target`. As with any record on a jump, a check that
+/// splits the block after the assignment and reverts leaves the assignment run without its push.
+/// With several predecessors, or both arms entering `target`, the assignment would run
 /// on more than one edge and any one of them would stand for the others, so it is dropped.
 fn move_edge_assignments(
     func: &mut Function,
