@@ -8,7 +8,11 @@ fail immediately. Equality of the trees therefore preserves every interaction,
 not just final slot values in an empty world. Scalar computations use MIR's
 existing word semantics. The constructor importer is trusted, like the direct
 SSA importer; this theorem does not certify that importer or physical gas costs.
-Calls, allocation, layout queries and code/GAS sampling are not imported here.
+Acyclic internal calls expand their supplied bodies, with isolated SSA locals
+and shared request state. Allocation requests retain their size, zeroing and
+checked-failure policy. No allocation success, fresh address, implicit FMP or
+return-buffer placement is assumed. Layout queries and code/GAS sampling are
+not imported here. This remains an unpriced interaction certificate.
 SSTORE remains an opaque request, including possible sentry failure; differences
 in physical scalar gas costs and their effect on that sentry are not certified.
 This certificate is deliberately distinct from full-state interpreter proofs.
@@ -17,8 +21,13 @@ This certificate is deliberately distinct from full-state interpreter proofs.
 namespace SolarTV.MIR.Effects
 open EvmRules
 
+inductive Operation where
+  | opcode (code : Nat)
+  | allocate (zeroed checked : Bool)
+  deriving DecidableEq
+
 structure Request where
-  opcode : Nat
+  operation : Operation
   arguments : List Word
   returnsWord : Bool
   deriving DecidableEq
@@ -49,11 +58,40 @@ theorem contextual (before after : Tree) (same : before = after)
     interpret handler finish before state = interpret handler finish after state := by
   rw [same]
 
+/-- Internal returns resume their caller; frame-ending outcomes do not. -/
+def resume (continuation : List (Nat × Word) → Tree) : Tree → Tree
+  | .done boundary =>
+    if boundary.kind = "return" then continuation boundary.values else .done boundary
+  | .request effect next => .request effect (fun word => resume continuation (next word))
+
+/-- Resuming a supplied body preserves failures and the complete shared state. -/
+theorem interpret_resume (handler : Request → σ → Except α (Word × σ))
+    (finish : Boundary → σ → α) (continuation : List (Nat × Word) → Tree)
+    (body : Tree) (state : σ) :
+    interpret handler finish (resume continuation body) state =
+      interpret handler (fun boundary state =>
+        if boundary.kind = "return" then interpret handler finish (continuation boundary.values) state
+        else finish boundary state) body state := by
+  induction body generalizing state with
+  | done boundary => simp [resume,interpret]; split <;> rfl
+  | request effect next ih =>
+    simp only [resume,interpret]
+    cases handled : handler effect state with
+    | error outcome => rfl
+    | ok result => exact ih result.1 result.2
+
 /-- Dropping even a void store is observable to a handler. -/
 theorem store_is_observable :
     interpret (fun _ (n : Nat) => .ok (0,n+1)) (fun _ n => n)
-      (.request ⟨85,[0,1],false⟩ (fun _ => .done ⟨"stop",[]⟩)) 0 ≠
+      (.request ⟨.opcode 85,[0,1],false⟩ (fun _ => .done ⟨"stop",[]⟩)) 0 ≠
     interpret (fun _ (n : Nat) => .ok (0,n+1)) (fun _ n => n)
       (.done ⟨"stop",[]⟩) 0 := by decide
+
+example : (⟨.allocate false true,[64],true⟩ : Request) ≠
+    ⟨.allocate false false,[64],true⟩ := by decide
+
+example : interpret (fun _ (_ : Nat) => .error 7) (fun _ _ => 0)
+    (resume (fun _ => .done ⟨"return",[]⟩)
+      (.request ⟨.allocate true false,[64],true⟩ (fun _ => .done ⟨"return",[]⟩))) 0 = 7 := by decide
 
 end SolarTV.MIR.Effects

@@ -119,13 +119,30 @@ This is an `independent-scalar-effect-tree` import and a
 `compositional-effect-tree` proof, not a `universal-caller-state` certificate.
 Unlike the pure scalar import certificate, it does not prove correspondence to
 the direct SSA interpreter: the schema exporter and constructor renderer remain
-trusted. Calls, allocation, layout queries, code-image reads, GAS sampling and
-undefined operands are rejected, including unused instructions. Expanded work
-is bounded to 4,096 instructions and 256 KiB of generated text; exceeding either
-is unsupported. Scalar steps are unpriced. SSTORE remains an arbitrary request
-that may fail; changes to physical gas before its sentry are not certified.
+trusted. Supplied acyclic internal calls expand with private arguments/locals
+and shared request state. Normal returns resume the caller; frame-ending
+outcomes do not. `MIR.Effects.interpret_resume` proves this continuation rule for
+every handler, including handlers that fail. Allocation requests preserve size,
+zeroing and checked-failure policy. Their replies are arbitrary word carriers,
+without a successful allocation, freshness, validity or implicit FMP assumption.
+Pointer offsets retain wrapping word arithmetic, not a provenance proof.
+
+External calls, tail calls, layout queries, code-image reads, GAS sampling and
+undefined operands are rejected, including unused instructions in callees.
+Expansion is bounded to call depth 32, renderer nesting 128, 4,096 work units
+and 256 KiB of generated text; exceeding a bound is unsupported. SSA phis remain
+simultaneous. The supplied source model and this continuation renderer remain
+trusted; there is no direct-interpreter or backend return-placement certificate.
+Call imports record `independent-call-effect-tree`, their supplied function
+count and allocation sites. Scalar steps are unpriced. SSTORE remains an
+arbitrary request that may fail; changes to physical gas before its sentry are
+not certified.
 Negative regressions change effect values/order, omit a store and change a
 terminal. A broken WETH width check also has a concrete kernel/native witness.
+WETH's `DOMAIN_SEPARATOR` SCCP pair retains its allocating helper in
+`examples/mir/domain-separator/`. The wrong helper length has a concrete
+kernel/native witness; its memory fixture does not establish the universal
+result.
 
 An effectful EVM stack-prefix route retains memory/hash/log traffic without a
 bounded memory projection. The independent complete block export and reflected
@@ -264,12 +281,13 @@ in `examples/mir/weth-width-guard/`.
 
 Morpho's `peephole-early` swap cleanup around `LOG4` now verifies through the
 effectful stack-prefix route above. Its decoder's `block-cse` pair also verifies
-through all four early guards. The same sample therefore verifies 13 of 24;
-11 remain unsupported, and check identities and bytecode hashes are unchanged.
+through all four early guards. WETH's `DOMAIN_SEPARATOR` SCCP pair verifies
+through its allocating helper. The same sample therefore verifies 14 of 24;
+10 remain unsupported, and check identities and bytecode hashes are unchanged.
 
-The ten-second control run verifies 12 checks, with 11 unsupported and the larger
+The ten-second control run verifies 13 checks, with 10 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
-budget difference is explicit; this is not a thirteen-of-24 result at ten seconds.
+budget difference is explicit; this is not a fourteen-of-24 result at ten seconds.
 
 ## Remaining obligations
 

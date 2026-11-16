@@ -82,7 +82,7 @@ before either a proof or a counterexample can be accepted.
 | --- | --- | --- |
 | MIR scalar projection | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
-| MIR compositional effects | Acyclic scalar functions with explicit opcode effects, without calls, allocations or layout queries. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
+| MIR compositional effects | Acyclic integer/pointer functions, supplied internal callees and explicit opcode/allocation effects, without layout queries. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
 
@@ -159,10 +159,33 @@ This real `spell-width-tests` pair retains the complete WETH `transferFrom`
 body. Its audit says `compositional-effect-tree`, distinct from
 `universal-caller-state`. The Rust parser/schema export and effect-tree renderer
 remain trusted; this route has no full-state interpreter correspondence proof.
-Calls, allocation, layout queries, GAS sampling and code observers are rejected.
+Supplied acyclic internal callees also expand into the tree, with private
+arguments/locals and shared effect state. A normal return resumes its caller;
+STOP, raw RETURN, revert and exception end the frame. Allocations retain their
+size, zeroing and checked-failure policy as explicit requests. Results are
+arbitrary pointer carriers: no allocation success, fresh address, implicit FMP
+setup or backend return-buffer placement is assumed. Pointer offsets wrap; they
+establish no validity or provenance proof. External calls, tail calls, layout
+queries, GAS sampling and code observers are rejected by this route.
 SSTORE stays a request that can fail, but changes in physical scalar gas costs
 and their effect on its gas sentry are outside this unpriced MIR certificate.
 Undefined operands and unmodeled operations cannot be discarded as dead lets.
+
+The reduced WETH `DOMAIN_SEPARATOR` SCCP pair keeps its allocating `name`
+helper. Its audit records `independent-call-effect-tree`, two supplied functions
+and one allocation site:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/domain-separator/{before,after}.mir \
+  --function DOMAIN_SEPARATOR --report target/tv/domain-separator.json
+solar-tv/solar-tv mir solar-tv/examples/mir/domain-separator/{before,broken}.mir \
+  --function DOMAIN_SEPARATOR --world solar-tv/examples/mir/domain-separator/world.json
+```
+
+The concrete FMP fixture confirms the broken helper in both Lean and Rust; it is
+never a precondition of the positive interaction proof. Call expansion is
+limited to depth 32, renderer nesting 128, 4,096 work units and 256 KiB of text.
+Unsupported instructions in supplied bodies are checked even when unused.
 
 ### EVM stack rewrites across effects
 
@@ -1254,8 +1277,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **13 of 24** with
-`--timeout 30`; 11 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **14 of 24** with
+`--timeout 30`; 10 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1271,8 +1294,10 @@ Morpho's swap cleanup around `LOG4` now also verifies with the effectful stack
 prefix certificate, without assuming a stack height or constant memory addresses.
 Its decoder's `block-cse` pair now verifies through the four conditional exits,
 preserving the same effect requests and live stack on every taken edge.
+WETH's `DOMAIN_SEPARATOR` SCCP pair also verifies through its allocating helper
+using the separately reported compositional call/effect certificate.
 
-The original ten-second budget verifies **12 of 24**, with that larger MIR proof
+The original ten-second budget verifies **13 of 24**, with that larger MIR proof
 still timing out. It closes in about 25 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and
