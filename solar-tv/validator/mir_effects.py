@@ -1,9 +1,12 @@
-"""Compositional effect trees from independently parsed, scalar acyclic MIR.
+"""Compositional effect trees from independently parsed, acyclic MIR.
 
 Every non-scalar opcode remains an ordered request, with universally quantified
 results. No memory/storage implementation is unfolded or assumed to succeed.
 This is a separate certificate, not a full-state interpreter proof. Rejected
 operations, undefined operands and excessive expansion never become tree nodes.
+Supplied internal bodies expand with private SSA environments and explicit
+return continuations. Memory pointers retain their word carrier, not an assumed
+validity or freshness proof. Allocation remains a fallible stateful request.
 """
 
 import hashlib
@@ -18,30 +21,45 @@ from .common import Unsupported, literal
 
 
 def scalar_width(ty):
+    if ty.get("kind") == "pointer" and ty.get("location") == "memory":
+        if ty.get("bits") != 256:
+            raise Unsupported("effect-tree memory pointers require a word carrier")
+        return 256
     if ty.get("kind", "word") != "word":
-        raise Unsupported("effect trees require scalar integer MIR")
+        raise Unsupported("effect trees require integers or memory pointers")
     return int(mir_state.width(ty["bits"]))
 
 
 def render(model, definitions):
-    if len(model["functions"]) != 1:
-        raise Unsupported("effect trees require a single call-free function")
-    function = model["functions"][0]
-    for ty in [*function["params"], *function["returns"]]:
-        scalar_width(ty)
-    blocks = function["blocks"]
+    functions = {function["id"]: function for function in model["functions"]}
+    if len(functions) != len(model["functions"]) or model["entry_id"] not in functions:
+        raise Unsupported("invalid effect-tree function table")
     work = 0
+    depth = 0
 
-    def operand(value, locals):
+    def bounded(render):
+        def visit(*args):
+            nonlocal depth
+            if depth >= 128:
+                raise Unsupported("effect-tree expansion exceeds nesting 128")
+            depth += 1
+            try:
+                return render(*args)
+            finally:
+                depth -= 1
+
+        return visit
+
+    def operand(value, locals, arguments):
         bits = scalar_width(value["type"])
         match value["kind"]:
             case "constant":
                 return literal(value["value"], bits), bits
             case "arg":
                 index = value["index"]
-                if not 0 <= index < len(function["params"]):
+                if not 0 <= index < len(arguments) or arguments[index][1] != bits:
                     raise Unsupported("unknown effect-tree argument")
-                return f"arg{index}", bits
+                return arguments[index]
             case "local":
                 result = locals.get(value["index"])
                 if result is None or result[1] != bits:
@@ -65,6 +83,10 @@ def render(model, definitions):
             return f"MIR.compare .ne {values[0]} {values[1]}"
         if kind == "select":
             return f"MIR.select {values[0]} {values[1]} {values[2]}"
+        if kind == "pointer_add":
+            if bits != 256 or any(width != 256 for _, width in args):
+                raise Unsupported("effect-tree pointer offsets require word carriers")
+            return f"MIR.eval .add {' '.join(values)}"
         if kind != "opcode" or not definitions[op["name"]]["pure"]:
             return None
         name = op["name"]
@@ -83,9 +105,147 @@ def render(model, definitions):
             return f"MIR.ternary .{name} {' '.join(values)}"
         raise Unsupported(f"unmodeled scalar effect-tree opcode `{name}`")
 
-    # Check every operation, including unreachable blocks and unused values.
-    # Unsupported semantics cannot disappear through lazy Lean let reduction.
-    for block in blocks:
+    @bounded
+    def enter(function, index, predecessor, locals, arguments, calls, path, returned):
+        nonlocal work
+        if index in path:
+            raise Unsupported("effect-tree cycles require an invariant")
+        path = (*path, index)
+        block = function["blocks"][index]
+        current = dict(locals)
+        # Simultaneous phis read the incoming environment, never sibling phis.
+        for phi in block["phis"]:
+            selected = [value for pred, value in phi["incoming"] if pred == predecessor]
+            if len(selected) != 1:
+                raise Unsupported("effect-tree phi predecessor mismatch")
+            current[phi["result"]] = operand(selected[0], locals, arguments)
+        work += 1 + len(block["phis"])
+
+        @bounded
+        def walk(start, current):
+            nonlocal work
+            prefix, close = [], []
+
+            def wrap(result):
+                return "\n".join([*prefix, result, *reversed(close)])
+
+            for position in range(start, len(block["instructions"])):
+                inst = block["instructions"][position]
+                work += 1
+                if work > 4096:
+                    raise Unsupported("effect-tree expansion exceeds 4096 instructions")
+                op = inst["operation"]
+                args = [operand(value, current, arguments) for value in op["args"]]
+                bits = scalar_width(inst["type"]) if inst["type"] is not None else 256
+                if op["kind"] == "call":
+                    callee = functions[op["function"]]
+                    if callee["id"] in calls:
+                        raise Unsupported(
+                            "recursive effect-tree calls require an invariant"
+                        )
+                    if len(calls) >= 32:
+                        raise Unsupported("effect-tree call expansion exceeds depth 32")
+
+                    def resume(
+                        values,
+                        *,
+                        result_id=inst["result"],
+                        result_bits=bits,
+                        next_position=position + 1,
+                    ):
+                        restored = dict(current)
+                        if result_id is not None:
+                            if len(values) != 1 or values[0][1] != result_bits:
+                                raise Unsupported("effect-tree call result mismatch")
+                            restored[result_id] = values[0]
+                        return walk(next_position, restored)
+
+                    return wrap(
+                        enter(
+                            callee,
+                            0,
+                            None,
+                            {},
+                            args,
+                            (*calls, callee["id"]),
+                            (),
+                            resume,
+                        )
+                    )
+                expression = pure(op, args, bits)
+                if expression is None:
+                    if any(width != 256 for _, width in args):
+                        raise Unsupported(
+                            "effect-tree raw operands require word carriers"
+                        )
+                    returns = inst["result"] is not None
+                    if op["kind"] == "allocate":
+                        operation = f".allocate {'true' if op['zeroed'] else 'false'} {'true' if op['checked'] else 'false'}"
+                    else:
+                        row = definitions[op["name"]]
+                        if row["stack"] != [len(args), int(returns)]:
+                            raise Unsupported("effect-tree opcode signature mismatch")
+                        operation = f".opcode {row['opcode']}"
+                    values = ",".join(value for value, _ in args)
+                    prefix.append(
+                        f"MIR.Effects.Tree.request ⟨{operation},[{values}],{'true' if returns else 'false'}⟩ (fun reply{work} =>"
+                    )
+                    close.append(")")
+                    expression = f"reply{work}.setWidth {bits}"
+                if inst["result"] is not None:
+                    name = f"local{work}"
+                    prefix.append(f"let {name} : BitVec {bits} := {expression}\n")
+                    current[inst["result"]] = name, bits
+                elif expression is not None and op["kind"] != "opcode":
+                    raise Unsupported("effect-tree scalar instruction lacks a result")
+            term = block["terminator"]
+            args = [
+                operand(value, current, arguments) for value in term.get("args", [])
+            ]
+
+            def edge(target):
+                return (
+                    "(\n"
+                    + enter(
+                        function,
+                        target,
+                        index,
+                        current,
+                        arguments,
+                        calls,
+                        path,
+                        returned,
+                    )
+                    + "\n)"
+                )
+
+            match term["kind"]:
+                case "jump":
+                    result = edge(term["target"])
+                case "branch":
+                    if len(args) != 1 or args[0][1] != 1:
+                        raise Unsupported("effect-tree branch requires i1")
+                    result = f"if {args[0][0]} = 1 then {edge(term['then'])} else {edge(term['else'])}"
+                case "return":
+                    if len(args) != len(function["returns"]) or any(
+                        bits != scalar_width(ty)
+                        for (_, bits), ty in zip(args, function["returns"], strict=True)
+                    ):
+                        raise Unsupported("effect-tree return signature mismatch")
+                    result = returned(args)
+                case "returndata" | "revert" | "stop" | "invalid":
+                    result = boundary(term["kind"], args)
+                case _:
+                    raise Unsupported("unmodeled effect-tree terminator")
+            return wrap(result)
+
+        return walk(0, current)
+
+    def boundary(kind, args):
+        values = ",".join(f"({bits},({value}).setWidth 256)" for value, bits in args)
+        return f'MIR.Effects.Tree.done ⟨"{kind}",[{values}]⟩'
+
+    def validate_block(block):
         if block["terminator"]["kind"] not in {
             "jump",
             "branch",
@@ -119,7 +279,36 @@ def render(model, definitions):
                     )
                 if row["pure"]:
                     pure(op, [("0#256", 256)] * len(op["args"]), 256)
-            elif op["kind"] not in {"word", "low_bits", "sign_extend", "ne", "select"}:
+            elif op["kind"] == "call":
+                callee = functions.get(op["function"])
+                if callee is None or len(op["args"]) != len(callee["params"]):
+                    raise Unsupported("effect-tree call argument mismatch")
+                if any(
+                    mir_state.value_type(value["type"]) != mir_state.value_type(ty)
+                    for value, ty in zip(op["args"], callee["params"], strict=True)
+                ):
+                    raise Unsupported("effect-tree call argument type mismatch")
+                if inst["result"] is not None and (
+                    len(callee["returns"]) != 1
+                    or mir_state.value_type(inst["type"])
+                    != mir_state.value_type(callee["returns"][0])
+                ):
+                    raise Unsupported("effect-tree call result type mismatch")
+            elif op["kind"] == "allocate":
+                if (
+                    len(op["args"]) != 1
+                    or inst["result"] is None
+                    or inst["type"].get("kind") != "pointer"
+                ):
+                    raise Unsupported("effect-tree allocation signature mismatch")
+            elif op["kind"] not in {
+                "word",
+                "low_bits",
+                "sign_extend",
+                "ne",
+                "select",
+                "pointer_add",
+            }:
                 raise Unsupported(f"unmodeled effect-tree operation `{op['kind']}`")
             for value in op["args"]:
                 scalar_width(value["type"])
@@ -130,70 +319,27 @@ def render(model, definitions):
             if value["kind"] == "undefined":
                 raise Unsupported("undefined effect-tree operand")
 
-    def enter(index, predecessor, locals, path):
-        nonlocal work
-        if index in path:
-            raise Unsupported("effect-tree cycles require an invariant")
-        path = (*path, index)
-        block = blocks[index]
-        current = dict(locals)
-        # Simultaneous phis read the incoming environment, never sibling phis.
-        for phi in block["phis"]:
-            selected = [value for pred, value in phi["incoming"] if pred == predecessor]
-            if len(selected) != 1:
-                raise Unsupported("effect-tree phi predecessor mismatch")
-            current[phi["result"]] = operand(selected[0], locals)
-        prefix, close = [], []
-        for inst in block["instructions"]:
-            work += 1
-            if work > 4096:
-                raise Unsupported("effect-tree expansion exceeds 4096 instructions")
-            op = inst["operation"]
-            args = [operand(value, current) for value in op["args"]]
-            bits = scalar_width(inst["type"]) if inst["type"] is not None else 256
-            expression = pure(op, args, bits)
-            if expression is None:
-                if any(width != 256 for _, width in args):
-                    raise Unsupported("effect-tree raw operands require i256")
-                row = definitions[op["name"]]
-                returns = inst["result"] is not None
-                if row["stack"] != [len(args), int(returns)]:
-                    raise Unsupported("effect-tree opcode signature mismatch")
-                values = ",".join(value for value, _ in args)
-                prefix.append(
-                    f"MIR.Effects.Tree.request ⟨{row['opcode']},[{values}],{'true' if returns else 'false'}⟩ (fun reply{work} =>"
-                )
-                close.append(")")
-                expression = f"reply{work}.setWidth {bits}"
-            if inst["result"] is not None:
-                name = f"local{work}"
-                prefix.append(f"let {name} : BitVec {bits} := {expression}\n")
-                current[inst["result"]] = name, bits
-            elif expression is not None and op["kind"] != "opcode":
-                raise Unsupported("effect-tree scalar instruction lacks a result")
-        term = block["terminator"]
-        args = [operand(value, current) for value in term.get("args", [])]
-
-        def edge(target):
-            return "(\n" + enter(target, index, current, path) + "\n)"
-
-        match term["kind"]:
-            case "jump":
-                result = edge(term["target"])
-            case "branch":
-                if len(args) != 1 or args[0][1] != 1:
-                    raise Unsupported("effect-tree branch requires i1")
-                result = f"if {args[0][0]} = 1 then {edge(term['then'])} else {edge(term['else'])}"
-            case "return" | "returndata" | "revert" | "stop" | "invalid":
-                values = ",".join(
-                    f"({bits},({value}).setWidth 256)" for value, bits in args
-                )
-                result = f'MIR.Effects.Tree.done ⟨"{term["kind"]}",[{values}]⟩'
-            case _:
-                raise Unsupported("unmodeled effect-tree terminator")
-        return "\n".join([*prefix, result, *reversed(close)])
-
-    result = enter(0, None, {}, ())
+    # Check every operation, including unreachable blocks and unused values.
+    # Unsupported semantics cannot disappear through lazy Lean let reduction.
+    for function in functions.values():
+        for ty in [*function["params"], *function["returns"]]:
+            scalar_width(ty)
+        for block in function["blocks"]:
+            validate_block(block)
+    entry = functions[model["entry_id"]]
+    arguments = [
+        (f"arg{index}", scalar_width(ty)) for index, ty in enumerate(entry["params"])
+    ]
+    result = enter(
+        entry,
+        0,
+        None,
+        {},
+        arguments,
+        (entry["id"],),
+        (),
+        lambda args: boundary("return", args),
+    )
     if len(result) > 262144:
         raise Unsupported("effect-tree text exceeds 256 KiB")
     return result
@@ -247,7 +393,16 @@ theorem pair_correct {binders} : before {args} = after {args} := by
             scope="effect-tree",
             import_evidence={
                 **program.import_evidence,
-                "kind": "independent-scalar-effect-tree",
+                "kind": "independent-call-effect-tree"
+                if len(program.symbolic_mir["model"]["functions"]) > 1
+                else "independent-scalar-effect-tree",
+                "supplied_functions": len(program.symbolic_mir["model"]["functions"]),
+                "allocation_sites": sum(
+                    inst["operation"]["kind"] == "allocate"
+                    for function in program.symbolic_mir["model"]["functions"]
+                    for block in function["blocks"]
+                    for inst in block["instructions"]
+                ),
                 "effect_tree_sha256": hashlib.sha256(tree.encode()).hexdigest(),
                 "boundary": "trusted compiler parser/schema export and scalar effect-tree renderer; contextual theorem covers arbitrary stateful request handlers, not full-state interpreter correspondence",
             },

@@ -241,7 +241,7 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
     a, b = programs
     if a.interface != b.interface:
         raise Unsupported("symbolic MIR interfaces or declarations differ")
-    # Large call-free effectful bodies can spend most of their proof budget
+    # Large effectful bodies can spend most of their proof budget
     # unfolding identical storage and memory. Try the exact interaction-trace
     # obligation first; it is explicitly reported as a different certificate.
     if (
@@ -329,6 +329,11 @@ theorem pair_correct (environment : World.Environment) (context : Execution.Bloc
         - {"propext", "Quot.sound", "Classical.choice"}
     ):
         return audit.Result("verified", stdout="verified\n", program=a, pair=(a, b))
+    if len(a.symbolic_mir["model"]["functions"]) > 1:
+        try:
+            return mir_effects.check(a, b, timeout, replay_executable)
+        except Unsupported:
+            pass
     witness = counterexample(a, b, timeout, replay_command, replay_executable, verbose)
     if witness is not None:
         return witness

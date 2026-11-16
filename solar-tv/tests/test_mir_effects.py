@@ -179,7 +179,7 @@ bb0:
         definitions = {
             row["name"]: row for row in native.catalog(self.replay, 20)["evmir"]
         }
-        for operation in ("v0 = mload undef i256", "v0 = alloc 32"):
+        for operation in ("v0 = mload undef i256", "v0 = heap_floor"):
             with self.subTest(operation=operation):
                 program = self.model(
                     f"@module Effects\nfn @f() {{\nbb0:\n {operation}\n ret\n}}\n"

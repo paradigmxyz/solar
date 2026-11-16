@@ -167,10 +167,11 @@ def record(
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
-                    "acyclic scalar MIR effect tree from the independently parsed source; trusted constructor renderer",
-                    "every ordered opcode request, operand, arbitrary result word and terminal boundary is preserved",
+                    "acyclic integer/pointer MIR effect tree from the independently parsed source; trusted constructor renderer",
+                    "every ordered opcode/allocation request, operand, arbitrary result word and terminal boundary is preserved",
                     "all stateful effect handlers, including early failure and arbitrary aliasing; no empty-world or successful-access assumption",
-                    "compositional interaction certificate, not a full-state interpreter proof; calls, allocations, layout queries, GAS sampling and code observers excluded",
+                    "compositional interaction certificate, not a full-state interpreter proof; supplied acyclic internal bodies expand with private SSA locals and shared effect state; normal returns resume the caller, frame-ending outcomes do not",
+                    "allocations preserve size, zeroing and checked-failure policy; no successful allocation, freshness, implicit FMP or backend return placement is assumed; external calls, layout queries, GAS sampling and code observers excluded",
                     "SSTORE remains a request that may fail; scalar gas costs and their effect on the EIP-2200 sentry are outside this unpriced MIR certificate",
                     "abstract scalar steps unpriced; no physical gas, backend layout or whole-contract claim",
                 ]
