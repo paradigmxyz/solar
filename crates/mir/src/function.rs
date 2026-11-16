@@ -642,6 +642,19 @@ impl Function {
         replaced
     }
 
+    /// Drops the operand origins of every instruction and terminator.
+    ///
+    /// They hold while each instruction runs in the block of its assignments, which the lowering
+    /// passes keep; the passes that optimize move code between blocks.
+    pub fn clear_operand_origins(&mut self) {
+        for block in &mut self.blocks {
+            for &inst in &block.instructions {
+                self.instructions[inst].metadata.clear_operand_origins();
+            }
+            block.terminator_metadata.clear_operand_origins();
+        }
+    }
+
     /// Calls `f` for every active instruction in block order.
     pub fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
         let blocks = &self.blocks;

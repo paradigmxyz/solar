@@ -510,6 +510,17 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     let mut changed = false;
     let mut local_summaries = LocalSummaryCache::default();
     if module.phase() == MirPhase::Semantic {
+        // NOTE: The operand origins of a read hold while it runs in the block of its assignments,
+        // which the passes that run without optimization keep. The ones that optimize move code
+        // between blocks, so optimized functions start without them.
+        if module.is_optimized() {
+            let optimization = module.optimization;
+            for func in &mut module.functions {
+                if !func.attributes.optimization.unwrap_or(optimization).is_none() {
+                    func.clear_operand_origins();
+                }
+            }
+        }
         let (pass_changed, error) =
             run_pipeline_stage(gcx, module, SEMANTIC_PIPELINE, &mut local_summaries);
         changed |= pass_changed;

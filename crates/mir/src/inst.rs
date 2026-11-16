@@ -8,7 +8,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
 use solar_ir::debug::{DebugLoc, DebugLocKind};
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -106,7 +106,7 @@ impl InstructionMetadata {
     /// it, inside a loop or not. `origin` is the source context of the assignment, as
     /// [`Self::debug_context`] copies it.
     pub fn add_operand_origin(&mut self, value: ValueId, origin: Self, in_loop: bool) {
-        let origins = &mut self.operand_origins.0.get_or_insert_default().0;
+        let origins = &mut Arc::make_mut(self.operand_origins.0.get_or_insert_default()).0;
         origins.push(OperandOrigin { value, origin, in_loop });
     }
 
@@ -122,7 +122,12 @@ impl InstructionMetadata {
 
     /// Renames the values of the operand origins as the operands of the instruction are renamed.
     pub(crate) fn rewrite_operand_origins(&mut self, mut f: impl FnMut(&mut ValueId)) {
-        for record in self.operand_origins.0.iter_mut().flat_map(|origins| origins.0.iter_mut()) {
+        for record in self
+            .operand_origins
+            .0
+            .iter_mut()
+            .flat_map(|origins| Arc::make_mut(origins).0.iter_mut())
+        {
             f(&mut record.value);
         }
     }
@@ -399,12 +404,13 @@ pub struct OperandOrigin {
     pub in_loop: bool,
 }
 
-/// The operand origins of an instruction, boxed on those that have any, so others pay one word.
+/// The operand origins of an instruction, shared on those that have any, so others pay one word and
+/// a lowering that copies them to every instruction it expands to does not copy the records.
 ///
 /// They are source context only, so they never take part in comparing or hashing metadata: no
 /// pass may treat two instructions as different because of them, not even for holding one.
 #[derive(Clone, Debug, Default)]
-struct OperandOrigins(Option<Box<OperandOriginList>>);
+struct OperandOrigins(Option<Arc<OperandOriginList>>);
 
 #[derive(Clone, Debug, Default)]
 struct OperandOriginList(Vec<OperandOrigin>);
