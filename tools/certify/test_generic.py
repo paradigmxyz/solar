@@ -560,5 +560,38 @@ class SpecConnectWordProof(unittest.TestCase):
         self.assertNotIn("@DS@", block)
 
 
+class SpecConnectAnyCaller(unittest.TestCase):
+    """--any-caller: the every-caller block names no fixed context, refuses what it cannot state, and
+    reads the probe's symbolic-caller lines."""
+
+    def test_block_has_no_fixed_context(self):
+        import spec_connect
+        for nsi in (0, 1):
+            block = "\n".join(spec_connect.from_block("f", "C.f", 2, nsi, "NS", "M", "B", "[256, 256]", "NS.selector_eq"))
+            for fixed in (" ctx ", "(ctx :=", "ctxOf ", "0x2000", "callerWord", "callerAddress", "Generic.ctx"):
+                self.assertNotIn(fixed, block)
+            self.assertIn("∀ a, a < 2 ^ 160 → a ≠ selfAddress →", block)
+            self.assertIn("HoldsFn (solidCoreFrom a NS.fuel) c (valueScope fn_f deployed) spec", block)
+            self.assertIn("(SolidCore.Verify.AnyCaller.ctxOfCallFrom a) step f_spec", block)
+            self.assertIn("eraseFnSym (envOf c.core) NS.fuel f", block)
+            self.assertIn("#print axioms f_holds_from", block)
+            self.assertEqual("f_succeeds_from" in block, bool(nsi))
+
+    def test_refusals(self):
+        import spec_connect
+        r = spec_connect.any_caller_refusal
+        self.assertIsNone(r((False, "[256]", "t"), ([], [])))
+        self.assertIn("payable", r((True, "[256]", "t"), ([], [])))
+        self.assertIn("eraseFnSym", r(("noerase", None, None), ([], [])))
+        self.assertIn("no function", r(None, ([], [])))
+        self.assertIn("mappings", r((False, "[256]", "t"), ([0], [])))
+
+    def test_parse_sym(self):
+        import spec_connect
+        self.assertEqual(spec_connect.parse_sym("sym C.f false some [256, 160] TREE (Tree.halt x)"),
+                         ("C.f", False, "[256, 160]", "(Tree.halt x)"))
+        self.assertEqual(spec_connect.parse_sym("sym C.f noerase"), ("C.f", "noerase", None, None))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
