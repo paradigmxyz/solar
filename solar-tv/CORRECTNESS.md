@@ -145,12 +145,28 @@ The certificate is `universal-effectful-stack-prefix`. The remaining suffix,
 terminal and physical successor must match. It requires a gas-insensitive
 continuation and does not prove physical label placement or full-state handler
 correspondence. The parser, schema mapping and concrete handler binding remain
-trusted. Only memory/hash/log effects are admitted; calls, interior transfers,
-code/GAS observers and storage writes are excluded. Exact gas is not silently
-replaced by refinement. Changed log arguments and increased scalar charges fail
+trusted. Only memory/hash/log effects are admitted; calls, unpaired or dynamic
+interior transfers, code/GAS observers and storage writes are excluded. Exact
+gas is not silently replaced by refinement. Changed log arguments and increased scalar charges fail
 validation. The reduced real Morpho pair is in `examples/evmir/log-stack/`; a
 concrete broken-topic entry has matching Lean and native counterexamples.
 Amsterdam's two-resource gas is rejected rather than projected onto one budget.
+
+Adjacent static label PUSH/JUMPI pairs additionally return either the remaining
+prefix's result or a taken label with its complete live stack. `guardCharged`
+retains separate PUSH and JUMPI debits and the temporary label stack slot.
+`guardCharged_eq` and the extended `expansion_correct` bind the interaction tree
+to those sequential steps. All guard conditions are symbolic; neither their
+outcomes nor incoming stack heights are sampled. The generated theorem compares
+the exit as well as the world, stack and remaining gas.
+
+The `universal-branching-effect-prefix` certificate quantifies a shared per-label
+pair of physical PUSH/JUMPI charges. Logical label numbers are not byte offsets
+and do not determine PUSH width or exclude PUSH0. The shared physical price and
+relocation binding, unchanged target continuations and their gas insensitivity
+remain explicit trusted boundaries. Unpaired transfers and missing labels are
+rejected. `examples/evmir/decoder-branches/` reduces Morpho's real `block-cse`
+pair; the tests also check a wrong store offset independently in Lean and Rust.
 
 ## Real-contract evaluation
 
@@ -247,12 +263,13 @@ body. The reduced real pair and independently replayed wrong-width fixture are
 in `examples/mir/weth-width-guard/`.
 
 Morpho's `peephole-early` swap cleanup around `LOG4` now verifies through the
-effectful stack-prefix route above. The same sample therefore verifies 12 of 24;
-12 remain unsupported, and check identities and bytecode hashes are unchanged.
+effectful stack-prefix route above. Its decoder's `block-cse` pair also verifies
+through all four early guards. The same sample therefore verifies 13 of 24;
+11 remain unsupported, and check identities and bytecode hashes are unchanged.
 
-The ten-second control run verifies 11 checks, with 12 unsupported and the larger
+The ten-second control run verifies 12 checks, with 11 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
-budget difference is explicit; this is not a twelve-of-24 result at ten seconds.
+budget difference is explicit; this is not a thirteen-of-24 result at ten seconds.
 
 ## Remaining obligations
 

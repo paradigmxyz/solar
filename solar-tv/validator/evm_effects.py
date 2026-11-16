@@ -4,6 +4,9 @@ The independently exported block and unchanged suffix come from prefix.check.
 Stateful operations retain their schema signature and consumed words; replies,
 world changes, dynamic prices and failures are universally quantified. Nothing
 assumes constant memory addresses or separates potentially aliasing accesses.
+Adjacent static conditional transfers retain both outcomes and the temporary
+label stack slot. Their physical charges come from a shared symbolic context;
+logical label numbers never stand in for physical offsets or PUSH widths.
 """
 
 import hashlib
@@ -12,7 +15,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, prefix
+from . import audit, prefix, regions
 from .common import Program, Unsupported
 
 EFFECTS = {
@@ -30,10 +33,30 @@ EFFECTS = {
 }
 
 
-def instructions(lines, catalog, version):
+def instructions(lines, catalog, version, labels=None):
     rendered = []
     required = peak = delta = 0
-    for line in lines:
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if guard := re.fullmatch(r"push bb(\d+)", line):
+            target = int(guard[1])
+            if (
+                labels is None
+                or f"bb{target}" not in labels
+                or index + 1 == len(lines)
+                or lines[index + 1] != "jumpi"
+            ):
+                raise Unsupported(
+                    "effectful prefix requires a paired static conditional target"
+                )
+            rendered.append(f".guard {target} (prices {target}).1 (prices {target}).2")
+            # The temporary label PUSH precedes consumption of the condition.
+            peak = max(peak, delta + 1)
+            required = max(required, 1 - delta)
+            delta -= 1
+            index += 2
+            continue
         scalar = prefix.operation(line, catalog, version)
         if scalar is not None:
             code, (inputs, outputs), _ = scalar
@@ -61,6 +84,7 @@ def instructions(lines, catalog, version):
         required = max(required, inputs - delta)
         delta += outputs - inputs
         peak = max(peak, delta)
+        index += 1
     if len(lines) > 64 or required + peak > 32:
         raise Unsupported(
             "effectful prefix exceeds the 64-operation/32-word proof budget"
@@ -71,7 +95,7 @@ def instructions(lines, catalog, version):
 def stack_proof(required, peak):
     definitions = (
         "before, after, EVM.Effects.expand, EVM.Effects.Refines, EVM.stepChecked, "
-        "EVM.step, EVM.Gas.pureCost, Fork.atLeast, Evm.add, BitVec.add_comm, "
+        "EVM.step, EVM.Effects.guardStack, EVM.Gas.pureCost, Fork.atLeast, Evm.add, BitVec.add_comm, "
         "List.length_cons, Nat.add_assoc, "
         "List.getElem?_cons, List.set, Nat.add_lt_iff_lt_sub_right, "
         + ", ".join(f"index{i}" for i in range(16))
@@ -153,7 +177,8 @@ def check(texts, models, entry, catalog, version, policy, timeout):
     ):
         raise Unsupported("effectful prefix continuation changed")
     changed = [code[:-common] if common else code for code in (left, right)]
-    imported = [instructions(code, catalog, version) for code in changed]
+    labels = set(regions.blocks(texts[0]))
+    imported = [instructions(code, catalog, version, labels) for code in changed]
     if not any(".effect " in op for code, _, _ in imported for op in code):
         raise Unsupported("effectful prefix requires an explicit stateful operation")
     need = max(row[1] for row in imported)
@@ -161,13 +186,13 @@ def check(texts, models, entry, catalog, version, policy, timeout):
     if need + peak > 32:
         raise Unsupported("combined effectful prefix exceeds the stack proof budget")
     declarations = "".join(
-        f"def {name} : List EVM.Effects.Op := [{','.join(row[0])}]\n"
+        f"def {name} (prices : Nat → Nat × Nat) : List EVM.Effects.Op := [{','.join(row[0])}]\n"
         for name, row in zip(("before", "after"), imported, strict=True)
     )
     proof = f"""
-theorem interaction (ctx : EVM.Context) (stack : EVM.Stack) :
- EVM.Effects.Refines (EVM.Effects.expand ctx .{version} after stack 0)
-   (EVM.Effects.expand ctx .{version} before stack 0) := by
+theorem interaction (prices : Nat → Nat × Nat) (ctx : EVM.Context) (stack : EVM.Stack) :
+ EVM.Effects.Refines (EVM.Effects.expand ctx .{version} (after prices) stack 0)
+   (EVM.Effects.expand ctx .{version} (before prices) stack 0) := by
 """
     # Kernel-checked numeral reductions expose Fin stack indices under effect
     # continuations, where Lean's restricted instance transparency keeps them opaque.
@@ -181,16 +206,17 @@ theorem interaction (ctx : EVM.Context) (stack : EVM.Stack) :
     proof += "\n".join("  " + line for line in stack_proof(need, peak).splitlines())
     proof += f"""
 theorem contextual {{World : Type}} (handler : EVM.Effects.Handler World)
- (ctx : EVM.Context) (stack result : EVM.Stack) (world final : World)
+ (prices : Nat → Nat × Nat) (ctx : EVM.Context) (stack : EVM.Stack)
+ (result : EVM.Effects.Exit) (world final : World)
  (gas remaining extra : Nat)
- (success : EVM.Effects.charged handler ctx .{version} before stack
+ (success : EVM.Effects.charged handler ctx .{version} (before prices) stack
    gas world = some (result,remaining,final)) :
- ∃ remaining', EVM.Effects.charged handler ctx .{version} after stack
+ ∃ remaining', EVM.Effects.charged handler ctx .{version} (after prices) stack
    (gas + extra) world = some (result,remaining',final) ∧ remaining ≤ remaining' := by
- have reference : EVM.Effects.execute handler (EVM.Effects.expand ctx .{version} before stack 0)
+ have reference : EVM.Effects.execute handler (EVM.Effects.expand ctx .{version} (before prices) stack 0)
      gas world = some (result,remaining,final) := by
    simpa only [EVM.Effects.expansion_correct, Nat.not_lt_zero, ite_false, Nat.sub_zero] using success
- have refined := EVM.Effects.resource handler _ _ (interaction ctx stack)
+ have refined := EVM.Effects.resource handler _ _ (interaction prices ctx stack)
    world final result gas remaining extra reference
  simpa only [EVM.Effects.expansion_correct, Nat.not_lt_zero, ite_false, Nat.sub_zero] using refined
 #print axioms contextual
@@ -234,6 +260,9 @@ theorem contextual {{World : Type}} (handler : EVM.Effects.Handler World)
                 ).hexdigest(),
                 "prefix_operations": len(code),
                 "shared_suffix_operations": common,
+                "conditional_transfers": sum(
+                    bool(re.fullmatch(r"push bb\d+", line)) for line in code
+                ),
                 "continuation": "identical suffix, terminal and physical successor",
                 "boundary": "trusted parser/schema export and stack/effect renderer; generic gas-independent handler correspondence and logical label continuation, no physical code-placement certificate",
             },

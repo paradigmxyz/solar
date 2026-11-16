@@ -760,9 +760,9 @@ def main() -> int:
                     for path in (args.before, args.after)
                 ]
             except Unsupported as error:
-                # Scalar window inputs do not contain a caller or calldata.
-                # A universal contextual proof can supply those missing inputs;
-                # never substitute defaults or replace an actual counterexample.
+                # Scalar windows lack caller/calldata context and dynamic-return
+                # correspondence. Try a universal contextual certificate rather
+                # than supplying defaults or replacing an actual counterexample.
                 if (
                     args.ir != "evmir"
                     or not args.window
@@ -770,6 +770,7 @@ def main() -> int:
                     not in {
                         "unmodeled EVM IR instruction: caller",
                         "unmodeled EVM IR instruction: calldataload",
+                        "expected a valid static JUMP destination",
                     }
                 ):
                     raise
@@ -850,7 +851,11 @@ def main() -> int:
                     "shared_prologue_operations"
                 )
                 record["region"]["proof"] = (
-                    "universal-effectful-stack-prefix"
+                    "universal-branching-effect-prefix"
+                    if result.program
+                    and result.program.scope == "effectful-prefix"
+                    and result.program.import_evidence.get("conditional_transfers")
+                    else "universal-effectful-stack-prefix"
                     if result.program and result.program.scope == "effectful-prefix"
                     else "universal-memory-prefix"
                     if shared
