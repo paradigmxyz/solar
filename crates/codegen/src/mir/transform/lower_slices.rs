@@ -525,9 +525,9 @@ impl LowerSlices {
     fn has_slices(func: &Function) -> bool {
         func.params.iter().any(Self::is_slice)
             || func.return_components().iter().any(Self::is_slice)
-            || func
-                .live_values()
-                .any(|value| func.value_ty(value).is_some_and(|ty| Self::is_slice(&ty)))
+            || (0..func.num_values()).any(|index| {
+                func.value_ty(ValueId::from_usize(index)).is_some_and(|ty| Self::is_slice(&ty))
+            })
     }
 
     const fn is_slice(ty: &MirType) -> bool {

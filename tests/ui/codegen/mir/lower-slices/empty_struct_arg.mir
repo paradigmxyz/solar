@@ -1,13 +1,14 @@
-//@ compile-flags: -Zmir-pipeline=lower-structs,lower-slices
+//@ compile-flags: -Zmir-pipeline=lower-structs,lower-slices,lower-integers
 //@ filecheck:
 @module EmptyStructArg
 
 @types
   struct0: {}
 
-// lower-structs drops the zero-field parameter, so the old argument value indexes past the
-// parameters. lower-slices looks only at the values the body still uses.
-// CHECK-LABEL: (after lower-slices)
+// lower-structs drops the zero-field parameter, and the old argument value, which nothing reads,
+// becomes undefined rather than indexing past the parameters for the passes that read the type
+// of every value.
+// CHECK-LABEL: (after lower-integers)
 // CHECK: fn @f() -> i256 {
 // CHECK: ret 1
 fn @f(arg0: struct0) -> i256 {
