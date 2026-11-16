@@ -59,8 +59,9 @@
 //!
 //! # Limits and placement
 //!
-//! The target must have `CLZ` (Osaka). The region has no loop and no instruction with an effect
-//! before its last block, and the runs of one function pass at most [`WORK`] instructions.
+//! The target must have `CLZ` (Osaka). The region has no loop and, before its last block, no
+//! instruction with an effect and no checked operation that some run does not know succeeds. The
+//! runs of one function pass at most [`WORK`] instructions.
 //! The pass runs after `bit-scan`, which proves the straight-line scans first.
 //!
 //! # Cost
