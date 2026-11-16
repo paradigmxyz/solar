@@ -118,7 +118,7 @@ impl SessionBuilder {
         self.threads(1)
     }
 
-    /// Sets the number of threads to use for parallelism. Zero specifies the number of logical
+    /// Sets the number of threads to use for parallelism. Zero specifies the number of physical
     /// cores.
     #[inline]
     pub fn threads(mut self, threads: usize) -> Self {
