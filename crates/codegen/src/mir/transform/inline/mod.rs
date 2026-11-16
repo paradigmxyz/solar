@@ -291,7 +291,7 @@ impl MirInliner {
         .then(|| ArtifactCallCounts::new(module));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
         let mut consumed_everywhere =
-            all_sites::consumed_everywhere(self, module, &summaries, &call_counts);
+            all_sites::consumed_everywhere(gcx, self, module, &summaries, &call_counts);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         // Inline only into the callers that `call_counts` covers, so the count updates below stay
