@@ -402,10 +402,10 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
             .source_map()
             .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
             .unwrap_or_default();
+        // solc ends a line at LF, CR LF, or a lone CR.
         !(prev.kind == ast::CommentKind::Line
             && doc.kind == ast::CommentKind::Line
-            && gap.chars().all(|c| c.is_ascii_whitespace())
-            && gap.matches('\n').count() == 1)
+            && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
     })?;
     Some(docs[0].span.with_hi(docs[start].span.lo()))
 }

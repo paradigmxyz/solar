@@ -1,0 +1,16 @@
+// Consecutive `///` lines form one doc comment also when a lone CR ends them, as in solc.
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C {\r    /// @notice first\r    /// @dev second\r    function f() public {}\r\r    /// @notice ignored\r\r    /// @dev last\r    function g() public {}\r}\r"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": ["userdoc", "devdoc"]
+      }
+    }
+  }
+}
