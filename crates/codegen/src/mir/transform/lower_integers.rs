@@ -71,9 +71,11 @@ impl MirPass for LowerIntegers {
             .iter_immutables()
             .filter_map(|(id, immutable)| matches!(immutable.ty, ValueLayout::Int(_)).then_some(id))
             .collect();
-        run_lowering_function_pass(module, analyses, |func, _| {
+        let changed = run_lowering_function_pass(module, analyses, |func, _| {
             lower_function(func, &signed_immutables)
-        })
+        });
+        analyses.preserve_local_summaries();
+        changed
     }
 }
 

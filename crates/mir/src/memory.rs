@@ -32,6 +32,10 @@ impl EvmMemoryLayout {
     /// this size costs about 34 million gas, so a larger fill is what makes an allocation of that
     /// size run out of gas, and it stays.
     pub const MAX_DEAD_FILL: u64 = 1 << 20;
+    /// Memory size no execution can reach. Expanding memory to this many bytes costs more than
+    /// 2^45 gas, so no heap pointer gets this high, and an address this far below one wraps
+    /// around to the top of the address space, where any access runs out of gas.
+    pub const UNREACHABLE_MEMORY: u64 = 1 << 32;
     /// Returns the word a word-aligned byte offset addresses.
     #[must_use]
     pub const fn word_slot(offset: u64) -> Option<u64> {

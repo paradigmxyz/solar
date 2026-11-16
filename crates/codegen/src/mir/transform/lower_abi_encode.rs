@@ -190,6 +190,8 @@ impl MirPass for LowerAbiEncode {
                 .chain(helpers.tuples.values())
                 .copied(),
         );
+        // Only the runner edits existing bodies; the helpers are appended.
+        analyses.preserve_local_summaries();
         changed
     }
 }

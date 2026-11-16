@@ -37,12 +37,16 @@ impl MirPass for LowerFrameSlots {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
-        for func in &mut module.functions {
-            changed |= lower_function(func);
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
+            if lower_function(func) {
+                analyses.invalidate_local_summary(func_id);
+                changed = true;
+            }
         }
+        analyses.preserve_local_summaries();
         changed
     }
 }

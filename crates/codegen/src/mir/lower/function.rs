@@ -922,6 +922,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let Some(value) = self.lower_internal_function_value(expr) {
                     return Some(Word::from_clean(value));
                 }
+                // A library name in inline assembly is the library's address.
+                if self.in_inline_assembly
+                    && let Some(hir::Res::Item(hir::ItemId::Contract(id))) =
+                        self.cx.gcx.resolved_expr(expr)
+                    && self.cx.gcx.hir.contract(id).kind.is_library()
+                {
+                    // address = library_address L
+                    // word = zext i160 address to i256
+                    let address = self.library_contract_address(id);
+                    return Some(Word::from_clean(self.builder.cast_word(address)));
+                }
                 let id = self.cx.gcx.resolved_variable(expr)?;
                 let word = self.load_binding_word(id, expr.span)?;
                 if word.is_raw() {

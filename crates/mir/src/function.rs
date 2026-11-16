@@ -959,6 +959,11 @@ impl Function {
     /// A key naming a deleted value is consistent only until values are renumbered, when it could
     /// come to name another value. Readers recompute a dropped key from the slot operand.
     pub fn drop_dangling_storage_aliases(&mut self) {
+        if !self.instructions.iter().any(|inst| {
+            inst.metadata.storage_alias().is_some_and(|alias| alias.symbolic_base().is_some())
+        }) {
+            return;
+        }
         let mut placed = DenseBitSet::new_empty(self.num_insts());
         for inst in self.instructions() {
             placed.insert(inst);

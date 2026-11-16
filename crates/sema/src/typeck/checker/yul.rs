@@ -91,6 +91,17 @@ impl<'gcx> TypeChecker<'gcx> {
                     "access to functions is not allowed in inline assembly",
                 ));
             }
+            // Like solc, a library name is its address.
+            if let hir::ItemId::Contract(id) = item {
+                if self.gcx.hir.contract(id).kind.is_library() {
+                    return Ok(true);
+                }
+                return Err(self.dcx().emit_err_code(
+                    span,
+                    error_code!(4977),
+                    "expected a library",
+                ));
+            }
             return Ok(false);
         };
         let var = self.gcx.hir.variable(var_id);
