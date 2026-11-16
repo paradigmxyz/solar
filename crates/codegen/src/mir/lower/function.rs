@@ -232,6 +232,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     prepared_constructors: FxHashSet<hir::FunctionId>,
     /// The pure struct constructors being inlined.
     inlined_struct_constructors: FxHashSet<hir::FunctionId>,
+    /// Whether each expression `keeps_keccak` searched hashes at run time, so nested expressions
+    /// search their subtrees once.
+    keccak_exprs: FxHashMap<hir::ExprId, bool>,
     /// The base constructor argument list chosen for each base of the contract
     /// being constructed, in evaluation order.
     base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
@@ -569,6 +572,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
             inlined_struct_constructors: FxHashSet::default(),
+            keccak_exprs: FxHashMap::default(),
             base_args: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),

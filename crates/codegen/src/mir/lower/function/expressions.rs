@@ -344,8 +344,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns whether this function is unoptimized and `expr` hashes something other than a
     /// literal or a constant with `keccak256`, so `-Onone` computes it at run time under its own
     /// span, where solc's unoptimized output does.
-    pub(super) fn keeps_keccak(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        self.is_unoptimized() && (ComputesKeccak { lowerer: self }).visit_expr(expr).is_break()
+    pub(super) fn keeps_keccak(&mut self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if !self.is_unoptimized() {
+            return false;
+        }
+        let mut cache = std::mem::take(&mut self.keccak_exprs);
+        let found =
+            (ComputesKeccak { lowerer: self, cache: &mut cache }).visit_expr(expr).is_break();
+        self.keccak_exprs = cache;
+        found
     }
 }
 
@@ -368,6 +375,7 @@ pub(super) fn is_type_conversion(gcx: Gcx<'_>, callee: &hir::Expr<'_>) -> bool {
 /// call that hashes a literal or a constant stays folded too.
 struct ComputesKeccak<'a, 'gcx, 'ctx> {
     lowerer: &'a FunctionLowerer<'gcx, 'ctx>,
+    cache: &'a mut FxHashMap<hir::ExprId, bool>,
 }
 
 impl<'gcx> Visit<'gcx> for ComputesKeccak<'_, 'gcx, '_> {
@@ -378,6 +386,17 @@ impl<'gcx> Visit<'gcx> for ComputesKeccak<'_, 'gcx, '_> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<()> {
+        if let Some(&found) = self.cache.get(&expr.id) {
+            return if found { ControlFlow::Break(()) } else { ControlFlow::Continue(()) };
+        }
+        let result = self.search(expr);
+        self.cache.insert(expr.id, result.is_break());
+        result
+    }
+}
+
+impl<'gcx> ComputesKeccak<'_, 'gcx, '_> {
+    fn search(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<()> {
         let gcx = self.lowerer.cx.gcx;
         if let Some((callee, args, _)) = expr.as_call()
             && gcx.resolved_builtin(callee) == Some(Builtin::Keccak256)
