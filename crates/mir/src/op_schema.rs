@@ -30,8 +30,8 @@ use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
 
 use super::{
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
-    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationSemantics, ArithmeticKind, BlockId,
+    Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
     FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
     MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
     StructId, ValueId, ValueLayout, typing,
@@ -647,7 +647,7 @@ fn isle_op_name(variant: &str) -> String {
 type OptionU64 = Option<u64>;
 
 attributes! {
-    bool, StructId, MirType, ValueLayout, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
+    bool, StructId, MirType, ValueLayout, CallPolicy, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
     LibraryId,
@@ -1333,13 +1333,13 @@ define_mir_ops! {
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::packed_types(func, parts)))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
-    #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "extcall", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::address_call_types(func, *input, gas.is_some(), value.is_some())))]
-    AddressCall {
-        kind: AddressCallKind,
+    ExtCall {
+        policy: CallPolicy,
         address: ValueId,
-        input: ValueId,
+        input: Option<ValueId>,
         gas: Option<ValueId>,
         value: Option<ValueId>,
     },
@@ -1821,18 +1821,6 @@ define_mir_ops! {
     #[builder(fmp)]
     #[operand_types(func => Some(smallvec![]))]
     Fmp,
-    /// Set the free-memory pointer.
-    #[mir_op(
-        mnemonic = "set_fmp",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some(PhaseCategory::AbstractAllocation)
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MEMPTR]))]
-    SetFmp(value: ValueId),
     /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
     /// can run this function, which codegen fixes once it has placed the frames and spill slots
     /// below it.

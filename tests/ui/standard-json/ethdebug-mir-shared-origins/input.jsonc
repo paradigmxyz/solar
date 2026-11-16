@@ -13,7 +13,7 @@
 // CHECK-NEXT: "length": 13
 // CHECK: "offset": 132,
 // CHECK-NEXT: "length": 13
-// CHECK: "sourceMap": ":::-:0;{{;*}}"
+// CHECK: "sourceMap": "0:153:0:-:0;
 {
   "language": "Solidity",
   "sources": {

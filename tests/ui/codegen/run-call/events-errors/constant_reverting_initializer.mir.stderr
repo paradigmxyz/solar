@@ -1,0 +1,12 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/events-errors/constant_reverting_initializer.sol:LL:CC
+   │
+LL │         C.OVERFLOW;
+   ╰╴        ━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/events-errors/constant_reverting_initializer.sol:LL:CC
+   │
+LL │         (DIVIDED, OVERFLOW);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+

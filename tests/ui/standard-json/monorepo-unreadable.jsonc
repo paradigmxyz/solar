@@ -1,0 +1,14 @@
+//@ compile-flags: --base-path ../../tests/ui/standard-json/monorepo/pkg
+//@ compile-flags: --include-path ../../tests/ui/standard-json/monorepo/inc
+// Like solc, a file that exists but cannot be read, here because it is not UTF-8, still makes an
+// import ambiguous.
+// CHECK: "message": "multiple files match bin/G.sol: {{.*}}/pkg/bin/G.sol, {{.*}}/inc/bin/G.sol"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {"content": "import {G} from \"bin/G.sol\";\n\ncontract A is G {}\n"}
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}

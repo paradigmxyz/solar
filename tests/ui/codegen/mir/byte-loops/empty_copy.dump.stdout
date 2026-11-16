@@ -159,42 +159,38 @@ fn @freshCopy() {
   bb4:                                            ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
-    v58 = add v17, 63
-    v21 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v52 = add v17, 63
+    v21 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v22 = lt v21, v17
     jumpi v22, bb5, bb6
   bb6:                                            ; preds = bb4
-    v56 = icall @alloc, v21
-    mstore v56, v17
+    v51 = icall @alloc, v21
+    mstore v51, v17
     v24 = sub v8, v18
     v25 = lt v24, v17
     jumpi v25, bb3, bb7
   bb7:                                            ; preds = bb6
-    v60 = calldataload 36
-    v52 = add v56, 32
-    calldatacopy v52, v18, v17
-    v33 = sub 0, v17
-    v34 = and v33, 31
-    v53 = add v52, v17
-    calldatacopy v53, v8, v34
-    v0 = ne v60, 0
+    v54 = calldataload 36
+    v48 = add v51, 32
+    calldatacopy v48, v18, v17
+    v0 = ne v54, 0
     jumpi v0, bb1, bb2
   bb1:                                            ; preds = bb7
     jump bb2
   bb2:                                            ; preds = bb1, bb7
-    v2 = phi [bb1: v60], [bb7: v56]
-    v61 = calldataload 68
-    v3 = icall @_freshCopy, v2, v61
-    v38 = mload v3
-    v39 = add v38, 31
-    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = add v3, 32
-    v43 = add v48, v38
-    mstore v43, 0
-    v50 = sub v3, 32
-    mstore v50, 32
-    v45 = add v40, 64
-    returndata v50, v45
+    v2 = phi [bb1: v54], [bb7: v51]
+    v55 = calldataload 68
+    v3 = icall @_freshCopy, v2, v55
+    v34 = mload v3
+    v35 = add v34, 31
+    v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = add v3, 32
+    v39 = add v44, v34
+    mstore v39, 0
+    v46 = sub v3, 32
+    mstore v46, 32
+    v41 = add v36, 64
+    returndata v46, v41
   bb5 [cold]:                                     ; preds = bb4
     mstore 32, 65
     mstore 0, 0x4e487b71

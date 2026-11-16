@@ -1,0 +1,47 @@
+; === ROOT/tests/ui/codegen/run-call/storage-arrays/isolated_array_pop.sol:IsolatedArrayPop ===
+@module IsolatedArrayPop
+@types
+  struct0: {i256, i256, i256}
+
+; function access() external returns (uint256 index, uint256 arrayLength, uint256 bytesLength) [selector 0x71907f17]
+fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = gt v5, 0xffffffffffffffff
+    icall panic_if<0x41>, v6
+    v7 = add v5, 1
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore 0, v7 !metadata(storage=slot(0))
+    v10 = checked_add uint256, 0, 1
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = gt v11, 0
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = storage_array_data_slot 0
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = gt v15, 0
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = storage_array_data_slot 0
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    v20 = sload 1 !metadata(storage=slot(1))
+    validate_storage_bytes v20
+    v21 = and v20, 1
+    v22 = eq v21, 1
+    v23 = sub 0, v21
+    v24 = or v23, 127
+    v25 = shr v20, 1
+    v26 = and v25, v24
+    v27 = insert_value struct0, undef struct0, 0, v10
+    v28 = insert_value struct0, v27, 1, v19
+    v29 = insert_value struct0, v28, 2, v26
+    ret v29
+}

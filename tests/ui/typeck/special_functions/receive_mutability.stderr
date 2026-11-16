@@ -1,0 +1,88 @@
+error: `view` not allowed here; allowed values: payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external view { x = 2; }
+   ╰╴                       ━━━━
+
+error: `pure` not allowed here; allowed values: payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external pure { x = 2; }
+   ╰╴                       ━━━━
+
+error: `view` not allowed here; allowed values: payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external view {}
+   ╰╴                       ━━━━
+
+error: `pure` not allowed here; allowed values: payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external pure {}
+   ╰╴                       ━━━━
+
+error: `view` not allowed here; allowed values: payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external view;
+   ╰╴                       ━━━━
+
+error: `pure` not allowed here; allowed values: payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external pure;
+   ╰╴                       ━━━━
+
+error[7793]: receive ether function must be payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `payable` state mutability
+
+error[7793]: receive ether function must be payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `payable` state mutability
+
+error[7793]: receive ether function must be payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive() external;
+   │     ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `payable` state mutability
+
+error[7793]: receive ether function must be payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive(uint256) external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `payable` state mutability
+
+error[6857]: receive ether function cannot take parameters
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive(uint256) external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6857]: receive ether function cannot take parameters
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive(uint256) external payable {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6857]: receive ether function cannot take parameters
+   ╭▸ ROOT/tests/ui/typeck/special_functions/receive_mutability.sol:LL:CC
+   │
+LL │     receive(uint256) external payable;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 13 previous errors
+

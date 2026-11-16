@@ -1,0 +1,65 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         revert();
+   ╰╴        ━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         return failScalar(reason) + 1;
+   ╰╴                                    ━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         return (a + 1, b + 2);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         return recursiveFailure(depth - 1, reason) + 1;
+   ╰╴                                                     ━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         for (uint256 i = 0; i < 1; ++i) {
+   ╰╴                                   ━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │             result = 1;
+   ╰╴            ━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │             result = 1;
+   ╰╴            ━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         assembly { sstore(0, result) }
+   ╰╴                   ━━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │         assembly { sstore(0, result) }
+   ╰╴                   ━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
+   │
+LL │ ┏                 ecrecover(
+LL │ ┃                     bytes32(uint256(1)),
+LL │ ┃                     28,
+LL │ ┃                     0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898,
+LL │ ┃                     0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+LL │ ┃                 );
+   ╰╴┗━━━━━━━━━━━━━━━━━┛
+

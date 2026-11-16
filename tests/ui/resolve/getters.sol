@@ -20,14 +20,14 @@ contract C {
     }
 
     function referenceThis() public view {
-        this.simple;
-        this.array;
-        this.map;
-        this.mapOfArrays;
-        this.nestedMap;
-        this.nestedMapOfArrays;
-        this.nestedArrayOfMaps;
-        this.nestedArrayOfMapsOfArrays;
+        this.simple; //~ WARN: statement has no effect
+        this.array; //~ WARN: statement has no effect
+        this.map; //~ WARN: statement has no effect
+        this.mapOfArrays; //~ WARN: statement has no effect
+        this.nestedMap; //~ WARN: statement has no effect
+        this.nestedMapOfArrays; //~ WARN: statement has no effect
+        this.nestedArrayOfMaps; //~ WARN: statement has no effect
+        this.nestedArrayOfMapsOfArrays; //~ WARN: statement has no effect
     }
 
     function doCall() public view {

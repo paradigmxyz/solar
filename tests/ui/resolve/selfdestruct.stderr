@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/selfdestruct.sol:LL:CC
+   │
+LL │     function f() pure public { selfdestruct; }
+   ╰╴                               ━━━━━━━━━━━━
+

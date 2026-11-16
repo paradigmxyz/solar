@@ -15,7 +15,7 @@ store_storage_bytes_literal: -
 clear_storage_words: -
 validate_abi: -
 abi_encode_packed: -
-address_call: -
+extcall: -
 add: opcode(add)
 sub: opcode(sub)
 mul: opcode(mul)
@@ -47,7 +47,6 @@ mstore8: opcode(mstore8)
 memory_zero: -
 msize: opcode(msize)
 fmp: -
-set_fmp: -
 heap_floor: heap_floor()
 alloc: allocate(size, semantics)
 abi_encode: -

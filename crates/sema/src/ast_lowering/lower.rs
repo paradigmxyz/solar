@@ -126,6 +126,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     report_misplaced_solar_tags(self.dcx(), &item.docs);
                     continue;
                 }
+                // The parser reports an error for a nameless state variable, which is how it
+                // recovers a removed old-style fallback function, and nothing can refer to it.
+                ast::ItemKind::Variable(var) if var.name.is_none() => continue,
                 ast::ItemKind::Variable(_) => {
                     let hir::ItemId::Variable(id) = self.lower_item(item) else { unreachable!() };
                     items.push(hir::ItemId::Variable(id));
@@ -200,7 +203,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             span: _,
             name,
             parameters: _,
-            visibility,
+            visibility: _,
             state_mutability,
             modifiers: _,
             virtual_,
@@ -226,14 +229,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.map(|vis| vis.data).unwrap_or_else(|| {
-                let is_free = self.current_contract_id.is_none();
-                if kind.is_modifier() || is_free {
-                    ast::Visibility::Internal
-                } else {
-                    ast::Visibility::Public
-                }
-            }),
+            visibility: i.visibility_or_default(self.current_contract_id.is_none()),
             state_mutability: state_mutability
                 .map(|s| s.data)
                 .unwrap_or(ast::StateMutability::NonPayable),
@@ -323,7 +319,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let ast::ItemEnum { name, ref variants } = *i;
         let id = self.hir.enums.next_idx();
         let doc = self.lower_item_docs(item, hir::ItemId::Enum(id));
-        let variants = self.arena.alloc_slice_fill_iter(variants.iter().map(|&variant| {
+        let variants = self.arena.alloc_slice_fill_iter(variants.iter().map(|variant| {
+            let variant = variant.name;
             let mut variable = hir::Variable::new(
                 self.current_source_id,
                 hir::DocId::EMPTY,

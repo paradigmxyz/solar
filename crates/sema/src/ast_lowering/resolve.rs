@@ -33,19 +33,28 @@ impl super::LoweringContext<'_> {
                     }
                     let item = self.hir.item(item_id);
                     if let Some(name) = item.name() {
-                        let decl = Declaration { res: Res::Item(item_id), span: name.span };
+                        let decl =
+                            Declaration { res: Res::Item(item_id), span: name.span, import: None };
                         let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
                 // Declare module aliases before performing any imports so that cyclic importers
                 // can import them regardless of source order.
-                for &(item_id, import_id) in source.imports {
+                for (position, &(item_id, import_id)) in source.imports.iter().enumerate() {
                     let ast = self.sources[source_id].ast.as_ref().unwrap();
                     let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
                         unreachable!()
                     };
                     if let Some(alias) = import.source_alias() {
-                        let _ = self.declare_kind_in(&mut scope, alias, Res::Namespace(import_id));
+                        let decl = Declaration {
+                            res: Res::Namespace(import_id),
+                            span: alias.span,
+                            import: Some(ImportDirective {
+                                source: source_id,
+                                position: position as u32,
+                            }),
+                        };
+                        let _ = self.declare_in(&mut scope, alias.name, decl);
                     }
                 }
                 scope
@@ -745,6 +754,8 @@ impl<'gcx> ResolveContext<'gcx> {
         let ast_item = self.hir_to_ast[&hir::ItemId::Variable(gettee)];
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
         let span = ast_var.span;
+        // The synthesized code maps to the variable's declaration, as in solc.
+        let code_span = self.hir.variable(gettee).declaration_span();
 
         // https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2852
         let mut ret_ty = &self.hir.variable(gettee).ty;
@@ -842,15 +853,18 @@ impl<'gcx> ResolveContext<'gcx> {
             let mut expr = builder.expr(
                 self.next_id(),
                 hir::ExprKind::Ident(self.arena.alloc_as_slice(res)),
-                span,
+                code_span,
             );
             for &param in &parameters {
                 let res = Res::Item(hir::ItemId::Variable(param));
                 let ident = hir::ExprKind::Ident(self.arena.alloc_as_slice(res));
                 expr = builder.expr(
                     self.next_id(),
-                    hir::ExprKind::Index(expr, Some(builder.expr(self.next_id(), ident, span))),
-                    span,
+                    hir::ExprKind::Index(
+                        expr,
+                        Some(builder.expr(self.next_id(), ident, code_span)),
+                    ),
+                    code_span,
                 );
             }
 
@@ -864,7 +878,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 // `return <expr>;`
                 [_] if ret_struct.is_none() => Some(
                     self.arena
-                        .alloc_as_slice(builder.stmt(hir::StmtKind::Return(Some(expr)), span)),
+                        .alloc_as_slice(builder.stmt(hir::StmtKind::Return(Some(expr)), code_span)),
                 ),
                 [..] => {
                     if let [ret] = returns[..] {
@@ -873,9 +887,9 @@ impl<'gcx> ResolveContext<'gcx> {
                         let expr = builder.expr(
                             self.next_id(),
                             hir::ExprKind::Member(expr, ret.name.unwrap()),
-                            span,
+                            code_span,
                         );
-                        let stmt = builder.stmt(hir::StmtKind::Return(Some(expr)), span);
+                        let stmt = builder.stmt(hir::StmtKind::Return(Some(expr)), code_span);
                         Some(self.arena.alloc_as_slice(stmt))
                     } else {
                         // `Struct storage <name> = <expr>;`
@@ -885,7 +899,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         decl_var.initializer = Some(expr);
                         let decl_id = self.hir.variables.push(decl_var);
                         let builder = self.hir_builder();
-                        let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), span);
+                        let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), code_span);
 
                         // `return (<name "." ret.name "," for ret in returns>);`
                         let res =
@@ -897,25 +911,25 @@ impl<'gcx> ResolveContext<'gcx> {
                                     let decl_name_expr = builder.expr(
                                         self.next_id(),
                                         hir::ExprKind::Ident(res),
-                                        span,
+                                        code_span,
                                     );
                                     let ret = self.hir.variable(ret);
                                     Some(builder.expr(
                                         self.next_id(),
                                         hir::ExprKind::Member(decl_name_expr, ret.name.unwrap()),
-                                        span,
+                                        code_span,
                                     ))
                                 }),
                             )),
-                            span,
+                            code_span,
                         );
-                        let ret_stmt = builder.stmt(hir::StmtKind::Return(Some(tuple)), span);
+                        let ret_stmt = builder.stmt(hir::StmtKind::Return(Some(tuple)), code_span);
 
                         Some(self.arena.alloc_array([decl_stmt, ret_stmt]))
                     }
                 }
             };
-            stmts.map(|stmts| self.hir_builder().block(stmts, span))
+            stmts.map(|stmts| self.hir_builder().block(stmts, code_span))
         }
     }
 
@@ -2010,12 +2024,7 @@ impl<'gcx> ResolveContext<'gcx> {
             })),
             // A function type opens its own scope for its parameter and return names.
             ast::TypeKind::Function(f) => self.in_scope(|this| {
-                // The AST validator reports invalid visibilities; lower them as internal.
-                let visibility = if f.visibility() == Some(ast::Visibility::External) {
-                    ast::Visibility::External
-                } else {
-                    ast::Visibility::Internal
-                };
+                let visibility = f.visibility_or_default();
                 let parent = this.function_id.map(hir::ItemId::Function);
                 hir::TypeKind::Function(this.arena.alloc(hir::TypeFunction {
                     parameters: this.lower_variables_hidden(
@@ -2097,7 +2106,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 continue;
             };
 
-            if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
+            // A failed linearization has already been reported and holds only the contract.
+            let contract = self.hir.contract(c);
+            if !contract.linearization_failed() && !contract.linearized_bases[1..].contains(&id) {
                 self.dcx()
                     .err_code_at(
                         ov.span,
@@ -2493,7 +2504,7 @@ impl SymbolResolverScopes {
         name: Ident,
         res: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let decl = Declaration { res, span: name.span };
+        let decl = Declaration { res, span: name.span, import: None };
         if let Err(previous) = self.current_scope().declare_new(name.name, decl) {
             let (kind, code) = match res {
                 Res::Item(hir::ItemId::Function(_)) => ("function", error_code!(6052)),
@@ -2621,7 +2632,7 @@ impl Declarations {
         name: Ident,
         res: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        self.declare(sess, hir, name.name, Declaration { res, span: name.span })
+        self.declare(sess, hir, name.name, Declaration { res, span: name.span, import: None })
     }
 
     /// Declares `name => decl`, reporting conflicts and reserved names.
@@ -2716,6 +2727,16 @@ impl Declarations {
 pub(crate) struct Declaration {
     pub(crate) res: Res,
     pub(crate) span: Span,
+    /// The import directive that declares the module alias, which is the position of the
+    /// directive among the imports of its source. Imports of the alias keep it.
+    pub(crate) import: Option<ImportDirective>,
+}
+
+/// An import directive of a source.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ImportDirective {
+    pub(crate) source: hir::SourceId,
+    pub(crate) position: u32,
 }
 
 impl std::ops::Deref for Declaration {

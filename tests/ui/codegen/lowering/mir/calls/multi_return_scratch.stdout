@@ -1,0 +1,72 @@
+; === ROOT/tests/ui/codegen/lowering/mir/calls/multi_return_scratch.sol:MultiReturnScratch ===
+@module MultiReturnScratch
+@types
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256}
+
+; getter for `mapping(uint256 => uint256) public stored` [selector 0x8c396222]
+fn @stored(arg0: i256) -> i256 [selector=0x8c396222, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    ret v1
+}
+
+; function triple(uint256 x) internal pure returns (uint256, uint256, uint256)
+fn @triple(arg0: i256) -> struct0 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v4 = checked_add uint256, arg0, 1
+    v5 = checked_add uint256, arg0, 2
+    v6 = insert_value struct0, undef struct0, 0, arg0
+    v7 = insert_value struct0, v6, 1, v4
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
+  bb1:                                            ; preds = bb0
+    v1 = insert_value struct0, undef struct0, 0, 1
+    v2 = insert_value struct0, v1, 1, 2
+    v3 = insert_value struct0, v2, 2, 3
+    ret v3
+}
+
+; function assign(uint256 key, uint256 seed) external returns (uint256 second, uint256 third, uint256 beforePtr, uint256 afterPtr) [selector 0xf09915d4]
+fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = icall @triple, arg1
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = extract_value struct0, v1, 2
+    v5 = mapping_slot arg0, 0
+    sstore v5, v2 !metadata(storage=symbolic(v5))
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = insert_value struct1, undef struct1, 0, v3
+    v8 = insert_value struct1, v7, 1, v4
+    v9 = insert_value struct1, v8, 2, v0
+    v10 = insert_value struct1, v9, 3, v6
+    ret v10
+}
+
+; function ternary(bool pick, uint256 x) external pure returns (uint256, uint256) [selector 0x09a143f6]
+fn @ternary(arg0: i1, arg1: i256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v1 = checked_add uint256, arg1, 2
+    v2 = checked_add uint256, arg1, 3
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v0 = checked_add uint256, arg1, 1
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v3 = phi [bb1: arg1], [bb2: v1]
+    v4 = phi [bb1: v0], [bb2: v2]
+    v5 = insert_value struct2, undef struct2, 0, v3
+    v6 = insert_value struct2, v5, 1, v4
+    ret v6
+}

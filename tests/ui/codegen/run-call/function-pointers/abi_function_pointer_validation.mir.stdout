@@ -1,0 +1,48 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/abi_function_pointer_validation.sol:AbiFunctionPointerValidation ===
+@module AbiFunctionPointerValidation
+; function f(S memory) external pure returns (uint r) [selector 0x9f4a608d]
+fn @f(arg0: ptr<memory>) -> i256 [selector=0x9f4a608d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}
+
+; function g(S calldata) external pure returns (uint r) [selector 0x5cf6281d]
+fn @g(arg0: slice<calldata>) -> i256 [selector=0x5cf6281d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 2
+}
+
+; function h(S calldata s) external pure returns (uint r) [selector 0x4fc262ac]
+fn @h(arg0: slice<calldata>) -> i256 [selector=0x4fc262ac, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 0
+    v3 = calldataload v2
+    v4 = shl v3, 192
+    v5 = ne v4, 0
+    icall revert_if<empty>, v5
+    v6 = shr v3, 64
+    ret 3
+}
+
+; function throughInternal(S calldata s) external pure returns (uint256) [selector 0x53b1d360]
+fn @throughInternal(arg0: slice<calldata>) -> i256 [selector=0x53b1d360, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @checkField, arg0
+    ret 4
+}
+
+; function checkField(S calldata s) internal pure
+fn @checkField(arg0: slice<calldata>) [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 0
+    v3 = calldataload v2
+    v4 = shl v3, 192
+    v5 = ne v4, 0
+    icall revert_if<empty>, v5
+    v6 = shr v3, 64
+    ret
+}

@@ -1,0 +1,127 @@
+; === ROOT/tests/ui/codegen/mir/storage-promotion/heap_floor_caller_runtime.sol:C ===
+@module C
+@phase lowered
+; backend-memory-v1
+; backend-entry 1 0xe0
+; backend-floor 2 0xc0
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x744f4cf6 => bb3, 0x7e7cc038 => bb4]
+  bb4:                                            ; preds = bb2
+    tail_call @cached
+  bb3:                                            ; preds = bb2
+    tail_call @accrue
+  bb1 [cold]:                                     ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function accrue(uint256 n) public returns (bytes memory) [selector 0x744f4cf6]
+fn @accrue() {
+  bb0:
+    v20 = calldataload 4
+    v21 = icall @accrue.body, v20
+    v26 = lt v21, 32
+    jumpi v26, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v45 = mload v21
+    v46 = add v45, 31
+    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = add v21, 32
+    v50 = add v59, v45
+    mstore v50, 0
+    v61 = sub v21, 32
+    mstore v61, 32
+    v52 = add v47, 64
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v65 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v29 = add v65, 32
+    mstore v65, 32
+    v32 = mload v21
+    v33 = add v32, 31
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v29, 32
+    v36 = add v29, v34
+    mstore v36, 0
+    mstore v29, v32
+    v38 = add v35, v34
+    v57 = add v21, 32
+    mcopy v35, v57, v32 !metadata(memory=heap, disjoint)
+    v40 = sub v38, v65
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v53 = phi [bb1: v65], [bb2: v61]
+    v54 = phi [bb1: v40], [bb2: v52]
+    returndata v53, v54
+}
+
+; function cached(uint256 v) external returns (uint256) [selector 0x7e7cc038]
+fn @cached() {
+  bb0:
+    v9 = calldataload 4
+    v12 = heap_floor !metadata(alloc_ptr)
+    v13 = add v12, 32 !metadata(alloc_ptr)
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore v12, v9
+    v3 = icall @accrue.body, 1
+    v6 = mload v12
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+; function accrue(uint256 n) public returns (bytes memory)
+fn @accrue.body(arg0: i256) -> i256 [may_return_memory] {
+  bb0:
+    v10 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v10
+    mstore 160, 0
+    jump bb1
+  bb1:                                            ; preds = bb0, bb7
+    v2 = phi [bb0: 0], [bb7: v7]
+    v3 = lt v2, arg0
+    jumpi v3, bb3, bb4
+  bb4:                                            ; preds = bb1
+    v11 = mload 160
+    v12 = ne v11, 0
+    jumpi v12, bb5, bb2
+  bb5:                                            ; preds = bb4
+    v13 = mload 128
+    sstore 0, v13 !metadata(storage=slot(0))
+    jump bb2
+  bb2:                                            ; preds = bb4, bb5
+    v8 = sload 0 !metadata(storage=slot(0))
+    v23 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v24 = add v23, 64
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v23, 32
+    v21 = add v23, 32
+    mstore v21, v8
+    ret v23
+  bb3:                                            ; preds = bb1
+    v14 = add v2, 7
+    v5 = mload 128 !metadata(effect=storage_read)
+    v16 = add v5, v14
+    v17 = lt v16, v5
+    jumpi v17, bb6, bb7
+  bb7:                                            ; preds = bb3
+    mstore 128, v16
+    mstore 160, 1
+    v7 = add v2, 1
+    jump bb1
+  bb6 [cold]:                                     ; preds = bb3
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

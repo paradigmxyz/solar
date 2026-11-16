@@ -1,0 +1,143 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/proxy_forwarding_spill.sol:Impl ===
+@module Impl
+; getter for `uint256 public v` [selector 0x7c2efcba]
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function setBig(uint256 a, uint256 b, uint256 c, bytes calldata d) external [selector 0xe6a9b505]
+fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0xe6a9b505, abi_params=[uint256, uint256, uint256, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = checked_add uint256, arg0, arg1
+    v1 = checked_add uint256, v0, arg2
+    v2 = extract_value slice<calldata>, arg3, 1
+    v3 = checked_add uint256, v1, v2
+    sstore 0, v3 !metadata(storage=slot(0))
+    ret
+}
+
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/proxy_forwarding_spill.sol:Proxy ===
+@module Proxy
+@immutables
+  _defaultImplementation: bytes32
+
+; constructor(address impl) [creation entry]
+fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = shl v0, 0
+    storeimmutable _defaultImplementation, v1
+    ret
+}
+
+; fallback() external payable [fallback]
+fn @fallback() [fallback, payable] {
+  bb0:
+    v0 = returndatasize
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = sload 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc !metadata(storage=slot(0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc))
+    v2 = eq v1, 0
+    jumpi v2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v3 = loadimmutable _defaultImplementation
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v4 = phi [bb1: v3], [bb2: v1]
+    v5 = calldatasize
+    v6 = returndatasize
+    v7 = returndatasize
+    calldatacopy v7, v6, v5
+    v8 = returndatasize
+    v9 = codesize
+    v10 = calldatasize
+    v11 = returndatasize
+    v12 = gas
+    v13 = delegatecall v12, v4, v11, v10, v9, v8
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    v16 = zext i1 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb5
+    v20 = returndatasize
+    returndatacopy 0, 0, v20 !metadata(memory=scratch)
+    v21 = returndatasize
+    returndata 0, v21
+  bb4:                                            ; preds = bb3
+    v18 = returndatasize
+    returndatacopy 0, 0, v18 !metadata(memory=scratch)
+    v19 = returndatasize
+    revert 0, v19
+}
+
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/proxy_forwarding_spill.sol:Harness ===
+@module Harness
+@data
+  Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/evm-ir/spills/proxy_forwarding_spill.sol:Impl"
+  Proxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/evm-ir/spills/proxy_forwarding_spill.sol:Proxy"
+
+; function run() external returns (uint256) [selector 0xc0406226]
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize Impl_creation_code_0
+    v1 = fmp
+    datacopy Impl_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = datasize Proxy_creation_code_1
+    v5 = fmp
+    datacopy Proxy_creation_code_1, v5, v4
+    v6 = ptradd v5, v4
+    v7 = zext i160 v2 to i256
+    v8 = abi_encode [word<uint160>], scratch, base v6, args v7
+    v9 = datasize Proxy_creation_code_1, 32
+    v10 = create 0, v5, v9
+    v11 = ne v10, i160 0
+    jumpi v11, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v12 = gas
+    v13 = alloc 64
+    mstore v13, 16
+    v14 = ptradd v13, 32
+    mstore v14, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
+    v15 = abi_encode [word, word, word, memory_bytes], scratch, selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v13
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = zext i160 v10 to i256
+    v19 = extcodesize v18
+    v20 = eq v19, 0
+    icall revert_if<target_contract_has_no_code>, v20
+    v21 = zext i160 v10 to i256
+    v22 = call v12, v21, 0, v16, v17, 0, 0
+    jumpi v22, bb6, bb5
+  bb5:                                            ; preds = bb4
+    revert_returndata
+  bb6:                                            ; preds = bb4
+    v23 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v24 = zext i160 v10 to i256
+    v25 = staticcall v23, v24, 28, 4, 0, 32
+    jumpi v25, bb8, bb7
+  bb7:                                            ; preds = bb6
+    revert_returndata
+  bb8:                                            ; preds = bb6
+    v26 = returndatasize
+    v27 = lt v26, 32
+    icall revert_if<tuple_data_too_short>, v27
+    v28 = mload 0 !metadata(memory=scratch)
+    v29 = eq v28, 76
+    icall require<short_string>, v29, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    ret 1
+}

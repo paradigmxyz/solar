@@ -1,0 +1,99 @@
+; === ROOT/tests/ui/codegen/lowering/mir/expressions/nested_loops.sol:NestedLoops ===
+@module NestedLoops
+; function sum_grid(uint256 n, uint256 m) public pure returns (uint256) [selector 0xa801641f]
+fn @sum_grid(arg0: i256, arg1: i256) -> i256 [selector=0xa801641f, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v6]
+    v1 = phi [bb0: arg1], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v8]
+    v3 = phi [bb0: 0], [bb3: v9]
+    v4 = phi [bb0: 0], [bb3: v16]
+    v5 = lt v4, v0
+    jumpi v5, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret v3
+  bb4:                                            ; preds = bb1
+    jump bb7
+  bb7:                                            ; preds = bb4, bb9
+    v6 = phi [bb4: v0], [bb9: v6]
+    v7 = phi [bb4: v1], [bb9: v7]
+    v8 = phi [bb4: v2], [bb9: v8]
+    v9 = phi [bb4: v3], [bb9: v14]
+    v10 = phi [bb4: v4], [bb9: v10]
+    v11 = phi [bb4: 0], [bb9: v15]
+    v12 = lt v11, v7
+    jumpi v12, bb10, bb11
+  bb11:                                           ; preds = bb7
+    jump bb8
+  bb8:                                            ; preds = bb11
+    jump bb6
+  bb6:                                            ; preds = bb8
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v16 = checked_add uint256, v10, 1
+    jump bb1
+  bb10:                                           ; preds = bb7
+    v13 = checked_mul uint256, v10, v11
+    v14 = checked_add uint256, v9, v13
+    jump bb12
+  bb12:                                           ; preds = bb10
+    jump bb9
+  bb9:                                            ; preds = bb12
+    v15 = checked_add uint256, v11, 1
+    jump bb7
+}
+
+; function find_first(uint256 n, uint256 target) public pure returns (uint256) [selector 0x01609651]
+fn @find_first(arg0: i256, arg1: i256) -> i256 [selector=0x01609651, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v5]
+    v1 = phi [bb0: arg1], [bb3: v6]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = phi [bb0: 0], [bb3: v14]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret v0
+  bb4:                                            ; preds = bb1
+    jump bb7
+  bb7:                                            ; preds = bb4, bb9
+    v5 = phi [bb4: v0], [bb9: v5]
+    v6 = phi [bb4: v1], [bb9: v6]
+    v7 = phi [bb4: v2], [bb9: v7]
+    v8 = phi [bb4: v3], [bb9: v8]
+    v9 = phi [bb4: 0], [bb9: v13]
+    v10 = lt v9, v5
+    jumpi v10, bb10, bb11
+  bb11:                                           ; preds = bb7
+    jump bb8
+  bb8:                                            ; preds = bb11
+    jump bb6
+  bb6:                                            ; preds = bb8
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v14 = checked_add uint256, v8, 1
+    jump bb1
+  bb10:                                           ; preds = bb7
+    v11 = checked_add uint256, v8, v9
+    v12 = eq v11, v6
+    jumpi v12, bb13, bb14
+  bb14:                                           ; preds = bb10
+    jump bb15
+  bb15:                                           ; preds = bb14
+    jump bb12
+  bb12:                                           ; preds = bb15
+    jump bb9
+  bb9:                                            ; preds = bb12
+    v13 = checked_add uint256, v9, 1
+    jump bb7
+  bb13:                                           ; preds = bb10
+    ret v8
+}

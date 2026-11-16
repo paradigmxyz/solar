@@ -1,0 +1,71 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/spill_store_sibling_arms_fetch.sol:SpillStoreSiblingArmsFetch ===
+@module SpillStoreSiblingArmsFetch
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = mapping_slot 1, 0
+    sstore v0, 10 !metadata(storage=symbolic(v0))
+    v1 = add v0, 1
+    sstore v1, 1 !metadata(storage=offset(v0, 1))
+    v2 = mapping_slot 2, 0
+    sstore v2, 20 !metadata(storage=symbolic(v2))
+    v3 = add v2, 1
+    sstore v3, 0 !metadata(storage=offset(v2, 1))
+    v4 = mapping_slot 3, 0
+    sstore v4, 30 !metadata(storage=symbolic(v4))
+    v5 = add v4, 1
+    sstore v5, 1 !metadata(storage=offset(v4, 1))
+    ret
+}
+
+; function fetch(uint256 key) internal view returns (uint256)
+fn @fetch(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    ret v1
+}
+
+; function bump() internal
+fn @bump() {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = checked_add uint256, v0, 7
+    sstore 1, v1 !metadata(storage=slot(1))
+    ret
+}
+
+; function run(uint256 key, bool cond) external returns (uint256) [selector 0x0a3395f5]
+fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @fetch, arg0
+    icall @bump
+    v1 = checked_add uint256, arg0, 1
+    v2 = icall @fetch, v1
+    v3 = mapping_slot arg0, 0
+    v4 = add v3, 1
+    v5 = sload v4 !metadata(storage=offset(v3, 1))
+    v6 = trunc i256 v5 to i8
+    v7 = ne v6, i8 0
+    jumpi v7, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v8 = phi [bb1: arg1], [bb2: false]
+    jumpi v8, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v10 = checked_mul uint256, v0, 2
+    v11 = checked_add uint256, v10, v2
+    v12 = checked_add uint256, v11, 5
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v9 = checked_add uint256, v0, v2
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v13 = phi [bb4: v9], [bb5: v12]
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = checked_add uint256, v13, v14
+    ret v15
+}

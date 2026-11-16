@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/disasm/none_adjacent_labels.sol:LL:CC
+   │
+LL │         c ? hex"abab" : hex"cdcd";
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+

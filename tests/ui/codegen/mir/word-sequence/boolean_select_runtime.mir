@@ -1,0 +1,270 @@
+//@ compile-flags: -Zmir-pipeline=word-sequence,lower-evm-shaped
+//@ filecheck:
+//@ run-call: c_x_0(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_x_0(bool,bool,bool)(bool) false, false, true => false
+//@ run-call: c_x_0(bool,bool,bool)(bool) false, true, false => false
+//@ run-call: c_x_0(bool,bool,bool)(bool) false, true, true => false
+//@ run-call: c_x_0(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_x_0(bool,bool,bool)(bool) true, false, true => false
+//@ run-call: c_x_0(bool,bool,bool)(bool) true, true, false => true
+//@ run-call: c_x_0(bool,bool,bool)(bool) true, true, true => true
+//@ run-call: c_x_1(bool,bool,bool)(bool) false, false, false => true
+//@ run-call: c_x_1(bool,bool,bool)(bool) false, false, true => true
+//@ run-call: c_x_1(bool,bool,bool)(bool) false, true, false => true
+//@ run-call: c_x_1(bool,bool,bool)(bool) false, true, true => true
+//@ run-call: c_x_1(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_x_1(bool,bool,bool)(bool) true, false, true => false
+//@ run-call: c_x_1(bool,bool,bool)(bool) true, true, false => true
+//@ run-call: c_x_1(bool,bool,bool)(bool) true, true, true => true
+//@ run-call: c_0_x(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_0_x(bool,bool,bool)(bool) false, false, true => false
+//@ run-call: c_0_x(bool,bool,bool)(bool) false, true, false => true
+//@ run-call: c_0_x(bool,bool,bool)(bool) false, true, true => true
+//@ run-call: c_0_x(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_0_x(bool,bool,bool)(bool) true, false, true => false
+//@ run-call: c_0_x(bool,bool,bool)(bool) true, true, false => false
+//@ run-call: c_0_x(bool,bool,bool)(bool) true, true, true => false
+//@ run-call: c_1_x(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_1_x(bool,bool,bool)(bool) false, false, true => false
+//@ run-call: c_1_x(bool,bool,bool)(bool) false, true, false => true
+//@ run-call: c_1_x(bool,bool,bool)(bool) false, true, true => true
+//@ run-call: c_1_x(bool,bool,bool)(bool) true, false, false => true
+//@ run-call: c_1_x(bool,bool,bool)(bool) true, false, true => true
+//@ run-call: c_1_x(bool,bool,bool)(bool) true, true, false => true
+//@ run-call: c_1_x(bool,bool,bool)(bool) true, true, true => true
+//@ run-call: c_1_0(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_1_0(bool,bool,bool)(bool) false, false, true => false
+//@ run-call: c_1_0(bool,bool,bool)(bool) false, true, false => false
+//@ run-call: c_1_0(bool,bool,bool)(bool) false, true, true => false
+//@ run-call: c_1_0(bool,bool,bool)(bool) true, false, false => true
+//@ run-call: c_1_0(bool,bool,bool)(bool) true, false, true => true
+//@ run-call: c_1_0(bool,bool,bool)(bool) true, true, false => true
+//@ run-call: c_1_0(bool,bool,bool)(bool) true, true, true => true
+//@ run-call: c_0_1(bool,bool,bool)(bool) false, false, false => true
+//@ run-call: c_0_1(bool,bool,bool)(bool) false, false, true => true
+//@ run-call: c_0_1(bool,bool,bool)(bool) false, true, false => true
+//@ run-call: c_0_1(bool,bool,bool)(bool) false, true, true => true
+//@ run-call: c_0_1(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_0_1(bool,bool,bool)(bool) true, false, true => false
+//@ run-call: c_0_1(bool,bool,bool)(bool) true, true, false => false
+//@ run-call: c_0_1(bool,bool,bool)(bool) true, true, true => false
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) false, false, true => true
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) false, true, false => false
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) false, true, true => true
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) true, false, true => true
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) true, true, false => true
+//@ run-call: c_orxy_y(bool,bool,bool)(bool) true, true, true => true
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) false, false, true => true
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) false, true, false => false
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) false, true, true => true
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) true, false, true => true
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) true, true, false => true
+//@ run-call: c_xorxy_y(bool,bool,bool)(bool) true, true, true => false
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) false, false, false => false
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) false, false, true => true
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) false, true, false => true
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) false, true, true => false
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) true, false, false => false
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) true, false, true => true
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) true, true, false => false
+//@ run-call: c_y_xorxy(bool,bool,bool)(bool) true, true, true => true
+@module BooleanSelectRuntime
+
+// An `i1` select keeps its recipes, with the arithmetic spelled as the boolean operations that equal
+// it modulo 2, and each call returns what the select returns.
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb99, [0xa1a4d18d => bb1, 0x591dfda0 => bb2, 0x36747766 => bb3, 0xa4683fb7 => bb4, 0x93616a85 => bb5, 0x3da68cc6 => bb6, 0x5c99a449 => bb7, 0x09220832 => bb8, 0x690387c5 => bb9]
+  bb1:
+    tail_call @c_x_0
+  bb2:
+    tail_call @c_x_1
+  bb3:
+    tail_call @c_0_x
+  bb4:
+    tail_call @c_1_x
+  bb5:
+    tail_call @c_1_0
+  bb6:
+    tail_call @c_0_1
+  bb7:
+    tail_call @c_orxy_y
+  bb8:
+    tail_call @c_xorxy_y
+  bb9:
+    tail_call @c_y_xorxy
+  bb99:
+    revert 0, 0
+}
+
+// select(c, x, false) is `c & x`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_x_0{{[( ]}}
+// CHECK: + {{v[0-9]+}} = and
+fn @c_x_0() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v17 = select v13, v14, false
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, x, true) is `(c == 0) | x`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_x_1{{[( ]}}
+// CHECK: + {{v[0-9]+}} = eq
+// CHECK: + {{v[0-9]+}} = or
+fn @c_x_1() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v17 = select v13, v14, true
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, false, x) is `(c == 0) & x`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_0_x{{[( ]}}
+// CHECK: + {{v[0-9]+}} = eq
+// CHECK: + {{v[0-9]+}} = and
+fn @c_0_x() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v17 = select v13, false, v14
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, true, x) spells `(c == 0) - 1` as `xor`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_1_x{{[( ]}}
+// CHECK: + {{v[0-9]+}} = eq
+// CHECK: + {{v[0-9]+}} = xor
+// CHECK: + {{v[0-9]+}} = or
+fn @c_1_x() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v17 = select v13, true, v14
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, true, false) keeps a boolean `and`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_1_0{{[( ]}}
+// CHECK: + {{v[0-9]+}} = and
+fn @c_1_0() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v17 = select v13, true, false
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, false, true) keeps a boolean `or`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_0_1{{[( ]}}
+// CHECK: + {{v[0-9]+}} = eq
+// CHECK: + {{v[0-9]+}} = or
+fn @c_0_1() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v17 = select v13, false, true
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, x | y, y) is `y | (c & x)`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_orxy_y{{[( ]}}
+// CHECK: + {{v[0-9]+}} = and
+// CHECK: + {{v[0-9]+}} = or
+fn @c_orxy_y() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v16 = or v14, v15
+    v17 = select v13, v16, v15
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, x ^ y, y) is `y ^ (c & x)`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_xorxy_y{{[( ]}}
+// CHECK: + {{v[0-9]+}} = and
+// CHECK: + {{v[0-9]+}} = xor
+fn @c_xorxy_y() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v16 = xor v14, v15
+    v17 = select v13, v16, v15
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}
+
+// select(c, y, x ^ y) is `y ^ ((c == 0) & x)`.
+// CHECK-LABEL: {{^[ +].*}}fn @c_y_xorxy{{[( ]}}
+// CHECK: + {{v[0-9]+}} = eq
+// CHECK: + {{v[0-9]+}} = and
+// CHECK: + {{v[0-9]+}} = xor
+fn @c_y_xorxy() {
+  bb0:
+    v10 = calldataload 4
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = ne v10, 0
+    v14 = ne v11, 0
+    v15 = ne v12, 0
+    v16 = xor v14, v15
+    v17 = select v13, v15, v16
+    v18 = zext i1 v17 to i256
+    mstore 0x80, v18
+    returndata 0x80, 0x20
+}

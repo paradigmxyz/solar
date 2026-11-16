@@ -58,7 +58,6 @@ impl Assembler<'_> {
     /// Runs the EVM IR pipeline when `passes` is set, then legalization, returning whether neither
     /// reported an error.
     fn run_pipeline(&mut self, program: &mut ir::Module, passes: bool) -> bool {
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
@@ -68,10 +67,6 @@ impl Assembler<'_> {
         if !succeeded() {
             return false;
         }
-        debug_assert!(
-            !input_is_valid || ir::verify::Verifier::is_valid(program),
-            "EVM IR pipeline invalidated a valid module"
-        );
         let _legalized = ir::legalize_revert(self.gcx, program);
         if !succeeded() {
             return false;
@@ -240,7 +235,7 @@ fn lower_evm_ir_once(
         }
     }
     let mut program = Program::with_debug_info(capture_debug_info);
-    let entry_checkpoints = module.valid_entry_checkpoints();
+    let valid_lent_invokes = module.valid_lent_invokes();
     let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
@@ -250,17 +245,11 @@ fn lower_evm_ir_once(
         );
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
-        // A thunk's function entry depends on the same exclusive-edge proof as its source
-        // checkpoint. Sharing may revoke it without affecting a native block entry.
-        let checkpoint = entry_checkpoints
-            .contains(block_id)
-            .then_some(block.metadata.entry_checkpoint)
-            .flatten();
-        if let Some(function) = block
-            .metadata
-            .function_invoke
-            .or_else(|| checkpoint.and_then(|checkpoint| checkpoint.function_invoke))
-        {
+        // A lent function entry depends on its exclusive-edge check. Sharing may revoke it without
+        // affecting a native block entry.
+        let lent =
+            valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
+        if let Some(function) = block.metadata.function_invoke.or(lent) {
             debug_assert!(
                 pending_block_invoke.is_none() || pending_block_invoke == Some(function),
                 "an instruction-free block cannot enter two functions"
@@ -268,16 +257,17 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
-            if let Some(checkpoint) = checkpoint {
-                program.set_source_span(Some(checkpoint.source));
-                program.set_modifier_depth(checkpoint.modifier_depth);
+            // The label's own origin.
+            if block.label_metadata.has_source_spans() {
+                program.set_source_origins(&block.label_metadata);
+                program.set_modifier_depth(block.label_metadata.modifier_depth());
             }
             program.define_label(label);
             program.mark_last_function_invoke(pending_block_invoke.take());
         }
 
         for inst in &block.instructions {
-            program.set_source_spans(inst.metadata.source_spans());
+            program.set_source_origins(&inst.metadata);
             program.set_modifier_depth(inst.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
@@ -286,14 +276,14 @@ fn lower_evm_ir_once(
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = inst.metadata.function_invoke() {
-                    program.mark_last_function_invoke(Some(function));
+                    program.set_function_invoke(first, Some(function));
                 }
                 program.mark_last_function_exit(inst.metadata.function_exit());
             }
         }
 
         if let Some(terminator) = &block.terminator {
-            program.set_source_spans(terminator.metadata.source_spans());
+            program.set_source_origins(&terminator.metadata);
             program.set_modifier_depth(terminator.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_terminator(
@@ -313,7 +303,7 @@ fn lower_evm_ir_once(
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = terminator.metadata.function_invoke() {
-                    program.mark_last_function_invoke(Some(function));
+                    program.set_function_invoke(first, Some(function));
                 }
                 program.mark_last_function_exit(terminator.metadata.function_exit());
             }
@@ -332,19 +322,13 @@ fn lower_evm_ir_once(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
     if !emitted_data.is_empty() && !ends_with_terminal {
-        let spans = module
-            .blocks
-            .last()
-            .and_then(|block| block.terminator.as_ref())
-            .map_or(&[][..], |term| term.metadata.source_spans());
-        program.set_source_spans(spans);
-        program.set_modifier_depth(
-            module
-                .blocks
-                .last()
-                .and_then(|block| block.terminator.as_ref())
-                .map_or(0, |term| term.metadata.modifier_depth()),
-        );
+        let last_terminator = module.blocks.last().and_then(|block| block.terminator.as_ref());
+        match last_terminator {
+            Some(term) => program.set_source_origins(&term.metadata),
+            None => program.set_source_span(None),
+        }
+        program
+            .set_modifier_depth(last_terminator.map_or(0, |term| term.metadata.modifier_depth()));
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
@@ -465,8 +449,8 @@ fn lower_terminator(
             if module.next_block(block_id) == Some(*target) {
                 // NOTE: Fallthrough emits no instruction for this edge's source span.
                 // If the successor is shared, its unique source location stays unknown.
-                // Do not retain jumps or duplicate code just to create a checkpoint,
-                // or move the span onto an instruction that also runs on another path.
+                // Do not retain a jump or duplicate code for it, or move the span onto an
+                // instruction that also runs on another path.
                 return;
             }
             let label = label_for_block(assembler, module, *target, labels);

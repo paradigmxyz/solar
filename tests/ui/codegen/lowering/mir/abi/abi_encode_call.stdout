@@ -1,0 +1,107 @@
+; === ROOT/tests/ui/codegen/lowering/mir/abi/abi_encode_call.sol:AbiEncodeCall ===
+@module AbiEncodeCall
+@phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v2 = calldatasize
+    v3 = lt v2, 4
+    v6 = zext i1 v3 to i256
+    v7 = or v0, v6
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb1
+  bb1:                                            ; preds = bb0
+    v4 = calldataload 0
+    v5 = shr v4, 224
+    switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
+  bb3:                                            ; preds = bb1
+    tail_call @asValue
+  bb2:                                            ; preds = bb1
+    tail_call @viaCall
+  bb4 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function asValue(address to, uint256 v) external pure returns (bytes memory) [selector 0x440a9300]
+fn @asValue() {
+  bb0:
+    v4 = calldataload 4
+    v61 = shr v4, 160
+    v2 = calldatasize
+    v3 = lt v2, 68
+    v63 = zext i1 v3 to i256
+    v64 = or v61, v63
+    v59 = ne v64, 0
+    jumpi v59, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v60 = calldataload 4
+    v6 = calldataload 36
+    v55 = heap_floor !metadata(alloc_ptr)
+    v56 = add v55, 128 !metadata(alloc_ptr)
+    mstore 64, v56 !metadata(memory=scratch)
+    mstore v55, 68
+    v48 = add v55, 32
+    mstore v48, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v50 = add v55, 36
+    mstore v50, v60
+    v15 = add v50, 32
+    mstore v15, v6
+    v17 = lt v55, 32
+    jumpi v17, bb3, bb4
+  bb4:                                            ; preds = bb2
+    v41 = add v48, 68
+    mstore v41, 0
+    v52 = sub v55, 32
+    mstore v52, 32
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v57 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v20 = add v57, 32
+    mstore v57, 32
+    v26 = add v20, 32
+    v27 = add v20, 96
+    mstore v27, 0
+    mstore v20, 68
+    mcopy v26, v48, 68 !metadata(disjoint)
+    jump bb5
+  bb5:                                            ; preds = bb3, bb4
+    v44 = phi [bb3: v57], [bb4: v52]
+    returndata v44, 160
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function viaCall(address token, address to, uint256 v) public returns (bool ok) [selector 0x23d014a1]
+fn @viaCall() {
+  bb0:
+    v10 = calldataload 4
+    v35 = shr v10, 160
+    v8 = calldatasize
+    v9 = lt v8, 100
+    v37 = zext i1 v9 to i256
+    v38 = or v35, v37
+    v12 = calldataload 36
+    v40 = shr v12, 160
+    v42 = or v38, v40
+    v32 = ne v42, 0
+    jumpi v32, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v34 = calldataload 36
+    v33 = calldataload 4
+    v14 = calldataload 68
+    v0 = gas
+    v28 = heap_floor !metadata(alloc_ptr)
+    v25 = add v28, 32
+    mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v27 = add v28, 36
+    mstore v27, v34
+    v23 = add v27, 32
+    mstore v23, v14
+    v7 = call v0, v33, 0, v25, 68, 0, 0
+    v18 = zext i1 v7 to i256
+    mstore 0, v18 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}

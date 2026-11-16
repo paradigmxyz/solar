@@ -39,7 +39,7 @@
 
 use super::{
     EvmPass,
-    utils::{SymbolicStackOp, symbolic_stack_op},
+    utils::{RunEvents, SymbolicStackOp, symbolic_stack_op},
 };
 use crate::{
     backend::evm::{
@@ -52,6 +52,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::cell::RefCell;
 
@@ -221,10 +222,11 @@ impl Normalizer {
                 .by_ref()
                 .take(normalization.end - normalization.start)
                 .collect::<SmallVec<[_; MAX_STACK_RUN_LEN]>>();
-            // The final instance's folded cycles keep the debug information of the swaps they
+            // The final instance's folded cycles take the debug information of the first swap they
             // replace. Other replacements take the replaced operations' debug information
-            // positionally: a longer output repeats the last original's, and a shorter one
-            // absorbs the leftovers into its last operation.
+            // positionally: a longer output repeats the last original's. Leftover origins go with
+            // the deleted operations. The run executes straight through, so its function entry
+            // moves to the first replacement and its exit to the last.
             let origins = exchanges
                 .then(|| {
                     let input =
@@ -237,6 +239,7 @@ impl Normalizer {
                         .map(|index| u8::from(index < run.len()))
                         .collect()
                 });
+            let events = RunEvents::of(run.iter().map(|inst| &inst.metadata));
             let mut run = run.into_iter();
             let first = instructions.len();
             for (op, origin) in normalization.output.into_iter().zip(origins) {
@@ -245,20 +248,15 @@ impl Normalizer {
                 if let Some(mut inst) = replaced.next() {
                     replacement.metadata = std::mem::take(&mut inst.metadata);
                 } else if let Some(last) = instructions.get(first..).and_then(<[_]>::last) {
-                    replacement.metadata.copy_source_debug_from(&last.metadata);
+                    replacement.metadata.preserve_debug_loc(&last.metadata);
                 } else {
-                    replacement.metadata.mark_debug_info_dropped();
+                    replacement.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 }
-                for inst in replaced {
-                    replacement.metadata.absorb_debug_info(&inst.metadata);
-                }
+                // Drain the originals that this output replaces.
+                replaced.for_each(drop);
                 instructions.push(replacement);
             }
-            for inst in run {
-                if let Some(last) = instructions.last_mut() {
-                    last.metadata.absorb_debug_info(&inst.metadata);
-                }
-            }
+            events.place(&mut instructions[first..]);
         }
         instructions.extend(source);
         true

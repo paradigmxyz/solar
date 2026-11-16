@@ -372,3 +372,85 @@ fn compact_output_keeps_contract_order() {
         )
     );
 }
+
+/// The AST JSON reuses written type descriptions in compact output only, so both outputs must
+/// hold the same values, for every kind of type the sources of the AST test have.
+#[test]
+fn ast_json_matches_when_pretty() {
+    let sources = json!({
+        "A.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/A.sol")},
+        "B.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/B.sol")},
+        "C.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/C.sol")},
+    });
+    let input = json!({
+        "language": "Solidity",
+        "sources": sources,
+        "settings": {"outputSelection": {"*": {"": ["ast"]}}}
+    });
+    let compile = |pretty_json| {
+        let opts = CompileOpts { pretty_json, ..Default::default() };
+        let mut output = Vec::new();
+        compile_standard_json(&input.to_string(), opts, None, &mut output).unwrap();
+        serde_json::from_slice::<Value>(&output).unwrap()
+    };
+    let compact = compile(false);
+    assert!(compact["sources"]["A.sol"]["ast"]["nodes"].as_array().is_some_and(|n| !n.is_empty()));
+    assert_eq!(compact, compile(true));
+}
+
+/// The sources are written in parallel with the IDs that each of them reserves, so the output does
+/// not depend on the number of threads, with and without sema.
+#[test]
+fn ast_json_matches_across_thread_counts() {
+    for stop_after in [None, Some("parsing")] {
+        let mut settings = json!({"outputSelection": {"*": {"": ["ast"]}}});
+        if let Some(stop_after) = stop_after {
+            settings["stopAfter"] = json!(stop_after);
+        }
+        let input = json!({
+            "language": "Solidity",
+            "sources": {
+                "A.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/A.sol")},
+                "B.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/B.sol")},
+                "C.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/C.sol")},
+            },
+            "settings": settings,
+        });
+        let compile = |threads: usize| {
+            let opts = CompileOpts { threads: threads.into(), ..Default::default() };
+            let mut output = Vec::new();
+            compile_standard_json(&input.to_string(), opts, None, &mut output).unwrap();
+            String::from_utf8(output).unwrap()
+        };
+        let sequential = compile(1);
+        assert!(sequential.contains("\"nodeType\":\"SourceUnit\""), "{sequential}");
+        assert_eq!(sequential, compile(4), "stopAfter: {stop_after:?}");
+    }
+}
+
+/// `no_import_callback` disables the read callback a library caller passes, like solc's
+/// `--no-import-callback`.
+#[test]
+fn no_import_callback_ignores_callback() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, _data: &str) -> ReadCallbackResult {
+            ReadCallbackResult::Success("contract X {}".to_string())
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"A.sol": {"content": "import \"X.sol\"; contract A {}"}},
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts { no_import_callback: true, ..Default::default() };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output["errors"][0]["message"],
+        "couldn't read X.sol: File import callback not supported"
+    );
+}

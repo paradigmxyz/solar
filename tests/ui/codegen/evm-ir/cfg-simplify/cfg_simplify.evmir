@@ -159,7 +159,7 @@ bb20:
   jump bb21
 // CHECK-LABEL: {{^[ +].*}}bb21:
 // CHECK: - jump bb22 !metadata(span=10..20)
-// CHECK: + push 128 !metadata(span=10..20)
+// CHECK: + push 128{{$}}
 // CHECK-NEXT: + mstore
 // CHECK-NEXT: + push 32
 // CHECK-NEXT: + push 128

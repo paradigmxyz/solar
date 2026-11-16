@@ -1,0 +1,11 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/calls/empty_external_return.sol:EmptyExternalReturn (runtime) ===
+@module EmptyExternalReturn_runtime
+bb0:                                              ; runtime dispatch entry + fallback() external [fallback]
+  callvalue
+  push bb2
+  jumpi
+  stop
+bb2 [cold]:
+  push 0
+  push 0
+  revert

@@ -1,0 +1,192 @@
+; === ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:A ===
+@module A
+
+; === ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:B ===
+@module B
+@data
+  A_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:A"
+  A_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:A"
+
+; function nonEmptyCode() public pure returns (bool) [selector 0x73c60a6b]
+fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize A_creation_code_0
+    v1 = datasize A_creation_code_0, 63, aligned
+    v2 = alloc v1 !metadata(preserves_fmp)
+    mstore v2, v0
+    v3 = ptradd v2, 32
+    v4 = datasize A_creation_code_0, 31, aligned
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    datacopy A_creation_code_0, v3, v0
+    v7 = mload v2
+    v8 = gt v7, 0
+    jumpi v8, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v9 = datasize A_runtime_code_1
+    v10 = datasize A_runtime_code_1, 63, aligned
+    v11 = alloc v10 !metadata(preserves_fmp)
+    mstore v11, v9
+    v12 = ptradd v11, 32
+    v13 = datasize A_runtime_code_1, 31, aligned
+    v14 = ptrtoint ptr<memory> v11 to i256
+    v15 = add v14, v13
+    mstore v15, 0
+    datacopy A_runtime_code_1, v12, v9
+    v16 = mload v11
+    v17 = gt v16, 0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v18 = phi [bb1: v17], [bb2: false]
+    ret v18
+}
+
+; === ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:InternalContract ===
+@module InternalContract
+
+; === ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:ConstructorOnly ===
+@module ConstructorOnly
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:InternalLibrary ===
+@module InternalLibrary
+@library
+
+; === ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:EmptyContractRuntime ===
+@module EmptyContractRuntime
+@data
+  InternalContract_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:InternalContract"
+  ConstructorOnly_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:ConstructorOnly"
+  InternalLibrary_runtime_code_2: runtime_code "ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:InternalLibrary"
+  A_creation_code_3: creation_code "ROOT/tests/ui/codegen/run-call/dispatch/empty_contract_runtime.sol:A"
+
+; function hasNonCallableRuntime() external pure returns (bool) [selector 0x0fedb051]
+fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize InternalContract_runtime_code_0
+    v1 = datasize InternalContract_runtime_code_0, 63, aligned
+    v2 = alloc v1 !metadata(preserves_fmp)
+    mstore v2, v0
+    v3 = ptradd v2, 32
+    v4 = datasize InternalContract_runtime_code_0, 31, aligned
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    datacopy InternalContract_runtime_code_0, v3, v0
+    v7 = mload v2
+    v8 = gt v7, 0
+    jumpi v8, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v9 = datasize ConstructorOnly_runtime_code_1
+    v10 = datasize ConstructorOnly_runtime_code_1, 63, aligned
+    v11 = alloc v10 !metadata(preserves_fmp)
+    mstore v11, v9
+    v12 = ptradd v11, 32
+    v13 = datasize ConstructorOnly_runtime_code_1, 31, aligned
+    v14 = ptrtoint ptr<memory> v11 to i256
+    v15 = add v14, v13
+    mstore v15, 0
+    datacopy ConstructorOnly_runtime_code_1, v12, v9
+    v16 = mload v11
+    v17 = gt v16, 0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v18 = phi [bb1: v17], [bb2: false]
+    jumpi v18, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v19 = datasize InternalLibrary_runtime_code_2
+    v20 = datasize InternalLibrary_runtime_code_2, 63, aligned
+    v21 = alloc v20 !metadata(preserves_fmp)
+    mstore v21, v19
+    v22 = ptradd v21, 32
+    v23 = datasize InternalLibrary_runtime_code_2, 31, aligned
+    v24 = ptrtoint ptr<memory> v21 to i256
+    v25 = add v24, v23
+    mstore v25, 0
+    datacopy InternalLibrary_runtime_code_2, v22, v19
+    v26 = mload v21
+    v27 = gt v26, 0
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v28 = phi [bb4: v27], [bb5: false]
+    ret v28
+}
+
+; function deploysRevertingRuntime() external returns (bool) [selector 0x7c2d5470]
+fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize A_creation_code_3
+    v1 = fmp
+    datacopy A_creation_code_3, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    v5 = alloc 64 !metadata(preserves_fmp)
+    mstore v5, 4
+    v6 = ptradd v5, 32
+    mstore v6, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    v7 = extcall v2, v5, gas v4
+    v8 = zext i160 v2 to i256
+    v9 = extcodesize v8
+    v10 = gt v9, 0
+    jumpi v10, bb3, bb4
+  bb4:                                            ; preds = bb2
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v11 = eq v7, false
+    jump bb5
+  bb5:                                            ; preds = bb3, bb4
+    v12 = phi [bb3: v11], [bb4: false]
+    ret v12
+}
+
+; function hasCode() external returns (bool) [selector 0xfffc60a2]
+fn @hasCode() -> i1 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize A_creation_code_3
+    v1 = fmp
+    datacopy A_creation_code_3, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = extcodesize v4
+    v6 = ne v5, 0
+    ret v6
+}
+
+; function rejectsCalls() external returns (bool) [selector 0x99b623b6]
+fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize A_creation_code_3
+    v1 = fmp
+    datacopy A_creation_code_3, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    v5 = extcall v2, ptr<memory> 96, gas v4
+    v6 = eq v5, false
+    ret v6
+}

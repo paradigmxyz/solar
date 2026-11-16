@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::{AddressCallKind, Builtin, Callee, PtrLocation};
+use crate::{Builtin, CallPolicy, Callee, ExtCallKind, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -71,17 +71,7 @@ impl InstructionEffects {
 impl InstKind {
     /// Whether this operation reads remaining gas, directly or during builtin expansion.
     pub const fn observes_gas(&self) -> bool {
-        matches!(
-            self,
-            Self::Gas
-                | Self::ICall {
-                    function: Callee::Builtin(
-                        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover
-                    ),
-                    ..
-                }
-                | Self::AddressCall { gas: None, .. }
-        )
+        matches!(self, Self::Gas | Self::ExtCall { gas: None, .. })
     }
 
     /// Whether this operation reads account state, a balance or deployed code, which
@@ -102,23 +92,14 @@ impl InstKind {
         ) && !matches!(
             self,
             Self::StaticCall { .. }
-                | Self::AddressCall { kind: AddressCallKind::Static, .. }
-                | Self::ICall {
-                    function: Callee::Builtin(
-                        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover
-                    ),
-                    ..
-                }
+                | Self::ExtCall { policy: CallPolicy { kind: ExtCallKind::Static, .. }, .. }
         )
     }
 
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub const fn effects(&self) -> InstructionEffects {
         let control = match self {
-            Self::ICall {
-                function: Callee::Builtin(Builtin::ReturndataBytes | Builtin::Transfer),
-                ..
-            }
+            Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
             | Self::ValidateStorageBytes(..)
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
@@ -139,16 +120,9 @@ impl InstKind {
                 may_revert: matches!(semantics.failure, super::AllocationFailure::Checked),
                 ..ControlEffects::NONE
             },
-            Self::ICall {
-                function:
-                    Callee::Builtin(
-                        Builtin::Erc7201
-                        | Builtin::Sha256
-                        | Builtin::Ripemd160
-                        | Builtin::EcRecover,
-                    ),
-                ..
-            } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
+            Self::ICall { function: Callee::Builtin(Builtin::Erc7201), .. } => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::AbiEncode { .. } | Self::AbiEncodePacked { .. } => {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }
@@ -195,7 +169,6 @@ impl InstKind {
             | Self::MemoryZero(..)
             | Self::MSize
             | Self::Fmp
-            | Self::SetFmp(..)
             | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
@@ -241,8 +214,7 @@ impl InstKind {
             | Self::StorageArrayDataSlot(..)
             | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }
-            | Self::ICall { function: Callee::Builtin(Builtin::Send), .. }
-            | Self::AddressCall { .. }
+            | Self::ExtCall { .. }
             | Self::Call { .. }
             | Self::CallCode { .. }
             | Self::StaticCall { .. }

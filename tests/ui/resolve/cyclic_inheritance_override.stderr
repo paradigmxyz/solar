@@ -1,0 +1,32 @@
+error[2449]: definition of base has to precede definition of derived contract
+   ╭▸ ROOT/tests/ui/resolve/cyclic_inheritance_override.sol:LL:CC
+   │
+LL │ contract C1 is A1, B1 {
+   ╰╴         ━━
+
+error[2449]: definition of base has to precede definition of derived contract
+   ╭▸ ROOT/tests/ui/resolve/cyclic_inheritance_override.sol:LL:CC
+   │
+LL │ contract A2 is C2 {
+   ╰╴         ━━
+
+error[2449]: definition of base has to precede definition of derived contract
+   ╭▸ ROOT/tests/ui/resolve/cyclic_inheritance_override.sol:LL:CC
+   │
+LL │ contract A3 is X3, C3 {
+   ╰╴         ━━
+
+error[2449]: definition of base has to precede definition of derived contract
+   ╭▸ ROOT/tests/ui/resolve/cyclic_inheritance_override.sol:LL:CC
+   │
+LL │ contract A4 is B4 {
+   ╰╴         ━━
+
+error[2449]: definition of base has to precede definition of derived contract
+   ╭▸ ROOT/tests/ui/resolve/cyclic_inheritance_override.sol:LL:CC
+   │
+LL │ contract A5 is B5 {
+   ╰╴         ━━
+
+error: aborting due to 5 previous errors
+

@@ -1,0 +1,15 @@
+; === ROOT/tests/ui/codegen/run-call/dispatch/internal_stop_runtime.sol:InternalStopRuntime ===
+@module InternalStopRuntime
+; function haltThenRevert() external pure [selector 0xf0f4d9f7]
+fn @haltThenRevert() [selector=0xf0f4d9f7, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall @halt
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function halt() internal pure
+fn @halt() [pure] {
+  bb0:
+    stop
+}

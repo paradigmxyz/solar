@@ -126,7 +126,7 @@ fn preheader_value(
     }
     let result_ty = func.inst(header_phi).result_ty;
     let (phi, result) = func.alloc_value_inst(
-        Instruction::new(InstKind::Phi(incoming), result_ty).with_debug_info_dropped(),
+        Instruction::new(InstKind::Phi(incoming), result_ty).with_debug_loc_dropped(),
     );
     func.blocks[preheader].instructions.push(phi);
     result

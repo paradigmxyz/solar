@@ -22,6 +22,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, HirVariableId, M
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    module.contract_span = contract.span;
     module.set_unsafe_assembly(false);
     // Every decision about the contract's code reads the objective its tag selects.
     module.optimization = gcx
@@ -293,7 +294,11 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     //     ret
     if let Some(immutable_id) = library_deploy_address {
         let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
+        // solc stages the library's deployment address under the contract's location
+        // (`ContractCompiler.cpp` L231, L250-251), even though it has no source constructor.
+        constructor.declaration_span = contract.span;
         let mut builder = FunctionBuilder::new_semantic(&mut constructor);
+        builder.replace_source_span(contract.span);
         let address = builder.address();
         builder.store_immutable(immutable_id, address);
         builder.ret(std::iter::empty());
@@ -359,6 +364,11 @@ fn shared_string_literals(
     (shared, shared_word)
 }
 
+/// Returns the range solc maps a function to. A getter maps to its state variable's declaration.
+pub(super) fn declaration_span(gcx: Gcx<'_>, function: &hir::Function<'_>) -> Span {
+    function.gettee.map_or(function.span, |id| gcx.hir.variable(id).declaration_span())
+}
+
 /// Creates the MIR declaration for a HIR function.
 pub(super) fn declaration(
     gcx: Gcx<'_>,
@@ -369,7 +379,7 @@ pub(super) fn declaration(
     let name = Ident::with_dummy_span(function.name_or_kind());
     let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
-    mir.declaration_span = function.span;
+    mir.declaration_span = declaration_span(gcx, function);
     mir.debug_identifier = Some(name.name);
     if gcx.sess.opts.unstable.dump.is_some() {
         mir.debug_signature = debug_signature(gcx, function.span);
@@ -494,8 +504,8 @@ fn declaration_header(source: &str) -> String {
 }
 
 /// Orders the sources in the import closure of `source` the way `Sources::topo_sort` orders all
-/// sources: a depth-first post-order over imports from the closure's sources in file name order.
-/// Unlike the compilation-wide order, it does not depend on sources outside the closure.
+/// sources: a depth-first post-order over imports from the closure's sources in source unit name
+/// order. Unlike the compilation-wide order, it does not depend on sources outside the closure.
 fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::SourceId> {
     fn visit(
         gcx: Gcx<'_>,
@@ -514,7 +524,9 @@ fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::
     let mut closure = FxIndexSet::default();
     visit(gcx, source, &mut FxHashSet::default(), &mut closure);
     let mut roots = closure.into_iter().collect::<Vec<_>>();
-    roots.sort_by_key(|&id| &gcx.hir.source(id).file.name);
+    roots.sort_by(|&a, &b| {
+        gcx.hir.source(a).file.name.cmp_source_unit_name(&gcx.hir.source(b).file.name)
+    });
     let (mut seen, mut order) = (FxHashSet::default(), FxIndexSet::default());
     for id in roots {
         visit(gcx, id, &mut seen, &mut order);

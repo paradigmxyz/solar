@@ -119,8 +119,14 @@ impl MirPass for LowerMCopy {
             .collect::<FxHashMap<_, _>>();
 
         for (func_id, sites) in sites.into_iter_enumerated() {
-            lower_function(module.function_mut(func_id), &sites, &helpers);
+            // A function without copy sites stays as it is.
+            if !sites.is_empty() {
+                lower_function(module.function_mut(func_id), &sites, &helpers);
+                analyses.invalidate_local_summary(func_id);
+            }
         }
+        // The helpers are appended, so the other functions keep their ids.
+        analyses.preserve_local_summaries();
         module.assert_runtime_helpers(functions.into_values());
         true
     }
@@ -208,6 +214,7 @@ fn copy_helper(shape: CopyShape) -> Function {
     emit_copy_loop(&mut builder, dest, src, len, exit, shape);
     builder.switch_to_block(exit);
     builder.ret([]);
+    function.mark_unlocated_compiler_generated();
     function
 }
 
@@ -429,7 +436,7 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) -> Ve
             return value;
         }
         let instruction = Instruction::new(InstKind::PtrToInt(value, 256), Some(MirType::I256));
-        let (cast, word) = func.alloc_value_inst(instruction.with_debug_info_dropped());
+        let (cast, word) = func.alloc_value_inst(instruction.with_debug_loc_dropped());
         casts.push(cast);
         word
     };

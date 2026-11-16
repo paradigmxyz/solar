@@ -1,0 +1,45 @@
+; === ROOT/tests/ui/codegen/run-call/abi-decode/abi_calldata_static_struct_validation.sol:AbiCalldataStaticStructValidation ===
+@module AbiCalldataStaticStructValidation
+@types
+  struct0: {i256, i256, i256}
+
+; function f(S memory s) external pure returns (uint256 a, uint256 b, uint256 c) [selector 0x9a869a74]
+fn @f(arg0: ptr<memory>) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<int16, uint8, bytes2>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = mload arg0
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = ptrtoint ptr<memory> arg0 to i256
+    v6 = add v5, 64
+    v7 = mload v6
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v4
+    v10 = insert_value struct0, v9, 2, v7
+    ret v10
+}
+
+; function encodeStruct() external pure returns (bytes memory) [selector 0x01e941a3]
+fn @encodeStruct() -> ptr<memory> [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @makeStruct
+    v1 = extract_value slice<calldata>, v0, 0
+    v2 = calldataload v1
+    v3 = gt v2, 255
+    icall revert_if<empty>, v3
+    v4 = ptrtoint ptr<calldata> v1 to i256
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = gt v6, 255
+    icall revert_if<empty>, v7
+    v8 = abi_encode [tuple<word<uint8>, word<uint8>>], object, args v0
+    ret v8
+}
+
+; function makeStruct() internal pure returns (Pair calldata value)
+fn @makeStruct() -> slice<calldata> [pure] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 4, 0
+    ret v0
+}

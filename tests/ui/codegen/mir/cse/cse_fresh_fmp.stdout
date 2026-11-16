@@ -96,14 +96,13 @@
     bb0:
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
-      v2 = inttoptr i256 arg2 to ptr<memory>
-      set_fmp v2
+      mstore 64, arg2
       mstore v1, arg0
-      v3 = fmp
-      v4 = ptrtoint ptr<memory> v3 to i256
-      mstore v4, arg1
-      v5 = mload v1
-      ret v5
+      v2 = fmp
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, arg1
+      v4 = mload v1
+      ret v4
   }
   
   fn @reset_on_one_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
@@ -112,16 +111,15 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       jumpi arg3, bb1, bb2
     bb1:                                            ; preds = bb0
-      v2 = inttoptr i256 arg2 to ptr<memory>
-      set_fmp v2
+      mstore 64, arg2
       jump bb2
     bb2:                                            ; preds = bb0, bb1
       mstore v1, arg0
-      v3 = fmp
-      v4 = ptrtoint ptr<memory> v3 to i256
-      mstore v4, arg1
-      v5 = mload v1
-      ret v5
+      v2 = fmp
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, arg1
+      v4 = mload v1
+      ret v4
   }
   
   fn @reset_on_other_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
@@ -131,15 +129,14 @@
       jumpi arg3, bb1, bb2
     bb2:                                            ; preds = bb0
       mstore v1, arg0
-      v3 = fmp
-      v4 = ptrtoint ptr<memory> v3 to i256
-      mstore v4, arg1
--     v5 = mload v1
--     ret v5
+      v2 = fmp
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, arg1
+-     v4 = mload v1
+-     ret v4
 +     ret arg0
     bb1:                                            ; preds = bb0
-      v2 = inttoptr i256 arg2 to ptr<memory>
-      set_fmp v2
+      mstore 64, arg2
       ret 0
   }
   
@@ -152,8 +149,7 @@
       v3 = ptrtoint ptr<memory> v2 to i256
       mstore v3, arg1
 -     v4 = mload v1
-      v5 = inttoptr i256 arg2 to ptr<memory>
-      set_fmp v5
+      mstore 64, arg2
 -     ret v4
 +     ret arg0
   }
@@ -271,8 +267,7 @@
   
   fn @resets(arg0: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to ptr<memory>
-      set_fmp v0
+      mstore 64, arg0
       ret
   }
   

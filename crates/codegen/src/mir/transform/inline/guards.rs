@@ -230,7 +230,7 @@ fn split_guard(
             *value = clone_value(caller, callee, &args, values, *value);
         });
         let mut instruction = Instruction::new(kind, source_inst.result_ty);
-        instruction.metadata.copy_debug_context(&source_inst.metadata);
+        instruction.metadata = source_inst.metadata.without_operand_facts();
         let (new_inst, new_value) = caller.alloc_value_inst(instruction);
         values.insert(callee.inst_result_value(source).unwrap(), new_value);
         instructions.push(new_inst);

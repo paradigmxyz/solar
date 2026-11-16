@@ -1,0 +1,143 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/scheduling/global_stack_calldata_alias.sol:Test (runtime) ===
+@module Test_runtime
+bb0:                                              ; runtime dispatch entry
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xc21f7bbb
+  eq
+  push bb4
+  jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb21 [cold]:
+  push 17
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb4 [entry]:                                      ; function select(address account, uint256 value) external pure returns (uint256) [selector 0xc21f7bbb]
+  push 4
+  calldataload
+  push 160
+  shr
+  push 68
+  calldatasize
+  lt
+  or
+  push bb3
+  jumpi
+  push 4
+  calldataload
+  push 36
+  calldataload
+  push 1
+  dup 3
+  eq
+  push bb19
+  jumpi
+  push 2
+  dup 3
+  eq
+  push bb17
+  jumpi
+  push 3
+  dup 3
+  eq
+  push bb15
+  jumpi
+  push 4
+  dup 3
+  eq
+  push bb13
+  jumpi
+  swap 1
+  push 5
+  eq
+  push bb11
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb11:
+  push 5
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb21
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb13:
+  push 4
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb21
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb15:
+  push 3
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb21
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb17:
+  push 2
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb21
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb19:
+  push 1
+  add
+  dup 1
+  iszero
+  push bb21
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return

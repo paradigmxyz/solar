@@ -1,0 +1,321 @@
+; === ROOT/tests/ui/codegen/lowering/mir/storage-memory/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
+@module MemoryFixedArrayAlloc
+@types
+  struct0: {i256, i256}
+
+; function guardedFix(uint256 i) public pure returns (uint256) [selector 0x93390577]
+fn @guardedFix(arg0: i256) -> i256 [selector=0x93390577, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v0, 96
+    v1 = lt arg0, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = shl arg0, 5
+    v4 = ptradd v0, v3
+    v5 = mload v4
+    ret v5
+}
+
+; function structArr(uint256 i) public pure returns (uint256) [selector 0x40b8037f]
+fn @structArr(arg0: i256) -> i256 [selector=0x40b8037f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    v1 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v1, 96
+    v2 = ptrtoint ptr<memory> v1 to i256
+    mstore v0, v2
+    v3 = mload v0, ptr<memory>
+    v4 = lt arg0, 3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = shl arg0, 5
+    v7 = ptradd v3, v6
+    v8 = mload v7
+    ret v8
+}
+
+; function nested(uint256 i, uint256 j) public pure returns (uint256) [selector 0x50d1f082]
+fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v1 = phi [bb0: 0], [bb2: v7]
+    v2 = lt v1, 3
+    jumpi v2, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v8 = lt 0, 3
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = mload v0, ptr<memory>
+    v11 = lt 0, 2
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    mstore v10, 1
+    v13 = lt arg0, 3
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = shl arg0, 5
+    v16 = ptradd v0, v15
+    v17 = mload v16, ptr<memory>
+    v18 = lt arg1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = shl arg1, 5
+    v21 = ptradd v17, v20
+    v22 = mload v21
+    ret v22
+  bb2:                                            ; preds = bb1
+    v3 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v3, 64
+    v4 = shl v1, 5
+    v5 = ptradd v0, v4
+    v6 = ptrtoint ptr<memory> v3 to i256
+    mstore v5, v6
+    v7 = add v1, 1
+    jump bb1
+}
+
+; function fmpIntegrity() public pure returns (uint256, uint256) [selector 0xe547cb4d]
+fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v0, 96
+    v1 = lt 2, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd v0, 64
+    mstore v3, 7
+    v4 = alloc zeroed checked 64
+    mstore v4, 1
+    v5 = mload v4
+    v6 = gt v5, 0
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v4, 32
+    mstore v8, 9
+    v9 = lt 2, 3
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd v0, 64
+    v12 = mload v11
+    v13 = mload v4
+    v14 = gt v13, 0
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v4, 32
+    v17 = mload v16
+    v18 = insert_value struct0, undef struct0, 0, v12
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
+}
+
+; function literal() public pure returns (uint256) [selector 0x1373185e]
+fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 96
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 2
+    v2 = ptradd v0, 64
+    mstore v2, 3
+    v3 = lt 2, 3
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 64
+    v6 = mload v5
+    ret v6
+}
+
+; function bulkDefault(uint256 i) public pure returns (uint256) [selector 0xbe4421b6]
+fn @bulkDefault(arg0: i256) -> i256 [selector=0xbe4421b6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v0, 128
+    v1 = lt arg0, 4
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = shl arg0, 5
+    v4 = ptradd v0, v3
+    v5 = mload v4
+    ret v5
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/storage-memory/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
+@module NamedReturnAndDelete
+@types
+  struct0: {ptr<memory>, i256}
+  struct1: {ptr<memory>, ptr<memory>}
+  struct2: {i256, i256}
+
+; function namedReturn() public pure returns (uint256[3] memory x, uint256 m) [selector 0xf76de570]
+fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_returns=[array<3, word>, word], abi_return_params=[array<3, uint256>, uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v0, 96
+    v1 = lt 0, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, 1
+    v3 = lt 2, 3
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 64
+    mstore v5, 3
+    v6 = alloc zeroed checked 64
+    mstore v6, 32
+    v7 = mload v6
+    v8 = gt v7, 0
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
+    v11 = ptradd v6, 32
+    mstore8 v11, v10
+    v12 = mload v6
+    v13 = gt v12, 0
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v6, 32
+    v16 = mload v15
+    v17 = byte 0, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
+    v20 = trunc i256 v19 to i8
+    v21 = zext i8 v20 to i256
+    v22 = insert_value struct0, undef struct0, 0, v0
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
+}
+
+; function emptyMemoryReferences() public pure returns (uint256) [selector 0xc82d0745]
+fn @emptyMemoryReferences() -> i256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 96
+    v1 = ptradd v0, 32
+    mstore v1, 96
+    v2 = mload ptr<memory> 96 !metadata(memory=scratch)
+    v3 = mload ptr<memory> 96 !metadata(memory=scratch)
+    v4 = checked_add uint256, v2, v3
+    v5 = mload v0, ptr<memory>
+    v6 = mload v5
+    v7 = checked_add uint256, v4, v6
+    v8 = ptradd v0, 32
+    v9 = mload v8, ptr<memory>
+    v10 = mload v9
+    v11 = checked_add uint256, v7, v10
+    ret v11
+}
+
+; function emptyNamedReturns() public pure returns (uint256[] memory values, bytes memory data) [selector 0xf4994cb3]
+fn @emptyNamedReturns() -> struct1 [selector=0xf4994cb3, pure, abi_params=[], abi_returns=[memory_array<word>, memory_bytes], abi_return_params=[array<_, uint256>, bytes]] {
+  bb0:
+    v0 = insert_value struct1, undef struct1, 0, ptr<memory> 96
+    v1 = insert_value struct1, v0, 1, ptr<memory> 96
+    ret v1
+}
+
+; function emptyWideNamedStruct() public pure returns (WideHolder memory holder) [selector 0x27d08cee]
+fn @emptyWideNamedStruct() -> ptr<memory> [selector=0x27d08cee, pure, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>], abi_return_params=[tuple<uint256, bytes, uint256, uint256>]] {
+  bb0:
+    v0 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v0, 128
+    v1 = ptradd v0, 32
+    mstore v1, 96
+    ret v0
+}
+
+; function fullyInitializedNamedStruct() public pure returns (DynamicHolder memory holder) [selector 0x03e8d290]
+fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, uint256>, bytes>]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 96
+    v2 = ptradd v1, 32
+    mstore v2, 96
+    v3 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, v3
+    v4 = alloc zeroed checked 64
+    mstore v4, 1
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = ptradd v1, 32
+    mstore v6, v5
+    ret v1
+}
+
+; function deleteRebind() public pure returns (uint256, uint256) [selector 0x81e51eb1]
+fn @deleteRebind() -> struct2 [selector=0x81e51eb1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v0, 96
+    v1 = lt 0, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, 5
+    v3 = lt 1, 3
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 32
+    mstore v5, 6
+    v6 = lt 2, 3
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 7
+    v9 = alloc 96
+    memory_zero v9, 96
+    v10 = lt 2, 3
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v9, 64
+    mstore v12, 9
+    v13 = lt 0, 3
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = mload v9
+    v16 = lt 2, 3
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd v9, 64
+    v19 = mload v18
+    v20 = insert_value struct2, undef struct2, 0, v15
+    v21 = insert_value struct2, v20, 1, v19
+    ret v21
+}
+
+; function bulkDeleteRebind() public pure returns (uint256, uint256) [selector 0x535bf203]
+fn @bulkDeleteRebind() -> struct2 [selector=0x535bf203, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v0, 128
+    v1 = lt 0, 4
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, 5
+    v3 = lt 3, 4
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 96
+    mstore v5, 7
+    v6 = alloc 128
+    memory_zero v6, 128
+    v7 = lt 3, 4
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v6, 96
+    mstore v9, 9
+    v10 = lt 0, 4
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = mload v6
+    v13 = lt 3, 4
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v6, 96
+    v16 = mload v15
+    v17 = insert_value struct2, undef struct2, 0, v12
+    v18 = insert_value struct2, v17, 1, v16
+    ret v18
+}

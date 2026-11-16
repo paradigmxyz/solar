@@ -1,0 +1,18 @@
+//@ filecheck:
+// Before Byzantium, the dynamically encoded value of an external call is inaccessible.
+// CHECK: "nodeType": "FunctionCall"
+// CHECK: "typeIdentifier": "t_inaccessible"
+// CHECK: "typeString": "inaccessible dynamic type"
+{
+  "language": "Solidity",
+  "settings": {
+    "evmVersion": "homestead",
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+; === ROOT/tests/ui/codegen/run-call/memory/element_cleanup_forged_length.sol:ElementCleanupForgedLength ===
+@module ElementCleanupForgedLength
+; function forged(uint256 i) external pure returns (uint256) [selector 0x0fa02195]
+fn @forged(arg0: i256) -> i256 [selector=0x0fa02195, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = mload v0
+    v3 = lt arg0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = shl arg0, 5
+    v6 = ptradd v0, v5
+    v7 = ptradd v6, 32
+    v8 = mload v7
+    v9 = trunc i256 v8 to i8
+    v10 = zext i8 v9 to i256
+    ret v10
+}

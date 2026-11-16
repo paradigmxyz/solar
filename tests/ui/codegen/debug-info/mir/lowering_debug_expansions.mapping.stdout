@@ -1,0 +1,31 @@
+- ; === ROOT/tests/ui/codegen/debug-info/mir/lowering_debug_expansions.mir (before lower-mapping-slots) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/lowering_debug_expansions.mir (after lower-mapping-slots) ===
+  @module DebugExpansions
+  fn @slot(arg0: i256) -> i256 {
+    bb0:
+-     v0 = mapping_slot arg0, 7 !metadata(span=10..20)
+-     v1 = mapping_slot arg0, 9 !metadata(span=20..30)
+-     v2 = add v0, v1
++     mstore 0, arg0 !metadata(memory=scratch, span=10..20)
++     mstore 32, 7 !metadata(memory=scratch, span=10..20)
++     v3 = keccak256 0, 64 !metadata(memory=scratch, span=10..20)
++     mstore 0, arg0 !metadata(memory=scratch, span=20..30)
++     mstore 32, 9 !metadata(memory=scratch, span=20..30)
++     v4 = keccak256 0, 64 !metadata(memory=scratch, span=20..30)
++     v2 = add v3, v4
+      ret v2 !metadata(span=70..80)
+  }
+  
+  fn @frame(arg0: i256) -> i256 {
+    bb0:
+      frame_store scratch, word, 0, arg0 !metadata(span=30..40)
+      v0 = frame_load scratch, word, 0 !metadata(span=40..50)
+      ret v0 !metadata(span=70..80)
+  }
+  
+  fn @allocate(arg0: i256) -> ptr<memory> {
+    bb0:
+      v0 = alloc zeroed checked arg0 !metadata(span=50..60, preserves_fmp)
+      ret v0 !metadata(span=70..80)
+  }
+  

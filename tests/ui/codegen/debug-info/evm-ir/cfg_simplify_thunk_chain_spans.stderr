@@ -1,0 +1,3 @@
+debugify: EVM IR ThunkChainSpans after cfg-simplify: 1/3 origins retained, 2 lost
+debugify: lost 30..40
+debugify: lost 90..100

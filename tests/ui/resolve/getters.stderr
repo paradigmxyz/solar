@@ -1,0 +1,48 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.simple;
+   ╰╴        ━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.array;
+   ╰╴        ━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.map;
+   ╰╴        ━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.mapOfArrays;
+   ╰╴        ━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.nestedMap;
+   ╰╴        ━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.nestedMapOfArrays;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.nestedArrayOfMaps;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/getters.sol:LL:CC
+   │
+LL │         this.nestedArrayOfMapsOfArrays;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

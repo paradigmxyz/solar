@@ -1,0 +1,32 @@
+; === ROOT/tests/ui/codegen/run-call/inheritance/exact_base_void_return.sol:Base ===
+@module Base
+
+; === ROOT/tests/ui/codegen/run-call/inheritance/exact_base_void_return.sol:Derived ===
+@module Derived
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; function f(bool stop) external returns (uint256) [selector 0x98c3a6c1]
+fn @f(arg0: i1) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @gate, arg0
+    sstore 0, 2 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function gate(bool stop) internal
+fn @gate(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    sstore 0, 1 !metadata(storage=slot(0))
+    ret
+  bb1:                                            ; preds = bb0
+    ret
+}

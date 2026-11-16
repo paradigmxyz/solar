@@ -488,11 +488,10 @@ impl LoopAnalyzer {
                 continue;
             }
             let Value::Inst(cond_inst) = func.value(*condition) else { continue };
-            let imm = match &func.inst(*cond_inst).kind {
-                InstKind::Lt(a, b) if *a == iv_value => *b,
-                InstKind::Gt(a, b) if *b == iv_value => *a,
-                _ => continue,
-            };
+            let &InstKind::Lt(iv, imm) = &func.inst(*cond_inst).kind else { continue };
+            if iv != iv_value {
+                continue;
+            }
             let Value::Immediate(imm) = func.value(imm) else { continue };
             let Some(this_bound) = imm.as_u256() else { continue };
             match bound {

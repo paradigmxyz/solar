@@ -1,0 +1,38 @@
+- ; === ROOT/tests/ui/codegen/mir/inline/helper_clone_origin.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/helper_clone_origin.mir (after inline) ===
+  @module InlineHelperCloneOrigin
+  fn @caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @callee, arg0 !metadata(span=10..20)
+-     ret v0 !metadata(span=20..30)
++     jump bb2 !metadata(span=10..20)
++   bb2 !metadata(span=10..20):                     ; preds = bb0
++     v1 = add arg0, 1 !metadata(span=10..20)
++     v2 = mul v1, 3 !metadata(span=100..110)
++     jump bb1 !metadata(span=10..20)
++   bb1:                                            ; preds = bb2
++     v3 = phi [bb2: v2]
++     ret v3 !metadata(span=20..30)
+  }
+  
+- fn @callee(arg0: i256) -> i256 {
+-   bb0 !metadata(compiler_generated):
+-     v0 = add arg0, 1 !metadata(compiler_generated)
+-     v1 = mul v0, 3 !metadata(span=100..110)
+-     ret v1 !metadata(compiler_generated)
+- }
+- 
+  fn @unlocated_caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @callee, arg0
+-     ret v0
++     jump bb2
++   bb2 !metadata(compiler_generated):              ; preds = bb0
++     v1 = add arg0, 1 !metadata(compiler_generated)
++     v2 = mul v1, 3 !metadata(span=100..110)
++     jump bb1 !metadata(compiler_generated)
++   bb1:                                            ; preds = bb2
++     v3 = phi [bb2: v2]
++     ret v3
+  }
+  

@@ -1,0 +1,711 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/constructs/constant_select.sol:ConstantSelect (runtime) ===
+@module ConstantSelect_runtime
+bb0:                                              ; runtime dispatch entry
+  callvalue
+  push bb12
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x97ffd282
+  gt
+  push bb2
+  jumpi
+  dup 1
+  push 0x97ffd282
+  eq
+  push bb64
+  jumpi
+  dup 1
+  push 0xb374012b
+  eq
+  push bb16
+  jumpi
+  dup 1
+  push 0xc22ee0b0
+  eq
+  push bb44
+  jumpi
+  dup 1
+  push 0xca22fbdf
+  eq
+  push bb58
+  jumpi
+  dup 1
+  push 0xcd9c288e
+  eq
+  push bb70
+  jumpi
+  jump bb12
+bb12 [cold]:
+  push 0
+  push 0
+  revert
+bb39 [cold]:
+  push 34
+  jump bb81
+bb79 [loop]:
+  push 0
+  dup 2
+  sstore
+  swap 2
+  push 1
+  add
+  swap 2
+  push 1
+  add
+  dup 4
+  dup 4
+  lt
+  push bb79
+  jumpi
+  pop
+  swap 2
+  pop
+  pop
+  jump
+bb70:                                             ; function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256) [selector 0xcd9c288e]
+  push 68
+  calldatasize
+  lt
+  push bb12
+  jumpi
+  push 7
+  push 36
+  calldataload
+  sub
+  push 4
+  calldataload
+  push 0
+  lt
+  mul
+  push 7
+  add
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb40 [cold]:
+  push 65
+  jump bb81
+bb81 [cold]:
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb2:                                              ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
+  dup 1
+  push 0x1cd9057
+  eq
+  push bb48
+  jumpi
+  dup 1
+  push 0x3701b99b
+  eq
+  push bb70
+  jumpi
+  dup 1
+  push 0x59834352
+  eq
+  push bb52
+  jumpi
+  dup 1
+  push 0x739ca28b
+  sub
+  push bb12
+  jumpi
+  push 100
+  calldatasize
+  lt
+  push bb12
+  jumpi
+  push 68
+  calldataload
+  dup 1
+  push 36
+  calldataload
+  sub
+  push 4
+  calldataload
+  push 0
+  lt
+  mul
+  add
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb16 [loop, entry]:                               ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b] + clear_storage_words (synthesized)
+  push 4
+  dup 1
+  calldataload
+  calldatasize
+  push 36
+  calldatasize
+  sub
+  dup 3
+  gt
+  swap 1
+  push 36
+  gt
+  or
+  push bb12
+  jumpi
+  add
+  dup 1
+  calldataload
+  swap 1
+  push 32
+  add
+  push 31
+  dup 3
+  add
+  push 31
+  not
+  dup 2
+  and
+  push 32
+  add
+  dup 4
+  dup 2
+  lt
+  push 160
+  swap 2
+  dup 3
+  add
+  dup 1
+  push 64
+  shr
+  dup 4
+  dup 3
+  lt
+  or
+  swap 1
+  swap 2
+  or
+  push bb40
+  jumpi
+  push 64
+  mstore
+  dup 4
+  dup 2
+  mstore
+  dup 3
+  calldatasize
+  sub
+  dup 5
+  gt
+  push bb12
+  jumpi
+  push 32
+  add
+  dup 4
+  dup 4
+  dup 3
+  calldatacopy
+  push 0
+  push 0
+  sload
+  dup 1
+  push 1
+  and
+  dup 1
+  push 1
+  eq
+  swap 3
+  sub
+  push 127
+  or
+  swap 1
+  push 1
+  shr
+  and
+  dup 2
+  dup 2
+  push 32
+  gt
+  eq
+  push bb39
+  jumpi
+  push 31
+  dup 2
+  add
+  push 5
+  shr
+  dup 7
+  dup 6
+  lt
+  push bb40
+  jumpi
+  swap 4
+  push 5
+  shr
+  push 32
+  dup 8
+  lt
+  swap 1
+  dup 2
+  iszero
+  mul
+  swap 2
+  dup 8
+  lt
+  swap 1
+  swap 3
+  and
+  iszero
+  push bb42
+  jumpi
+  push 0
+  swap 4
+  swap 2
+  swap 4
+  push bb23
+  swap 1
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  dup 3
+  add
+  dup 4
+  dup 4
+  lt
+  push bb79
+  jumpi
+  pop
+  swap 2
+  pop
+  pop
+  jump
+bb23 [continuation]:
+  swap 2
+  pop
+  jump bb24
+bb24:
+  push bb30
+  jumpi
+  dup 2
+  not
+  dup 3
+  sub
+  push 0
+  sstore
+  push 0
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  dup 3
+  push 5
+  shr
+  push 0
+  jump bb26
+bb29 [loop]:
+  dup 1
+  push 5
+  shl
+  dup 5
+  add
+  mload
+  dup 2
+  dup 5
+  add
+  sstore
+  push 1
+  add
+  jump bb26
+bb26 [loop]:
+  dup 2
+  dup 2
+  lt
+  push bb29
+  jumpi
+  pop
+  swap 3
+  push 31
+  and
+  dup 1
+  iszero
+  push bb43
+  jumpi
+  push 32
+  sub
+  push 3
+  shl
+  push 0
+  not
+  dup 5
+  push 5
+  shl
+  swap 2
+  shl
+  swap 3
+  add
+  mload
+  swap 3
+  add
+  swap 2
+  and
+  swap 1
+  sstore
+  jump bb31
+bb31:
+  push 0
+  sload
+  push 1
+  dup 2
+  and
+  push 1
+  dup 2
+  eq
+  swap 1
+  push 0
+  sub
+  push 127
+  or
+  dup 3
+  push 1
+  shr
+  and
+  push 32
+  dup 2
+  lt
+  dup 3
+  eq
+  push bb39
+  jumpi
+  push 31
+  dup 2
+  add
+  dup 1
+  push 5
+  shr
+  swap 1
+  push 31
+  not
+  and
+  push 32
+  add
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  dup 1
+  push 64
+  shr
+  swap 1
+  dup 3
+  gt
+  or
+  push bb40
+  jumpi
+  swap 2
+  dup 3
+  mstore
+  swap 2
+  push bb35
+  jumpi
+  swap 2
+  push 255
+  not
+  and
+  push 32
+  dup 4
+  add
+  mstore
+  pop
+  jump bb37
+bb37:
+  dup 1
+  mload
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  swap 1
+  push 32
+  dup 4
+  add
+  add
+  push 0
+  swap 1
+  mstore
+  push 32
+  swap 1
+  swap 2
+  sub
+  push 32
+  dup 2
+  mstore
+  swap 1
+  push 64
+  add
+  swap 1
+  return
+bb30:
+  mload
+  push 0
+  not
+  dup 3
+  push 32
+  sub
+  push 3
+  shl
+  shl
+  and
+  swap 1
+  dup 1
+  add
+  or
+  push 0
+  sstore
+  jump bb31
+bb35 [loop]:
+  push 32
+  dup 2
+  add
+  push 0
+  swap 4
+  pop
+  swap 1
+  swap 2
+  swap 3
+  dup 4
+  dup 2
+  lt
+  push bb38
+  jumpi
+  swap 2
+  jump bb37
+bb38 [loop]:
+  dup 1
+  push 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+  add
+  sload
+  dup 3
+  push 32
+  add
+  swap 3
+  mstore
+  push 1
+  add
+  dup 4
+  dup 2
+  lt
+  push bb38
+  jumpi
+  swap 2
+  jump bb37
+bb42:
+  pop
+  swap 2
+  pop
+  swap 2
+  pop
+  jump bb24
+bb43:
+  pop
+  pop
+  pop
+  pop
+  jump bb31
+bb44 [entry]:                                     ; function word(bytes calldata value) external pure returns (bytes32) [selector 0xc22ee0b0]
+  push 36
+  calldatasize
+  lt
+  push bb12
+  jumpi
+  push bb46
+  jump bb80
+bb80 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_slice (synthesized)
+  push 4
+  calldataload
+  push 4
+  dup 2
+  add
+  swap 1
+  push 36
+  calldatasize
+  sub
+  lt
+  dup 2
+  calldataload
+  push 32
+  dup 4
+  add
+  calldatasize
+  sub
+  lt
+  or
+  push bb12
+  jumpi
+  swap 1
+  jump
+bb46 [continuation]:
+  dup 1
+  calldataload
+  swap 1
+  push 32
+  add
+  calldataload
+  push 0
+  not
+  dup 3
+  push 32
+  sub
+  push 3
+  shl
+  shl
+  swap 2
+  push 32
+  gt
+  push 0
+  not
+  add
+  swap 1
+  swap 2
+  or
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb48 [entry]:                                     ; function prefix(bytes calldata value) external pure returns (bytes4) [selector 0x01cd9057]
+  push 36
+  calldatasize
+  lt
+  push bb12
+  jumpi
+  push bb50
+  jump bb80
+bb50 [continuation]:
+  dup 1
+  calldataload
+  swap 1
+  push 32
+  add
+  calldataload
+  push 4
+  dup 3
+  lt
+  swap 2
+  push 4
+  sub
+  push 3
+  shl
+  push 0
+  not
+  push 224
+  shl
+  dup 1
+  swap 2
+  shl
+  dup 2
+  swap 4
+  swap 1
+  dup 3
+  swap 1
+  sub
+  mul
+  add
+  and
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb52 [entry]:                                     ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
+  push 36
+  calldatasize
+  lt
+  push 1
+  push 4
+  calldataload
+  gt
+  or
+  jump bb83
+bb83:
+  push bb12
+  jumpi
+  push 0xe2179b8e
+  push 224
+  shl
+  push 4
+  calldataload
+  push 0
+  lt
+  push 0x26121ff0
+  push 224
+  shl
+  dup 3
+  swap 1
+  sub
+  mul
+  jump bb82
+bb82:
+  add
+  push 160
+  push 224
+  push 64
+  mstore
+  push 4
+  dup 2
+  mstore
+  push 192
+  swap 2
+  dup 3
+  mstore
+  swap 1
+  push 4
+  add
+  push 0
+  swap 1
+  mstore
+  push 32
+  swap 1
+  sub
+  push 32
+  dup 2
+  mstore
+  push 96
+  swap 1
+  return
+bb58 [entry]:                                     ; function dirtySignature(uint256 raw) external pure returns (bytes memory) [selector 0xca22fbdf]
+  push 36
+  calldatasize
+  lt
+  jump bb83
+bb64 [entry]:                                     ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
+  push 36
+  calldatasize
+  lt
+  push bb12
+  jumpi
+  push 4
+  calldataload
+  push 0
+  lt
+  push 0xbc057b9e
+  push 224
+  shl
+  mul
+  push 0x26121ff0
+  push 224
+  shl
+  jump bb82

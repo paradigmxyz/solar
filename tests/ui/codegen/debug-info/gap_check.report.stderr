@@ -1,0 +1,30 @@
+debugify: MIR GapCheck after heap-floor: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-checks: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-builtins: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-arithmetic: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after cfg-simplify: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi-encode: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-dispatch: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-structs: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-frame-slots: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-mapping-slots: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-memory-objects: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-slices: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-immutables: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-mcopy: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-alloc: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-memory-zero: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-integers: 5/5 origins retained, 0 lost
+debugify: MIR GapCheck after lower-evm-shaped: 5/5 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after cfg-simplify-early: 5/5 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after block-layout: 5/5 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after pack-data: 5/5 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after compact-pushes: 5/5 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after returndata-zero: 5/5 origins retained, 0 lost
+debugify: EVM IR GapCheck_deployment after cfg-simplify-early: 1/1 origins retained, 0 lost
+debugify: EVM IR GapCheck_deployment after block-layout: 1/1 origins retained, 0 lost
+debugify: EVM IR GapCheck_deployment after pack-data: 1/1 origins retained, 0 lost
+debugify: EVM IR GapCheck_deployment after compact-pushes: 1/1 origins retained, 0 lost
+debugify: EVM IR GapCheck_deployment after returndata-zero: 1/1 origins retained, 0 lost
+debugify: EVM IR GapCheck after stackify: 5/5 origins retained, 0 lost

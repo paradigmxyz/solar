@@ -972,7 +972,7 @@ fn getter_member_completion_does_not_extend_past_declaration() {
 
 #[test]
 fn completes_all_declaration_receivers_before_analysis() {
-    let fixture = RequestFixture::new(
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
         enum Status { Pending, Done }
@@ -1038,7 +1038,7 @@ selector Method
 
 #[test]
 fn completes_namespace_and_library_receivers_before_analysis() {
-    let fixture = RequestFixture::new_in_batches(
+    let fixture = RequestFixture::new_in_batches_allowing_diagnostics(
         r#"
         //- /Definitions.sol
         enum Status { Pending, Done }

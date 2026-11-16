@@ -1,0 +1,99 @@
+; === ROOT/tests/ui/codegen/run-call/tuples/tuple_decl_bytes_conversion.sol:TupleDeclBytesConversion ===
+@module TupleDeclBytesConversion
+@types
+  struct0: {i256, ptr<memory>}
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 5
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 0, v0
+    ret
+}
+
+; function declareStorage() external returns (uint256, bytes memory) [selector 0xd76e0072]
+fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v0
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = sub 0, v1
+    v4 = or v3, 127
+    v5 = shr v0, 1
+    v6 = and v5, v4
+    v7 = lt v6, 0x10000000000000000
+    v8 = eq v7, false
+    icall panic_if<0x41>, v8
+    v9 = gt v6, 31
+    jumpi v9, bb2, bb1
+  bb1:                                            ; preds = bb0
+    v23 = eq v6, 31
+    jumpi v23, bb3, bb4
+  bb4:                                            ; preds = bb1
+    v28 = add v0, 2
+    v29 = sub 31, v6
+    v30 = mul v29, 8
+    v31 = shl 255, v30
+    v32 = not v31
+    v33 = and v28, v32
+    v34 = byte 0, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v35 = shl v34, v30
+    v36 = or v33, v35
+    sstore 0, v36 !metadata(storage=slot(0))
+    jump bb5
+  bb3:                                            ; preds = bb1
+    v24 = storage_array_data_slot 0
+    v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v26 = byte 0, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v27 = or v25, v26
+    sstore v24, v27 !metadata(storage=symbolic(v24))
+    sstore 0, 65 !metadata(storage=slot(0))
+    jump bb5
+  bb2:                                            ; preds = bb0
+    v10 = add v0, 2
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = storage_array_data_slot 0
+    v12 = shr v6, 5
+    v13 = add v11, v12
+    v14 = and v6, 31
+    v15 = sub 31, v14
+    v16 = mul v15, 8
+    v17 = shl 255, v16
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = shl 33, v16
+    v22 = or v20, v21
+    sstore v13, v22 !metadata(storage=symbolic(v13))
+    jump bb5
+  bb5:                                            ; preds = bb2, bb3, bb4
+    v37 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v37
+    v38 = and v37, 1
+    v39 = eq v38, 1
+    v40 = sub 0, v38
+    v41 = or v40, 127
+    v42 = shr v37, 1
+    v43 = and v42, v41
+    v44 = load_storage_bytes 0
+    v45 = insert_value struct0, undef struct0, 0, v43
+    v46 = insert_value struct0, v45, 1, v44
+    ret v46
+}
+
+; function declareMemory() external view returns (bytes memory) [selector 0x0f124233]
+fn @declareMemory() -> ptr<memory> [selector=0x0f124233, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = load_storage_bytes 0
+    ret v0
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}

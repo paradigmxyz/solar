@@ -1,0 +1,146 @@
+error[2271]: cannot apply builtin operator `+` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a + b;
+   │         ┬ ━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `-` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a - b;
+   │         ┬ ━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `*` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a * b;
+   │         ┬ ━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `/` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a / b;
+   │         ┬ ━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `%` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a % b;
+   │         ┬ ━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `**` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a ** b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `+` to `bytes32` and `bytes4`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a + c;
+   │         ┬ ━ ─ bytes4
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `+` to `bytes32` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a + 1;
+   │         ┬ ━ ─ int_literal[1]
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `+` to `int_literal[1]` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         1 + a;
+   │         ┬ ━ ─ bytes32
+   │         │
+   ╰╴        int_literal[1]
+
+error[2271]: cannot apply builtin operator `==` to `int_literal[1]` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         0 == a;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        int_literal[1]
+
+error[2271]: cannot apply builtin operator `+` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         return (a + b, a * b);
+   │                 ┬ ━ ─ bytes32
+   │                 │
+   ╰╴                bytes32
+
+error[2271]: cannot apply builtin operator `*` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         return (a + b, a * b);
+   │                        ┬ ━ ─ bytes32
+   │                        │
+   ╰╴                       bytes32
+
+error[2271]: cannot apply builtin operator `&&` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a && b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `||` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a || b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `<<` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a << b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `>>` to `bytes32` and `int8`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a >> s;
+   │         ┬ ━━ ─ int8
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `>>>` to `bytes32` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         a >>> 1;
+   │         ┬ ━━━ ─ int_literal[1]
+   │         │
+   ╰╴        bytes32
+
+error[2271]: cannot apply builtin operator `+` to `bytes1` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_binary.sol:LL:CC
+   │
+LL │         x + 0x01;
+   │         ┬ ━ ──── int_literal[1]
+   │         │
+   ╰╴        bytes1
+
+error: aborting due to 18 previous errors
+

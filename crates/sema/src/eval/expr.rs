@@ -62,8 +62,9 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
         hir::ExprKind::Lit(lit) => eval_lit(cx, lit),
         hir::ExprKind::Tuple([Some(inner)]) => ev(inner),
         hir::ExprKind::Ident(_) | hir::ExprKind::Member(..)
-            if let Some(res @ (hir::Res::Item(hir::ItemId::Variable(_)) | hir::Res::Err(_))) =
-                cx.res(expr) =>
+            if let Ok(Some(
+                res @ (hir::Res::Item(hir::ItemId::Variable(_)) | hir::Res::Err(_)),
+            )) = cx.res(expr) =>
         {
             eval_res(cx, res)
         }
@@ -117,7 +118,7 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
                 (Ok(value), Ok(())) => Ok(value),
             }
         }
-        hir::ExprKind::Call(callee, args) if early => match (cx.res(callee), args.kind) {
+        hir::ExprKind::Call(callee, args) if early => match (cx.res(callee)?, args.kind) {
             (Some(hir::Res::Builtin(Builtin::Erc7201)), hir::CallArgsKind::Unnamed([arg])) => {
                 Ok(builtins::call(gcx, Builtin::Erc7201, &[ev(arg)?])?)
             }
@@ -217,7 +218,7 @@ fn eval_res(cx: ConstEval<'_>, res: hir::Res) -> EvalResult {
 /// Evaluates a member access that does not name a variable.
 fn eval_member(cx: ConstEval<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult {
     let gcx = cx.gcx;
-    let res = cx.res(base);
+    let res = cx.res(base)?;
     let value = match (&base.kind, member) {
         (hir::ExprKind::TypeCall(ty), sym::min | sym::max) => {
             let max = member == sym::max;
@@ -322,7 +323,7 @@ fn eval_call(
             _ => return Err(EE::UnsupportedExpr.into()),
         },
         hir::ExprKind::Member(base, member)
-            if let Some(hir::Res::Item(hir::ItemId::Udvt(id))) = cx.res(base) =>
+            if let Ok(Some(hir::Res::Item(hir::ItemId::Udvt(id)))) = cx.res(base) =>
         {
             match member.name {
                 sym::wrap => Callee::Wrap(id),
@@ -330,7 +331,7 @@ fn eval_call(
                 _ => return Err(EE::UnsupportedExpr.into()),
             }
         }
-        _ => match cx.res(callee) {
+        _ => match cx.res(callee)? {
             Some(hir::Res::Item(hir::ItemId::Contract(id))) => {
                 Callee::Convert(ValueTy::Contract(id))
             }
@@ -479,7 +480,7 @@ fn implicit_to_declared(
 fn eval_encode_call(cx: ConstEval<'_>, args: &[hir::Expr<'_>]) -> EvalResult {
     let gcx = cx.gcx;
     let [function, call_args] = args else { return Err(EE::UnsupportedExpr.into()) };
-    let Some(hir::Res::Item(id @ hir::ItemId::Function(f))) = cx.res(function) else {
+    let Some(hir::Res::Item(id @ hir::ItemId::Function(f))) = cx.res(function)? else {
         return Err(EE::UnsupportedExpr.into());
     };
     if !has_selector(gcx, id) {

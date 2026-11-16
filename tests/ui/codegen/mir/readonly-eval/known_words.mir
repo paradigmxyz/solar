@@ -205,8 +205,7 @@ fn @unknown_alias(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}= icall @read
 fn @recycled(arg0: i256) -> i256 {
   bb0:
-    v17 = inttoptr i256 arg0 to ptr<memory>
-    set_fmp v17
+    mstore 64, arg0
     v16 = alloc 32
     v0 = ptrtoint ptr<memory> v16 to i256
     mstore v0, 42

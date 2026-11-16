@@ -8,7 +8,12 @@
 //! summaries and other module state.
 
 use crate::{
-    mir::{Module, analysis::HotnessAnalysis, pass::ModuleAnalyses, should_validate_ir, validate},
+    mir::{
+        Module,
+        analysis::{HotnessAnalysis, LocalSummaryCache},
+        pass::ModuleAnalyses,
+        should_validate_ir, validate,
+    },
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -116,6 +121,13 @@ pub trait MirPass: Sync {
     ///
     /// Report an emitted error with [`ModuleAnalyses::fail`] to stop this pipeline.
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
+
+    /// Returns whether names and instruction IDs still identify the same instructions after
+    /// this pass. Debugify only certifies explicit drops when the pass preserves those sites;
+    /// replacing a function can reuse its name and restart its instruction IDs.
+    fn preserves_debugify_sites(&self) -> bool {
+        false
+    }
 }
 
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
@@ -136,6 +148,31 @@ pub(crate) fn run_passes_inner(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> (bool, Option<ErrorGuaranteed>) {
+    run_passes_with(gcx, module, passes, name, &mut ModuleAnalyses::default())
+}
+
+/// Runs one stage of the default pipeline, reusing the local memory summaries the previous stage
+/// left in `local_summaries`, since nothing edits the module between stages.
+#[must_use]
+pub(crate) fn run_pipeline_stage(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    local_summaries: &mut LocalSummaryCache,
+) -> (bool, Option<ErrorGuaranteed>) {
+    let mut analyses = ModuleAnalyses::with_local_summaries(std::mem::take(local_summaries));
+    let result = run_passes_with(gcx, module, passes, None, &mut analyses);
+    *local_summaries = analyses.into_local_summaries();
+    result
+}
+
+fn run_passes_with(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    name: Option<&str>,
+    analyses: &mut ModuleAnalyses,
+) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
     {
         name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
@@ -144,7 +181,6 @@ pub(crate) fn run_passes_inner(
     };
     let explicit = name.is_some();
     let mut changed = false;
-    let mut analyses = ModuleAnalyses::default();
     let mut unchanged = Vec::new();
     // Parsed or lowered MIR carries no trustworthy hotness.
     let mut hotness = HotnessAnalysis::new();
@@ -185,7 +221,7 @@ pub(crate) fn run_passes_inner(
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = module.take_lowered_check();
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
-                    .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
+                    .in_scope(|| pass.run_pass(gcx, module, analyses));
                 module.restore_lowered_check(
                     lowered_checked && !pass_changed && !analyses.unreported_edit,
                 );
@@ -193,13 +229,25 @@ pub(crate) fn run_passes_inner(
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
                     // delete with their last other use.
+                    // Only the bodies the pass edited can hold one, when the runners recorded
+                    // them.
                     // sstore s, v !metadata(storage=offset(dead, n)) -> sstore s, v
-                    for func in module.functions.iter_mut() {
-                        func.drop_dangling_storage_aliases();
+                    let changed_functions = analyses.changed_functions(module.functions.len());
+                    match changed_functions {
+                        Some(changed) => {
+                            for func_id in changed.iter() {
+                                module.functions[func_id].drop_dangling_storage_aliases();
+                            }
+                        }
+                        None => {
+                            for func in module.functions.iter_mut() {
+                                func.drop_dangling_storage_aliases();
+                            }
+                        }
                     }
                     // Backend memory records describe the code generated for the MIR as it was.
                     module.backend_memory = None;
-                    match analyses.changed_functions(module.functions.len()) {
+                    match changed_functions {
                         Some(changed) => hotness.update(gcx, module, changed),
                         None => hotness.run(gcx, module),
                     }
@@ -226,7 +274,7 @@ pub(crate) fn run_passes_inner(
                     "MIR",
                     module.name,
                     pass_name,
-                    crate::debugify::Origins::mir_after(module),
+                    crate::debugify::Origins::mir_after(module, pass.preserves_debugify_sites()),
                 )
             {
                 return (changed, Some(error));

@@ -232,10 +232,9 @@ fn hoist(func: &mut Function, target: &Target) -> bool {
             // v = calldataload offset, before the branch
             let instruction = func.inst(below[0]);
             let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
-            copy.metadata.copy_debug_context(&instruction.metadata);
-            for &other in &below[1..] {
-                copy.metadata.merge_debug_context(&func.inst(other).metadata);
-            }
+            copy.metadata.preserve_debug_loc(&instruction.metadata);
+            copy.metadata
+                .merge_debug_locs(below[1..].iter().map(|&other| &func.inst(other).metadata));
             let (inst, value) = func.alloc_value_inst(copy);
             func.blocks[block].instructions.push(inst);
             // read dominated by the branch => the hoisted read
@@ -321,7 +320,7 @@ fn run(func: &mut Function) -> bool {
     for (home, inst, result, target) in sunk {
         let instruction = func.inst(inst);
         let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
-        copy.metadata.copy_debug_context(&instruction.metadata);
+        copy.metadata.preserve_debug_loc(&instruction.metadata);
         let (copy_inst, copy_value) = func.alloc_value_inst(copy);
         let position = func.blocks[target]
             .instructions

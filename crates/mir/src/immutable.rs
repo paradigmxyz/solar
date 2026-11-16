@@ -27,21 +27,32 @@ pub fn immutable_push_type_size(
     }
 }
 
-/// Returns the first byte after every constructor-local slot.
+/// Returns the first byte after every constructor-local slot, and after the local region of each
+/// function the constructor runs that accesses it at absolute addresses.
 fn constructor_local_memory_end(module: &Module) -> u64 {
-    module.constructor().map_or(EvmMemoryLayout::HEAP_START, |constructor| {
-        EvmMemoryLayout::HEAP_START
-            .checked_add(module.function(constructor).internal_frame_size)
-            .expect("constructor local-memory size overflow")
-    })
+    let Some(constructor) = module.constructor() else { return EvmMemoryLayout::HEAP_START };
+    let local_end = EvmMemoryLayout::HEAP_START
+        .checked_add(module.function(constructor).internal_frame_size)
+        .expect("constructor local-memory size overflow");
+    module
+        .constructor_reachable_functions()
+        .iter()
+        .filter_map(|func| module.function(func).absolute_local_end())
+        .fold(local_end, u64::max)
 }
 
 /// Returns the first immutable staging word, above every constructor-owned
 /// fixed memory word.
+///
+/// `lower-immutables` fixes the base on the module, since its stores are themselves absolute
+/// accesses that a later computation would count.
 pub fn immutable_staging_base(module: &Module) -> u64 {
-    let fixed_end = constructor_local_memory_end(module)
-        .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
-    EvmMemoryLayout::align_word(fixed_end).expect("constructor immutable staging address overflow")
+    module.immutable_staging_base().unwrap_or_else(|| {
+        let fixed_end = constructor_local_memory_end(module)
+            .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
+        EvmMemoryLayout::align_word(fixed_end)
+            .expect("constructor immutable staging address overflow")
+    })
 }
 
 /// Returns the constructor-memory address assigned to an immutable.

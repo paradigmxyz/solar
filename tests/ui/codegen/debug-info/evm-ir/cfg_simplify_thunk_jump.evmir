@@ -1,0 +1,22 @@
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+@module ThunkJump
+
+// An unconditional jump keeps its own origin when it skips an empty thunk. The thunk's jump takes
+// its origin with it.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: + jump bb3 !metadata(span=11..15){{$}}
+bb0:
+  calldatasize
+  indexed_jump bb1, bb4
+bb1:
+  push 1
+  jump bb2 !metadata(span=11..15)
+bb2:
+  jump bb3 !metadata(span=21..25)
+bb3:
+  pop
+  stop
+bb4:
+  push 2
+  jump bb3

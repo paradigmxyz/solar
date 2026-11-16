@@ -38,7 +38,7 @@ impl MirPass for LowerImmutables {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         if !module.iter_functions().any(|(_, func)| {
             func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::StoreImmutable(..)))
@@ -46,12 +46,15 @@ impl MirPass for LowerImmutables {
             return false;
         }
         let staging_base = immutable_staging_base(module);
+        module.set_immutable_staging_base(staging_base);
         let runtime_reachable = module.runtime_reachable_functions();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             if runtime_reachable.contains(func_id) {
                 continue;
             }
+            // Alias analysis reads the attribute, so setting it changes the function.
+            let mut edited = !func.attributes.creation_only;
             func.attributes.creation_only = true;
             for block in func.blocks.indices() {
                 let mut builder = FunctionBuilder::new(func);
@@ -62,8 +65,6 @@ impl MirPass for LowerImmutables {
                     };
                     // word = zext integer or ptrtoint pointer to i256
                     // store staging_address, word
-                    let metadata = builder.func().inst(inst_id).metadata.debug_context();
-                    builder.set_debug_context(&metadata);
                     let value = builder.cast_word(value);
                     let addr = builder.imm(immutable_staging_addr(staging_base, id));
                     builder
@@ -73,10 +74,15 @@ impl MirPass for LowerImmutables {
                     inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
                     inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
                     changed = true;
+                    edited = true;
                     false
                 });
             }
+            if edited {
+                analyses.invalidate_local_summary(func_id);
+            }
         }
+        analyses.preserve_local_summaries();
         changed
     }
 }

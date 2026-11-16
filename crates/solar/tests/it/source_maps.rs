@@ -17,9 +17,19 @@ fn compile(mode: &str, outputs: &str) -> Value {
 }
 
 fn compile_with(mode: &str, outputs: &str, flags: &[&str]) -> Value {
+    compile_files(
+        &["src/Base.sol", "src/Decode.sol", "src/StaticBytes.sol", "src/Probe.sol"],
+        mode,
+        outputs,
+        flags,
+    )
+}
+
+fn compile_files(files: &[&str], mode: &str, outputs: &str, flags: &[&str]) -> Value {
     let output = Command::new(SOLAR)
         .current_dir(FIXTURES)
-        .args(["src/Base.sol", "src/Decode.sol", "src/StaticBytes.sol", "--allow=2264", "-O", mode])
+        .args(files)
+        .args(["--allow=2264", "-O", mode])
         .arg(format!("--emit={outputs}"))
         .args(flags)
         .output()
@@ -120,15 +130,15 @@ fn abi_origins_and_conditional_thunks() {
             "{mode}: the require branch lost its conditional label's origin"
         );
         if mode == "none" {
-            let start = source.find("_set(x)").unwrap();
-            let end = start + "_set(x)".len();
+            let start = source.find("function _set(").unwrap();
+            let end = start + source[start..].find('}').unwrap() + 1;
             assert!(
                 instructions.iter().enumerate().any(|(index, inst)| {
                     inst["operation"]["mnemonic"] == "JUMPDEST"
                         && in_statement(entries[index], source_id("src/Base.sol"), start, end)
                         && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
                 }),
-                "the removed tail jump must use its exclusive callee's existing label"
+                "the removed tail jump's callee label must map to its definition"
             );
         }
     }
@@ -179,6 +189,10 @@ fn foundry_decode_and_require_coverage_matches_solc() {
             .split("end_of_record")
             .find(|record| record.lines().any(|line| line == "SF:src/StaticBytes.sol"))
             .expect("StaticBytes must appear in the coverage report");
+        let probe = text
+            .split("end_of_record")
+            .find(|record| record.lines().any(|line| line == "SF:src/Probe.sol"))
+            .expect("Probe must appear in the coverage report");
         // LCOV combines statements on the same line. Also compare per-test source items so a
         // covered `if` line cannot hide a missing condition-expression statement.
         let mut attribution: Value = serde_json::from_str(&run("attribution")).unwrap();
@@ -189,6 +203,7 @@ fn foundry_decode_and_require_coverage_matches_solc() {
                 item["source"] == "src/Decode.sol"
                     || item["source"] == "src/Base.sol"
                     || item["source"] == "src/StaticBytes.sol"
+                    || item["source"] == "src/Probe.sol"
             });
             covered.sort_by_key(Value::to_string);
         }
@@ -197,6 +212,7 @@ fn foundry_decode_and_require_coverage_matches_solc() {
             decode.trim().to_owned(),
             base.trim().to_owned(),
             static_bytes.trim().to_owned(),
+            probe.trim().to_owned(),
             attribution,
         ));
     }
@@ -295,12 +311,12 @@ fn static_bytes_origins_survive_direct_returns() {
 }
 
 #[test]
-fn tail_call_thunk_chain_keeps_call_site() {
+fn tail_call_entry_label_maps_to_definition() {
     let path =
-        Path::new(FIXTURES).join("../../ui/codegen/lowering/run-call/internal_stop_runtime.sol");
+        Path::new(FIXTURES).join("../../ui/codegen/run-call/dispatch/internal_stop_runtime.sol");
     let source = RealFileLoader.load_file(&path).unwrap();
-    let start = source.find("halt();").unwrap();
-    let end = start + "halt()".len();
+    let start = source.find("function halt()").unwrap();
+    let end = start + source[start..].find("\n    }").unwrap() + "\n    }".len();
     let compile = |outputs: &str| {
         let output = Command::new(SOLAR)
             .arg(&path)
@@ -319,11 +335,58 @@ fn tail_call_thunk_chain_keeps_call_site() {
         assert_eq!(contract[code], baseline[code]);
     }
     let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
-    assert!(entries.iter().any(|&entry| in_statement(entry, 0, start, end)));
-    assert!(contract["ethdebug-runtime"]["instructions"].as_array().unwrap().iter().any(|inst| {
+    let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+    assert!(instructions.iter().enumerate().any(|(index, inst)| {
         inst["operation"]["mnemonic"] == "JUMPDEST"
+            && in_statement(entries[index], 0, start, end)
             && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
     }));
+}
+
+#[test]
+fn phi_operand_copies_map_to_their_assignments() {
+    let path = Path::new(FIXTURES).join("src/PhiEdges.sol");
+    let source = RealFileLoader.load_file(&path).unwrap();
+    let compile = |mode: &str, outputs: &str| {
+        let output = Command::new(SOLAR)
+            .arg(&path)
+            .args(["--allow=2264", "-O", mode])
+            .arg(format!("--emit={outputs}"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+        let contract = debug["contracts"].as_object().unwrap().values().next().unwrap();
+        let baseline = plain["contracts"].as_object().unwrap().values().next().unwrap();
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(contract[code], baseline[code], "{mode}: debug info changed the {code}");
+        }
+        if mode != "none" {
+            continue;
+        }
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let mapped = |statement: &str| {
+            let start = source.find(statement).unwrap();
+            let end = start + statement.len();
+            entries.iter().any(|&entry| in_statement(entry, 0, start, end))
+        };
+        // The copy of each constant on an unconditional edge runs once per run of its assignment:
+        // the loop's entry constants, the constant of an `if` arm, and the value of a `return`
+        // that leaves through the modifier's continuation.
+        for statement in ["uint256 sum = 0", "uint256 i = 0", "x = 7", "return true"] {
+            assert!(mapped(statement), "{statement} lost its instruction");
+        }
+        // The copy on a conditional edge runs on one path only, so it keeps the origin of the
+        // branch: `r = 5` also ran on the path that took the branch, and `x = 11` ran before the
+        // overflow check of the next statement.
+        for statement in ["uint256 r = 5", "x = 11"] {
+            assert!(!mapped(statement), "{statement} took the origin of a conditional edge");
+        }
+    }
 }
 
 #[test]
@@ -461,4 +524,163 @@ fn debugify_sidecars_separate_compilations() {
         format!("{observed:?}"),
         str![[r#"[("First.sol", true, true), ("Second.sol", true, true)]"#]]
     );
+}
+
+#[test]
+fn shared_custom_error_keeps_distinct_condition_origins() {
+    let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Probe.sol")).unwrap();
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+        let audited = compile_with(mode, "bin,bin-runtime", &["-Zdebugify=report"]);
+        let name = "src/Probe.sol:Probe";
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+            assert_eq!(plain["contracts"][name][code], audited["contracts"][name][code], "{mode}");
+        }
+        if mode != "none" {
+            // Further optimization can change the checks and their layout.
+            continue;
+        }
+        let id = debug["sourceList"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|s| s == "src/Probe.sol")
+            .unwrap();
+        let contract = &debug["contracts"][name];
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+        let mut destinations = Vec::new();
+        for condition in ["amount == 0", "result == 0"] {
+            let start = source.find(condition).unwrap();
+            let index = instructions
+                .iter()
+                .enumerate()
+                .find_map(|(index, inst)| {
+                    (inst["operation"]["mnemonic"] == "JUMPI"
+                        && in_statement(entries[index], id, start, start + condition.len()))
+                    .then_some(index)
+                })
+                .expect("each rejection must keep its own condition location");
+            destinations.push(instructions[index - 1]["operation"]["arguments"][0].clone());
+        }
+        assert_eq!(destinations[0], destinations[1], "both guards share the same error body");
+        // NOTE: The shared body cannot have either call's unique source location. Coverage
+        // must distinguish the incoming edges instead of counting the common destination, so no
+        // entry from the shared label through its `REVERT` may name only one of the merged paths.
+        let target =
+            u64::from_str_radix(destinations[0].as_str().unwrap().trim_start_matches("0x"), 16)
+                .unwrap();
+        let label = instructions
+            .iter()
+            .position(|inst| {
+                inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
+            })
+            .expect("the guards jump to a `JUMPDEST`");
+        let revert = label
+            + instructions[label..]
+                .iter()
+                .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
+                .expect("the shared body reverts");
+        let shared = entries[label..=revert]
+            .iter()
+            .zip(&instructions[label..=revert])
+            .map(|(entry, inst)| {
+                format!(
+                    "{} {}:{}:{}",
+                    inst["operation"]["mnemonic"].as_str().unwrap(),
+                    entry[0],
+                    entry[1],
+                    entry[2]
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_data_eq!(
+            shared,
+            str![[r#"
+JUMPDEST -1:-1:-1
+PUSH4 -1:-1:-1
+PUSH0 -1:-1:-1
+MSTORE -1:-1:-1
+PUSH1 -1:-1:-1
+PUSH1 -1:-1:-1
+REVERT -1:-1:-1
+"#]]
+        );
+        // The source-only assignments in `_state` have no instructions. Its return still
+        // identifies successful completion of the helper, independently of those locations.
+        let start = source.find("function _state()").unwrap();
+        let end = start + source[start..].find("\n    }").unwrap() + "\n    }".len();
+        assert!(instructions.iter().enumerate().any(|(index, inst)| {
+            inst["operation"]["mnemonic"] == "JUMP"
+                && entries[index] == [start as i64, (end - start) as i64, id as i64]
+        }));
+    }
+}
+
+#[test]
+fn external_calls_map_to_the_call_expression() {
+    let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Calls.sol")).unwrap();
+    let name = "src/Calls.sol:Calls";
+    for mode in ["none", "gas", "size"] {
+        let plain = compile_files(&["src/Calls.sol"], mode, "bin,bin-runtime", &[]);
+        let debug = compile_files(
+            &["src/Calls.sol"],
+            mode,
+            "bin,bin-runtime,srcmap-runtime,ethdebug-runtime",
+            &[],
+        );
+        let audited =
+            compile_files(&["src/Calls.sol"], mode, "bin,bin-runtime", &["-Zdebugify=report"]);
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+            assert_eq!(plain["contracts"][name][code], audited["contracts"][name][code], "{mode}");
+        }
+        let id = debug["sourceList"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|s| s == "src/Calls.sol")
+            .unwrap() as i64;
+        let contract = &debug["contracts"][name];
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+        let calls = instructions
+            .iter()
+            .enumerate()
+            .filter(|(_, inst)| {
+                ["CALL", "STATICCALL"].contains(&inst["operation"]["mnemonic"].as_str().unwrap())
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        // A low-level call in a tuple declaration, a `staticcall` and a `try` call. The
+        // statements start before the call expressions, so the call must not take their span.
+        let expressions = [
+            "address(target).call(data)",
+            "address(0x05).staticcall(input)",
+            "token.transfer(to, 1)",
+        ];
+        assert_eq!(calls.len(), expressions.len(), "{mode}");
+        for (call, expression) in calls.iter().copied().zip(expressions) {
+            let start = source.find(expression).unwrap();
+            let end = start + expression.len();
+            assert_eq!(
+                entries[call],
+                [start as i64, expression.len() as i64, id],
+                "{mode}: the call of {expression} must map to the call expression"
+            );
+            assert!(
+                entries[..call].iter().any(|&entry| in_statement(entry, id as usize, start, end)),
+                "{mode}: {expression} has no instruction before its call"
+            );
+        }
+        // The success test of the `try` belongs to the statement, not to the call.
+        let statement = source.find("try token.transfer").unwrap();
+        let branch = (calls[2]..instructions.len())
+            .find(|&index| instructions[index]["operation"]["mnemonic"] == "JUMPI")
+            .unwrap();
+        assert_eq!(entries[branch][0], statement as i64, "{mode}: the `try` branch");
+    }
 }

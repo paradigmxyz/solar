@@ -105,6 +105,8 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
         // Types no value or signature uses.
         let changed = !module.struct_types.is_empty();
         module.struct_types.clear();
+        // No function body changes.
+        analyses.preserve_local_summaries();
         return Ok(changed);
     }
     if module.functions.iter().any(|func| {
@@ -294,8 +296,6 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
             let result = builder.func().inst_result_value(id);
             let fields = result.and_then(|value| aggregates.get(&value));
             let result_ty = builder.func().inst(id).result_ty;
-            let metadata = builder.func().inst(id).metadata.debug_context();
-            builder.set_debug_context(&metadata);
             outputs.clear();
             match &builder.func().inst(id).kind {
                 // NOTE: Scalar insertions and projections emit no instruction. Their source

@@ -43,18 +43,51 @@
                   "offset": 0,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 13
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 1,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 13
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 2,
                   "operation": {
                     "mnemonic": "REVERT"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 13
+                      }
+                    }
                   }
                 }
               ]

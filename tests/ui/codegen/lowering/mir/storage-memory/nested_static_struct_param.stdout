@@ -1,0 +1,25 @@
+; === ROOT/tests/ui/codegen/lowering/mir/storage-memory/nested_static_struct_param.sol:NestedStaticStructParam ===
+@module NestedStaticStructParam
+@types
+  struct0: {i256, i256}
+
+; function take(Outer calldata o) external pure returns (uint256, uint256) [selector 0xd1a79489]
+fn @take(arg0: slice<calldata>) -> struct0 [selector=0xd1a79489, pure, abi_params=[tuple<uint256, tuple<uint256, uint256>, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 32
+    v3 = inttoptr i256 v2 to ptr<calldata>
+    v4 = make_calldata_slice v3, 64
+    v5 = extract_value slice<calldata>, v4, 0
+    v6 = ptrtoint ptr<calldata> v5 to i256
+    v7 = add v6, 32
+    v8 = calldataload v7
+    v9 = extract_value slice<calldata>, arg0, 0
+    v10 = ptrtoint ptr<calldata> v9 to i256
+    v11 = add v10, 96
+    v12 = calldataload v11
+    v13 = insert_value struct0, undef struct0, 0, v8
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
+}

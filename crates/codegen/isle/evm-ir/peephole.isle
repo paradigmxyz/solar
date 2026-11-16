@@ -29,7 +29,6 @@
 
 (type Edit extern (enum
   (Keep (len u8))
-  (OverwritePush0)
   (LowMask)
   (LowMaskWithSwap)
   (ShiftPairMask)
@@ -81,10 +80,11 @@
 ;; `SWAPn POP*(n+1)`, giving the window length.
 (decl swap_discard_chain (u8) Window)
 (extern extractor swap_discard_chain swap_discard_chain)
-;; A `DUPn` that duplicates a known zero, on a target that has `PUSH0`.
-(decl duplicates_known_zero () Window)
-(extern extractor duplicates_known_zero duplicates_known_zero)
-;; Adjacent constants whose folded result is a Pareto improvement, giving that result.
+;; A `DUPn` that duplicates a known constant that is cheaper to materialize, giving it.
+(decl duplicates_known_constant (U256) Window)
+(extern extractor duplicates_known_constant duplicates_known_constant)
+;; Adjacent constant pushes or `DUP`s of constants whose folded result is a Pareto improvement,
+;; giving that result.
 (decl fold_constants (U256) Window)
 (extern extractor fold_constants fold_constants)
 ;; `PUSH x; unary_op => materialize(unary_op(x))`, when bytes and gas improve.
@@ -156,10 +156,10 @@
 (decl partial peep_pop (Window) Rewrite)
 (decl partial peep_op (Window) Rewrite)
 
-;; `... PUSH0 ... DUPn -> ... PUSH0 ... PUSH0` when the duplicate reads that zero.
+;; `... PUSH c ... DUPn -> ... PUSH c ... materialize(c)` when the duplicate reads that constant.
 ;;
 ;; `PUSH0` is one byte and costs two gas, so it dominates every `DUPn` on targets that have it.
-(rule 400 (peep_dup (duplicates_known_zero)) (rewrite 1 (Edit.OverwritePush0)))
+(rule 400 (peep_dup (duplicates_known_constant value)) (rewrite 1 (Edit.FoldConstants value)))
 
 ;; `PUSH x PUSH 0 OP -> PUSH 0`, `PUSH x PUSH 1 EXP -> PUSH 1`.
 (rule 350 (peep_op (last3 (any_push) (push v) (opcode opcode)))

@@ -21,6 +21,9 @@
 //! Shared integer casts can move outside a select when their source widths match;
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
+//! A recipe on booleans wraps at one bit, where `add` and `sub` equal `xor`, `mul` equals `and` and
+//! `not` equals `xor` with one, so it is built from those bitwise operations, which `lowered` MIR
+//! accepts at `i1`.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
 //! that a nonzero test whose every use is a branch or a check, or an `or` that only such a test
 //! joins, costs nothing: `JUMPI` reads the word.
@@ -209,6 +212,32 @@ fn root_cost(
 }
 
 impl Recipe {
+    /// Spells the arithmetic of a boolean recipe as the bitwise operations it equals modulo 2,
+    /// which `lowered` MIR accepts at `i1`: `add` and `sub` are `xor`, `mul` is `and`, and `not` is
+    /// `xor` with one. `first_temporary` is the first ID past the function's values.
+    fn legalize_booleans(&mut self, first_temporary: usize) {
+        let one = ValueId::new(first_temporary + self.temporaries.len());
+        let mut uses_one = false;
+        let mut bitwise = |op: Op| match op {
+            Op::Add { a, b } | Op::Sub { a, b } => Op::Xor { a, b },
+            Op::Mul { a, b } => Op::And { a, b },
+            Op::Not { a } => {
+                uses_one = true;
+                Op::Xor { a, b: one }
+            }
+            op => op,
+        };
+        self.root = bitwise(self.root);
+        for temporary in self.temporaries.values_mut() {
+            if let Temporary::Operation(op) = temporary {
+                *op = bitwise(*op);
+            }
+        }
+        if uses_one {
+            self.temporaries.insert(one, Temporary::Constant(U256::ONE));
+        }
+    }
+
     /// Visits only reachable temporary definitions, in dependency order.
     fn collect(
         &self,
@@ -360,7 +389,7 @@ fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
 /// the deferred allocations it leaves for the backend.
 fn allocations_lowered(func: &Function) -> bool {
     func.instructions().all(|inst| match func.inst(inst).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) => false,
+        InstKind::Fmp => false,
         InstKind::Alloc { .. } => func.inst(inst).metadata.deferred_alloc(),
         _ => true,
     })
@@ -604,7 +633,7 @@ fn zero_tested_leaf(
             let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(bits))));
             let (inst, word) = func.alloc_value_inst(
                 Instruction::new(InstKind::Shr(shift, word), Some(MirType::I256))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             (word, Some((comparison, inst)))
         }

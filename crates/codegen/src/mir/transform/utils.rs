@@ -1,11 +1,13 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Terminator, ValueId,
+    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
+    Terminator, ValueId,
     memory::EvmMemoryLayout,
     utils::{IndexLists, replace_terminator},
 };
 use solar_data_structures::bit_set::DenseBitSet;
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -182,4 +184,26 @@ pub(super) fn value_users(func: &Function) -> IndexLists<ValueId, User> {
         }
     }
     IndexLists::new(func.num_values(), pairs.iter().copied())
+}
+
+/// The debug context for code a pass appends to `block`, which runs exactly when the block's
+/// terminator runs. A loop preheader's terminator carries the loop statement's location.
+///
+/// Preheader code runs once each time the loop statement starts, so it takes that statement's
+/// location and never a body span, since the body may not run. LLVM's passes drop it, for example
+/// LICM (`updateLocationAfterHoist` in `LICM.cpp`, which is `dropLocation` in `DebugInfo.cpp`),
+/// because a DWARF line table repeats the previous row, and our source maps repeat nothing.
+///
+/// A terminator without a location or a reason for lacking one, such as the one of a preheader
+/// that `loop-canonicalize` created, gives `kind` instead.
+pub(super) fn terminator_debug_context(
+    func: &Function,
+    block: BlockId,
+    kind: DebugLocKind,
+) -> InstructionMetadata {
+    let mut context = func.blocks[block].terminator_metadata.debug_context();
+    if context.lacks_debug_location() {
+        context.drop_debug_loc(kind);
+    }
+    context
 }

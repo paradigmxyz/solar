@@ -17,11 +17,11 @@
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
-    MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId, WORD_BYTES,
-    immutable_staging_end, index_vec, ir, op, preserves_push_width,
+    Label, MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId,
+    WORD_BYTES, immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
-    BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
+    BlockId, Callee, EffectKind, InstructionMetadata, PtrLocation, RawMemoryAccess,
     analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
@@ -110,8 +110,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Records a function entry when debug output is requested.
-    pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(&mut self, func: &Function) {
+    /// Records a function entry when debug output is requested. `dispatched` tells that the
+    /// dispatcher or the deployment code enters `func`, not a call.
+    pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(
+        &mut self,
+        func: &Function,
+        dispatched: bool,
+    ) {
         if self.capture_debug_info
             && !func.declaration_span.is_dummy()
             && let Some(identifier) = func.debug_identifier
@@ -119,7 +124,37 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.mark_function_invoke(DebugFunction {
                 identifier,
                 declaration: func.declaration_span,
+                dispatched,
             });
+        }
+    }
+
+    /// Gives the entry label of the external function `func` the source location of its
+    /// declaration when debug output is requested, as solc places the tag under the function
+    /// (`ContractCompiler::appendFunctionSelector`).
+    pub(in crate::backend::evm::codegen) fn mark_debug_external_entry_label(
+        &mut self,
+        label: Label,
+        func: &Function,
+    ) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && func.debug_identifier.is_some()
+        {
+            self.asm.set_label_origins(label, [func.declaration_span], 0);
+        }
+    }
+
+    /// Gives `label`, which starts a block of a MIR function, the origin that MIR placed the
+    /// block's label under: the statement a block opens, or the function for its entry (solc's
+    /// `LocationSetter` scopes). A label with several origins keeps all of them.
+    pub(in crate::backend::evm::codegen) fn mark_block_label_origin(
+        &mut self,
+        label: Label,
+        origin: &InstructionMetadata,
+    ) {
+        if self.capture_debug_info && origin.source_spans().next().is_some() {
+            self.asm.set_label_origins(label, origin.source_spans(), origin.modifier_depth());
         }
     }
 
@@ -832,11 +867,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Hand-written assembly may own low memory through constant addresses, such as the
     /// ERC-6551 registry's proxy initcode at `[0x55, 0x10c)`, which it reads back after other
     /// code ran. A spill slot there would end up in the image, and a reload would read a byte of
-    /// it. An entry's region ends at the higher of its spill area with its allocations and the
-    /// frames it reaches above the highest end of all entries, followed by its allocations that do
-    /// not fit below them, plus its heap prefix guard. A range that starts below that end and
-    /// ends above the entry's base moves the base to the range's end, which moves the end,
-    /// until no range intersects: a range beyond the final region costs nothing.
+    /// it. The local region of a function the entry runs, `HEAP_START` up to its
+    /// `internal_frame_size`, is such a range when the function names it at absolute addresses,
+    /// as the `.body` copy of an entry does with its promoted storage words. The entry's base,
+    /// and so its heap, starts above it. An entry's region ends at the higher of its spill area
+    /// with its allocations and the frames it reaches above the highest end of all entries,
+    /// followed by its allocations that do not fit below them, plus its heap prefix guard. A range
+    /// that starts below that end and ends above the entry's base moves the base to the range's
+    /// end, which moves the end, until no range intersects: a range beyond the final region costs
+    /// nothing.
     fn entry_spill_bases(
         &self,
         module: &Module,
@@ -862,6 +901,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect::<FxHashMap<_, _>>();
         let mut function_ranges = index_vec![None; module.functions.len()];
         let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let mut local_ends = FxHashMap::default();
         let ranges = entries
             .iter()
             .map(|&entry| {
@@ -880,6 +920,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // the region that every other entry's frames start at nor moves its own heap
                 // above that memory.
                 let own_reach = Self::entry_own_reach(module, entry, entries);
+                // A function the entry runs that writes its own local region at absolute
+                // addresses, as the `.body` copy of an entry does, shares that region with the
+                // heap the entry places there.
+                let local_end = own_reach
+                    .iter()
+                    .filter_map(|func_id| module.functions[func_id].absolute_local_end())
+                    .max();
+                local_ends.insert(entry, local_end);
                 if (sizes[&entry] != 0 || static_spans[&entry] != 0)
                     && own_reach.iter().any(|func_id| {
                         *owns_low_memory[func_id].get_or_insert_with(|| {
@@ -898,7 +946,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let func = &module.functions[entry];
                 let base = EvmMemoryLayout::HEAP_START
                     + func.internal_frame_size.max(func.external_static_return_size);
-                (entry, base)
+                (entry, base.max(local_ends[&entry].unwrap_or(0)))
             })
             .collect::<FxHashMap<_, _>>();
         loop {
@@ -947,7 +995,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// immediately before an object through any memory read or write. Reserve
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
-    /// adding a negative constant reserves the same prefix as subtracting its magnitude.
+    /// adding a negative constant reserves the same prefix as subtracting its magnitude. A step
+    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -955,7 +1004,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
     ) -> u64 {
         let mut guard = 0;
-        Self::for_each_memory_range(func, |offset, size| {
+        func.for_each_memory_range(|offset, size| {
             if size == Some(0) {
                 return;
             }
@@ -1011,10 +1060,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &inst_id in &tail[base_offset + 1..] {
             let inst = func.inst(inst_id);
             match &inst.kind {
-                InstKind::Add(a, b) if *a == base_value || *b == base_value => {
-                    let imm = if *a == base_value { *b } else { *a };
+                InstKind::Add(base, imm) if *base == base_value => {
                     let index = func
-                        .value_u64(imm)
+                        .value_u64(*imm)
                         .filter(|offset| offset % EvmMemoryLayout::WORD_SIZE == 0)
                         .map(|offset| (offset / EvmMemoryLayout::WORD_SIZE) as usize)?;
                     let address = func.inst_result_value(inst_id)?;
@@ -1278,10 +1326,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return Some(prefix);
             }
             if let Some(forward) = u256_to_u64(adjustment) {
-                Some(prefix.saturating_sub(forward))
-            } else {
-                Some(prefix.saturating_add(u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?))
+                return Some(prefix.saturating_sub(forward));
             }
+            let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
+            // NOTE: A step back this far never reaches the frames: it takes a heap pointer no
+            // execution can afford, and from any other one it wraps to the top of memory, as for a
+            // constant out-of-bounds index, whose bounds check reverts first.
+            if back >= EvmMemoryLayout::UNREACHABLE_MEMORY {
+                return None;
+            }
+            Some(prefix.saturating_add(back))
         };
         let offset = (|| match func.value(value) {
             Value::Arg(index) => {
@@ -1300,6 +1354,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::ICall { function: Callee::Function(function), .. } => {
                     returned_offsets.get(&(*function, 0)).copied()
                 }
+                // NOTE: `heap_prefix_constant` evaluates constant expressions, which canonical
+                // order does not put on the right, so both sides are tried.
                 InstKind::Add(first, second) => {
                     if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
                         shifted(*first, amount, visiting, memo)
@@ -1367,7 +1423,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// function's return buffer, lie below the base their entry places its spill area at.
     fn constant_memory_ranges(func: &Function) -> Vec<(u64, u64)> {
         let mut ranges = Vec::new();
-        Self::for_each_memory_range(func, |offset, size| {
+        func.for_each_memory_range(|offset, size| {
             if let Some(start) = func.value_u64(offset)
                 && let Some(size) = size.filter(|&size| size != 0)
                 && let Some(end) = start.checked_add(size)
@@ -1415,24 +1471,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         destinations.into_iter().any(|dest| inputs[dest] == AddressInput::Calldata)
     }
 
-    /// Visits physical memory ranges used by instructions and terminators.
-    /// Unknown lengths still expose their base to heap-prefix analysis.
-    fn for_each_memory_range(func: &Function, mut visit: impl FnMut(ValueId, Option<u64>)) {
-        for inst_id in func.instructions() {
-            func.inst(inst_id)
-                .kind
-                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(func)));
-        }
-        for block in &func.blocks {
-            if let Some(
-                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
-            ) = &block.terminator
-            {
-                visit(*offset, func.value_u64(*size));
-            }
-        }
-    }
-
     pub(in crate::backend::evm::codegen) fn constructor_spill_base(
         &self,
         immutable_count: usize,
@@ -1464,7 +1502,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let id = self.asm.new_deferred_const();
         // push heap_start; push FMP_SLOT; mstore
-        self.emit_with_contract_origin(|codegen| {
+        // NOTE: solc runs one contract-wide preamble before dispatch (`compileContract`); ours runs
+        // per entry after dispatch and stores that entry's own floor, so it belongs to the entry.
+        self.emit_with_origin(Some(module.functions[entry].declaration_span), |codegen| {
             codegen.asm.emit_push_deferred(id);
             codegen.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             codegen.asm.emit_op(op::MSTORE);

@@ -1,0 +1,169 @@
+; === ROOT/tests/ui/codegen/run-call/storage/storage_delete_recursive_struct.sol:StorageDeleteRecursiveStruct ===
+@module StorageDeleteRecursiveStruct
+@types
+  struct0: {i256, i256, i256, i256, i256, i256}
+
+; function clearNested() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xdcbc9943]
+fn @clearNested() -> struct0 [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 1
+    v4 = mul v0, 2
+    v5 = add v3, v4
+    sstore 1, v2 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = gt v6, 0
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = storage_array_data_slot 1
+    v10 = add v9, 1
+    v11 = sload v10 !metadata(storage=offset(v9, 1))
+    v12 = gt v11, 0xffffffffffffffff
+    icall panic_if<0x41>, v12
+    v13 = add v11, 1
+    v14 = storage_array_data_slot v10
+    v15 = mul v11, 2
+    v16 = add v14, v15
+    sstore v10, v13 !metadata(storage=offset(v9, 1))
+    v17 = add v9, 1
+    v18 = sload v17 !metadata(storage=offset(v9, 1))
+    v19 = gt v18, 0
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = storage_array_data_slot v17
+    sstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(0))
+    sstore v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v9))
+    sstore v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v21))
+    sstore 0, 1 !metadata(storage=slot(0))
+    sstore v9, 2 !metadata(storage=symbolic(v9))
+    sstore v21, 3 !metadata(storage=symbolic(v21))
+    icall @clear_recursive_storage_0, 0
+    v22 = sload 0 !metadata(storage=slot(0))
+    mstore 0, v22 !metadata(memory=scratch)
+    v23 = sload 1 !metadata(storage=slot(1))
+    mstore 32, v23 !metadata(memory=scratch)
+    v24 = sload v9 !metadata(storage=symbolic(v9))
+    mstore 64, v24 !metadata(memory=scratch)
+    v25 = add v9, 1
+    v26 = sload v25 !metadata(storage=offset(v9, 1))
+    mstore 96, v26 !metadata(memory=scratch)
+    v27 = sload v21 !metadata(storage=symbolic(v21))
+    mstore 128, v27
+    v28 = add v21, 1
+    v29 = sload v28 !metadata(storage=offset(v21, 1))
+    mstore 160, v29
+    returndata 0, 192
+}
+
+; function clearMutual() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0x5baf460d]
+fn @clearMutual() -> struct0 [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 3
+    v4 = mul v0, 2
+    v5 = add v3, v4
+    sstore 3, v2 !metadata(storage=slot(3))
+    v6 = add v5, 1
+    v7 = sload v6 !metadata(storage=offset(v5, 1))
+    v8 = gt v7, 0xffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = add v7, 1
+    v10 = storage_array_data_slot v6
+    v11 = mul v7, 2
+    v12 = add v10, v11
+    sstore v6, v9 !metadata(storage=offset(v5, 1))
+    sstore 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(2))
+    sstore v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v5))
+    sstore v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v12))
+    sstore 2, 1 !metadata(storage=slot(2))
+    sstore v5, 2 !metadata(storage=symbolic(v5))
+    sstore v12, 3 !metadata(storage=symbolic(v12))
+    icall @clear_recursive_storage_1, 2
+    v13 = sload 2 !metadata(storage=slot(2))
+    mstore 0, v13 !metadata(memory=scratch)
+    v14 = sload 3 !metadata(storage=slot(3))
+    mstore 32, v14 !metadata(memory=scratch)
+    v15 = sload v5 !metadata(storage=symbolic(v5))
+    mstore 64, v15 !metadata(memory=scratch)
+    v16 = add v5, 1
+    v17 = sload v16 !metadata(storage=offset(v5, 1))
+    mstore 96, v17 !metadata(memory=scratch)
+    v18 = sload v12 !metadata(storage=symbolic(v12))
+    mstore 128, v18
+    v19 = add v12, 1
+    v20 = sload v19 !metadata(storage=offset(v12, 1))
+    mstore 160, v20
+    returndata 0, 192
+}
+
+fn @clear_recursive_storage_0(arg0: i256) {
+  bb0:
+    sstore arg0, 0 !metadata(storage=symbolic(arg0))
+    v0 = add arg0, 1
+    v1 = sload v0 !metadata(storage=offset(arg0, 1))
+    sstore v0, 0 !metadata(storage=offset(arg0, 1))
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v2 = phi [bb0: 0], [bb2: v7]
+    v3 = lt v2, v1
+    jumpi v3, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret
+  bb2:                                            ; preds = bb1
+    v4 = storage_array_data_slot v0
+    v5 = mul v2, 2
+    v6 = add v4, v5
+    icall @clear_recursive_storage_0, v6
+    v7 = add v2, 1
+    jump bb1
+}
+
+fn @clear_recursive_storage_1(arg0: i256) {
+  bb0:
+    sstore arg0, 0 !metadata(storage=symbolic(arg0))
+    v0 = add arg0, 1
+    v1 = sload v0 !metadata(storage=offset(arg0, 1))
+    sstore v0, 0 !metadata(storage=offset(arg0, 1))
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v2 = phi [bb0: 0], [bb2: v7]
+    v3 = lt v2, v1
+    jumpi v3, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret
+  bb2:                                            ; preds = bb1
+    v4 = storage_array_data_slot v0
+    v5 = mul v2, 2
+    v6 = add v4, v5
+    icall @clear_recursive_storage_2, v6
+    v7 = add v2, 1
+    jump bb1
+}
+
+fn @clear_recursive_storage_2(arg0: i256) {
+  bb0:
+    sstore arg0, 0 !metadata(storage=symbolic(arg0))
+    v0 = add arg0, 1
+    v1 = sload v0 !metadata(storage=offset(arg0, 1))
+    sstore v0, 0 !metadata(storage=offset(arg0, 1))
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v2 = phi [bb0: 0], [bb2: v7]
+    v3 = lt v2, v1
+    jumpi v3, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret
+  bb2:                                            ; preds = bb1
+    v4 = storage_array_data_slot v0
+    v5 = mul v2, 2
+    v6 = add v4, v5
+    icall @clear_recursive_storage_1, v6
+    v7 = add v2, 1
+    jump bb1
+}

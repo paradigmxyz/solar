@@ -114,7 +114,7 @@
     jump bb21
   bb21:
 -   jump bb22 !metadata(span=10..20)
-+   push 128 !metadata(span=10..20)
++   push 128
 +   mstore
 +   push 32
 +   push 128

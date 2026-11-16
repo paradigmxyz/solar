@@ -1,0 +1,26 @@
+error[6753]: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout/storage_layout_base_slot_overflow.sol:LL:CC
+   │
+LL │ contract OverflowAdd layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF + 1 {}
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6753]: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout/storage_layout_base_slot_overflow.sol:LL:CC
+   │
+LL │ contract OverflowPow layout at 2**256 {}
+   ╰╴                               ━━━━━━
+
+error[6753]: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout/storage_layout_base_slot_overflow.sol:LL:CC
+   │
+LL │ contract BitwiseNegationLiteral layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {}
+   ╰╴                                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[5015]: contract extends past the end of storage when this base slot value is specified
+   ╭▸ ROOT/tests/ui/typeck/storage_layout/storage_layout_base_slot_overflow.sol:LL:CC
+   │
+LL │ contract ExtendsPastEnd layout at 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff {
+   ╰╴                                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

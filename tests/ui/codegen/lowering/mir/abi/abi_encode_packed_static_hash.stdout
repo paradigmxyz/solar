@@ -1,0 +1,15 @@
+; === ROOT/tests/ui/codegen/lowering/mir/abi/abi_encode_packed_static_hash.sol:AbiEncodePackedStaticHash ===
+@module AbiEncodePackedStaticHash
+; function hash(uint64 size, uint64 maxSize, bytes32 root) external pure returns (bytes32) [selector 0xd9d28840]
+fn @hash(arg0: i64, arg1: i64, arg2: i256) -> i256 [selector=0xd9d28840, pure, abi_params=[uint64, uint64, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (data hex"4d656d6f72793a", uint64 arg0, uint64 arg1, bytes32 arg2)
+    ret v0
+}
+
+; function hashLocal(uint64 size, uint64 maxSize, bytes32 root) external pure returns (bytes32) [selector 0x9f31b347]
+fn @hashLocal(arg0: i64, arg1: i64, arg2: i256) -> i256 [selector=0x9f31b347, pure, abi_params=[uint64, uint64, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (data hex"4d656d6f72793a", uint64 arg0, uint64 arg1, bytes32 arg2)
+    ret v0
+}

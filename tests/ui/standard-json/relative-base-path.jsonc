@@ -1,5 +1,5 @@
 //@ compile-flags: --base-path lib
-// CHECK: "message": "{{.*}} lib/Missing.sol: File import callback not supported"
+// CHECK: "message": "{{.*}} lib/Missing.sol: File not found."
 {
   "language": "Solidity",
   "sources": {

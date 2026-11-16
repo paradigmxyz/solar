@@ -1,0 +1,56 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=loop-layout
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=loop-layout
+// A search loop nested in an outer loop: its header leaves on the end of the
+// range, and its body leaves when it finds a match, falling out of the loop on
+// that branch and jumping to the latch otherwise. A branch that leaves the
+// loop is taken once per traversal estimate even when the rest of its block
+// continues both in and out of the loop, so the latch carries more mass than
+// the outer loop's preheader and gas builds move it before the header.
+@module SearchLatch
+bb0:
+  push 4
+  push 0
+  push 0
+  jump bb1
+bb1:
+  push 32
+  dup 3
+  add
+  jump bb2
+bb2:
+  dup 1
+  dup 3
+  eq
+  push bb6
+  jumpi
+  dup 1
+  calldataload
+  dup 1
+  push 160
+  shr
+  push bb7
+  jumpi
+  dup 4
+  sub
+  push bb5
+  jumpi
+  jump bb6
+bb6:
+  pop
+  push 1
+  add
+  dup 1
+  dup 3
+  gt
+  push bb1
+  jumpi
+  stop
+bb5:
+  push 32
+  add
+  jump bb2
+bb7 [cold]:
+  push 0
+  push 0
+  revert

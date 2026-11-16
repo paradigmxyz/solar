@@ -1,0 +1,171 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_index_reference.sol:CalldataIndexReference ===
+@module CalldataIndexReference
+@types
+  struct0: {i256, i256, i256}
+
+; function dynamicFixed(uint256[2][] calldata values) external pure returns (uint256 offset, uint256 length, uint256 elementOffset) [selector 0x71cafd78]
+fn @dynamicFixed(arg0: slice<calldata>) -> struct0 [selector=0x71cafd78, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = extract_value slice<calldata>, arg0, 1
+    v4 = gt v3, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = ptrtoint ptr<calldata> v6 to i256
+    v8 = add v7, 64
+    v9 = inttoptr i256 v8 to ptr<calldata>
+    v10 = make_calldata_slice v9, 2
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = ptrtoint ptr<calldata> v11 to i256
+    v13 = insert_value struct0, undef struct0, 0, v1
+    v14 = insert_value struct0, v13, 1, v2
+    v15 = insert_value struct0, v14, 2, v12
+    ret v15
+}
+
+; function staticFixed(uint256[2][2] calldata values) external pure returns (uint256 offset, uint256 first, uint256 second) [selector 0xc2cb46f3]
+fn @staticFixed(arg0: slice<calldata>) -> struct0 [selector=0xc2cb46f3, pure, abi_params=[array<2, array<2, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 1
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 64
+    v6 = inttoptr i256 v5 to ptr<calldata>
+    v7 = make_calldata_slice v6, 2
+    v8 = extract_value slice<calldata>, v7, 0
+    v9 = ptrtoint ptr<calldata> v8 to i256
+    v10 = extract_value slice<calldata>, v7, 1
+    v11 = gt v10, 0
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = extract_value slice<calldata>, v7, 0
+    v14 = ptrtoint ptr<calldata> v13 to i256
+    v15 = add v14, 0
+    v16 = calldataload v15
+    v17 = extract_value slice<calldata>, v7, 1
+    v18 = gt v17, 1
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = extract_value slice<calldata>, v7, 0
+    v21 = ptrtoint ptr<calldata> v20 to i256
+    v22 = add v21, 32
+    v23 = calldataload v22
+    v24 = insert_value struct0, undef struct0, 0, v9
+    v25 = insert_value struct0, v24, 1, v16
+    v26 = insert_value struct0, v25, 2, v23
+    ret v26
+}
+
+; function nestedDynamic(uint256[][] calldata values) external pure returns (uint256 offset, uint256 length, uint256 last) [selector 0xd5de94f6]
+fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 1
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 32
+    v6 = calldatasize
+    v7 = sub v6, v5
+    v8 = slt v7, 32
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = calldataload v5
+    v10 = ptrtoint ptr<calldata> v3 to i256
+    v11 = add v10, v9
+    v12 = calldatasize
+    v13 = ptrtoint ptr<calldata> v3 to i256
+    v14 = sub v12, v13
+    v15 = sub v14, 31
+    v16 = slt v9, v15
+    v17 = eq v16, false
+    icall revert_if<invalid_calldata_tail_offset>, v17
+    v18 = calldataload v11
+    v19 = calldatasize
+    v20 = gt v18, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v20
+    v21 = mul v18, 32
+    v22 = add v11, 32
+    v23 = sub v19, v21
+    v24 = slt v23, v22
+    icall revert_if<calldata_tail_too_short>, v24
+    v25 = inttoptr i256 v22 to ptr<calldata>
+    v26 = make_calldata_slice v25, v18
+    v27 = extract_value slice<calldata>, v26, 0
+    v28 = ptrtoint ptr<calldata> v27 to i256
+    v29 = extract_value slice<calldata>, v26, 1
+    v30 = extract_value slice<calldata>, v26, 1
+    v31 = gt v30, 1
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = extract_value slice<calldata>, v26, 0
+    v34 = ptrtoint ptr<calldata> v33 to i256
+    v35 = add v34, 32
+    v36 = calldataload v35
+    v37 = insert_value struct0, undef struct0, 0, v28
+    v38 = insert_value struct0, v37, 1, v29
+    v39 = insert_value struct0, v38, 2, v36
+    ret v39
+}
+
+; function dynamicBytes(bytes[] calldata values) external pure returns (uint256 offset, uint256 length, uint256 last) [selector 0x925ccb10]
+fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 1
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 32
+    v6 = calldatasize
+    v7 = sub v6, v5
+    v8 = slt v7, 32
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = calldataload v5
+    v10 = ptrtoint ptr<calldata> v3 to i256
+    v11 = add v10, v9
+    v12 = calldatasize
+    v13 = ptrtoint ptr<calldata> v3 to i256
+    v14 = sub v12, v13
+    v15 = sub v14, 31
+    v16 = slt v9, v15
+    v17 = eq v16, false
+    icall revert_if<invalid_calldata_tail_offset>, v17
+    v18 = calldataload v11
+    v19 = calldatasize
+    v20 = gt v18, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v20
+    v21 = add v11, 32
+    v22 = sub v19, v18
+    v23 = slt v22, v21
+    icall revert_if<calldata_tail_too_short>, v23
+    v24 = inttoptr i256 v21 to ptr<calldata>
+    v25 = make_calldata_slice v24, v18
+    v26 = extract_value slice<calldata>, v25, 0
+    v27 = ptrtoint ptr<calldata> v26 to i256
+    v28 = extract_value slice<calldata>, v25, 1
+    v29 = extract_value slice<calldata>, v25, 1
+    v30 = gt v29, 1
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = extract_value slice<calldata>, v25, 0
+    v33 = extract_value slice<calldata>, v25, 0
+    v34 = ptradd v33, 1
+    v35 = calldataload v34
+    v36 = byte 0, v35
+    v37 = shl v36, 248
+    v38 = shr v37, 248
+    v39 = trunc i256 v38 to i8
+    v40 = zext i8 v39 to i256
+    v41 = insert_value struct0, undef struct0, 0, v27
+    v42 = insert_value struct0, v41, 1, v28
+    v43 = insert_value struct0, v42, 2, v40
+    ret v43
+}

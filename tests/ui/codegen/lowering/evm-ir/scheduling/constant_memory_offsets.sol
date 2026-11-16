@@ -1,0 +1,32 @@
+//@ compile-flags: -O gas -Zdump=evm-ir-runtime
+//@ filecheck: --implicit-check-not=mul
+
+// CHECK-LABEL: @module ConstantMemoryOffsets_runtime
+// CHECK-LABEL: bb0:
+// CHECK: push 128
+// CHECK-NEXT: push 7
+// CHECK-NEXT: push 192
+// CHECK-LABEL: bb6{{( \[[a-z, ]+\])?}}:
+// CHECK: push 7
+// CHECK-NEXT: push 224
+// CHECK: push 32
+// CHECK-NEXT: add
+// CHECK-NEXT: push 96
+
+contract ConstantMemoryOffsets {
+    function fixedArray() public pure returns (bytes32 result) {
+        uint256[4] memory values;
+        values[2] = 7;
+        assembly {
+            result := keccak256(values, 128)
+        }
+    }
+
+    function dynamicArray() public pure returns (bytes32 result) {
+        uint256[] memory values = new uint256[](3);
+        values[2] = 7;
+        assembly {
+            result := keccak256(add(values, 32), 96)
+        }
+    }
+}

@@ -1,0 +1,14 @@
+error[7920]: unresolved symbol `Undef`
+   ╭▸ ROOT/tests/ui/typeck/inheritance/base_arguments_dropped_base.sol:LL:CC
+   │
+LL │ contract Unresolved is Undef, A(1) {}
+   ╰╴                       ━━━━━
+
+error: expected contract, found struct
+   ╭▸ ROOT/tests/ui/typeck/inheritance/base_arguments_dropped_base.sol:LL:CC
+   │
+LL │ contract NotAContract is S, A(1) {}
+   ╰╴                         ━
+
+error: aborting due to 2 previous errors
+

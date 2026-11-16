@@ -1,0 +1,53 @@
+; === ROOT/tests/ui/codegen/evm-ir/outline/outlined_constant_store.sol:OutlinedConstantStore ===
+@module OutlinedConstantStore
+; function first(uint256 pointer) external pure returns (uint256 value) [selector 0x0b3f62f5]
+fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    v0 = and arg0, 128
+    mstore v0, 7
+    v1 = mload 128
+    ret v1
+}
+
+; function second(uint256 pointer) external pure returns (uint256 value) [selector 0x7896dfe3]
+fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    v0 = and arg0, 160
+    mstore v0, 9
+    v1 = mload 128
+    ret v1
+}
+
+; === ROOT/tests/ui/codegen/evm-ir/outline/outlined_constant_store.sol:OutlinedNarrowing ===
+@module OutlinedNarrowing
+; function narrow8(uint256 value) external pure returns (uint8) [selector 0x2da3006c]
+fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = gt arg0, 255
+    v1 = eq v0, false
+    icall require<long_string hex"53616665436173743a2076616c756520646f65736e27742066697420696e20382062697473">, v1
+    v2 = trunc i256 arg0 to i8
+    ret v2
+}
+
+; function narrow32(uint256 value) external pure returns (uint32) [selector 0xb5be099a]
+fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[uint256], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    v0 = gt arg0, 0xffffffff
+    v1 = eq v0, false
+    icall require<long_string hex"53616665436173743a2076616c756520646f65736e27742066697420696e2033322062697473">, v1
+    v2 = trunc i256 arg0 to i32
+    ret v2
+}
+
+; function narrow128(uint256 value) external pure returns (uint128) [selector 0x9646654f]
+fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[uint256], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = eq v0, false
+    icall require<long_string hex"53616665436173743a2076616c756520646f65736e27742066697420696e203132382062697473">, v1
+    v2 = trunc i256 arg0 to i128
+    ret v2
+}

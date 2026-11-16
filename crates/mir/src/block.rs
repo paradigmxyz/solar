@@ -2,7 +2,7 @@
 
 use super::{BlockId, InstId, InstructionMetadata, ValueId};
 use smallvec::SmallVec;
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use std::fmt;
 
 /// A basic block in the MIR.
@@ -47,23 +47,34 @@ impl BasicBlock {
     /// Replaces a transfer with compiler-generated control flow, dropping stale context.
     pub fn set_generated_terminator(&mut self, terminator: Terminator) {
         let mut metadata = InstructionMetadata::EMPTY;
-        metadata.mark_debug_info_dropped();
+        metadata.drop_debug_loc(DebugLocKind::Dropped);
         self.set_terminator(terminator, metadata);
     }
 
     /// Moves a control transfer out, leaving fresh generated-code context behind.
     pub fn take_terminator(&mut self) -> (Option<Terminator>, InstructionMetadata) {
         let mut generated = InstructionMetadata::EMPTY;
-        generated.mark_debug_info_dropped();
+        generated.drop_debug_loc(DebugLocKind::Dropped);
         let metadata = std::mem::replace(&mut self.terminator_metadata, generated);
         (self.terminator.take(), metadata)
+    }
+
+    /// Creates an empty block that copies this one, which may belong to another function: it keeps
+    /// the `cold_hint` and the label origin, as LLVM's `CloneBasicBlock` keeps the debug locations
+    /// of the code it clones. The caller fills in the instructions and the terminator.
+    #[must_use]
+    pub fn new_copy(&self) -> Self {
+        let mut copy = Self::new();
+        copy.cold_hint = self.cold_hint;
+        copy.label_metadata.preserve_debug_loc(&self.label_metadata);
+        copy
     }
 
     /// Creates a new empty basic block.
     #[must_use]
     pub(crate) fn new() -> Self {
         let mut terminator_metadata = InstructionMetadata::EMPTY;
-        terminator_metadata.mark_debug_info_dropped();
+        terminator_metadata.drop_debug_loc(DebugLocKind::Dropped);
         Self {
             instructions: Vec::new(),
             terminator: None,

@@ -1,0 +1,47 @@
+; === ROOT/tests/ui/codegen/mir/storage-promotion/heap_floor_caller_runtime.sol:C ===
+@module C
+; function accrue(uint256 n) public returns (bytes memory) [selector 0x744f4cf6]
+fn @accrue(arg0: i256) -> ptr<memory> [selector=0x744f4cf6, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = abi_encode [word], object, args v8
+    ret v9
+  bb4:                                            ; preds = bb1
+    v4 = checked_add uint256, v2, 7
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = checked_add uint256, v5, v4
+    sstore 0, v6 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v7 = checked_add uint256, v2, 1
+    jump bb1
+}
+
+; function cached(uint256 v) external returns (uint256) [selector 0x7e7cc038]
+fn @cached(arg0: i256) -> i256 [selector=0x7e7cc038, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v0, 32
+    v1 = lt 0, 1
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, arg0
+    v3 = icall @accrue, 1
+    v4 = lt 0, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = mload v0
+    ret v6
+}

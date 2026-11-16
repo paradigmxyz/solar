@@ -1,0 +1,23 @@
+//@ compile-flags: -Zmir-pipeline=cfg-simplify -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module SharedTerminalLabelOrigins
+
+// Two return bodies share their retained label and return. A third destination prevents
+// the switch from folding away the shared label, whose origin must remain ambiguous.
+// CHECK-LABEL: fn @shared(
+// CHECK: + switch arg0, default bb2, [0 => bb1, 1 => bb1]
+// CHECK: + bb1 !metadata(spans=[10..20, 50..60]):
+// CHECK-NEXT: + ret 7 !metadata(spans=[30..40, 70..80])
+// CHECK: bb2 !metadata(span=90..100):
+// CHECK-NEXT: ret 8 !metadata(span=110..120)
+fn @shared(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb3, [0 => bb1, 1 => bb2]
+  bb1 !metadata(span=10..20):
+    ret 7 !metadata(span=30..40)
+  bb2 !metadata(span=50..60):
+    ret 7 !metadata(span=70..80)
+  bb3 !metadata(span=90..100):
+    ret 8 !metadata(span=110..120)
+}

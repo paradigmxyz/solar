@@ -26,7 +26,16 @@ use solar_data_structures::{
 use solar_interface::{BytePos, Span};
 use std::iter::FusedIterator;
 
-pub use solar_evmir::debug::{DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS};
+pub use solar_evmir::debug::{DebugFunction, DebugFunctionExit, DebugSpans};
+
+/// The source origins of one instruction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct SourceOrigins<'a> {
+    /// The source spans.
+    pub spans: &'a [Span],
+    /// Whether every span holds, instead of one of them.
+    pub all: bool,
+}
 
 /// Source location state shared by a run of instructions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -34,8 +43,11 @@ pub struct DebugLocation<'a> {
     /// Source spans associated with the instruction.
     ///
     /// More than one span means an optimization shared this instruction
-    /// between multiple source-level origins.
+    /// between multiple source-level origins, of which one holds or, with
+    /// [`Self::all_source_spans`], every one.
     pub source_spans: &'a [Span],
+    /// Whether every source span holds for the instruction, instead of one of them.
+    pub all_source_spans: bool,
     /// Function entered after this instruction executes.
     pub function_invoke: Option<DebugFunction>,
     /// Function activation closed after this instruction executes.
@@ -66,29 +78,32 @@ const _: () = assert!(size_of::<Location>() == 16);
 
 /// Function exit, span storage, and modifier depth of a [`Location`].
 ///
-/// Bits 0 and 1 hold the exit, bit 2 marks table spans, and the remaining
-/// bits hold the modifier depth.
+/// Bits 0 and 1 hold the exit, bit 2 marks table spans, bit 3 marks spans that
+/// all hold, and the remaining bits hold the modifier depth.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Flags(u32);
 
 impl Flags {
     const EXIT_MASK: u32 = 0b11;
     const TABLE_SPANS: u32 = 1 << 2;
-    const DEPTH_SHIFT: u32 = 3;
+    const ALL_SPANS: u32 = 1 << 3;
+    const DEPTH_SHIFT: u32 = 4;
 
     fn new(
         function_exit: Option<DebugFunctionExit>,
         table_spans: bool,
+        all_spans: bool,
         modifier_depth: u32,
     ) -> Self {
-        assert!(modifier_depth <= u32::MAX >> Self::DEPTH_SHIFT, "modifier depth exceeds 29 bits");
+        assert!(modifier_depth <= u32::MAX >> Self::DEPTH_SHIFT, "modifier depth exceeds 28 bits");
         let exit = match function_exit {
             None => 0,
             Some(DebugFunctionExit::Return) => 1,
             Some(DebugFunctionExit::Revert) => 2,
         };
         let table_spans = if table_spans { Self::TABLE_SPANS } else { 0 };
-        Self(modifier_depth << Self::DEPTH_SHIFT | table_spans | exit)
+        let all_spans = if all_spans { Self::ALL_SPANS } else { 0 };
+        Self(modifier_depth << Self::DEPTH_SHIFT | all_spans | table_spans | exit)
     }
 
     fn function_exit(self) -> Option<DebugFunctionExit> {
@@ -101,6 +116,10 @@ impl Flags {
 
     fn table_spans(self) -> bool {
         self.0 & Self::TABLE_SPANS != 0
+    }
+
+    fn all_spans(self) -> bool {
+        self.0 & Self::ALL_SPANS != 0
     }
 
     fn modifier_depth(self) -> u32 {
@@ -145,6 +164,7 @@ impl DebugInfo {
         };
         DebugLocation {
             source_spans,
+            all_source_spans: location.flags.all_spans(),
             function_invoke: location.function_invoke.map(|id| self.functions[id]),
             function_exit: location.flags.function_exit(),
             modifier_depth: location.flags.modifier_depth(),
@@ -239,13 +259,13 @@ impl DebugInfoBuilder {
         &mut self,
         offset: usize,
         opcode: u8,
-        source_spans: &[Span],
+        origins: SourceOrigins<'_>,
         function_invoke: Option<DebugFunction>,
         function_exit: Option<DebugFunctionExit>,
         modifier_depth: u32,
     ) {
         let offset = u32::try_from(offset).expect("EVM bytecode offset exceeds u32");
-        let location = self.location(source_spans, function_invoke, function_exit, modifier_depth);
+        let location = self.location(origins, function_invoke, function_exit, modifier_depth);
         self.info.len += 1;
         // Extend the current run only when decoding it reaches this instruction.
         if let Some(row) = &mut self.row
@@ -282,12 +302,12 @@ impl DebugInfoBuilder {
     /// Returns the interned form of a location, adding its span set and function on first use.
     fn location(
         &mut self,
-        source_spans: &[Span],
+        origins: SourceOrigins<'_>,
         function_invoke: Option<DebugFunction>,
         function_exit: Option<DebugFunctionExit>,
         modifier_depth: u32,
     ) -> Location {
-        let (span, table_spans) = match source_spans {
+        let (span, table_spans) = match origins.spans {
             &[span] => (span, false),
             spans => {
                 let range = match self.span_sets.get(spans) {
@@ -306,7 +326,7 @@ impl DebugInfoBuilder {
         };
         let function_invoke = function_invoke
             .map(|function| DebugFunctionId::from_usize(self.functions.insert_full(function).0));
-        let flags = Flags::new(function_exit, table_spans, modifier_depth);
+        let flags = Flags::new(function_exit, table_spans, origins.all, modifier_depth);
         Location { span, function_invoke, flags }
     }
 

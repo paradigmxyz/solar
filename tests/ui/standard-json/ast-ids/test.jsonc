@@ -1,0 +1,48 @@
+//@ filecheck:
+// The IDs of the declarations in the AST...
+// CHECK-LABEL: "sources": {
+// CHECK: "nodeType": "ContractDefinition",
+// CHECK: "nodes": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[COUNT:[0-9]+]],
+// CHECK-NEXT: "src": "{{.*}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "count",
+// CHECK: "functionSelector": "06661abd"
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[OWNER:[0-9]+]],
+// CHECK-NEXT: "src": "{{.*}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "owner",
+// CHECK: "functionSelector": "8da5cb5b"
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[DECIMALS:[0-9]+]],
+// CHECK-NEXT: "src": "{{.*}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "decimals",
+// ...are the IDs of the storage layout and of the immutable references.
+// CHECK-LABEL: "contracts": {
+// CHECK: "storageLayout": {
+// CHECK: "astId": [[COUNT]],
+// CHECK: "label": "count",
+// CHECK: "immutableReferences": {
+// CHECK: "[[OWNER]]": [
+// CHECK: "[[DECIMALS]]": [
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ],
+        "A": [
+          "storageLayout",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      }
+    }
+  }
+}

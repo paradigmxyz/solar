@@ -224,12 +224,14 @@ mod round_trip {
 
     #[test]
     fn round_trip_all_mir_files() {
-        let dir = ui_codegen_dir().join("mir");
-        assert!(dir.exists(), "mir test dir not found: {}", dir.display());
+        let dirs = [ui_codegen_dir().join("mir"), ui_codegen_dir().join("debug-info").join("mir")];
+        for dir in &dirs {
+            assert!(dir.exists(), "mir test dir not found: {}", dir.display());
+        }
 
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for path in fixture_paths(&dir, "mir") {
+        for path in dirs.iter().flat_map(|dir| fixture_paths(dir, "mir")) {
             count += 1;
             if let Err(e) = round_trip_mir(&path) {
                 if e.starts_with("first parse failed:") && path.with_extension("stderr").is_file() {
@@ -239,7 +241,7 @@ mod round_trip {
                 failures.push(format!("{name}: {e}"));
             }
         }
-        assert!(count > 0, "no .mir fixtures found in {}", dir.display());
+        assert!(count > 0, "no .mir fixtures found in {dirs:?}");
         assert!(
             failures.is_empty(),
             "{} round-trip failure(s):\n  {}",

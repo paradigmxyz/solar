@@ -1,0 +1,19 @@
+- ; === ROOT/tests/ui/codegen/debug-info/mir/if_convert_debug_select.mir (before if-convert) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/if_convert_debug_select.mir (after if-convert) ===
+  @module DebugSelect
+  fn @choose(arg0: i1) -> i256 {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:                                            ; preds = bb0
+-     jump bb3
+-   bb1:                                            ; preds = bb0
+-     jump bb3
+-   bb3:                                            ; preds = bb1, bb2
+-     v0 = phi [bb1: 3], [bb2: 7] !metadata(span=10..20)
+-     ret v0
++     v1 = zext i1 arg0 to i256 !metadata(span=10..20)
++     v2 = mul v1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc !metadata(span=10..20)
++     v3 = add v2, 7 !metadata(span=10..20)
++     ret v3
+  }
+  

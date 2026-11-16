@@ -1,0 +1,9 @@
+//@ compile-flags: -Zmir-pipeline=dce -Zdebugify=check
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The dead computation's location is explicitly discarded, not moved to its surviving user.
+@module IntentionalDceLoss
+fn @dead(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=10..20)
+    ret arg0 !metadata(span=30..40)
+}

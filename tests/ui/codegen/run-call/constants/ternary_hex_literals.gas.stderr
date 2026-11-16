@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/constants/ternary_hex_literals.sol:LL:CC
+   │
+LL │         c ? hex"abab" : hex"cdcd";
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+

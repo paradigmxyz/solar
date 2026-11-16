@@ -1,0 +1,54 @@
+//@ revisions: egraph integers
+//@ compile-flags: -Zdebugify=check
+//@[egraph] compile-flags: -Zmir-pipeline=egraph
+//@[integers] compile-flags: -Zmir-pipeline=lower-integers
+//@[egraph] filecheck: --check-prefix=EGRAPH
+//@[integers] filecheck: --check-prefix=INTEGERS
+//@ normalize-stdout-test: "(?s).+" -> ""
+//@ normalize-stderr-test: "debugify: [^\n]*\n" -> ""
+// An equivalent replacement keeps its root's location. A removed duplicate or folded value
+// contributes no location to another surviving instruction.
+@module ScalarOrigins
+
+// EGRAPH-LABEL: {{^[ +].*}}fn @rewrite{{[( ]}}
+// EGRAPH: + v0 = add arg0, arg0 !metadata(span=10..20)
+// EGRAPH: ret v0 !metadata(span=20..30)
+fn @rewrite(arg0: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, 2 !metadata(span=10..20)
+    ret v0 !metadata(span=20..30)
+}
+
+// EGRAPH-LABEL: {{^[ +].*}}fn @duplicate{{[( ]}}
+// EGRAPH: v0 = add arg0, 1 !metadata(span=30..40)
+// EGRAPH-NOT: {{^[ +].*}}span=40..50
+// EGRAPH-NOT: {{^[ +].*}}span=50..60
+// EGRAPH: + ret 0 !metadata(span=60..70)
+fn @duplicate(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=30..40)
+    v1 = add arg0, 1 !metadata(span=40..50)
+    v2 = xor v0, v1 !metadata(span=50..60)
+    ret v2 !metadata(span=60..70)
+}
+
+// INTEGERS-LABEL: {{^[ +].*}}fn @narrow{{[( ]}}
+// INTEGERS: + [[SUM:v[0-9]+]] = add arg0, arg1 !metadata(span=70..80)
+// INTEGERS: + [[CLEAN:v[0-9]+]] = and [[SUM]], 255 !metadata(span=70..80)
+// INTEGERS: + ret [[CLEAN]] !metadata(span=80..90)
+fn @narrow(arg0: i8, arg1: i8) -> i8 {
+  bb0:
+    v0 = add arg0, arg1 !metadata(span=70..80)
+    ret v0 !metadata(span=80..90)
+}
+
+// INTEGERS-LABEL: {{^[ +].*}}fn @signed{{[( ]}}
+// INTEGERS: + [[RIGHT:v[0-9]+]] = signextend 0, arg1 !metadata(span=90..100)
+// INTEGERS: + [[LEFT:v[0-9]+]] = signextend 0, arg0 !metadata(span=90..100)
+// INTEGERS: + [[CMP:v[0-9]+]] = slt [[RIGHT]], [[LEFT]] !metadata(span=90..100)
+// INTEGERS: + ret [[CMP]] !metadata(span=100..110)
+fn @signed(arg0: i8, arg1: i8) -> i1 {
+  bb0:
+    v0 = sgt arg0, arg1 !metadata(span=90..100)
+    ret v0 !metadata(span=100..110)
+}

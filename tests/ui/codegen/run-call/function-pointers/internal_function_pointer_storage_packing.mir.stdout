@@ -1,0 +1,88 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/internal_function_pointer_storage_packing.sol:InternalFunctionPointerStoragePacking ===
+@module InternalFunctionPointerStoragePacking
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffff0000000000000000ffffffffffffffff
+    v5 = or v4, 0x11223344556677880000000000000000
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = lt 0, 4
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = sload 1 !metadata(storage=slot(1))
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v10 = or v9, 1
+    sstore 1, v10 !metadata(storage=slot(1))
+    v11 = lt 1, 4
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = sload 1 !metadata(storage=slot(1))
+    v14 = and v13, 0xffffffffffffffffffffffffffffffff0000000000000000ffffffffffffffff
+    v15 = or v14, 0x20000000000000000
+    sstore 1, v15 !metadata(storage=slot(1))
+    v16 = lt 2, 4
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = sload 1 !metadata(storage=slot(1))
+    v19 = and v18, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v20 = or v19, 0x300000000000000000000000000000000
+    sstore 1, v20 !metadata(storage=slot(1))
+    v21 = lt 3, 4
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = sload 1 !metadata(storage=slot(1))
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v25 = or v24, 0x4000000000000000000000000000000000000000000000000
+    sstore 1, v25 !metadata(storage=slot(1))
+    ret
+}
+
+; function a() internal
+fn @a() {
+  bb0:
+    ret
+}
+
+; function b() internal
+fn @b() {
+  bb0:
+    ret
+}
+
+; function c() internal
+fn @c() {
+  bb0:
+    ret
+}
+
+; function d() internal
+fn @d() {
+  bb0:
+    ret
+}
+
+; function high() external view returns (uint64 value) [selector 0x713658f3]
+fn @high() -> i256 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr v0, 64
+    ret v1
+}
+
+; function arrayMatches() external view returns (bool) [selector 0xa9b873e8]
+fn @arrayMatches() -> i1 [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffff
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = and v2, 0xffffffffffffffff
+    v4 = eq v1, v3
+    v5 = zext i1 v4 to i256
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
+}

@@ -1,0 +1,16 @@
+; === ROOT/tests/ui/codegen/lowering/mir/abi/yul_calldata_array.sol:C ===
+@module C
+@types
+  struct0: {i256, i256}
+
+; function probe(uint256[] calldata a) external pure returns (uint256 len, uint256 first) [selector 0xaf74ef39]
+fn @probe(arg0: slice<calldata>) -> struct0 [selector=0xaf74ef39, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = ptrtoint ptr<calldata> v1 to i256
+    v3 = calldataload v1
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}

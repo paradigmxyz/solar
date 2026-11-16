@@ -1,0 +1,30 @@
+//@ revisions: exclusive shared
+//@[exclusive] compile-flags: -Zevm-ir-pipeline=cfg-simplify -Zdebugify=check
+//@[shared] compile-flags: -Zevm-ir-pipeline=cfg-simplify,terminal-dedup,cfg-simplify -Zdebugify=report
+// Sharing the terminal body with an unrelated path invalidates the function entry the label
+// holds. An independent native entry must remain independent.
+@module LentInvokeSharedEntry
+bb0:
+  calldatasize
+  jumpi bb1, bb2 !metadata(span=10..20)
+bb1 [invoke=callee@30..70]:
+  jump bb4 !metadata(span=30..40)
+bb2:
+  push 0
+  calldataload
+  jumpi bb5, bb6 !metadata(span=50..60)
+bb4:
+  push 2
+  push 0
+  mstore
+  stop
+bb5 [invoke=independent@80..120]:
+  push 3
+  push 0
+  mstore
+  stop
+bb6:
+  push 2
+  push 0
+  mstore
+  stop

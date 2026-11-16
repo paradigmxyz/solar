@@ -1,9 +1,0 @@
-- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_stack_limit.evmir (before peephole) ===
-+ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_stack_limit.evmir (after peephole) ===
-  @module FoldStackLimit
-  bb0 [stack=1023]:
-    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    not
-    pop
-    stop
-  

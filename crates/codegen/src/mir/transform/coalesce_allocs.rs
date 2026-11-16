@@ -63,16 +63,18 @@ impl MirPass for CoalesceAllocs {
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
         let target = module.target(gcx);
-        for func in module.functions.iter_mut() {
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
             if !func.blocks.is_empty() && coalesce_function(func, &target) {
                 super::lower_memory_objects::normalize_pointer_operands(func);
+                analyses.invalidate_local_summary(func_id);
                 changed = true;
             }
         }
+        analyses.preserve_local_summaries();
         changed
     }
 }
@@ -168,7 +170,7 @@ fn preserves_group(
         // Lowering places constructor homes outside the FMP word.
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
-        // `Fmp`, `SetFmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
+        // `Fmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
         // raw memory range and stay conservative barriers. The object and mapping forms are gone
         // by this point in the pipeline.
         EffectKind::MemoryRead | EffectKind::MemoryWrite => {
@@ -350,12 +352,8 @@ impl GroupBounds {
                 return Some((member, offset));
             }
             let Value::Inst(inst) = *func.value(address) else { return None };
-            let InstKind::Add(first, second) = func.inst(inst).kind else { return None };
-            let (base, step) = if let Some(step) = func.value_u64(second) {
-                (first, step)
-            } else {
-                (second, func.value_u64(first)?)
-            };
+            let InstKind::Add(base, step) = func.inst(inst).kind else { return None };
+            let step = func.value_u64(step)?;
             if func.value_ty(address) != Some(MirType::I256) {
                 return None;
             }

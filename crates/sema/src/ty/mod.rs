@@ -31,6 +31,7 @@ use solar_interface::{
 };
 use std::{
     any::Any,
+    cell::RefCell,
     fmt,
     ops::ControlFlow,
     sync::{
@@ -43,7 +44,7 @@ use thread_local::ThreadLocal;
 pub use crate::natspec::NatSpecView;
 
 mod print;
-pub(crate) use print::TySolcPrinter;
+pub(crate) use print::{Component, TySolcPrinter};
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
@@ -103,6 +104,37 @@ pub struct TypeckResults<'gcx> {
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
     pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
+    /// What the AST JSON reads back, recorded only when the ASTs are kept.
+    pub(crate) ast: AstFacts<'gcx>,
+    /// The spans of expression statements that have no effect, reported after type checking.
+    pub(crate) no_effect_stmts: Vec<Span>,
+}
+
+/// The purity of the expressions that [`TypeckResults::is_pure_in`] has worked out.
+pub(crate) type PureMemo = RefCell<FxHashMap<hir::ExprId, bool>>;
+
+/// What type checking records for the AST JSON, which the writer cannot read back from the HIR.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AstFacts<'gcx> {
+    /// The expressions that are lvalues in solc's sense, where it takes more than their kind to
+    /// tell: members, and tuples that are written to.
+    pub(crate) lvalues: FxHashSet<hir::ExprId>,
+    /// The type solc gives an expression where it differs from the type of type checking: the
+    /// common type of the operands of a comparison or a logical operation.
+    pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    pub(crate) yul_references: Vec<YulReference>,
+}
+
+/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+#[derive(Clone, Copy, Debug)]
+pub struct YulReference {
+    /// The span of the identifier, with its suffix.
+    pub span: Span,
+    /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
+    pub suffix: Option<Symbol>,
+    /// The variable the identifier names.
+    pub declaration: hir::VariableId,
 }
 
 /// The target selected for a call callee expression.
@@ -202,6 +234,21 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn user_operator(&self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.user_operators.get(&id).copied()
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],
+    /// if the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.ast.solc_tys.get(&id).copied()
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(&self, span: Span) -> &[YulReference] {
+        let references = &self.ast.yul_references;
+        let start = references.partition_point(|r| r.span.lo() < span.lo());
+        let len = references[start..].partition_point(|r| r.span.hi() <= span.hi());
+        &references[start..start + len]
     }
 }
 
@@ -631,6 +678,12 @@ impl<'gcx> Gcx<'gcx> {
         self.resolved_expr(expr)?.as_function()
     }
 
+    /// Returns the state mutability that evaluating an expression requires, as the view and pure
+    /// checker infers it: `NonPayable` or `Payable` when the expression can write state.
+    pub fn expr_state_mutability(self, expr: &'gcx hir::Expr<'gcx>) -> StateMutability {
+        crate::typeck::view_pure_checker::expr_mutability(self, expr)
+    }
+
     /// Returns the builtin selected for an expression, if available.
     #[inline]
     pub fn resolved_builtin(self, expr: &hir::Expr<'_>) -> Option<Builtin> {
@@ -759,7 +812,8 @@ impl<'gcx> Gcx<'gcx> {
         crate::natspec::references(self, item)
     }
 
-    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    /// Resolves a contract name, or a path such as `M.Base`, within a source's scope for NatSpec
+    /// `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
         self.natspec_contract_in_source((name, source))
     }
@@ -783,6 +837,11 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
     }
 
+    /// Returns whether the type-checked expression is a compile-time constant.
+    pub(crate) fn is_pure(self, memo: &PureMemo, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_pure_in(self, Some(memo), expr))
+    }
+
     /// Returns the user-defined operator function this operator expression
     /// resolves to, if any.
     #[inline]
@@ -790,7 +849,30 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.user_operator(id)
     }
 
+    /// Returns whether the type-checked expression is an lvalue, in solc's sense, if the ASTs are
+    /// kept.
+    #[inline]
+    pub fn is_lvalue(self, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_lvalue(expr))
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`], if
+    /// the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.typeck_results.get()?.solc_ty(id)
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(self, span: Span) -> &'gcx [YulReference] {
+        self.typeck_results.get().map_or(&[], |results| results.yul_references(span))
+    }
+
     /// Returns the contracts whose base slot is a constant integer, with the base slot.
+    pub(crate) fn typeck_no_effect_stmts(self) -> &'gcx [Span] {
+        self.typeck_results.get().map_or(&[], |results| &results.no_effect_stmts)
+    }
+
     pub(crate) fn typeck_base_slots(self) -> &'gcx [(hir::ContractId, &'gcx hir::Expr<'gcx>)] {
         self.typeck_results.get().map_or(&[], |results| &results.base_slots)
     }
@@ -1354,7 +1436,11 @@ impl<'gcx> Gcx<'gcx> {
                     }
                     hir::UsingEntryKind::Functions(functions) => {
                         for &function in functions {
-                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
+                            let Some(name) =
+                                entry.name.or_else(|| self.item_name_opt(function).map(|n| n.name))
+                            else {
+                                continue;
+                            };
                             self.add_attached_function(
                                 ty,
                                 function,
@@ -1379,21 +1465,11 @@ impl<'gcx> Gcx<'gcx> {
         seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
         members: &mut Vec<members::Member<'gcx>>,
     ) {
-        let function_item = self.hir.function(function);
-        let fn_ty = self.type_of_item(function.into());
-        let fn_ty =
-            if function_item.contract.is_some_and(|id| self.hir.contract(id).kind.is_library())
-                && function_item.visibility >= Visibility::Public
-            {
-                fn_ty.as_externally_callable_function(true, self)
-            } else {
-                fn_ty
-            }
-            .as_attached_function(self);
+        let fn_ty = self.attached_function_ty(function);
         if let TyKind::Fn(function_ty) = fn_ty.kind
             && let Some(&self_ty) = function_ty.parameters.first()
             && ty.convert_implicit_to(self_ty, self)
-            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && let Some(name) = name.or_else(|| self.item_name_opt(function).map(|n| n.name))
             && seen.insert((name, function))
         {
             members.push(members::Member::with_attached_function(name, fn_ty, function));
@@ -1600,6 +1676,25 @@ impl<'gcx> Gcx<'gcx> {
         functions
     }
 
+    /// Returns the functions that function values of the given contract can reach, which solc
+    /// calls its internal dispatch targets: those that code generation dispatches to, and those a
+    /// call names in parentheses.
+    ///
+    /// Creation code reaches a subset of what the runtime code reaches.
+    pub fn contract_internal_dispatch_targets(
+        self,
+        id: hir::ContractId,
+    ) -> DenseBitSet<hir::FunctionId> {
+        let items = self.interface_items(id);
+        let mut targets = items.deployed.internal_dispatch_targets.clone();
+        for &function in
+            items.creation.parenthesized_targets.iter().chain(&items.deployed.parenthesized_targets)
+        {
+            targets.insert(function);
+        }
+        targets
+    }
+
     /// Returns the contracts whose bytecode is referenced by the given contract.
     pub fn contract_bytecode_dependencies(
         self,
@@ -1728,6 +1823,36 @@ pub fn contract_abi(gcx: _, id: hir::ContractId) -> &'gcx [alloy_json_abi::AbiIt
     gcx.cached_arena().alloc_slice_fill_iter(gcx.build_contract_abi(id))
 }
 
+/// Returns the type of the given function when a `using for` directive attaches it to a type.
+fn attached_function_ty(gcx: _, id: hir::FunctionId) -> Ty<'gcx> {
+    let function = gcx.hir.function(id);
+    let fn_ty = gcx.type_of_item(id.into());
+    if function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library())
+        && function.visibility >= Visibility::Public
+    {
+        fn_ty.as_externally_callable_function(true, gcx)
+    } else {
+        fn_ty
+    }
+    .as_attached_function(gcx)
+}
+
+/// Returns the JSON ABI of the given function, which does not depend on the contract that
+/// inherits it.
+pub(crate) fn function_abi_item(gcx: _, id: hir::FunctionId) -> &'gcx alloy_json_abi::Function {
+    gcx.cached_arena().alloc(gcx.function_abi(id))
+}
+
+/// Returns the JSON ABI of the given event.
+pub(crate) fn event_abi_item(gcx: _, id: hir::EventId) -> &'gcx alloy_json_abi::Event {
+    gcx.cached_arena().alloc(gcx.event_abi(id))
+}
+
+/// Returns the JSON ABI of the given error.
+pub(crate) fn error_abi_item(gcx: _, id: hir::ErrorId) -> &'gcx alloy_json_abi::Error {
+    gcx.cached_arena().alloc(gcx.error_abi(id))
+}
+
 /// Returns the developer documentation for the given contract.
 pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
     gcx.cached_arena().alloc(gcx.build_dev_documentation(id))
@@ -1796,6 +1921,20 @@ fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceIt
     gcx.cached_arena().alloc(call_graph::interface_items(gcx, id))
 }
 
+/// Returns what the body of the given function reaches, before a contract resolves the overrides
+/// its calls dispatch to.
+fn function_call_ops(gcx: _, id: hir::FunctionId) -> &'gcx [call_graph::CallOp] {
+    assert!(gcx.has_typeck_results(), "call operations require type checking");
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_function(gcx, id))
+}
+
+/// Returns what the initializer of the given constant reaches, before a contract resolves the
+/// overrides its calls dispatch to.
+fn constant_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
+    assert!(gcx.has_typeck_results(), "call operations require type checking");
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_constant(gcx, id))
+}
+
 fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
     assert!(gcx.has_typeck_results(), "contract items require type checking");
     gcx.cached_arena().alloc(call_graph::all_items(gcx, id))
@@ -1844,35 +1983,11 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface())
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
-        let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
-        let ty = gcx
-            .mk_ty_fn(TyFn {
-                kind: TyFnKind::External,
-                parameters: fn_ty.parameters,
-                returns: fn_ty.returns,
-                state_mutability: f.state_mutability,
-                function_id: fn_ty.function_id,
-                attached: false,
-            })
-            .as_externally_callable_function(false, gcx);
-        let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
-        let mut result = Ok(());
-        for (var_id, ty) in f.variables().zip(ty_f.tys()) {
-            if let Err(guar) = ty.error_reported() {
-                result = Err(guar);
-                continue;
-            }
-            let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
-            if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
-                let kind = f.description();
-                let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
-                let span = gcx.hir.variable(var_id).ty.span;
-                result = Err(gcx.dcx().emit_err(span, msg));
-            }
-        }
-        if result.is_err() {
-            return None;
-        }
+        let in_library = f.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
+        let ty = match gcx.valid_interface_function_ty(f_id) {
+            Some(ty) if in_library == c.kind.is_library() => ty,
+            _ => interface_function_ty_checked(gcx, c, f_id)?,
+        };
 
         // Virtual functions or ones with the same function parameter types are checked separately,
         // skip them here to avoid reporting them as selector hash collision errors below.
@@ -1905,6 +2020,23 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
     let inheritance_start = functions.partition_point(|f| gcx.hir.function(f.id).contract == Some(id));
     InterfaceFunctions { functions, inheritance_start }
+}
+
+
+/// Returns the externally callable type of an interface function if all of its parameter and
+/// return types are valid interface types, without emitting errors.
+///
+/// The result does not depend on the contract that inherits the function, so
+/// `interface_functions` reuses it across contracts and checks again only to report errors.
+fn valid_interface_function_ty(gcx: _, id: hir::FunctionId) -> Option<Ty<'gcx>> {
+    let f = gcx.hir.function(id);
+    let in_library = f.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
+    let ty = external_interface_function_ty(gcx, id);
+    let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
+    f.variables().zip(ty_f.tys()).all(|(_, ty)| {
+        let library_storage = in_library && ty.data_stored_in(DataLocation::Storage);
+        ty.error_reported().is_ok() && ty.interface_type_error(library_storage, gcx).is_none()
+    }).then_some(ty)
 }
 
 pub(crate) fn base_override_functions(
@@ -1945,20 +2077,23 @@ pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
 }
 
-/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+/// Resolves a contract name, or a path such as `M.Base` through an import namespace, within a
+/// source's scope for NatSpec `@inheritdoc`.
 pub(crate) fn natspec_contract_in_source(
     gcx: _,
     key: NatSpecContractKey
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
-    gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(Ident { name, span: Span::DUMMY })
-        .and_then(|decls| {
-            decls.iter().find_map(|decl| match decl.res {
-                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                _ => None,
-            })
-        })
+    let segments = name
+        .as_str()
+        .split('.')
+        .map(|segment| Ident::with_dummy_span(Symbol::intern(segment)))
+        .collect::<SmallVec<[_; 2]>>();
+    let resolutions = gcx.source_path_resolutions(&segments, source_id, None)?;
+    resolutions.last()?.iter().find_map(|res| match res {
+        hir::Res::Item(hir::ItemId::Contract(id)) => Some(*id),
+        _ => None,
+    })
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
@@ -2143,6 +2278,51 @@ pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
 } // cached!
 
 // DO NOT ADD `impl Gcx` HERE. ADD FUNCTIONS IN THE IMPL BLOCK ABOVE.
+
+/// Returns the external type of an interface function, or emits the errors that its parameter
+/// and return types have as interface types.
+fn interface_function_ty_checked<'gcx>(
+    gcx: Gcx<'gcx>,
+    c: &hir::Contract<'gcx>,
+    f_id: hir::FunctionId,
+) -> Option<Ty<'gcx>> {
+    let f = gcx.hir.function(f_id);
+    let ty = external_interface_function_ty(gcx, f_id);
+    let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
+    let mut result = Ok(());
+    for (var_id, ty) in f.variables().zip(ty_f.tys()) {
+        if let Err(guar) = ty.error_reported() {
+            result = Err(guar);
+            continue;
+        }
+        let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+        if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
+            let kind = f.description();
+            let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
+            let span = gcx.hir.variable(var_id).ty.span;
+            result = Err(gcx.dcx().emit_err(span, msg));
+        }
+    }
+    if result.is_err() {
+        return None;
+    }
+    Some(ty)
+}
+
+/// Returns the externally callable type of an interface function.
+fn external_interface_function_ty(gcx: Gcx<'_>, f_id: hir::FunctionId) -> Ty<'_> {
+    let f = gcx.hir.function(f_id);
+    let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
+    gcx.mk_ty_fn(TyFn {
+        kind: TyFnKind::External,
+        parameters: fn_ty.parameters,
+        returns: fn_ty.returns,
+        state_mutability: f.state_mutability,
+        function_id: fn_ty.function_id,
+        attached: false,
+    })
+    .as_externally_callable_function(false, gcx)
+}
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;

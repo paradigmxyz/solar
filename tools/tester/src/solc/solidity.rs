@@ -84,6 +84,14 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "inherited_constructor_named_parameters"
         | "named_parameters_invocation"
 
+        // A source that cannot be read is a warning with `--stop-after=parsing`.
+        | "filename_with_period"
+        | "import_complex"
+        | "import_not_found"
+        | "import_simple"
+        | "more_than_256_importerrors"
+        | "multiple_non_existent_file_names"
+
         // Fixed-point types are rejected during parsing.
         | "all_value_types"
         | "fixed_point_add"

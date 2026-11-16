@@ -10,7 +10,7 @@ use std::{num::NonZeroUsize, path::PathBuf};
 #[cfg(feature = "clap")]
 use clap::{Parser, ValueHint};
 
-// TODO: implement `allow_paths`.
+// TODO: implement `allow_paths` outside of Standard JSON.
 
 /// Compilation configuration.
 #[derive(Clone, Debug, Default)]
@@ -80,6 +80,12 @@ pub struct CompileOpts {
         )
     )]
     pub allow_paths: Vec<PathBuf>,
+    /// Disable the import callback, so that imports only resolve to the given sources.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Input options", long, conflicts_with = "allow_paths")
+    )]
+    pub no_import_callback: bool,
     /// Compiler input language.
     #[cfg_attr(
         feature = "clap",
@@ -471,6 +477,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pack_wide_jump_tables: bool,
 
+    /// Keeps the ASTs after lowering, which the `ast` outputs need and which are dropped otherwise
+    /// to free memory.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub keep_asts: bool,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -526,6 +537,7 @@ impl UnstableOpts {
             switch_max_bit_slice_gas_code_growth,
             tune,
             pack_wide_jump_tables,
+            keep_asts: _,
             ui_testing: _,
             track_diagnostics: _,
             recover_incomplete_input: _,

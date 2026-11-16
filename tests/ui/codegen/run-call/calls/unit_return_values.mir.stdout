@@ -1,0 +1,55 @@
+; === ROOT/tests/ui/codegen/run-call/calls/unit_return_values.sol:UnitReturnValues ===
+@module UnitReturnValues
+; function deleteReturn() external returns (uint256) [selector 0x2ff7c86b]
+fn @deleteReturn() -> i256 [selector=0x2ff7c86b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 7 !metadata(storage=slot(0))
+    icall @deleteAndReturn
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function deleteAndReturn() internal
+fn @deleteAndReturn() {
+  bb0:
+    sstore 0, 0 !metadata(storage=slot(0))
+    ret
+}
+
+; function assignmentReturn() external returns (uint256) [selector 0xb3fb91a9]
+fn @assignmentReturn() -> i256 [selector=0xb3fb91a9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @assignAndReturn
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function assignAndReturn() internal
+fn @assignAndReturn() {
+  bb0:
+    sstore 0, 7 !metadata(storage=slot(0))
+    ret
+}
+
+; function conditionalReturn(bool clear) external returns (uint256) [selector 0xb8c11060]
+fn @conditionalReturn(arg0: i1) -> i256 [selector=0xb8c11060, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 9 !metadata(storage=slot(0))
+    icall @selectAndReturn, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function selectAndReturn(bool clear) internal
+fn @selectAndReturn(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    icall @assignAndReturn
+    jump bb3
+  bb1:                                            ; preds = bb0
+    icall @deleteAndReturn
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    ret
+}

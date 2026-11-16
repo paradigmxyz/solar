@@ -1725,6 +1725,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // without capturing a valid key, sharing one default tail
                 // while preserving every successful dispatch path.
                 self.emit_mir_switch_default(default, can_fallthrough && index == last_slot);
+            } else if miss_label.is_none() {
+                // The jump over the failed compare into the next slot belongs to the switch.
+                self.asm.mark_fallthrough();
             }
         }
         if let Some(miss_label) = miss_label {
@@ -1831,7 +1834,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.emitting_entry {
             self.asm.emit_stack_op(StackOp::Pop);
         }
-        if !can_fallthrough {
+        if can_fallthrough {
+            // The implicit jump to the default belongs to the switch.
+            self.asm.mark_fallthrough();
+        } else {
             self.asm.emit_push_label(self.block_labels[&default]);
             self.asm.emit_op(op::JUMP);
         }

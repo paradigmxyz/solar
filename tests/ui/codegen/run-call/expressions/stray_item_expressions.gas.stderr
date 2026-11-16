@@ -1,0 +1,24 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/stray_item_expressions.sol:LL:CC
+   │
+LL │         Lib;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/stray_item_expressions.sol:LL:CC
+   │
+LL │         Lib.Kind;
+   ╰╴        ━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/stray_item_expressions.sol:LL:CC
+   │
+LL │         Lib.Item;
+   ╰╴        ━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/stray_item_expressions.sol:LL:CC
+   │
+LL │         Lib.multiply;
+   ╰╴        ━━━━━━━━━━━━
+

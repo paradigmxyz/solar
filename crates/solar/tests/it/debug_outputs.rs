@@ -60,16 +60,16 @@ fn debug_output_selection_and_bytecode_neutrality() {
 #[test]
 fn debug_output_selection_preserves_optimized_bytecode() {
     for source in [
-        "../../codegen/lowering/run-call/external_call_returndata_size.sol",
-        "../../codegen/lowering/empty_code_external_call.sol",
-        "../../codegen/lowering/storage_checked_arithmetic.sol",
-        "../../codegen/lowering/library_address.sol",
+        "../../codegen/run-call/external-calls/external_call_returndata_size.sol",
+        "../../codegen/run-call/external-calls/empty_code_external_call.sol",
+        "../../codegen/mir/lower-arithmetic/storage_checked_arithmetic.sol",
+        "../../codegen/run-call/libraries/library_address.sol",
         "../../../foundry/libraries/test/OverloadLib.t.sol",
         "../../codegen/mir/byte-loops/shapes.sol",
         "../../codegen/mir/if-convert/boolean_selects_runtime.sol",
-        "../../codegen/lowering/mapping.sol",
-        "../../codegen/lowering/calldata_slice_ternary.sol",
-        "../../codegen/lowering/run-call/internal_stop_runtime.sol",
+        "../../codegen/lowering/mir/storage-memory/mapping.sol",
+        "../../codegen/lowering/mir/abi/calldata_slice_ternary.sol",
+        "../../codegen/run-call/dispatch/internal_stop_runtime.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
@@ -168,7 +168,7 @@ fn debug_outputs_match_standard_json() {
 #[test]
 fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
     assert_debug_outputs_are_bytecode_neutral(
-        "../../codegen/lowering/run-call/scalar_dispatch.sol",
+        "../../codegen/lowering/mir/calls/scalar_dispatch.sol",
     );
 }
 
@@ -355,7 +355,7 @@ fn debug_activations_require_real_transfers() {
             let mut jump = "-";
             let mut internal_returns = 0;
             let mut returns = 0;
-            for (index, (instruction, entry)) in instructions.iter().zip(entries).enumerate() {
+            for (instruction, entry) in instructions.iter().zip(entries) {
                 let opcode = instruction["operation"]["mnemonic"].as_str().unwrap();
                 if let Some(marker) = entry.split(':').nth(3).filter(|marker| !marker.is_empty()) {
                     jump = marker;
@@ -366,21 +366,17 @@ fn debug_activations_require_real_transfers() {
                 internal_returns += usize::from(jump == "o");
                 let context = &instruction["context"];
                 if let Some(invoke) = context.get("invoke") {
-                    assert!(matches!(opcode, "JUMP" | "JUMPI"), "{invoke}");
                     assert_eq!(invoke["jump"], true);
-                    let pointer = &invoke["target"]["pointer"];
-                    assert_eq!(pointer["location"], "code");
-                    assert_eq!(pointer["length"], 1);
-                    let target = pointer["offset"].as_u64().expect("required internal jump target");
-                    assert!(instructions.iter().any(|inst| {
-                        inst["offset"] == target && inst["operation"]["mnemonic"] == "JUMPDEST"
-                    }));
-                    let argument =
-                        instructions[index - 1]["operation"]["arguments"][0].as_str().unwrap();
-                    assert_eq!(
-                        u64::from_str_radix(argument.strip_prefix("0x").unwrap(), 16).unwrap(),
-                        target
-                    );
+                    // The callee's first instruction holds the entry; only a `JUMPDEST` is a
+                    // jump target.
+                    if opcode == "JUMPDEST" {
+                        let pointer = &invoke["target"]["pointer"];
+                        assert_eq!(pointer["location"], "code");
+                        assert_eq!(pointer["length"], 1);
+                        assert_eq!(pointer["offset"], instruction["offset"]);
+                    } else {
+                        assert!(invoke.get("target").is_none(), "{invoke}");
+                    }
                 }
                 if context.get("return").is_some() {
                     returns += 1;
@@ -442,7 +438,7 @@ fn ethdebug_omits_unresolved_library_operands() {
 
 #[test]
 fn evm_ir_dump_preserves_bytecode() {
-    let source = "../../codegen/lowering/function_comments.sol";
+    let source = "../../codegen/debug-info/function_comments.sol";
     for mode in ["none", "gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let output = compile(&[
@@ -467,22 +463,69 @@ fn evm_ir_dump_preserves_bytecode() {
 }
 
 #[test]
+fn debugify_loop_and_stack_metadata_preserve_bytecode() {
+    let audit = tempfile::tempdir().unwrap();
+    let flag = format!("-Zdebugify-output={}", audit.path().display());
+    for source in [
+        "../../codegen/debug-info/stackify_retained_constant.sol",
+        "../../codegen/debug-info/stackify_generated_edges.sol",
+        "../../codegen/debug-info/indvar_simplify_narrow_base.sol",
+        "../../codegen/debug-info/if_convert_modifier_phi.sol",
+        "../../codegen/debug-info/shared_terminal_labels.sol",
+        "../../codegen/mir/byte-loops/empty_count.sol",
+        "../../codegen/mir/byte-loops/wrapped_memory_offsets.sol",
+        "../../codegen/mir/loop-version/partition.sol",
+    ] {
+        for mode in ["none", "gas", "size"] {
+            let args = [
+                source,
+                "-O",
+                mode,
+                "--emit=bin,bin-runtime,srcmap,srcmap-runtime,ethdebug,ethdebug-runtime",
+            ];
+            let plain = compile_json(&args);
+            let audited = compile_json(&[args.as_slice(), &[&flag]].concat());
+            assert_eq!(plain["contracts"], audited["contracts"], "{source}, {mode}");
+        }
+    }
+}
+
+#[test]
+fn library_deployment_address_uses_contract_origin() {
+    let source = "../../codegen/debug-info/gap_check.sol";
+    let text = RealFileLoader.load_file(&Path::new(FIXTURES).join(source)).unwrap();
+    let start = text.find("library GapCheck").unwrap();
+    for mode in ["none", "gas", "size"] {
+        let output = compile_json(&[source, "-O", mode, "--emit=bin,ethdebug"]);
+        let contract = output["contracts"].as_object().unwrap().values().next().unwrap();
+        assert!(
+            contract["ethdebug"]["instructions"].as_array().unwrap().iter().any(|inst| {
+                inst["operation"]["mnemonic"] == "ADDRESS"
+                    && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
+            }),
+            "{mode}: library address staging lost its contract location"
+        );
+    }
+}
+
+#[test]
 fn evm_ir_debug_contexts_preserve_bytecode() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("debug.evmir");
     let path = path.to_str().unwrap();
     for (pipeline, fixture, audit) in [
-        ("peephole", "peephole/debug_replacements.evmir", "check"),
-        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir", "check"),
-        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir", "check"),
+        ("peephole", "peephole_debug_replacements.evmir", "report"),
+        ("cfg-simplify", "cfg_simplify_branch_entry_inversion.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_chain_spans.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_spans.evmir", "check"),
         (
             "cfg-simplify,terminal-dedup,cfg-simplify",
-            "cfg-simplify/checkpoint_shared_entry.evmir",
+            "cfg_simplify_lent_invoke_shared_entry.evmir",
             "report",
         ),
     ] {
         let source = RealFileLoader
-            .load_file(&Path::new(FIXTURES).join("../../codegen/evm-ir").join(fixture))
+            .load_file(&Path::new(FIXTURES).join("../../codegen/debug-info/evm-ir").join(fixture))
             .unwrap();
         let plain = source
             .lines()

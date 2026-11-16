@@ -1,7 +1,6 @@
 //! Gas reserves used by MIR call lowering.
 
 use crate::mir::{FunctionBuilder, ValueId};
-use solar_config::EvmVersion;
 
 /// Homestead's `CALL` base cost plus the `SUB` and the call setup emitted after `GAS`.
 ///
@@ -22,31 +21,6 @@ const PRE_TANGERINE_VALUE_TRANSFER_GAS_RESERVE: u64 = 9_000;
 ///
 /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libevmasm/GasMeter.h#L151>
 const PRE_TANGERINE_NEW_ACCOUNT_GAS_RESERVE: u64 = 25_000;
-
-/// The reserve of a pre-Tangerine precompile call.
-///
-/// A precompile call sends no value and is not guarded by `extcodesize`, so a call to the
-/// `ecrecover`, `sha256` or `ripemd160` precompile reserves the base cost and the
-/// account-creation cost.
-///
-/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ExpressionCompiler.cpp#L2922-L2926>
-const PRE_TANGERINE_PRECOMPILE_GAS_RESERVE: u64 =
-    PRE_TANGERINE_CALL_GAS_RESERVE + PRE_TANGERINE_NEW_ACCOUNT_GAS_RESERVE;
-
-/// Returns the gas operand for a precompile call while leaving enough gas for
-/// the caller to handle failure on pre-Tangerine targets.
-pub(crate) fn precompile_gas(
-    builder: &mut FunctionBuilder<'_>,
-    evm_version: EvmVersion,
-) -> ValueId {
-    let gas = builder.gas();
-    if evm_version.can_overcharge_gas_for_call() {
-        gas
-    } else {
-        let reserved = builder.imm(PRE_TANGERINE_PRECOMPILE_GAS_RESERVE);
-        builder.sub(gas, reserved)
-    }
-}
 
 /// Returns the `gas` operand of an external call that forwards the gas left, on a target that
 /// predates EIP-150.

@@ -1,8 +1,8 @@
 //! Runtime emission and assembly.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, MAX_STACK_DEPTH,
-    MirPhase, Module, Terminator, run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, MirPhase, Module,
+    Terminator, run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -52,14 +52,5 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         functions
-    }
-
-    pub(super) fn report_stack_limit_error(&self) {
-        self.gcx
-            .dcx()
-            .err(format!(
-                "codegen cannot keep the generated EVM stack within {MAX_STACK_DEPTH} words"
-            ))
-            .emit();
     }
 }

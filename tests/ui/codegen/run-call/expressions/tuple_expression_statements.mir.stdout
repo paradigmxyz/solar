@@ -1,0 +1,25 @@
+; === ROOT/tests/ui/codegen/run-call/expressions/tuple_expression_statements.sol:C ===
+@module C
+@types
+  struct0: {i1, i256}
+
+; function tupleLiteral() external pure returns (bool) [selector 0xd176547e]
+fn @tupleLiteral() -> i1 [selector=0xd176547e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}
+
+; function tupleTernary() external pure returns (bool, uint256) [selector 0x75466b3a]
+fn @tupleTernary() -> struct0 [selector=0x75466b3a, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
+  bb0:
+    jumpi true, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = phi [bb1: 2], [bb2: 4]
+    v1 = insert_value struct0, undef struct0, 0, true
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
+}

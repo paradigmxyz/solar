@@ -7,7 +7,7 @@ use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
-use solar_ir::debug::DebugLocKind;
+use solar_ir::debug::{DebugLoc, DebugLocKind};
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
@@ -15,18 +15,14 @@ use std::fmt;
 pub struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
     storage_alias: Option<Box<StorageAlias>>,
-    /// Source span that produced this instruction, when the lowerer can preserve it.
-    source_span: Span,
-    /// Additional origins of shared code, allocated only after a debug-origin merge.
-    additional_source_spans: Option<Box<SmallVec<[Span; 2]>>>,
-    /// Legacy source-map modifier nesting depth for this instruction.
-    modifier_depth: u32,
+    /// Source origins, modifier depth, and why there are no origins, when there are none.
+    debug_loc: DebugLoc,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<HirExprId>,
+    /// On the metadata of a jump: the assignments in its block whose values it passes to phis.
+    edge_assignments: Option<Box<EdgeAssignments>>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
-    /// Why the instruction has no origin, when it has none.
-    debug_loc_kind: DebugLocKind,
     /// Packed optional memory region, effect kind, and boolean flags.
     flags: MetadataFlags,
 }
@@ -36,11 +32,9 @@ impl InstructionMetadata {
     pub const EMPTY: Self = Self {
         storage_alias: None,
         hir_expr: None,
-        source_span: Span::DUMMY,
-        additional_source_spans: None,
-        modifier_depth: 0,
+        edge_assignments: None,
+        debug_loc: DebugLoc::EMPTY,
         loop_depth: 0,
-        debug_loc_kind: DebugLocKind::Normal,
         flags: MetadataFlags::EMPTY,
     };
 
@@ -66,117 +60,133 @@ impl InstructionMetadata {
         self.hir_expr = expr;
     }
 
+    /// Returns the assignments, made in the block of this jump, whose values it passes to the phis
+    /// of its target.
+    ///
+    /// Each ran in the block before the jump, so code that the jump alone runs, such as the copy
+    /// of a phi operand, runs only after them, and the block runs it once per assignment. Merging
+    /// the jump with another drops them, as do the other ways to copy metadata that keep only the
+    /// source context.
+    #[must_use]
+    pub fn edge_assignments(&self) -> &[EdgeAssignment] {
+        self.edge_assignments.as_deref().map_or(&[], |assignments| assignments.0.as_slice())
+    }
+
+    /// Records an assignment in the block of this jump that stored `value`, which a phi of the
+    /// jump's target takes. `origin` is the source context the assignment was lowered under, as
+    /// [`Self::debug_context`] copies it.
+    pub fn add_edge_assignment(&mut self, value: ValueId, origin: Self) {
+        let assignment = EdgeAssignment { value, origin };
+        let assignments = &mut self.edge_assignments.get_or_insert_default().0;
+        if !assignments.contains(&assignment) {
+            assignments.push(assignment);
+        }
+    }
+
     /// Returns the source span that produced this instruction.
     #[must_use]
     pub fn source_span(&self) -> Option<Span> {
-        (!self.source_span.is_dummy()).then_some(self.source_span)
+        self.debug_loc.span()
     }
 
     /// Returns every retained origin, in deterministic merge order.
     pub fn source_spans(&self) -> impl Iterator<Item = Span> + '_ {
-        self.source_span()
-            .into_iter()
-            .chain(self.additional_source_spans.iter().flat_map(|spans| spans.iter().copied()))
+        self.debug_loc.spans()
     }
 
-    /// Sets explicit textual origins, bounding metadata growth in repeated merges.
+    /// Returns whether several origins all hold, as `gather` in ETHDebug, instead of one of them.
+    #[must_use]
+    pub fn all_source_spans(&self) -> bool {
+        self.debug_loc.all_spans()
+    }
+
+    /// Sets whether the textual origins all hold.
+    pub(crate) fn set_all_source_spans(&mut self, all_spans: bool) {
+        self.debug_loc.set_all_spans(all_spans);
+    }
+
+    /// Sets explicit textual origins.
     pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
-        self.set_source_span(None);
-        for span in spans {
-            self.insert_source_span(span);
-        }
-        self.flags.set_display_source_span(self.source_span().is_some());
+        self.debug_loc.set_spans(spans);
+        self.flags.set_display_source_span(self.debug_loc.has_spans());
     }
 
-    fn insert_source_span(&mut self, span: Span) {
-        // Keep the same bounded ambiguity representation in both IR layers.
-        if span.is_dummy() || self.source_spans().any(|old| old == span) {
-            return;
-        }
-        if self.source_span.is_dummy() {
-            self.source_span = span;
-        } else if self.source_spans().count() < solar_ir::debug::MAX_DEBUG_SPANS {
-            self.additional_source_spans.get_or_insert_default().push(span);
-        }
+    /// Rule R2, merge: see [`DebugLoc::merge`]. Shows the origins in canonical MIR text if any
+    /// input does.
+    pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut display = self.displays_source_span();
+        self.debug_loc.merge(others.into_iter().map(|other| {
+            display |= other.displays_source_span();
+            &other.debug_loc
+        }));
+        self.edge_assignments = None;
+        self.flags.set_display_source_span(display);
     }
 
-    /// Unions origins without importing instruction-specific analysis facts.
-    pub fn merge_debug_context(&mut self, other: &Self) {
-        for span in other.source_spans() {
-            self.insert_source_span(span);
-        }
-        if self.modifier_depth != other.modifier_depth {
-            self.modifier_depth = 0;
-        }
-        self.flags
-            .set_display_source_span(self.displays_source_span() || other.displays_source_span());
-        self.debug_loc_kind = if self.source_spans().next().is_some() {
-            DebugLocKind::Normal
-        } else {
-            self.debug_loc_kind.merge(other.debug_loc_kind)
-        };
+    /// Rule R2b, combine: see [`DebugLoc::combine`]. Shows the origins in canonical MIR text if
+    /// any input does.
+    pub fn combine_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut display = self.displays_source_span();
+        self.debug_loc.combine(others.into_iter().map(|other| {
+            display |= other.displays_source_span();
+            &other.debug_loc
+        }));
+        self.edge_assignments = None;
+        self.flags.set_display_source_span(display);
     }
 
-    /// Copies all debug fields without copying semantic or analysis metadata.
-    pub fn copy_debug_context(&mut self, other: &Self) {
-        self.source_span = other.source_span;
-        self.additional_source_spans = other.additional_source_spans.clone();
-        self.modifier_depth = other.modifier_depth;
-        self.flags.set_display_source_span(other.displays_source_span());
-        self.debug_loc_kind = other.debug_loc_kind;
+    /// Rule R1, preserve: see [`DebugLoc::preserve`]. Also copies the display flag, but no
+    /// analysis metadata.
+    pub fn preserve_debug_loc(&mut self, from: &Self) {
+        self.debug_loc.preserve(&from.debug_loc);
+        self.flags.set_display_source_span(from.displays_source_span());
     }
 
     /// Sets the source span that produced this instruction.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
-        let span = span.filter(|span| !span.is_dummy());
-        self.source_span = span.unwrap_or(Span::DUMMY);
-        self.additional_source_spans = None;
-        self.flags.set_display_source_span(span.is_some());
-        self.debug_loc_kind = DebugLocKind::Normal;
+        self.debug_loc.set_span(span);
+        self.flags.set_display_source_span(self.debug_loc.has_spans());
     }
 
     /// Sets source debug information without adding it to canonical MIR text.
     pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
-        self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
-        self.additional_source_spans = None;
+        self.debug_loc.set_span(span);
         self.flags.set_display_source_span(false);
-        self.debug_loc_kind = DebugLocKind::Normal;
     }
 
     /// Returns the source-map modifier nesting depth for this instruction.
     #[must_use]
     pub const fn modifier_depth(&self) -> u32 {
-        self.modifier_depth
+        self.debug_loc.modifier_depth()
     }
 
     /// Sets the source-map modifier nesting depth for this instruction.
     pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
-        self.modifier_depth = depth;
+        self.debug_loc.set_modifier_depth(depth);
     }
 
-    /// Marks this instruction as intentionally having no source location, like LLVM's
-    /// `Instruction::dropLocation`.
-    pub fn mark_debug_info_dropped(&mut self) {
-        self.set_debug_source_span(None);
-        self.modifier_depth = 0;
-        self.debug_loc_kind = DebugLocKind::Dropped;
+    /// Rule R3, drop: see [`DebugLoc::drop`].
+    pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
+        self.debug_loc.drop(kind);
+        self.flags.set_display_source_span(false);
     }
 
     /// Returns why this instruction has no source origin, when it has none.
     #[must_use]
     pub const fn debug_loc_kind(&self) -> DebugLocKind {
-        self.debug_loc_kind
+        self.debug_loc.kind()
     }
 
-    /// Annotates the missing origin of this instruction.
+    /// Annotates the missing origin of this instruction, for the MIR parser and the debugify audit.
+    /// Passes use [`Self::drop_debug_loc`], which also clears the spans.
     pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
-        self.debug_loc_kind = kind;
+        self.debug_loc.set_kind(kind);
     }
 
     /// Annotates the missing origin of this instruction and shows the annotation in canonical MIR
     /// text.
     pub(crate) fn set_displayed_debug_loc_kind(&mut self, kind: DebugLocKind) {
-        self.debug_loc_kind = kind;
+        self.debug_loc.set_kind(kind);
         self.flags.set_display_source_span(true);
     }
 
@@ -184,7 +194,7 @@ impl InstructionMetadata {
     /// which is what LLVM's `not-generate` check reports.
     #[must_use]
     pub fn lacks_debug_location(&self) -> bool {
-        self.debug_loc_kind == DebugLocKind::Normal && self.source_spans().next().is_none()
+        self.debug_loc.is_gap()
     }
 
     /// Returns whether canonical MIR text should include the source span.
@@ -196,7 +206,27 @@ impl InstructionMetadata {
     /// Copies source context without carrying instruction-specific analysis facts.
     pub fn debug_context(&self) -> Self {
         let mut metadata = Self::EMPTY;
-        metadata.copy_debug_context(self);
+        metadata.preserve_debug_loc(self);
+        metadata
+    }
+
+    /// Copies the metadata of an instruction that is cloned with remapped operands: the source
+    /// context and the semantic markers, such as `preserves_fmp`. Facts proved from the old
+    /// operands (memory region, storage alias, effect) and analysis results (HIR expression, loop
+    /// depth) are dropped.
+    #[must_use]
+    pub fn without_operand_facts(&self) -> Self {
+        let Self {
+            storage_alias: _,
+            debug_loc,
+            hir_expr: _,
+            edge_assignments: _,
+            loop_depth: _,
+            flags,
+        } = self;
+        let mut metadata = Self { debug_loc: debug_loc.clone(), flags: *flags, ..Self::EMPTY };
+        metadata.flags.set_memory_region(None);
+        metadata.flags.set_effect(None);
         metadata
     }
 
@@ -295,6 +325,19 @@ impl InstructionMetadata {
         self.flags.set_disjoint(value);
     }
 }
+
+/// An assignment whose value a jump passes to a phi of its target.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EdgeAssignment {
+    /// The value the assignment stored.
+    pub value: ValueId,
+    /// The source context of the assignment, as [`InstructionMetadata::debug_context`] copies it.
+    pub origin: InstructionMetadata,
+}
+
+/// The assignments of a jump, boxed on instructions that have any, so others pay one word.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+struct EdgeAssignments(Vec<EdgeAssignment>);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 struct MetadataFlags(u16);
@@ -782,8 +825,8 @@ impl Instruction {
 
     /// Marks this synthetic instruction as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 
@@ -863,12 +906,29 @@ impl Instruction {
     }
 }
 
-/// Solidity low-level address-call behavior.
+/// Which opcode an `extcall` uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AddressCallKind {
+pub enum ExtCallKind {
     Call,
     Static,
     Delegate,
+}
+
+/// Where an `extcall`'s output lands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallOutput {
+    /// The call discards its output: it expands to an empty output range.
+    None,
+    /// The call writes a 32-byte word at the start of scratch memory, where the caller reads it.
+    Word,
+}
+
+/// What an `extcall` means apart from its operands. Its result is the success flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CallPolicy {
+    /// `CALL`, `STATICCALL` (a zero-value `CALL` before Byzantium), or `DELEGATECALL`.
+    pub kind: ExtCallKind,
+    pub output: CallOutput,
 }
 
 impl InstKind {
@@ -974,7 +1034,6 @@ impl InstKind {
     pub fn zero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Eq(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
-            Self::Eq(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }
@@ -983,7 +1042,6 @@ impl InstKind {
     pub fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
-            Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }
@@ -1047,9 +1105,6 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
-            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
-            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
             _ => self.op_def().mnemonic,
         }
     }
@@ -1070,11 +1125,6 @@ impl InstKind {
                 }
                 Builtin::Erc7201 | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
                 Builtin::Require(_) => EffectKind::MemoryRead,
-                Builtin::Sha256
-                | Builtin::Ripemd160
-                | Builtin::EcRecover
-                | Builtin::Send
-                | Builtin::Transfer => EffectKind::ExternalCall,
             },
             _ => self.op_def().effect,
         }
@@ -1117,5 +1167,27 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::BytePos;
+
+    #[test]
+    fn merging_jumps_drops_the_edge_assignments() {
+        let mut origin = InstructionMetadata::EMPTY;
+        origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        let mut jump = InstructionMetadata::EMPTY;
+        jump.add_edge_assignment(ValueId::from_usize(0), origin);
+        assert_eq!(jump.edge_assignments().len(), 1);
+        assert!(jump.debug_context().edge_assignments().is_empty());
+
+        let mut combined = jump.clone();
+        combined.combine_debug_locs([&jump]);
+        assert!(combined.edge_assignments().is_empty());
+        jump.merge_debug_locs([]);
+        assert!(jump.edge_assignments().is_empty());
     }
 }

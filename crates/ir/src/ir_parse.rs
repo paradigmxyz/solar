@@ -43,6 +43,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.look_ahead(distance)
     }
 
+    pub fn tokens_ahead(&self) -> impl Iterator<Item = Token> + '_ {
+        self.parser.tokens_ahead()
+    }
+
     pub fn bump(&mut self) {
         self.parser.bump();
     }

@@ -1,0 +1,53 @@
+; === ROOT/tests/ui/codegen/run-call/abi-encode/abi_encode_call_special_args_v2.sol:AbiEncodeCallSpecialArgs ===
+@module AbiEncodeCallSpecialArgs
+@types
+  struct0: {i256, i256}
+
+; function fNoArgs() external [selector 0x1af93581]
+fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function fArray(uint[] memory) external [selector 0x0a326c0c]
+fn @fArray(arg0: ptr<memory>) [selector=0x0a326c0c, abi_params=[array<_, uint256>], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function fUint(uint, uint) external returns (uint, uint) [selector 0x432672b2]
+fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, 0
+    v1 = insert_value struct0, v0, 1, 0
+    ret v1
+}
+
+; function test() external view returns (bool) [selector 0xf8a8fd6d]
+fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi true, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v0 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v5 = ptradd v4, 32
+    v6 = mload v4
+    v7 = keccak256 v5, v6
+    v8 = eq v3, v7
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v9 = phi [bb1: v8], [bb2: false]
+    jumpi v9, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v10 = phi [bb4: true], [bb5: false]
+    ret v10
+}

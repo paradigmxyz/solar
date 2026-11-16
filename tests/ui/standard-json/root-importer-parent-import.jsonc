@@ -1,0 +1,23 @@
+//@ filecheck:
+// A `..` import that climbs above the root of `/Main.sol` names `lib/Guard.sol`, as in solc.
+// CHECK: "/Main.sol": {
+// CHECK: "lib/Guard.sol": {
+// CHECK-NOT: "/lib/Guard.sol"
+{
+  "language": "Solidity",
+  "sources": {
+    "/Main.sol": {
+      "content": "import {G} from \"../lib/Guard.sol\"; contract Main { function f() public pure returns (uint256) { return G.id(); } }"
+    },
+    "lib/Guard.sol": {
+      "content": "library G { function id() internal pure returns (uint256) { return 1; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": ["abi"]
+      }
+    }
+  }
+}

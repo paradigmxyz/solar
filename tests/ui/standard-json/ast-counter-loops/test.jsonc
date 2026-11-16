@@ -1,0 +1,41 @@
+//@ filecheck:
+// A `for` loop cannot overflow its counter when the counter is a local integer that the loop
+// condition bounds from above, the update increments, and the body does not write to.
+// simple.
+// CHECK: "isSimpleCounterLoop": true
+// prefix.
+// CHECK: "isSimpleCounterLoop": true
+// bodyWrite.
+// CHECK: "isSimpleCounterLoop": false
+// boundWrite.
+// CHECK: "isSimpleCounterLoop": true
+// tupleWrite.
+// CHECK: "isSimpleCounterLoop": false
+// nestedWrite (inner loop, which is written before the outer).
+// CHECK: "isSimpleCounterLoop": true
+// nestedWrite (outer).
+// CHECK: "isSimpleCounterLoop": false
+// deleted.
+// CHECK: "isSimpleCounterLoop": false
+// stateCounter.
+// CHECK: "isSimpleCounterLoop": false
+// decrement.
+// CHECK: "isSimpleCounterLoop": false
+// compare.
+// CHECK: "isSimpleCounterLoop": false
+// assemblyWrite, a write in inline assembly.
+// CHECK: "isSimpleCounterLoop": false
+// assemblyRead, which only reads the counter.
+// CHECK: "isSimpleCounterLoop": true
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

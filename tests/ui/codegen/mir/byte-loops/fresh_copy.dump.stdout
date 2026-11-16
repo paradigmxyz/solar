@@ -748,29 +748,29 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v35 = add v6, 63
-    v10 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v30 = add v6, 63
+    v10 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v11 = lt v10, v6
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, v10 !metadata(alloc_ptr)
-    v38 = shr v30, 64
-    v31 = lt v30, v29
-    v40 = zext i1 v31 to i256
-    v41 = or v38, v40
-    v43 = zext i1 v11 to i256
-    v44 = or v41, v43
-    v37 = ne v44, 0
-    jumpi v37, bb3, bb5
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v10 !metadata(alloc_ptr)
+    v33 = shr v25, 64
+    v26 = lt v25, v24
+    v35 = zext i1 v26 to i256
+    v36 = or v33, v35
+    v38 = zext i1 v11 to i256
+    v39 = or v36, v38
+    v32 = ne v39, 0
+    jumpi v32, bb3, bb5
   bb5:                                            ; preds = bb2
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v6
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v6
     v13 = sub v0, v7
     v14 = lt v13, v6
     jumpi v14, bb1, bb4
   bb4:                                            ; preds = bb5
-    v25 = add v29, 32
-    calldatacopy v25, v7, v6
-    ret v29
+    v21 = add v24, 32
+    calldatacopy v21, v7, v6
+    ret v24
   bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

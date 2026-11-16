@@ -34,7 +34,7 @@ class CampaignTests(unittest.TestCase):
                             "status": "mismatch"
                             if contract == "B"
                             else "bounded_agreement",
-                            "counterexample": {"calls": [{"calldata": "0x26121ff0"}]},
+                            "counterexample": {"calldata": "0x26121ff0"},
                         }
                     ],
                 }
@@ -48,13 +48,22 @@ class CampaignTests(unittest.TestCase):
                 patch("sys.stderr"),
             ):
                 code = campaign.main(
-                    [str(source), "--out", str(root / "out"), "--", "--depth", "2"]
+                    [
+                        str(source),
+                        "--out",
+                        str(root / "out"),
+                        "--",
+                        "--arbitrary-storage",
+                    ]
                 )
 
             self.assertEqual(code, 1)
             self.assertEqual(
                 sorted(runs),
-                [("C.sol", "A", ["--depth", "2"]), ("C.sol", "B", ["--depth", "2"])],
+                [
+                    ("C.sol", "A", ["--arbitrary-storage"]),
+                    ("C.sol", "B", ["--arbitrary-storage"]),
+                ],
             )
             rows = [
                 json.loads(line)
@@ -64,7 +73,7 @@ class CampaignTests(unittest.TestCase):
             summary = (root / "out" / "summary.md").read_text()
 
         self.assertIn("| contracts | 1 | 1 | 0 |", summary)
-        self.assertIn("| call sequences | 1 | 1 | 0 |", summary)
+        self.assertIn("| checks | 1 | 1 | 0 |", summary)
         self.assertIn("- `B` `f()` differs in an assertion: `0x26121ff0`", summary)
 
     def test_fails_when_a_source_has_no_contract(self) -> None:

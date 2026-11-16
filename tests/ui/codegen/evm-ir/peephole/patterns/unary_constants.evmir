@@ -77,3 +77,13 @@ bb100:
   push 0
   push 0
   revert
+
+// A `DUP` of a known constant is a constant operand of a unary operation too.
+bb16:
+  push 0
+  dup 1
+  iszero
+  push 0
+  mstore
+  pop
+  stop

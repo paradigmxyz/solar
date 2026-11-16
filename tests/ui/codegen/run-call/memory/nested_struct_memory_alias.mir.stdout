@@ -1,0 +1,222 @@
+; === ROOT/tests/ui/codegen/run-call/memory/nested_struct_memory_alias.sol:NestedStructMemoryAlias ===
+@module NestedStructMemoryAlias
+; function check() external pure returns (uint256) [selector 0x919840ad]
+fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v7 = alloc zeroed checked 64
+    mstore v7, 1
+    jump bb4
+  bb4:                                            ; preds = bb3, bb5
+    v8 = phi [bb3: 0], [bb5: v18]
+    v9 = lt v8, 1
+    jumpi v9, bb5, bb6
+  bb6:                                            ; preds = bb4
+    v19 = mload v0
+    v20 = gt v19, 0
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptrtoint ptr<memory> v7 to i256
+    v23 = ptradd v0, 32
+    mstore v23, v22
+    v24 = alloc zeroed checked 96
+    mstore v24, 2
+    v25 = mload v0
+    v26 = gt v25, 0
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = ptradd v0, 32
+    v29 = mload v28, ptr<memory>
+    v30 = mload v29
+    v31 = gt v30, 0
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = ptradd v29, 32
+    v34 = mload v33, ptr<memory>
+    v35 = ptrtoint ptr<memory> v24 to i256
+    mstore v34, v35
+    v36 = mload v0
+    v37 = gt v36, 0
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = ptradd v0, 32
+    v40 = mload v39, ptr<memory>
+    v41 = mload v40
+    v42 = gt v41, 0
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    v44 = ptradd v40, 32
+    v45 = mload v44, ptr<memory>
+    v46 = mload v45, ptr<memory>
+    v47 = mload v46
+    v48 = gt v47, 0
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = ptradd v46, 32
+    mstore v50, 3
+    v51 = mload v0
+    v52 = gt v51, 0
+    v53 = eq v52, false
+    icall panic_if<0x32>, v53
+    v54 = ptradd v0, 32
+    v55 = mload v54, ptr<memory>
+    v56 = mload v55
+    v57 = gt v56, 0
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = ptradd v55, 32
+    v60 = mload v59, ptr<memory>
+    v61 = mload v60, ptr<memory>
+    v62 = mload v61
+    v63 = gt v62, 1
+    v64 = eq v63, false
+    icall panic_if<0x32>, v64
+    v65 = ptradd v61, 64
+    mstore v65, 5
+    v66 = mload v0
+    v67 = gt v66, 0
+    v68 = eq v67, false
+    icall panic_if<0x32>, v68
+    v69 = ptradd v0, 32
+    v70 = mload v69, ptr<memory>
+    v71 = mload v70
+    v72 = gt v71, 0
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = ptradd v70, 32
+    v75 = mload v74, ptr<memory>
+    v76 = ptradd v75, 32
+    v77 = mload v76, ptr<memory>
+    v78 = lt 0, 2
+    v79 = eq v78, false
+    icall panic_if<0x32>, v79
+    mstore v77, 7
+    v80 = mload v0
+    v81 = gt v80, 0
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = ptradd v0, 32
+    v84 = mload v83, ptr<memory>
+    v85 = mload v84
+    v86 = gt v85, 0
+    v87 = eq v86, false
+    icall panic_if<0x32>, v87
+    v88 = ptradd v84, 32
+    v89 = mload v88, ptr<memory>
+    v90 = ptradd v89, 32
+    v91 = mload v90, ptr<memory>
+    v92 = lt 1, 2
+    v93 = eq v92, false
+    icall panic_if<0x32>, v93
+    v94 = ptradd v91, 32
+    mstore v94, 11
+    v95 = mload v0
+    v96 = gt v95, 0
+    v97 = eq v96, false
+    icall panic_if<0x32>, v97
+    v98 = ptradd v0, 32
+    v99 = mload v98, ptr<memory>
+    v100 = mload v99
+    v101 = gt v100, 0
+    v102 = eq v101, false
+    icall panic_if<0x32>, v102
+    v103 = ptradd v99, 32
+    v104 = mload v103, ptr<memory>
+    v105 = mload v104, ptr<memory>
+    v106 = mload v105
+    v107 = gt v106, 1
+    v108 = eq v107, false
+    icall panic_if<0x32>, v108
+    v109 = ptradd v105, 64
+    mstore v109, 7
+    v110 = mload v0
+    v111 = gt v110, 0
+    v112 = eq v111, false
+    icall panic_if<0x32>, v112
+    v113 = ptradd v0, 32
+    v114 = mload v113, ptr<memory>
+    v115 = mload v114
+    v116 = gt v115, 0
+    v117 = eq v116, false
+    icall panic_if<0x32>, v117
+    v118 = ptradd v114, 32
+    v119 = mload v118, ptr<memory>
+    v120 = ptradd v119, 32
+    v121 = mload v120, ptr<memory>
+    v122 = lt 0, 2
+    v123 = eq v122, false
+    icall panic_if<0x32>, v123
+    mstore v121, 0
+    v124 = mload v0
+    v125 = gt v124, 0
+    v126 = eq v125, false
+    icall panic_if<0x32>, v126
+    v127 = ptradd v0, 32
+    v128 = mload v127, ptr<memory>
+    v129 = mload v128
+    v130 = gt v129, 0
+    v131 = eq v130, false
+    icall panic_if<0x32>, v131
+    v132 = ptradd v128, 32
+    v133 = mload v132, ptr<memory>
+    v134 = mload v133, ptr<memory>
+    v135 = mload v134
+    v136 = gt v135, 1
+    v137 = eq v136, false
+    icall panic_if<0x32>, v137
+    v138 = ptradd v134, 64
+    v139 = mload v138
+    v140 = trunc i256 v139 to i8
+    v141 = mload v0
+    v142 = gt v141, 0
+    v143 = eq v142, false
+    icall panic_if<0x32>, v143
+    v144 = ptradd v0, 32
+    v145 = mload v144, ptr<memory>
+    v146 = mload v145
+    v147 = gt v146, 0
+    v148 = eq v147, false
+    icall panic_if<0x32>, v148
+    v149 = ptradd v145, 32
+    v150 = mload v149, ptr<memory>
+    v151 = mload v150, ptr<memory>
+    v152 = mload v151
+    v153 = gt v152, 1
+    v154 = eq v153, false
+    icall panic_if<0x32>, v154
+    v155 = ptradd v151, 64
+    v156 = mload v155
+    v157 = trunc i256 v156 to i8
+    v158 = checked_add uint8, v140, v157
+    v159 = zext i8 v158 to i256
+    ret v159
+  bb5:                                            ; preds = bb4
+    v10 = alloc 64 !metadata(preserves_fmp)
+    mstore v10, 96
+    v11 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v11, 64
+    v12 = ptradd v10, 32
+    v13 = ptrtoint ptr<memory> v11 to i256
+    mstore v12, v13
+    v14 = shl v8, 5
+    v15 = ptradd v7, v14
+    v16 = ptradd v15, 32
+    v17 = ptrtoint ptr<memory> v10 to i256
+    mstore v16, v17
+    v18 = add v8, 1
+    jump bb4
+  bb2:                                            ; preds = bb1
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
+    jump bb1
+}

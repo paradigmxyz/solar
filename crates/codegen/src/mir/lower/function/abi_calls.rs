@@ -7,8 +7,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty.encodes_as_slot()
     }
 
-    /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
-    /// lies once [`Self::validate_calldata_word_array`] validated its elements.
+    /// Whether `abi_type` is a calldata array of words, which an encoding validates and copies
+    /// from where it lies.
     pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
         matches!(
             abi_type,
@@ -17,9 +17,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    /// Validates the elements of the calldata array of words `value` where they lie, before an
-    /// encoding copies them: solc's IR pipeline validates each element it encodes, reading past
-    /// the end of the calldata as zeros, and never checks the array's range.
+    /// Validates the elements of the calldata array of words `value` where they lie, before a
+    /// packed encoding copies them: solc's IR pipeline validates each element it encodes, reading
+    /// past the end of the calldata as zeros, and never checks the array's range.
     pub(super) fn validate_calldata_word_array(&mut self, value: ValueId, ty: Ty<'gcx>) {
         let Some(element) = self.array_element_type(ty) else { return };
         // for index in 0..slice_len(value):
@@ -266,13 +266,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Lowers `expr` and converts it to `ty`. A raw word of the same type stays raw.
     pub(super) fn lower_typed_expr(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
+        let operand = self.lower_operand(expr, ty)?;
+        self.convert_operand(operand)
+    }
+
+    /// Lowers `expr`, which a consumer converts to `ty` with [`Self::convert_operand`]. A literal
+    /// that `ty` fixes is built at `ty` at once.
+    pub(super) fn lower_operand(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        ty: Ty<'gcx>,
+    ) -> Option<Lowered<'gcx>> {
+        let span = expr.span;
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-            return Some(value);
+            let value = LoweredValue::Word(Word::from_clean(value));
+            return Some(Lowered { value, source: None, target: ty, span });
         }
         let source_expr = self.peel_bytes_conversion(expr);
         if let ExprKind::Lit(lit) = source_expr.peel_parens().kind
@@ -286,31 +300,89 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            return self.lower_shared_bytes_literal(*bytes);
+            let value = LoweredValue::BytesLiteral(*bytes);
+            return Some(Lowered { value, source: None, target: ty, span });
         }
-        if self.is_storage_object_copy(source_expr, ty) {
-            let access = self.require_storage_access(source_expr)?;
-            return self.load_storage_object(ty, access.slot, expr.span);
-        }
-        let value = self.lower_expr(expr)?;
-        let source_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
+        let word = self.lower_expr(expr)?;
+        let source = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             let ExprKind::Lit(lit) = &expr.kind else { return None };
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        let value = source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty));
-        Some(value)
+        Some(Lowered { value: LoweredValue::Word(word), source, target: ty, span })
     }
 
-    /// Whether a value of type `ty` made from `source` copies a storage array or struct to memory.
-    pub(super) fn is_storage_object_copy(&self, source: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
-        !ty.is_ref_at(DataLocation::Storage)
-            && self.types.memory_layout(ty).is_some()
-            && self
-                .cx
-                .gcx
-                .type_of_expr(source.id)
-                .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
+    /// Whether lowering `operand` can write state, as sema's view and pure checker finds. Before
+    /// Byzantium a `view` call is a plain `CALL`, which can write too. A storage aggregate that a
+    /// consumer converts at once is copied before such an operand ran, so it waits for one.
+    pub(super) fn may_write_state(&self, operand: &'gcx hir::Expr<'gcx>) -> bool {
+        let gcx = self.cx.gcx;
+        !gcx.sess.opts.evm_version.has_static_call()
+            || matches!(
+                gcx.expr_state_mutability(operand),
+                StateMutability::NonPayable | StateMutability::Payable
+            )
+    }
+
+    /// For each of `operands`, in evaluation order, whether a later operand can write state.
+    pub(super) fn operands_wait(
+        &self,
+        operands: impl IntoIterator<Item = &'gcx hir::Expr<'gcx>>,
+    ) -> Vec<bool> {
+        let operands = operands.into_iter().collect::<Vec<_>>();
+        let mut waits = vec![false; operands.len()];
+        let mut later = false;
+        for (wait, operand) in waits.iter_mut().zip(&operands).rev() {
+            *wait = later;
+            later |= self.may_write_state(operand);
+        }
+        waits
+    }
+
+    /// Whether `ty` is a storage reference to an aggregate, which an expression lowers to its slot
+    /// and a consumer copies to memory.
+    pub(super) fn is_storage_aggregate(&self, ty: Ty<'gcx>) -> bool {
+        ty.is_ref_at(DataLocation::Storage) && self.types.memory_layout(ty).is_some()
+    }
+
+    /// Converts a lowered operand to its target type.
+    pub(super) fn convert_operand(&mut self, operand: Lowered<'gcx>) -> Option<Word> {
+        match (operand.value, operand.source) {
+            (LoweredValue::BytesLiteral(bytes), _) => {
+                self.lower_shared_bytes_literal(bytes).map(Word::from_clean)
+            }
+            (LoweredValue::Word(word), Some(source)) => {
+                self.convert_value(word, source, operand.target, operand.span)
+            }
+            (LoweredValue::Word(word), None) => Some(word),
+        }
+    }
+
+    /// Converts the value of an expression of type `source_ty` to `target_ty`, as via-IR's
+    /// `convert`. A storage reference stays its slot for a storage target and is copied to memory
+    /// for a memory one; a raw word of the same type stays raw.
+    pub(super) fn convert_value(
+        &mut self,
+        word: Word,
+        source_ty: Ty<'gcx>,
+        target_ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<Word> {
+        if target_ty.is_ref_at(DataLocation::Storage) {
+            return Some(word);
+        }
+        if source_ty.is_ref_at(DataLocation::Storage)
+            && self.types.memory_layout(target_ty).is_some()
+        {
+            let slot = word.clean(self, source_ty);
+            // object = load_storage_object(target_ty, slot)
+            return self.load_storage_object(target_ty, slot, span).map(Word::from_clean);
+        }
+        if word.is_raw() && source_ty == target_ty {
+            return Some(word);
+        }
+        let value = word.clean(self, source_ty);
+        Some(Word::from_clean(self.coerce_value(value, source_ty, target_ty)))
     }
 
     /// Lowers the operand `expr` of an ABI encoding that is not `bytes` or `string`, as the memory
@@ -319,17 +391,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// operand to its value, which `prepare` turns into the value to encode and its ABI type.
     pub(super) fn lower_abi_operand(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         prepare: impl FnOnce(&mut Self, ValueId) -> Option<(ValueId, AbiType)>,
     ) -> Option<AbiOperand<'gcx>> {
-        let source = self.peel_bytes_conversion(expr);
-        if self.is_storage_object_copy(source, ty) {
-            let slot = self.require_storage_access(source)?.slot;
-            return Some(AbiOperand::Storage { slot, ty, span: expr.span });
+        let operand = self.lower_operand(expr, ty)?;
+        if operand.waits() {
+            return Some(Step::Wait(operand));
         }
-        let value = self.lower_typed_expr(expr, ty)?;
-        prepare(self, value).map(AbiOperand::Ready)
+        let value = self.convert_operand(operand)?.clean(self, ty);
+        prepare(self, value).map(Step::Done)
     }
 
     /// Reads the storage operands of an ABI encoding, after every operand was lowered.
@@ -349,10 +420,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         operand: AbiOperand<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         match operand {
-            AbiOperand::Ready(operand) => Some(operand),
-            AbiOperand::Storage { slot, ty, span } => {
-                // object = load_storage_object(ty, slot)
-                let object = self.load_storage_object(ty, slot, span)?;
+            Step::Done(operand) => Some(operand),
+            Step::Literal(CallInputLiteral { bytes, span }) => {
+                let previous = self.builder.replace_source_span(span);
+                // object = alloc literal_size
+                // mstore object, length
+                // mstore (object + 32 + offset), word
+                let object = self.lower_call_input_literal(bytes.as_byte_str());
+                self.builder.replace_source_span(previous);
+                object.map(|object| (object, AbiType::Bytes(PtrLocation::Memory)))
+            }
+            Step::Wait(operand) => {
+                let ty = operand.target;
+                let object = self.convert_operand(operand)?.clean(self, ty);
                 Some((object, Self::memory_abi_type(self.types.abi_type(ty)?)))
             }
         }
@@ -364,7 +444,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// operand to its memory object or its memory or calldata slice.
     pub(super) fn lower_bytes_operand(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<(ValueId, PtrLocation)> {
         let source = self.peel_bytes_conversion(expr);
@@ -372,7 +452,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
         }
-        let value = self.lower_typed_expr(expr, ty)?;
+        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
         Some((
             value,
             self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
@@ -381,14 +461,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_abi_call_argument(
         &mut self,
-        argument: &hir::Expr<'_>,
+        argument: &'gcx hir::Expr<'gcx>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<AbiOperand<'gcx>> {
         if self.is_dynamic_bytes_type(parameter_ty) {
             let (value, location) = self.lower_bytes_operand(argument, parameter_ty)?;
             return self
                 .prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))
-                .map(AbiOperand::Ready);
+                .map(Step::Done);
         }
         self.lower_abi_operand(argument, parameter_ty, |this, value| {
             let abi_type = this.types.abi_type(parameter_ty)?;
@@ -403,9 +483,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
+    /// Defers raw literal inputs until the call's argument expressions have all run.
+    pub(super) fn lower_call_input_argument(
+        &mut self,
+        argument: &'gcx hir::Expr<'gcx>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<AbiOperand<'gcx>> {
+        // Constants and explicit conversions materialize at their evaluation point; a later
+        // argument can observe their allocation by reading the free-memory pointer.
+        if matches!(argument.peel_parens().kind, ExprKind::Lit(_))
+            && self.is_dynamic_bytes_type(parameter_ty)
+            && let Some(bytes) = self.constant_bytes(argument)
+        {
+            // A literal has no memory reference to retain. The encoder can embed its words
+            // in call input and remove the temporary without preserving a pointer bump.
+            return Some(Step::Literal(CallInputLiteral { bytes, span: argument.span }));
+        }
+        self.lower_abi_call_argument(argument, parameter_ty)
+    }
+
     pub(super) fn prepare_abi_encode_argument(
         &mut self,
-        argument: &hir::Expr<'_>,
+        argument: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         value: ValueId,
         abi_type: AbiType,
@@ -416,7 +515,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn prepare_abi_argument(
         &mut self,
-        argument: &hir::Expr<'_>,
+        argument: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         mut value: ValueId,
         mut abi_type: AbiType,
@@ -426,11 +525,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let validated_static =
             self.validate_calldata_static_argument_inner(value, ty, needs_validation);
         let word_array = needs_validation && Self::is_calldata_word_array(&abi_type);
-        // The dispatcher validates the elements of an argument that only ABI decoding passes
-        // when an encoding takes it.
-        if word_array && !self.is_decoded_external_argument(value) {
-            self.validate_calldata_word_array(value, ty);
-        }
         // The encoder validates a dynamic calldata aggregate while it encodes it from where it
         // lies.
         let needs_materialization = needs_validation && !word_array && !abi_type.is_dynamic();
@@ -508,7 +602,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 //     validate_calldata_bytes(data)
                 //     object = materialize_calldata_bytes(data)
                 // }
-                if self.dirty_values.contains(&value) {
+                if self.unchecked_calldata_slices.contains(&value) {
                     let length = self.builder.slice_len(value);
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
@@ -1025,24 +1119,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_store_field(object, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }
-        Some(object)
-    }
-
-    /// Copies bytes for consumers that use zero-padded calldata reads rather than source-range
-    /// validation. Ordinary calldata-to-memory conversions retain their checked path.
-    pub(super) fn copy_calldata_bytes_unchecked(&mut self, value: ValueId) -> Option<ValueId> {
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
-            return Some(value);
-        }
-        // length = slice_len(value)
-        // source = slice_ptr(value)
-        // object = alloc_bytes(length)
-        // copy(memory_data(object), source, length, calldata)
-        let length = self.builder.slice_len(value);
-        let source = self.builder.slice_ptr(value);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-        let dest = self.builder.memory_data(object);
-        self.builder.copy_heap(dest, source, length, PtrLocation::Calldata);
         Some(object)
     }
 }

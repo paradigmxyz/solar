@@ -2,7 +2,7 @@ error: getter must return at least one value
    ╭▸ ROOT/tests/ui/resolve/getters_complex.sol:LL:CC
    │
 LL │     mapping(uint256 => B) public mapB;
-   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: the struct has all its members omitted, therefore the getter cannot return any values
    ╭▸ ROOT/tests/ui/resolve/getters_complex.sol:LL:CC

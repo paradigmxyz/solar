@@ -141,6 +141,7 @@ pub(super) fn add_load_helper(module: &mut Module) -> FunctionId {
     // fn load_storage_bytes(slot) { object = load_storage_bytes slot; ret object }
     let mut function = Function::new(Ident::with_dummy_span(sym::load_storage_bytes));
     FunctionBuilder::build_load_storage_bytes_helper(&mut function);
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 
@@ -153,6 +154,7 @@ pub(super) fn add_clear_helper(module: &mut Module) -> FunctionId {
     let end = builder.add_param(MirType::I256);
     builder.clear_storage_words(slot, first, end);
     builder.ret([]);
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 
@@ -168,6 +170,7 @@ pub(super) fn add_literal_helper(
     let header = builder.add_param(MirType::I256);
     store_literal(&mut builder, slot, header, bytes, clear_helper);
     builder.ret([]);
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 

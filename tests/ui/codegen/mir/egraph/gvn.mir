@@ -140,8 +140,7 @@ fn @mapping_tail_target(arg0: ptr<memory>) -> i256 [selector=0x10000003, abi_par
 fn @mapping_fmp_reset(arg0: ptr<memory>) -> i256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_bytes arg0, 0
-    v4 = inttoptr i256 0 to ptr<memory>
-    set_fmp v4
+    mstore 64, 0
     v2 = mapping_slot_bytes arg0, 0
     v3 = add v1, v2
     ret v3

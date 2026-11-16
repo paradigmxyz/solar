@@ -1,0 +1,92 @@
+error: resolved NatSpec for function `ERC20.transfer`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     function transfer(address to, uint amount) external returns (bool);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice  Transfer ``amount`` from ``msg.sender`` to ``to``.
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// Transfer ``amount`` from ``msg.sender`` to ``to``.
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+note: @dev test
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @dev test
+   ╰╴         ━━━
+note: @param to address to transfer to
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @param to address to transfer to
+   ╰╴         ━━━━━
+note: @param amount amount to transfer
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @param amount amount to transfer
+   ╰╴         ━━━━━
+
+error: resolved NatSpec for function `ERC21.transfer`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     function transfer(address to, uint amount) external returns (bool);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice  Transfer ``amount`` from ``msg.sender`` to ``to``.
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// Transfer ``amount`` from ``msg.sender`` to ``to``.
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+note: @dev test2
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @dev test2
+   ╰╴         ━━━
+note: @param to address to transfer to
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @param to address to transfer to
+   ╰╴         ━━━━━
+note: @param amount amount to transfer
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @param amount amount to transfer
+   ╰╴         ━━━━━
+
+error: resolved NatSpec for function `Token.transfer`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_path.sol:LL:CC
+   │
+LL │ ┏     function transfer(address too, uint amount)
+LL │ ┃         override(myInterfaces.ERC20, myInterfaces.ERC21) external returns (bool) {
+LL │ ┃
+LL │ ┃         return false;
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: inherits NatSpec from function `ERC20.transfer(address,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/qualified_path.sol:LL:CC
+   │
+LL │     /// @inheritdoc myInterfaces.ERC20
+   ╰╴         ━━━━━━━━━━
+note: @notice  Transfer ``amount`` from ``msg.sender`` to ``to``.
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// Transfer ``amount`` from ``msg.sender`` to ``to``.
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+note: @dev test
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @dev test
+   ╰╴         ━━━
+note: @param to address to transfer to
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @param to address to transfer to
+   ╰╴         ━━━━━
+note: @param amount amount to transfer
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/auxiliary/Interfaces.sol:LL:CC
+   │
+LL │     /// @param amount amount to transfer
+   ╰╴         ━━━━━
+
+error: aborting due to 3 previous errors
+

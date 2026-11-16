@@ -1,5 +1,5 @@
 use super::*;
-use std::{path::PathBuf, sync::Arc};
+use std::{cmp::Ordering, path::PathBuf, sync::Arc};
 
 #[test]
 fn new_source_file_shared_preserves_source_allocation() {
@@ -13,6 +13,19 @@ fn new_source_file_shared_preserves_source_allocation() {
 
     assert!(Arc::ptr_eq(&file.src, &src));
     assert_eq!(file.src.capacity(), capacity);
+}
+
+#[test]
+fn source_unit_name_order_is_raw_bytes() {
+    let name = |p: &str| FileName::Real(PathBuf::from(p));
+
+    // Byte order of the names, not path components: `-` sorts before `/`.
+    assert_eq!(name("a-b/x.sol").cmp_source_unit_name(&name("a/y.sol")), Ordering::Less);
+
+    // Repeated separators are part of the name, although `Eq` ignores them.
+    assert_eq!(name("a//b.sol"), name("a/b.sol"));
+    assert_eq!(name("a//b.sol").cmp_source_unit_name(&name("a/b.sol")), Ordering::Less);
+    assert_eq!(name("a//b/x.sol").cmp_source_unit_name(&name("a/b-y/y.sol")), Ordering::Less);
 }
 
 #[test]

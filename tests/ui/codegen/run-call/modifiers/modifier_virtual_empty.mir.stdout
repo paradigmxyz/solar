@@ -1,0 +1,25 @@
+; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_virtual_empty.sol:ModifierVirtualEmpty ===
+@module ModifierVirtualEmpty
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; function f() public pure mod returns (bool r) [selector 0x26121ff0]
+fn @f() -> i1 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi false, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    jump bb5
+  bb5:                                            ; preds = bb2
+    jump bb4
+  bb4:                                            ; preds = bb5, bb3
+    v0 = phi [bb5: 1], [bb3: 0]
+    jump bb1
+  bb1:                                            ; preds = bb4
+    v1 = ne v0, 0
+    ret v1
+}

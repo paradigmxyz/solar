@@ -1,0 +1,23 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/function_selector_side_effect.sol:FunctionSelectorSideEffect ===
+@module FunctionSelectorSideEffect
+; function f() external view [selector 0x26121ff0]
+fn @f() [selector=0x26121ff0, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function h() public returns (FunctionSelectorSideEffect) [selector 0xb8c9d365]
+fn @h() -> i160 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = address
+    ret v0
+}
+
+; function read() external returns (uint256) [selector 0x57de26a4]
+fn @read() -> i256 [selector=0x57de26a4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @h
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}

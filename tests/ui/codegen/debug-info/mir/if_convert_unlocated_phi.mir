@@ -1,0 +1,20 @@
+//@ compile-flags: -Zmir-pipeline=if-convert -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// An SSA join without an instruction location cannot give its select an arm's location.
+@module UnlocatedPhi
+
+// CHECK-LABEL: {{^[ +].*}}fn @choose{{[( ]}}
+// CHECK: + {{v[0-9]+}} = zext i1 arg0 to i256{{$}}
+// CHECK-NOT: + {{.*}}span=10..20
+fn @choose(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2 !metadata(span=10..20)
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 3], [bb2: 7]
+    ret v0
+}

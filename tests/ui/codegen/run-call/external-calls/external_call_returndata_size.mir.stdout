@@ -1,0 +1,320 @@
+; === ROOT/tests/ui/codegen/run-call/external-calls/external_call_returndata_size.sol:LongReturn ===
+@module LongReturn
+; function f() external pure returns (uint256[20] memory values) [selector 0x26121ff0]
+fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, uint256>]] {
+  bb0:
+    v0 = alloc 640 !metadata(preserves_fmp)
+    memory_zero v0, 640
+    v1 = lt 0, 20
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, 42
+    v3 = lt 1, 20
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 32
+    mstore v5, 43
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/external_call_returndata_size.sol:ShortReturn ===
+@module ShortReturn
+; function f() external pure returns (uint256) [selector 0x26121ff0]
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 42
+}
+
+; === ROOT/tests/ui/codegen/run-call/external-calls/external_call_returndata_size.sol:ExternalCallReturndataSize ===
+@module ExternalCallReturndataSize
+@types
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
+
+@data
+  LongReturn_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/external-calls/external_call_returndata_size.sol:LongReturn"
+  ShortReturn_creation_code_1: creation_code "ROOT/tests/ui/codegen/run-call/external-calls/external_call_returndata_size.sol:ShortReturn"
+
+; function directOne() external returns (uint256 allocated, uint256 value) [selector 0x6aec8241]
+fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = datasize LongReturn_creation_code_0
+    v1 = fmp
+    datacopy LongReturn_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = gas
+    mstore 0, 0x26121ff0 !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = staticcall v5, v6, 28, 4, 0, 32
+    jumpi v7, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = mload 64 !metadata(memory=scratch)
+    v12 = sub v11, v4
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v10
+    ret v14
+}
+
+; function pointerOne() external returns (uint256 allocated, uint256 value) [selector 0xc114b656]
+fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = datasize LongReturn_creation_code_0
+    v1 = fmp
+    datacopy LongReturn_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = shl v4, 32
+    v6 = or v5, 0x26121ff0
+    v7 = mload 64 !metadata(memory=scratch)
+    v8 = and v6, 0xffffffff
+    v9 = shl v8, 224
+    v10 = shr v6, 32
+    v11 = gas
+    v12 = shr v9, 224
+    mstore 0, v12 !metadata(memory=scratch)
+    v13 = staticcall v11, v10, 28, 4, 0, 32
+    jumpi v13, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = sub v17, v7
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v16
+    ret v20
+}
+
+; function directTwo() external returns (uint256 allocated, uint256 first, uint256 second) [selector 0x5ffbc6a1]
+fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = datasize LongReturn_creation_code_0
+    v1 = fmp
+    datacopy LongReturn_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = gas
+    mstore 0, 0x26121ff0 !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = staticcall v5, v6, 28, 4, 0, 64
+    jumpi v7, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = mload 32 !metadata(memory=scratch)
+    v12 = insert_value struct0, undef struct0, 0, v10
+    v13 = insert_value struct0, v12, 1, v11
+    v14 = extract_value struct0, v13, 0
+    v15 = extract_value struct0, v13, 1
+    v16 = mload 64 !metadata(memory=scratch)
+    v17 = sub v16, v4
+    v18 = insert_value struct1, undef struct1, 0, v17
+    v19 = insert_value struct1, v18, 1, v14
+    v20 = insert_value struct1, v19, 2, v15
+    ret v20
+}
+
+; function pointerTwo() external returns (uint256 allocated, uint256 first, uint256 second) [selector 0x48c1a795]
+fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = datasize LongReturn_creation_code_0
+    v1 = fmp
+    datacopy LongReturn_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = shl v4, 32
+    v6 = or v5, 0x26121ff0
+    v7 = mload 64 !metadata(memory=scratch)
+    v8 = and v6, 0xffffffff
+    v9 = shl v8, 224
+    v10 = shr v6, 32
+    v11 = gas
+    v12 = shr v9, 224
+    mstore 0, v12 !metadata(memory=scratch)
+    v13 = staticcall v11, v10, 28, 4, 0, 64
+    jumpi v13, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v14 = returndatasize
+    v15 = lt v14, 64
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = mload 32 !metadata(memory=scratch)
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = sub v18, v7
+    v20 = insert_value struct1, undef struct1, 0, v19
+    v21 = insert_value struct1, v20, 1, v16
+    v22 = insert_value struct1, v21, 2, v17
+    ret v22
+}
+
+; function directShort() external returns (uint256, uint256) [selector 0x4a8b977e]
+fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = datasize ShortReturn_creation_code_1
+    v1 = fmp
+    datacopy ShortReturn_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    mstore 0, 0x26121ff0 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 64
+    jumpi v6, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = mload 32 !metadata(memory=scratch)
+    v11 = insert_value struct0, undef struct0, 0, v9
+    v12 = insert_value struct0, v11, 1, v10
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
+}
+
+; function pointerShort() external returns (uint256, uint256) [selector 0xc6a7045a]
+fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = datasize ShortReturn_creation_code_1
+    v1 = fmp
+    datacopy ShortReturn_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = shl v4, 32
+    v6 = or v5, 0x26121ff0
+    v7 = and v6, 0xffffffff
+    v8 = shl v7, 224
+    v9 = shr v6, 32
+    v10 = gas
+    v11 = shr v8, 224
+    mstore 0, v11 !metadata(memory=scratch)
+    v12 = staticcall v10, v9, 28, 4, 0, 64
+    jumpi v12, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v13 = returndatasize
+    v14 = lt v13, 64
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = mload 0 !metadata(memory=scratch)
+    v16 = mload 32 !metadata(memory=scratch)
+    v17 = insert_value struct0, undef struct0, 0, v15
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
+}
+
+; function directInvalidBool() external returns (bool) [selector 0x78cd2593]
+fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize ShortReturn_creation_code_1
+    v1 = fmp
+    datacopy ShortReturn_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    mstore 0, 0x26121ff0 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 32
+    jumpi v6, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = gt v9, 1
+    icall revert_if<empty>, v10
+    v11 = ne v9, 0
+    ret v11
+}
+
+; function pointerInvalidBool() external returns (bool) [selector 0xa0f03ea6]
+fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize ShortReturn_creation_code_1
+    v1 = fmp
+    datacopy ShortReturn_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = shl v4, 32
+    v6 = or v5, 0x26121ff0
+    v7 = and v6, 0xffffffff
+    v8 = shl v7, 224
+    v9 = shr v6, 32
+    v10 = gas
+    v11 = shr v8, 224
+    mstore 0, v11 !metadata(memory=scratch)
+    v12 = staticcall v10, v9, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = mload 0 !metadata(memory=scratch)
+    v16 = gt v15, 1
+    icall revert_if<empty>, v16
+    v17 = ne v15, 0
+    ret v17
+}

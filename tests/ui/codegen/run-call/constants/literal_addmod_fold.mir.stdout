@@ -1,0 +1,19 @@
+; === ROOT/tests/ui/codegen/run-call/constants/literal_addmod_fold.sol:LiteralAddmodFold ===
+@module LiteralAddmodFold
+; function test() public pure returns (uint256) [selector 0xf8a8fd6d]
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi false, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    jumpi false, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb5
+    ret 0
+  bb4:                                            ; preds = bb3
+    ret 2
+  bb1:                                            ; preds = bb0
+    ret 1
+}

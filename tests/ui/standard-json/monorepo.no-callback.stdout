@@ -1,0 +1,89 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "src/A.sol",
+        "start": 45,
+        "end": 56
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read ROOT/tests/ui/standard-json/monorepo/pkg/amb/E.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read ROOT/tests/ui/standard-json/monorepo/pkg/amb/E.sol: File import callback not supported\n   ╭▸ src/A.sol:LL:CC\n   │\nLL │ import {E} from \"amb/E.sol\";\n   ╰╴                ━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "../lib/dep/B.sol",
+        "start": 16,
+        "end": 25
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read ROOT/tests/ui/standard-json/monorepo/lib/dep/C.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read ROOT/tests/ui/standard-json/monorepo/lib/dep/C.sol: File import callback not supported\n   ╭▸ ../lib/dep/B.sol:LL:CC\n   │\nLL │ import {C} from \"./C.sol\";\n   ╰╴                ━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "../lib/dep/B.sol",
+        "start": 43,
+        "end": 68
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read ROOT/tests/ui/standard-json/monorepo/lib/dep/D.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read ROOT/tests/ui/standard-json/monorepo/lib/dep/D.sol: File import callback not supported\n   ╭▸ ../lib/dep/B.sol:LL:CC\n   │\nLL │ import {D} from \"file://../lib/dep/D.sol\";\n   ╰╴                ━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "../lib/dep/B.sol",
+        "start": 85,
+        "end": 86
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": "7920",
+      "message": "unresolved symbol `C`",
+      "formattedMessage": "error[7920]: unresolved symbol `C`\n   ╭▸ ../lib/dep/B.sol:LL:CC\n   │\nLL │ contract B is C, D {}\n   ╰╴              ━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "../lib/dep/B.sol",
+        "start": 88,
+        "end": 89
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": "7920",
+      "message": "unresolved symbol `D`",
+      "formattedMessage": "error[7920]: unresolved symbol `D`\n   ╭▸ ../lib/dep/B.sol:LL:CC\n   │\nLL │ contract B is C, D {}\n   ╰╴                 ━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "src/A.sol",
+        "start": 76,
+        "end": 77
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": "7920",
+      "message": "unresolved symbol `E`",
+      "formattedMessage": "error[7920]: unresolved symbol `E`\n   ╭▸ src/A.sol:LL:CC\n   │\nLL │ contract A is B, E {}\n   ╰╴                 ━\n\n"
+    }
+  ],
+  "sources": {}
+}

@@ -409,6 +409,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             for item in contract.body.iter() {
                 if let ast::ItemKind::Variable(var) = &item.kind
+                    && var.name.is_some()
                     && !var.mutability.is_some_and(|m| m.is_constant())
                 {
                     self.dcx()

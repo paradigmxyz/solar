@@ -43,6 +43,10 @@ impl MirPass for Dce {
         analyses.preserve_call_summaries();
         changed
     }
+
+    fn preserves_debugify_sites(&self) -> bool {
+        true
+    }
 }
 
 fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> usize {
@@ -74,6 +78,14 @@ fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> u
     }
     while let Some(inst) = pending.pop() {
         func.inst(inst).kind.visit_operands(|operand| mark_operand(func, operand, &mut pending));
+    }
+
+    // LLVM's dropLocation rule applies to discarded computations, not to their surviving users.
+    // Keep that decision on the removed instruction for debugify; never transfer its location.
+    for inst in discardable.iter() {
+        if !live.contains(inst) {
+            func.inst_mut(inst).metadata.drop_debug_loc(solar_evmir::debug::DebugLocKind::Dropped);
+        }
     }
 
     let mut removed = 0;

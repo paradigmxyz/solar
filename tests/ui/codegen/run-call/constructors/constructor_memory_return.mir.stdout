@@ -1,0 +1,79 @@
+; === ROOT/tests/ui/codegen/run-call/constructors/constructor_memory_return.sol:ConstructorMemoryReturn ===
+@module ConstructorMemoryReturn
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @version
+    v1 = icall @consume, v0
+    icall @store_storage_bytes, 0, v1
+    ret
+}
+
+; getter for `string public value` [selector 0x3fa4f245]
+fn @value() -> ptr<memory> [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = load_storage_bytes 0
+    ret v0
+}
+
+; function version() public pure returns (string memory) [selector 0x54fd4d50]
+fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+; function consume(string memory input) internal pure returns (string memory)
+fn @consume(arg0: ptr<memory>) -> ptr<memory> [pure] {
+  bb0:
+    ret arg0
+}
+
+; function direct() public pure returns (uint256) [selector 0x222b1407]
+fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 5
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v2 = icall @consume, v0
+    v3 = mload v2
+    ret v3
+}
+
+; function makePair(uint256 x) internal pure returns (Pair memory)
+fn @makePair(arg0: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = alloc 64
+    v3 = checked_add uint256, arg0, 1
+    mstore v2, arg0
+    v4 = ptradd v2, 32
+    mstore v4, v3
+    ret v2
+}
+
+; function pairValue() public pure returns (uint256) [selector 0x393eabbf]
+fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64
+    v1 = checked_add uint256, 2, 1
+    mstore v0, 2
+    v2 = ptradd v0, 32
+    mstore v2, v1
+    v3 = ptradd v0, 32
+    v4 = mload v3
+    ret v4
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}

@@ -1,0 +1,122 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/calls/constructor_internal_call.sol:ConstructorICall (creation) ===
+@module ConstructorICall_deployment
+@data
+  ConstructorICall_runtime_code_0: hex"34601b575f3560e01c80633fa4f24503601b575f545f5260205ff35b5f5ffd"
+
+bb0:                                              ; constructor(uint256 x) [creation entry]
+  push_data ConstructorICall_runtime_code_0+31
+  codesize
+  sub
+  dup 1
+  push_data ConstructorICall_runtime_code_0+31
+  push 192
+  codecopy
+  push 192
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  push 192
+  dup 1
+  push_data ConstructorICall_runtime_code_0+31
+  codesize
+  sub
+  add
+  push 224
+  gt
+  callvalue
+  or
+  push bb11
+  jumpi
+  mload
+  push 7
+  and
+  push bb10
+  jump bb1
+bb1 [ret=0, inputs=2, outputs=1]:                 ; function helper(uint256 n) internal pure returns (uint256)
+  dup 2
+  iszero
+  push bb7
+  jumpi
+  dup 2
+  push 0x1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745
+  lt
+  push bb6
+  jumpi
+  push 1
+  dup 3
+  push 11
+  mul
+  swap 3
+  sub
+  push bb4
+  jump bb1
+bb6 [cold]:
+  push 17
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb4 [continuation]:
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb6
+  jumpi
+  jump
+bb7:
+  swap 1
+  pop
+  push 1
+  swap 1
+  jump
+bb10 [continuation]:
+  push 0
+  sstore
+  push 31
+  dup 1
+  push_data ConstructorICall_runtime_code_0
+  push 0
+  codecopy
+  push 0
+  return
+bb11 [cold]:
+  push 0
+  push 0
+  revert
+; === ROOT/tests/ui/codegen/lowering/evm-ir/calls/constructor_internal_call.sol:ConstructorICall (runtime) ===
+@module ConstructorICall_runtime
+bb0:                                              ; runtime dispatch entry + getter for `uint256 public value` [selector 0x3fa4f245]
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x3fa4f245
+  sub
+  push bb3
+  jumpi
+  push 0
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3 [cold]:
+  push 0
+  push 0
+  revert

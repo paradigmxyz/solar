@@ -1,0 +1,225 @@
+; === ROOT/tests/ui/codegen/run-call/constructors/constructor_nested_abi_bounds.sol:NestedConstructor ===
+@module NestedConstructor
+; constructor(bytes[] memory values) [creation entry]
+fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 32
+    v4 = mload v3, ptr<memory>
+    v5 = ptradd v4, 32
+    v6 = mload v4
+    v7 = keccak256 v5, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = mload arg0
+    v9 = gt v8, 1
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd arg0, 64
+    v12 = mload v11, ptr<memory>
+    v13 = ptradd v12, 32
+    v14 = mload v12
+    v15 = keccak256 v13, v14
+    sstore 1, v15 !metadata(storage=slot(1))
+    v16 = mload arg0
+    v17 = gt v16, 0
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd arg0, 32
+    v20 = mload v19, ptr<memory>
+    v21 = mload v20
+    v22 = shl v21, 128
+    v23 = mload arg0
+    v24 = gt v23, 1
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = ptradd arg0, 64
+    v27 = mload v26, ptr<memory>
+    v28 = mload v27
+    v29 = or v22, v28
+    sstore 2, v29 !metadata(storage=slot(2))
+    ret
+}
+
+; getter for `bytes32 public firstHash` [selector 0xa1c6d2f6]
+fn @firstHash() -> i256 [selector=0xa1c6d2f6, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; getter for `bytes32 public secondHash` [selector 0xf7996542]
+fn @secondHash() -> i256 [selector=0xf7996542, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+; getter for `uint256 public lengths` [selector 0xdab1fa12]
+fn @lengths() -> i256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/run-call/constructors/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===
+@module ConstructorNestedAbiBounds
+@data
+  NestedConstructor_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/constructors/constructor_nested_abi_bounds.sol:NestedConstructor"
+
+; function run() external returns (uint256) [selector 0xc0406226]
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v7 = alloc 96 !metadata(preserves_fmp)
+    mstore v7, 62
+    v8 = ptradd v7, 32
+    mstore v8, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
+    v9 = ptradd v7, 64
+    mstore v9, 0x8a09ff40000
+    v10 = mload v0
+    v11 = gt v10, 0
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptrtoint ptr<memory> v7 to i256
+    v14 = ptradd v0, 32
+    mstore v14, v13
+    v15 = alloc 64 !metadata(preserves_fmp)
+    mstore v15, 5
+    v16 = ptradd v15, 32
+    mstore v16, 0x102030405000000000000000000000000000000000000000000000000000000
+    v17 = mload v0
+    v18 = gt v17, 1
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptrtoint ptr<memory> v15 to i256
+    v21 = ptradd v0, 64
+    mstore v21, v20
+    v22 = datasize NestedConstructor_creation_code_0
+    v23 = fmp
+    datacopy NestedConstructor_creation_code_0, v23, v22
+    v24 = ptradd v23, v22
+    v25 = abi_encode [memory_array<memory_bytes>], scratch, base v24, args v0
+    v26 = extract_value slice<memory>, v25, 1
+    v27 = add v22, v26
+    v28 = lt v27, v22
+    icall panic_if<0x41>, v28
+    v29 = create 0, v23, v27
+    v30 = ne v29, i160 0
+    jumpi v30, bb5, bb4
+  bb4:                                            ; preds = bb3
+    revert_returndata
+  bb5:                                            ; preds = bb3
+    v31 = gas
+    mstore 0, 0xa1c6d2f6 !metadata(memory=scratch)
+    v32 = zext i160 v29 to i256
+    v33 = staticcall v31, v32, 28, 4, 0, 32
+    jumpi v33, bb7, bb6
+  bb6:                                            ; preds = bb5
+    revert_returndata
+  bb7:                                            ; preds = bb5
+    v34 = returndatasize
+    v35 = lt v34, 32
+    icall revert_if<tuple_data_too_short>, v35
+    v36 = mload 0 !metadata(memory=scratch)
+    v37 = mload v0
+    v38 = gt v37, 0
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v0, 32
+    v41 = mload v40, ptr<memory>
+    v42 = ptradd v41, 32
+    v43 = mload v41
+    v44 = keccak256 v42, v43
+    v45 = eq v36, v44
+    jumpi v45, bb8, bb9
+  bb9:                                            ; preds = bb7
+    jump bb10
+  bb8:                                            ; preds = bb7
+    v46 = gas
+    mstore 0, 0xf7996542 !metadata(memory=scratch)
+    v47 = zext i160 v29 to i256
+    v48 = staticcall v46, v47, 28, 4, 0, 32
+    jumpi v48, bb12, bb11
+  bb11:                                           ; preds = bb8
+    revert_returndata
+  bb12:                                           ; preds = bb8
+    v49 = returndatasize
+    v50 = lt v49, 32
+    icall revert_if<tuple_data_too_short>, v50
+    v51 = mload 0 !metadata(memory=scratch)
+    v52 = mload v0
+    v53 = gt v52, 1
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = ptradd v0, 64
+    v56 = mload v55, ptr<memory>
+    v57 = ptradd v56, 32
+    v58 = mload v56
+    v59 = keccak256 v57, v58
+    v60 = eq v51, v59
+    jump bb10
+  bb10:                                           ; preds = bb12, bb9
+    v61 = phi [bb12: v60], [bb9: false]
+    v62 = gas
+    mstore 0, 0xdab1fa12 !metadata(memory=scratch)
+    v63 = zext i160 v29 to i256
+    v64 = staticcall v62, v63, 28, 4, 0, 32
+    jumpi v64, bb14, bb13
+  bb13:                                           ; preds = bb10
+    revert_returndata
+  bb14:                                           ; preds = bb10
+    v65 = returndatasize
+    v66 = lt v65, 32
+    icall revert_if<tuple_data_too_short>, v66
+    v67 = mload 0 !metadata(memory=scratch)
+    v68 = mload v0
+    v69 = gt v68, 0
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    v71 = ptradd v0, 32
+    v72 = mload v71, ptr<memory>
+    v73 = mload v72
+    v74 = shl v73, 128
+    v75 = mload v0
+    v76 = gt v75, 1
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = ptradd v0, 64
+    v79 = mload v78, ptr<memory>
+    v80 = mload v79
+    v81 = or v74, v80
+    v82 = eq v67, v81
+    jumpi v61, bb15, bb16
+  bb16:                                           ; preds = bb14
+    jump bb17
+  bb15:                                           ; preds = bb14
+    jump bb17
+  bb17:                                           ; preds = bb15, bb16
+    v83 = phi [bb15: v82], [bb16: false]
+    jumpi v83, bb18, bb19
+  bb19:                                           ; preds = bb17
+    jump bb20
+  bb18:                                           ; preds = bb17
+    jump bb20
+  bb20:                                           ; preds = bb18, bb19
+    v84 = phi [bb18: i8 1], [bb19: i8 0]
+    v85 = zext i8 v84 to i256
+    ret v85
+  bb2:                                            ; preds = bb1
+    v3 = shl v1, 5
+    v4 = ptradd v0, v3
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
+    jump bb1
+}

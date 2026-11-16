@@ -1,0 +1,21 @@
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+@module KnownJump
+
+// The jump is the root and the pushed label its operand, so the label's origin goes away.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + jump bb1 !metadata(span=6..10){{$}}
+bb0:
+  push 1
+  indexed_jump bb2, bb3
+bb2:
+  push 9
+  push bb1 !metadata(span=1..5)
+  jump !metadata(span=6..10)
+bb3:
+  push 8
+  jump bb1
+bb1:
+  push 0
+  mstore
+  stop

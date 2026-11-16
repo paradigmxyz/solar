@@ -323,16 +323,16 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
                         cold_path();
-                        let start = start + 2;
+                        let digits_start = start + 2;
                         // To uncomment if binary and octal literals are ever supported.
                         /*
                         let base = base as u32;
-                        let s = self.str_from_to(start, end);
+                        let s = self.str_from_to(digits_start, end);
                         for (i, c) in s.char_indices() {
                             if c != '_' && c.to_digit(base).is_none() {
                                 cold_path();
                                 let msg = format!("invalid digit for a base {base} literal");
-                                let lo = start + BytePos::from_usize(i);
+                                let lo = digits_start + BytePos::from_usize(i);
                                 let hi = lo + BytePos::from_usize(c.len_utf8());
                                 let span = self.new_span(lo, hi);
                                 self.dcx().emit_err(span, msg);
@@ -340,7 +340,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         }
                         */
                         let msg = format!("integers in base {base} are not supported");
-                        self.dcx().emit_err(self.new_span(start, end), msg);
+                        let guar = self.dcx().emit_err(self.new_span(digits_start, end), msg);
+                        return (TokenLitKind::Err(guar), self.symbol_from_to(start, end));
                     }
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 }
@@ -494,6 +495,7 @@ mod tests {
     use super::*;
     use TokenKind::*;
     use solar_ast::token::BinOpToken::*;
+    use solar_interface::diagnostics::ErrorGuaranteed;
     use std::ops::Range;
 
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
@@ -595,9 +597,9 @@ mod tests {
 
         checks_full![
             ("0a", true, &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
-            ("0b0", true, &[(0..3, lit(Integer, "0b0"))]),
+            ("0b0", true, &[(0..3, lit(Err(ErrorGuaranteed::new_unchecked()), "0b0"))]),
             ("0B0", true, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
-            ("0o0", true, &[(0..3, lit(Integer, "0o0"))]),
+            ("0o0", true, &[(0..3, lit(Err(ErrorGuaranteed::new_unchecked()), "0o0"))]),
             ("0O0", true, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
             ("0xa", false, &[(0..3, lit(Integer, "0xa"))]),
             ("0Xa", true, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),

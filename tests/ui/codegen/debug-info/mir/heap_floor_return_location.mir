@@ -1,0 +1,20 @@
+//@ compile-flags: -Zmir-pipeline=heap-floor -Zdump=mir -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module HeapFloorReturnLocation
+
+// The hash reads the slot as data, so the clamp belongs immediately before the return.
+// The clamp is part of leaving through the return, so it takes the return's location.
+// CHECK-LABEL: fn @return_bytes(
+// CHECK: [[WORD:v[0-9]+]] = mload 64 !metadata(memory=scratch, span=50..60){{$}}
+// CHECK-NEXT: [[FLOOR:v[0-9]+]] = heap_floor !metadata(span=50..60){{$}}
+// CHECK-NEXT: [[LOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]] !metadata(span=50..60){{$}}
+// CHECK-NEXT: [[CLAMP:v[0-9]+]] = select [[LOW]], [[FLOOR]], [[WORD]] !metadata(span=50..60){{$}}
+// CHECK-NEXT: mstore 64, [[CLAMP]] !metadata(memory=scratch, span=50..60){{$}}
+// CHECK-NEXT: ret arg0 !metadata(span=50..60){{$}}
+fn @return_bytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x12345678, abi_returns=[memory_bytes]] {
+  bb0:
+    mstore 64, 128 !metadata(span=10..20)
+    v0 = keccak256 64, 32 !metadata(span=30..40)
+    ret arg0 !metadata(span=50..60)
+}

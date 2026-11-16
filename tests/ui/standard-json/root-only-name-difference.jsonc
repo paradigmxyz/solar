@@ -1,0 +1,30 @@
+//@ filecheck:
+// `lib/Guard.sol` and `/lib/Guard.sol` differ only in the root separator, which `Path` hashes alike
+// but compares as different. Both files load, and each contributes its library.
+// CHECK: "/lib/Guard.sol": {
+// CHECK: "RootedGuard": {
+// CHECK: "lib/Guard.sol": {
+// CHECK: "RelativeGuard": {
+// CHECK: "Main.sol": {
+// CHECK: "Main": {
+{
+  "language": "Solidity",
+  "sources": {
+    "lib/Guard.sol": {
+      "content": "library RelativeGuard { function id() internal pure returns (uint256) { return 1; } }"
+    },
+    "/lib/Guard.sol": {
+      "content": "library RootedGuard { function id() internal pure returns (uint256) { return 2; } }"
+    },
+    "Main.sol": {
+      "content": "import {RelativeGuard} from \"lib/Guard.sol\"; import {RootedGuard} from \"/lib/Guard.sol\"; contract Main { function f() public pure returns (uint256) { return RelativeGuard.id() + RootedGuard.id(); } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": ["abi"]
+      }
+    }
+  }
+}

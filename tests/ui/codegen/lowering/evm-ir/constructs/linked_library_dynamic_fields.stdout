@@ -1,0 +1,628 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/constructs/linked_library_dynamic_fields.sol:L (runtime) ===
+@module L_runtime
+bb0:                                              ; runtime dispatch entry
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xfa06cb96
+  eq
+  push bb1
+  jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb23 [cold]:
+  push 65
+  jump bb26
+bb26 [cold]:
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb1:                                              ; function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256) [selector 0xfa06cb96]
+  push_immutable 0, 20
+  address
+  eq
+  push bb3
+  jumpi
+  push 288
+  push 64
+  mstore
+  push 36
+  calldataload
+  push 68
+  calldatasize
+  lt
+  push 4
+  dup 3
+  add
+  swap 2
+  push 4
+  calldatasize
+  sub
+  lt
+  or
+  dup 2
+  calldatasize
+  sub
+  swap 1
+  push 128
+  dup 3
+  lt
+  or
+  push bb3
+  jumpi
+  push 128
+  dup 3
+  calldataload
+  dup 2
+  mstore
+  push 32
+  dup 4
+  add
+  calldataload
+  dup 1
+  dup 5
+  add
+  push 32
+  swap 1
+  swap 4
+  sub
+  swap 1
+  dup 2
+  lt
+  push bb3
+  jumpi
+  dup 3
+  calldataload
+  swap 3
+  push 32
+  add
+  dup 4
+  push 59
+  shr
+  push bb23
+  jumpi
+  push 1
+  dup 5
+  add
+  push 5
+  shl
+  push bb8
+  jump bb25
+bb25 [ret=0, inputs=2, outputs=1]:                ; alloc (synthesized)
+  push 64
+  mload
+  swap 2
+  dup 3
+  add
+  dup 1
+  push 64
+  shr
+  dup 4
+  dup 3
+  lt
+  or
+  push bb23
+  jumpi
+  push 64
+  mstore
+  jump
+bb8 [continuation]:
+  swap 4
+  dup 5
+  dup 3
+  dup 3
+  dup 3
+  mstore
+  calldatasize
+  sub
+  push 5
+  shr
+  dup 3
+  gt
+  push bb3
+  jumpi
+  push 32
+  add
+  swap 1
+  push 5
+  shl
+  swap 2
+  swap 1
+  calldatacopy
+  push 32
+  dup 3
+  add
+  swap 3
+  dup 4
+  mstore
+  push 64
+  dup 5
+  add
+  calldataload
+  dup 1
+  dup 6
+  add
+  swap 2
+  lt
+  push bb3
+  jumpi
+  dup 1
+  calldataload
+  swap 1
+  push 32
+  add
+  push 63
+  dup 3
+  add
+  push 31
+  not
+  and
+  dup 3
+  dup 2
+  lt
+  push bb23
+  jumpi
+  push bb12
+  jump bb25
+bb12 [continuation]:
+  dup 3
+  dup 2
+  mstore
+  dup 2
+  calldatasize
+  sub
+  dup 4
+  gt
+  push bb3
+  jumpi
+  push 32
+  dup 2
+  add
+  swap 3
+  swap 2
+  swap 1
+  swap 3
+  calldatacopy
+  dup 1
+  push 64
+  dup 4
+  add
+  mstore
+  push 96
+  dup 5
+  add
+  calldataload
+  dup 1
+  push 160
+  shr
+  push bb3
+  jumpi
+  dup 1
+  push 96
+  dup 5
+  add
+  mstore
+  dup 5
+  push 128
+  dup 5
+  add
+  mstore
+  swap 2
+  mload
+  swap 3
+  mload
+  dup 1
+  mload
+  push 32
+  dup 3
+  add
+  push 0
+  swap 7
+  pop
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  jump bb15
+bb19 [loop]:
+  dup 4
+  mload
+  dup 2
+  lt
+  iszero
+  push bb21
+  jumpi
+  dup 2
+  mload
+  swap 1
+  push 1
+  add
+  dup 1
+  dup 3
+  mul
+  swap 2
+  dup 2
+  dup 4
+  div
+  eq
+  iszero
+  swap 2
+  dup 9
+  add
+  swap 3
+  push 32
+  add
+  swap 8
+  dup 4
+  lt
+  swap 1
+  swap 2
+  or
+  swap 7
+  swap 2
+  swap 7
+  push bb22
+  jumpi
+  jump bb15
+bb15 [loop]:
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  pop
+  pop
+  pop
+  pop
+  mload
+  dup 1
+  push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
+  lt
+  push bb22
+  jumpi
+  push 0x3e8
+  mul
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb22
+  jumpi
+  push 0
+  mstore
+  dup 1
+  push 4
+  calldataload
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  sstore
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb22 [cold]:
+  push 17
+  jump bb26
+bb21 [cold]:
+  push 50
+  jump bb26
+; === ROOT/tests/ui/codegen/lowering/evm-ir/constructs/linked_library_dynamic_fields.sol:C (runtime) ===
+@module C_runtime
+bb0:                                              ; runtime dispatch entry
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x2220ae27
+  eq
+  push bb8
+  jumpi
+  dup 1
+  push 0x776f3843
+  eq
+  push bb5
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb5 [entry]:                                      ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
+  push 4
+  calldataload
+  push 160
+  shr
+  push 36
+  calldatasize
+  lt
+  or
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 0
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb8 [entry]:                                      ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
+  push 100
+  calldataload
+  push 160
+  shr
+  push 132
+  calldatasize
+  lt
+  or
+  push 36
+  calldataload
+  push 4
+  dup 2
+  add
+  swap 2
+  push 36
+  calldatasize
+  sub
+  swap 2
+  dup 3
+  lt
+  or
+  dup 3
+  calldataload
+  swap 3
+  push 32
+  add
+  dup 1
+  calldatasize
+  sub
+  swap 2
+  dup 3
+  push 5
+  shr
+  dup 6
+  gt
+  or
+  push 68
+  calldataload
+  push 4
+  dup 2
+  add
+  swap 5
+  lt
+  dup 5
+  calldataload
+  swap 5
+  push 32
+  add
+  swap 1
+  dup 2
+  calldatasize
+  sub
+  dup 7
+  gt
+  or
+  swap 1
+  swap 2
+  or
+  dup 6
+  push 5
+  shl
+  swap 4
+  dup 5
+  sgt
+  or
+  push bb4
+  jumpi
+  dup 3
+  push 32
+  add
+  dup 1
+  push 32
+  gt
+  push bb14
+  jumpi
+  push 256
+  add
+  dup 1
+  push 64
+  mstore
+  swap 5
+  push 256
+  mstore
+  push 256
+  push 288
+  swap 4
+  dup 4
+  dup 6
+  calldatacopy
+  push 63
+  dup 6
+  add
+  push 31
+  not
+  and
+  dup 7
+  add
+  push 64
+  mstore
+  dup 5
+  dup 7
+  mstore
+  push 32
+  dup 7
+  add
+  swap 5
+  dup 3
+  dup 7
+  calldatacopy
+  push 64
+  mload
+  push 0xfa06cb96
+  push 224
+  shl
+  dup 2
+  mstore
+  push 4
+  dup 2
+  add
+  push 64
+  dup 2
+  add
+  push 0
+  dup 3
+  mstore
+  push 64
+  push 32
+  dup 4
+  add
+  mstore
+  push 128
+  dup 2
+  add
+  push 4
+  calldataload
+  dup 3
+  mstore
+  push 128
+  push 32
+  dup 4
+  add
+  mstore
+  swap 4
+  mload
+  dup 1
+  dup 6
+  mstore
+  push 5
+  shl
+  swap 4
+  push 32
+  add
+  dup 5
+  dup 2
+  add
+  swap 5
+  swap 2
+  swap 8
+  swap 1
+  mcopy
+  dup 6
+  dup 4
+  sub
+  push 64
+  dup 8
+  add
+  mstore
+  swap 7
+  mload
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 32
+  dup 5
+  add
+  push 0
+  dup 3
+  dup 7
+  add
+  mstore
+  dup 3
+  swap 1
+  swap 5
+  mstore
+  dup 4
+  add
+  swap 1
+  swap 2
+  swap 7
+  swap 1
+  swap 3
+  mcopy
+  swap 3
+  push 96
+  add
+  push 100
+  calldataload
+  swap 1
+  mstore
+  pop
+  pop
+  swap 2
+  swap 1
+  swap 2
+  sub
+  push 4
+  add
+  push 0
+  swap 1
+  push 32
+  swap 3
+  push 0x1000000000000000000000000000000000000001
+  gas
+  delegatecall
+  iszero
+  push bb13
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb4
+  jumpi
+  push 0
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb13 [cold]:
+  returndatasize
+  push 0
+  push 0
+  returndatacopy
+  returndatasize
+  push 0
+  revert
+bb14 [cold]:
+  push 65
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert

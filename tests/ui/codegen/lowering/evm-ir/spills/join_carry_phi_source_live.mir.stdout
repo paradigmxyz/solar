@@ -1,0 +1,46 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/join_carry_phi_source_live.sol:JoinCarryPhiSourceLive ===
+@module JoinCarryPhiSourceLive
+@types
+  struct0: {i256, i256}
+
+; function helper(uint256 n, uint256 f) internal pure returns (uint256)
+fn @helper(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v1 = checked_sub uint256, arg0, 1
+    v2 = checked_add uint256, arg1, 1
+    v3 = icall @helper, v1, v2
+    ret v3
+  bb1:                                            ; preds = bb0
+    ret arg1
+}
+
+; function fee(uint256 base, uint256 over, bool useOver, uint256 pf) external pure returns (uint256 a, uint256 b) [selector 0x603ced03]
+fn @fee(arg0: i256, arg1: i256, arg2: i1, arg3: i256) -> struct0 [selector=0x603ced03, pure, abi_params=[uint256, uint256, bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    jumpi arg2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v0 = and arg1, 0x3fffff
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v1 = phi [bb1: v0], [bb2: arg0]
+    v2 = eq arg3, 0
+    jumpi v2, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v3 = icall @helper, arg3, v1
+    jump bb6
+  bb4:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v4 = phi [bb4: v1], [bb5: v3]
+    v5 = and v1, 0xffffff
+    v6 = insert_value struct0, undef struct0, 0, v4
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}

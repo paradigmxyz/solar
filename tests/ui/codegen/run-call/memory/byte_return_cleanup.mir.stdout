@@ -1,0 +1,15 @@
+; === ROOT/tests/ui/codegen/run-call/memory/byte_return_cleanup.sol:ByteReturnCleanup ===
+@module ByteReturnCleanup
+@types
+  struct0: {i256, i256}
+
+; function extract(uint256 x) external pure returns (bytes1 result, uint256 zero) [selector 0x85b39782]
+fn @extract(arg0: i256) -> struct0 [selector=0x85b39782, pure, abi_params=[uint256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, uint256]] {
+  bb0:
+    v0 = shr arg0, 240
+    v1 = and v0, 255
+    v2 = shl v1, 248
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 0
+    ret v4
+}

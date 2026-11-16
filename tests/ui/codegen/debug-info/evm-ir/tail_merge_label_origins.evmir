@@ -1,0 +1,23 @@
+//@ compile-flags: -Zevm-ir-pipeline=tail-merge --optimize-runs 1
+//@ filecheck:
+@module LabelOrigins
+
+bb0:
+  push 1
+  jumpi bb1, bb2
+
+// Sharing a whole body rebuilds the representative block but keeps its label, which now carries
+// the origins of both copies. The other copy keeps its own and jumps to the representative.
+// CHECK-LABEL: {{^[ +].*}}bb1 !metadata(spans=[10..20, 30..40]):
+// CHECK: {{^[ +].*}}return
+// CHECK-LABEL: {{^[ +].*}}bb2 !metadata(span=30..40):
+// CHECK: + jump bb1
+bb1 !metadata(span=10..20):
+  push 1234 !metadata(span=11..15)
+  push 5678 !metadata(span=21..25)
+  return !metadata(span=26..28)
+
+bb2 !metadata(span=30..40):
+  push 1234 !metadata(span=31..35)
+  push 5678 !metadata(span=36..38)
+  return !metadata(span=39..40)

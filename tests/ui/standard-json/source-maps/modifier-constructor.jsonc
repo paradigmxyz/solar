@@ -1,0 +1,31 @@
+//@ filecheck:
+// solc counts every entry of the modifier list, base constructor calls included, so the modifier
+// after `Base(x + 1)` runs at depth 1 and its body at depth 2, and a call after the modifier
+// still moves the body to depth 2.
+// CHECK-LABEL: "Early": {
+// CHECK: "sourceMap": "{{[^"]*}}:::1{{[^"]*}}:::2{{[^"]*}}:::1
+// CHECK-LABEL: "Late": {
+// CHECK: "sourceMap": "{{[^"]*}}:::2{{[^"]*}}:::0
+{
+  "language": "Solidity",
+  "sources": {
+    "Constructor.sol": {
+      "content": "pragma solidity ^0.8.0; contract Base { uint256 public b; constructor(uint256 v) { b = v; } } contract Early is Base { uint256 public a; modifier m(uint256 v) { a = v; _; a += 1; } constructor(uint256 x) Base(x + 1) m(x * 3) { a = a * 7; } } contract Late is Base { uint256 public a; modifier m(uint256 v) { a = v; _; a += 1; } constructor(uint256 x) m(x * 3) Base(x + 1) { a = a * 7; } }"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false
+    },
+    "outputSelection": {
+      "Constructor.sol": {
+        "Early": [
+          "evm.bytecode.sourceMap"
+        ],
+        "Late": [
+          "evm.bytecode.sourceMap"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,285 @@
+- ; === ROOT/tests/ui/codegen/mir/element-cleanup/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/element-cleanup/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
+  @module ElementCleanup
+  ; selector 0x61c4cbc4
+  fn @first(arg0: ptr<memory>) -> i160 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<uint160>], abi_return_params=[address]] {
+    bb0:
+      v0 = mload arg0
+      v1 = gt v0, 0
+      v2 = eq v1, false
+      icall panic_if<0x32>, v2
+      v3 = ptradd arg0, 32
+      v4 = mload v3
+      v5 = trunc i256 v4 to i160
+      ret v5
+  }
+  
+  ; selector 0x0538087c
+  fn @fresh(arg0: i256) -> i160 [selector=0x0538087c, pure, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
+    bb0:
+      v0 = mul arg0, 1
+      v1 = eq 1, 0
+      v2 = div v0, 1
+      v3 = eq v2, arg0
+      v4 = or v1, v3
+      v5 = zext i1 v4 to i256
+      v6 = eq v5, 0
+      icall panic_if<0x41>, v6
+      v7 = add v0, 1
+      v8 = lt v7, v0
+      icall panic_if<0x41>, v8
+      v9 = mul v7, 32
+      v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      icall panic_if<0x41>, v10
+      v11 = alloc zeroed checked v9
+      mstore v11, arg0
+      v12 = mload v11
+      v13 = gt v12, 1
+      v14 = eq v13, false
+      icall panic_if<0x32>, v14
+      v15 = ptradd v11, 64
+      v16 = mload v15
+-     v17 = trunc i256 v16 to i160
+      v18 = mload v11
+      v19 = gt v18, 0
+      v20 = eq v19, false
+      icall panic_if<0x32>, v20
+-     v21 = zext i160 v17 to i256
+      v22 = ptradd v11, 32
+-     mstore v22, v21
++     mstore v22, v16
+      v23 = mload v11
+      v24 = gt v23, 2
+      v25 = eq v24, false
+      icall panic_if<0x32>, v25
+      v26 = ptradd v11, 96
+      v27 = mload v26
+      v28 = trunc i256 v27 to i160
+      ret v28
+  }
+  
+  fn @last(arg0: ptr<memory>, arg1: i256) -> i160 [pure] {
+    bb0:
+      v0 = checked_add uint256, arg1, 1
+      v1 = mload arg0
+      v2 = eq v0, v1
+      jumpi v2, bb1, bb2
+    bb2:                                            ; preds = bb0
+      jump bb3
+    bb3:                                            ; preds = bb2
+      v11 = checked_add uint256, arg1, 1
+      v12 = icall @last, arg0, v11
+      ret v12
+    bb1:                                            ; preds = bb0
+      v3 = mload arg0
+      v4 = lt arg1, v3
+      v5 = eq v4, false
+      icall panic_if<0x32>, v5
+      v6 = shl arg1, 5
+      v7 = ptradd arg0, v6
+      v8 = ptradd v7, 32
+      v9 = mload v8
+      v10 = trunc i256 v9 to i160
+      ret v10
+  }
+  
+  ; selector 0x4c8ba82e
+  fn @tail(arg0: ptr<memory>) -> i160 [selector=0x4c8ba82e, pure, abi_params=[array<_, address>], abi_returns=[word<uint160>], abi_return_params=[address]] {
+    bb0:
+      v0 = icall @last, arg0, 0
+      ret v0
+  }
+  
+  ; selector 0x74016a59
+  fn @dirty(arg0: ptr<memory>) -> i160 [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<uint160>], abi_return_params=[address]] {
+    bb0:
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = add v0, 32
+      mstore v1, 0x123456789abcdef0123456789abcdef0123456789abcdef
+      v2 = mload arg0
+      v3 = gt v2, 0
+      v4 = eq v3, false
+      icall panic_if<0x32>, v4
+      v5 = ptradd arg0, 32
+      v6 = mload v5
+      v7 = trunc i256 v6 to i160
+      ret v7
+  }
+  
+  fn @fill(arg0: ptr<memory>, arg1: i160) [pure] {
+    bb0:
+      v0 = mload arg0
+      v1 = gt v0, 0
+      v2 = eq v1, false
+      icall panic_if<0x32>, v2
+      v3 = zext i160 arg1 to i256
+      v4 = ptradd arg0, 32
+      mstore v4, v3
+      ret
+  }
+  
+  ; selector 0xc5c700de
+  fn @filled(arg0: ptr<memory>, arg1: i160) -> i160 [selector=0xc5c700de, pure, abi_params=[array<_, address>, address], abi_returns=[word<uint160>], abi_return_params=[address]] {
+    bb0:
+      icall @fill, arg0, arg1
+      v0 = mload arg0
+      v1 = gt v0, 0
+      v2 = eq v1, false
+      icall panic_if<0x32>, v2
+      v3 = ptradd arg0, 32
+      v4 = mload v3
+      v5 = trunc i256 v4 to i160
+      ret v5
+  }
+  
+  ; selector 0xb5215a28
+  fn @narrowed(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xb5215a28, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+    bb0:
+      v0 = mload arg0
+      v1 = gt v0, 0
+      v2 = eq v1, false
+      icall panic_if<0x32>, v2
+      v3 = ptradd arg0, 32
+      mstore v3, arg1
+      v4 = mload arg0
+      v5 = gt v4, 1
+      v6 = eq v5, false
+      icall panic_if<0x32>, v6
+      v7 = ptradd arg0, 64
+      v8 = mload v7
+      v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v9
+  }
+  
+  ; selector 0x73672dfc
+  fn @fresh8(arg0: i256) -> i8 [selector=0x73672dfc, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+    bb0:
+      v0 = mul arg0, 1
+      v1 = eq 1, 0
+      v2 = div v0, 1
+      v3 = eq v2, arg0
+      v4 = or v1, v3
+      v5 = zext i1 v4 to i256
+      v6 = eq v5, 0
+      icall panic_if<0x41>, v6
+      v7 = add v0, 1
+      v8 = lt v7, v0
+      icall panic_if<0x41>, v8
+      v9 = mul v7, 32
+      v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      icall panic_if<0x41>, v10
+      v11 = alloc zeroed checked v9
+      mstore v11, arg0
+      v12 = mload v11
+      v13 = gt v12, 1
+      v14 = eq v13, false
+      icall panic_if<0x32>, v14
+      v15 = ptradd v11, 64
+      v16 = mload v15
+-     v17 = trunc i256 v16 to i8
+      v18 = mload v11
+      v19 = gt v18, 0
+      v20 = eq v19, false
+      icall panic_if<0x32>, v20
+-     v21 = zext i8 v17 to i256
+      v22 = ptradd v11, 32
+-     mstore v22, v21
++     mstore v22, v16
+      v23 = mload v11
+      v24 = gt v23, 2
+      v25 = eq v24, false
+      icall panic_if<0x32>, v25
+      v26 = ptradd v11, 96
+      v27 = mload v26
+      v28 = trunc i256 v27 to i8
+      ret v28
+  }
+  
+  ; selector 0xb544e899
+  fn @fresh128(arg0: i256) -> i128 [selector=0xb544e899, pure, abi_params=[uint256], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
+    bb0:
+      v0 = mul arg0, 1
+      v1 = eq 1, 0
+      v2 = div v0, 1
+      v3 = eq v2, arg0
+      v4 = or v1, v3
+      v5 = zext i1 v4 to i256
+      v6 = eq v5, 0
+      icall panic_if<0x41>, v6
+      v7 = add v0, 1
+      v8 = lt v7, v0
+      icall panic_if<0x41>, v8
+      v9 = mul v7, 32
+      v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      icall panic_if<0x41>, v10
+      v11 = alloc zeroed checked v9
+      mstore v11, arg0
+      v12 = mload v11
+      v13 = gt v12, 1
+      v14 = eq v13, false
+      icall panic_if<0x32>, v14
+      v15 = ptradd v11, 64
+      v16 = mload v15
+-     v17 = trunc i256 v16 to i128
+      v18 = mload v11
+      v19 = gt v18, 0
+      v20 = eq v19, false
+      icall panic_if<0x32>, v20
+-     v21 = zext i128 v17 to i256
+      v22 = ptradd v11, 32
+-     mstore v22, v21
++     mstore v22, v16
+      v23 = mload v11
+      v24 = gt v23, 2
+      v25 = eq v24, false
+      icall panic_if<0x32>, v25
+      v26 = ptradd v11, 96
+      v27 = mload v26
+      v28 = trunc i256 v27 to i128
+      ret v28
+  }
+  
+  ; selector 0x3e8a48f0
+  fn @fresh248(arg0: i256) -> i248 [selector=0x3e8a48f0, pure, abi_params=[uint256], abi_returns=[word<uint248>], abi_return_params=[uint248]] {
+    bb0:
+      v0 = mul arg0, 1
+      v1 = eq 1, 0
+      v2 = div v0, 1
+      v3 = eq v2, arg0
+      v4 = or v1, v3
+      v5 = zext i1 v4 to i256
+      v6 = eq v5, 0
+      icall panic_if<0x41>, v6
+      v7 = add v0, 1
+      v8 = lt v7, v0
+      icall panic_if<0x41>, v8
+      v9 = mul v7, 32
+      v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      icall panic_if<0x41>, v10
+      v11 = alloc zeroed checked v9
+      mstore v11, arg0
+      v12 = mload v11
+      v13 = gt v12, 1
+      v14 = eq v13, false
+      icall panic_if<0x32>, v14
+      v15 = ptradd v11, 64
+      v16 = mload v15
+-     v17 = trunc i256 v16 to i248
+      v18 = mload v11
+      v19 = gt v18, 0
+      v20 = eq v19, false
+      icall panic_if<0x32>, v20
+-     v21 = zext i248 v17 to i256
+      v22 = ptradd v11, 32
+-     mstore v22, v21
++     mstore v22, v16
+      v23 = mload v11
+      v24 = gt v23, 2
+      v25 = eq v24, false
+      icall panic_if<0x32>, v25
+      v26 = ptradd v11, 96
+      v27 = mload v26
+      v28 = trunc i256 v27 to i248
+      ret v28
+  }
+  

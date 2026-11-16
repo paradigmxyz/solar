@@ -1,0 +1,43 @@
+; === ROOT/tests/ui/codegen/run-call/integers/shifted_masks.sol:ShiftedMasks ===
+@module ShiftedMasks
+; function signedMax(int256 x) external pure returns (int256) [selector 0x0c9f2282]
+fn @signedMax(arg0: i256) -> i256 [selector=0x0c9f2282, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    v0 = and arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+; function lowOdd(uint256 x) external pure returns (uint256) [selector 0xbaf716f7]
+fn @lowOdd(arg0: i256) -> i256 [selector=0xbaf716f7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0x7fffffffffffffffffffffffffffffff
+    ret v0
+}
+
+; function highAddress(uint256 x) external pure returns (uint256) [selector 0x1f137825]
+fn @highAddress(arg0: i256) -> i256 [selector=0x1f137825, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    ret v0
+}
+
+; function highOdd(uint256 x) external pure returns (uint256) [selector 0x88a4fb64]
+fn @highOdd(arg0: i256) -> i256 [selector=0x88a4fb64, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffff80000000000000
+    ret v0
+}
+
+; function highTop(uint256 x) external pure returns (uint256) [selector 0x5f9e3b79]
+fn @highTop(arg0: i256) -> i256 [selector=0x5f9e3b79, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+; function clearAddress(uint256 x) external pure returns (uint256) [selector 0x1059ce68]
+fn @clearAddress(arg0: i256) -> i256 [selector=0x1059ce68, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    ret v0
+}

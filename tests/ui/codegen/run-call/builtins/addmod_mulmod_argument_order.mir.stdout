@@ -1,0 +1,149 @@
+; === ROOT/tests/ui/codegen/run-call/builtins/addmod_mulmod_argument_order.sol:AddmodMulmodArgumentOrder ===
+@module AddmodMulmodArgumentOrder
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    sstore 3, 2 !metadata(storage=slot(3))
+    ret
+}
+
+; function addmodBump() external returns (uint256) [selector 0xac509449]
+fn @addmodBump() -> i256 [selector=0xac509449, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @bump
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = icall checked_addmod<>, v0, v1, 100
+    ret v2
+}
+
+; function mulmodBump() external returns (uint256) [selector 0x28d7a1fb]
+fn @mulmodBump() -> i256 [selector=0x28d7a1fb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @bump
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = icall checked_mulmod<>, v0, v1, 100
+    ret v2
+}
+
+; function addmodTrace() external returns (uint256) [selector 0x8fd87e18]
+fn @addmodTrace() -> i256 [selector=0x8fd87e18, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @step, 1
+    v1 = icall @step, 2
+    v2 = icall @step, 3
+    v3 = icall checked_addmod<>, v0, v1, v2
+    v4 = sload 1 !metadata(storage=slot(1))
+    ret v4
+}
+
+; function mulmodTrace() external returns (uint256) [selector 0xe68a06d3]
+fn @mulmodTrace() -> i256 [selector=0xe68a06d3, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @step, 1
+    v1 = icall @step, 2
+    v2 = icall @step, 3
+    v3 = icall checked_mulmod<>, v0, v1, v2
+    v4 = sload 1 !metadata(storage=slot(1))
+    ret v4
+}
+
+; function addmodNestedTrace() external returns (uint256) [selector 0x4555b62e]
+fn @addmodNestedTrace() -> i256 [selector=0x4555b62e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @step, 1
+    v1 = icall @step, 2
+    v2 = icall checked_addmod<>, v0, v1, 100
+    v3 = icall @step, 3
+    v4 = icall @step, 4
+    v5 = checked_add uint256, v4, 100
+    v6 = icall checked_addmod<>, v2, v3, v5
+    v7 = sload 1 !metadata(storage=slot(1))
+    ret v7
+}
+
+; function addmodReadsTrace() external returns (uint256) [selector 0xcbcb542f]
+fn @addmodReadsTrace() -> i256 [selector=0xcbcb542f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @step, 1
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = icall checked_addmod<>, v0, v1, 100
+    ret v2
+}
+
+; function mulmodReadsTrace() external returns (uint256) [selector 0x298deb7d]
+fn @mulmodReadsTrace() -> i256 [selector=0x298deb7d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @step, 1
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = checked_add uint256, v1, 1
+    v3 = icall checked_mulmod<>, v0, v2, 100
+    ret v3
+}
+
+; function addmodZero() external view returns (uint256) [selector 0x1da31530]
+fn @addmodZero() -> i256 [selector=0x1da31530, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = icall checked_addmod<>, 1, 1, v0
+    ret v1
+}
+
+; function addmodUnderflowBeforeZero() external returns (uint256) [selector 0x78828433]
+fn @addmodUnderflowBeforeZero() -> i256 [selector=0x78828433, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @step, 1
+    v1 = checked_sub uint256, v0, 5
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = icall checked_addmod<>, v1, 1, v2
+    ret v3
+}
+
+; function mulmodIndexBeforeZero() external view returns (uint256) [selector 0x882bb1c0]
+fn @mulmodIndexBeforeZero() -> i256 [selector=0x882bb1c0, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = add v0, 4
+    v4 = sload v3 !metadata(storage=offset(v0, 4))
+    v5 = sload 2 !metadata(storage=slot(2))
+    v6 = icall checked_mulmod<>, v4, 1, v5
+    ret v6
+}
+
+; function mulmodFirstOperandPanicsFirst() external returns (uint256) [selector 0x23288ce2]
+fn @mulmodFirstOperandPanicsFirst() -> i256 [selector=0x23288ce2, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = add v0, 4
+    v4 = sload v3 !metadata(storage=offset(v0, 4))
+    v5 = icall @step, 1
+    v6 = checked_sub uint256, v5, 5
+    v7 = icall checked_mulmod<>, v4, v6, 7
+    ret v7
+}
+
+; function bump() internal returns (uint256)
+fn @bump() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
+}
+
+; function step(uint256 id) internal returns (uint256)
+fn @step(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, arg0
+    sstore 1, v2 !metadata(storage=slot(1))
+    ret arg0
+}

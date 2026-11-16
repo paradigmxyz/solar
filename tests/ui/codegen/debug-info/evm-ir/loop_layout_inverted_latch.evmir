@@ -1,0 +1,37 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=loop-layout
+//@ filecheck:
+@module InvertedLatch
+
+// Turning the latch around drops its `iszero`. The retargeted push and the `jumpi` keep their own
+// origins, and the removed test takes its origin with it.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: + push bb4 !metadata(span=11..15){{$}}
+// CHECK-NEXT: {{^[ +] *}}jumpi !metadata(span=16..20){{$}}
+bb0:
+  push 3
+  push 0
+  jump bb1
+bb1:
+  dup 2
+  dup 2
+  lt
+  push bb3
+  jumpi
+  jump bb2
+bb2:
+  pop
+  pop
+  stop
+bb3:
+  push 1
+  add
+  dup 1
+  iszero
+  iszero !metadata(span=1..5)
+  push bb1 !metadata(span=11..15)
+  jumpi !metadata(span=16..20)
+  jump bb4
+bb4 [cold]:
+  push 0
+  push 0
+  revert

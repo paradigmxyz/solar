@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/libraries/unused_bound_library_function.sol:LL:CC
+   │
+LL │         a.double;
+   ╰╴        ━━━━━━━━
+

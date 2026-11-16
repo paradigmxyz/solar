@@ -1,0 +1,85 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/internal_function_pointer_storage_copy.sol:InternalFunctionPointerStorageCopy ===
+@module InternalFunctionPointerStorageCopy
+; function one() public returns (uint256) [selector 0x901717d1]
+fn @one() -> i256 [selector=0x901717d1, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 640 !metadata(preserves_fmp)
+    memory_zero v0, 640
+    v1 = ne 0, 0
+    v2 = zext i1 v1 to i256
+    v3 = add v2, 5
+    jump bb1
+  bb1:                                            ; preds = bb0, bb6
+    v4 = phi [bb0: 0], [bb6: v23]
+    v5 = lt v4, v3
+    jumpi v5, bb2, bb3
+  bb3:                                            ; preds = bb1
+    jump bb7
+  bb7:                                            ; preds = bb3, bb8
+    v24 = phi [bb3: 0], [bb8: v27]
+    v25 = lt v24, 0
+    jumpi v25, bb8, bb9
+  bb9:                                            ; preds = bb7
+    ret 3
+  bb8:                                            ; preds = bb7
+    v26 = add v24, 5
+    sstore v26, 0 !metadata(storage=offset(v24, 5))
+    v27 = add v24, 1
+    jump bb7
+  bb2:                                            ; preds = bb1
+    v6 = mul v4, 4
+    v7 = sub 20, v6
+    v8 = lt v7, 4
+    v9 = select v8, v7, 4
+    jump bb4
+  bb4:                                            ; preds = bb2, bb5
+    v10 = phi [bb2: 0], [bb5: v21]
+    v11 = phi [bb2: 0], [bb5: v20]
+    v12 = lt v10, v9
+    jumpi v12, bb5, bb6
+  bb6:                                            ; preds = bb4
+    v22 = add v4, 0
+    sstore v22, v11 !metadata(storage=symbolic(v4))
+    v23 = add v4, 1
+    jump bb1
+  bb5:                                            ; preds = bb4
+    v13 = add v6, v10
+    v14 = shl v13, 5
+    v15 = ptradd v0, v14
+    v16 = mload v15
+    v17 = and v16, 0xffffffffffffffff
+    v18 = mul v10, 64
+    v19 = shl v17, v18
+    v20 = or v19, v11
+    v21 = add v10, 1
+    jump bb4
+}
+
+; function two() public returns (uint256) [selector 0x5fdf05d7]
+fn @two() -> i256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 5 !metadata(storage=slot(5))
+    v1 = sgt v0, 0
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    sstore 5, 1 !metadata(storage=slot(5))
+    v2 = lt 0, 20
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = shr v4, 0
+    v6 = trunc i256 v5 to i64
+    v7 = zext i64 v6 to i256
+    v8 = icall @internal_dispatcher_p_none_r_uint256, v7
+    ret 2
+  bb1:                                            ; preds = bb0
+    ret 7
+}
+
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    icall panic_if<0x51>, true
+    invalid
+}

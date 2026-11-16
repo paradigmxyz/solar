@@ -1,0 +1,29 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/join_carry_remat_condition.sol:JoinCarryRematCondition ===
+@module JoinCarryRematCondition
+; function pick(uint256 seed) external returns (uint256) [selector 0x7701ea4a]
+fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v2 = checked_add uint256, arg0, 1
+    v3 = calldatasize
+    v4 = make_calldata_slice ptr<calldata> 0, v3
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = ne v5, 0
+    jumpi v6, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb6
+  bb4:                                            ; preds = bb1
+    sstore 0, v2 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    jump bb3
+  bb3:                                            ; preds = bb6, bb2
+    v7 = phi [bb6: v2], [bb2: v0]
+    v8 = checked_mul uint256, v7, 2
+    ret v8
+}

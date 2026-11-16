@@ -297,7 +297,6 @@ fn scaled_root(func: &Function, mut value: ValueId) -> ValueId {
         let Value::Inst(inst) = *func.value(value) else { break };
         value = match func.inst(inst).kind {
             InstKind::Add(a, b) | InstKind::Mul(a, b) if func.value_u256(b).is_some() => a,
-            InstKind::Add(a, b) | InstKind::Mul(a, b) if func.value_u256(a).is_some() => b,
             InstKind::Shl(shift, x) if func.value_u256(shift).is_some() => x,
             _ => break,
         };
@@ -314,12 +313,8 @@ fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
     {
         return Some((element, bits));
     }
-    let InstKind::And(a, b) = func.inst(inst).kind else { return None };
-    let (element, mask) = match (func.value_u256(a), func.value_u256(b)) {
-        (None, Some(mask)) => (a, mask),
-        (Some(mask), None) => (b, mask),
-        _ => return None,
-    };
+    let InstKind::And(element, mask) = func.inst(inst).kind else { return None };
+    let mask = func.value_u256(mask)?;
     (mask.wrapping_add(U256::ONE) & mask).is_zero().then(|| (element, mask.bit_len() as u32))
 }
 
@@ -430,9 +425,10 @@ fn replaces_no_narrower_word(
                 if then_block != else_block =>
             {
                 let Value::Inst(test) = *func.value(condition) else { return false };
-                // On the else edge `a > b` and `a < b` fail; on the then edge they hold.
+                // `a < b` holds on the then edge and fails on the else edge; `a > b` holds on the
+                // then edge.
                 let (small, large) = match (&func.inst(test).kind, block == else_block) {
-                    (&InstKind::Gt(a, b), true) | (&InstKind::Lt(a, b), false) => (a, b),
+                    (&InstKind::Lt(a, b), false) => (a, b),
                     (&InstKind::Lt(a, b), true) | (&InstKind::Gt(a, b), false) => (b, a),
                     _ => return false,
                 };

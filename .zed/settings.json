@@ -8,7 +8,8 @@
     ],
     "Diff": [
       "**/tests/ui/codegen/mir/**/*.stdout",
-      "**/tests/ui/codegen/evm-ir/**/*.stdout"
+      "**/tests/ui/codegen/evm-ir/**/*.stdout",
+      "**/tests/ui/codegen/debug-info/**/*.stdout"
     ]
   },
   "lsp": {

@@ -25,11 +25,16 @@ use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
-    source_map::FileLoader,
+    source_map::{FileLoader, RealFileLoader},
 };
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::ContractId,
+    output::{AstJson, SourceAstJson},
+};
 use std::{
     borrow::Cow,
+    cell::OnceCell,
     fs::File,
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -40,8 +45,18 @@ use std::{
 /// Compiles Standard JSON input and returns Standard JSON output.
 pub fn compile_standard_json(
     input: &str,
-    mut opts: CompileOpts,
+    opts: CompileOpts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    out: &mut (dyn Write + Send),
+) -> io::Result<()> {
+    let read_callback = read_callback.filter(|_| !opts.no_import_callback);
+    compile_standard_json_with(input, opts, StandardJsonFileLoader { read_callback }, out)
+}
+
+fn compile_standard_json_with(
+    input: &str,
+    mut opts: CompileOpts,
+    file_loader: impl FileLoader,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
     // Library callers bypass CLI argument conflicts. Only outputSelection may
@@ -49,7 +64,7 @@ pub fn compile_standard_json(
     opts.standard_json = true;
     opts.emit.clear();
     let source_map = Arc::new(SourceMap::empty());
-    source_map.set_file_loader(StandardJsonFileLoader { read_callback });
+    source_map.set_file_loader(file_loader);
     let (emitter, diagnostics) = InMemoryEmitter::new();
     let dcx = DiagCtxt::new(Box::new(emitter))
         .with_flags(|flags| flags.update_from_opts(&opts))
@@ -94,7 +109,11 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
     });
     match result {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) if opts.no_import_callback => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) => {
+            let reader = FileReader::new(&opts);
+            compile_standard_json_with(&input, opts, reader, &mut stdout)?
+        }
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,
@@ -121,17 +140,18 @@ fn write_empty_standard_json_output(
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let output = CompilerOutput::default();
+    let output: CompilerOutput<'_> = CompilerOutput::default();
     let diagnostics = diagnostics.read();
-    finish_standard_json_output(output, source_map, opts, &diagnostics, out)
+    finish_standard_json_output(output, source_map, opts, &diagnostics, None, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
-fn finish_standard_json_output<'a>(
-    mut output: CompilerOutput<'a>,
+fn finish_standard_json_output<'a, 'gcx>(
+    mut output: CompilerOutput<'a, ContractOutput<'a>, SourceOutput<'_, 'gcx>>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
+    ast_json: Option<&AstJson<'gcx>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
     let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map, opts.color)
@@ -147,12 +167,36 @@ fn finish_standard_json_output<'a>(
 
     // Raw contracts would not be indented, and with nothing to parallelize, buffering every
     // serialized contract only raises peak memory.
+    // The contracts are serialized before the sources are written ahead, which would occupy
+    // the threads that serialize them.
     if opts.pretty_json || output.contracts.is_empty() || rayon::current_num_threads() == 1 {
-        crate::emit::to_json(out, &output, opts.pretty_json)
+        let attached = attached_asts(&output);
+        render_asts(ast_json, &attached, || crate::emit::to_json(out, &output, opts.pretty_json))
     } else {
-        crate::emit::to_json(out, &output.serialize_contracts()?, false)
+        let output = output.serialize_contracts()?;
+        let attached = attached_asts(&output);
+        render_asts(ast_json, &attached, || crate::emit::to_json(out, &output, false))
     }
     .map_err(Into::into)
+}
+
+/// Returns the ASTs of the sources of the output, in the order of the output.
+fn attached_asts<'a, 'gcx, C>(
+    output: &CompilerOutput<'_, C, SourceOutput<'a, 'gcx>>,
+) -> Vec<SourceAstJson<'a, 'gcx>> {
+    output.sources.iter().flatten().filter_map(|(_, source)| source.ast).collect()
+}
+
+/// Calls `write` while the ASTs, which it writes in this order, are written ahead.
+fn render_asts<'gcx, R: Send>(
+    ast_json: Option<&AstJson<'gcx>>,
+    attached: &[SourceAstJson<'_, 'gcx>],
+    write: impl FnOnce() -> R + Send,
+) -> R {
+    match ast_json {
+        Some(ast_json) => ast_json.render(attached, write),
+        None => write(),
+    }
 }
 
 /// Applies `settings.debug`, enforcing solc's selection rules.
@@ -300,6 +344,7 @@ fn compile(
         }));
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
+    opts.unstable.keep_asts = output_selection.requests_ast();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -311,6 +356,8 @@ fn compile(
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
+            // The AST JSON must outlive the output that borrows it.
+            let ast_json = OnceCell::new();
             let mut output = CompilerOutput::default();
             let result = (|| {
                 let mut parsed_sources = FxIndexMap::default();
@@ -336,6 +383,16 @@ fn compile(
                 )?;
                 compiler.gcx().dcx().has_errors()?;
                 output.sources = Some(parsed_sources);
+                if output_selection.requests_ast() {
+                    let gcx = compiler.gcx();
+                    let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
+                    let sources = output.sources.iter_mut().flatten();
+                    for ((name, source), id) in sources.zip(gcx.sources.indices()) {
+                        if output_selection.ast(name) {
+                            source.ast = ast_json.source(id);
+                        }
+                    }
+                }
                 if control_flow.is_break() {
                     return Ok(());
                 }
@@ -461,6 +518,7 @@ fn compile(
                 Arc::clone(&source_map),
                 opts,
                 &diagnostics,
+                ast_json.get(),
                 &mut *out,
             ));
             result
@@ -478,14 +536,7 @@ struct StandardJsonFileLoader {
 
 impl FileLoader for StandardJsonFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
-        if path.is_absolute()
-            && let Ok(cwd) = std::env::current_dir()
-            && let Ok(path) = path.strip_prefix(cwd)
-        {
-            Ok(path.to_path_buf())
-        } else {
-            Ok(path.to_path_buf())
-        }
+        Ok(strip_current_dir(path))
     }
 
     fn load_stdin(&self) -> io::Result<String> {
@@ -519,6 +570,77 @@ impl StandardJsonFileLoader {
     }
 }
 
+/// Reads imports from disk for the command line, like solc's file reader: only regular files in
+/// `--allow-paths`, the base path (or the current directory) and the include paths.
+///
+/// The file resolver joins each source unit name with the base path and include paths and
+/// reports ambiguous imports, so this only checks and reads the given path. It refuses a file
+/// that exists with [`io::ErrorKind::PermissionDenied`], which still makes an import ambiguous.
+// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/interface/FileReader.cpp>
+struct FileReader {
+    /// Canonical allowed directories.
+    allowed: Vec<PathBuf>,
+}
+
+impl FileReader {
+    fn new(opts: &CompileOpts) -> Self {
+        let base_path = opts.base_path.as_deref().filter(|p| !p.as_os_str().is_empty());
+        let base_path = base_path.unwrap_or(Path::new("."));
+        let allowed = opts
+            .allow_paths
+            .iter()
+            .chain(&opts.include_paths)
+            .map(PathBuf::as_path)
+            .chain([base_path])
+            .filter_map(|dir| RealFileLoader.canonicalize_path(dir).ok())
+            .collect();
+        Self { allowed }
+    }
+}
+
+impl FileLoader for FileReader {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+        Ok(strip_current_dir(path))
+    }
+
+    fn load_stdin(&self) -> io::Result<String> {
+        Err(disallowed_io(Path::new("stdin")))
+    }
+
+    fn load_file(&self, path: &Path) -> io::Result<String> {
+        // The resolver keeps the prefix in the name without a base path or include paths.
+        let path = path.to_str().and_then(|s| s.strip_prefix("file://")).map_or(path, Path::new);
+        let Ok(path) = RealFileLoader.canonicalize_path(path) else {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "File not found."));
+        };
+        let refuse = |msg: &str| Err(io::Error::new(io::ErrorKind::PermissionDenied, msg));
+        if !self.allowed.iter().any(|dir| path.starts_with(dir)) {
+            return refuse("File outside of allowed directories.");
+        }
+        if !path.is_file() {
+            return refuse("Not a valid file.");
+        }
+        // The file exists, so a failed read still makes an import ambiguous.
+        RealFileLoader.load_file(&path).or_else(|e| refuse(&e.to_string()))
+    }
+
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        Err(disallowed_io(path))
+    }
+}
+
+/// Makes a path inside the current directory relative to it.
+fn strip_current_dir(path: &Path) -> PathBuf {
+    if path.is_absolute()
+        && let Ok(cwd) = std::env::current_dir()
+        && let Ok(path) = path.strip_prefix(cwd)
+    {
+        path.to_path_buf()
+    } else {
+        path.to_path_buf()
+    }
+}
+
 /// Returns the diagnostic message for an unsupported Standard JSON callback kind.
 pub(crate) fn unsupported_callback_kind(kind: &str) -> String {
     format!("Callback kind `{kind}` is not supported")
@@ -532,14 +654,17 @@ fn disallowed_io(path: &Path) -> io::Error {
 }
 
 #[tracing::instrument(name = "source_outputs", level = "debug", skip_all)]
-fn source_outputs_from_compiler(
+fn source_outputs_from_compiler<'a, 'gcx>(
     compiler: &solar_sema::CompilerRef<'_>,
-) -> FxIndexMap<String, SourceOutput> {
+) -> FxIndexMap<String, SourceOutput<'a, 'gcx>> {
     let gcx = compiler.gcx();
     gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            (
+                source.file.name.display().to_string(),
+                SourceOutput { id: id.index() as u32, ast: None },
+            )
         })
         .collect()
 }

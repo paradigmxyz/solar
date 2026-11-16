@@ -1,0 +1,25 @@
+error[7249]: more than 3 indexed arguments for event
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/events-errors/event_topic_limit.sol:LL:CC
+   │
+LL │ ┏     event Named(
+LL │ ┃         uint256 indexed a,
+LL │ ┃         uint256 indexed b,
+LL │ ┃         uint256 indexed c,
+LL │ ┃         uint256 indexed d
+LL │ ┃     );
+   ╰╴┗━━━━━━┛
+
+error[8598]: more than 4 indexed arguments for anonymous event
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/events-errors/event_topic_limit.sol:LL:CC
+   │
+LL │ ┏     event Anonymous(
+LL │ ┃         uint256 indexed a,
+LL │ ┃         uint256 indexed b,
+LL │ ┃         uint256 indexed c,
+LL │ ┃         uint256 indexed d,
+LL │ ┃         uint256 indexed e
+LL │ ┃     ) anonymous;
+   ╰╴┗━━━━━━━━━━━━━━━━┛
+
+error: aborting due to 2 previous errors
+

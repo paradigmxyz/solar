@@ -1,0 +1,225 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "dir/Main.sol",
+        "start": 64,
+        "end": 79
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "couldn't read dir/missing.sol: File not found.",
+      "formattedMessage": "warning: couldn't read dir/missing.sol: File not found.\n   ╭▸ dir/Main.sol:LL:CC\n   │\nLL │ import \"./missing.sol\";\n   ╰╴       ━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "dir/Main.sol",
+        "start": 88,
+        "end": 107
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "couldn't read up/Missing.sol: File not found.",
+      "formattedMessage": "warning: couldn't read up/Missing.sol: File not found.\n   ╭▸ dir/Main.sol:LL:CC\n   │\nLL │ import \"../up/Missing.sol\" as M;\n   ╰╴       ━━━━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "dir/Main.sol",
+        "start": 138,
+        "end": 155
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "couldn't read lib/Missing.sol: File not found.",
+      "formattedMessage": "warning: couldn't read lib/Missing.sol: File not found.\n   ╭▸ dir/Main.sol:LL:CC\n   │\nLL │ import {X as Y, Z} from \"lib/Missing.sol\";\n   ╰╴                        ━━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "dir/Main.sol",
+        "start": 176,
+        "end": 196
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "couldn't read dir/Missing.sol: File not found.",
+      "formattedMessage": "warning: couldn't read dir/Missing.sol: File not found.\n   ╭▸ dir/Main.sol:LL:CC\n   │\nLL │ import * as W from \"./x/../Missing.sol\";\n   ╰╴                   ━━━━━━━━━━━━━━━━━━━━\n\n"
+    }
+  ],
+  "sources": {
+    "dir/Present.sol": {
+      "id": 0,
+      "ast": {
+        "id": 0,
+        "src": "32:45:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "dir/Present.sol",
+        "license": "MIT",
+        "nodes": [
+          {
+            "id": 2,
+            "src": "32:23:0",
+            "nodeType": "PragmaDirective",
+            "literals": [
+              "solidity",
+              "^",
+              "0.8",
+              ".0"
+            ]
+          },
+          {
+            "id": 4,
+            "src": "57:19:0",
+            "nodeType": "ContractDefinition",
+            "name": "Present",
+            "nameLocation": "66:7:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": []
+          }
+        ]
+      }
+    },
+    "dir/Main.sol": {
+      "id": 1,
+      "ast": {
+        "id": 1,
+        "src": "32:219:1",
+        "nodeType": "SourceUnit",
+        "absolutePath": "dir/Main.sol",
+        "license": "MIT",
+        "nodes": [
+          {
+            "id": 3,
+            "src": "32:23:1",
+            "nodeType": "PragmaDirective",
+            "literals": [
+              "solidity",
+              "^",
+              "0.8",
+              ".0"
+            ]
+          },
+          {
+            "id": 5,
+            "src": "57:23:1",
+            "nodeType": "ImportDirective",
+            "file": "./missing.sol",
+            "absolutePath": "dir/missing.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": []
+          },
+          {
+            "id": 7,
+            "src": "81:32:1",
+            "nodeType": "ImportDirective",
+            "file": "../up/Missing.sol",
+            "absolutePath": "up/Missing.sol",
+            "unitAlias": "M",
+            "nameLocation": "111:1:1",
+            "symbolAliases": []
+          },
+          {
+            "id": 9,
+            "src": "114:42:1",
+            "nodeType": "ImportDirective",
+            "file": "lib/Missing.sol",
+            "absolutePath": "lib/Missing.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": [
+              {
+                "foreign": {
+                  "id": 11,
+                  "src": "122:1:1",
+                  "nodeType": "Identifier",
+                  "name": "X",
+                  "overloadedDeclarations": [],
+                  "typeDescriptions": {}
+                },
+                "local": "Y",
+                "nameLocation": "-1:-1:-1"
+              },
+              {
+                "foreign": {
+                  "id": 13,
+                  "src": "130:1:1",
+                  "nodeType": "Identifier",
+                  "name": "Z",
+                  "overloadedDeclarations": [],
+                  "typeDescriptions": {}
+                },
+                "nameLocation": "-1:-1:-1"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "src": "157:40:1",
+            "nodeType": "ImportDirective",
+            "file": "./x/../Missing.sol",
+            "absolutePath": "dir/Missing.sol",
+            "unitAlias": "W",
+            "nameLocation": "169:1:1",
+            "symbolAliases": []
+          },
+          {
+            "id": 17,
+            "src": "198:23:1",
+            "nodeType": "ImportDirective",
+            "file": "./Present.sol",
+            "absolutePath": "dir/Present.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": []
+          },
+          {
+            "id": 19,
+            "src": "223:27:1",
+            "nodeType": "ContractDefinition",
+            "name": "Main",
+            "nameLocation": "232:4:1",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [
+              {
+                "id": 21,
+                "src": "240:7:1",
+                "nodeType": "InheritanceSpecifier",
+                "baseName": {
+                  "id": 23,
+                  "src": "240:7:1",
+                  "nodeType": "IdentifierPath",
+                  "name": "Present",
+                  "nameLocations": [
+                    "240:7:1"
+                  ]
+                }
+              }
+            ],
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": []
+          }
+        ]
+      }
+    }
+  }
+}

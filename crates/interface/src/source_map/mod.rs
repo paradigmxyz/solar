@@ -211,7 +211,7 @@ pub struct SourceMap {
     // INVARIANT: `source_files` is monotonic.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
     #[debug(skip)]
-    id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
+    name_to_file: OnceMap<FileName, Arc<SourceFile>, FxBuildHasher>,
 
     roots: ArcSwapOption<SourceRoots>,
     #[debug(skip)]
@@ -229,7 +229,7 @@ impl SourceMap {
     pub fn empty() -> Self {
         Self {
             source_files: Default::default(),
-            id_to_file: Default::default(),
+            name_to_file: Default::default(),
             roots: Default::default(),
             file_loader: Default::default(),
         }
@@ -243,7 +243,7 @@ impl SourceMap {
     /// Clears the source map, returning all the contained `SourceFile`s.
     #[must_use]
     pub fn take(&mut self) -> Vec<Arc<SourceFile>> {
-        self.id_to_file.clear();
+        self.name_to_file.clear();
         std::mem::take(self.source_files.get_mut())
     }
 
@@ -318,7 +318,7 @@ impl SourceMap {
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
     pub fn get_file_ref(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
-        self.id_to_file.get_cloned(&SourceFileId::new(filename))
+        self.name_to_file.get_cloned(filename)
     }
 
     /// Loads a file from the given path.
@@ -353,17 +353,15 @@ impl SourceMap {
         name: impl Into<FileName>,
         src: Arc<String>,
     ) -> io::Result<Arc<SourceFile>> {
-        let filename = name.into();
-        let id = SourceFileId::new(&filename);
-        self.id_to_file.try_insert_cloned(id, |&id| {
-            let file = SourceFile::new(filename, id, src)?;
+        self.name_to_file.try_insert_cloned(name.into(), |name| {
+            let file = SourceFile::new(name.clone(), src)?;
             self.append_source_file(file)
         })
     }
 
     /// Creates a new `SourceFile` with the given name and source string closure.
     ///
-    /// If a file already exists in the `SourceMap` with the same ID, that file is returned
+    /// If a file already exists in the `SourceMap` with the same name, that file is returned
     /// unmodified, and `get_src` is not called.
     ///
     /// Returns an error if the file is larger than 4GiB or other errors occur while creating the
@@ -376,9 +374,8 @@ impl SourceMap {
         filename: FileName,
         get_src: impl FnOnce() -> io::Result<String>,
     ) -> io::Result<Arc<SourceFile>> {
-        let id = SourceFileId::new(&filename);
-        self.id_to_file.try_insert_cloned(id, |&id| {
-            let file = SourceFile::new(filename, id, Arc::new(get_src()?))?;
+        self.name_to_file.try_insert_cloned(filename, |name| {
+            let file = SourceFile::new(name.clone(), Arc::new(get_src()?))?;
             self.append_source_file(file)
         })
     }

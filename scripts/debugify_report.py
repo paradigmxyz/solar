@@ -4,6 +4,7 @@
 The headline is LLVM's original-mode `not-generate` count: instructions and terminators with no
 source origin and no reason for lacking one ("gaps"). Lost origins, the analogue of LLVM's
 synthetic-mode `Missing line` warning, are reported as information.
+Explicitly explained drops stay in raw sidecars but are excluded from loss tables.
 """
 
 import argparse
@@ -53,6 +54,20 @@ def records(path: Path):
                     raise ValueError("invalid lost spans")
                 if record["before"] != record["retained"] + len(lost):
                     raise ValueError("inconsistent origin counts")
+                intentional = record.get("intentional", [])
+                if not isinstance(intentional, list) or any(
+                    not isinstance(span, list)
+                    or len(span) != 2
+                    or any(type(value) is not int for value in span)
+                    or not 0 <= span[0] <= span[1]
+                    for span in intentional
+                ):
+                    raise ValueError("invalid intentional spans")
+                explained = {tuple(span) for span in intentional}
+                if len(explained) != len(intentional):
+                    raise ValueError("duplicate intentional spans")
+                if not explained.issubset(tuple(span) for span in lost):
+                    raise ValueError("intentional spans are not lost origins")
             except (ValueError, TypeError) as error:
                 raise ValueError(f"{path}:{line_number}: {error}") from error
             count += 1
@@ -83,6 +98,7 @@ def row() -> dict:
         "runs": 0,
         "losses": 0,
         "lost_origins": 0,
+        "intentional_lost_origins": 0,
         "gaps": 0,
         "gap_runs": 0,
     }
@@ -105,10 +121,13 @@ def summarize(root: Path) -> dict:
                     counts["gap_runs"] += 1
                     counts["gaps"] += record["count"]
                 continue
+            intentional = len(record.get("intentional", []))
+            unexplained = len(record["lost"]) - intentional
             for counts in (passes[key], tests[test]):
                 counts["runs"] += 1
-                counts["losses"] += bool(record["lost"])
-                counts["lost_origins"] += len(record["lost"])
+                counts["losses"] += bool(unexplained)
+                counts["lost_origins"] += unexplained
+                counts["intentional_lost_origins"] += intentional
     return {
         "version": 1,
         "invocations": len(files),
@@ -116,6 +135,9 @@ def summarize(root: Path) -> dict:
         "pass_runs": sum(row["runs"] for row in passes.values()),
         "losses": sum(row["losses"] for row in passes.values()),
         "lost_origins": sum(row["lost_origins"] for row in passes.values()),
+        "intentional_lost_origins": sum(
+            row["intentional_lost_origins"] for row in passes.values()
+        ),
         "gap_runs": sum(row["gap_runs"] for row in passes.values()),
         "gaps": sum(row["gaps"] for row in passes.values()),
         "by_pass": [
@@ -157,17 +179,28 @@ def load_baseline(path: Path) -> dict:
         for key in ("lost_origins", "losses", "pass_runs", "audited_tests"):
             if type(baseline[key]) is not int:
                 raise ValueError(f"invalid {key}")
+        check_intentional_count(baseline)
         gap_keys = ("gaps", "gap_runs") if has_gap_data(baseline) else ()
         for key in gap_keys:
             if type(baseline[key]) is not int:
                 raise ValueError(f"invalid {key}")
         for field, rows in (("by_pass", ("ir", "pass")), ("by_test", ("test",))):
             for item in baseline[field]:
+                check_intentional_count(item)
                 for key in (*rows, "losses", "lost_origins", *gap_keys):
                     item[key]
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"{path}: invalid baseline summary: {error!r}") from error
     return baseline
+
+
+def check_intentional_count(counts: dict) -> None:
+    """Older summaries predate explicit explanations and count none."""
+    if not isinstance(counts, dict):
+        raise ValueError("invalid summary counts")
+    value = counts.setdefault("intentional_lost_origins", 0)
+    if type(value) is not int or value < 0:
+        raise ValueError("invalid intentional_lost_origins count")
 
 
 def delta(base: int, head: int) -> str:
@@ -310,9 +343,18 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
             f"{summary['pass_runs']:,} pass runs; lower is better."
         ),
         "",
-        "### Gaps by record",
-        "",
     ]
+    if intentional := summary.get("intentional_lost_origins", 0):
+        lines.extend(
+            [
+                (
+                    f"{intentional:,} intentionally dropped origins are recorded in the raw "
+                    "audits and excluded from the loss tables."
+                ),
+                "",
+            ]
+        )
+    lines.extend(["### Gaps by record", ""])
     if gap_baseline:
         records_changed = compare(
             summary["by_pass"], gap_baseline["by_pass"], by_pass, "gaps"

@@ -1,0 +1,18 @@
+//@ ignore-host: windows
+//@ revisions: escape allowed ambiguous
+//@ compile-flags: --base-path ../../tests/ui/standard-json/monorepo/pkg
+//@[allowed] compile-flags: --allow-paths ../../tests/ui/standard-json/monorepo/liblink
+//@[ambiguous] compile-flags: --include-path ../../tests/ui/standard-json/monorepo/inc
+// Like solc, the command line checks the path of an import with symbolic links resolved against
+// the allowed directories with symbolic links resolved. `pkg/deplink` links to `lib/dep`, outside
+// the base path, and `liblink` links to `lib`. A refused file still makes an import ambiguous with
+// `inc/deplink/C.sol`.
+{
+  "language": "Solidity",
+  "sources": {
+    "src/A.sol": {"content": "import {C} from \"deplink/C.sol\";\n\ncontract A is C {}\n"}
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}

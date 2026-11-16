@@ -1,0 +1,13 @@
+; === ROOT/tests/ui/codegen/run-call/abi-decode/abi_calldata_v1_validation.sol:AbiCalldataV1Validation ===
+@module AbiCalldataV1Validation
+; function f(uint256[] calldata values) external pure [selector 0x7bc5bbbf]
+fn @f(arg0: slice<calldata>) [selector=0x7bc5bbbf, pure, abi_params=[array<_, uint256>], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function g(uint256 a, uint256[] calldata values, uint256 c) external pure returns (uint256) [selector 0x338620c8]
+fn @g(arg0: i256, arg1: slice<calldata>, arg2: i256) -> i256 [selector=0x338620c8, pure, abi_params=[uint256, array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 7
+}

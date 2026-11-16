@@ -10,8 +10,8 @@
 //! value identities escape into a caller summary.
 
 use super::{
-    Access, AddressSpace, AliasAnalysis, CallGraphInfo, GasObservations, Location, LocationSize,
-    MemoryAddress, MemoryBase, MemoryLocation,
+    Access, AddressSpace, AliasAnalysis, GasObservations, Location, LocationSize, MemoryAddress,
+    MemoryBase, MemoryLocation, direct_callees,
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
@@ -21,6 +21,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{BitMatrix, DenseBitSet},
+    graph::sccs,
     index::{IndexVec, index_vec},
     map::FxHashSet,
 };
@@ -408,13 +409,19 @@ pub(crate) struct MemoryCallSummaries {
 /// reused by later summary builds.
 pub(crate) struct LocalSummaryCache {
     entries: IndexVec<FunctionId, Option<LocalSummaryEntry>>,
+    /// The direct callees of each function, in ascending order, cached under the same rule as
+    /// the entries but for every function, since the call graph needs callers that no function
+    /// calls.
+    callees: IndexVec<FunctionId, Option<Box<[FunctionId]>>>,
     /// The functions with several return components when the entries were computed. A local
-    /// summary counts a call to one as a memory access, so a change invalidates every entry.
+    /// summary counts a call to one as a memory access, so a change invalidates its callers.
     multiple_returns: DenseBitSet<FunctionId>,
 }
 
 struct LocalSummaryEntry {
     sources: Rc<BitMatrix<ValueId, ArgIdx>>,
+    /// The blocks from which control can still return to the caller.
+    returning: DenseBitSet<BlockId>,
     /// The alias analysis as the local summary left it. Address memos are depth-limited, so
     /// their results depend on query order and later queries must continue from this state.
     alias: AliasAnalysis,
@@ -425,8 +432,9 @@ impl LocalSummaryEntry {
     fn new(module: &Module, func: &Function) -> Self {
         let sources = parameter_sources(func);
         let alias = AliasAnalysis::new(func);
-        let summary = local_summary(module, func, &sources, &alias);
-        Self { sources: Rc::new(sources), alias, summary }
+        let returning = returning_blocks(func);
+        let summary = local_summary(module, func, &sources, &alias, &returning);
+        Self { sources: Rc::new(sources), returning, alias, summary }
     }
 
     /// Checks that recomputing the entry reproduces it. Values added since, such as
@@ -444,7 +452,10 @@ impl LocalSummaryEntry {
                 }
             });
         assert!(
-            same_sources && self.summary == fresh.summary && self.alias.same_memo(&fresh.alias),
+            same_sources
+                && self.returning == fresh.returning
+                && self.summary == fresh.summary
+                && self.alias.same_memo(&fresh.alias),
             "stale local memory summary of `{}`",
             func.name
         );
@@ -453,7 +464,11 @@ impl LocalSummaryEntry {
 
 impl Default for LocalSummaryCache {
     fn default() -> Self {
-        Self { entries: IndexVec::new(), multiple_returns: DenseBitSet::new_empty(0) }
+        Self {
+            entries: IndexVec::new(),
+            callees: IndexVec::new(),
+            multiple_returns: DenseBitSet::new_empty(0),
+        }
     }
 }
 
@@ -463,21 +478,47 @@ impl LocalSummaryCache {
         if let Some(entry) = self.entries.get_mut(func_id) {
             *entry = None;
         }
+        if let Some(callees) = self.callees.get_mut(func_id) {
+            *callees = None;
+        }
     }
 
     /// Keeps the entries of the functions in `keep` under the ids [`Module`] gives them after
     /// the others are removed.
     pub(crate) fn retain_functions(&mut self, keep: &DenseBitSet<FunctionId>) {
-        if self.entries.len() != keep.domain_size() {
+        let functions = keep.domain_size();
+        if self.entries.len() > functions || self.callees.len() > functions {
             self.clear();
             return;
         }
+        // Functions appended since the last summary build have no entries yet.
+        self.entries.raw.resize_with(functions, || None);
+        self.callees.raw.resize_with(functions, || None);
+        if self.multiple_returns.domain_size() < functions {
+            let mut grown = DenseBitSet::new_empty(functions);
+            for func_id in &self.multiple_returns {
+                grown.insert(func_id);
+            }
+            self.multiple_returns = grown;
+        }
+        let mut renumbered = index_vec![None; keep.domain_size()];
+        for (new_id, old_id) in keep.iter().enumerate() {
+            renumbered[old_id] = Some(FunctionId::from_usize(new_id));
+        }
         // The kept ids ascend, so each entry moves to a slot at or before its own.
         for (new_id, old_id) in keep.iter().enumerate() {
+            let new_id = FunctionId::from_usize(new_id);
             let entry = self.entries[old_id].take();
-            self.entries[FunctionId::from_usize(new_id)] = entry;
+            self.entries[new_id] = entry;
+            // Renumbering keeps the callees ascending. A list naming a removed function, which
+            // the module's own renumbering forbids, is dropped.
+            let callees = self.callees[old_id].take().and_then(|callees| {
+                callees.iter().map(|&callee| renumbered[callee]).collect::<Option<Box<[_]>>>()
+            });
+            self.callees[new_id] = callees;
         }
         self.entries.raw.truncate(keep.count());
+        self.callees.raw.truncate(keep.count());
         let multiple_returns = keep
             .iter()
             .enumerate()
@@ -493,6 +534,70 @@ impl LocalSummaryCache {
     /// Drops every entry.
     pub(crate) fn clear(&mut self) {
         self.entries.raw.clear();
+        self.callees.raw.clear();
+    }
+
+    /// Fits the cache to the module's functions and fills in the callees of every function.
+    /// Functions a pass appended leave the ids of the others unchanged, so their entries stay.
+    fn fit(&mut self, module: &Module) {
+        let functions = module.functions.len();
+        if self.entries.len() > functions || self.callees.len() > functions {
+            self.clear();
+        }
+        self.entries.raw.resize_with(functions, || None);
+        self.callees.raw.resize_with(functions, || None);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let slot = &mut self.callees[func_id];
+            #[cfg(debug_assertions)]
+            if let Some(callees) = slot {
+                assert!(
+                    callees[..] == direct_callee_list(func)[..],
+                    "stale cached callees of `{}`",
+                    func.name
+                );
+            }
+            if slot.is_none() {
+                *slot = Some(direct_callee_list(func));
+            }
+        }
+
+        // A local summary counts a call to a function with several return components as a
+        // memory access, so a change in a callee's arity drops the entries of its callers. An
+        // appended function has no caller with an entry: a pass that added a call to it changed
+        // the caller.
+        let known = self.multiple_returns.domain_size();
+        if known > functions {
+            self.multiple_returns.clear_to(functions);
+            self.entries.raw.clear();
+            self.entries.raw.resize_with(functions, || None);
+        } else if known < functions {
+            let mut grown = DenseBitSet::new_empty(functions);
+            for func_id in &self.multiple_returns {
+                grown.insert(func_id);
+            }
+            self.multiple_returns = grown;
+        }
+        let mut flipped = DenseBitSet::new_empty(functions);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let multiple = func.return_components().len() > 1;
+            if multiple != self.multiple_returns.contains(func_id) {
+                if func_id.index() < known {
+                    flipped.insert(func_id);
+                }
+                if multiple {
+                    self.multiple_returns.insert(func_id);
+                } else {
+                    self.multiple_returns.remove(func_id);
+                }
+            }
+        }
+        if !flipped.is_empty() {
+            for (entry, callees) in self.entries.iter_mut().zip(&self.callees) {
+                if callees.as_deref().unwrap_or_default().iter().any(|&f| flipped.contains(f)) {
+                    *entry = None;
+                }
+            }
+        }
     }
 }
 
@@ -501,42 +606,32 @@ impl MemoryCallSummaries {
     /// local summaries of unchanged functions and caching the rest.
     #[must_use]
     pub(crate) fn new_cached(module: &Module, cache: &mut LocalSummaryCache) -> Self {
-        let calls = CallGraphInfo::new(module);
-        let mut targets = DenseBitSet::new_empty(module.functions.len());
-        for caller in module.functions.indices() {
-            for callee in calls.callees(caller) {
-                targets.insert(callee);
-            }
+        cache.fit(module);
+        let functions = module.functions.len();
+        let callees = &cache.callees;
+        let mut targets = DenseBitSet::new_empty(functions);
+        for &callee in callees.iter().flatten().flat_map(|callees| callees.iter()) {
+            targets.insert(callee);
         }
         if targets.is_empty() {
             return Self { summaries: IndexVec::new() };
         }
 
-        // A change in the functions with several return components invalidates every entry.
-        let mut stale = cache.entries.len() != module.functions.len();
-        if cache.multiple_returns.domain_size() != module.functions.len() {
-            cache.multiple_returns.clear_to(module.functions.len());
-            stale = true;
-        }
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let multiple = func.return_components().len() > 1;
-            if multiple != cache.multiple_returns.contains(func_id) {
-                stale = true;
-                if multiple {
-                    cache.multiple_returns.insert(func_id);
-                } else {
-                    cache.multiple_returns.remove(func_id);
-                }
+        // Ascending callers per target, each listed once.
+        let mut callers = index_vec![Vec::new(); functions];
+        for caller in &targets {
+            for &callee in callees[caller].as_deref().unwrap_or_default() {
+                callers[callee].push(caller);
             }
         }
-        if stale {
-            cache.entries.raw.clear();
-            cache.entries.raw.resize_with(module.functions.len(), || None);
-        }
+        let recursive = recursive_functions(callees);
 
-        // The parameter sources, alias analysis, and local summary of each target.
-        let mut facts = IndexVec::with_capacity(module.functions.len());
-        let mut local = index_vec![None; module.functions.len()];
+        // The parameter sources, alias analysis, and local summary of each target, and its
+        // internal calls in body order, found once instead of on every visit, with whether
+        // control can still return to the target's caller after the call.
+        let mut facts = IndexVec::with_capacity(functions);
+        let mut local = index_vec![None; functions];
+        let mut call_sites = index_vec![Vec::new(); functions];
         for (func_id, func) in module.functions.iter_enumerated() {
             if !targets.contains(func_id) {
                 facts.push(None);
@@ -550,29 +645,12 @@ impl MemoryCallSummaries {
             let entry = slot.get_or_insert_with(|| LocalSummaryEntry::new(module, func));
             let mut summary = entry.summary.clone();
             summary.has_multiple_returns = func.return_components().len() > 1;
-            summary.control.may_diverge |= calls.is_recursive(func_id);
+            summary.control.may_diverge |= recursive.contains(func_id);
             local[func_id] = Some(summary);
             facts.push(Some((Rc::clone(&entry.sources), entry.alias.clone())));
-        }
-        let mut summaries = local.clone();
-
-        // Ascending callers per target, each listed once.
-        let mut callers = index_vec![Vec::new(); module.functions.len()];
-        for caller in &targets {
-            for callee in calls.callees(caller) {
-                callers[callee].push(caller);
-            }
-        }
-
-        // The internal calls of each target in body order, found once instead of on every visit,
-        // with whether control can still return to the target's caller after the call.
-        let mut call_sites = index_vec![Vec::new(); module.functions.len()];
-        for func_id in &targets {
-            let func = &module.functions[func_id];
-            let returning = returning_blocks(func);
             let sites = &mut call_sites[func_id];
             for (block_id, block) in func.blocks.iter_enumerated() {
-                let returns = returning.contains(block_id);
+                let returns = entry.returning.contains(block_id);
                 for &inst_id in &block.instructions {
                     if let InstKind::ICall {
                         function: Callee::Function(function), ref args, ..
@@ -586,6 +664,7 @@ impl MemoryCallSummaries {
                 }
             }
         }
+        let mut summaries = local.clone();
 
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
         let mut queued = targets;
@@ -674,6 +753,7 @@ fn local_summary(
     func: &Function,
     sources: &BitMatrix<ValueId, ArgIdx>,
     aa: &AliasAnalysis,
+    returning: &DenseBitSet<BlockId>,
 ) -> FunctionMemorySummary {
     if func.blocks.is_empty() {
         return FunctionMemorySummary::conservative(func.params.len());
@@ -685,7 +765,6 @@ fn local_summary(
     } else {
         heap_derived_values(func)
     };
-    let returning = returning_blocks(func);
     // A `gas` read that only sets an external call's gas forwards it without observing it,
     // as `GasObservations` treats it within the function.
     let forwarded_gas = GasObservations::classify_forwarded_call_gas(func);
@@ -750,7 +829,6 @@ fn local_summary(
             match kind {
                 InstKind::Store(_, value, _)
                 | InstKind::Store8(_, value)
-                | InstKind::SetFmp(value)
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
@@ -839,6 +917,31 @@ pub(crate) fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     returning
 }
 
+/// The functions `func` calls or tail-calls directly, in ascending order and each once.
+fn direct_callee_list(func: &Function) -> Box<[FunctionId]> {
+    let mut callees = direct_callees(func).collect::<Vec<_>>();
+    callees.sort_unstable();
+    callees.dedup();
+    callees.into_boxed_slice()
+}
+
+/// The functions on a call-graph cycle: in a component of several functions, or calling
+/// themselves.
+fn recursive_functions(
+    callees: &IndexVec<FunctionId, Option<Box<[FunctionId]>>>,
+) -> DenseBitSet<FunctionId> {
+    let direct = |func: FunctionId| callees[func].as_deref().unwrap_or_default();
+    let mut recursive = DenseBitSet::new_empty(callees.len());
+    for scc in sccs(callees.len(), |func| direct(func).iter().copied()) {
+        if scc.len() > 1 || direct(scc[0]).contains(&scc[0]) {
+            for func in scc {
+                recursive.insert(func);
+            }
+        }
+    }
+    recursive
+}
+
 /// Values derived from the free-memory pointer, through any computation except a
 /// load: a word read through such an address is data, not a heap position. Internal call
 /// results count as heap-derived, since a callee may return a heap position.
@@ -909,10 +1012,7 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp
-        | InstKind::HeapFloor
-        | InstKind::SetFmp(_)
-        | InstKind::MappingSlotBytes(..) => true,
+        InstKind::Fmp | InstKind::HeapFloor | InstKind::MappingSlotBytes(..) => true,
         InstKind::Load(address, PtrLocation::Memory)
         | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
@@ -924,7 +1024,7 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     let kind = &func.inst(inst_id).kind;
     match *kind {
-        InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+        InstKind::MappingSlotBytes(..) => true,
         InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
@@ -1016,7 +1116,6 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
             | InstKind::SMod(_, _)
             | InstKind::Sar(_, _)
             | InstKind::Not(_)
-            | InstKind::SetFmp(_)
             | InstKind::Store(..)
             | InstKind::Store8(..)
             | InstKind::Copy(..)

@@ -1,0 +1,115 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/scheduling/stack_word_selection.sol:StackWords (runtime) ===
+@module StackWords_runtime
+bb0:                                              ; runtime dispatch entry
+  push 68
+  calldatasize
+  lt
+  callvalue
+  or
+  push bb11
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  push 4
+  calldataload
+  push 36
+  calldataload
+  swap 2
+  dup 1
+  push 0xaca5dfb5
+  gt
+  push bb4
+  jumpi
+  dup 1
+  push 0xaca5dfb5
+  sub
+  push bb2
+  jumpi
+  pop
+  dup 2
+  dup 2
+  dup 2
+  dup 2
+  and
+  push 0
+  mstore
+  xor
+  push 32
+  mstore
+  or
+  push 64
+  mstore
+  push 96
+  push 0
+  return
+bb11 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
+  push 0xcad0899b
+  sub
+  push bb11
+  jumpi
+  dup 2
+  dup 2
+  dup 2
+  dup 2
+  and
+  push 0
+  mstore
+  or
+  push 32
+  mstore
+  add
+  push 64
+  mstore
+  push 96
+  push 0
+  return
+bb4:
+  dup 1
+  push 0x966953d1
+  sub
+  push bb5
+  jumpi
+  pop
+  dup 2
+  dup 2
+  dup 2
+  dup 2
+  or
+  push 0
+  mstore
+  xor
+  push 32
+  mstore
+  and
+  push 64
+  mstore
+  push 96
+  push 0
+  return
+bb5:
+  push 0x9ed41ba1
+  sub
+  push bb11
+  jumpi
+  dup 2
+  dup 2
+  dup 2
+  dup 2
+  and
+  push 0
+  mstore
+  or
+  push 32
+  mstore
+  xor
+  push 64
+  mstore
+  push 96
+  push 0
+  return

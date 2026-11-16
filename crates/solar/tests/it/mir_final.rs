@@ -37,7 +37,7 @@ fn final_mir_capture_preserves_bytecode() {
     for source in [
         "tests/ui/codegen/mir/interp/backend_memory.mir",
         "tests/ui/codegen/mir/interp/tail_calls.mir",
-        "tests/ui/codegen/lowering/run-call/heap_floor_constructor.sol",
+        "tests/ui/codegen/mir/heap-floor/heap_floor_constructor.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile(source, mode, None);

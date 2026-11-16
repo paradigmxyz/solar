@@ -1,0 +1,38 @@
+; === ROOT/tests/ui/codegen/lowering/mir/abi/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
+@module AbiDecodeDynamicTuple
+@types
+  struct0: {i256, ptr<memory>, ptr<memory>}
+
+; function decode(bytes memory data) external pure returns (uint256 a, string memory s, bytes memory b) [selector 0xe5c5e9a3]
+fn @decode(arg0: ptr<memory>) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, memory_bytes], abi_return_params=[uint256, bytes, bytes]] {
+  bb0:
+    v0 = abi_decode [uint256, bytes, bytes], arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v2
+    v6 = insert_value struct0, v5, 2, v3
+    ret v6
+}
+
+; function roundtrip(uint256 a, string memory s, bytes memory b) external pure returns (uint256, string memory, bytes memory) [selector 0x7403d1b5]
+fn @roundtrip(arg0: i256, arg1: ptr<memory>, arg2: ptr<memory>) -> struct0 [selector=0x7403d1b5, pure, abi_params=[uint256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes], abi_return_params=[uint256, bytes, bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes, memory_bytes], object, args arg0, arg1, arg2
+    v1 = abi_decode [uint256, bytes, bytes], v0
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = extract_value struct0, v1, 2
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v3
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
+}
+
+; function decodeBytes(bytes memory data) external pure returns (bytes memory) [selector 0x197621ce]
+fn @decodeBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_decode [bytes], arg0
+    ret v0
+}

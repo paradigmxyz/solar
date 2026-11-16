@@ -1,0 +1,26 @@
+//@ compile-flags: -Zmir-pipeline=loop-unroll --optimize-runs 10000
+//@ filecheck:
+@module CloneLabelsLoopUnroll
+
+// Each copy of a loop block keeps the origin of its original's label.
+// CHECK-LABEL: {{^[ +].*}}fn @counted{{[( ]}}
+// CHECK: + bb4 !metadata(span=110..120):
+// CHECK: + bb5 !metadata(span=120..130):
+// CHECK: + bb6 !metadata(span=110..120):
+// CHECK: + bb7 !metadata(span=120..130):
+fn @counted() -> i256 {
+  bb0:
+    jump bb1
+  bb1 !metadata(span=110..120):
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, 2
+    jumpi v2, bb2, bb3
+  bb2 !metadata(span=120..130):
+    v5 = mul v0, 3
+    v3 = add v1, v5
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}

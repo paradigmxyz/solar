@@ -1,0 +1,150 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         block;
+   ╰╴        ━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         msg;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         tx;
+   ╰╴        ━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         abi;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Withdrawn;
+   ╰╴        ━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Failed;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         IToken;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Module;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Module.helper;
+   ╰╴        ━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Module.IModule.f;
+   ╰╴        ━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Module.IModule.f.selector;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         type(IToken);
+   ╰╴        ━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         MAX;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         BareReferenceStatements.MAX;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         NAME;
+   ╰╴        ━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         new uint256[];
+   ╰╴        ━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         to.transfer;
+   ╰╴        ━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         to.send;
+   ╰╴        ━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         to.call;
+   ╰╴        ━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         to.delegatecall;
+   ╰╴        ━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         to.staticcall;
+   ╰╴        ━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         abi.encode;
+   ╰╴        ━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         abi.decode;
+   ╰╴        ━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         (block, msg.sender, Withdrawn);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/bare_reference_statements.sol:LL:CC
+   │
+LL │         Withdrawn;
+   ╰╴        ━━━━━━━━━
+

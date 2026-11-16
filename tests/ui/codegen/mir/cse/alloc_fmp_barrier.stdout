@@ -30,7 +30,7 @@
       v2 = alloc 64
       v3 = ptrtoint ptr<memory> v2 to i256
       mstore v3, arg1
-      set_fmp v2
+      mstore 64, v3
 -     v4 = mload v1
 -     ret v4
 +     ret arg0
@@ -108,7 +108,8 @@
   
   fn @resetter(arg0: ptr<memory>) {
     bb0:
-      set_fmp arg0
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      mstore 64, v0
       ret
   }
   
