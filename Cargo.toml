@@ -202,6 +202,7 @@ tracing = "0.1"
 criterion = { package = "codspeed-criterion-compat", version = "4", default-features = false, features = [
     "cargo_bench_support",
 ] }
+ctrlc = "3.5"
 regex = "1.10"
 diff = "0.1"
 snapbox = { version = "1.2", features = ["json"] }

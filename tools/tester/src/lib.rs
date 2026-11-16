@@ -82,7 +82,15 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
-    let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
+    // A timed command runs in its own process group, which Ctrl+C no longer reaches, so the
+    // handler makes the workers kill the running commands.
+    let abort = ui_test::AbortCheck::default();
+    let configs = modes
+        .iter()
+        .copied()
+        .map(|mode| ui_test::Config { abort_check: abort.clone(), ..config(cmd, &args, mode) })
+        .collect();
+    ctrlc::set_handler(move || abort.abort())?;
 
     // Without a terminal there is no progress bar, only one `ok` line per test: print just the
     // failures and the summary instead.
