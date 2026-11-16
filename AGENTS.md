@@ -119,9 +119,9 @@ Pick locations by the first rule that applies:
    and the PR body.
 2. **LLVM, rustc, and clang** decide how locations survive a rewrite. Follow
    LLVM's [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html):
-   code that replaces one instruction, and cloned code, keep its location; merge
-   locations only when new code replaces several instructions and produces
-   each of their outputs; drop a location that would mislead, such as on code
+   code that replaces one instruction, and cloned code, keep their location;
+   merge locations only when new code replaces several instructions and
+   produces each of their outputs; drop a location that would mislead, such as on code
    hoisted into another block. Never move a deleted instruction's location onto
    surviving code; CSE keeps only the survivor's location.
 3. **Our own rule**, only where neither applies, with the reason in the code
@@ -174,14 +174,14 @@ run whole passes; unit-test only small pure helpers.
 For requested comparisons with solc, use
 `uv run --project tools/compiler-diff compiler-diff` from the repository root
 and read its [guide](tools/compiler-diff/README.md) first. Never hide errors or
-unsupported checks with expectations. Report coverage counts. Reduce each new
-failure from it or from `cargo tq foundry-external` into a regression test.
+unsupported checks with expectations. Report coverage counts, record accepted
+differences in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md), and reduce each
+new failure from it or from `cargo tq foundry-external` into a regression test.
 
 Do not chase parity on differences ordinary Solidity would not hit, such as
 revert data alone, assembly-forged values, dirty bits left by earlier storage
-writes, or absurd type sizes. Record them in
-[SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md) with a UI test that pins our
-behavior. Malformed calldata may differ from solc only in revert data: never
+writes, or absurd type sizes. Record them there too, with a UI test that pins
+our behavior. Malformed calldata may differ from solc only in revert data: never
 accept an input that solc rejects. Reject a parity fix that makes the compiler
 more complex or slower, or the generated code bigger or slower, unless ordinary
 Solidity hits the difference.
@@ -284,13 +284,15 @@ casts. The rules most code touches:
 - Cast explicitly with LLVM casts (`trunc`, `zext`, `sext`, `ptrtoint`,
   `inttoptr`); never retag a value or rely on equal storage width. `trunc` to
   `i1` keeps the low bit and does not test for nonzero.
-- Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Write
-  width tests as `lt x, 2^k` and `gt x, 2^k - 1`, never as a shift against
-  zero; see [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
+- Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Write a
+  test that a word fits in `k` bits as `lt x, 2^k` and one that it does not as
+  `gt x, 2^k - 1`, for 1 <= k < 256, never as a shift against zero;
+  `spell-width-tests` picks the final spelling. See
+  [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
 - `ptr<memory>` is opaque: reach object words with `ptradd` and loads and
-  stores, never integer arithmetic. Memory pointers are never null, so store
-  the zero slot or a default object, never 0, and read pointers without zero
-  guards.
+  stores, never integer arithmetic. Memory pointers are never null: a default
+  memory value is the zero slot or a default object, never 0, and code reads
+  pointers without zero guards.
 - Put an IR or pseudo-IR comment, in emitted order and one instruction per line
   where that helps, directly above each piece of code that writes, moves, or
   rearranges IR: the match arm, branch, loop, or builder sequence, not the top

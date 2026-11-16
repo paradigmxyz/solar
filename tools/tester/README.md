@@ -47,11 +47,12 @@ small focused files.
   explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as `abi-decode`,
   `storage-arrays`, or `modifiers`. FileCheck on the codegen matrix's `mir`
   revision does not make a test a lowering test.
-- One MIR pass, run with `-Zmir-pipeline=<pass>`:
-  `tests/ui/codegen/mir/<pass>/`. `lower-abi`, `lower-dispatch`, and
-  `lower-evm-shaped` go in `tests/ui/codegen/mir/lowering/`.
-- One EVM IR pass, run with `-Zevm-ir-pipeline=<pass>`:
-  `tests/ui/codegen/evm-ir/<pass>/`.
+- MIR passes: `tests/ui/codegen/mir/<pass>/`, named after the command-line
+  pass, including every test that runs one pass with `-Zmir-pipeline=<pass>`.
+  `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` go in
+  `tests/ui/codegen/mir/lowering/`.
+- EVM IR passes: `tests/ui/codegen/evm-ir/<pass>/`, named after the
+  `-Zevm-ir-pipeline` pass, including every test that runs one pass with it.
 - Lowered MIR or EVM IR checked against its interpreter with `run-call`:
   `tests/ui/codegen/mir/interp/` and `tests/ui/codegen/evm-ir/interp/`.
 - Round trips, whole pipelines, and validation: the existing `none/`,
