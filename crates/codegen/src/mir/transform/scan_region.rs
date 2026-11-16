@@ -26,7 +26,7 @@
 //! ```
 //!
 //! which leaves `r = 2**(m / 2)` for the index `m` of the highest set bit. A scan takes 25 to 45
-//! operations or seven branches; `255 - clz(x | 1)` computes the same index in five.
+//! operations or seven branches; `255 - clz(x | 1)` computes the same index in three.
 //!
 //! # Recognition
 //!
@@ -39,10 +39,11 @@
 //! follows its branches until it reaches an instruction it cannot run: one with an effect, a
 //! checked operation whose result it does not know, or a branch whose condition it does not know.
 //!
-//! A run tracks three kinds of value. `x` shifted right by a known amount is one: a right
-//! shift by a known amount shifts it further, and a select or a phi passes it on. A comparison
-//! of such a value with a constant `c` is known when it tests a threshold of a power of two:
-//! `< c` with `c` zero or a power of two, `> c` with `c + 1` one, and `==` and `!=` with zero.
+//! A run tracks four kinds of value: known, unknown, `x` shifted right by a known amount, and
+//! numbers fixed by the class and the bits the run fixed below its highest set bit. A right
+//! shift by a known amount shifts a shifted `x` further, and a select or a phi passes it on. A
+//! comparison of such a value with a constant `c` is known when it tests a threshold of a power of
+//! two: `< c` with `c` zero or a power of two, `> c` with `c + 1` one, and `==` and `!=` with zero.
 //! Every such test of `x >> s` asks whether `m >= s + k` for some `k`, so it has the same result
 //! for every input with the same highest set bit as long as `s` does. Any other operation reads
 //! `x >> s` as a number only when the class fixes it: when `s` is above `m`, so no bit is left,
@@ -91,7 +92,8 @@
 //!
 //! The target must have `CLZ` (Osaka). The region has no loop and, before its last block, no
 //! instruction with an effect and no checked operation that some run does not know succeeds. The
-//! runs of one function pass at most [`WORK`] instructions. A scan that narrows the word to more
+//! runs of one function pass at most [`WORK`] instructions, and copying the values a run knows
+//! counts against the same budget. A scan that narrows the word to more
 //! than eight bits before reading it as a number keeps its code. The pass runs early in the
 //! semantic pipeline, after the first e-graph run has put comparisons in canonical form, so that
 //! the inliner prices a scan helper as the few operations it becomes. It runs again after
@@ -99,9 +101,9 @@
 //! code, and once more after ABI lowering, when a size build has inlined the helper calls of a
 //! scan.
 //!
-//! A run charges [`WORK`] for every instruction it passes. The zero input and a few classes run
-//! first and reject most regions, and a region of one block whose rewrite cannot pay with any
-//! form those runs leave stops there, charging the work the other classes would take.
+//! The zero input and a few classes run first and reject most regions, and a region of one block
+//! whose rewrite cannot pay with any form those runs leave stops there, charging at least the
+//! work the other classes would take.
 
 use super::word_sequence::is_pure;
 use crate::{
@@ -232,9 +234,7 @@ struct Env {
 impl Env {
     /// Clears the values of the last run, for a function of `len` values.
     fn clear(&mut self, len: usize) {
-        for value in self.set.drain(..) {
-            self.words[value] = Word::Unknown;
-        }
+        self.truncate(0);
         if self.words.len() < len {
             self.words.resize(len, Word::Unknown);
         }
@@ -362,11 +362,8 @@ fn candidates(func: &Function) -> Vec<(BlockId, ValueId)> {
 
 /// What the runs of one function read, built again after each rewrite.
 struct Facts {
-    /// The block and index of every instruction in a block.
-    place: IndexVec<InstId, Option<(BlockId, u32)>>,
-    /// The indices of the instructions a run stops at in each block: those with an effect, and
-    /// phis.
-    stops: IndexVec<BlockId, Vec<u32>>,
+    /// The block of every instruction in a block.
+    place: IndexVec<InstId, Option<BlockId>>,
     /// The reads of each value, by instructions in blocks and by terminators.
     uses: IndexVec<ValueId, u32>,
     /// The pure instructions of each block whose result nothing reads.
@@ -376,21 +373,11 @@ struct Facts {
 
 impl Facts {
     fn new(func: &Function) -> Self {
-        let mut place = IndexVec::from_vec(vec![None; func.num_insts()]);
         let mut uses = IndexVec::from_vec(vec![0u32; func.num_values()]);
-        let mut stops = IndexVec::with_capacity(func.blocks.len());
-        for (block, data) in func.blocks.iter_enumerated() {
-            let mut block_stops = Vec::new();
-            for (index, &inst) in data.instructions.iter().enumerate() {
-                let index = index as u32;
-                place[inst] = Some((block, index));
-                let instruction = func.inst(inst);
-                instruction.kind.visit_operands(|operand| uses[operand] += 1);
-                if !evaluates(instruction) {
-                    block_stops.push(index);
-                }
+        for data in func.blocks.iter() {
+            for &inst in &data.instructions {
+                func.inst(inst).kind.visit_operands(|operand| uses[operand] += 1);
             }
-            stops.push(block_stops);
             if let Some(terminator) = &data.terminator {
                 terminator.visit_operands(|operand| uses[operand] += 1);
             }
@@ -410,7 +397,7 @@ impl Facts {
                     .collect()
             })
             .collect();
-        Self { place, stops, uses, unused, candidates: candidates(func) }
+        Self { place: func.inst_block_table(), uses, unused, candidates: candidates(func) }
     }
 }
 
@@ -500,8 +487,8 @@ enum Reached {
     /// The instruction or terminator it could not run.
     Stop(Run),
     /// An instruction that reads `depth` bits below the highest set bit, more than the class
-    /// fixes, with the number of values the run set before it.
-    Fork { depth: u32, cursor: Cursor, set: usize },
+    /// fixes.
+    Fork { depth: u32, cursor: Cursor },
 }
 
 /// Runs the region of `input` from `cursor` on `class`, or returns `None` when it loops or the
@@ -510,7 +497,6 @@ enum Reached {
 #[allow(clippy::too_many_arguments)]
 fn run(
     func: &Function,
-    facts: &Facts,
     input: ValueId,
     class: Class,
     confined: bool,
@@ -519,57 +505,27 @@ fn run(
     work: &mut u32,
     mut cursor: Cursor,
 ) -> Option<Reached> {
-    let charge = |work: &mut u32| {
-        let left = work.checked_sub(1);
-        *work = left.unwrap_or(0);
-        left.is_some()
-    };
     loop {
         let data = &func.blocks[cursor.block];
-        loop {
-            let stops = &facts.stops[cursor.block];
-            let stop = stops.get(stops.partition_point(|&at| (at as usize) < cursor.index));
-            let end = stop.map_or(data.instructions.len(), |&at| at as usize);
-            while cursor.index < end {
-                if !charge(work) {
-                    return None;
-                }
-                let instruction = func.inst(data.instructions[cursor.index]);
-                if let Some(value) = instruction.result() {
-                    match eval(func, &instruction.kind, env, input, class) {
-                        Ok(word) => env.insert(value, word),
-                        Err(depth) => {
-                            return Some(Reached::Fork { depth, cursor, set: env.set.len() });
-                        }
-                    }
-                }
-                cursor.index += 1;
-            }
-            if stop.is_none() {
-                break;
-            }
-            if !charge(work) {
-                return None;
-            }
-            // A checked operation on known values succeeds for every input of the class, as
-            // its operands depend on the class alone, so the run goes on past it.
-            let instruction = func.inst(data.instructions[cursor.index]);
+        while let Some(&inst) = data.instructions.get(cursor.index) {
+            charge(work, 1)?;
+            let instruction = func.inst(inst);
             if is_pure(instruction)
                 && let Some(value) = instruction.result()
             {
+                // A checked operation on known values succeeds for every input of the class, as
+                // its operands depend on the class alone, so the run goes on past it.
                 match eval(func, &instruction.kind, env, input, class) {
-                    Ok(result @ Word::Known(_)) => {
-                        env.insert(value, result);
-                        cursor.index += 1;
-                        continue;
+                    Ok(word) if evaluates(instruction) || matches!(word, Word::Known(_)) => {
+                        env.insert(value, word)
                     }
-                    Err(depth) => {
-                        return Some(Reached::Fork { depth, cursor, set: env.set.len() });
-                    }
-                    Ok(_) => {}
+                    Ok(_) => return Some(Reached::Stop(stopped(env, keep, work, cursor)?)),
+                    Err(depth) => return Some(Reached::Fork { depth, cursor }),
                 }
+            } else if !evaluates(instruction) {
+                return Some(Reached::Stop(stopped(env, keep, work, cursor)?));
             }
-            return Some(Reached::Stop(stopped(env, keep, cursor)));
+            cursor.index += 1;
         }
         let next = match &data.terminator {
             _ if confined => None,
@@ -583,7 +539,7 @@ fn run(
             _ => None,
         };
         let Some(next) = next else {
-            return Some(Reached::Stop(stopped(env, keep, cursor)));
+            return Some(Reached::Stop(stopped(env, keep, work, cursor)?));
         };
         // A loop, or a return to the entry, is not a region the rewrite takes.
         if cursor.blocks.contains(&next) {
@@ -623,13 +579,23 @@ fn enter(
     Some(())
 }
 
-fn stopped(env: &Env, keep: Option<&[ValueId]>, cursor: Cursor) -> Run {
-    Run {
+/// Charges `n` instructions against `work`, or empties it and returns `None` when it runs out.
+fn charge(work: &mut u32, n: usize) -> Option<()> {
+    let left = u32::try_from(n).ok().and_then(|n| work.checked_sub(n));
+    *work = left.unwrap_or(0);
+    left.map(drop)
+}
+
+/// The run that stopped at `cursor`. Copying its known values costs work too: the runs of a
+/// forked class each copy the values set before the fork, which they did not pay for.
+fn stopped(env: &Env, keep: Option<&[ValueId]>, work: &mut u32, cursor: Cursor) -> Option<Run> {
+    charge(work, keep.map_or(env.set.len(), <[_]>::len))?;
+    Some(Run {
         stop_block: cursor.block,
         stop_at: cursor.index,
         known: env.known(keep),
         blocks: cursor.blocks,
-    }
+    })
 }
 
 /// Evaluates one pure instruction of a run of `class`, or returns how many bits below the
@@ -722,61 +688,21 @@ fn eval(
     })
 }
 
-/// The runs of the class `class` from `cursor`: one run, or, where an instruction reads more bits
-/// below the highest set bit than the class fixes, one for each value of those bits, each going
-/// on from that instruction.
-#[allow(clippy::too_many_arguments)]
-fn class_runs(
-    func: &Function,
-    facts: &Facts,
-    input: ValueId,
-    class: Class,
-    confined: bool,
-    keep: Option<&[ValueId]>,
-    env: &mut Env,
-    work: &mut u32,
-    cursor: Cursor,
-    runs: &mut Vec<(u32, Run)>,
-) -> Option<()> {
-    match run(func, facts, input, class, confined, keep, env, work, cursor)? {
-        Reached::Stop(run) => {
-            let m = (class.probe.bit_len() as u32).saturating_sub(1);
-            runs.push((m, run));
-        }
-        Reached::Fork { depth, cursor, set } => {
-            let m = class.probe.bit_len() as u32 - 1;
-            let fixed = class.probe >> (m - class.window) as usize;
-            let extra = depth - class.window;
-            for low in 0..1u32 << extra {
-                env.truncate(set);
-                let top = (fixed << extra as usize) | U256::from(low);
-                let class = Class { probe: top << (m - depth) as usize, window: depth, ..class };
-                class_runs(
-                    func,
-                    facts,
-                    input,
-                    class,
-                    confined,
-                    keep,
-                    env,
-                    work,
-                    cursor.clone(),
-                    runs,
-                )?;
-            }
-        }
-    }
-    Some(())
+/// The form of `shape` for a value with the results `runs` and `zero`, if the shape fits it.
+fn form_of(
+    runs: &[(u32, Run)],
+    value: ValueId,
+    zero: U256,
+    one_bit: bool,
+    shape: Shape,
+) -> Option<Form> {
+    let form = zero_form(shape, zero, one_bit)?;
+    runs.iter().all(|(m, run)| run.known[&value] == shape_at(shape, *m)).then_some(form)
 }
 
 /// The shape and form of a value with the results `runs` and `zero`, if it has one.
 fn fit(runs: &[(u32, Run)], value: ValueId, zero: U256, one_bit: bool) -> Option<(Shape, Form)> {
-    Shape::all().find_map(|shape| {
-        let form = zero_form(shape, zero, one_bit)?;
-        runs.iter()
-            .all(|(m, run)| run.known[&value] == shape_at(shape, *m))
-            .then_some((shape, form))
-    })
+    Shape::all().find_map(|shape| Some((shape, form_of(runs, value, zero, one_bit, shape)?)))
 }
 
 fn immediate(func: &mut Function, value: u64) -> ValueId {
@@ -915,8 +841,27 @@ fn rewrite_region(
         let class = Class { probe, window: 0, one_bit };
         let mut cursor = Cursor { block: entry, index: start, pred: None, blocks: vec![entry] };
         enter(func, env, input, class, &mut cursor)?;
+        let m = m.unwrap_or(0);
         let mut runs = Vec::new();
-        class_runs(func, facts, input, class, confined, keep, env, work, cursor, &mut runs)?;
+        // Where an instruction reads more bits below the highest set bit than the class fixes,
+        // the class runs once for each value of those bits, each going on from that instruction.
+        let mut pending = vec![(class, cursor, env.set.len())];
+        while let Some((class, cursor, set)) = pending.pop() {
+            env.truncate(set);
+            match run(func, input, class, confined, keep, env, work, cursor)? {
+                Reached::Stop(run) => runs.push((m, run)),
+                Reached::Fork { depth, cursor } => {
+                    let fixed = class.probe >> (m - class.window) as usize;
+                    let extra = depth - class.window;
+                    for low in 0..1u32 << extra {
+                        let top = (fixed << extra as usize) | U256::from(low);
+                        let probe = top << (m - depth) as usize;
+                        let class = Class { probe, window: depth, ..class };
+                        pending.push((class, cursor.clone(), env.set.len()));
+                    }
+                }
+            }
+        }
         Some(runs)
     };
 
@@ -943,24 +888,20 @@ fn rewrite_region(
     let plausible: Vec<(InstId, ValueId)> = computed(func, last, first(last), &runs)
         .into_iter()
         .filter(|(_, value)| {
-            zero.known.contains_key(value)
-                && runs.iter().all(|(m, run)| {
-                    Shape::all().any(|shape| shape_at(shape, *m) == run.known[value])
-                })
+            zero.known
+                .get(value)
+                .is_some_and(|&at_zero| fit(&runs, *value, at_zero, one_bit).is_some())
         })
         .collect();
     if plausible.is_empty() {
         return false;
     }
 
-    // Runs that stay in the entry and stop at an instruction, or at a terminator that is not a
-    // branch, all stop at the same place, so the region and what the rewrite can remove are
-    // known now. When no value can take a form cheaper than what replacing them all removes,
-    // the other classes cannot change the answer: charge the work they would take and stop.
-    let stays = last == entry
-        && (zero.stop_at < func.blocks[entry].instructions.len()
-            || !matches!(func.blocks[entry].terminator, Some(Terminator::Branch { .. })));
-    if stays && hopeless(func, facts, target, entry, input, one_bit, &plausible, &zero, &runs) {
+    // Confined runs all stop at the same place, so the region and what the rewrite can remove
+    // are known now. When no value can take a form cheaper than what replacing them all removes,
+    // the other classes cannot change the answer: charge at least the work they would take and
+    // stop.
+    if confined && hopeless(func, facts, target, entry, input, one_bit, &plausible, &zero, &runs) {
         let instructions = &func.blocks[entry].instructions;
         let from = start
             + instructions[start..]
@@ -1010,15 +951,17 @@ fn rewrite_region(
     for (_, run) in &runs {
         region.extend(run.blocks.iter().copied());
     }
-    for &block in region.iter().filter(|_| last != entry) {
-        let preds = &func.blocks[block].predecessors;
-        let closed = if block == entry {
-            preds.iter().all(|pred| !region.contains(pred))
-        } else {
-            preds.iter().all(|&pred| pred != last && region.contains(&pred))
-        };
-        if !closed {
-            return false;
+    if last != entry {
+        for &block in &region {
+            let preds = &func.blocks[block].predecessors;
+            let closed = if block == entry {
+                preds.iter().all(|pred| !region.contains(pred))
+            } else {
+                preds.iter().all(|&pred| pred != last && region.contains(&pred))
+            };
+            if !closed {
+                return false;
+            }
         }
     }
     let mut middle: Vec<BlockId> =
@@ -1054,12 +997,9 @@ fn rewrite_region(
     // Price the rewrite.
     let old = most_removed(func, target, &removed, &replaced) + branches;
     let mut new = if last != entry { target.jump() } else { Cost::ZERO };
+    let forms = form_costs(target);
     for &(_, _, shape, form) in &proved {
-        let last_kind = clz_form(func, shape, form, input, &mut |func, kind, _| {
-            new += target.kind_estimate(func, &kind);
-            input
-        });
-        new += target.kind_estimate(func, &last_kind);
+        new += forms.iter().find(|&&(s, f, _)| (s, f) == (shape, form)).expect("every form").2;
     }
     if !target.cmp(new, old).is_lt() {
         return false;
@@ -1174,7 +1114,7 @@ fn removal(
     // to a fixed point.
     while let Some(inst) = dead.pop() {
         let instruction = func.inst(inst);
-        let sweeps = facts.place[inst].is_some_and(|(block, _)| block == entry || block == last)
+        let sweeps = facts.place[inst].is_some_and(|block| block == entry || block == last)
             && !replaced.contains(&inst)
             && evaluates(instruction)
             && instruction.result().is_some_and(|value| uses[value] == 0);
@@ -1229,8 +1169,7 @@ fn hopeless(
         let cheapest = forms
             .iter()
             .filter(|&&(shape, form, _)| {
-                zero_form(shape, at_zero, one_bit) == Some(form)
-                    && runs.iter().all(|(m, run)| run.known[value] == shape_at(shape, *m))
+                form_of(runs, *value, at_zero, one_bit, shape) == Some(form)
             })
             .map(|&(.., cost)| cost)
             .reduce(|a, b| Cost {
