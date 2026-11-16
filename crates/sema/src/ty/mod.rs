@@ -1929,11 +1929,11 @@ fn function_call_ops(gcx: _, id: hir::FunctionId) -> &'gcx [call_graph::CallOp] 
     gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_function(gcx, id))
 }
 
-/// Returns what the initializer of the given constant reaches, before a contract resolves the
+/// Returns what the initializer of the given variable reaches, before a contract resolves the
 /// overrides its calls dispatch to.
-fn constant_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
+fn initializer_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
     assert!(gcx.has_typeck_results(), "call operations require type checking");
-    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_constant(gcx, id))
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_initializer(gcx, id))
 }
 
 fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
