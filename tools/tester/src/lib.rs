@@ -90,7 +90,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         .copied()
         .map(|mode| ui_test::Config { abort_check: abort.clone(), ..config(cmd, &args, mode) })
         .collect();
-    ctrlc::set_handler(move || abort.abort())?;
+    ctrlc::set_handler({
+        let abort = abort.clone();
+        move || abort.abort()
+    })?;
 
     // Without a terminal there is no progress bar, only one `ok` line per test: print just the
     // failures and the summary instead.
@@ -116,6 +119,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         },
         status_emitter,
     )?;
+
+    if abort.aborted() {
+        return Err(eyre!("interrupted"));
+    }
 
     Ok(())
 }
