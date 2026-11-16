@@ -625,6 +625,17 @@ fn get_threads() -> NonZeroUsize {
     static THREADS: OnceLock<NonZeroUsize> = OnceLock::new();
     *THREADS.get_or_init(|| {
         let logical = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
+        // `num_cpus` counts physical cores only on these targets and may report 1 elsewhere.
+        let counts_physical = cfg!(any(
+            target_os = "linux",
+            target_os = "windows",
+            target_os = "macos",
+            target_os = "openbsd",
+            target_os = "aix",
+        ));
+        if !counts_physical {
+            return logical;
+        }
         // A thread per logical core leaves idle workers spinning in work stealing on the sibling
         // threads of the busy ones, which slows every project down.
         NonZeroUsize::new(num_cpus::get_physical())
