@@ -101,9 +101,11 @@
 //! code, and once more after ABI lowering, when a size build has inlined the helper calls of a
 //! scan.
 //!
-//! The zero input and a few classes run first and reject most regions, and a region of one block
-//! whose rewrite cannot pay with any form those runs leave stops there, charging the work the
-//! other classes would take without forking.
+//! The zero input and a few classes run first, each on one value of the bits it fixes, and reject
+//! most regions. Then every class runs, keeping only the values those runs left plausible and
+//! stopping past the last of them. A region of one block whose rewrite cannot pay with any form
+//! the first runs leave stops before that, charging the work the classes would take without
+//! forking.
 
 use super::word_sequence::is_pure;
 use crate::{
@@ -491,23 +493,38 @@ enum Reached {
     Fork { depth: u32, cursor: Cursor },
 }
 
+/// What the runs of every class keep: the plausible values, sorted, and the end of the last of
+/// them in the last block.
+#[derive(Clone, Copy)]
+struct Keep<'a> {
+    values: &'a [ValueId],
+    last: BlockId,
+    end: usize,
+}
+
 /// Runs the region of `input` from `cursor` on `class`, or returns `None` when it loops or the
 /// work runs out. A `confined` run stops at the end of its first block. The run keeps the known
-/// values among `keep`, or all of them.
+/// values among `keep`, or all of them, and stops past the last of them.
 #[allow(clippy::too_many_arguments)]
 fn run(
     func: &Function,
     input: ValueId,
     class: Class,
     confined: bool,
-    keep: Option<&[ValueId]>,
+    keep: Option<Keep<'_>>,
     env: &mut Env,
     work: &mut u32,
     mut cursor: Cursor,
 ) -> Option<Reached> {
     loop {
         let data = &func.blocks[cursor.block];
-        while let Some(&inst) = data.instructions.get(cursor.index) {
+        loop {
+            // Every run of a class takes the same path, so a run that passed the last value it
+            // keeps has nothing left to prove.
+            if keep.is_some_and(|keep| cursor.block == keep.last && cursor.index >= keep.end) {
+                return Some(Reached::Stop(stopped(env, keep, work, cursor)?));
+            }
+            let Some(&inst) = data.instructions.get(cursor.index) else { break };
             charge(work, 1)?;
             let instruction = func.inst(inst);
             if is_pure(instruction)
@@ -588,7 +605,8 @@ fn charge(work: &mut u32, n: usize) -> Option<()> {
 
 /// The run that stopped at `cursor`. Copying its known values costs work too: the runs of a
 /// forked class each copy the values set before the fork, which they did not pay for.
-fn stopped(env: &Env, keep: Option<&[ValueId]>, work: &mut u32, cursor: Cursor) -> Option<Run> {
+fn stopped(env: &Env, keep: Option<Keep<'_>>, work: &mut u32, cursor: Cursor) -> Option<Run> {
+    let keep = keep.map(|keep| keep.values);
     charge(work, keep.map_or(env.set.len(), <[_]>::len))?;
     Some(Run {
         stop_block: cursor.block,
@@ -835,7 +853,7 @@ fn rewrite_region(
     let first = |last: BlockId| if last == entry { start } else { 0 };
     let one_bit = is_lowest_bit(func, input);
     // The runs of the class of zero or of the highest set bit `m`.
-    let class = |m: Option<u32>, keep: Option<&[ValueId]>, env: &mut Env, work: &mut u32| {
+    let class = |m: Option<u32>, keep: Option<Keep<'_>>, env: &mut Env, work: &mut u32| {
         env.clear(func.num_values());
         let probe = m.map_or(U256::ZERO, |m| U256::ONE << m as usize);
         let class = Class { probe, window: 0, one_bit };
@@ -845,6 +863,8 @@ fn rewrite_region(
         let mut runs = Vec::new();
         // Where an instruction reads more bits below the highest set bit than the class fixes,
         // the class runs once for each value of those bits, each going on from that instruction.
+        // Those runs all take the path of the class, and a value they prove is the same in each,
+        // so a run that keeps every value samples only the bits of its probe, which are zero.
         let mut pending = vec![(class, cursor, env.set.len())];
         while let Some((class, cursor, set)) = pending.pop() {
             env.truncate(set);
@@ -853,7 +873,8 @@ fn rewrite_region(
                 Reached::Fork { depth, cursor } => {
                     let fixed = class.probe >> (m - class.window) as usize;
                     let extra = depth - class.window;
-                    for low in (0..1u32 << extra).rev() {
+                    let lows = if keep.is_some() { 1u32 << extra } else { 1 };
+                    for low in (0..lows).rev() {
                         let top = (fixed << extra as usize) | U256::from(low);
                         let probe = top << (m - depth) as usize;
                         let class = Class { probe, window: depth, ..class };
@@ -893,9 +914,9 @@ fn rewrite_region(
                 .is_some_and(|&at_zero| fit(&runs, *value, at_zero, one_bit).is_some())
         })
         .collect();
-    if plausible.is_empty() {
-        return false;
-    }
+    let Some(&(last_plausible, _)) = plausible.last() else { return false };
+    let end = func.blocks[last].instructions.iter().position(|&inst| inst == last_plausible);
+    let end = end.expect("a value of the last block") + 1;
 
     // Confined runs all stop at the same place, so the region and what the rewrite can remove
     // are known now. When no value can take a form cheaper than what replacing them all removes,
@@ -908,21 +929,19 @@ fn rewrite_region(
                 .iter()
                 .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
                 .count();
-        let passed = zero.stop_at - from + usize::from(zero.stop_at < instructions.len());
-        let classes = 256 - PROBES.len();
-        let total = ((passed + plausible.len()) as u64).saturating_mul(classes as u64);
+        let passed = end - from;
+        let total = ((passed + plausible.len()) as u64).saturating_mul(256);
         *work = u32::try_from(u64::from(*work).saturating_sub(total)).unwrap_or(0);
         return false;
     }
 
     // Every class now. Only a plausible value can fit a shape, so the runs keep only those.
-    let mut keep: Vec<ValueId> = plausible.iter().map(|&(_, value)| value).collect();
-    keep.sort_unstable();
+    let mut values: Vec<ValueId> = plausible.iter().map(|&(_, value)| value).collect();
+    values.sort_unstable();
+    let keep = Keep { values: &values, last, end };
+    runs.clear();
     for m in 0..256u32 {
-        if PROBES.contains(&m) {
-            continue;
-        }
-        let Some(class) = class(Some(m), Some(&keep), env, work) else {
+        let Some(class) = class(Some(m), Some(keep), env, work) else {
             return false;
         };
         if class.iter().any(|(_, run)| run.stop_block != last) {
