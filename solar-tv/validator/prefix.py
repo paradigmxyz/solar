@@ -74,14 +74,16 @@ def operation(line, catalog, version):
     if not definition or not (
         definition["pure"]
         or name.startswith(("push", "dup", "swap"))
-        or name in {"pop", "calldatasize", "returndatasize"}
+        or name in {"pop", "calldatasize", "returndatasize", "caller", "calldataload"}
     ):
         return None
     price = definition["forks"][version]
     if not price["available"] or price["dynamic_gas"] or definition["stack"] is None:
         return None
     try:
-        operations, _, _, _ = evmir.instructions([line], None, memory=False)
+        operations, _, _, _ = evmir.instructions(
+            [line], None, memory=False, context=True
+        )
     except Unsupported:
         return None
     if len(operations) != 1:

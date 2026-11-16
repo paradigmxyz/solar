@@ -1,0 +1,23 @@
+@module CallerTail
+bb0:
+  push 22
+  push 11
+  jump bb1
+bb1 [cold]:
+  caller
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  mstore
+  push 0xfb8f41b2
+  jump bb3
+bb3 [cold]:
+  push 0
+  mstore
+  push 100
+  push 28
+  revert
+bb2:
+  stop
