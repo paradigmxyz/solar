@@ -145,7 +145,7 @@ impl<'gcx> Gcx<'gcx> {
                 documentation.events.insert(signature, documentation_item);
             }
         }
-        for error_id in self.interface_errors(contract_id).iter() {
+        for error_id in interface_errors(self, contract_id) {
             let documentation_item = dev_doc_item(self, error_id.into());
             if !documentation_item.is_empty() {
                 documentation
@@ -200,7 +200,7 @@ impl<'gcx> Gcx<'gcx> {
                 );
             }
         }
-        for error_id in self.interface_errors(contract_id).iter() {
+        for error_id in interface_errors(self, contract_id) {
             if let Some(notice) =
                 natspec_text(self, error_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice))
             {
@@ -413,6 +413,19 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
             && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
     })?;
     Some(docs[0].span.with_hi(docs[start].span.lo()))
+}
+
+/// Returns the errors documented for a contract in solc's order, by AST ID: solc parses its
+/// sources in the order of their names, so errors of the same signature from different sources
+/// are listed by source name, then by position.
+fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::ErrorId> {
+    let mut errors = gcx.interface_errors(contract_id).iter().collect::<Vec<_>>();
+    errors.sort_by(|&a, &b| {
+        let (a, b) = (gcx.hir.error(a), gcx.hir.error(b));
+        let name = |error: &hir::Error<'_>| &gcx.hir.source(error.source).file.name;
+        name(a).cmp_source_unit_name(name(b)).then(a.span.lo().cmp(&b.span.lo()))
+    });
+    errors
 }
 
 /// Returns the events documented for a contract with their signatures, like solc's

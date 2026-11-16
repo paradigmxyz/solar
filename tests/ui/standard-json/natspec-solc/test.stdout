@@ -1,7 +1,10 @@
 {
   "sources": {
-    "A.sol": {
+    "Z.sol": {
       "id": 0
+    },
+    "A.sol": {
+      "id": 1
     }
   },
   "contracts": {
@@ -91,6 +94,9 @@
               },
               {
                 "notice": "X failed."
+              },
+              {
+                "notice": "Z failed."
               }
             ]
           },
