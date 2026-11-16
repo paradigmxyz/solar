@@ -1,7 +1,11 @@
 //! NatSpec outputs matching solc's Standard JSON output fields.
 
 use super::DocumentationKind;
-use crate::{ast, hir, natspec::LocalTags, ty::Gcx};
+use crate::{
+    hir,
+    natspec::{LocalTags, starts_group},
+    ty::Gcx,
+};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::Span;
@@ -309,6 +313,8 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
         return inherited_doc_items(gcx, item_id);
     }
     let mut items: Vec<DocItem> = Vec::new();
+    // The items that start a tag; continuation lines replace no inherited tag.
+    let mut tagged = Vec::new();
     for &item in &local {
         let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
         let bare = !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t']);
@@ -352,9 +358,10 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             }
         }
         items.push(DocItem { kind: item.kind, content, bare });
+        tagged.push(item);
     }
     if let Some((_, target)) = target {
-        let local_tags = LocalTags::from_items(&local);
+        let local_tags = LocalTags::from_items(&tagged);
         items.extend(
             doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
         );
@@ -400,24 +407,14 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
         return None;
     }
     let docs = gcx.hir.doc(doc_id).ast_comments();
-    let start = (1..docs.len()).rev().find(|&i| {
-        let (prev, doc) = (&docs[i - 1], &docs[i]);
-        let gap = gcx
-            .sess
-            .source_map()
-            .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
-            .unwrap_or_default();
-        // solc ends a line at LF, CR LF, or a lone CR.
-        !(prev.kind == ast::CommentKind::Line
-            && doc.kind == ast::CommentKind::Line
-            && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
-    })?;
+    let start = (1..docs.len()).rev().find(|&i| starts_group(gcx, &docs[i - 1], &docs[i]))?;
     Some(docs[0].span.with_hi(docs[start].span.lo()))
 }
 
 /// Returns the errors documented for a contract in solc's order, by AST ID: solc parses its
 /// sources in the order of their names, so errors of the same signature from different sources
-/// are listed by source name, then by position.
+/// are listed by source name, then by position. Sources solc loads through its import callback
+/// come after the given ones, which this order does not model.
 fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::ErrorId> {
     let mut errors = gcx.interface_errors(contract_id).iter().collect::<Vec<_>>();
     errors.sort_by(|&a, &b| {

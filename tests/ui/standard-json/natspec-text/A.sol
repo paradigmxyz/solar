@@ -74,3 +74,27 @@ contract K {
      */
     function g() public pure {}
 }
+
+contract L is F {
+    /// @inheritdoc F
+    /// @dev local dev
+    /// continued
+    function n() public override {}
+}
+
+interface IA {
+    /// @notice IA notice
+    function q() external;
+}
+
+interface IB {
+    /// @notice IB notice
+    function q() external;
+}
+
+contract M is IA, IB {
+    /// @inheritdoc IA
+
+    /// @inheritdoc IB
+    function q() external override(IA, IB) {}
+}

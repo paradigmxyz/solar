@@ -18,3 +18,11 @@
       ret 1
   }
   
+- ; === ROOT/tests/ui/codegen/mir/lower-slices/empty_struct_arg.mir (before lower-integers) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-slices/empty_struct_arg.mir (after lower-integers) ===
+  @module EmptyStructArg
+  fn @f() -> i256 {
+    bb0:
+      ret 1
+  }
+  

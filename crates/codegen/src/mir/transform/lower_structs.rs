@@ -256,6 +256,16 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
         params.extend(layouts.flatten(&ty).iter().copied());
     }
     if func.params.iter().any(|ty| matches!(ty, MirType::Struct(_))) {
+        // An argument value the body no longer reads keeps its old index, which may name another
+        // parameter or none once the parameters change, so it becomes undefined.
+        for index in 0..func.num_values() {
+            let value = ValueId::from_usize(index);
+            if let Value::Arg(arg) = *func.value(value)
+                && values.binary_search(&value).is_err()
+            {
+                *func.value_mut(value) = Value::Undef(func.params[arg]);
+            }
+        }
         func.set_params(params);
     }
     // aggregate_arg -> (field_arg0, ..., field_argN)

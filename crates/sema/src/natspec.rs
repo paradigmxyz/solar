@@ -198,15 +198,16 @@ impl LocalTags {
     /// Whether an inherited tag of `kind` survives these local tags: a local tag replaces the
     /// inherited ones of its kind, and custom and internal tags are not inherited.
     pub(crate) fn inherits(self, kind: &hir::NatSpecKind) -> bool {
-        use hir::NatSpecKind as HirKind;
         match kind {
-            HirKind::Notice => !self.contains(Self::NOTICE),
-            HirKind::Dev => !self.contains(Self::DEV),
-            HirKind::Title => !self.contains(Self::TITLE),
-            HirKind::Author => !self.contains(Self::AUTHOR),
-            HirKind::Param { .. } => !self.contains(Self::PARAM),
-            HirKind::Return { .. } => !self.contains(Self::RETURN),
-            HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => false,
+            hir::NatSpecKind::Notice => !self.contains(Self::NOTICE),
+            hir::NatSpecKind::Dev => !self.contains(Self::DEV),
+            hir::NatSpecKind::Title => !self.contains(Self::TITLE),
+            hir::NatSpecKind::Author => !self.contains(Self::AUTHOR),
+            hir::NatSpecKind::Param { .. } => !self.contains(Self::PARAM),
+            hir::NatSpecKind::Return { .. } => !self.contains(Self::RETURN),
+            hir::NatSpecKind::Custom { .. }
+            | hir::NatSpecKind::Internal { .. }
+            | hir::NatSpecKind::Inheritdoc { .. } => false,
         }
     }
 }
@@ -345,7 +346,14 @@ impl<'gcx> Resolver<'gcx> {
         let mut state = ValidationState::default();
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
 
-        for doc_comment in docs.iter() {
+        for (i, doc_comment) in docs.iter().enumerate() {
+            // solc reads only the last group of doc comments, so a tag that may appear once
+            // counts within one group.
+            // NOTE: `@return` tags still count across groups, unlike in solc; counting them in
+            // the last group alone needs the diagnostics of the earlier groups dropped as well.
+            if i > 0 && starts_group(self.gcx, &docs[i - 1], doc_comment) {
+                state.seen_tags = SeenTags::default();
+            }
             for natspec in doc_comment.natspec.iter() {
                 let tag_span = natspec.span;
 
@@ -1148,4 +1156,21 @@ pub(crate) fn report_misplaced_solar_tags(dcx: &DiagCtxt, docs: &[ast::DocCommen
             report_misplaced_solar_tag(dcx, tag, name.name, item.span);
         }
     }
+}
+
+/// Whether `doc` starts a new group of doc comments after `prev`: anything but two `///` comments
+/// on consecutive lines. solc ends a line at LF, CR LF, or a lone CR.
+pub(crate) fn starts_group(
+    gcx: Gcx<'_>,
+    prev: &ast::DocComment<'_>,
+    doc: &ast::DocComment<'_>,
+) -> bool {
+    let gap = gcx
+        .sess
+        .source_map()
+        .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
+        .unwrap_or_default();
+    !(prev.kind == ast::CommentKind::Line
+        && doc.kind == ast::CommentKind::Line
+        && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
 }

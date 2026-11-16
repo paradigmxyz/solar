@@ -89,14 +89,15 @@
 //!
 //! # Limits and placement
 //!
-//! The target must have `CLZ` (Osaka). The region has no loop and no instruction with an effect
-//! before its last block, and the runs of one function pass at most [`WORK`] instructions. A
-//! scan that narrows the word to more than eight bits before reading it as a number keeps its
-//! code. The pass runs early in the semantic pipeline, after the first e-graph run has put
-//! comparisons in canonical form, so that the inliner prices a scan helper as the few operations
-//! it becomes. It runs again after if-conversion, where scans that use checked additions and
-//! branches have become straight-line code, and once more after ABI lowering, when a size build
-//! has inlined the helper calls of a scan.
+//! The target must have `CLZ` (Osaka). The region has no loop and, before its last block, no
+//! instruction with an effect and no checked operation that some run does not know succeeds. The
+//! runs of one function pass at most [`WORK`] instructions. A scan that narrows the word to more
+//! than eight bits before reading it as a number keeps its code. The pass runs early in the
+//! semantic pipeline, after the first e-graph run has put comparisons in canonical form, so that
+//! the inliner prices a scan helper as the few operations it becomes. It runs again after
+//! if-conversion, where scans that use checked additions and branches have become straight-line
+//! code, and once more after ABI lowering, when a size build has inlined the helper calls of a
+//! scan.
 //!
 //! A run charges [`WORK`] for every instruction it passes. The zero input and a few classes run
 //! first and reject most regions, and a region of one block whose rewrite cannot pay with any
