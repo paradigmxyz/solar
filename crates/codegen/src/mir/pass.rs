@@ -22,7 +22,10 @@ use crate::{
     mir::{
         Function, FunctionId, InstId, MirPhase, Module,
         analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
-        pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
+        pass_manager::{
+            mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner,
+            run_pipeline_stage,
+        },
         transform::*,
     },
     target::Target,
@@ -69,6 +72,8 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Spelling,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
+    &bit_scan::BitScan,
+    &scan_region::ScanRegion,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
     &pre::Pre::Reads,
@@ -229,6 +234,10 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
+    // A search for the highest or the lowest set bit is one `CLZ`. Replace it once comparisons are
+    // canonical, before any pass, the inliner above all, prices the search.
+    &bit_scan::BitScan,
+    &scan_region::ScanRegion,
     &pre::Pre::Pure,
     // Checked array loops reload one object's length before every bounds
     // check. Unify the dominated reads while object identity is explicit, so
@@ -299,6 +308,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &RunsAtNone::new(cfg_simplify::CfgSimplify),
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
+    // Searches written with branches or checked additions are straight-line now.
+    &bit_scan::BitScan,
+    &scan_region::ScanRegion,
     &frame_promotion::FrameSlotPromotion,
     // Builtin expansion exposes buffers whose readers are gone.
     &memory_dse::MemoryDse::WithUnreadAllocations,
@@ -325,6 +337,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
+    // A size build inlines a search's helper calls only after ABI lowering.
+    &bit_scan::BitScan,
+    &scan_region::ScanRegion,
     &memory_dse::MemoryDse::Standard,
     // Expose callee reads before late CSE.
     &inline::Inline::Semantic,
@@ -493,19 +508,22 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     }
 
     let mut changed = false;
+    let mut local_summaries = LocalSummaryCache::default();
     if module.phase() == MirPhase::Semantic {
-        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, None);
+        let (pass_changed, error) =
+            run_pipeline_stage(gcx, module, SEMANTIC_PIPELINE, &mut local_summaries);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
-        let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, None);
+        let (pass_changed, error) =
+            run_pipeline_stage(gcx, module, LOWERING_PIPELINE, &mut local_summaries);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
     }
-    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, None).0;
+    changed |= run_pipeline_stage(gcx, module, LOWERED_PIPELINE, &mut local_summaries).0;
     changed
 }
 
@@ -840,6 +858,17 @@ pub struct ModuleAnalyses {
 }
 
 impl ModuleAnalyses {
+    /// Creates the analyses of a pipeline stage that starts from the local memory summaries an
+    /// earlier stage left.
+    pub(crate) fn with_local_summaries(local_summaries: LocalSummaryCache) -> Self {
+        Self { local_summaries, ..Self::default() }
+    }
+
+    /// Returns the local memory summaries for the next pipeline stage.
+    pub(crate) fn into_local_summaries(self) -> LocalSummaryCache {
+        self.local_summaries
+    }
+
     /// Stops this pipeline after a pass emits a diagnostic.
     pub fn fail(&mut self, error: ErrorGuaranteed) {
         self.error = Some(error);
@@ -964,12 +993,6 @@ impl ModuleAnalyses {
         Arc::clone(self.call_summaries.get_or_insert_with(|| {
             Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
         }))
-    }
-
-    /// Drops every cached local memory summary after a module pass edited bodies without
-    /// reporting a change.
-    pub(crate) fn note_unreported_module_edit(&mut self) {
-        self.local_summaries.clear();
     }
 
     /// Declares that the running pass leaves the module call summaries valid.

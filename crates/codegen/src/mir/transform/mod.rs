@@ -1,5 +1,6 @@
 //! Optimization and transformation passes for the Solar compiler.
 
+pub(crate) mod bit_scan;
 pub(crate) mod byte_loops;
 pub(crate) mod byte_run;
 pub(crate) mod call_cleanup;
@@ -53,6 +54,7 @@ pub(crate) mod place_reads;
 pub(crate) mod pre;
 pub(crate) mod pure_eval;
 pub(crate) mod readonly_eval;
+pub(crate) mod scan_region;
 pub(crate) mod sccp;
 pub(crate) mod specialize;
 pub(crate) mod sroa;

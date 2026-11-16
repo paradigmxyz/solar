@@ -34,8 +34,9 @@
 //!
 //! Clones of callees with several blocks, when the callee has phis or the call sits
 //! in a loop, need a stack estimate: backward liveness gives the callee's peak live
-//! words and the caller words surviving the call, and their sum must fit twelve
-//! words, leaving headroom for operand staging. This bounds spills but does not
+//! words and the caller words surviving the call, and their sum must fit
+//! `Target::inline_stack_budget`, twelve words or fourteen under the size objective,
+//! leaving headroom for operand staging. This bounds spills but does not
 //! promise the scheduler emits none. A single-block clone needs no estimate: the
 //! call it replaces holds the same caller words and a return address.
 //!
@@ -153,7 +154,7 @@ impl MirPass for Inline {
         if physical && !tagged_only {
             edited_later = guards::inline_guards(gcx, module);
             if !target.optimization().is_none() && dispatch::inline_dispatch(module) {
-                let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
+                let _ = super::cfg_simplify::remove_dead_functions(module, analyses);
                 edited_later = true;
             }
         }
@@ -389,7 +390,7 @@ impl MirInliner {
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site.block, site.inst_index)
                         .saturating_add(peak)
-                        > Target::INLINE_STACK_BUDGET
+                        > caller_target.inline_stack_budget()
                     {
                         continue;
                     }

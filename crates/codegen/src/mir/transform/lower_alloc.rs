@@ -65,6 +65,9 @@ fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &Fresh
         let id = function_analyses.function();
         lower_function(func, fresh, id)
     });
+    // Both steps edit bodies only through the runner, which drops the local summary of each
+    // function it changes, and the helper they add keeps the other functions' ids.
+    analyses.preserve_local_summaries();
     changed
 }
 
@@ -92,7 +95,7 @@ fn share_checked_allocations(
     }
 
     let helper = create_checked_alloc(module);
-    run_lowering_function_pass(module, analyses, |func, function_analyses| {
+    let _ = run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
         for block in func.blocks.indices() {
@@ -114,8 +117,9 @@ fn share_checked_allocations(
             });
         }
         func.replace_uses_canonicalized(&replacements);
-        true
-    })
+        !replacements.is_empty()
+    });
+    true
 }
 
 /// The size and semantics of `inst` if it is a checked allocation that lowering expands.
