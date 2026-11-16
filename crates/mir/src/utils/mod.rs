@@ -49,6 +49,9 @@ fn remap_blocks(func: &mut Function, order: &[BlockId]) -> IndexVec<BlockId, Blo
         if let Some(terminator) = &mut block.terminator {
             remap_terminator_blocks(terminator, &remap);
         }
+        block
+            .terminator_metadata
+            .remap_edge_targets(|target| Some(remap[target]).filter(|&new| new != BlockId::MAX));
         retained_instructions.extend_from_slice(&block.instructions);
     }
     for inst_id in retained_instructions {

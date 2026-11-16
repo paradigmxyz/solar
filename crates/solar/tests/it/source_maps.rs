@@ -377,7 +377,9 @@ fn phi_operand_copies_map_to_their_assignments() {
         // The copy of each constant on an unconditional edge runs once per run of its assignment:
         // the loop's entry constants, the constant of an `if` arm, and the value of a `return`
         // that leaves through the modifier's continuation.
-        for statement in ["uint256 sum = 0", "uint256 i = 0", "x = 7", "return true"] {
+        // The empty arm of `if (i % 3 == 0)` is bypassed, and `state = 7` stays on the one edge
+        // that the arm left, whose push of the constant runs exactly when the arm does.
+        for statement in ["uint256 sum = 0", "uint256 i = 0", "x = 7", "return true", "state = 7"] {
             assert!(mapped(statement), "{statement} lost its instruction");
         }
         // The copy on a conditional edge runs on one path only, so it keeps the origin of the
