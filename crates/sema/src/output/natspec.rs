@@ -413,7 +413,8 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
 
 /// Returns the errors documented for a contract in solc's order, by AST ID: solc parses its
 /// sources in the order of their names, so errors of the same signature from different sources
-/// are listed by source name, then by position.
+/// are listed by source name, then by position. Sources solc loads through its import callback
+/// come after the given ones, which this order does not model.
 fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::ErrorId> {
     let mut errors = gcx.interface_errors(contract_id).iter().collect::<Vec<_>>();
     errors.sort_by(|&a, &b| {
