@@ -9,7 +9,7 @@
 // The call `h(...)` is the whole body of `g`, so the stores that spill `g`'s arguments before the
 // call run for the call, not for the `return` around it. LLVM lowers a call and the return after
 // it to one `TCRETURN` that keeps the call's `DebugLoc`, and puts a spill at the location of its
-// insertion point. The spills take the span of the call, like its jump. `g` and `h` call each
+// insertion point. The spills take the call's span, as the jump does. `g` and `h` call each
 // other, so no optimization level inlines them.
 
 // CHECK-LABEL: (scheduled runtime) ===

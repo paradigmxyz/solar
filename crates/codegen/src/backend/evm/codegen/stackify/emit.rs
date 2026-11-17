@@ -659,18 +659,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Attributes the code that precedes the first instruction that `steps` begin to that
-    /// instruction, or else to the block's terminator, or to the call that a tail call `exit`
-    /// makes.
+    /// instruction, else to the call that a tail-call `exit` folds in, else to the block's
+    /// terminator.
     ///
     /// Scheduler code, such as the pops that clean the stack at the start of a block, belongs to no
     /// instruction of its own. It takes the location of the instruction it precedes, as rustc's
     /// `MirPatch::source_info_for_index` gives inserted code the source info of the statement it
     /// goes before, and LLVM puts a spill or copy at `findDebugLoc` of its insertion point.
     ///
-    /// NOTE: In a block with no instruction before the tail call, that insertion point is the
-    /// tail-call instruction, which LLVM lowers to one `TCRETURN` that keeps the call's `DebugLoc`,
-    /// so the code in front of the call takes the call's origin as the code that sets up its
-    /// arguments does.
+    /// NOTE: With no instruction before a tail call, the insertion point is the tail call, which
+    /// LLVM lowers to one `TCRETURN` that keeps the call's `DebugLoc` (`X86ISelLowering.cpp`
+    /// `LowerCall`), so the code before it takes the call's origin.
     fn set_insertion_origin(
         &mut self,
         func: &Function,
