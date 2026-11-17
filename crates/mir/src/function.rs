@@ -898,7 +898,7 @@ impl Function {
             InstKind::Add(..) | InstKind::Sub(..)
                 if !self.inst(old).metadata.checked_object_offset() =>
             {
-                self.inst_mut(new).metadata.clear_checked_object_offset();
+                self.clear_checked_object_offsets(new);
             }
             InstKind::PtrAdd(..)
                 if self.inst(old).metadata.unchecked()
@@ -907,6 +907,20 @@ impl Function {
                 self.inst_mut(new).metadata.set_unchecked(true);
             }
             _ => {}
+        }
+    }
+
+    /// Clears the marker of `inst` and of the checked steps it adds to, since the guard walks
+    /// through them to the value it steps from.
+    fn clear_checked_object_offsets(&mut self, mut inst: InstId) {
+        loop {
+            self.inst_mut(inst).metadata.clear_checked_object_offset();
+            let Some((base, _)) = self.constant_step(&self.inst(inst).kind) else { return };
+            let Value::Inst(inner) = *self.value(base) else { return };
+            if !self.inst(inner).metadata.checked_object_offset() {
+                return;
+            }
+            inst = inner;
         }
     }
 
