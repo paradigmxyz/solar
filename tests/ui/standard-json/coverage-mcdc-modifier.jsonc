@@ -1,8 +1,9 @@
 //@ filecheck:
-// `llvm-cov` reports the branches of a file only from the records of that file, so the record of
-// a modifier keeps the branch regions and the MC/DC regions of its body, counted over all its
-// expansions, and one code region over its header. Its decision lists the IDs of the decision in
-// each expansion, `f` and `g`, whose test vectors share one structure.
+// `llvm-cov` sums the branches of a record and of its expansions, so the expansions carry none: the
+// record of a modifier keeps the branch regions and the MC/DC regions of its body, counted over all
+// its expansions, and one code region over its header. Its decision lists the IDs of the decision
+// in each expansion, `f` and `g`, whose test vectors share one structure. The records of `f` and
+// `g` have no decisions.
 // CHECK: "name": "A.sol:M.both(uint256,bool)",
 // CHECK: "decisions": [
 // CHECK-NEXT: {
@@ -12,13 +13,9 @@
 // CHECK-NEXT: ],
 // CHECK-NEXT: "conditions": 2,
 // CHECK: "name": "A.sol:M.f(uint256,bool)",
-// CHECK: "decisions": [
-// CHECK-NEXT: {
-// CHECK-NEXT: "id": 0,
+// CHECK-NOT: "decisions"
 // CHECK: "name": "A.sol:M.g(uint256,bool)",
-// CHECK: "decisions": [
-// CHECK-NEXT: {
-// CHECK-NEXT: "id": 1,
+// CHECK-NOT: "decisions"
 {
   "language": "Solidity",
   "sources": {

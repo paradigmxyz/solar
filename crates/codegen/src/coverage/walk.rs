@@ -174,9 +174,10 @@ impl Node<'_> {
 /// The MC/DC conditions of a decision, by the key of their leaves.
 struct Mcdc(FxHashMap<usize, mcdc::Condition>);
 
-/// The regions and the decisions of one expansion of a modifier.
+/// The entry count, the branch regions and the decisions of one expansion of a modifier.
 struct Expansion {
-    regions: Vec<Region>,
+    entry: Count,
+    branches: Vec<Region>,
     decisions: Vec<Decision>,
     /// The index of the first of its decisions in the record of the invoking function.
     first_decision: u32,
@@ -356,22 +357,19 @@ impl<'gcx> Walker<'gcx> {
         let start = self.rec.regions.len();
         let first_decision = self.rec.decisions.len();
         self.open(modifier.span, &entry);
-        self.stmts(body.stmts, Some(entry));
+        self.stmts(body.stmts, Some(entry.clone()));
         self.body_skips(body.span);
         self.close();
+        // The branches and decisions of the body live in the record of the modifier only, because
+        // `llvm-cov` sums the branches of a record and of its expansions.
+        let mut regions = self.rec.regions.split_off(start);
+        let branches = regions.iter().filter(|region| region.kind.is_branch()).cloned().collect();
+        regions.retain(|region| !region.kind.is_branch());
+        self.rec.regions.extend(regions);
         let expansion = Expansion {
-            regions: self.rec.regions[start..].to_vec(),
-            decisions: self.rec.decisions[first_decision..]
-                .iter()
-                .map(|decision| Decision {
-                    id: match decision.id {
-                        DecisionId::Probe(id) => DecisionId::Probe(id),
-                        DecisionId::Expansions(_) => unreachable!("a function owns its probes"),
-                    },
-                    conditions: decision.conditions,
-                    vectors: decision.vectors.clone(),
-                })
-                .collect(),
+            entry,
+            branches,
+            decisions: self.rec.decisions.drain(first_decision..).collect(),
             first_decision: first_decision as u32,
         };
         self.expansions.entry(modifier_id).or_default().push(expansion);
@@ -382,11 +380,11 @@ impl<'gcx> Walker<'gcx> {
 
     /// Builds the record of a modifier.
     ///
-    /// The expansions carry the regions of the body, and `llvm-cov` adds up the code regions that
-    /// share a span, so a modifier that something invokes has one code region, over its header,
-    /// which no expansion covers, counted as often as its expansions are entered. `llvm-cov`
-    /// reports the branches of a file only from the records of that file, not from expansions, so
-    /// the record also has the branch regions of the body, counted over all expansions, and its
+    /// The expansions carry the code regions of the body, and `llvm-cov` adds up the code regions
+    /// that share a span, so a modifier that something invokes has one code region, over its
+    /// header, which no expansion covers, counted as often as its expansions are entered. The
+    /// branches live only in this record, because `llvm-cov` sums the branches of a record and of
+    /// its expansions: the branch regions of the body, counted over all expansions, and its
     /// decisions, which list the IDs they have in each expansion. A modifier that nothing invokes
     /// keeps the regions of its body, counted zero.
     fn modifier(&mut self, id: hir::FunctionId) {
@@ -399,21 +397,11 @@ impl<'gcx> Walker<'gcx> {
                 let mut branches = Vec::<Region>::new();
                 let mut decisions = Vec::<Decision>::new();
                 for (index, expansion) in expansions.into_iter().enumerate() {
-                    let Expansion { regions, decisions: expanded, first_decision } = expansion;
-                    if let Some(Region { kind: RegionKind::Code(entry), .. }) = regions.first() {
-                        count = count.add(entry.clone());
-                    }
+                    let Expansion { entry, branches: regions, decisions: expanded, first_decision } =
+                        expansion;
+                    count = count.add(entry);
                     // The expansions share one structure, so their branches line up.
-                    let mut position = 0;
-                    for mut region in regions {
-                        if !matches!(
-                            region.kind,
-                            RegionKind::Branch(..)
-                                | RegionKind::McdcBranch { .. }
-                                | RegionKind::Decision(_)
-                        ) {
-                            continue;
-                        }
+                    for (position, mut region) in regions.into_iter().enumerate() {
                         if index == 0 {
                             region.file = 0;
                             if let RegionKind::Decision(decision) = &mut region.kind {
@@ -435,7 +423,6 @@ impl<'gcx> Walker<'gcx> {
                             *holds = mem::replace(holds, Count::Zero).add(other_holds);
                             *fails = mem::replace(fails, Count::Zero).add(other_fails);
                         }
-                        position += 1;
                     }
                     for (position, decision) in expanded.into_iter().enumerate() {
                         let DecisionId::Probe(id) = decision.id else { continue };

@@ -41,15 +41,18 @@
 //!
 //! Each invocation of a modifier lowers the body once more, so it has counters of its own, inside
 //! the range of the function that invokes it. The function's record has an expansion region at the
-//! invocation, and repeats the regions of the body under a virtual file for the expansion. The
+//! invocation, and repeats the code regions of the body under a virtual file for the expansion. The
 //! record of the modifier owns no counters. Tools such as `llvm-cov` add up the regions of a span
-//! across records, so the expansions carry the body and the record of a modifier that something
-//! invokes has one code region, over its header from the `modifier` keyword to the `{` of the body,
-//! that counts the sum of the entry counters of its expansions. `llvm-cov` reports the branches of
-//! a file only from the records of that file, so the record also has the branch and MC/DC regions
-//! of the body, counted over all its expansions, and its decisions list the ID they have in each
-//! expansion. A modifier that nothing invokes keeps the regions of its body, counted zero, so its
-//! lines show as missed.
+//! across records, so the expansions carry the code of the body and the record of a modifier that
+//! something invokes has one code region, over its header from the `modifier` keyword to the `{` of
+//! the body, that counts the sum of the entry counters of its expansions.
+//!
+//! `llvm-cov export -format=lcov` also adds up the branches of a record and of its expansions, and
+//! `llvm-cov report` reads the branches of a file only from the records of that file. So the
+//! expansions carry no branch or MC/DC regions: the record of the modifier has them, counted over
+//! all its expansions, and its decisions list the ID they have in each expansion. The probes and
+//! the IDs of the decisions in each expansion stay as they are. A modifier that nothing invokes
+//! keeps the regions of its body, counted zero, so its lines show as missed.
 //!
 //! # Counters
 //!
@@ -178,6 +181,11 @@ pub enum RegionKind {
 }
 
 impl RegionKind {
+    /// Returns whether the region is a branch or an MC/DC region.
+    fn is_branch(&self) -> bool {
+        matches!(self, Self::Branch(..) | Self::Decision(_) | Self::McdcBranch { .. })
+    }
+
     /// Calls `f` with each count of the region.
     fn for_each_count(&self, mut f: impl FnMut(&Count)) {
         match self {
