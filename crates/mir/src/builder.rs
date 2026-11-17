@@ -13,7 +13,7 @@ use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::Span;
-use solar_ir::link::LibraryId;
+use solar_ir::{debug::DebugLocKind, link::LibraryId};
 
 pub trait ToUint {
     fn to_uint(self) -> U256;
@@ -155,6 +155,20 @@ impl<'a> FunctionBuilder<'a> {
         let previous = self.current_debug_context.source_span().unwrap_or(Span::DUMMY);
         self.current_debug_context.set_debug_source_span(Some(span));
         previous
+    }
+
+    /// Makes newly emitted instructions belong to no source construct, as LLVM's
+    /// `DebugLoc::getCompilerGenerated`, and returns the context to give back to
+    /// [`Self::restore_debug_context`].
+    pub fn mark_compiler_generated(&mut self) -> InstructionMetadata {
+        let previous = self.current_debug_context.clone();
+        self.current_debug_context.drop_debug_loc(DebugLocKind::CompilerGenerated);
+        previous
+    }
+
+    /// Restores a context returned by [`Self::mark_compiler_generated`].
+    pub fn restore_debug_context(&mut self, context: InstructionMetadata) {
+        self.current_debug_context = context;
     }
 
     /// Replaces the modifier nesting depth attached to newly emitted instructions.

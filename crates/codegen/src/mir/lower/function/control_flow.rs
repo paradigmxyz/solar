@@ -60,16 +60,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lower_then: impl FnMut(&mut Self) -> Option<T>,
         lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        self.lower_branches_labeled(condition, then_first, None, lower_then, lower_else)
+        self.lower_branches_labeled(condition, then_first, None, false, lower_then, lower_else)
     }
 
     /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
     /// at the span the builder has when it places them.
+    ///
+    /// With `generated_exits`, the jumps that leave the arms and the merge block's label belong to
+    /// no source construct, instead of taking `label_span` and the span in force.
     pub(super) fn lower_branches_labeled<T>(
         &mut self,
         condition: ValueId,
         then_first: bool,
         label_span: Option<Span>,
+        generated_exits: bool,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -91,7 +95,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let then_values = std::mem::take(&mut self.values);
         let then_storage_refs = std::mem::take(&mut self.storage_refs);
         if !then_terminated {
-            self.builder.jump(merge_block);
+            self.with_generated_origin(generated_exits, |this| this.builder.jump(merge_block));
         }
 
         self.values = before_values.clone();
@@ -103,12 +107,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let else_values = std::mem::take(&mut self.values);
         let else_storage_refs = std::mem::take(&mut self.storage_refs);
         if !else_terminated {
-            self.builder.jump(merge_block);
+            self.with_generated_origin(generated_exits, |this| this.builder.jump(merge_block));
         }
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.place_block(merge_block, label_span);
+        self.with_generated_origin(generated_exits, |this| {
+            this.place_block(merge_block, label_span.filter(|_| !generated_exits))
+        });
         self.values = self.merge_values(
             before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
@@ -144,19 +150,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
-        // solc places the else and end tags under the statement: `LocationSetter(m_context,
-        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
-        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
-        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
-        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
-        // its `if`.
-        let label_span = else_stmt
-            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
-            .map_or(previous, |stmt| stmt.span);
+        // A loop condition desugars to `if (cond) body else break`, and its blocks take the span of
+        // the desugared `break`, which is the loop statement, so stepping a loop still stops on
+        // it. A user `break` is narrower than its `if`.
+        let loop_break = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous));
+        let label_span = loop_break.map_or(previous, |stmt| stmt.span);
+        // A source `if` leaves its arms and starts the code after it without a location: that code
+        // implements no source construct, and mapping it to the `if` would show the condition line
+        // again after the arm ran. A debugger stops once on the `if`, at the condition.
+        let generated_exits = loop_break.is_none();
         let branches = self.lower_branches_labeled(
             condition,
             true,
             Some(label_span),
+            generated_exits,
             |this| {
                 this.builder.replace_source_span(previous);
                 this.lower_stmt(then_stmt)
@@ -172,6 +180,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.invalid();
         }
         Some(())
+    }
+
+    /// Runs `f` as code that belongs to no source construct when `generated`.
+    fn with_generated_origin(&mut self, generated: bool, f: impl FnOnce(&mut Self)) {
+        let previous = generated.then(|| self.builder.mark_compiler_generated());
+        f(self);
+        if let Some(previous) = previous {
+            self.builder.restore_debug_context(previous);
+        }
     }
 
     /// Switches to `block`, labeling it at `label_span` when it is placed for the first time.

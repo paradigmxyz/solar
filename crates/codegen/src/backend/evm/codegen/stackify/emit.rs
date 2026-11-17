@@ -383,7 +383,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
+            let last_assignment = assignments.last().map(|&(_, origin)| origin);
             self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
+            // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
+            // The jump replaces the arm's jump, so it keeps the location of what the arm held, as
+            // LLVM's Preserve rule gives a replacement the location of what it replaces. The
+            // branch's origin would show the condition's line again after the arm ran.
+            if let Some(origin) = last_assignment {
+                self.set_origins(origin);
+            }
             self.emit_stackified_jump(target, None);
         }
         self.asm.repeating_code = repeating;

@@ -3,7 +3,7 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // A jump to the next block emits no opcode, but the jump still carries the origin of the MIR
-// terminator it implements: here the `if` statement.
+// terminator it implements: here the conditional expression.
 
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: push 0x1172b83c7d517adce
@@ -12,10 +12,7 @@
 contract C {
     function f(uint256 x, uint256 y) external pure returns (uint256 r) {
         unchecked {
-            if (x & 0xff > 0) {
-                r = (y * 0x1306fe0a31b7152df) >> 64;
-                r = (r * 0x1172b83c7d517adce) >> 64;
-            }
+            r = x & 0xff > 0 ? (((y * 0x1306fe0a31b7152df) >> 64) * 0x1172b83c7d517adce) >> 64 : 0;
             r += 1;
         }
     }
