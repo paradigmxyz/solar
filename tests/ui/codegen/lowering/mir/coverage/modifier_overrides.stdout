@@ -14,24 +14,18 @@ fn @f(arg0: i256) [selector=0xb3de648b, abi_params=[uint256], abi_returns=[], ab
     coverage 2
     v0 = gt arg0, 1
     coverage 3
-    jumpi v0, bb2, bb3
-  bb3:                                            ; preds = bb0
-    jump bb4
-  bb2:                                            ; preds = bb0
-    coverage 4
-    jump bb4
-  bb4:                                            ; preds = bb2, bb3
     v1 = eq v0, false
     icall revert_if<empty>, v1
+    coverage 4
     coverage 5
     coverage 10
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = checked_add uint256, v2, arg0
     sstore 0, v3 !metadata(storage=slot(0))
-    jump bb5
-  bb5:                                            ; preds = bb4
+    jump bb2
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:                                            ; preds = bb5
+  bb1:                                            ; preds = bb2
     ret
 }
 
@@ -57,23 +51,17 @@ fn @f(arg0: i256) [selector=0xb3de648b, abi_params=[uint256], abi_returns=[], ab
     coverage 6
     v0 = gt arg0, 2
     coverage 7
-    jumpi v0, bb2, bb3
-  bb3:                                            ; preds = bb0
-    jump bb4
-  bb2:                                            ; preds = bb0
-    coverage 8
-    jump bb4
-  bb4:                                            ; preds = bb2, bb3
     v1 = eq v0, false
     icall revert_if<empty>, v1
+    coverage 8
     coverage 9
     coverage 10
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = checked_add uint256, v2, arg0
     sstore 0, v3 !metadata(storage=slot(0))
-    jump bb5
-  bb5:                                            ; preds = bb4
+    jump bb2
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:                                            ; preds = bb5
+  bb1:                                            ; preds = bb2
     ret
 }

@@ -550,8 +550,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let condition_expr = required.first()?;
                 let condition = self.operand(condition_expr)?.id();
                 self.coverage(Site::Leaf(Site::expr(condition_expr)));
-                // The condition holds, whatever the message does.
-                self.coverage_branch(Site::Arm(Site::expr(condition_expr)), condition)?;
+                // A message that may revert while it is evaluated is no failure of the condition,
+                // so the condition counts before it. Otherwise the counter follows the check, which
+                // keeps the code after it in one block.
+                let taken = Site::Arm(Site::expr(condition_expr));
+                let early = coverage_map(self.cx.gcx).is_some()
+                    && message.is_some_and(|message| self.message_may_revert(message));
+                if early {
+                    self.coverage_branch(taken, condition)?;
+                }
                 // The message is evaluated regardless of the condition, like a function call
                 // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
@@ -562,10 +569,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(message) = message else {
                     let is_false = self.builder.eq_zero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);
+                    self.coverage(taken);
                     return Some(());
                 };
                 // require condition, evaluated_payload
                 self.builder.require(condition, message);
+                if !early {
+                    self.coverage(taken);
+                }
             }
             Builtin::Revert => {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
@@ -985,6 +996,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         Some(exprs.split_at(N))
+    }
+
+    /// Returns whether evaluating the message of a `require` may revert: anything but a constant,
+    /// a variable, or a custom error whose arguments are constants or variables.
+    fn message_may_revert(&self, message: &'gcx hir::Expr<'gcx>) -> bool {
+        let gcx = self.cx.gcx;
+        let message = message.peel_parens();
+        if gcx.const_eval().eval_expr(message).is_ok() || gcx.resolved_variable(message).is_some() {
+            return false;
+        }
+        match message.kind {
+            ExprKind::Call(callee, ref args)
+                if matches!(
+                    gcx.resolved_expr(callee),
+                    Some(hir::Res::Item(hir::ItemId::Error(_)))
+                ) =>
+            {
+                args.exprs().any(|arg| self.message_may_revert(arg))
+            }
+            _ => true,
+        }
     }
 
     pub(super) fn builtin_args_with_optional<'hir, const N: usize>(

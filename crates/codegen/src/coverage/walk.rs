@@ -592,17 +592,16 @@ impl<'gcx> Walker<'gcx> {
     /// Adds skipped regions to the body of a function or a modifier: each run of whole lines that
     /// hold only whitespace and comments, and a closing `}` that stands on a line of its own.
     ///
-    /// A run starts at its first line, so `llvm-cov` maps none of its lines, and ends at the end of
-    /// its last line, so the count of the code around it wraps into the line after it, where the
-    /// statement that starts there may have no region of its own. A single empty line has nothing
-    /// to span, so its region starts at the end of the line before.
+    /// A run covers whole lines, from the first byte of its first line to the newline that ends its
+    /// last, so it starts and ends on its own lines: `llvm-cov` maps none of its lines, and the
+    /// line before and the line after it keep the counts of the code on them.
     fn body_skips(&mut self, body: Span) {
         let files = self.gcx.sess.source_map().files();
         let Ok(text) = files.span_to_snippet(body) else { return };
         let lo = body.lo().0;
         let at = |offset: usize| solar_interface::BytePos(lo + offset as u32);
         let mut skips = Vec::new();
-        // The first byte of a run and the end of its last line.
+        // The first byte of a run and the end of its last line, with its newline.
         let mut run: Option<(usize, usize)> = None;
         let mut block_comment = false;
         let mut offset = 0;
@@ -614,12 +613,10 @@ impl<'gcx> Walker<'gcx> {
             // The lines with the braces of the body hold code.
             if code || first || last {
                 if let Some((start, end)) = run.take() {
-                    let start = if end > start { start } else { start - 1 };
                     skips.push(Span::new(at(start), at(end)));
                 }
             } else {
-                let end = offset + line.trim_end_matches(['\n', '\r']).len();
-                run = Some((run.map_or(offset, |(start, _)| start), end));
+                run = Some((run.map_or(offset, |(start, _)| start), offset + line.len()));
             }
             if last
                 && let Some(before) = line.strip_suffix('}')

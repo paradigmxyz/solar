@@ -26,9 +26,10 @@
 //! that wraps into it, which is the enclosing region where nothing else starts. The code between
 //! two statements is that wrapped segment, so a statement that follows one that may revert, such as
 //! a `require`, would show the count of the function. The gap region gives the line it starts on
-//! the count of the statement. A run of lines with no code starts on its first line, so no line of
-//! it has a count, and ends at the end of its last line, so the count around it wraps into the
-//! line after it, where the statement that starts may have no region of its own. The closing `}` of
+//! the count of the statement. A run of lines with no code covers whole lines, from the first byte
+//! of its first line to the newline that ends its last, so it starts and ends on its own lines: no
+//! line of it has a count, and the line before it and the line after it keep the count of the code
+//! on them, which may be no region of its own. The closing `}` of
 //! a body is the same: it would show the entry count of a function that reverted before reaching
 //! it.
 //!

@@ -19,8 +19,8 @@ contract Counters {
     // CHECK-NEXT: coverage 2
     // CHECK-NEXT: ne arg0, 0
     // CHECK-NEXT: coverage 3
-    // CHECK: coverage 4
     // CHECK: icall revert_if<empty>
+    // CHECK-NEXT: coverage 4
     // CHECK-NEXT: coverage 5
     // CHECK-NEXT: coverage 6
     // CHECK-NEXT: [[LHS:v[0-9]+]] = gt arg0, 10

@@ -24,3 +24,23 @@ fn @f(arg0: ptr<memory>, arg1: i1) [selector=0x91c0b7ed, pure, abi_params=[bytes
     icall require<error_string>, arg1, v7
     ret
 }
+
+; function named(bool ok) external pure [selector 0x5e061435]
+fn @named(arg0: i1) [selector=0x5e061435, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 4
+    coverage 5
+    icall require<short_string>, arg0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    coverage 6
+    ret
+}
+
+; function custom(bool ok, uint256 x) external pure [selector 0xeecf602a]
+fn @custom(arg0: i1, arg1: i256) [selector=0xeecf602a, pure, abi_params=[bool, uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 7
+    coverage 8
+    icall require<custom_error [word]>, arg0, 0x2ff06700000000000000000000000000000000000000000000000000000000, arg1
+    coverage 9
+    ret
+}

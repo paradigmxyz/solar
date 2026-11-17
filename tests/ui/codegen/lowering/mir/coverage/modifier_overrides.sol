@@ -20,8 +20,8 @@ contract A {
     // CHECK-NEXT: coverage 2
     // CHECK-NEXT: gt arg0, 1
     // CHECK-NEXT: coverage 3
-    // CHECK: coverage 4
     // CHECK: icall revert_if<empty>
+    // CHECK-NEXT: coverage 4
     // CHECK-NEXT: coverage 5
     // CHECK-NEXT: coverage 10
     // CHECK-LABEL: @module B
@@ -31,8 +31,8 @@ contract A {
     // CHECK-NEXT: coverage 6
     // CHECK-NEXT: gt arg0, 2
     // CHECK-NEXT: coverage 7
-    // CHECK: coverage 8
     // CHECK: icall revert_if<empty>
+    // CHECK-NEXT: coverage 8
     // CHECK-NEXT: coverage 9
     // CHECK-NEXT: coverage 10
     function f(uint256 x) public guard(x) {

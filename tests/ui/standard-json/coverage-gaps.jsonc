@@ -3,8 +3,7 @@
 // function runs, so the code between the statements is a gap region, kind 3, `[3, file, start,
 // length, count]`, with the count of the `return`. The blank line and the two comment lines that
 // follow the `require` are one skipped region, kind 2, that nests in the gap, starts on the blank
-// line, and ends at the end of the last comment line, so the count of the `return` wraps into the
-// line after it. The closing `}` of the body, which stands on a line of its own, is skipped too.
+// line, and ends with the newline of the last comment line. The closing `}` of the body, which stands on a line of its own, is skipped too.
 // CHECK: "name": "A.sol:G.f(uint256)",
 // CHECK: {{^ *3,$}}
 // CHECK-NEXT: 0,
@@ -14,7 +13,7 @@
 // CHECK: {{^ *2,$}}
 // CHECK-NEXT: 0,
 // CHECK-NEXT: 99,
-// CHECK-NEXT: 63
+// CHECK-NEXT: 64
 // CHECK: {{^ *2,$}}
 // CHECK-NEXT: 0,
 // CHECK-NEXT: 194,

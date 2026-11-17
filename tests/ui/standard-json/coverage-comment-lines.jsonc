@@ -1,18 +1,23 @@
 //@ filecheck:
 // A comment line directly before the first statement of a body, whose count is the count of the
-// body, is a skipped run that ends at the end of the comment line, not where the next line starts.
-// A run that ended on the next line would be the segment that wraps into it, and `llvm-cov` maps
-// no line that starts no region after one. The `require` has no code region of its own.
+// body, is a skipped run of whole lines: it starts at the first byte of the line and ends with its
+// newline, so it starts and ends on its own line and the `require` after it, which has no code
+// region of its own, keeps its line. A single blank line below a statement is one skipped byte, its
+// newline, and nothing starts on the statement's line.
 // CHECK: "name": "A.sol:S.f(uint256)",
 // CHECK: {{^ *2,$}}
 // CHECK-NEXT: 0,
 // CHECK-NEXT: 70,
-// CHECK-NEXT: 19
+// CHECK-NEXT: 20
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 141,
+// CHECK-NEXT: 1
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        total = x;\n    }\n}\n"
+      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        uint256 y = x + 1;\n\n        total = y;\n    }\n}\n"
     }
   },
   "settings": {
