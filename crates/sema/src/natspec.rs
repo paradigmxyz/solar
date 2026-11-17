@@ -177,7 +177,19 @@ bitflags::bitflags! {
 }
 
 impl LocalTags {
-    pub(crate) fn from_items(items: &[hir::NatSpecItem]) -> Self {
+    /// The kinds of tag that the items of one group of doc comments start. A `///` line without a
+    /// tag after another item continues that item's tag, so it starts none.
+    pub(crate) fn from_group(gcx: Gcx<'_>, items: &[hir::NatSpecItem]) -> Self {
+        Self::from_items(
+            items
+                .iter()
+                .enumerate()
+                .filter(|&(i, item)| i == 0 || !is_untagged_line(gcx, item))
+                .map(|(_, item)| item),
+        )
+    }
+
+    fn from_items<'a>(items: impl IntoIterator<Item = &'a hir::NatSpecItem>) -> Self {
         let mut tags = Self::empty();
         for item in items {
             match item.kind {
@@ -302,9 +314,8 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         let doc = self.gcx.hir.doc(doc_id);
-        let (local_tags, inheritdoc_target) =
+        let (local_tags, local_sections, inheritdoc_target) =
             self.validate_item_natspec(&doc.ast_comments, item_id, doc.source);
-        let local_sections = LocalTags::from_items(&local_tags);
         let inherited = inheritdoc_target.map(|(_, target)| self.gcx.natspec_resolution(target));
         let items: &'gcx [hir::NatSpecItem] = if let Some(inherited) = inherited {
             self.merge_natspec_tags(&local_tags, local_sections, inherited.items)
@@ -331,7 +342,7 @@ impl<'gcx> Resolver<'gcx> {
         docs: &[ast::DocComment<'gcx>],
         item_id: hir::ItemId,
         source_id: hir::SourceId,
-    ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(Span, hir::ItemId)>) {
+    ) -> (SmallVec<[hir::NatSpecItem; 8]>, LocalTags, Option<(Span, hir::ItemId)>) {
         let permissions = TagPermissions::from_item_id(item_id);
         let mut parameters: Option<FxHashSet<Symbol>> = None;
         let mut returns: Option<&[hir::VariableId]> = None;
@@ -345,6 +356,8 @@ impl<'gcx> Resolver<'gcx> {
         let mut inheritdoc = None;
         let mut state = ValidationState::default();
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
+        let mut sections = LocalTags::empty();
+        let mut group_start = 0;
 
         for (i, doc_comment) in docs.iter().enumerate() {
             // solc reads only the last group of doc comments, so a tag that may appear once
@@ -353,6 +366,8 @@ impl<'gcx> Resolver<'gcx> {
             // the last group alone needs the diagnostics of the earlier groups dropped as well.
             if i > 0 && starts_group(self.gcx, &docs[i - 1], doc_comment) {
                 state.seen_tags = SeenTags::default();
+                sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
+                group_start = local_tags.len();
             }
             for natspec in doc_comment.natspec.iter() {
                 let tag_span = natspec.span;
@@ -505,7 +520,8 @@ impl<'gcx> Resolver<'gcx> {
             }
         }
 
-        (local_tags, inheritdoc)
+        sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
+        (local_tags, sections, inheritdoc)
     }
 
     fn lower_return_natspec(
@@ -1173,4 +1189,20 @@ pub(crate) fn starts_group(
     !(prev.kind == ast::CommentKind::Line
         && doc.kind == ast::CommentKind::Line
         && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
+}
+
+/// Whether `item` is the whole text of a comment without a tag, which solc reads as a notice.
+pub(crate) fn is_untagged(item: &hir::NatSpecItem) -> bool {
+    matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0
+}
+
+/// Whether `item` is a `///` line without a tag. After another tag of its group it continues that
+/// tag instead of being a notice.
+pub(crate) fn is_untagged_line(gcx: Gcx<'_>, item: &hir::NatSpecItem) -> bool {
+    is_untagged(item)
+        && gcx
+            .sess
+            .source_map()
+            .span_to_snippet(item.span)
+            .is_ok_and(|snippet| snippet.starts_with("///"))
 }

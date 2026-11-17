@@ -378,7 +378,7 @@ impl<'gcx> ParsingContext<'gcx> {
 
                 let (import_id, is_new) = {
                     let sources = &mut *jobs.sources.lock();
-                    sources.get_or_insert_file(import_file.clone())
+                    sources.get_or_insert_imported_file(import_file.clone())
                 };
                 discovered.push(import_id);
                 if is_new {
@@ -608,6 +608,15 @@ impl<'ast> Sources<'ast> {
         (id, new)
     }
 
+    /// Like [`Self::get_or_insert_file`], for a file that an import names.
+    fn get_or_insert_imported_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
+        let ret = self.get_or_insert_file(file);
+        if ret.1 {
+            self.sources[ret.0].imported = true;
+        }
+        ret
+    }
+
     /// Removes the given file from the sources.
     pub fn remove_file(&mut self, file: &Arc<SourceFile>) -> Option<Source<'ast>> {
         self.file_to_id.remove(file).map(|id| self.sources.remove(id))
@@ -635,7 +644,7 @@ impl<'ast> Sources<'ast> {
         import: Arc<SourceFile>,
         check_dup: bool,
     ) -> (SourceId, bool) {
-        let ret = self.get_or_insert_file(import);
+        let ret = self.get_or_insert_imported_file(import);
         let (import_id, new) = ret;
 
         let current = &mut self.sources[current].imports;
@@ -749,6 +758,9 @@ impl std::ops::DerefMut for Sources<'_> {
 pub struct Source<'ast> {
     /// The source file.
     pub file: Arc<SourceFile>,
+    /// Whether an import loaded the source, as solc's import callback does, rather than the
+    /// caller giving it.
+    pub imported: bool,
     /// The individual imports with their resolved source IDs.
     ///
     /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
@@ -781,7 +793,13 @@ impl fmt::Debug for Source<'_> {
 impl Source<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new(), unresolved_imports: Vec::new() }
+        Self {
+            file,
+            imported: false,
+            ast: None,
+            imports: Vec::new(),
+            unresolved_imports: Vec::new(),
+        }
     }
 
     fn count_contracts(&self) -> usize {
