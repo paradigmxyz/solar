@@ -178,3 +178,12 @@ discard it, so a producer that prints plausible output and then fails stops the 
 inputs are checked before use (the solar options, the loops file, the runtime bytecode and its pin,
 solar-verify's exports with [export_check.py](export_check.py), the published statement's record),
 and [test.sh](test.sh) has a negative case for each.
+
+A run in a memory-limited cgroup scope is admitted and accounted for by
+[box_admit.sh](box_admit.sh): `admit` reads back the scope's memory.max (a byte count, never
+`max`) and memory.swap.max (0) and checks the inner process is in the scope, `pidtree` checks in
+one sample that every descendant of the inner process is in it, and `receipts` checks a finished
+run's directory has every receipt (record, binding, replay receipt, axioms, negative tests)
+with the digests its receipts.sha256 lists. Each aborts on anything it cannot read or that
+differs; [box_admit_test.sh](box_admit_test.sh) runs each failure on fixture cgroup and /proc
+trees.
