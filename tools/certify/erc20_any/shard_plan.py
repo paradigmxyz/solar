@@ -12,7 +12,9 @@ PEAKS_FILE, default replay-peaks.59d0fa44, and the earlier slot's batch-exits) a
 scaled by the batch's share of the modules and by 1.5. A batch's index is the earlier batch's index
 plus its first module's offset in it, so indices are unique across shards. Batches go to NSHARDS
 shards by longest processing time first on estimated peak times wall, so the boxes carry about the
-same memory-time.
+same memory-time. For boxes of different sizes, SHARD_MEMORY ("K:KB,...") gives a shard's memory:
+its load counts relative to the largest, and it gets no batch whose estimated peak times 1.25 (the
+margin sched.py adds) exceeds 75% of it, the budget shard.sh caps the replay at.
 
 OUT/shard<K>/ gets batches ("INDEX MODULE..."), peaks ("INDEX PEAK_KB", read by sched.py, which
 adds its own 1.25) and walls ("INDEX WALL_S", the projected wall that sched.py admits a batch
@@ -76,10 +78,22 @@ for b in batches:
         jobs.append((i + part[0][0], [m for _, m in part], peak[b[0]], est_wall))
 if len({j[0] for j in jobs}) != len(jobs):
     sys.exit("shard_plan: batch indices collide")
+memory = {}
+for item in filter(None, os.environ.get("SHARD_MEMORY", "").split(",")):
+    s, kb = item.split(":")
+    if not 1 <= int(s) <= nshards:
+        sys.exit(f"shard_plan: SHARD_MEMORY names shard {s}")
+    memory[int(s) - 1] = int(kb)
+top = max(memory.values(), default=1)
+weight = [memory.get(k, top) / top for k in range(nshards)]
+fits = lambda j, k: k not in memory or j[2] * 1.25 <= memory[k] * 0.75
 load = [0] * nshards
 shards = [[] for _ in range(nshards)]
 for j in sorted(jobs, key=lambda j: (-j[2] * j[3], j[0])):
-    k = min(range(nshards), key=lambda k: (load[k], k))
+    ok = [k for k in range(nshards) if fits(j, k)]
+    if not ok:
+        sys.exit(f"shard_plan: batch {j[0]} (estimated peak {j[2]} kB) fits no shard")
+    k = min(ok, key=lambda k: ((load[k] + j[2] * j[3]) / weight[k], k))
     shards[k].append(j)
     load[k] += j[2] * j[3]
 os.makedirs(out, exist_ok=True)
