@@ -1,0 +1,209 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0,
+      "ast": {
+        "id": 5,
+        "src": "0:167:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "A.sol",
+        "exportedSymbols": {
+          "C": [
+            1
+          ],
+          "L": [
+            0
+          ]
+        },
+        "nodes": [
+          {
+            "id": 0,
+            "src": "0:42:0",
+            "nodeType": "ContractDefinition",
+            "name": "L",
+            "nameLocation": "8:1:0",
+            "contractKind": "library",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "L",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 2,
+                "src": "16:24:0",
+                "nodeType": "FunctionDefinition",
+                "name": "f",
+                "nameLocation": "25:1:0",
+                "kind": "function",
+                "stateMutability": "nonpayable",
+                "virtual": false,
+                "parameters": {
+                  "id": 7,
+                  "src": "26:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 6,
+                  "src": "38:0:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "external",
+                "body": {
+                  "id": 8,
+                  "src": "38:2:0",
+                  "nodeType": "Block",
+                  "statements": []
+                },
+                "functionSelector": "26121ff0"
+              }
+            ],
+            "scope": 5,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "src": "44:122:0",
+            "nodeType": "ContractDefinition",
+            "name": "C",
+            "nameLocation": "53:1:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "C",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 3,
+                "src": "61:103:0",
+                "nodeType": "FunctionDefinition",
+                "name": "addr",
+                "nameLocation": "70:4:0",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 10,
+                  "src": "74:2:0",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 9,
+                  "src": "97:11:0",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 4,
+                      "src": "98:9:0",
+                      "nodeType": "VariableDeclaration",
+                      "name": "a",
+                      "nameLocation": "106:1:0",
+                      "typeName": {
+                        "id": 11,
+                        "src": "98:7:0",
+                        "nodeType": "ElementaryTypeName",
+                        "name": "address",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "stateMutability": "nonpayable"
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 3,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    }
+                  ]
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 1,
+                "visibility": "public",
+                "body": {
+                  "id": 12,
+                  "src": "109:55:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 13,
+                      "src": "119:39:0",
+                      "nodeType": "InlineAssembly",
+                      "AST": {
+                        "nodeType": "YulBlock",
+                        "src": "128:30:0",
+                        "nativeSrc": "128:30:0",
+                        "statements": [
+                          {
+                            "nodeType": "YulAssignment",
+                            "src": "142:6:0",
+                            "nativeSrc": "142:6:0",
+                            "variableNames": [
+                              {
+                                "nodeType": "YulIdentifier",
+                                "src": "142:1:0",
+                                "nativeSrc": "142:1:0",
+                                "name": "a"
+                              }
+                            ],
+                            "value": {
+                              "nodeType": "YulIdentifier",
+                              "src": "147:1:0",
+                              "nativeSrc": "147:1:0",
+                              "name": "L"
+                            }
+                          }
+                        ]
+                      },
+                      "externalReferences": [
+                        {
+                          "src": "147:1:0",
+                          "declaration": 0,
+                          "isSlot": false,
+                          "isOffset": false,
+                          "valueSize": 1
+                        },
+                        {
+                          "src": "142:1:0",
+                          "declaration": 4,
+                          "isSlot": false,
+                          "isOffset": false,
+                          "valueSize": 1
+                        }
+                      ],
+                      "evmVersion": "osaka"
+                    }
+                  ]
+                },
+                "functionSelector": "767800de"
+              }
+            ],
+            "scope": 5,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              1
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

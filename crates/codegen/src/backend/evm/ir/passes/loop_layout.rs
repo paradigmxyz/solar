@@ -23,8 +23,7 @@
 //! back edge that leaves the loop is taken once per `UNCOUNTED_LOOP_ITERATIONS` traversals, the
 //! target's estimate for a loop without a computable trip count, also when the rest of its block
 //! continues both in and out of the loop, as a search loop's match test does; other branches split
-//! integer probability mass equally. Without that, a search loop nested in another kept its latch
-//! after its header and paid a jump back on every iteration. Returns to the header stop
+//! integer probability mass equally. Returns to the header stop
 //! propagation and inner loops are limited to 32 rounds and 256 visited blocks. The replacement
 //! edge must receive more than twice the old edge's estimated mass. Without the loop odds, the
 //! inner loop of a nested pair looked no hotter than its entry from the outer loop, which kept a
@@ -342,8 +341,13 @@ impl Continuation {
         }
     }
 
+    /// A cold continuation is never taken, so it leaves the other side as it is.
     fn join(self, other: Self) -> Self {
-        if self == other { self } else { Self::Mixed }
+        match (self, other) {
+            (Self::Cold, next) | (next, Self::Cold) => next,
+            _ if self == other => self,
+            _ => Self::Mixed,
+        }
     }
 
     fn of_terminator(module: &Module, body: &DenseBitSet<BlockId>, kind: &TerminatorKind) -> Self {

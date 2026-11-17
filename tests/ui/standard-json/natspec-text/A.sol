@@ -43,3 +43,58 @@ contract E is I {
 
     function m(uint256 w) external {}
 }
+
+contract F {
+    /// base notice
+    /// @dev base dev
+    /// more base dev
+    function n() public virtual {}
+}
+
+contract G is F {
+    /// @inheritdoc F
+    /// @notice local notice
+    function n() public override {}
+}
+
+contract H is F {
+    /// @inheritdoc F
+    /// @dev local dev
+    function n() public override {}
+}
+
+contract K {
+    /// @dev 
+    ///   Multiplies by 7
+    function f() public pure {}
+
+    /**
+     * @notice	
+     *   block nine
+     */
+    function g() public pure {}
+}
+
+contract L is F {
+    /// @inheritdoc F
+    /// @dev local dev
+    /// continued
+    function n() public override {}
+}
+
+interface IA {
+    /// @notice IA notice
+    function q() external;
+}
+
+interface IB {
+    /// @notice IB notice
+    function q() external;
+}
+
+contract M is IA, IB {
+    /// @inheritdoc IA
+
+    /// @inheritdoc IB
+    function q() external override(IA, IB) {}
+}

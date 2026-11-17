@@ -33,8 +33,9 @@ impl EvmMemoryLayout {
     /// size run out of gas, and it stays.
     pub const MAX_DEAD_FILL: u64 = 1 << 20;
     /// Memory size no execution can reach. Expanding memory to this many bytes costs more than
-    /// 2^45 gas, so no heap pointer gets this high, and an address this far below one wraps
-    /// around to the top of the address space, where any access runs out of gas.
+    /// 2^45 gas, so no access gets this high, and an address this far below an accessed one wraps
+    /// around to the top of the address space, where any access runs out of gas. A pointer that
+    /// nothing accessed, such as a free memory pointer that assembly raised, can be higher.
     pub const UNREACHABLE_MEMORY: u64 = 1 << 32;
     /// Returns the word a word-aligned byte offset addresses.
     #[must_use]

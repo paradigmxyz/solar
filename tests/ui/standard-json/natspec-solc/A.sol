@@ -1,4 +1,7 @@
 // The documentation outputs follow solc in which comments, tags, events and errors they list.
+// Errors of one signature from different sources come in the order of the source names.
+
+import "Z.sol";
 
 /// @notice Userdoc for file-level event E.
 /// @dev Devdoc for file-level E.
@@ -49,10 +52,31 @@ contract C {
     /// Multiplies by 7
     function g(bool b) public pure {
         if (b) revert F(1);
+        if (!b) revert Z.F(3);
         revert A.F(2);
     }
 
     function h() public pure {
         revert L.Failed(3);
     }
+}
+
+contract B {
+    /// @notice base k
+    function k() public virtual {}
+
+    /// @notice base m
+    function m() public virtual {}
+}
+
+contract D is B {
+    /// @notice ignored, so k inherits
+
+    ///
+    function k() public override {}
+
+    /// @inheritdoc B
+
+    /// @dev only this
+    function m() public override {}
 }

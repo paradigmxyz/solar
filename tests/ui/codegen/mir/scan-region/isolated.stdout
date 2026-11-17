@@ -1,6 +1,6 @@
-- ; === ROOT/tests/ui/codegen/mir/bit-scan/isolated.mir (before bit-scan) ===
-+ ; === ROOT/tests/ui/codegen/mir/bit-scan/isolated.mir (after bit-scan) ===
-  @module BitScan
+- ; === ROOT/tests/ui/codegen/mir/scan-region/isolated.mir (before scan-region) ===
++ ; === ROOT/tests/ui/codegen/mir/scan-region/isolated.mir (after scan-region) ===
+  @module ScanRegion
   fn @accumulated(arg0: i256) -> i256 {
     bb0:
 -     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
@@ -82,9 +82,9 @@
   
   fn @shared(arg0: i256) -> i256 {
     bb0:
-      v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
-      v1 = zext i1 v0 to i256
-      v2 = shl v1, 7
+-     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+-     v1 = zext i1 v0 to i256
+-     v2 = shl v1, 7
 -     v3 = shr arg0, v2
 -     v4 = gt v3, 0xffffffffffffffff
 -     v5 = zext i1 v4 to i256
@@ -115,79 +115,90 @@
 -     v30 = or v27, v29
 +     v32 = or arg0, 1
 +     v33 = clz v32
-+     v30 = sub 255, v33
++     v34 = sub 255, v33
++     v2 = and v34, 128
++     v35 = or arg0, 1
++     v36 = clz v35
++     v30 = sub 255, v36
       v31 = add v30, v2
       ret v31
   }
   
   fn @split(arg0: i256) -> i256 {
     bb0:
-      v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
-      v1 = zext i1 v0 to i256
-      v2 = shl v1, 7
+-     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+-     v1 = zext i1 v0 to i256
+-     v2 = shl v1, 7
       jump bb1
     bb1:                                            ; preds = bb0
-      v3 = shr arg0, v2
-      v4 = gt v3, 0xffffffffffffffff
-      v5 = zext i1 v4 to i256
-      v6 = shl v5, 6
-      v7 = or v2, v6
-      v8 = shr arg0, v7
-      v9 = gt v8, 0xffffffff
-      v10 = zext i1 v9 to i256
-      v11 = shl v10, 5
-      v12 = or v7, v11
-      v13 = shr arg0, v12
-      v14 = gt v13, 0xffff
-      v15 = zext i1 v14 to i256
-      v16 = shl v15, 4
-      v17 = or v12, v16
-      v18 = shr arg0, v17
-      v19 = gt v18, 255
-      v20 = zext i1 v19 to i256
-      v21 = shl v20, 3
-      v22 = or v17, v21
-      v23 = shr arg0, v22
-      v24 = gt v23, 15
-      v25 = zext i1 v24 to i256
-      v26 = shl v25, 2
-      v27 = or v22, v26
-      v28 = shr arg0, v27
-      v29 = byte v28, 0x10102020202030303030303030300000000000000000000000000000000
-      v30 = or v27, v29
+-     v3 = shr arg0, v2
+-     v4 = gt v3, 0xffffffffffffffff
+-     v5 = zext i1 v4 to i256
+-     v6 = shl v5, 6
+-     v7 = or v2, v6
+-     v8 = shr arg0, v7
+-     v9 = gt v8, 0xffffffff
+-     v10 = zext i1 v9 to i256
+-     v11 = shl v10, 5
+-     v12 = or v7, v11
+-     v13 = shr arg0, v12
+-     v14 = gt v13, 0xffff
+-     v15 = zext i1 v14 to i256
+-     v16 = shl v15, 4
+-     v17 = or v12, v16
+-     v18 = shr arg0, v17
+-     v19 = gt v18, 255
+-     v20 = zext i1 v19 to i256
+-     v21 = shl v20, 3
+-     v22 = or v17, v21
+-     v23 = shr arg0, v22
+-     v24 = gt v23, 15
+-     v25 = zext i1 v24 to i256
+-     v26 = shl v25, 2
+-     v27 = or v22, v26
+-     v28 = shr arg0, v27
+-     v29 = byte v28, 0x10102020202030303030303030300000000000000000000000000000000
+-     v30 = or v27, v29
++     v31 = or arg0, 1
++     v32 = clz v31
++     v30 = sub 255, v32
       ret v30
   }
   
   fn @two_words(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
-      v1 = zext i1 v0 to i256
-      v2 = shl v1, 7
-      v3 = shr arg0, v2
-      v4 = gt v3, 0xffffffffffffffff
-      v5 = zext i1 v4 to i256
-      v6 = shl v5, 6
-      v7 = or v2, v6
-      v8 = shr arg0, v7
-      v9 = gt v8, 0xffffffff
-      v10 = zext i1 v9 to i256
-      v11 = shl v10, 5
-      v12 = or v7, v11
-      v13 = shr arg0, v12
-      v14 = gt v13, 0xffff
-      v15 = zext i1 v14 to i256
-      v16 = shl v15, 4
-      v17 = or v12, v16
-      v18 = shr arg0, v17
-      v19 = gt v18, 255
-      v20 = zext i1 v19 to i256
-      v21 = shl v20, 3
-      v22 = or v17, v21
-      v23 = shr arg0, v22
-      v24 = gt v23, 15
-      v25 = zext i1 v24 to i256
-      v26 = shl v25, 2
-      v27 = or v22, v26
+-     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+-     v1 = zext i1 v0 to i256
+-     v2 = shl v1, 7
+-     v3 = shr arg0, v2
+-     v4 = gt v3, 0xffffffffffffffff
+-     v5 = zext i1 v4 to i256
+-     v6 = shl v5, 6
+-     v7 = or v2, v6
+-     v8 = shr arg0, v7
+-     v9 = gt v8, 0xffffffff
+-     v10 = zext i1 v9 to i256
+-     v11 = shl v10, 5
+-     v12 = or v7, v11
+-     v13 = shr arg0, v12
+-     v14 = gt v13, 0xffff
+-     v15 = zext i1 v14 to i256
+-     v16 = shl v15, 4
+-     v17 = or v12, v16
+-     v18 = shr arg0, v17
+-     v19 = gt v18, 255
+-     v20 = zext i1 v19 to i256
+-     v21 = shl v20, 3
+-     v22 = or v17, v21
+-     v23 = shr arg0, v22
+-     v24 = gt v23, 15
+-     v25 = zext i1 v24 to i256
+-     v26 = shl v25, 2
+-     v27 = or v22, v26
++     v31 = or arg0, 1
++     v32 = clz v31
++     v33 = sub 255, v32
++     v27 = and v33, 252
       v28 = shr arg1, v27
       v29 = byte v28, 0x10102020202030303030303030300000000000000000000000000000000
       v30 = or v27, v29

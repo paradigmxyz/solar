@@ -1,4 +1,4 @@
-; === ROOT/tests/ui/codegen/mir/bit-scan/library_scans.sol:LibraryScans ===
+; === ROOT/tests/ui/codegen/mir/scan-region/library_scans.sol:LibraryScans ===
 @module LibraryScans
 ; function msb(uint256 x) external pure returns (uint256 result) [selector 0x7770a018]
 fn @msb(arg0: i256) -> i256 [selector=0x7770a018, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

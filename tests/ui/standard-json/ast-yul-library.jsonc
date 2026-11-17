@@ -1,0 +1,30 @@
+//@ filecheck:
+// A library name in inline assembly is an external reference to the library, as in solc.
+// CHECK: "nodes": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[LIB:[0-9]+]],
+// CHECK-NEXT: "src": "{{[0-9:]+}}",
+// CHECK-NEXT: "nodeType": "ContractDefinition",
+// CHECK-NEXT: "name": "L",
+// CHECK: "externalReferences": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "src": "{{[0-9:]+}}",
+// CHECK-NEXT: "declaration": [[LIB]],
+// CHECK-NEXT: "isSlot": false,
+// CHECK-NEXT: "isOffset": false,
+// CHECK-NEXT: "valueSize": 1
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "library L {\n    function f() external {}\n}\n\ncontract C {\n    function addr() public pure returns (address a) {\n        assembly {\n            a := L\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": ["ast"]
+      }
+    }
+  }
+}

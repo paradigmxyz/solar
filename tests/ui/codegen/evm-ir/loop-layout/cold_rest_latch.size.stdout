@@ -1,0 +1,56 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/cold_rest_latch.evmir (before loop-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/cold_rest_latch.evmir (after loop-layout) ===
+  @module ColdRestLatch
+  bb0:
+    push 0
+    jump bb1
+  bb1:
+    dup 1
+    push 4
+    gt
+    push bb2
+    jumpi
+    pop
+    stop
+  bb2:
+    push 0
+    jump bb3
+  bb3:
+    dup 1
+    calldataload
+    dup 1
+    push bb4
+    jumpi
+    dup 1
+    push 1
+    eq
+    push bb8
+    jumpi
+    dup 1
+    push 2
+    eq
+    push bb6
+    jumpi
+    jump bb5
+  bb4:
+    pop
+    push 32
+    add
+    jump bb3
+  bb5:
+    pop
+    pop
+    push 1
+    add
+    dup 1
+    calldataload
+    push bb2
+    jumpi
+    jump bb1
+  bb6 [cold]:
+    push 0
+    push 0
+    revert
+  bb8:
+    stop
+  

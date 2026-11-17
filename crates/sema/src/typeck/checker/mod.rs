@@ -740,7 +740,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     match self.check_yul_external_ident(res, ty, expr.span) {
                         Ok(true) => {
                             if self.record_ast_facts
-                                && let hir::Res::Item(hir::ItemId::Variable(declaration)) = res
+                                && let hir::Res::Item(declaration) = res
                             {
                                 self.record_yul_reference(expr.span, None, declaration);
                             }
