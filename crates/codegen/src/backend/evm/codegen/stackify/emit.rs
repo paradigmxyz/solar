@@ -686,8 +686,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// NOTE: LLVM folds a call and the return after it into one tail-call instruction that keeps
     /// the call's `DebugLoc` (`X86ISelLowering.cpp` `LowerCall` builds `X86ISD::TC_RETURN` with the
     /// call's location), and the copies that set up a call's arguments carry the call's location,
-    /// so the arguments of a tail call and its jump map to the call, not to the `return`. The
-    /// `return` statement's own span is therefore not mapped in such a block.
+    /// so the arguments of a tail call and its jump map to the call, not to the `return`. Scheduler
+    /// steps that precede the block's first instruction still take the `return` span, see
+    /// [`Self::set_insertion_origin`].
     fn set_terminator_origin(&mut self, func: &Function, block: BlockId, exit: Option<&Exit>) {
         if self.capture_debug_info {
             let metadata = match exit {
