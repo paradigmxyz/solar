@@ -88,6 +88,7 @@ before either a proof or a counterexample can be accepted.
 | EVM post-precompile suffix | A changed tail after an exactly shared prefix, with canonical recovery-precompile calls and GAS reads retained. | All shared prefix halts are identical; successful suffixes preserve their exit and complete stack/world with no less gas. The shared prefix-executor binding remains trusted. |
 | EVM scalar island | An exact-cost stack rewrite between unchanged contexts, including storage sentries, logs and static guards. | All prefix exits, checked stacks and remaining gas are preserved; context-executor bindings remain trusted. |
 | EVM source graph identity | Identical independently exported reachable graphs, including stateful operations and transfer stack checks. | Every initial state and execution bound under shared node handlers; structural evidence, without an opcode-implementation or physical gas/layout proof. |
+| EVM stack layout | Reordered source nodes and changed zero/one-slot transfer checks, with kernel-checked height bounds. | Every initial height, payload and execution bound under shared schema-shaped handlers; unpriced transfers and explicit dynamic-exit boundaries. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
@@ -1183,9 +1184,9 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/cyclic-region/{before,after}.evm
 ```
 
 This example is a real `cfg-simplify` removal of unreachable code. Nonisomorphic
-loops still require an invariant and remain unsupported. Dynamic
-or escaping labels, layout-observing instructions, stateful operations and priced
-gas regions remain unsupported. Memory uses the existing constant-access
+loops still require an invariant and remain unsupported. This direct-interpreter
+route excludes dynamic or escaping labels, layout-observing instructions,
+stateful operations and priced gas regions. Memory uses the existing constant-access
 256-byte projection. No whole-pass or arbitrary-world claim follows from a
 verified region.
 
@@ -1216,6 +1217,33 @@ Code-image observers and calls remain excluded. Only an unsupported instruction
 selects this fallback; failed import certificates and actual counterexamples
 are never replaced. The broken store has a separate kernel/native scenario
 counterexample. Live pass auditing still leaves emitted bytecode unchanged.
+
+### Stack-safe block layout
+
+Block layout can reorder nodes and add or remove a temporary jump-label push.
+The separate `EVMIR/StackGraph.lean` simulation retains those different stack
+checks and proves them equivalent using a checked upper height at every node:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/stack-layout/{before,after}.evmir \
+  --region bb0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/stack-layout/{after,broken}.evmir \
+  --world solar-tv/examples/evmir/stack-layout/world.json --gas exact
+```
+
+The kernel checks the node mapping, opcode signatures, control edges and local
+height bounds. It quantifies every initial height, including overflow, arbitrary
+live payloads and every execution bound. A caller-supplied `--stack-height`
+cannot establish this result. The payload retains values, memory and account
+state; shared opcode handlers may change it or fail. Binding those handlers'
+height effects to the concrete opcode implementation remains trusted.
+
+Reports name `kernel-checked-schema-stack-layout`, retain the mapping and
+height certificate, and use `unpriced-structural`. Physical jump charges can
+change; this route does not prove gas equality. A raw dynamic `JUMP` is a
+full-payload exit under a shared logical continuation, not a resolved target or
+a proved physical return address. Code-image observers and calls remain
+excluded. Changed operations or unsafe transfer growth remain unsupported.
 
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
@@ -1501,10 +1529,10 @@ a broken-width counterexample are in `examples/mir/width-guard/` and
 its concrete fixture never establishes the positive universal result.
 
 After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
-9 unsupported. Rechecking those frozen pairs now verifies **19 of 24**, with
-5 unsupported, no errors, timeouts or counterexamples. The additional checks
-use FMP lowering, conditional allocation-prefix, exact scalar-island and
-structural source-graph identity certificates, as documented above. Check
+9 unsupported. Rechecking those frozen pairs now verifies **20 of 24**, with
+4 unsupported, no errors, timeouts or counterexamples. The additional checks
+use FMP lowering, conditional allocation-prefix, exact scalar-island,
+source-graph identity and stack-layout certificates, as documented above. Check
 identities and compiler-output fingerprints are unchanged. This uses a new
 compiler/capture fingerprint; it is not comparable to the older 17-of-24 selection above.
 See [CORRECTNESS.md](CORRECTNESS.md#remaining-obligations) for the fingerprints.

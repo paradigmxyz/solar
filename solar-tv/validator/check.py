@@ -959,8 +959,15 @@ def main() -> int:
                 record["region"]["blocks_after"] = list(
                     regions.blocks(programs[1].canonical_ir)
                 )
-                if result.program and result.program.scope == "source-identity":
-                    record["region"]["proof"] = "universal-source-graph-identity"
+                if result.program and result.program.scope in {
+                    "source-identity",
+                    "stack-layout",
+                }:
+                    record["region"]["proof"] = (
+                        "kernel-checked-schema-stack-layout"
+                        if result.program.scope == "stack-layout"
+                        else "universal-source-graph-identity"
+                    )
                     record["region"]["stack_height"] = None
                     if args.stack_height is not None:
                         record["region"]["requested_stack_height"] = args.stack_height

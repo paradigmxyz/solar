@@ -156,6 +156,17 @@ def record(
                     "no physical gas, code-image or backend placement claim",
                 ]
             )
+        elif program and program.scope == "stack-layout":
+            assumptions.extend(
+                [
+                    "independently exported reachable graphs matched under a node renaming; every opcode, operand, terminal and edge retained",
+                    "kernel-checked per-node height bounds from the opcode schema; changed jump stack-growth checks must both be proved safe",
+                    "every initial height, live payload and execution bound under arbitrary shared schema-shaped handlers; early failures and stateful cycles retained; no sampled entry height or world",
+                    "height is architectural state and opcode effects follow schema arities; operand values, memory, accounts and resource state remain in the arbitrary live payload; opcode-handler/height binding remains trusted",
+                    "dynamic JUMP terminals expose the full live payload under a shared logical continuation; no indirect-target reachability or physical return-address correspondence claim",
+                    "transfers are unpriced; source normalizer, raw constructor and schema binding remain trusted; no physical gas, opcode-implementation or backend-layout certificate; code-image observers and calls excluded",
+                ]
+            )
         elif program and program.scope == "source-identity":
             assumptions.extend(
                 [
@@ -302,6 +313,7 @@ def record(
                 "allocation-prefix",
                 "interior-window",
                 "source-identity",
+                "stack-layout",
             }
             and program.symbolic_mir is None
         ):
@@ -339,7 +351,12 @@ def record(
             "unpriced-structural"
             if program
             and program.scope
-            in {"function-pruning", "allocation-prefix", "source-identity"}
+            in {
+                "function-pruning",
+                "allocation-prefix",
+                "source-identity",
+                "stack-layout",
+            }
             else program.gas
             if program
             and program.scope
@@ -417,11 +434,13 @@ def record(
                 "region": {
                     "kind": "region",
                     "name": program.selector,
-                    "proof": "universal-source-graph-identity",
+                    "proof": "kernel-checked-schema-stack-layout"
+                    if program.scope == "stack-layout"
+                    else "universal-source-graph-identity",
                     "stack_height": None,
                 },
             }
-            if program and program.scope == "source-identity"
+            if program and program.scope in {"source-identity", "stack-layout"}
             else {}
         ),
         **(

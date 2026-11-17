@@ -17,7 +17,7 @@ from . import audit, correspondence, native, regions
 from .common import Program, Unsupported, literal
 
 
-def render(model, catalog, version, entry):
+def render(model, catalog, version, entry, *, dynamic_exit=False):
     if not isinstance(model, dict) or not isinstance(model.get("nodes"), list):
         raise Unsupported("invalid source-identity graph")
     rows = model.get("nodes", [])
@@ -95,7 +95,11 @@ def render(model, catalog, version, entry):
         elif (
             kind == "terminal"
             and set(node) == {"kind", "operation"}
-            and node["operation"] in {"stop", "invalid", "return", "revert"}
+            and (
+                node["operation"] in {"stop", "invalid", "return", "revert"}
+                or dynamic_exit
+                and node["operation"] == "jump"
+            )
         ):
             nodes.append(f".terminal {label} {json.dumps(node['operation'])}")
         else:
@@ -128,7 +132,6 @@ def check(paths, solar, replay, version, timeout, entry):
             raise Unsupported(parsed.stderr)
         text = parsed.stdout
         model = correspondence.export(text, entry, version, replay, timeout)
-        expressions.append(render(model, catalog, version, entry))
         texts.append(text)
         models.append(model)
         header = re.split(r"(?m)^bb\d+", text, maxsplit=1)[0]
@@ -137,10 +140,27 @@ def check(paths, solar, replay, version, timeout, entry):
         )
     if headers[0] != headers[1]:
         raise Unsupported("source identity changed shared declarations")
-    if models[0] != models[1]:
-        raise Unsupported(
-            "reachable source graphs differ; an instruction/CFG proof is required"
-        )
+    dynamic_exit = any(
+        row["node"] == {"kind": "terminal", "operation": "jump"}
+        for row in models[0]["nodes"]
+    )
+    if models[0] != models[1] or dynamic_exit:
+        from . import stack_layout
+
+        expressions = [
+            render(model, catalog, version, entry, dynamic_exit=True)
+            for model in models
+        ]
+        try:
+            return stack_layout.check_data(
+                texts, models, expressions, entry, catalog, version, timeout
+            )
+        except Unsupported as error:
+            raise Unsupported(
+                "reachable source graphs differ; an instruction/CFG proof is required\n"
+                + str(error)
+            ) from None
+    expressions = [render(model, catalog, version, entry) for model in models]
     code = (
         PRELUDE
         + f"""

@@ -215,8 +215,15 @@ Acyclic multi-block EVM regions now follow changed successors and shared tails
 through terminal outcomes, with symbolic live-in stacks and memory. Internal
 labels and stack layouts need not correspond. Pure cyclic regions with equal
 independently exported source graphs also admit an all-execution-bounds proof.
-General loop invariants, dynamic/escaping labels, priced region transfers and
-stateful region rewrites that change the exported graph remain unsupported.
+General loop invariants, resolved dynamic targets, priced region transfers and
+stateful instruction rewrites remain unsupported. Reordered graphs also admit
+a kernel-checked mapping with opcode-schema height bounds: changed transfer
+growth checks must be proved safe for every incoming stack. Payloads and
+execution bounds remain arbitrary; physical transfer pricing and the concrete
+opcode-handler embedding remain outside this certificate. Raw dynamic jumps
+may serve only as observed full-payload exits under a shared logical
+continuation, without resolving their targets or proving physical return
+addresses. Escaping labels and code-image observers remain unsupported.
 Identical independently exported stateful graphs have a separate structural
 certificate for every execution bound; opcode and physical-layout bindings
 remain trusted. See

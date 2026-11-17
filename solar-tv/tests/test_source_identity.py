@@ -91,7 +91,7 @@ class SourceIdentityTests(unittest.TestCase):
 
     def test_changed_jump_growth_is_not_normalized_away(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
-        prefix = "@module Growth\nbb0 [stack=0]:\n push 0\n sload\n pop\n jump bb2\n"
+        prefix = "@module Growth\nbb0 [stack=1]:\n sload\n jump bb2\n"
         paths[0].write_text(prefix + "bb2:\n stop\nbb1:\n stop\n")
         paths[1].write_text(prefix + "bb1:\n stop\nbb2:\n stop\n")
         with self.assertRaisesRegex(Unsupported, "graphs differ"):

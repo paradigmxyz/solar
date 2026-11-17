@@ -420,9 +420,31 @@ an opcode-implementation, physical-gas or backend-layout proof. Code-image
 observers and calls remain excluded. The fallback only handles unsupported
 instructions; it cannot replace failed import certificates or counterexamples.
 The real layout pair and a changed-store kernel/native witness are in
-`examples/evmir/graph-identity/`. Tests also reject a changed jump-growth check
+`examples/evmir/graph-identity/`. Tests also reject an unsafe jump-growth change
 and demonstrate its possible overflow under an abstract handler, without
 claiming that arbitrary handler state is reachable in the source module.
+
+Reordered graphs have a separate `kernel-checked-schema-stack-layout` route.
+`EVM.StackGraph.contextual` proves simulation under an explicit node mapping
+and per-source-node height bounds, checked by the kernel with `decide +kernel`.
+The entry bound is 1024, not a sampled frame height. Opcode inputs/outputs come
+from the shared schema; the interpreter checks underflow and overflow and fixes
+the resulting height. Handlers keep an arbitrary payload and may mutate it or
+fail. Different zero/one-slot jump checks match only when the certificate proves
+the source height at most 1023. Tests reject forged predecessor bounds and show
+the overflowing abstract execution; they do not claim that execution is a
+reachable whole-module counterexample.
+
+This theorem holds for every initial height, live payload and execution bound,
+including cyclic paths and early failures. It retains the source graphs rather
+than deleting transfer checks. Parser/CFG normalization, schema data binding and
+the concrete opcode-handler/height embedding remain trusted. Transfers are
+unpriced: physical gas equality is not claimed. A raw dynamic `JUMP` is an
+observed full-payload exit under a shared logical continuation; target resolution
+and physical return-address correspondence are not established. Reports retain
+these exit nodes. The real layout pair, changed-store kernel/native witness,
+unsafe-growth and bytecode-neutrality tests are in
+`examples/evmir/stack-layout/` and `tests/test_stack_layout.py`.
 
 ## Remaining obligations
 
@@ -431,13 +453,14 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **19 of 24**, with
-5 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+Rechecking those same frozen pairs at 30 seconds now verifies **20 of 24**, with
+4 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
 constructor first raised the count to 16; the OpenZeppelin ERC20Mock
 `lower-alloc` constructor then raised it to 17, and WETH's `block-cse` window
 raised it to 18. WETH's `block-layout` region then raised it to 19 through the
-separately reported source-graph identity certificate. No other check changes
-status.
+separately reported source-graph identity certificate. ERC20Mock's
+`block-layout` region then raised it to 20 through the stack-layout simulation.
+No other check changes status.
 The selected check identities, input hashes and compiler-output hashes are
 identical; compilation results are reused.
 The compiler fingerprint is
@@ -478,6 +501,14 @@ branch edges. The structural identity certificate preserves these nodes under
 shared handlers without supplying a stack height or zero-valued context. This
 does not establish opcode implementations or physical transfer prices; those
 remain separate from source-graph equality.
+
+ERC20Mock's `block-layout` region keeps every source operation and edge but
+reorders node IDs and changes three temporary transfer checks. Their checked
+source-height bounds are each 1021, so neither version can overflow at those
+transfers. The kernel verifies the node mapping, local bound obligations and
+simulation for every execution bound. Its dynamic return is an explicit
+full-payload exit under a shared logical continuation. This does not resolve
+that target, prove physical return addresses or price the changed jumps.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.
