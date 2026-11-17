@@ -502,7 +502,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if invert { (else_edge, then_edge) } else { (then_edge, else_edge) };
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
                 let label = edge_label(self, taken);
-                self.emit_conditional_jump(label, invert);
+                if invert {
+                    // The `ISZERO` computes the peeled `eq`, if any, and keeps its location.
+                    let terminator_origin = self.asm.debug_origin();
+                    if self.capture_debug_info
+                        && let Some(zero_test) = plan.zero_test
+                    {
+                        self.set_origins(&func.inst(zero_test).metadata);
+                    }
+                    self.asm.emit_op(op::ISZERO);
+                    self.asm.set_debug_origin(terminator_origin);
+                }
+                self.emit_conditional_jump(label, false);
                 for step in fall.trampoline.iter().flatten() {
                     self.emit_stackified_step(func_id, func, step, cold);
                 }
