@@ -146,7 +146,17 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "function-pruning":
+        if program and program.scope == "allocation-prefix":
+            assumptions.extend(
+                [
+                    "explicit allocation-producer contract: initial FMP is aligned, at least 128, equals its memory word, and the total reserved extent does not wrap uint64; initial active memory is aligned and includes bytes 0x40..0x5f",
+                    "arbitrary byte contents, live memory size and allocation cursor; same final cursor, active memory, ordered byte writes and call arguments before an identical continuation",
+                    "callee declarations and call suffix are unchanged; arbitrary continuation includes loops, failure and state effects, with no termination or successful-callee assumption",
+                    "trusted compiler parser/schema export, SSA-to-byte-memory projection and producer/continuation binding; this is a conditional prefix certificate, not full-state interpreter import correspondence or a proof that every caller establishes the producer contract",
+                    "no physical gas, code-image or backend placement claim",
+                ]
+            )
+        elif program and program.scope == "function-pruning":
             assumptions.extend(
                 [
                     "complete compiler-validated MIR modules; every retained declaration and named reference is unchanged; all external entries remain and retained call targets are closed",
@@ -247,7 +257,11 @@ def record(
             )
             if program:
                 assumptions.append(f"entry stack height {program.interface[1]}")
-        if program and program.scope and program.scope != "function-pruning":
+        if (
+            program
+            and program.scope
+            and program.scope not in {"function-pruning", "allocation-prefix"}
+        ):
             assumptions.append(
                 "function-local proof with supplied callees; no whole-pass claim"
                 if program.symbolic_mir is not None
@@ -267,6 +281,7 @@ def record(
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "function-pruning",
+                "allocation-prefix",
             }
             and program.symbolic_mir is None
         ):
@@ -302,7 +317,7 @@ def record(
         "target": target,
         "gas_policy": (
             "unpriced-structural"
-            if program and program.scope == "function-pruning"
+            if program and program.scope in {"function-pruning", "allocation-prefix"}
             else program.gas
             if program
             and program.scope
@@ -323,6 +338,17 @@ def record(
         ),
         "assumptions": assumptions,
         "inputs": sources,
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "proof": "producer-valid-allocation-prefix",
+                },
+            }
+            if program and program.scope == "allocation-prefix"
+            else {}
+        ),
         **(
             {
                 "whole_pass": False,

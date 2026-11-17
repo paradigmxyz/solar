@@ -1311,6 +1311,41 @@ function-pointer dispatchers, backend-memory records, changed surviving bodies
 or globals, and modules without explicit entry points are unsupported. Each
 module is limited to 1 MiB and 128 functions.
 
+### Allocation prefixes before unchanged cyclic callees
+
+An allocation-coalescing constructor can finish all changed instructions before
+entering an unchanged storage helper. The checker validates that cut rather
+than unrolling the helper's loops. Its byte-memory theorem preserves every
+initialized byte, final allocation cursor and active memory size. Ordered calls
+and their arguments must agree, all supplied bodies must be identical, and the
+continuation cannot call back into the changed constructor. A continuation may
+fail, loop or mutate state; successful termination is never assumed.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/coalesce-allocs/{before,after}.mir \
+  --function constructor
+solar-tv/solar-tv mir solar-tv/examples/mir/coalesce-allocs/{before,broken}.mir \
+  --function constructor --world solar-tv/examples/mir/coalesce-allocs/world.json
+```
+
+This is explicitly a **conditional prefix certificate**. The allocation
+producer must establish an aligned FMP of at least 128, represented by the word
+at `0x40`, and a nonwrapping total extent below `2^64`. Active memory must be
+aligned and include that word. The cursor and byte contents remain arbitrary;
+the checker never supplies an initial cursor. Proving every caller establishes
+the contract remains separate work. Only infallible, uninitialized reservations
+and aligned constant word stores inside the current reservation are admitted.
+Intermediate FMP reads, checked/zeroed allocations, changed helpers and changed
+call arguments are rejected.
+
+Reports distinguish `producer-valid-allocation-prefix` from direct interpreter
+proofs and use `unpriced-structural`. The compiler parser/schema export,
+SSA-to-byte-memory projection and continuation binding remain trusted. Byte
+writes agree with the shared byte-list memory operation in the active range;
+the kernel also checks FMP read-over-write and disjointness laws. This does not
+certify physical gas, backend placement or full SSA import correspondence. The
+broken initializer has a counterexample checked by Lean and Rust replay.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1335,8 +1370,8 @@ denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
 
-The same eight-check-per-contract sample now verifies **16 of 24** with
-`--timeout 30`; 8 remain unsupported, with no counterexamples, timeouts or
+The same eight-check-per-contract sample now verifies **17 of 24** with
+`--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
 Four additions are complete terminal paths formerly rejected for unknown stack
 heights: WETH block layout, ERC20Mock tail merge and loop layout, and Morpho tail
@@ -1358,8 +1393,11 @@ Its post-precompile predicate peephole also verifies, with all 103 shared
 prefix instructions bound into the contextual suffix certificate.
 WETH's deletion of two unreferenced token-transfer hooks now verifies with the
 separately reported rooted function-table certificate described above.
+ERC20Mock's allocation-coalescing constructor now discharges the conditional
+prefix obligation described above. This result includes its explicit allocation
+producer contract; it does not establish that contract at every caller.
 
-The original ten-second budget verifies **15 of 24**, with that larger MIR proof
+The original ten-second budget verifies **16 of 24**, with that larger MIR proof
 still timing out. It closes in about 25 seconds without increasing Lean's
 heartbeat limit. Shared source tables, delayed result observation and canonical
 width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and

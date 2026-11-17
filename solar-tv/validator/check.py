@@ -783,10 +783,34 @@ def main() -> int:
                     for path in (args.before, args.after)
                 ]
             except Unsupported as error:
+                # An unchanged cyclic call suffix does not need unrolling when
+                # a producer-valid allocation prefix has a contextual proof.
+                # Keep the original rejection if the exact cut is not admitted.
+                if (
+                    args.ir == "mir"
+                    and args.function
+                    and not args.world
+                    and not args.gas
+                    and str(error) == "symbolic MIR cycles require an invariant"
+                ):
+                    from . import coalesce
+
+                    try:
+                        result = coalesce.check(
+                            (args.before, args.after),
+                            solar,
+                            rust_replay,
+                            version,
+                            args.timeout,
+                            args.function,
+                        )
+                    except Unsupported:
+                        raise error from None
+                    programs = list(result.pair)
                 # Scalar windows lack caller/calldata context and dynamic-return
                 # correspondence. Try a universal contextual certificate rather
                 # than supplying defaults or replacing an actual counterexample.
-                if (
+                elif (
                     args.ir != "evmir"
                     or not args.window
                     or args.world
@@ -801,16 +825,17 @@ def main() -> int:
                     }
                 ):
                     raise
-                result = prefix.check(
-                    (args.before, args.after),
-                    solar,
-                    rust_replay,
-                    args.timeout,
-                    args.window,
-                    version,
-                    args.gas,
-                )
-                programs = list(result.pair)
+                else:
+                    result = prefix.check(
+                        (args.before, args.after),
+                        solar,
+                        rust_replay,
+                        args.timeout,
+                        args.window,
+                        version,
+                        args.gas,
+                    )
+                    programs = list(result.pair)
             else:
                 result = check(
                     programs[0],
