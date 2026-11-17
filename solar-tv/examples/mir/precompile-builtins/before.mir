@@ -1,9 +1,11 @@
 @module BuiltinHashes
 fn @f() -> i256 {
-bb0:
-    jump bb1
-bb1:
+  bb0:
     v0 = inttoptr i256 128 to ptr<memory>
-    v1 = icall sha256<>, v0
-    ret v1
+    jump bb1
+  bb1:
+    v710 = extcall static word i160 2, v0, gas 100000
+    icall revert_if_zero<empty>, v710
+    v2 = mload 0
+    ret v2
 }

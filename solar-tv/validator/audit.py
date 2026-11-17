@@ -115,7 +115,7 @@ def record(
                     "external account reads use live state; codecopy/codesize require an explicit code image; literal data patches use supplied library addresses and deferred copies require linked extents; known data must agree with a supplied image; export budget 64 KiB",
                     "message_gas supplies ordered pre-message caller budgets; memory growth, account/value/initcode charges, EIP-150 clipping, stipend and unused child gas are modeled; absent message_gas requires explicit requested CALL gas and assumes sufficient caller gas",
                     "CREATE child gas follows message_gas or explicit creation_gas boundary inputs; abstract MIR instructions remain unpriced",
-                    "precompile builtin child gas is supplied by ordered builtin_gas boundary inputs; missing budgets are unsupported; scratch, returndata and child gas failures are retained",
+                    "precompiles use extcall with explicit input staging and scratch-word output; child gas follows call operands or ordered message_gas caller budgets; scratch, returndata and child gas failures remain observable",
                     "compiler-generated check messages follow the fixture's debug_reverts setting; user require payloads are already explicit in MIR",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",

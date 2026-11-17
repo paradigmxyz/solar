@@ -30,11 +30,11 @@ use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
 
 use super::{
-    AbiEncodeMode, AbiWordValidator, AbiLayoutRef, AbiParamLayoutRef, AllocationSemantics, ArithmeticKind, BlockId,
-    Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
-    StructId, ValueId, ValueLayout, typing,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AbiWordValidator, AllocationSemantics,
+    ArithmeticKind, BlockId, Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize, EffectKind,
+    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind,
+    Semantics, StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;

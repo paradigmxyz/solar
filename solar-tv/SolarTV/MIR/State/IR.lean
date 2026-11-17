@@ -37,10 +37,7 @@ inductive ArrayElement where
 
 inductive MessageOp where
   | raw (opcode : Nat)
-  | address (opcode : Nat) (hasGas hasValue : Bool)
-  | transfer (revertOnFailure : Bool)
-  | hash (ripemd : Bool)
-  | recover
+  | address (opcode : Nat) (hasGas hasValue hasInput outputWord clearWord : Bool)
 
 inductive StorageObjectOp where
   | bytes (op : StorageBytesOp)

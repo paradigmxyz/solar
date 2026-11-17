@@ -52,7 +52,7 @@ class MirImplicitGasTests(unittest.TestCase):
 
     def test_upfront_out_of_gas_rolls_back_caller_writes(self):
         before = calls.source(gas=None).replace(
-            "v3 = address_call", "sstore 0, 7\nv3 = address_call"
+            "v3 = extcall", "sstore 0, 7\nv3 = extcall"
         )
         _, record = self.pair(
             before,
@@ -94,7 +94,7 @@ class MirImplicitGasTests(unittest.TestCase):
     def test_warmth_and_budget_order_across_calls(self):
         before = calls.source(gas=None).replace(
             "v4 = zext i1 v3 to i256",
-            "v7 = address_call v0, v1\nv4 = zext i1 v7 to i256",
+            "v7 = extcall v0, v1\nv4 = zext i1 v7 to i256",
         )
         _, record = self.pair(
             before,

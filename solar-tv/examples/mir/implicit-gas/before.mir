@@ -6,7 +6,7 @@ v0 = trunc i256 v8 to i160
 mstore 128, 3
 mstore 160, 44048180597813453602326562734351324025098966208897425494240603688123167145984
 v1 = inttoptr i256 128 to ptr<memory>
-v3 = address_call v0, v1
+v3 = extcall v0, v1
 returndatacopy 224, 0, 32
 v4 = mload 224
 ret v4

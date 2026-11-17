@@ -34,10 +34,10 @@
 //! to emit for it.
 
 use crate::{
-    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiWordValidator, AddressCallKind,
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, FrameMode,
-    FrameSlotKind, ImmutableId, InstKind, LogTopics, MirType, PackedPart, PtrLocation, ValueId,
-    ValueLayout,
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiWordValidator, AllocationSemantics,
+    ArithmeticKind, BlockId, CallOutput, CallPolicy, Callee, CheckedOp, DataRef, ExtCallKind,
+    FrameMode, FrameSlotKind, ImmutableId, InstKind, LogTopics, MirType, PackedPart, PtrLocation,
+    ValueId, ValueLayout,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -112,8 +112,8 @@ pub enum Semantics<'a> {
     FrameLoad(u64, FrameMode, FrameSlotKind),
     /// Write a logical mutable-local slot under the named frame convention.
     FrameStore(u64, FrameMode, FrameSlotKind, ValueId),
-    /// Low-level address call over a memory object or slice, with optional gas and value.
-    AddressCall(&'static str, ValueId, ValueId, Option<ValueId>, Option<ValueId>),
+    /// External call with optional memory input, gas, value and a policy-selected output range.
+    ExtCall(&'static str, CallOutput, ValueId, Option<ValueId>, Option<ValueId>, Option<ValueId>),
     /// An explicitly placed internal frame, offset in bytes.
     InternalFrameAddress(u64),
     /// The copied constructor input's base or end address.
@@ -340,20 +340,20 @@ pub(super) mod declare {
         Semantics::FrameStore(*offset, *mode, *kind, *value)
     }
 
-    /// Address-call kind selects a message opcode; input retains its typed representation.
-    pub(crate) fn address_call(
-        kind: &AddressCallKind,
+    /// The call policy selects the opcode and output; optional input retains its representation.
+    pub(crate) fn external_call(
+        policy: &CallPolicy,
         address: &ValueId,
-        input: &ValueId,
+        input: &Option<ValueId>,
         gas: &Option<ValueId>,
         value: &Option<ValueId>,
     ) -> Semantics<'static> {
-        let opcode = match kind {
-            AddressCallKind::Call => "call",
-            AddressCallKind::Static => "staticcall",
-            AddressCallKind::Delegate => "delegatecall",
+        let opcode = match policy.kind {
+            ExtCallKind::Call => "call",
+            ExtCallKind::Static => "staticcall",
+            ExtCallKind::Delegate => "delegatecall",
         };
-        Semantics::AddressCall(opcode, *address, *input, *gas, *value)
+        Semantics::ExtCall(opcode, policy.output, *address, *input, *gas, *value)
     }
 
     /// An explicit frame placement, without consulting backend records.

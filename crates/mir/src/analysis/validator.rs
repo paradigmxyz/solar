@@ -45,10 +45,10 @@
 //! ```
 
 use crate::{
-    AbiType, BlockId, Builtin, Callee, ExtCallKind, FrameMode, FrameSlotKind, Function,
-    FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module,
-    PtrLocation, RequireKind, ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value,
-    ValueId, analysis::CfgInfo, memory::EvmMemoryLayout,
+    AbiType, BlockId, Builtin, Callee, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId,
+    InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
+    RequireKind, ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId,
+    analysis::CfgInfo, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;

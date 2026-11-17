@@ -103,53 +103,30 @@ def messageArguments (cfg : Config) (frame : Frame) (op : MessageOp) (operands :
     if opcode == 0xf1 || opcode == 0xf2 || opcode == 0xf4 || opcode == 0xfa then
       return (opcode,args.drop 1,frame,some (← required args[0]? "missing call gas"))
     else return (opcode,args,frame,none)
-  | .transfer _,[address,amount] =>
-    let address ← read frame address
-    let amount ← read frame amount
-    let gas := if amount == 0 then 2300 else 0
-    return (0xf1,[address,amount,0,0,0,0],frame,some gas)
-  | .hash ripemd,[input] =>
-    let input ← readValue frame input
-    let (offset,length,frame) ← match input with
-      | .scalar object => do
-        let memory ← expand frame.memory object.word.toNat 32
-        pure (object.word+32,readWord memory object.word.toNat,{frame with memory})
-      | .aggregate [pointer,length] => pure (← pointer.word,← length.word,frame)
-      | _ => .error "hash input representation"
-    let gas ← required cfg.builtinGas[frame.builtinIndex]? "missing MIR builtin gas budget"
-    let opcode := if cfg.available.contains 0xfa then 0xfa else 0xf1
-    let args := [if ripemd then 3 else 2] ++
-      (if opcode = 0xf1 then [0] else []) ++ [offset,length,0,32]
-    return (opcode,args,{frame with builtinIndex := frame.builtinIndex+1},some (BitVec.ofNat 256 gas))
-  | .recover,[hash,v,r,s] =>
-    let words ← [hash,v,r,s].mapM (read frame)
-    let memory ← expand frame.memory 64 32
-    let input := readWord memory 64
-    let mut memory := memory
-    for (word,index) in words.zipIdx do
-      let address := input+BitVec.ofNat 256 (32*index)
-      memory ← expand memory address.toNat 32
-      memory := writeBytes memory address.toNat (wordBytes word)
-    memory ← expand memory 0 32
-    memory := writeBytes memory 0 (wordBytes 0)
-    let gas ← required cfg.builtinGas[frame.builtinIndex]? "missing MIR builtin gas budget"
-    let opcode := if cfg.available.contains 0xfa then 0xfa else 0xf1
-    let args := [1] ++ (if opcode = 0xf1 then [0] else []) ++ [input,128,0,32]
-    return (opcode,args,{frame with memory,builtinIndex := frame.builtinIndex+1},some (BitVec.ofNat 256 gas))
-  | .address opcode hasGas hasValue,address :: input :: rest =>
-    if rest.length != (if hasGas then 1 else 0) + (if hasValue then 1 else 0) ||
+  | .address opcode hasGas hasValue hasInput outputWord clearWord,address :: operands =>
+    if operands.length != (if hasInput then 1 else 0) + (if hasGas then 1 else 0) + (if hasValue then 1 else 0) ||
         (opcode != 0xf1 && hasValue) then .error "MIR address-call operand count" else
     let address ← read frame address
-    let input ← readValue frame input
+    let input ← if hasInput then some <$> readValue frame (← required operands[0]? "missing call input") else pure none
+    let rest := operands.drop (if hasInput then 1 else 0)
     let gas ← if hasGas then some <$> read frame (← required rest[0]? "missing call gas") else pure none
     let amount ← if hasValue then read frame (← required rest[if hasGas then 1 else 0]? "missing call value") else pure 0
     let (offset,length,frame) ← match input with
-      | .scalar object => do
+      | none => pure (0,0,frame)
+      | some (.scalar object) => do
         let memory ← expand frame.memory object.word.toNat 32
         pure (object.word + 32,readWord memory object.word.toNat,{frame with memory})
-      | .aggregate [pointer,length] => pure (← pointer.word,← length.word,frame)
+      | some (.aggregate [pointer,length]) => pure (← pointer.word,← length.word,frame)
       | _ => .error "undefined address-call input"
-    let args := [address] ++ (if opcode = 0xf1 then [amount] else []) ++ [offset,length,0,0]
+    let frame ← if outputWord && clearWord then do
+        let memory ← expand frame.memory 0 32
+        pure {frame with memory := writeBytes memory 0 (wordBytes 0)}
+      else pure frame
+    let opcode ← if opcode == 0xfa && !cfg.available.contains 0xfa then
+        if 1 ≤ address.toNat && address.toNat ≤ 4 then pure 0xf1
+        else .error "pre-Byzantium static extcall requires a precompile"
+      else pure opcode
+    let args := [address] ++ (if opcode = 0xf1 then [amount] else []) ++ [offset,length,0,if outputWord then 32 else 0]
     return (opcode,args,frame,gas)
   | _,_ => .error "MIR address-call operand count"
 

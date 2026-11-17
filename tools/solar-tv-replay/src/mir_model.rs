@@ -438,27 +438,15 @@ fn export_operation(
             Semantics::FrameStore(offset, mode, kind, value) => {
                 frame_operation(module, body, offset, mode, kind, Some(value))?
             }
-            Semantics::AddressCall(name, address, input, gas, value) => {
-                let mut args = vec![address, input];
+            Semantics::ExtCall(name, output, address, input, gas, value) => {
+                let mut args = vec![address];
+                args.extend(input);
                 args.extend(gas);
                 args.extend(value);
-                json!({"kind":"address_call","name":name,"gas":gas.is_some(),"value":value.is_some(),"args":operands(module,body,&args)?})
+                json!({"kind":"extcall","name":name,"input":input.is_some(),"output_word":output == solar_mir::CallOutput::Word,"clear_word":body.extcall_clears_word(address),"gas":gas.is_some(),"value":value.is_some(),"args":operands(module,body,&args)?})
             }
             Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
                 json!({"kind":"returndata_bytes","args":[]})
-            }
-            Semantics::Call(
-                Callee::Builtin(
-                    builtin @ (Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover),
-                ),
-                args,
-            ) => {
-                let name = match builtin {
-                    Builtin::Sha256 => "sha256",
-                    Builtin::Ripemd160 => "ripemd160",
-                    _ => "ecrecover",
-                };
-                json!({"kind":"precompile_builtin","name":name,"args":operands(module,body,args)?})
             }
             Semantics::HeapFloor => {
                 json!({"kind":"layout","query":"heap_floor","function":body.name.to_string(),"args":[]})
@@ -616,12 +604,6 @@ fn export_operation(
             }
             Semantics::Call(Callee::Builtin(Builtin::Erc7201), args) => {
                 json!({"kind":"namespace","args":operands(module,body,args)?})
-            }
-            Semantics::Call(
-                Callee::Builtin(builtin @ (Builtin::Send | Builtin::Transfer)),
-                args,
-            ) => {
-                json!({"kind":"value_transfer","revert":matches!(builtin,Builtin::Transfer),"args":operands(module,body,args)?})
             }
             Semantics::Call(Callee::Builtin(Builtin::Require(kind)), args) => match kind {
                 RequireKind::EmptyString => {

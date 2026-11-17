@@ -387,7 +387,7 @@ class OperationTests(unittest.TestCase):
             self.assertEqual(inventory["mir"][name], "direct_state")
         for name in (
             "icall",
-            "address_call",
+            "extcall",
             "gas",
         ):
             self.assertEqual(inventory["mir"][name], "partial_family")
