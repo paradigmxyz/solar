@@ -617,8 +617,8 @@ impl PlannerBase {
                 && let Some(input) =
                     Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
             {
-                inverted ^= matches!(kind, InstKind::Eq(..));
                 if matches!(kind, InstKind::Eq(..)) {
+                    inverted = !inverted;
                     zero_test = Some(def);
                 }
                 skipped.insert(def);
