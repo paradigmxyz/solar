@@ -3,9 +3,9 @@
 #
 #   tools/certify/erc20_any/run.sh LEAN_DIR SOLAR_STAGES_BIN OUT
 #
-# LEAN_DIR: solidity-lean at tools/certify/solidity-lean.rev after scripts/verify/uniswap_v2_gen.sh,
-# uniswap_v2_stages.sh and uniswap_v2_transfer_slice.sh. SOLAR_STAGES_BIN: solar built at
-# LEAN_DIR/scripts/verify/uniswap_v2_stages-solar-rev. OUT: logs and receipts.
+# LEAN_DIR: solidity-lean at its erc20-gates commit after scripts/verify/uniswap_v2_gen.sh,
+# uniswap_v2_transfer_slice.sh and prep.sh. SOLAR_STAGES_BIN: the candidate compiler prep.sh
+# pinned (EXPECT_SOLAR_SHA256, EXPECT_SOLAR_COMMIT). OUT: logs and receipts.
 # Steps: fresh emit; the dependency module at its pinned digest; gen.py; build; check_final. Each
 # step's exit and peak RSS go to OUT/steps. The kernel replay and negatives are replay.sh and neg.sh.
 set -uo pipefail
@@ -18,6 +18,12 @@ step() { local n=$1; shift
   echo "$n exit=$rc peak_rss_kb=$(awk '/Maximum resident/{print $NF}' "$out/$n.time") $(date -u +%FT%TZ)" | tee -a "$out/steps"
   return $rc; }
 cd "$lean"
+# The producer: only the pinned candidate binary (prep.sh's EXPECT_SOLAR_SHA256 and
+# EXPECT_SOLAR_COMMIT) may emit, and its commit must be the stage export's.
+: "${EXPECT_SOLAR_SHA256:?pin the candidate binary}" "${EXPECT_SOLAR_COMMIT:?pin the candidate commit}"
+[[ $(sha256sum < "$solar" | cut -c1-64) == "$EXPECT_SOLAR_SHA256" ]] || { echo "refused: $solar is not the pinned binary" >&2; exit 1; }
+[[ $("$solar" --version | head -1) == *"commit.${EXPECT_SOLAR_COMMIT:0:8}"* ]] || { echo "refused: $solar is not commit $EXPECT_SOLAR_COMMIT" >&2; exit 1; }
+grep -q "commit.${EXPECT_SOLAR_COMMIT:0:8}" Certified/uv2_erc20/gen/UniswapV2ERC20/manifest.json || { echo "refused: the stage export is another compiler's" >&2; exit 1; }
 mapfile -t opts < Certified/uv2_erc20/options
 (cd scripts/verify/uniswap-v2 && "$solar" "${opts[@]}" --emit bin-runtime UniswapV2ERC20.sol) > "$out/fresh.json" || exit 1
 echo "solar $(sha256sum < "$solar" | cut -c1-64) $("$solar" --version | head -1)" > "$out/identities"
