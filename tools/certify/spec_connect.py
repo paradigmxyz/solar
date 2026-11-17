@@ -42,7 +42,7 @@ import tempfile
 PROBE = """import {core}
 import {spec}
 import Verify.VC.Model
-
+{sym_import}
 open SolidCore.Refinement SolidCore.Refinement.Generic SolidCore.Solidity
 
 #eval show IO Unit from do
@@ -63,6 +63,18 @@ open SolidCore.Refinement SolidCore.Refinement.Generic SolidCore.Solidity
       | some (n, none) => IO.println s!"SPEC_CONNECT fn {{fs.name}} {{n}} noerase"
       | some (n, some t) =>
         IO.println s!"SPEC_CONNECT fn {{fs.name}} {{n}} {{fs.succeedsIf.length}} {{fs.selector}} TREE {{(repr t).pretty 100000}}"
+{sym}"""
+
+# --any-caller: the erasure with `msg.sender` the symbolic word (`eraseFnSym`, the stage for
+# every caller), whether the function is payable and its argument widths, after the lines above.
+PROBE_SYM = """    for fs in ({bundle}).spec.specs do
+      match c.core.findFunctionBySelector? fs.selector with
+      | none => IO.println s!"SPEC_CONNECT sym {{fs.name}} none"
+      | some f =>
+        match eraseFnSym (envOf c.core) {ns}.fuel f with
+        | none => IO.println s!"SPEC_CONNECT sym {{fs.name}} noerase"
+        | some t =>
+          IO.println s!"SPEC_CONNECT sym {{fs.name}} {{f.payable}} {{repr (widthsOf f.params f.paramAbiCleanups)}} TREE {{(repr t).pretty 100000}}"
 """
 
 
@@ -164,6 +176,126 @@ def tree_succeeds_tolerant(ds):
     """The tolerant `tree_succeeds` proof body for the simp set `ds`."""
     return TREE_SUCCEEDS_TOLERANT.replace("@DS@", f"{ds}, *")
 
+
+def parse_sym(line):
+    """A probe line `sym NAME PAYABLE (some [w, ...]) TREE t` as (name, payable, widths, tree):
+    payable is None (no function of its selector) or "noerase" when there is no tree."""
+    parts = line.split(" ", 2)
+    name, rest = parts[1], parts[2] if len(parts) > 2 else ""
+    if rest in ("none", "noerase"):
+        return name, (None if rest == "none" else "noerase"), None, None
+    m = re.fullmatch(r"(true|false) (?:some )?(\[[^\]]*\]|none) TREE (.*)", rest, re.DOTALL)
+    if not m:
+        sys.exit(f"spec_connect: unreadable probe line: {line[:200]}")
+    return name, m.group(1) == "true", None if m.group(2) == "none" else m.group(2), m.group(3)
+
+
+def any_caller_refusal(sym, slots):
+    """Why --any-caller cannot state a function's spec from every caller, or None."""
+    if sym is None or sym[0] is None:
+        return "no function of its selector"
+    if sym[0] == "noerase":
+        return "outside the generic source stage for every caller (eraseFnSym)"
+    payable, ws, _ = sym
+    if payable:
+        return "payable: a call with value runs its tree, which holdsFn_of_tree_from does not cover"
+    if ws is None:
+        return "its argument widths are not known (widthsOf)"
+    if slots[0] or slots[1]:
+        return "reads mappings, which the every-caller proof does not cover yet"
+    return None
+
+
+def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings):
+    """--any-caller: `fid`'s spec of SolidCore's run sent by every account `a < 2 ^ 160` other than the
+    contract, each in its own context (`ctxOfCallFrom a`), at every value below `2 ^ 256`
+    (`SolidCore.Spec.holdsFn_of_tree_from`, Verify/Spec/TreeFrom.lean), from the symbolic-caller
+    tree `{fid}_tree_from`. No theorem of it names the fixed `ctx`, `ctxOf` or a literal caller;
+    what each theorem proves is checked by the kernel when the module builds."""
+    ds = f"{fid}_tree_from, {fid}_spec, {mod}.spec, {bundle}, SolidCore.Spec.ctxAt, hca"
+    ds0 = f"{fid}_tree_from, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, SolidCore.Spec.ctxAt, hca"
+    caller = "  intro a ha hne\n  have hca : a % 2 ^ 256 = a := Nat.mod_eq_of_lt (by omega)"
+    meets0 = f"{caller}\n  tree_meets_fixed [{ds0 if nsi else ds}]"
+    out = [
+        f"/-- The stage's erasure of `{name}` for every caller (`msg.sender` the symbolic word). -/",
+        f"def {fid}_tree_from : Tree :=",
+        "  @TREE@",
+        "",
+        f"/-- How SolidCore dispatches `{name}`, the erasure for every caller, whether it is payable and",
+        "its argument widths. -/",
+        f"def {fid}_erase_from? : Option (Nat × Option Tree × Bool × Option (List Nat)) :=",
+        f"  match {ns}.contract? with",
+        f"  | .ok c => (c.core.findFunctionBySelector? (fn_{fid}).sel).map fun f =>",
+        f"      (f.params.length, eraseFnSym (envOf c.core) {ns}.fuel f, f.payable, widthsOf f.params f.paramAbiCleanups)",
+        "  | .error _ => none",
+        "",
+        f"kernel_rfl {fid}_erase_from_eq {fid}_erase_from? (some ({n}, some {fid}_tree_from, false, some {ws})) using {usings}",
+        "",
+    ]
+    if nsi:
+        out += [
+            "set_option maxHeartbeats 4000000 in",
+            f"/-- `{name}`'s spec without its succeeds-if conditions, from every caller. -/",
+            f"theorem {fid}_meets0_from : TreeMeetsFrom spec {fid}_spec.noSucc {n} {fid}_tree_from := by",
+            meets0,
+            "",
+            "set_option maxHeartbeats 4000000 in",
+            "set_option linter.unusedTactic false in",
+            "set_option linter.unreachableTactic false in",
+            "set_option linter.unnecessarySeqFocus false in",
+            f"/-- `{name}`'s succeeds-if conditions, from every caller. -/",
+            f"theorem {fid}_succeeds_from : ∀ a, a < 2 ^ 160 → a ≠ selfAddress →",
+            f"    TreeSucceedsAt a spec {fid}_spec (ctxAt a 0) {n} {fid}_tree_from := by",
+            caller,
+            tree_succeeds_tolerant(ds).rstrip(),
+            "",
+            f"/-- `{name}`'s spec, from every caller. -/",
+            f"theorem {fid}_meets_from : TreeMeetsFrom spec {fid}_spec {n} {fid}_tree_from :=",
+            f"  fun a ha hne => treeMeetsFixedAt_of_succeeds ({fid}_meets0_from a ha hne) ({fid}_succeeds_from a ha hne)",
+            "",
+        ]
+    else:
+        out += [
+            "set_option maxHeartbeats 4000000 in",
+            f"/-- `{name}`'s spec, from every caller. -/",
+            f"theorem {fid}_meets_from : TreeMeetsFrom spec {fid}_spec {n} {fid}_tree_from := by",
+            meets0,
+            "",
+        ]
+    out += [
+        f"/-- No call of `{name}` with a value other than 0 meets its succeeds-if conditions. -/",
+        f"theorem {fid}_value_refuses : ValueRefuses spec {fid}_spec := by",
+        "  intro a v iargs pre hv0 hv hne hsat",
+        "  first",
+        f"  | (simp [{fid}_spec, {mod}.spec, {bundle}] at hne; done)",
+        f"  | (try simp only [Bundle.satAll, Bundle.sat, {fid}_spec, {mod}.spec, {bundle},",
+        "        List.getElem_cons_zero, List.getElem_cons_succ, List.mem_cons, List.not_mem_nil, or_false,",
+        "        forall_eq_or_imp, forall_eq, eval, mkEnv, Env.cur, SolidCore.Spec.ctxAt, BinOp.apply,",
+        "        ofProp_ne_zero, decide_eq_true_eq] at hsat",
+        "     simp_all; done)",
+        "",
+        f"/-- **`{name}`'s spec holds of SolidCore's checked contract from every caller, at every value**",
+        "(the contract's address and the block's timestamp those of `ctxOfCallFrom`). -/",
+        f"theorem {fid}_holds_from {{c : SolidCore.Solidity.TypeCheck.CheckedContract}} (hc : {ns}.contract? = .ok c)",
+        f"    (step : GhostStep) (hstep : ∀ call, valueScope fn_{fid} deployed call → ∀ g, step call g = g) :",
+        "    ∀ a, a < 2 ^ 160 → a ≠ selfAddress →",
+        f"      HoldsFn (solidCoreFrom a {ns}.fuel) c (valueScope fn_{fid} deployed) spec",
+        f"        (SolidCore.Verify.AnyCaller.ctxOfCallFrom a) step {fid}_spec := by",
+        "  have hdep := deploy_eq",
+        "  simp only [deploy?, hc] at hdep",
+        "  obtain ⟨dd, hdd⟩ := Wide.deployedAt_of hdep",
+        f"  have hmap := {fid}_erase_from_eq",
+        f"  simp only [{fid}_erase_from?, hc, Option.map_eq_some_iff, Prod.mk.injEq] at hmap",
+        "  obtain ⟨f, hf, hlen, hT, hpay, hw⟩ := hmap",
+        f"  exact holdsFn_of_tree_from hdd (by decide) hf (by simpa [fn_{fid}] using hlen) hT hw hpay hstep",
+        f"    (by simpa [fn_{fid}] using {fid}_meets_from) {fid}_value_refuses",
+        "",
+        f"/-- info: '{mod}.{fid}_holds_from' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
+        "#guard_msgs in",
+        f"#print axioms {fid}_holds_from",
+        "",
+    ]
+    return out
 
 def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
     """A function with succeeds-if conditions: the spec without them (the same tactic, with the
@@ -295,6 +427,12 @@ def main():
     )
     ap.add_argument("--import", dest="imports", action="append", default=[])
     ap.add_argument(
+        "--any-caller",
+        action="store_true",
+        help="also prove each function's spec from every caller at every value (_holds_from, "
+        "Verify/Spec/TreeFrom.lean), with the ghost state unchanged by its calls as a premise",
+    )
+    ap.add_argument(
         "--tree-only",
         action="store_true",
         help="write only the trees, their erasure checks and the specs (no _meets, no _holds)",
@@ -302,11 +440,17 @@ def main():
     args = ap.parse_args()
     only = {x for x in args.only.split(",") if x}
 
+    if args.any_caller and args.tree_only:
+        sys.exit("spec_connect: --any-caller and --tree-only exclude each other")
+    sym = PROBE_SYM.format(ns=args.namespace, bundle=args.bundle) if args.any_caller else ""
+
     probe = PROBE.format(
         core=args.core_module,
         spec=args.spec_module,
         ns=args.namespace,
         bundle=args.bundle,
+        sym=sym,
+        sym_import="import SolidCore.Refinement.Generic.StageFrom\n" if args.any_caller else "",
     )
     with tempfile.NamedTemporaryFile(
         "w", suffix=".lean", dir=args.cwd, delete=False
@@ -342,6 +486,11 @@ def main():
     spec_slots = spec_mapping_slots(
         pathlib.Path(args.cwd) / (args.spec_module.replace(".", "/") + ".lean")
     )
+    syms = {}
+    for line in [x for x in lines[1:] if x.startswith("sym ")]:
+        parsed = parse_sym(line)
+        syms[parsed[0]] = parsed[1:]
+    lines = [lines[0]] + [x for x in lines[1:] if not x.startswith("sym ")]
     fns, refused = [], []
     for k, line in enumerate(lines[1:]):
         parts = line.split(" ", 5)
@@ -371,6 +520,11 @@ def main():
                 f"{name}: reads mappings, which tree_meets_map proves only with --ghost-fixed"
             )
             continue
+        if args.any_caller:
+            why = any_caller_refusal(syms.get(name), slots)
+            if why:
+                refused.append(f"{name}: {why}")
+                continue
         fns.append((k, name, ident(name), n, sel, tree, slots, nsi))
     if refused:
         sys.exit("spec_connect: refused (unproved):\n" + "\n".join(refused))
@@ -390,6 +544,7 @@ def main():
         "import Verify.Spec.TreeSucceeds",
         "import Verify.VC.KernelIdx",
         "import SolidCore.Refinement.KernelRfl",
+        *(["import Verify.Spec.TreeFrom"] if args.any_caller else []),
         *[f"import {m}" for m in args.imports],
         "",
         "/-!",
@@ -524,11 +679,17 @@ def main():
             f"#print axioms {fid}_holds",
             "",
         ]
+        if args.any_caller:
+            _, ws, ftree = syms[name]
+            out += [x.replace("@TREE@", ftree) for x in
+                    from_block(fid, name, n, nsi, ns, mod, args.bundle, ws, usings)]
     out += [f"end {args.module_name}", ""]
     args.out.write_text("\n".join(out).replace("`", chr(96)))
     check_output(args)
     for _, name, fid, *_ in fns:
         print(f"{args.module_name}.{fid}_{'tree' if args.tree_only else 'holds'}")
+        if args.any_caller:
+            print(f"{args.module_name}.{fid}_holds_from")
 
 
 if __name__ == "__main__":

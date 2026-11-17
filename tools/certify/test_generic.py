@@ -1694,6 +1694,39 @@ def solar_bins(contract, text=None, src=None):
     )
 
 
+class SpecConnectAnyCaller(unittest.TestCase):
+    """--any-caller reads the symbolic-caller probe lines and refuses what holdsFn_of_tree_from
+    does not cover, rather than stating it."""
+
+    def test_parse_and_refusals(self):
+        import spec_connect
+
+        ok = spec_connect.parse_sym("sym C.f false some [256, 256] TREE .stop")
+        self.assertEqual(ok, ("C.f", False, "[256, 256]", ".stop"))
+        self.assertIsNone(spec_connect.any_caller_refusal(ok[1:], ([], [])))
+        pay = spec_connect.parse_sym("sym C.g true some [] TREE .stop")
+        self.assertIn("payable", spec_connect.any_caller_refusal(pay[1:], ([], [])))
+        self.assertIn("mappings", spec_connect.any_caller_refusal(ok[1:], ([3], [])))
+        none = spec_connect.parse_sym("sym C.h noerase")
+        self.assertIn("eraseFnSym", spec_connect.any_caller_refusal(none[1:], ([], [])))
+        self.assertIn("selector", spec_connect.any_caller_refusal(None, ([], [])))
+        nw = spec_connect.parse_sym("sym C.k false none TREE .stop")
+        self.assertIn("widths", spec_connect.any_caller_refusal(nw[1:], ([], [])))
+
+    def test_from_block_names_no_fixed_caller(self):
+        import spec_connect
+
+        for nsi in (0, 1):
+            lines = spec_connect.from_block("f", "C.f", 2, nsi, "NS", "M", "B", "[256, 256]", "u")
+            text = "\n".join(lines)
+            self.assertIn("theorem f_holds_from", text)
+            self.assertIn("holdsFn_of_tree_from hdd", text)
+            self.assertIn("#print axioms f_holds_from", text)
+            self.assertNotIn("0x2000", text)
+            self.assertNotIn(" ctxOf ", text)
+            self.assertNotIn("sorry", text)
+
+
 class LifecycleFrame(unittest.TestCase):
     """The kernel stage's inputs: the opcodes outside the generic creation frame, and the immutable
     patches the generated module states."""
