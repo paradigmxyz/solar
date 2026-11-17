@@ -7,7 +7,7 @@
         "functions": [
           {
             "name": "A.sol:M.f(bool,bool,bool)",
-            "hash": "0x376665e01944a4dd",
+            "hash": "0x9cdacae2054b916c",
             "counters": [
               1,
               7
@@ -109,6 +109,12 @@
                 115,
                 30,
                 29
+              ],
+              [
+                2,
+                0,
+                150,
+                1
               ]
             ],
             "decisions": [

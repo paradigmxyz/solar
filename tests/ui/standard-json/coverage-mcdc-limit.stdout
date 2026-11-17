@@ -23,7 +23,7 @@
         "functions": [
           {
             "name": "A.sol:Limit.f(bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool)",
-            "hash": "0x9c11cceac149a1d1",
+            "hash": "0xc9c87bdd47df488d",
             "counters": [
               1,
               33
@@ -401,6 +401,12 @@
                 2,
                 122,
                 126
+              ],
+              [
+                2,
+                0,
+                336,
+                1
               ]
             ]
           }

@@ -1,0 +1,43 @@
+//@ filecheck:
+// The `return` after the `require` counts as often as the `require` holds, not as often as the
+// function runs, so the code between the statements is a gap region, kind 3, `[3, file, start,
+// length, count]`, with the count of the `return`. The blank line and the two comment lines that
+// follow the `require` are one skipped region, kind 2, that nests in the gap and starts on the
+// blank line, and the closing `}` of the body, which stands on a line of its own, is skipped too.
+// CHECK: "name": "A.sol:G.f(uint256)",
+// CHECK: {{^ *3,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 98,
+// CHECK-NEXT: 73,
+// CHECK-NEXT: 17
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 99,
+// CHECK-NEXT: 64
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 194,
+// CHECK-NEXT: 1
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract G {\n    function f(uint256 x) external pure returns (uint128) {\n        require(x <= 10);\n\n        // comment line\n        /* block\n           comment */\n        return uint128(x);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

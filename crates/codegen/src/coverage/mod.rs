@@ -16,7 +16,20 @@
 //! - a code region for each function body, each statement written in the source, each path a
 //!   decision takes, and the right operand of `&&` and `||`, nested;
 //! - a branch region on each leaf condition of a decision, a `switch` case, and a `try` clause;
-//! - a skipped region for code that constant folding removes.
+//! - a gap region between two statements, which counts as the statement that follows, where its
+//!   count differs from the enclosing region's;
+//! - a skipped region for code that constant folding removes, for each run of whole lines of a body
+//!   that hold only whitespace and comments, and for the closing `}` of a body that stands on a
+//!   line of its own.
+//!
+//! `llvm-cov` gives a line the greatest count of the regions that start on it and of the segment
+//! that wraps into it, which is the enclosing region where nothing else starts. The code between
+//! two statements is that wrapped segment, so a statement that follows one that may revert, such as
+//! a `require`, would show the count of the function. The gap region gives the line it starts on
+//! the count of the statement. A run of lines with no code starts on its first line, so no line of
+//! it has a count, and ends where the next line starts, so the count of the enclosing region does
+//! not wrap into the line after it. The closing `}` of a body is the same: it would show the entry
+//! count of a function that reverted before reaching it.
 //!
 //! The false count of a branch is an expression, the count of the parent minus the true count, so
 //! no counter sits on the edge and the code needs no extra jump. A condition that reverts takes
@@ -127,8 +140,10 @@ pub enum RegionKind {
     Code(Count),
     /// The expansion of a modifier into the file at this index, `1`.
     Expansion(Count, u32),
-    /// Code that constant folding removes, `2`.
+    /// Code that constant folding removes, or a line that holds no code, `2`.
     Skipped,
+    /// The gap between two statements, which counts as the statement that follows, `3`.
+    Gap(Count),
     /// A condition with the counts of its true and false outcomes, `4`.
     Branch(Count, Count),
     /// An MC/DC decision, given by its index in [`Record::decisions`], `5`.
@@ -257,6 +272,10 @@ impl Record {
                         ]);
                     }
                     RegionKind::Skipped => row[0] = 2,
+                    RegionKind::Gap(count) => {
+                        row[0] = 3;
+                        row.push(encoder.count(count) as i64);
+                    }
                     RegionKind::Decision(decision) => {
                         row[0] = 5;
                         row.push(i64::from(*decision));

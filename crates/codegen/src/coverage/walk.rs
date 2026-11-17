@@ -121,6 +121,8 @@ struct Rec {
     first: u32,
     regions: Vec<Region>,
     decisions: Vec<Decision>,
+    /// The count at the start of the statement that is being walked.
+    start: Option<Count>,
     /// The counts of the code regions that enclose the current statement.
     enclosing: Vec<Count>,
 }
@@ -303,6 +305,9 @@ impl<'gcx> Walker<'gcx> {
                 && function.kind != hir::FunctionKind::Constructor)
                 .then_some(entry);
             self.stmts(body.stmts, known);
+            if !function.is_yul {
+                self.body_skips(body.span);
+            }
         }
         self.close();
         self.end(RecordOwner::Function(id), function.source);
@@ -343,6 +348,7 @@ impl<'gcx> Walker<'gcx> {
         let start = self.rec.regions.len();
         self.open(modifier.span, &entry);
         self.stmts(body.stmts, Some(entry));
+        self.body_skips(body.span);
         self.close();
         let regions = self.rec.regions[start..].to_vec();
         self.expansions.entry(modifier_id).or_default().push(regions);
@@ -378,8 +384,11 @@ impl<'gcx> Walker<'gcx> {
                 let entry = self.counter(Site::Function(id));
                 self.open(modifier.span, &entry);
                 self.stmts(body.stmts, Some(entry));
+                self.body_skips(body.span);
                 self.close();
                 self.dry = false;
+                // Nothing counts the body, so no code takes the count of a gap.
+                self.rec.regions.retain(|region| !matches!(region.kind, RegionKind::Gap(_)));
                 for region in &mut self.rec.regions {
                     match &mut region.kind {
                         RegionKind::Code(count) => *count = Count::Zero,
@@ -468,19 +477,88 @@ impl<'gcx> Walker<'gcx> {
     }
 
     fn stmt_count(&mut self, stmt: &'gcx hir::Stmt<'gcx>, known: Option<Count>) -> Count {
-        known.unwrap_or_else(|| self.counter(Site::Stmt(Site::key(stmt))))
+        let count = known.unwrap_or_else(|| self.counter(Site::Stmt(Site::key(stmt))));
+        self.rec.start.get_or_insert_with(|| count.clone());
+        count
     }
 
     /// Walks statements, the first of which starts with count `known`, when the code before it
     /// counted.
+    ///
+    /// The code between two statements, which a region of the enclosing statement would count,
+    /// counts as the statement that follows when its count differs, as Clang's gap regions do, so
+    /// that a line that starts after a statement that may revert has the count of the statement
+    /// that starts on it.
     fn stmts(&mut self, stmts: &'gcx [hir::Stmt<'gcx>], mut known: Option<Count>) {
+        let mut previous_end = None;
         for stmt in stmts {
-            self.stmt(stmt, known.take());
+            let count = self.stmt(stmt, known.take());
+            if let Some(count) = count {
+                if previous_end.is_none() {
+                    self.rec.start.get_or_insert_with(|| count.clone());
+                }
+                if let Some(end) = previous_end
+                    && end < stmt.span.lo()
+                    && self.rec.enclosing.last() != Some(&count)
+                {
+                    self.region(Span::new(end, stmt.span.lo()), RegionKind::Gap(count));
+                }
+            }
+            previous_end = Some(stmt.span.hi());
         }
     }
 
-    /// Walks the statement of a path whose count is `count`.
-    fn stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>, known: Option<Count>) {
+    /// Walks a statement and returns its count at its start.
+    fn stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>, known: Option<Count>) -> Option<Count> {
+        let outer = self.rec.start.take();
+        self.stmt_inner(stmt, known);
+        mem::replace(&mut self.rec.start, outer)
+    }
+
+    /// Adds skipped regions to the body of a function or a modifier: each run of whole lines that
+    /// hold only whitespace and comments, and a closing `}` that stands on a line of its own.
+    ///
+    /// A run starts at its first line and ends where the line after it starts, so the lines have
+    /// no count of their own and the code after them has its own. An enclosing region of the
+    /// body would give them its count, as it does the gaps between statements.
+    fn body_skips(&mut self, body: Span) {
+        let files = self.gcx.sess.source_map().files();
+        let Ok(text) = files.span_to_snippet(body) else { return };
+        let lo = body.lo().0;
+        let at = |offset: usize| solar_interface::BytePos(lo + offset as u32);
+        let mut skips = Vec::new();
+        let mut offset = 0;
+        let mut run = None;
+        let mut block_comment = false;
+        let mut lines = text.split_inclusive('\n').peekable();
+        let mut first = true;
+        while let Some(line) = lines.next() {
+            let last = lines.peek().is_none();
+            let code = has_code(line, &mut block_comment);
+            // The lines with the braces of the body hold code.
+            if code || first || last {
+                if let Some(start) = run.take() {
+                    skips.push(Span::new(at(start), at(offset)));
+                }
+            } else {
+                run.get_or_insert(offset);
+            }
+            if last
+                && let Some(before) = line.strip_suffix('}')
+                && before.trim().is_empty()
+            {
+                skips.push(Span::new(at(offset + before.len()), at(offset + line.len())));
+            }
+            first = false;
+            offset += line.len();
+        }
+        drop(files);
+        for span in skips {
+            self.skipped(span);
+        }
+    }
+
+    fn stmt_inner(&mut self, stmt: &'gcx hir::Stmt<'gcx>, known: Option<Count>) {
         match stmt.kind {
             StmtKind::Block(block) | StmtKind::UncheckedBlock(block) => {
                 // A `for` loop with an initializer desugars to `{ <init>; loop { ... } }`, which
@@ -624,7 +702,9 @@ impl<'gcx> Walker<'gcx> {
                     && (exit.span == span || exit.span == cond.span) =>
             {
                 match self.decision(cond, Site::Arm(Site::key(check))) {
-                    Outcome::Branch { taken, .. } => self.stmt(body, Some(taken)),
+                    Outcome::Branch { taken, .. } => {
+                        self.stmt(body, Some(taken));
+                    }
                     // The body still runs once for each iteration.
                     Outcome::Folded(true) => {
                         let taken = self.counter(Site::Arm(Site::key(check)));
@@ -876,4 +956,33 @@ impl<'gcx> Visit<'gcx> for Walker<'gcx> {
             _ => self.walk_expr(expr),
         }
     }
+}
+
+/// Returns whether `line` holds code, which is anything but whitespace and comments. A block
+/// comment that does not end on the line continues on the next, which `block_comment` tracks.
+fn has_code(line: &str, block_comment: &mut bool) -> bool {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if *block_comment {
+            match line[index..].find("*/") {
+                Some(end) => {
+                    index += end + 2;
+                    *block_comment = false;
+                }
+                None => return false,
+            }
+            continue;
+        }
+        match bytes[index] {
+            b if b.is_ascii_whitespace() => index += 1,
+            b'/' if bytes.get(index + 1) == Some(&b'/') => return false,
+            b'/' if bytes.get(index + 1) == Some(&b'*') => {
+                *block_comment = true;
+                index += 2;
+            }
+            _ => return true,
+        }
+    }
+    false
 }
