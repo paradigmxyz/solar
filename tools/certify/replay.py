@@ -20,6 +20,15 @@ replay.py account PLAN CHECKER_OUT STATUS RECEIPT [--checker PATH --toolchain DI
     directory, those leanchecker replayed beyond the plan, and none unaccounted for) and prints
     the count and the list. With --checker, the leanchecker that ran must be DIR's bin/leanchecker
     (by real path), and the receipt records it with its digest.
+replay.py closure PREFIX N RECEIPT --theorem T --statement S --toolchain DIR --checker PATH --tool PATH
+    accounts for tools/certify/replay_closure.lean's replay of T's constant closure in N shards,
+    each of which left PREFIX.K-of-N.{status,out,plan,proofs}. Fails unless every shard exits 0
+    and reports replaying the closure of T as shard K of N without a test-only defect, all shards
+    planned the same closure (sorted, each constant once, T a theorem of it), it holds no axiom
+    beyond propext, Classical.choice and Quot.sound, and the shards' checked proofs are an exact
+    disjoint union of its theorems; PATH must be DIR's bin/lean. Then writes RECEIPT (JSON: the
+    closure's count, digest, kinds and constants, its axioms, each shard, the checker and the
+    tool with their digests) and prints the count.
 """
 
 import hashlib
@@ -217,7 +226,116 @@ def account(argv):
         print(f"replayed {r[1]} {r[2]}")
 
 
+KINDS = {"axiom", "def", "theorem", "opaque", "quot", "inductive", "ctor", "rec"}
+ALLOWED_AXIOMS = ["Classical.choice", "Quot.sound", "propext"]
+
+
+def closure(argv):
+    usage = ("usage: replay.py closure PREFIX N RECEIPT --theorem T --statement S "
+             "--toolchain DIR --checker PATH --tool PATH")
+    if len(argv) != 13:
+        fail(usage)
+    prefix, n, receipt = argv[:3]
+    opts = dict(zip(argv[3::2], argv[4::2]))
+    if set(opts) != {"--theorem", "--statement", "--toolchain", "--checker", "--tool"}:
+        fail(usage)
+    if not re.fullmatch(r"[1-9][0-9]*", n):
+        fail(f"the shard count {n!r} is not a positive number")
+    n = int(n)
+    want = os.path.realpath(os.path.join(opts["--toolchain"], "bin", "lean"))
+    got = os.path.realpath(opts["--checker"])
+    if got != want or not os.path.isfile(got):
+        fail(f"the replay ran {opts['--checker']} ({got}), not the toolchain's lean {want}")
+    thm = opts["--theorem"]
+    shards, plan_text = [], None
+    for k in range(n):
+        base = f"{prefix}.{k}-of-{n}"
+        try:
+            status = open(base + ".status").read().strip()  # noqa: SIM115
+            out = open(base + ".out", errors="replace").read()  # noqa: SIM115
+            text = open(base + ".plan").read()  # noqa: SIM115
+            proofs = open(base + ".proofs").read().splitlines()  # noqa: SIM115
+        except OSError as e:
+            fail(f"shard {k} of {n} of the closure replay left no record: {e}")
+        if status != "0":
+            tail = "\n".join(out.splitlines()[-20:])
+            fail(f"shard {k} of {n} of the closure replay exits {status}: the kernel rejects the closure\n{tail}")
+        if re.search(r"^TEST ", out, re.M):
+            fail(f"shard {k} of {n} ran with a test-only defect (--tamper or --omit)")
+        done = re.findall(r"^REPLAYED (\d+) constants, (\d+) theorem proofs, of the closure of (\S+) "
+                          r"\(shard (\d+) of (\d+)\)$", out, re.M)
+        if len(done) != 1 or done[0][2] != thm or (int(done[0][3]), int(done[0][4])) != (k, n):
+            fail(f"shard {k} of {n} does not report replaying the closure of {thm}")
+        if plan_text is None:
+            plan_text = text
+        elif text != plan_text:
+            fail(f"shard {k} of {n} replayed a different closure than shard 0")
+        if int(done[0][1]) != len(proofs) or proofs != sorted(set(proofs)):
+            fail(f"shard {k} of {n}'s proof list is malformed")
+        shards.append({"shard": k, "proofs": proofs, "replayed": int(done[0][0]),
+                       "out_sha256": hashlib.sha256(out.encode()).hexdigest()})
+    rows = [l.split() for l in plan_text.splitlines()]
+    if not rows or any(len(r) != 3 or r[2] not in KINDS for r in rows):
+        fail("the closure plan is empty or malformed")
+    names = [r[0] for r in rows]
+    if names != sorted(set(names)):
+        fail("the closure plan is not sorted or names a constant twice")
+    kind = {r[0]: r[2] for r in rows}
+    if kind.get(thm) != "theorem":
+        fail(f"the closure plan does not hold the theorem {thm}")
+    if any(s["replayed"] != len(rows) for s in shards):
+        fail("a shard replayed a different number of constants than the plan holds")
+    axioms = sorted(c for c in names if kind[c] == "axiom")
+    if [a for a in axioms if a not in ALLOWED_AXIOMS]:
+        fail(f"the closure holds axioms beyond {', '.join(ALLOWED_AXIOMS)}: {axioms}")
+    theorems = {c for c in names if kind[c] == "theorem"}
+    seen = {}
+    for s in shards:
+        for p in s["proofs"]:
+            if p in seen:
+                fail(f"the proof of {p} was checked by shards {seen[p]} and {s['shard']}: the shards overlap")
+            seen[p] = s["shard"]
+    if set(seen) != theorems:
+        missing = sorted(theorems - set(seen))
+        extra = sorted(set(seen) - theorems)
+        fail(f"the shards' proofs are not the closure's theorems: {len(missing)} unchecked "
+             f"({', '.join(missing[:10])}), {len(extra)} outside the closure ({', '.join(extra[:10])})")
+    counts = {}
+    for c in names:
+        counts[kind[c]] = counts.get(kind[c], 0) + 1
+    rec = {
+        "closure": len(rows),
+        "replayed_count": len(rows),
+        "trusted_count": 0,
+        "trusted": {},
+        "unaccounted": [],
+        "unit": "constants",
+        "theorem": thm,
+        "statement": opts["--statement"],
+        "closure_sha256": hashlib.sha256(plan_text.encode()).hexdigest(),
+        "kinds": dict(sorted(counts.items())),
+        "theorem_proofs": len(theorems),
+        "axioms": axioms,
+        "axioms_allowed": ALLOWED_AXIOMS,
+        "sorry_present": "sorryAx" in kind,
+        "constants": [[r[0], r[2]] for r in rows],
+        "shards": [{"shard": s["shard"], "of": n, "proofs_checked": len(s["proofs"]),
+                    "proofs_sha256": hashlib.sha256("".join(p + "\n" for p in s["proofs"]).encode()).hexdigest(),
+                    "out_sha256": s["out_sha256"], "exit": 0} for s in shards],
+        "checker": {"path": got, "sha256": sha(got), "tool": os.path.realpath(opts["--tool"]),
+                    "tool_sha256": sha(opts["--tool"]), "run": "lean --run replay_closure.lean", "exit": 0},
+        "toolchain": os.path.realpath(opts["--toolchain"]),
+    }
+    with open(receipt, "w") as f:
+        json.dump(rec, f, indent=2)
+        f.write("\n")
+    print(f"kernel replay: all {len(rows)} constants of the closure of {thm} replayed in this run "
+          f"({len(theorems)} theorem proofs over {n} shard(s), disjoint and complete); closure sha256 "
+          f"{rec['closure_sha256']}; axioms {', '.join(axioms) or 'none'}; 0 unaccounted")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] not in ("plan", "account"):
-        fail("usage: replay.py plan ... | replay.py account ...")
-    (plan if sys.argv[1] == "plan" else account)(sys.argv[2:])
+    cmds = {"plan": plan, "account": account, "closure": closure}
+    if len(sys.argv) < 2 or sys.argv[1] not in cmds:
+        fail("usage: replay.py plan ... | replay.py account ... | replay.py closure ...")
+    cmds[sys.argv[1]](sys.argv[2:])
