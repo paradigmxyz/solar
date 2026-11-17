@@ -365,14 +365,6 @@ fn allocate_referenced_labels(
     }
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
-        // An unoptimized build keeps the entry `JUMPDEST` of every function, the instruction
-        // coverage anchors the function to, even when the only call falls into it.
-        // NOTE: A function that never returns declares no call effect, so its entry is not kept.
-        let entry = block.metadata.call_effect.is_some()
-            && block.metadata.optimization.unwrap_or(module.optimization).is_none();
-        if entry {
-            referenced.insert(block_id);
-        }
         if !referenced.contains(block_id)
             && let Some(label) = labels.get_mut(original)
         {

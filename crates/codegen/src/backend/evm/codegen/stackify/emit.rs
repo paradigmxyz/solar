@@ -19,7 +19,6 @@ use crate::{
         PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
-        utils::is_loop_jump,
     },
 };
 use alloy_primitives::U256;
@@ -260,23 +259,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.block_labels.insert(block, label);
         }
 
-        // A block that only jumps on is never emitted; edges into it go to its final target,
-        // except the jump of a `break` or `continue` statement in an unoptimized build.
+        // A block that only jumps on is never emitted; edges into it go to its final target.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
             if block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit
-                && !self.keeps_loop_jump(func, block)
             {
                 for _ in 0..plan.blocks.len() {
                     match plan.blocks[target].as_ref().map(|plan| (&plan.steps, &plan.exit)) {
                         Some((steps, Exit::Jump(next)))
-                            if steps.is_empty()
-                                && target != BlockId::ENTRY
-                                && target != block
-                                && !self.keeps_loop_jump(func, target) =>
+                            if steps.is_empty() && target != BlockId::ENTRY && target != block =>
                         {
                             target = *next;
                         }
@@ -456,12 +450,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         };
         match &plan.exit {
-            Exit::Jump(target) if self.keeps_loop_jump(func, block) => {
-                // push target; jump !metadata(keep_with_next)
-                self.asm.emit_push_label(self.block_labels[&resolve(*target)]);
-                self.asm.keep_last_with_next();
-                self.asm.emit_op(op::JUMP);
-            }
             Exit::Jump(target) => self.emit_stackified_jump(resolve(*target), next),
             Exit::Branch { then_edge, else_edge } => {
                 let falls =
@@ -513,12 +501,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
-                // An unoptimized build keeps the jump of a call statement, the instruction coverage
-                // anchors the statement to, instead of letting a branch jump straight to the
-                // callee.
-                if self.optimization.is_none() && origin.is_some() {
-                    self.asm.keep_last_with_next();
-                }
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -793,14 +775,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut combined = metadata(first).clone();
         combined.combine_debug_locs(rest.iter().map(metadata));
         self.set_origins(&combined);
-    }
-
-    /// Returns whether the block ends in the jump of a `break` or `continue` statement that an
-    /// unoptimized build keeps as an executed `JUMP`, the instruction coverage anchors the
-    /// statement to.
-    fn keeps_loop_jump(&self, func: &Function, block: BlockId) -> bool {
-        self.optimization.is_none()
-            && is_loop_jump(self.gcx, &func.blocks[block].terminator_metadata)
     }
 
     /// Jumps to `target` unless it is the next block in the layout.
