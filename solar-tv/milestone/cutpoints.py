@@ -39,7 +39,6 @@ class Unsupported(Exception):
     """A stage this procedure cannot relate: the reason names the pass and why."""
 
 
-
 # Stack effects of EVM IR instructions: words popped and pushed.
 BINARY = {
     "eq",
@@ -66,17 +65,13 @@ BINARY = {
 }
 
 
-
 UNARY = {"iszero", "not", "clz"}
-
 
 
 TERNARY = {"addmod", "mulmod"}
 
 
-
 NULLARY = {"calldatasize", "returndatasize"}
-
 
 
 # Effects that leave a word.
@@ -98,7 +93,6 @@ RESULT_EFFECTS = {
 }
 
 
-
 NO_RESULT_EFFECTS = {
     "mstore",
     "mstore8",
@@ -109,7 +103,6 @@ NO_RESULT_EFFECTS = {
     "returndatacopy",
     "codecopy",
 }
-
 
 
 def split_top(s):
@@ -130,7 +123,6 @@ def split_top(s):
     return out
 
 
-
 def parse_evm(text):
     """The blocks of an exported EVM IR program, in order: (compiler block number, [instr])."""
     body = text[text.index("blocks := [") + len("blocks := [") :]
@@ -148,7 +140,6 @@ def parse_evm(text):
         )
         blocks.append((ident, split_top(chunk[1:-1])))
     return blocks
-
 
 
 def effect(instr):
@@ -207,7 +198,6 @@ def effect(instr):
     if instr in (".stop", ".ret", ".revert", ".invalid"):
         return (0, 0, "end", [])
     raise Unsupported(f"an instruction the stack heights do not know: {instr}")
-
 
 
 def evm_cfg(blocks):
@@ -275,7 +265,6 @@ def evm_cfg(blocks):
     return succ, heights, dynamic
 
 
-
 def cyclic_component(succ, removed):
     """A cycle of the graph without the nodes in removed, as a list of nodes, or None; the
     first node is the target of a back edge (a loop header) when there is one."""
@@ -308,7 +297,6 @@ def cyclic_component(succ, removed):
     return None
 
 
-
 def on_cycle(succ):
     """The nodes that lie on some cycle."""
     out = set()
@@ -323,7 +311,6 @@ def on_cycle(succ):
                 seen.add(m)
                 work += succ.get(m, [])
     return out
-
 
 
 def evm_cuts(pass_name, a_blocks, b_blocks):
@@ -376,7 +363,6 @@ def evm_cuts(pass_name, a_blocks, b_blocks):
             )
         cuts.append((ia, ib, ha))
     return cuts
-
 
 
 def evm_states(pass_name, blocks, limit=50000):
@@ -451,7 +437,6 @@ def evm_states(pass_name, blocks, limit=50000):
                 edges[s] = []
                 work.append(s)
     return edges
-
 
 
 def evm_call_cuts(pass_name, a_blocks, b_blocks):
@@ -612,16 +597,13 @@ def evm_call_cuts(pass_name, a_blocks, b_blocks):
     }
 
 
-
 def loops(blocks):
     succ, _, _ = evm_cfg(blocks)
     return cyclic_component(succ, set()) is not None
 
 
-
 def words(n):
     return [f"w{i}" for i in range(n)]
-
 
 
 def parse_mir(text):
@@ -659,7 +641,6 @@ def parse_mir(text):
     return funcs
 
 
-
 def mir_defs(inst):
     m = re.match(r"\.(?:pure|ne|word|low|select|heapFloor|alloc) (\d+)", inst)
     if m:
@@ -671,10 +652,8 @@ def mir_defs(inst):
     return out
 
 
-
 def mir_uses(text):
     return {int(n) for n in re.findall(r"\.value (\d+)", text)}
-
 
 
 def mir_succ(term):
@@ -690,7 +669,6 @@ def mir_succ(term):
             int(t) for t in re.findall(r", (\d+)\)", cases)
         ]
     return []
-
 
 
 def mir_liveness(func):
@@ -729,7 +707,6 @@ def mir_liveness(func):
     return live, edge
 
 
-
 def mir_headers(func):
     """Loop headers of a function: targets of back edges of a depth-first walk from block 0."""
     blocks = func["blocks"]
@@ -751,7 +728,6 @@ def mir_headers(func):
         dfs(0)
     preds = {h: sorted(b for b in blocks if h in succ[b]) for h in heads}
     return heads, preds, succ
-
 
 
 def mir_cuts(pass_name, a_funcs, b_funcs):
@@ -781,16 +757,13 @@ def mir_cuts(pass_name, a_funcs, b_funcs):
     return cuts
 
 
-
 # Whether to cut at join points too (certify.py's --joins): for a program whose paths share
 # so many blocks that evaluating every path from a loop's cut point does not end in time.
 JOINS = False
 
 
-
 # Under JOINS, whether the stages between two MIR modules are cut at their join points too.
 MIR_JOINS = True
-
 
 
 # The calls the cut-point proofs are about, when not every call (certify.py's --exclude): the
@@ -800,7 +773,6 @@ MIR_JOINS = True
 SCOPE = None
 
 
-
 # The external functions outside the scope (certify.py's --exclude): their selectors and names.
 # No cut point is placed in code only their calls reach, so no segment proof is written for
 # it: under the scope's assumptions the dispatcher's test of their selector fails, and every
@@ -808,14 +780,11 @@ SCOPE = None
 EXCLUDED_SELECTORS = set()
 
 
-
 EXCLUDED_FUNCTIONS = set()
-
 
 
 def in_scope_mir(func):
     return func["name"] not in EXCLUDED_FUNCTIONS
-
 
 
 def scoped_states(blocks, edges):
@@ -853,22 +822,18 @@ def scoped_states(blocks, edges):
     }
 
 
-
 def scope_parts():
     if SCOPE is None:
         return "", "", "", (lambda h: ""), "anyCall"
     return SCOPE["hyps"], SCOPE["names"], SCOPE["prune"], SCOPE["given"], SCOPE["term"]
 
 
-
 # Relations per list, and segment proofs per module, under JOINS.
 CHUNK = 16
 
 
-
 # Under JOINS, the most configurations one segment evaluates before it is cut again.
 SEGMENT = 24
-
 
 
 def bound_segments(side, chosen, same_shapes, common):
@@ -916,7 +881,6 @@ def bound_segments(side, chosen, same_shapes, common):
             size[n] = s
 
 
-
 def mir_block_cuts(funcs, cuts):
     """Under JOINS, every block of a function but its entry, besides its loop headers and join
     points, as candidates for the stack scheduling stage, whose one segment from the entry
@@ -938,7 +902,6 @@ def mir_block_cuts(funcs, cuts):
             if preds:
                 out.append((f, h, preds, preds))
     return out
-
 
 
 def mir_mir_block_cuts(a_funcs, b_funcs, cuts):
@@ -974,7 +937,6 @@ def mir_mir_block_cuts(a_funcs, b_funcs, cuts):
     return out
 
 
-
 def mir_join_cuts(a_funcs, b_funcs, cuts):
     """Join points of two MIR modules, cut besides their loop headers: a block of a function
     that more than one of its blocks jumps to, in both modules, with the same phis. Cutting them
@@ -1006,7 +968,6 @@ def mir_join_cuts(a_funcs, b_funcs, cuts):
     return out
 
 
-
 def tokens(s):
     """Split on spaces outside brackets."""
     out, depth, cur = [], 0, []
@@ -1026,7 +987,6 @@ def tokens(s):
     return out
 
 
-
 def mir_calls(func):
     """The internal calls of a function: (block, ordinal in the block, callee, index)."""
     out = []
@@ -1037,7 +997,6 @@ def mir_calls(func):
                 out.append((b, k, int(tokens(ins)[2]), i))
                 k += 1
     return out
-
 
 
 def mir_contexts(pass_name, funcs, entry):
@@ -1070,7 +1029,6 @@ def mir_contexts(pass_name, funcs, entry):
     return ctx
 
 
-
 def scoped_blocks(funcs, entry, ctxs):
     """The blocks (function, block) a call in the scope reaches: those of the functions it runs
     (ctxs, from mir_contexts), where the entry's dispatch skips the cases of excluded selectors.
@@ -1100,10 +1058,8 @@ def scoped_blocks(funcs, entry, ctxs):
     return out
 
 
-
 def mir_entry(text):
     return int(re.search(r"entry := (\d+)", text)[1])
-
 
 
 def call_site(func, b, k):
@@ -1117,7 +1073,6 @@ def call_site(func, b, k):
     return i, tokens(ins)
 
 
-
 def frame_term(funcs, site, env):
     """The return a call site pushes, with the caller's values env."""
     f, b, k = site
@@ -1127,7 +1082,6 @@ def frame_term(funcs, site, env):
     publish = t[5] if len(t) > 5 else "none"
     rest = "[" + ", ".join(insts[i + 1 :]) + "]"
     return f"⟨{f}, {b}, {t[1]}, {rest}, {term}, {env}, {extras}, {publish}⟩"
-
 
 
 def live_after_call(func, site):
@@ -1148,7 +1102,6 @@ def live_after_call(func, site):
     return out
 
 
-
 def frame_rel(fa_list, fb_list, ctx):
     """The stacks of returns of a call string in both modules, the caller values' variables and
     the conditions that relate them: every value the caller reads after the call the same."""
@@ -1165,7 +1118,6 @@ def frame_rel(fa_list, fb_list, ctx):
     return "[" + ", ".join(src) + "]", "[" + ", ".join(tgt) + "]", sv, tv, conds
 
 
-
 def phi_input(func, h, pred, dst):
     """The operand phi dst of block h reads from pred."""
     for d, incoming in func["blocks"][h][0]:
@@ -1176,18 +1128,14 @@ def phi_input(func, h, pred, dst):
     raise Unsupported(f"@{func['name']} bb{h}: phi {dst} has no input from bb{pred}")
 
 
-
 def word_lit(op):
     return f"({op.split()[1]} : EvmRules.Word)"
-
 
 
 MIR_CFG = "MIR.Lowered.Frame"
 
 
-
 EVM_CFG = "Nat × EVM.Stack × State"
-
 
 
 def mem_proof(i):
@@ -1195,7 +1143,6 @@ def mem_proof(i):
     for _ in range(i):
         t = f"List.Mem.tail _ ({t})"
     return t
-
 
 
 def binders(vs):
@@ -1212,11 +1159,9 @@ def binders(vs):
     return out
 
 
-
 def binder_text(vs, brackets="()"):
     lo, hi = brackets
     return " ".join(f"{lo}{' '.join(ns)} : {t}{hi}" for ns, t in binders(vs))
-
 
 
 def cut_defs(p, side, cfg, tests):
@@ -1253,12 +1198,10 @@ def cut_defs(p, side, cfg, tests):
     )
 
 
-
 def step_term(kind, prog):
     if kind == "mir":
         return f"MIR.Lowered.moduleBlock o call {prog}"
     return f"EVM.Program.block o call {prog}"
-
 
 
 def init_term(kind, prog):
@@ -1270,10 +1213,8 @@ def init_term(kind, prog):
     return "(0, [], State.initial call)"
 
 
-
 def layer_term(kind):
     return "MIR.Lowered.moduleLayer" if kind == "mir" else "EVM.Program.layer"
-
 
 
 def pair_module(
@@ -1513,13 +1454,11 @@ def pair_module(
     return "".join(out)
 
 
-
 def env_word(op, env):
     """An operand's word in env: a value's word or a constant."""
     if op.startswith(".value"):
         return f"{env} {op.split()[1]}"
     return word_lit(op)
-
 
 
 def header_facts(func, h, pred, live, env):
@@ -1592,7 +1531,6 @@ def header_facts(func, h, pred, live, env):
     return facts
 
 
-
 def mir_mir_rels(pass_name, fa_list, fb_list, cuts, ctx_a=None, ctx_b=None, joins=()):
     """Relations between two MIR modules at their headers: the same state, the phis' inputs
     and every value live into the header the same words; for a header under calls, one relation
@@ -1648,7 +1586,6 @@ def mir_mir_rels(pass_name, fa_list, fb_list, cuts, ctx_a=None, ctx_b=None, join
     return tests, tests, rels
 
 
-
 def call_record(pass_name, funcs, sched_blocks, fmaps, site):
     """The scheduler's record of a call site (the k-th call of a MIR block): the label of the
     block its return address names, and the caller's words below the call's arguments."""
@@ -1661,7 +1598,6 @@ def call_record(pass_name, funcs, sched_blocks, fmaps, site):
             f"@{funcs[f]['name']} bb{b}"
         )
     return ids.index(calls[k]["return"]), calls[k]["below"]
-
 
 
 def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts, ctxs=None):
@@ -1819,7 +1755,6 @@ def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts, ctxs=None):
     return tests_a, tests_b, rels
 
 
-
 def evm_evm_rels(cuts):
     rels = []
     for ia, ib, h in cuts:
@@ -1835,7 +1770,6 @@ def evm_evm_rels(cuts):
             }
         )
     return [ia for ia, _, _ in cuts], [ib for _, ib, _ in cuts], rels
-
 
 
 def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
@@ -1958,4 +1892,3 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
     return pair_module(
         a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats, entry_reach, recdepth
     )
-
