@@ -1829,7 +1829,7 @@ import SolidCore.Refinement.KernelRfl
 
 namespace {ns}
 
-open EthLib.Base EthLib.Execution EthLib.Execution.Evm
+open EthLib.Base EthLib.Execution EthLib.Execution.Evm EthLib.Execution.Evm.Logic
 open SolidCore.Refinement Verify.Lifecycle Verify.Lifecycle.Creation Verify.Lifecycle.Creation.Sym
 
 /-- The steps of the symbolic creation frame's evaluator. -/
