@@ -1,0 +1,40 @@
+//@ filecheck:
+// A virtual modifier dispatches to the override of a derived contract, so the invocation in `A.f`
+// has an expansion for each modifier it reaches: `A.guard` and `B.guard`, each with a virtual file
+// in `files` and an expansion region, kind 1. Both modifiers have a record that sums its
+// expansions.
+// CHECK: "name": "A.sol:A.guard(uint256)",
+// CHECK: "name": "A.sol:A.f(uint256)",
+// CHECK: "counters": [
+// CHECK-NEXT: 1,
+// CHECK-NEXT: 10
+// CHECK-NEXT: ],
+// CHECK-NEXT: "files": [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK: "name": "A.sol:B.guard(uint256)",
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {\n    uint256 public total;\n\n    modifier guard(uint256 n) virtual {\n        require(n > 1);\n        _;\n    }\n\n    function f(uint256 x) public guard(x) {\n        total += x;\n    }\n}\n\ncontract B is A {\n    modifier guard(uint256 n) override {\n        require(n > 2);\n        _;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

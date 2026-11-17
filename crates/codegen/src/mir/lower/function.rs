@@ -6,7 +6,7 @@ use super::{
     types,
 };
 use crate::{
-    coverage::{Site, coverage_map},
+    coverage::{Scope, Site, coverage_map},
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
         AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail,
@@ -236,7 +236,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
     /// The modifier expansion whose body is being lowered, keyed by its invocation, or `0`.
-    coverage_scope: usize,
+    coverage_scope: Scope,
     /// The pure struct constructors being inlined.
     inlined_struct_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
@@ -575,7 +575,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_refs: FxHashMap::default(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
-            coverage_scope: 0,
+            coverage_scope: Scope::default(),
             inlined_struct_constructors: FxHashSet::default(),
             base_args: Vec::new(),
             loops: Vec::new(),

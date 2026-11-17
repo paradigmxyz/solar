@@ -30,7 +30,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         // The arguments and the function body belong to the function, not to the expansion of a
         // modifier whose placeholder reached them.
-        let scope = std::mem::replace(&mut self.coverage_scope, 0);
+        let scope = std::mem::take(&mut self.coverage_scope);
         let result = self.lower_modifier_at_inner(modifiers, body, index);
         self.coverage_scope = scope;
         result
@@ -128,7 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // argument expressions still form the input frame used by each `_`.
         self.restore_bindings(&context.incoming_returns);
         self.modifiers.push(context);
-        self.coverage_scope = Site::key(modifier);
+        self.coverage_scope = (Site::key(modifier), modifier_id.index() as u32);
         self.coverage(Site::Function(modifier_id));
         let result = self.lower_block(modifier_body);
         self.modifiers.pop();

@@ -22,7 +22,8 @@
 //! lowering folds it.
 
 use super::{
-    Count, CoverageMap, Decision, Record, RecordOwner, Region, RegionKind, Site, SourceCoverage,
+    Count, CoverageMap, Decision, Record, RecordOwner, Region, RegionKind, Scope, Site,
+    SourceCoverage,
     mcdc::{self, Cond},
 };
 use solar_ast::{BinOpKind, UnOpKind};
@@ -51,6 +52,12 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
         let function = gcx.hir.function(id);
         (function.source, function.span.lo())
     });
+    let mut derived = FxHashMap::<hir::ContractId, Vec<hir::ContractId>>::default();
+    for id in gcx.hir.contract_ids() {
+        for &base in gcx.hir.contract(id).linearized_bases {
+            derived.entry(base).or_default().push(id);
+        }
+    }
     let mut walker = Walker {
         gcx,
         sources: IndexVec::from_vec(
@@ -58,7 +65,8 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
         ),
         sites: FxHashMap::default(),
         next: 1,
-        scope: 0,
+        scope: Scope::default(),
+        derived,
         next_decision: gcx.sess.opts.unstable.coverage_mcdc.then_some(0),
         dry: false,
         virtual_next: VIRTUAL_COUNTER,
@@ -175,10 +183,12 @@ enum Outcome {
 struct Walker<'gcx> {
     gcx: Gcx<'gcx>,
     sources: IndexVec<hir::SourceId, SourceCoverage>,
-    sites: FxHashMap<(usize, Site), u32>,
+    sites: FxHashMap<(Scope, Site), u32>,
     next: u32,
     /// The modifier expansion that is being walked, keyed by its invocation, or `0`.
-    scope: usize,
+    scope: Scope,
+    /// The contracts that inherit each contract, itself included.
+    derived: FxHashMap<hir::ContractId, Vec<hir::ContractId>>,
     /// The ID of the next MC/DC decision, or `None` without `-Zcoverage-mcdc`.
     next_decision: Option<u32>,
     /// Whether to build the regions without counters, to learn their shape.
@@ -281,11 +291,10 @@ impl<'gcx> Walker<'gcx> {
             for arg in modifier.args.exprs() {
                 self.expr(arg);
             }
-            if let Some(modifier_id) = modifier.id.as_function()
-                && self.gcx.hir.function(modifier_id).kind.is_modifier()
-                && self.function_enabled(modifier_id)
-            {
-                self.expansion(modifier, modifier_id);
+            for target in self.modifier_targets(function, modifier) {
+                if self.function_enabled(target) {
+                    self.expansion(modifier, target);
+                }
             }
         }
         if let Some(body) = function.body {
@@ -299,13 +308,34 @@ impl<'gcx> Walker<'gcx> {
         self.end(RecordOwner::Function(id), function.source);
     }
 
+    /// Returns the modifiers that an invocation in `function` dispatches to: the one it names, and
+    /// the overrides that derived contracts select.
+    fn modifier_targets(
+        &self,
+        function: &hir::Function<'gcx>,
+        modifier: &hir::Modifier<'gcx>,
+    ) -> Vec<hir::FunctionId> {
+        let mut targets = Vec::new();
+        let Some(contract) = function.contract else { return targets };
+        for &derived in self.derived.get(&contract).map_or(&[][..], Vec::as_slice) {
+            if let Some(target) = self.gcx.resolve_modifier_target(derived, modifier)
+                && self.gcx.hir.function(target).kind.is_modifier()
+                && !targets.contains(&target)
+            {
+                targets.push(target);
+            }
+        }
+        targets
+    }
+
     /// Walks the body of `modifier_id` as invoked by `invocation`, in a virtual file of its own.
     fn expansion(&mut self, invocation: &'gcx hir::Modifier<'gcx>, modifier_id: hir::FunctionId) {
         let modifier = self.gcx.hir.function(modifier_id);
         let Some(body) = modifier.body else { return };
         let file = self.rec.files.len() as u32;
         self.rec.files.push(modifier.source);
-        let scope = mem::replace(&mut self.scope, Site::key(invocation));
+        let scope =
+            mem::replace(&mut self.scope, (Site::key(invocation), modifier_id.index() as u32));
         let entry = self.counter(Site::Function(modifier_id));
         self.region(invocation.span, RegionKind::Expansion(entry.clone(), file));
         let previous_file = mem::replace(&mut self.rec.file, file);

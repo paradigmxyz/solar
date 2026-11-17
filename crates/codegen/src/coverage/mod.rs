@@ -62,7 +62,11 @@
 //! Sites are keyed by the address of their HIR node, which lowering reaches through the same arena
 //! references. A counter whose site lowering never reaches stays at zero, as for code that is
 //! never generated. Each expansion of a modifier lowers the same HIR nodes, so a site also has the
-//! expansion it belongs to.
+//! expansion it belongs to. A virtual modifier dispatches to an override in some derived contracts,
+//! so an invocation has an expansion for each modifier it can reach.
+//!
+//! A `require` whose message reverts while it is evaluated counts as a failed condition, since the
+//! counter that ends the condition follows the message.
 
 use crate::backend::evm::op;
 use alloy_primitives::keccak256;
@@ -326,7 +330,7 @@ pub struct SourceCoverage {
 #[derive(Debug, Default)]
 pub struct CoverageMap {
     sources: IndexVec<hir::SourceId, SourceCoverage>,
-    sites: FxHashMap<(usize, Site), u32>,
+    sites: FxHashMap<(Scope, Site), u32>,
 }
 
 impl CoverageMap {
@@ -340,8 +344,8 @@ impl CoverageMap {
     }
 
     /// Returns the counter of `site` in modifier expansion `scope`, if it has one. Code outside
-    /// every expansion has scope `0`.
-    pub(crate) fn counter(&self, scope: usize, site: Site) -> Option<u32> {
+    /// every expansion has the default scope.
+    pub(crate) fn counter(&self, scope: Scope, site: Site) -> Option<u32> {
         self.sites.get(&(scope, site)).copied()
     }
 }
@@ -384,6 +388,10 @@ pub fn coverage_map(gcx: Gcx<'_>) -> Option<&CoverageMap> {
             .get_or_init(|| CoverageMap::new(gcx))
     })
 }
+
+/// A modifier expansion: the address of the invocation and the modifier it dispatches to, which is
+/// an override in some derived contracts, or the default scope for code outside every expansion.
+pub(crate) type Scope = (usize, u32);
 
 /// A place where lowering emits a counter, keyed by the address of its HIR node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
