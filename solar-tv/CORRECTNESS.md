@@ -81,6 +81,29 @@ global declarations or phases, deleted external roots and missing call targets
 are unsupported. A changed live result has an independent semantic
 counterexample in `examples/mir/function-dce/`.
 
+Allocation coalescing has a separate conditional prefix certificate in
+`MIR/Transforms/CoalesceAlloc.lean`. Kernel-checked normalization separates the
+ordered data writes from reservation updates. It proves equality of complete
+byte-memory functions, active sizes and final cursors for arbitrary initial
+contents, then applies an arbitrary identical continuation. Supplied callee
+bodies and all ordered call arguments must match; recursion back into the
+changed constructor is rejected. Unchanged loops are not unrolled, summarized
+as successful calls or treated as matching model errors.
+
+The producer contract explicitly requires an aligned FMP of at least 128,
+matching the word at `0x40`, a nonwrapping total reservation below `2^64`, and
+aligned active memory including the FMP slot. This contract is not inferred
+from arbitrary caller state. Establishing it at every call site remains an
+obligation. The kernel checks source reservation extents and ordered writes;
+the compiler parser/schema export, SSA projection, cached-cursor correspondence
+and continuation binding remain trusted. Functional byte writes agree with the
+shared byte-list operation within active memory. FMP overwrite and disjointness
+laws are also kernel-proved. This remains an unpriced prefix certificate, not
+direct SSA interpreter correspondence or a physical gas/layout theorem. An
+aliasing FMP at 64 is a kernel counterexample when its safety contract is
+removed. The reduced real pass and a wrong initializer with independent replay
+are in `examples/mir/coalesce-allocs/`.
+
 Unknown-height block windows also admit a narrower contextual prefix proof.
 An independent Rust export includes every instruction and the terminal. Only a
 fixed-price scalar/stack prefix may differ, and the complete remaining suffix
@@ -299,7 +322,7 @@ The current sample, with the exact same 24 selected IDs, uses a 30-second budget
 | Contract | Captured checks | Selected | Verified | Unsupported |
 | --- | ---: | ---: | ---: | ---: |
 | Solady WETH | 329 | 8 | 7 | 1 |
-| OpenZeppelin ERC20Mock | 372 | 8 | 5 | 3 |
+| OpenZeppelin ERC20Mock | 372 | 8 | 6 | 2 |
 | Morpho Blue | 1,515 | 8 | 4 | 4 |
 
 All ABI and creation/runtime bytecode fingerprints remain identical to the
@@ -337,12 +360,15 @@ through all four early guards. WETH's `DOMAIN_SEPARATOR` SCCP pair verifies
 through its allocating helper. Its post-precompile predicate peephole verifies
 through the shared-prefix/suffix route. WETH's removal of its two unreferenced
 token-transfer hooks now verifies through rooted function-table correspondence.
-The same sample therefore verifies 16 of 24; 8 remain unsupported, and check
-identities and bytecode hashes are unchanged.
+The allocation-coalescing constructor now discharges the conditional prefix
+obligation above, including its explicit allocation-producer contract. This
+does not establish that every caller satisfies the contract. The same sample
+therefore verifies 17 of 24 recorded obligations; 7 remain unsupported, and
+check identities and bytecode hashes are unchanged.
 
-The ten-second control run verifies 15 checks, with 8 unsupported and the larger
+The ten-second control run verifies 16 checks, with 7 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
-budget difference is explicit; this is not a sixteen-of-24 result at ten seconds.
+budget difference is explicit; this is not a seventeen-of-24 result at ten seconds.
 
 ## Remaining obligations
 
