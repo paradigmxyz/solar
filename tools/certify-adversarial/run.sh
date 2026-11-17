@@ -24,6 +24,13 @@ export OUT SOLAR_DIR SOLAR_SHA LEAN_DIR LEAN_SHA PACKAGES_FROM="${PACKAGES_FROM:
 export PRODUCER="$OUT/producer.json"
 log() { echo "$(date -u +%FT%TZ) $*" | tee -a "$OUT/run.log"; }
 log "RUN-START solar=$SOLAR_SHA lean=$LEAN_SHA box_created=$BOX_CREATED admit_until=$(date -u -d @$admit_until +%FT%TZ) deadline=$(date -u -d @$DEADLINE +%FT%TZ) slots=$SLOTS"
+# Every case needs its intended stage registered in stages.tsv before anything runs.
+missing=$(while read -r name _; do
+    [[ -z "${name:-}" || "$name" == \#* ]] && continue
+    awk -F'\t' -v n="$name" '$1 == n {f = 1} END {exit !f}' "$here/stages.tsv" || echo "$name"
+done < "$CASES")
+if [[ -n "$missing" ]]; then log "REFUSED: no registered stage for: $missing"; exit 2; fi
+log "STAGES $(sha256sum < "$here/stages.tsv" | cut -c1-64)"
 if ! bash "$here/producer.sh" "$PRODUCER" > "$OUT/producer.log" 2>&1; then
     log "RUN-ABORT producer failed (see producer.log)"; exit 1
 fi

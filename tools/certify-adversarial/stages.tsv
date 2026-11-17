@@ -1,0 +1,22 @@
+# NAME	CLASS	STAGE: each case's intended verdict, registered before any run (CASES.md, Rerun
+# criteria). CLASS is control (must reach the requested tier with an independent replay),
+# semantic (counts only when its verdict line matches STAGE, a Python regex searched in the
+# driver's last line) or failclosed (an expected refusal, never evidence for a property).
+control-flag	control	^CERTIFIED: \S+: the requested tier holds
+control-siblingok	control	^CERTIFIED: \S+: the requested tier holds
+control-flagrenamed	control	^CERTIFIED: \S+: the requested tier holds
+siblingleak	semantic	^REJECTED: spec: \S*\bset_meets0 does not check
+flag-specwrong	semantic	^REJECTED: spec: \S*\braise_meets0 does not check
+flag-branchleak	semantic	^REJECTED: spec: \S*\braise_meets0 does not check
+flag-frameleak	semantic	^REJECTED: spec: \S*\blower_meets0 does not check
+flag-storagealias	semantic	^REJECTED: spec: \S*\blower_meets0 does not check
+flag-succeedsalways	semantic	^REJECTED: spec: \S*\blower_succeeds0 does not check
+meterwrongspec	semantic	^REJECTED: spec: \S*\brecord_meets0 does not check
+clampwrongspec-r2	semantic	^REJECTED: spec: \S*\bclamp_meets0 does not check
+siblingfns-r2	semantic	^REJECTED: spec: \S*\blo_meets0 does not check(?!.*\bhi_)
+initbroken-r2	semantic	^REJECTED: .*\binvariant\b.*\b(initial|constructor|deploy)
+invbroken-r2	semantic	^REJECTED: .*\binvariant\b.*\breset\b
+vacuoussecond-r2a	semantic	^REJECTED: .*\bvacuous.*\btwo\b|^REJECTED: .*\btwo\b.*\bvacuous
+vacuoussecond-r2b	semantic	^REJECTED: .*\bvacuous.*\btwo\b|^REJECTED: .*\btwo\b.*\bvacuous
+flag-wrap	failclosed	^BLOCKED: .*\braise\b.*source tree undefined \(erasure\)
+falseenv	failclosed	^BLOCKED: .*a spec clause reads the environment \(block\.chainid\)

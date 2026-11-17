@@ -35,3 +35,11 @@ starts nothing unless the driver's `tools/certify/box_admit.sh admit` reads both
 (`$OUT.admission`). Each case also re-reads its own cgroup's limits and refuses (`REFUSED-SCOPE`)
 when `memory.max` is not a byte count or swap is allowed, and records `memory.peak` and
 `memory.events` in `scope.txt`.
+
+## Gate (rerun)
+
+`stages.tsv` registers each case's class and intended stage, `gate.py` checks a finished case against
+it (`gate.json`; a control also needs its record's tier, strict predicate and full replay with
+trusted 0, plus an independent `--replay` that `case.sh` runs and records in `replay.exit`), and
+`table.py` prints the control gate and the semantic rejections that count. See CASES.md, Rerun
+criteria.

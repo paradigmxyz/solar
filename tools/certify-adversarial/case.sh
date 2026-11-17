@@ -9,6 +9,9 @@
 set -u
 name=$1; src=$2; expect=$3
 here=$(cd "$(dirname "$0")" && pwd)
+# The case's class and intended stage, registered in stages.tsv before the run (run.sh refuses a
+# case without one).
+IFS=$'\t' read -r _ cls stage < <(awk -F'\t' -v n="$name" '$1 == n' "$here/stages.tsv")
 R="$OUT/$name"
 if [[ -e "$R" ]]; then echo "case: $R exists; every run starts fresh" >&2; exit 2; fi
 mkdir -p "$R"
@@ -75,7 +78,20 @@ if [[ $kind == DONE ]]; then
     IFS='|' read -ra ok <<< "$expect"
     for e in "${ok[@]}"; do [[ "$rc" == "$e" ]] && match=yes; done
 fi
-echo "$kind exit=$rc expect=$expect match=$match producer=$pc log_sha256=$(sha256sum < "$R/certify.log" | cut -c1-64) $(date -u +%FT%TZ)" >> "$R/status"
+# A control that certified is replayed independently (--replay: a fresh cold run checked against
+# its record), within the same deadline; its exit is part of the control's gate.
+if [[ $cls == control && $kind == DONE && $rc == 0 ]]; then
+    left=$((DEADLINE - $(date +%s)))
+    if (( left > 60 )); then
+        (cd "$SOLAR_DIR" && exec setsid -w timeout -k 30 "$left" tools/certify/certify --replay "$R/rec") \
+            > "$R/replay.log" 2>&1
+        echo $? > "$R/replay.exit"
+    else
+        echo no-time > "$R/replay.exit"
+    fi
+fi
+gate=$(python3 "$here/gate.py" "$R" "$cls" "$stage" "$kind" 2>/dev/null || echo stage_ok=unreadable)
+echo "$kind exit=$rc expect=$expect match=$match class=$cls $gate replay=$(cat "$R/replay.exit" 2>/dev/null || echo none) producer=$pc log_sha256=$(sha256sum < "$R/certify.log" | cut -c1-64) $(date -u +%FT%TZ)" >> "$R/status"
 {
     echo "memory.events $(tr '\n' ' ' < "/sys/fs/cgroup$cg/memory.events" 2>/dev/null)"
     echo "memory.peak $(cat "/sys/fs/cgroup$cg/memory.peak" 2>/dev/null || echo unreadable)"

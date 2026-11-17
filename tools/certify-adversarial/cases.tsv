@@ -18,3 +18,4 @@ vacuoussecond-r2a cases/VacuousSecondR2a.sol 1
 vacuoussecond-r2b cases/VacuousSecondR2b.sol 1
 flag-wrap cases/FlagWrap.sol 3
 falseenv cases/FalseEnv.sol 3
+control-flagrenamed cases/FlagRenamed.sol 0
