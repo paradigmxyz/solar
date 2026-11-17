@@ -1,6 +1,6 @@
-//@compile-flags: -Zmir-pipeline=bit-scan
+//@compile-flags: -Zmir-pipeline=scan-region
 //@filecheck:
-@module BitScan
+@module ScanRegion
 
 // A search that accumulates its shift and ends in a nibble table: the index of the highest set
 // bit, zero for zero.
@@ -88,14 +88,13 @@ fn @shifted_half(arg0: i256) -> i256 {
     ret v36
 }
 
-// A step of the search that something else reads stays; the steps only the search read go.
+// A step of the search that something else reads is a function of the index too: it becomes
+// the index rounded down to its top bit, and the steps only the search read go.
 // CHECK-LABEL: {{^[ +].*}}fn @shared{{[( ]}}
-// CHECK: {{^}} [[UPPER:v[0-9]+]] = gt arg0, 0xffffffffffffffffffffffffffffffff
-// CHECK-NEXT: {{^}} [[FLAG:v[0-9]+]] = zext i1 [[UPPER]] to i256
-// CHECK-NEXT: {{^}} [[HALF:v[0-9]+]] = shl [[FLAG]], 7
-// CHECK: {{^}}+ [[ODD:v[0-9]+]] = or arg0, 1
-// CHECK-NEXT: {{^}}+ [[ZEROS:v[0-9]+]] = clz [[ODD]]
-// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NOT: {{^}} {{.*}} = gt
+// CHECK: {{^}}+ [[STEP_INDEX:v[0-9]+]] = sub 255,
+// CHECK-NEXT: {{^}}+ [[HALF:v[0-9]+]] = and [[STEP_INDEX]], 128
+// CHECK: {{^}}+ [[INDEX:v[0-9]+]] = sub 255,
 // CHECK-NEXT: {{^}} [[SUM:v[0-9]+]] = add [[INDEX]], [[HALF]]
 // CHECK-NEXT: {{^}} ret [[SUM]]
 fn @shared(arg0: i256) -> i256 {
@@ -135,10 +134,15 @@ fn @shared(arg0: i256) -> i256 {
     ret v37
 }
 
-// The search reads only its own block: one that a jump splits is not followed.
+// A search that a jump splits is a region of two blocks: the first jumps to the second, which
+// keeps only the index.
 // CHECK-LABEL: {{^[ +].*}}fn @split{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
-// CHECK: {{^}} ret
+// CHECK: {{^}} jump [[LAST:bb[0-9]+]]
+// CHECK: {{^}} [[LAST]]:
+// CHECK: {{^}}+ [[ODD:v[0-9]+]] = or arg0, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS:v[0-9]+]] = clz [[ODD]]
+// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NEXT: {{^}} ret [[INDEX]]
 fn @split(arg0: i256) -> i256 {
   bb0:
     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
@@ -178,10 +182,13 @@ fn @split(arg0: i256) -> i256 {
 }
 
 // The same steps over two words: the table reads the wrong one, so the value is no function of
-// either alone.
+// either alone and keeps its table. The steps before it round the index of the first word down
+// to a nibble.
 // CHECK-LABEL: {{^[ +].*}}fn @two_words{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
-// CHECK: {{^}} ret
+// CHECK: {{^}}+ [[INDEX:v[0-9]+]] = sub 255,
+// CHECK-NEXT: {{^}}+ [[NIBBLE:v[0-9]+]] = and [[INDEX]], 252
+// CHECK-NEXT: {{^}} [[WORD:v[0-9]+]] = shr arg1, [[NIBBLE]]
+// CHECK-NEXT: {{^}} {{v[0-9]+}} = byte [[WORD]],
 fn @two_words(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff

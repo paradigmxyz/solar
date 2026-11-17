@@ -108,13 +108,13 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         for &base_id in gcx.hir.contract(contract).linearized_bases.iter().rev() {
             let base = gcx.hir.contract(base_id);
             this.stopped = (this.stop)(hir::ItemId::Contract(base_id));
-            for variable in base.variables() {
-                let variable = gcx.hir.variable(variable);
+            for id in base.variables() {
+                let variable = gcx.hir.variable(id);
                 if variable.is_state_variable()
                     && !variable.is_constant()
-                    && let Some(initializer) = variable.initializer
+                    && variable.initializer.is_some()
                 {
-                    this.replay(&record(gcx, |recorder| recorder.visit_expr(initializer)));
+                    this.replay(gcx.initializer_call_ops(id));
                 }
             }
             if let Some(constructor) = base.ctor {
@@ -170,13 +170,13 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         for &base_id in contract.linearized_bases {
             let base = gcx.hir.contract(base_id);
             this.stopped = (this.stop)(hir::ItemId::Contract(base_id));
-            for variable in base.variables() {
-                let variable = gcx.hir.variable(variable);
+            for id in base.variables() {
+                let variable = gcx.hir.variable(id);
                 if variable.is_state_variable()
                     && !variable.is_constant()
-                    && let Some(initializer) = variable.initializer
+                    && variable.initializer.is_some()
                 {
-                    this.replay(&record(gcx, |recorder| recorder.visit_expr(initializer)));
+                    this.replay(gcx.initializer_call_ops(id));
                 }
             }
             this.stopped = false;
@@ -267,7 +267,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                         self.visited_constants.insert(id)
                     };
                     if first {
-                        self.replay(gcx.constant_call_ops(id));
+                        self.replay(gcx.initializer_call_ops(id));
                     }
                 }
                 CallOp::Event(event) => {
@@ -287,7 +287,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
 /// What a walk of a function or an initializer reaches, before a contract resolves the overrides
 /// its calls dispatch to.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum CallOp {
+pub(super) enum CallOp {
     /// A call, a modifier invocation or a user-defined operator that runs `named` as `dispatch`
     /// resolves it. `parenthesized` records that the call names its callee in parentheses, which
     /// solc counts as a dispatch target, when the ASTs are kept.
@@ -304,8 +304,8 @@ pub(crate) enum CallOp {
     BytecodeDependency(hir::ContractId),
 }
 
-/// Returns what the walk `f` makes reaches, in walk order.
-pub(super) fn record<'gcx>(
+/// Returns what the walk `f` reaches, in walk order.
+fn record<'gcx>(
     gcx: Gcx<'gcx>,
     f: impl FnOnce(&mut Recorder<'gcx>) -> ControlFlow<Never>,
 ) -> Vec<CallOp> {
@@ -319,14 +319,14 @@ pub(super) fn record_function(gcx: Gcx<'_>, function: hir::FunctionId) -> Vec<Ca
     record(gcx, |recorder| recorder.visit_nested_function(function))
 }
 
-/// Returns what the initializer of the constant `id` reaches.
-pub(super) fn record_constant(gcx: Gcx<'_>, id: hir::VariableId) -> Vec<CallOp> {
+/// Returns what the initializer of the variable `id` reaches.
+pub(super) fn record_initializer(gcx: Gcx<'_>, id: hir::VariableId) -> Vec<CallOp> {
     let Some(initializer) = gcx.hir.variable(id).initializer else { return Vec::new() };
     record(gcx, |recorder| recorder.visit_expr(initializer))
 }
 
 /// Walks a function or an initializer and records what it reaches as [`CallOp`]s.
-pub(super) struct Recorder<'gcx> {
+struct Recorder<'gcx> {
     gcx: Gcx<'gcx>,
     ops: Vec<CallOp>,
     direct_callee: Option<hir::ExprId>,

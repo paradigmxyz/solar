@@ -122,19 +122,20 @@ pub(crate) struct AstFacts<'gcx> {
     /// The type solc gives an expression where it differs from the type of type checking: the
     /// common type of the operands of a comparison or a logical operation.
     pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    /// The Yul identifiers that name a variable or a library, with their suffix, ordered by
+    /// position.
     pub(crate) yul_references: Vec<YulReference>,
 }
 
-/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+/// A Yul identifier that names a variable or a library, such as `x`, `x.slot` or `L`.
 #[derive(Clone, Copy, Debug)]
 pub struct YulReference {
     /// The span of the identifier, with its suffix.
     pub span: Span,
     /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
     pub suffix: Option<Symbol>,
-    /// The variable the identifier names.
-    pub declaration: hir::VariableId,
+    /// The variable or library the identifier names.
+    pub declaration: hir::ItemId,
 }
 
 /// The target selected for a call callee expression.
@@ -1928,11 +1929,11 @@ fn function_call_ops(gcx: _, id: hir::FunctionId) -> &'gcx [call_graph::CallOp] 
     gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_function(gcx, id))
 }
 
-/// Returns what the initializer of the given constant reaches, before a contract resolves the
+/// Returns what the initializer of the given variable reaches, before a contract resolves the
 /// overrides its calls dispatch to.
-fn constant_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
+fn initializer_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
     assert!(gcx.has_typeck_results(), "call operations require type checking");
-    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_constant(gcx, id))
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_initializer(gcx, id))
 }
 
 fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
