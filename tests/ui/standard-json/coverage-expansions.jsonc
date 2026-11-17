@@ -3,14 +3,27 @@
 // invokes it: `b` has two. The function's record has an expansion region, kind 1, at the
 // invocation, `[1, file, start, length, count, expanded file]`, and repeats the regions of the
 // modifier under a virtual file for it, so `files` has one more entry for each expansion. The
-// record of the modifier owns no counters and counts the sum of its expansions: `counters` has
-// length 0, and its first region adds the entry counters 2, 9, and 15.
+// record of the modifier owns no counters, since `llvm-cov` adds up the regions of a span across
+// records: `counters` has length 0, and its one code region, over the header of the modifier, adds
+// the entry counters 2, 9, and 15 of its expansions.
 // CHECK: "name": "A.sol:E.guard(uint256)",
 // CHECK-NEXT: "hash"
 // CHECK-NEXT: "counters": [
 // CHECK-NEXT: {{[0-9]+}},
 // CHECK-NEXT: 0
 // CHECK-NEXT: ],
+// CHECK-NEXT: "files": [
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK: "regions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: 26,
+// CHECK-NEXT: 7
+// CHECK-NEXT: ]
+// CHECK-NEXT: ]
 // CHECK: "name": "A.sol:E.a(uint256)",
 // CHECK: "counters": [
 // CHECK-NEXT: 1,
@@ -30,11 +43,24 @@
 // CHECK-NEXT: 0,
 // CHECK-NEXT: 0
 // CHECK-NEXT: ],
+// A modifier that nothing invokes keeps the regions of its body, counted zero, so its lines show
+// as missed: the body, the branch of the `require` condition, and the placeholder.
+// CHECK: "name": "A.sol:E.unused(uint256)",
+// CHECK: "regions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 4,
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract E {\n    modifier guard(uint256 n) {\n        require(n > 1 && n < 9);\n        _;\n    }\n\n    function a(uint256 x) external guard(x) {}\n\n    function b(uint256 y) external guard(y + 1) guard(2) {}\n}\n"
+      "content": "contract E {\n    modifier guard(uint256 n) {\n        require(n > 1 && n < 9);\n        _;\n    }\n\n    function a(uint256 x) external guard(x) {}\n\n    function b(uint256 y) external guard(y + 1) guard(2) {}\n\n    modifier unused(uint256 n) {\n        require(n > 1);\n        _;\n    }\n}\n"
     }
   },
   "settings": {

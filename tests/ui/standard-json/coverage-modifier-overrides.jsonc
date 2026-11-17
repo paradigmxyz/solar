@@ -1,8 +1,8 @@
 //@ filecheck:
 // A virtual modifier dispatches to the override of a derived contract, so the invocation in `A.f`
 // has an expansion for each modifier it reaches: `A.guard` and `B.guard`, each with a virtual file
-// in `files` and an expansion region, kind 1. Both modifiers have a record that sums its
-// expansions.
+// in `files` and an expansion region, kind 1. Both modifiers have a record with one region over its
+// header that adds up the entries of its expansions.
 // CHECK: "name": "A.sol:A.guard(uint256)",
 // CHECK: "name": "A.sol:A.f(uint256)",
 // CHECK: "counters": [

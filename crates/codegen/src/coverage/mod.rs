@@ -27,8 +27,11 @@
 //! Each invocation of a modifier lowers the body once more, so it has counters of its own, inside
 //! the range of the function that invokes it. The function's record has an expansion region at the
 //! invocation, and repeats the regions of the body under a virtual file for the expansion. The
-//! record of the modifier owns no counters: each of its counts is the sum of the matching counts of
-//! its expansions, and a modifier that nothing invokes counts zero.
+//! record of the modifier owns no counters. Tools such as `llvm-cov` add up the regions of a span
+//! across records, so the expansions carry the body and the record of a modifier that something
+//! invokes has one code region, over its header from the `modifier` keyword to the `{` of the body,
+//! that counts the sum of the entry counters of its expansions. A modifier that nothing invokes
+//! keeps the regions of its body, counted zero, so its lines show as missed.
 //!
 //! # Counters
 //!

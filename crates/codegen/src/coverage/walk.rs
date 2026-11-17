@@ -351,53 +351,36 @@ impl<'gcx> Walker<'gcx> {
         self.scope = scope;
     }
 
-    /// Builds the record of a modifier, whose counts are the sums of its expansions' counts.
+    /// Builds the record of a modifier.
     ///
-    /// The decisions of the expansions have probes of their own, so the record has only the
-    /// branches of their conditions.
+    /// The expansions carry the regions of the body, and `llvm-cov` adds up the regions that share
+    /// a span, so a modifier that something invokes has only its header, which no expansion
+    /// covers, counted as often as its expansions are entered. A modifier that nothing invokes
+    /// keeps the regions of its body, counted zero.
     fn modifier(&mut self, id: hir::FunctionId) {
         let modifier = self.gcx.hir.function(id);
         let Some(body) = modifier.body else { return };
         self.begin(modifier.source);
-        let mut regions = match self.expansions.remove(&id) {
+        match self.expansions.remove(&id) {
             Some(expansions) => {
-                let mut expansions = expansions.into_iter();
-                let mut regions = expansions.next().unwrap_or_default();
+                let mut count = Count::Zero;
                 for expansion in expansions {
-                    for (region, other) in regions.iter_mut().zip(expansion) {
-                        match (&mut region.kind, other.kind) {
-                            (RegionKind::Code(count), RegionKind::Code(other)) => {
-                                *count = mem::replace(count, Count::Zero).add(other);
-                            }
-                            (
-                                RegionKind::Branch(holds, fails)
-                                | RegionKind::McdcBranch { holds, fails, .. },
-                                RegionKind::Branch(other_holds, other_fails)
-                                | RegionKind::McdcBranch {
-                                    holds: other_holds,
-                                    fails: other_fails,
-                                    ..
-                                },
-                            ) => {
-                                *holds = mem::replace(holds, Count::Zero).add(other_holds);
-                                *fails = mem::replace(fails, Count::Zero).add(other_fails);
-                            }
-                            _ => {}
-                        }
+                    if let Some(Region { kind: RegionKind::Code(entry), .. }) =
+                        expansion.into_iter().next()
+                    {
+                        count = count.add(entry);
                     }
                 }
-                regions
+                self.region(modifier.span.with_hi(body.span.lo()), RegionKind::Code(count));
             }
             None => {
-                // Without an expansion nothing counts the body, but its regions still show it.
                 self.dry = true;
                 let entry = self.counter(Site::Function(id));
                 self.open(modifier.span, &entry);
                 self.stmts(body.stmts, Some(entry));
                 self.close();
                 self.dry = false;
-                let mut regions = mem::take(&mut self.rec.regions);
-                for region in &mut regions {
+                for region in &mut self.rec.regions {
                     match &mut region.kind {
                         RegionKind::Code(count) => *count = Count::Zero,
                         RegionKind::Branch(holds, fails) => {
@@ -407,19 +390,8 @@ impl<'gcx> Walker<'gcx> {
                         _ => {}
                     }
                 }
-                regions
             }
-        };
-        regions.retain(|region| !matches!(region.kind, RegionKind::Decision(_)));
-        for region in &mut regions {
-            region.file = 0;
-            let kind = mem::replace(&mut region.kind, RegionKind::Code(Count::Zero));
-            region.kind = match kind {
-                RegionKind::McdcBranch { holds, fails, .. } => RegionKind::Branch(holds, fails),
-                kind => kind,
-            };
         }
-        self.rec.regions = regions;
         self.end(RecordOwner::Function(id), modifier.source);
     }
 
