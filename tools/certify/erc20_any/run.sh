@@ -35,6 +35,6 @@ python3 "$here/gen.py" "$lean" "$out/fresh.json" "$name" || exit 1
 for f in Certified/$name/*.lean $te scripts/verify/uniswap-v2/UniswapV2ERC20.sol Certified/uv2_erc20/options \
     Certified/uv2_erc20/gen/UniswapV2ERC20/manifest.json Certified/uv2_erc20/gen/UniswapV2ERC20/Manifest.lean; do
   sha256sum "$f"; done > "$out/artifacts.sha256"
-LEAN_NUM_THREADS=1 step build lake build -KleanMemory=12000 "$name" || exit 1
+LEAN_NUM_THREADS=${LEAN_NUM_THREADS:-1} step build lake build -KleanMemory=12000 "$name" || exit 1
 step check_final lake env lean --run "$certify/check_final.lean" "$name" "$name.Proof" || exit 1
 echo done

@@ -10,6 +10,12 @@
 #   port, candidate build, slice spec (solar-verify at SLICE_COMMIT, source side only), prep.sh,
 #   run.sh (build and check_final), then replay.sh. Slot 2 needs PRIOR_REPLAY, slot 1's
 #   OUT/replay, and replay.sh refuses (exit 3) unless its plan is byte-identical to it.
+# Every step before the replay runs under build_cap.sh: its own cgroup with memory.max at the budget
+# (75% of memory), BUILD_JOBS (default 12) lean or rustc processes at most, each lean heap capped
+# by -KleanMemory (6000 MB for the slice and the core, 12000 MB in run.sh). 12 jobs x (12 GB heap +
+# 3 GB mapped oleans) + 6 GB base = 186 GB, within the 283 GB budget. Each step adds its cap,
+# peak and verdict to ~/w/slot<N>/gate.txt; the replay adds sched.py's gate. Any FAILED line voids
+# the slot.
 # The replay stops admitting batches REPLAY_MARGIN (default 50) minutes before DEADLINE and kills
 # what is still running 12 minutes before it, leaving time to copy everything off.
 set -uo pipefail
@@ -20,8 +26,9 @@ slot=$1; deadline=$2; prior=${3:-}
 : "${SLICE_COMMIT:=902cccc2cb1213219789780a39caf3c1d4d9f35e}"
 source ~/w/env.sh
 w=~/w; o=$w/slot$slot; mkdir -p "$o"; here=$w/solar/tools/certify/erc20_any
+total=$(awk '/MemTotal/ { print $2 }' /proc/meminfo); budget=$(( total * 75 / 100 )); bj=${BUILD_JOBS:-12}
 step() { local n=$1; shift; local t0; t0=$(date +%s)
-  /usr/bin/time -v -o "$o/$n.time" "$@" > "$o/$n.log" 2>&1; local rc=$?
+  /usr/bin/time -v -o "$o/$n.time" bash "$w/solar/tools/certify/erc20_any/build_cap.sh" "$bj" "$budget" "$o/gate.txt" "$n" -- "$@" > "$o/$n.log" 2>&1; local rc=$?
   echo "$n exit=$rc wall_s=$(( $(date +%s) - t0 )) peak_rss_kb=$(awk '/Maximum resident/{print $NF}' "$o/$n.time") $(date -u +%FT%TZ)" | tee -a "$o/steps"
   return $rc; }
 ( while :; do
@@ -50,5 +57,9 @@ step run bash "$here/run.sh" $w/solidity-lean "$c/target/release/solar" "$o/out"
 git status --short > "$o/tree-status"; git diff > "$o/tree.diff"
 export REPLAY_STOP_AT=$(( deadline - ${REPLAY_MARGIN:-50} * 60 )) REPLAY_KILL_AT=$(( deadline - 12 * 60 ))
 [[ -n $prior ]] && export PRIOR_REPLAY=$prior
-step replay bash "$here/replay.sh" $w/solidity-lean "$o/out" ${PAR:-4} 25
+grep -q FAILED "$o/gate.txt" && { echo "build gate FAILED: slot void" | tee -a "$o/steps"; exit 1; }
+t0=$(date +%s)
+/usr/bin/time -v -o "$o/replay.time" bash "$here/replay.sh" $w/solidity-lean "$o/out" ${PAR:-4} 25 > "$o/replay.log" 2>&1; rc=$?
+echo "replay exit=$rc wall_s=$(( $(date +%s) - t0 )) $(date -u +%FT%TZ)" | tee -a "$o/steps"
+sed 's/^/replay /' "$o/out/replay/gate.txt" >> "$o/gate.txt"
 echo "slot $slot replay exit recorded in $o/steps"
