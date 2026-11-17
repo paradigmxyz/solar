@@ -1,0 +1,1 @@
+ABORTED-preflight: missing /usr/lib/x86_64-linux-gnu/Scrt1.o /usr/lib/x86_64-linux-gnu/crti.o /usr/lib/x86_64-linux-gnu/libc.so

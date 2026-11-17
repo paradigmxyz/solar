@@ -1,0 +1,23 @@
+	Command being timed: "python3 /home/hand/h2/r5isrc/tools/certify/generic.py /home/hand/h2/Flag.sol natspec --contract Flag --solidity-lean /home/hand/h2/sl --base 334d1d924f8f6c29ac827fd81d1cc739721b479a --work /home/hand/h2/flagwork --record-dir /home/hand/h2/flagrun/record --solc /home/hand/.cache/solc/solc-0.8.35 --packages-from /home/hand/h2/pkgrun --probe-cache /home/hand/h2/cache"
+	User time (seconds): 2254.35
+	System time (seconds): 429.37
+	Percent of CPU this job got: 115%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 38:51.08
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8278912
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1773
+	Minor (reclaiming a frame) page faults: 42423673
+	Voluntary context switches: 2725263
+	Involuntary context switches: 24059
+	Swaps: 0
+	File system inputs: 6832
+	File system outputs: 51965904
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

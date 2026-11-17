@@ -1,0 +1,15 @@
+ok: the good closure replays in one shard: kernel replay: all 383 constants of the closure of final replayed in this run (65 theorem proofs over 1 shard(s), disjoint and complete); closure sha256 9cd9a3f459a3f3de13ff1301705a7bb58e47dab794dd59855af6fb6d1df80a21; axioms none; 0 unaccounted
+ok: the good closure replays in three shards
+ok: a sorry deep in the closure is refused: certify: error: shard 0 of 1 of the closure replay left no record: [Errno 2] No such file or directory: '/tmp/tmp.nZ0xxRY6Ds/s.0-of-1.proofs'
+ok: an axiom deep in the closure is refused: certify: error: shard 0 of 1 of the closure replay left no record: [Errno 2] No such file or directory: '/tmp/tmp.nZ0xxRY6Ds/a.0-of-1.proofs'
+ok: a tampered Init lemma (Nat.add_zero) is refused: certify: error: shard 0 of 1 of the closure replay exits 1: the kernel rejects the closure
+ok: a tampered Init lemma in three shards is refused: certify: error: shard 0 of 3 of the closure replay exits 1: the kernel rejects the closure
+ok: an omitted dependency (Nat.add_zero) is refused: certify: error: shard 0 of 1 of the closure replay exits 1: the kernel rejects the closure
+ok: a receipt from a test-only run is refused: certify: error: shard 0 of 1 ran with a test-only defect (--tamper or --omit)
+ok: an expected-type mismatch is refused: replay_closure: the type of final is not exactly Other: Statement
+ok: an omitted shard is refused: certify: error: shard 2 of 3 of the closure replay left no record: [Errno 2] No such file or directory: '/tmp/tmp.nZ0xxRY6Ds/m.2-of-3.status'
+ok: three shards accounted as two is refused: certify: error: shard 0 of 2 of the closure replay left no record: [Errno 2] No such file or directory: '/tmp/tmp.nZ0xxRY6Ds/w.0-of-2.status'
+ok: overlapping shards is refused: certify: error: the proof of Char.ofNat._proof_1 was checked by shards 0 and 1: the shards overlap
+ok: shards that leave a proof unchecked is refused: certify: error: the shards' proofs are not the closure's theorems: 1 unchecked (Char.ofNat._proof_1), 0 outside the closure ()
+ok: shards with different closures is refused: certify: error: shard 1 of 3 replayed a different closure than shard 0
+all closure replay tests pass

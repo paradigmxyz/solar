@@ -1,0 +1,6 @@
+2026-11-17T17:21:45Z r5i start; expires 2026-11-17T19:13:29Z; ttl_left_s 6704; nproc 48; mem_kb 395739244
+2026-11-17T17:21:45Z locale: LANG=C.UTF-8 LANGUAGE= LC_CTYPE="C.UTF-8" LC_NUMERIC="C.UTF-8" LC_TIME="C.UTF-8" LC_COLLATE="C.UTF-8" LC_MONETARY="C.UTF-8" LC_MESSAGES="C.UTF-8" LC_PAPER="C.UTF-8" LC_NAME="C.UTF-8" LC_ADDRESS="C.UTF-8" LC_TELEPHONE="C.UTF-8" LC_MEASUREMENT="C.UTF-8" LC_IDENTIFICATION="C.UTF-8" LC_ALL=C.UTF-8 
+2026-11-17T17:21:56Z pack verified: 76ecc020f29366acd21035b9b66baca8040a397fefa7fddf7c9229e351ce0982  pack.sha256
+2026-11-17T17:22:00Z apt installed: git time; git version 2.43.0; time 1.9-0.2build1
+2026-11-17T17:24:33Z mathlib: lake exe cache get exit 0; Decompressed 9031 file(s) Already decompressed 9031 file(s) 
+2026-11-17T17:24:33Z VERDICT ABORTED-preflight: missing /usr/lib/x86_64-linux-gnu/Scrt1.o /usr/lib/x86_64-linux-gnu/crti.o /usr/lib/x86_64-linux-gnu/libc.so

@@ -1,0 +1,151 @@
+== 1. the pinned solidity-lean checkout
+certify: solidity-lean 334d1d924f8f6c29ac827fd81d1cc739721b479a + inputs 4a8591e59a00c26ece8b190126f50de1c63ab6b2 (tree 2525c8bf3372051ea5ee2d49f6658e61dad820e9, Certified/flag_4ce5cf9a only)
+provenance: solidity-lean 334d1d924f8f6c29ac827fd81d1cc739721b479a + inputs 4a8591e59a00c26ece8b190126f50de1c63ab6b2 (tree 2525c8bf3372051ea5ee2d49f6658e61dad820e9, Certified/flag_4ce5cf9a only)
+solidity-lean 4a8591e59a00c26ece8b190126f50de1c63ab6b2 at /home/hand/h2/flagwork/solidity-lean
+== 2. solar
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.13s
+solar 0e5c9f80cf537d7e97f5815d71a78f7391b6cb28
+Build completed successfully (1156 jobs).
+solar sha256 1e9dc9b83d12deeab9f7fd4b253d0058fb7c4ae70a4b0f937a747c8d988ed950
+== 3. compile Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol and export its stages (-Ogas --evm-version osaka)
+stages: stage0 (lower-evm-shaped), sched (stack-schedule), evm1 (cfg-simplify-early), evm2 (block-layout), evm3 (terminal-dedup), evm4 (cfg-simplify-early), evm5 (block-cse), bytecode (assemble)
+bytecode: 346030575f3560e01c80624f48031460475780633fa4f245146034578063b951486d146059578063f0ea4bfc14603d575b5f5ffd5b5f545f5260205ff35b6001545f5260205ff35b602436106030576004355f5560018055005b5f600155 sha256 f689833eb749e7509b4fb038bd8a4e251e77daa10aed088b2b12fa70ab76f69f
+== 4. write the proofs
+assembly: decoded only; the loop-free stages have no backward composition to run the bytecode with
+{"final": "SolarTV.Milestone.Flag4ce5cf9a.flag_4ce5cf9a_mir_to_evmir", "last": "evm5", "first": "stage0", "stages": ["stage0", "sched", "evm1", "evm2", "evm3", "evm4", "evm5"]}
+== 5. build and audit the proofs
+flag_4ce5cf9a.gen.Flag.Bytecode: Build completed successfully (2 jobs).
+flag_4ce5cf9a.gen.Flag.Evm1: Build completed successfully (12 jobs).
+flag_4ce5cf9a.gen.Flag.Evm2: Build completed successfully (12 jobs).
+flag_4ce5cf9a.gen.Flag.Evm3: Build completed successfully (12 jobs).
+flag_4ce5cf9a.gen.Flag.Evm4: Build completed successfully (12 jobs).
+flag_4ce5cf9a.gen.Flag.Evm5: Build completed successfully (12 jobs).
+flag_4ce5cf9a.gen.Flag.Manifest: Build completed successfully (2 jobs).
+flag_4ce5cf9a.gen.Flag.Sched: Build completed successfully (12 jobs).
+flag_4ce5cf9a.gen.Flag.Stage0: Build completed successfully (11 jobs).
+flag_4ce5cf9a.Proofs.Runs.Evm1: Build completed successfully (21 jobs).
+flag_4ce5cf9a.Proofs.Runs.Evm2: Build completed successfully (21 jobs).
+flag_4ce5cf9a.Proofs.Runs.Evm3: Build completed successfully (21 jobs).
+flag_4ce5cf9a.Proofs.Runs.Evm4: Build completed successfully (21 jobs).
+flag_4ce5cf9a.Proofs.Runs.Evm5: Build completed successfully (21 jobs).
+flag_4ce5cf9a.Proofs.Runs.Sched: Build completed successfully (21 jobs).
+flag_4ce5cf9a.Proofs.Runs.Stage0: Build completed successfully (20 jobs).
+flag_4ce5cf9a.Proofs.Stages: Build completed successfully (35 jobs).
+flag_4ce5cf9a.Proofs.Assembly: Build completed successfully (17 jobs).
+flag_4ce5cf9a.Proofs: Build completed successfully (41 jobs).
+'SolarTV.Milestone.Flag4ce5cf9a.checked' depends on axioms: [propext, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.decodes' depends on axioms: [propext, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm1_ends' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm1_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm2_ends' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm2_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm3_ends' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm3_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm4_ends' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm4_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.evm5_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.flag_4ce5cf9a_mir_to_evmir' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.items_eq' depends on axioms: [propext, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.sched_ends' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.sched_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage0_ends' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage_evm1' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage_evm2' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage_evm3' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage_evm4' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage_evm5' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.stage_sched' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SolarTV.Milestone.Flag4ce5cf9a.walk_eq' depends on axioms: [propext, Quot.sound]
+audited 23 theorems
+== 6. the spec (solar-verify) and the headline theorems
+lake packages (20 modules imported): Build completed successfully (2492 jobs).
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 45.65s
+export: /home/hand/h2/flagwork/solidity-lean/.lake/certify/flag_4ce5cf9a/VC.lean is whole (187 lines, ends with end Certified.Flag4ce5cf9a.VC)
+spec: exported to .lake/certify/flag_4ce5cf9a/VC.lean
+no Certified/flag_4ce5cf9a/headline: no end-to-end theorem
+== 6b. the published statement
+export: Certified/flag_4ce5cf9a/gen/Flag/Spec.lean is whole (59 lines, ends with end Certified.flag_4ce5cf9a.gen.Flag.Spec)
+flag_4ce5cf9a.Lowering: Build completed successfully (2567 jobs).
+flag_4ce5cf9a.gen.Flag.Spec: Build completed successfully (8 jobs).
+Verify.VC.Model: Build completed successfully (2549 jobs).
+Verify.Spec.Tree: Build completed successfully (2553 jobs).
+Verify.Spec.TreeMap: Build completed successfully (2558 jobs).
+Verify.Spec.TreeMapNested: Build completed successfully (2559 jobs).
+Verify.Spec.TreeIn: Build completed successfully (2567 jobs).
+Verify.Spec.TreeSucceeds: Build completed successfully (2559 jobs).
+Verify.VC.KernelIdx: Build completed successfully (2 jobs).
+SolidCore.Refinement.KernelRfl: Build completed successfully (3 jobs).
+spec connected generically: flag_4ce5cf9a.SpecConnect.raise_holds flag_4ce5cf9a.SpecConnect.lower_holds
+{"proof": "Certified.flag_4ce5cf9a.Shape.published", "gas_needed": 3580203, "blocks": 6}
+source: Certified/flag_4ce5cf9a/Source.lean is the front end's AST of Flag in Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol (solc 0.8.35)
+flag_4ce5cf9a.Statement: lake packages (4 modules imported): Build completed successfully (1357 jobs).
+Build completed successfully (2758 jobs).
+flag_4ce5cf9a.Final: lake packages (2 modules imported): Build completed successfully (1354 jobs).
+lake packages (1 modules imported): Build completed successfully (1305 jobs).
+Build completed successfully (2791 jobs).
+STATEMENT Certified.flag_4ce5cf9a.Final.Statement := And (Eq.{1} (List.{0} Nat) (List.map.{0, 0} UInt8 Nat (fun (x._@.flag_4ce5cf9a.Statement.1005636212._hygCtx._hyg.12 : UInt8) => UInt8.toNat x._@.flag_4ce5cf9a.Statement.1005636212._hygCtx._hyg.12) (Array.toList.{0} UInt8 (ByteArray.data Certified.flag_4ce5cf9a.Final.code))) Certified.flag_4ce5cf9a.Final.runtimeBytes) (And (SolidCore.Verify.Generic.Expected Certified.flag_4ce5cf9a.Final.src Certified.flag_4ce5cf9a.Final.spec Certified.flag_4ce5cf9a.Final.runtimeBytes) (forall (ctx : SolidCore.Verify.Generic.Context), (SolidCore.Verify.Generic.Context.Ok ctx) -> (Exists.{1} SolidCore.Solidity.TypeCheck.CheckedContract (fun (c : SolidCore.Solidity.TypeCheck.CheckedContract) => And (Eq.{1} (Except.{0, 0} SolidCore.Solidity.TypeCheck.TypeError SolidCore.Solidity.TypeCheck.CheckedContract) (SolidCore.Verify.Generic.Source.checked Certified.flag_4ce5cf9a.Final.src) (Except.ok.{0, 0} SolidCore.Solidity.TypeCheck.TypeError SolidCore.Solidity.TypeCheck.CheckedContract c)) (forall (call : SolarTV.Call), (SolidCore.Verify.Generic.Spec.Valid Certified.flag_4ce5cf9a.Final.spec ctx call) -> (forall (gas : Nat), (LE.le.{0} Nat instLENat ((fun (x._@.flag_4ce5cf9a.Statement.1005636212._hygCtx._hyg.69 : SolarTV.Call) => OfNat.ofNat.{0} Nat 3845403 (instOfNatNat 3845403)) call) gas) -> (Eq.{1} (Option.{0} SolarTV.Observable) (SolidCore.Verify.Generic.runAt ctx gas (SolidCore.Verify.Generic.runtimeCode Certified.flag_4ce5cf9a.Final.runtimeBytes) call) (SolarTV.Sem.run (SolidCore.Verify.Generic.Source.semAt Certified.flag_4ce5cf9a.Final.src ctx) c call))))))))
+check_final: Certified.flag_4ce5cf9a.Final.final : Certified.flag_4ce5cf9a.Final.Statement (module flag_4ce5cf9a.Statement, which does not import flag_4ce5cf9a.Shape); axioms [propext, Classical.choice, Quot.sound]
+kernel replay of the closure of Certified.flag_4ce5cf9a.Final.final: 1 shard(s), at most 6000 MB each
+CLOSURE 33892 constants, 31488 groups
+AXIOMS [Classical.choice, Quot.sound, propext]
+SHARD 0 1 13035 theorem proofs to check
+REPLAYED 33892 constants, 13035 theorem proofs, of the closure of Certified.flag_4ce5cf9a.Final.final (shard 0 of 1)
+kernel replay: all 33892 constants of the closure of Certified.flag_4ce5cf9a.Final.final replayed in this run (13035 theorem proofs over 1 shard(s), disjoint and complete); closure sha256 8c156cb434e4e771e5b5f69636d8d39c2d21ee73877c7b102b7f9d07df972dd4; axioms Classical.choice, Quot.sound, propext; 0 unaccounted
+'Certified.flag_4ce5cf9a.Final.final' depends on axioms: [propext, Classical.choice, Quot.sound]
+published: Certified.flag_4ce5cf9a.Final.final
+== 7. negative tests
+ok   bytecode-control: Certified/flag_4ce5cf9a/Proofs/Assembly.lean accepts the unedited Bytecode
+  bytecode offset 75: 0x10 as 0x11
+ok   bytecode-opcode: Certified/flag_4ce5cf9a/Proofs/Assembly.lean rejects it: Tactic `decide` proved that the proposition walk bytecode offset 0 items = some stream is false
+skip bytecode-lt: no such code in Bytecode
+skip bytecode-jump-table: no such code in Bytecode
+ok   Evm5-control: Certified/flag_4ce5cf9a/Proofs/Runs/Evm5.lean accepts the unedited Evm5
+skip Evm5-add-sub: no such code in Evm5
+  sstore key 0 as 1
+ok   Evm5-sstore-key: Certified/flag_4ce5cf9a/Proofs/Runs/Evm5.lean rejects it: sym_exec: the runs end in different results on this path
+ok   Evm5-no-callvalue-check: Certified/flag_4ce5cf9a/Proofs/Runs/Evm5.lean rejects it: sym_exec: the runs end in different results on this path
+skip Evm5-no-overflow-check: no such code in Evm5
+skip Evm5-no-log: no such code in Evm5
+skip Evm5-no-keccak: no such code in Evm5
+skip Evm5-log-topic: no such code in Evm5
+skip Evm5-log-offset: no such code in Evm5
+skip Evm5-mapping-key: no such code in Evm5
+skip Evm5-mapping-slot: no such code in Evm5
+skip Evm5-nested-mapping-key: no such code in Evm5
+skip Evm5-log-swap-topics: no such code in Evm5
+skip Evm5-no-storage-check: no such code in Evm5
+skip Evm5-no-all-ones-branch: no such code in Evm5
+skip Evm5-mul-add: no such code in Evm5
+skip Evm5-no-narrow-check: no such code in Evm5
+skip Evm5-call-kind: no such code in Evm5
+skip Evm5-no-call-check: no such code in Evm5
+skip Evm5-jump-table: no such code in Evm5
+skip sched-add-sub: no such code in Sched
+skip Evm5-loop-add-sub: no such code in Evm5
+skip Evm5-loop-exit: no such code in Evm5
+flag_4ce5cf9a negative tests: all 5 passed
+stale-byte: refused by the kernel, statement (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/stale-byte/Statement.lean:66:53: error: Tactic `decide` proved that the proposition)
+substituted-artifact: refused by the kernel, statement (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/substituted-artifact/Statement.lean:64:53: error: Tactic `decide` proved that the pro)
+wrong-gas-bound: refused by the kernel (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/wrong-gas-bound/Final.lean:38:62: error: Application type mismatch: The argument)
+wrong-post: refused by final.py (final.py: shape.json: statement expected needs kind certified, spec_export, allowed_export and a checked source)
+no-allowed-status: refused by final.py (final.py: shape.json: statement expected needs kind certified, spec_export, allowed_export and a checked source)
+vacuous-spec: refused by final.py (final.py: shape.json: allowed is trivially true ('fun _ _ => True'): it must reject something, or vacuity must say why it does not)
+vacuous-spec-sorry-witness: refused by final.py (final.py: shape.json: statement expected needs kind certified, spec_export, allowed_export and a checked source)
+vacuous-spec-real-witness: refused by final.py (final.py: shape.json: statement expected needs kind certified, spec_export, allowed_export and a checked source)
+vacuous-spec-below-strongest: refused by final.py (final.py: shape.json: statement expected needs nonvacuous (Spec.Covered's rejections))
+vacuous-proof-no-witness: refused by final.py (final.py: shape.json: kind certified needs nonvacuous (a proof that the specification and the allowed statuses reject something) or vacuity (why that is not sho)
+vacuous-proof-sorry-witness: refused by final.py (final.py: shape.json: statement expected needs kind certified, spec_export, allowed_export and a checked source)
+hijack-names: refused by the kernel (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/hijack-names/Final.lean:36:12: error(lean.unknownIdentifier): Unknown identifier `c`)
+hijack-alias: refused by the kernel (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/hijack-alias/Final.lean:36:12: error(lean.unknownIdentifier): Unknown identifier `c`)
+hijack-macro: refused by the checker (check_final: the type of Certified.flag_4ce5cf9a.Final.final is not exactly Certified.flag_4ce5cf9a.Final.Statement: True)
+hijack-skip-kernel: refused by the kernel (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/hijack-skip-kernel/Final.lean:30:11: error: Tactic `rcases` failed: `x✝ : ?m.242` i)
+sorry-proof: refused by the kernel (/home/hand/h2/flagwork/solidity-lean/.lake/certify-final-neg-flag_4ce5cf9a/sorry-proof/Final.lean:35:11: error: Tactic `rcases` failed: `x✝ : ?m.354` is not a)
+final_neg: every variant refused
+record: /home/hand/h2/flagwork/solidity-lean/.lake/certify-flag_4ce5cf9a.json and Certified/flag_4ce5cf9a/record.json
+mir_to_evmir: proved: SolarTV.Milestone.Flag4ce5cf9a.flag_4ce5cf9a_mir_to_evmir
+assembly: executed: inside the published statement Certified.flag_4ce5cf9a.Final.final (Shapes.Equiv and Resources over Target.runWith of the exact bytes); Proofs/: decoded only: flag_4ce5cf9a.Proofs.Assembly (the bytecode decodes to the final EVM IR's instructions; no execution theorem)
+vc: exported to .lake/certify/flag_4ce5cf9a/VC.lean
+end_to_end: not proved
+caveats: not end to end: solidity-lean states no source or spec theorem for flag_4ce5cf9a
+statuses: equivalence proved (published statement, Shapes.Equiv): at every gas below 2^256 every result of the exact bytecode on a valid call is the source's, or a failure that changes nothing (out of gas or a revert, whatever its data); such a failure only below the gas bound, and from the bound on exactly the source's, revert data included (Shapes.EquivG, Shapes.Certified.equivG), termination proved (published statement, Shapes.Terminates): the source ends on every valid call with an allowed status; the bytecode too, at gas from the bound on, spec proved (published statement, Shapes.Meets of Shapes.bundlePost of the specification solar-verify exported in this run, NonVacuous in the statement): the specification of every source result on a valid call, hence of every bytecode result that is not an inert failure, resources proved (published statement, Shapes.Resources): from the gas bound on, below 2^64, the bytecode gives the source's result, vacuity proved non-vacuous (NonVacuous in the statement), source Certified/flag_4ce5cf9a/Source.lean is the front end's AST of Flag in Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol (solc 0.8.35), strongest True
+CERTIFIED flag_4ce5cf9a (Flag): equivalence, termination, spec and resources by Certified.flag_4ce5cf9a.Final.final; bytecode 346030575f3560e01c80624f48031460475780633fa4f245146034578063b951486d146059578063f0ea4bfc14603d575b5f5ffd5b5f545f5260205ff35b6001545f5260205ff35b602436106030576004355f5560018055005b5f600155

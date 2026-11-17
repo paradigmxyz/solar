@@ -1,0 +1,89 @@
+{
+  "arguments": [
+    "Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=Certified/flag_4ce5cf9a/gen"
+  ],
+  "bytecode": "346030575f3560e01c80624f48031460475780633fa4f245146034578063b951486d146059578063f0ea4bfc14603d575b5f5ffd5b5f545f5260205ff35b6001545f5260205ff35b602436106030576004355f5560018055005b5f600155",
+  "bytecode_sha256": "f689833eb749e7509b4fb038bd8a4e251e77daa10aed088b2b12fa70ab76f69f",
+  "compiler": "0.8.38+commit.0e5c9f80.solar.0.3.0-dev",
+  "contract": "Flag",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 48, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=Certified/flag_4ce5cf9a/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, solar_tv_capture: false, emit_lean_stages: Some(\"Certified/flag_4ce5cf9a/gen\"), validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, keep_asts: false, forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol",
+      "sha256": "4ce5cf9a87520dc956a1e7366d5f646a07739832e44a3d8dec2eb656deb6388d"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "d13f7b546a336e0603081f1701cf657e6254233c201532f4b09f5903502f0cc5"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "8b5673ceb2fc0bf5ac4ac309d2c567bea95930e52f857087adb5f35df4072b2d"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "a96b5f427b8d7f42fc4058c71555ff2a16ba10ed5b4219b40be773f439d15683"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "6caefdbefc88f30c45966835e35e868f55751ffef14f20216c9cd8a5aba75e8f"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "0c9a935b2d51c1d286ef98aa0058a24eed7621edb96049b533ca47f19acf15bc"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "f69cbc2a2780295d8d68a46468d4d23d34c59a3ef84a969ce8f58e7da4beae31"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "block-cse",
+      "sha256": "25cda7c5616699426e6c577d46317ebcf6d8109502bf60fecaa8bf299d0c6c43"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "59e4d00b2f3a32783410cc7795f27bbd2689c1f5760675fe0293e202891adcfd"
+    }
+  ]
+}
