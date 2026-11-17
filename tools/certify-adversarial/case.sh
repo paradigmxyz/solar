@@ -14,10 +14,21 @@ if [[ -e "$R" ]]; then echo "case: $R exists; every run starts fresh" >&2; exit 
 mkdir -p "$R"
 cp "$src" "$R/"
 sha256sum "$src" | cut -c1-64 > "$R/source.sha256"
-unset SOLAR CERTIFY_SKIP_BUILD SOLAR_VERIFY CERTIFY_REPLAY_TRUST_UPSTREAM CERTIFY_ALLOW_FOREIGN_SOLAR
+unset SOLAR CERTIFY_SKIP_BUILD SOLAR_VERIFY CERTIFY_REPLAY_TRUST_UPSTREAM CERTIFY_ALLOW_FOREIGN_SOLAR \
+    CERTIFY_ALLOW_UNPINNED CERTIFY_PIN_BASE
+# The driver checkout must still be the clean one the producer was built from.
+driver=$(git -C "$SOLAR_DIR" rev-parse HEAD)
+if [[ "$driver" != "$SOLAR_SHA" || -n "$(git -C "$SOLAR_DIR" status --porcelain --untracked-files=no)" ]]; then
+    echo "REFUSED-DRIVER $(date -u +%FT%TZ) driver checkout at $driver, not a clean $SOLAR_SHA" > "$R/status"
+    bash "$here/ship.sh" "$name"
+    exit 0
+fi
+harness=$(git -C "$here" rev-parse HEAD 2>/dev/null || echo unknown)
+# Both escape hatches are unset above; the status line records this case's own environment.
+hatches="CERTIFY_ALLOW_UNPINNED=${CERTIFY_ALLOW_UNPINNED-unset} CERTIFY_ALLOW_FOREIGN_SOLAR=${CERTIFY_ALLOW_FOREIGN_SOLAR-unset}"
 export LEAN_MEMORY=6000 LEAN_NUM_THREADS=1
 now=$(date +%s); left=$((DEADLINE - now))
-echo "START $(date -u +%FT%TZ) solar=$SOLAR_SHA lean=$LEAN_SHA expect=$expect budget_s=$left" > "$R/status"
+echo "START $(date -u +%FT%TZ) driver=$driver harness=$harness lean=$LEAN_SHA expect=$expect budget_s=$left $hatches" > "$R/status"
 args=(tools/certify/certify "$src" natspec --solidity-lean "$LEAN_DIR" --base "$LEAN_SHA"
       --work "$R/work" --record-dir "$R/rec")
 [[ -z "${PACKAGES_FROM:-}" ]] || args+=(--packages-from "$PACKAGES_FROM")
@@ -48,5 +59,12 @@ wait "$pid"; rc=$?
 if [[ $kind == KILLED-DEADLINE ]] && pgrep -f -- "$R/" > /dev/null; then kind=KILLED-DEADLINE-LEFTOVER; fi
 python3 "$here/producer_check.py" "$PRODUCER" "$R" > "$R/producer-check.json"
 pc=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["result"])' "$R/producer-check.json" 2>/dev/null || echo unreadable)
-echo "$kind exit=$rc producer=$pc log_sha256=$(sha256sum < "$R/certify.log" | cut -c1-64) $(date -u +%FT%TZ)" >> "$R/status"
+# match: the actual exit is one of the expected ones (EXPECT may list several, as 1|3). A killed
+# run has no verdict, so it never matches.
+match=no
+if [[ $kind == DONE ]]; then
+    IFS='|' read -ra ok <<< "$expect"
+    for e in "${ok[@]}"; do [[ "$rc" == "$e" ]] && match=yes; done
+fi
+echo "$kind exit=$rc expect=$expect match=$match producer=$pc log_sha256=$(sha256sum < "$R/certify.log" | cut -c1-64) $(date -u +%FT%TZ)" >> "$R/status"
 bash "$here/ship.sh" "$name"

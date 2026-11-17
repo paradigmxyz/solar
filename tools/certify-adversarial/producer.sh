@@ -10,7 +10,8 @@
 set -euo pipefail
 out=$1
 : "${SOLAR_DIR:?}" "${SOLAR_SHA:?}"
-for v in SOLAR CERTIFY_SKIP_BUILD SOLAR_VERIFY CERTIFY_REPLAY_TRUST_UPSTREAM CERTIFY_ALLOW_FOREIGN_SOLAR; do
+for v in SOLAR CERTIFY_SKIP_BUILD SOLAR_VERIFY CERTIFY_REPLAY_TRUST_UPSTREAM CERTIFY_ALLOW_FOREIGN_SOLAR \
+    CERTIFY_ALLOW_UNPINNED CERTIFY_PIN_BASE; do
     if [[ -n "${!v:-}" ]]; then echo "producer: $v is set; refusing" >&2; exit 2; fi
 done
 cd "$SOLAR_DIR"
@@ -21,9 +22,10 @@ cmd=(cargo build --locked --bin solar)
 CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}" "${cmd[@]}" >&2
 bin="$SOLAR_DIR/${CARGO_TARGET_DIR:-target}/debug/solar"
 [[ -x "$bin" ]] || { echo "producer: no binary at $bin" >&2; exit 2; }
-python3 - "$out" "$bin" "$head" "${cmd[*]}" <<'EOF'
-import hashlib, json, re, subprocess, sys, datetime
-out, binp, head, cmd = sys.argv[1:5]
+harness=$(git -C "$(dirname "$0")" rev-parse HEAD 2>/dev/null || echo unknown)
+python3 - "$out" "$bin" "$head" "${cmd[*]}" "$harness" <<'EOF'
+import hashlib, json, os, re, subprocess, sys, datetime
+out, binp, head, cmd, harness = sys.argv[1:6]
 ver = subprocess.run([binp, "--version"], capture_output=True, text=True).stdout
 m = re.search(r"Commit SHA: ([0-9a-f]{40})", ver)
 gen = open("tools/certify/generic.py").read()
@@ -32,6 +34,9 @@ def const(name):
     return m2.group(1).strip() if m2 else None
 rec = {
     "solar_commit": head,
+    "driver_commit": head,
+    "harness_commit": harness,
+    "escape_hatches": {v: os.environ.get(v, "unset") for v in ("CERTIFY_ALLOW_UNPINNED", "CERTIFY_ALLOW_FOREIGN_SOLAR")},
     "binary_path": binp,
     "binary_sha256": hashlib.sha256(open(binp, "rb").read()).hexdigest(),
     "binary_commit": m.group(1) if m else None,
