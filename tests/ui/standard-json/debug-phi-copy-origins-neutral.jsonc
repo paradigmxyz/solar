@@ -1,0 +1,47 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// The `DUP` that copies a value for a phi takes the origin of its assignment, which holds no code of
+// its own, so the bytecode is identical with and without a source map.
+// CHECK-LABEL: "A": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "C": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { uint256 stored; function copyOnArm(bool c, uint256 a, uint256 b) external returns (uint256) { uint256 s = a * b; uint256 x = 1; if (c) { x = s; stored = 2; } return x + s; } function sameValueTwice(bool c, uint256 a, uint256 b) external returns (uint256) { uint256 s = a * b; uint256 x = 1; uint256 w = 2; if (c) { x = s; w = s; stored = 3; } return x + w + s; } function inLoop(uint256 n, uint256 a) external pure returns (uint256 sum) { uint256 s = a * 3; uint256 k = s; while (k < n) { sum += s; k = k + 1; } } } contract C { uint256 stored; function copyOnArm(bool c, uint256 a, uint256 b) external returns (uint256) { uint256 s = a * b; uint256 x = 1; if (c) { x = s; stored = 2; } return x + s; } function sameValueTwice(bool c, uint256 a, uint256 b) external returns (uint256) { uint256 s = a * b; uint256 x = 1; uint256 w = 2; if (c) { x = s; w = s; stored = 3; } return x + w + s; } function inLoop(uint256 n, uint256 a) external pure returns (uint256 sum) { uint256 s = a * 3; uint256 k = s; while (k < n) { sum += s; k = k + 1; } } }"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "none"
+    },
+    "optimizer": {
+      "enabled": false
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap"
+        ],
+        "C": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

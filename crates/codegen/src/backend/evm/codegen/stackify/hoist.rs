@@ -241,7 +241,7 @@ impl Hoister<'_> {
     /// The words a step pops and pushes, and whether code may not move across it.
     fn effect(&self, step: &Step) -> (usize, usize, bool) {
         match *step {
-            Step::Stack(StackOp::Dup(_)) => (0, 1, false),
+            Step::Stack(StackOp::Dup(_)) | Step::Dup(..) => (0, 1, false),
             Step::Stack(StackOp::Pop) => (1, 0, false),
             Step::Stack(StackOp::Swap(_) | StackOp::Exchange(..)) => (0, 0, false),
             Step::Materialize(value) | Step::Shared { value, .. } => (0, 1, !self.hoistable(value)),
@@ -360,7 +360,11 @@ impl Kept<'_> {
             }
         }
         for (k, placed) in self.steps.iter().enumerate().skip(first) {
-            let Step::Stack(old) = placed.step else { continue };
+            let old = match placed.step {
+                Step::Stack(old) => old,
+                Step::Dup(n, _) => StackOp::Dup(n),
+                _ => continue,
+            };
             let h = placed.height;
             // Pushed words above the word that `index` of the old stack names.
             let above = |index: isize| {
@@ -406,7 +410,10 @@ impl Kept<'_> {
 
         // ...; DUPn; ...; PUSH c; SWAP1; consumer -> PUSH c; ...; DUP(n+1); ...; consumer
         for &(k, new) in &renumbered {
-            self.steps[k].step = Step::Stack(new);
+            self.steps[k].step = match (&self.steps[k].step, new) {
+                (&Step::Dup(_, value), StackOp::Dup(n)) => Step::Dup(n, value),
+                _ => Step::Stack(new),
+            };
         }
         // The pushes are in order from the bottom, so a stable sort keeps the deepest first.
         inserts.sort_by_key(|insert| Reverse(insert.point));

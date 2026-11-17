@@ -897,8 +897,10 @@ impl Function {
                 let inst = self.blocks[block].instructions[index];
                 self.rewrite_inst_operands(inst, &mut f);
             }
-            if let Some(term) = &mut self.blocks[block].terminator {
+            let block = &mut self.blocks[block];
+            if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut f);
+                block.terminator_metadata.rewrite_edge_assignments(&mut f);
             }
         }
     }

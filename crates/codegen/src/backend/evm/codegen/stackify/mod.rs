@@ -213,6 +213,10 @@ impl Want {
 enum Step {
     /// A physical stack operation.
     Stack(StackOp),
+    /// A `DUP` of the word at the given depth, where `value` is the value that word holds, if any.
+    /// The planner emits every `DUP` as this step. The value only names the copy for debug info:
+    /// it never changes the code.
+    Dup(u8, Option<ValueId>),
     /// Pushes a fresh copy of a value that is materialized at each use.
     Materialize(ValueId),
     /// Pushes a spilled value from its slot.
