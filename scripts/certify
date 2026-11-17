@@ -216,9 +216,15 @@ cap="$(python3 -c 'import sys; print("".join(p[:1].upper() + p[1:] for p in sys.
 
 echo "== 1. the pinned solidity-lean checkout"
 pin="$(tr -d '[:space:]' < "$here/solidity-lean.rev")"
-lean_dir="$(bash "$here/checkout.sh")" || exit 1
+lean_dir="$(bash "$here/checkout.sh" "$examples/$name")" || exit 1
 head="$(git -C "$lean_dir" rev-parse HEAD)"
-[[ "$head" == "$pin" ]] || caveats+=("solidity-lean at $head, not the pinned $pin")
+# With CERTIFY_PIN_BASE, checkout.sh accepted HEAD only as one clean commit on the pin touching
+# nothing but $examples/$name: that is provenance, not a caveat. Any other commit is a caveat.
+if [[ "$head" != "$pin" && -n "${CERTIFY_PIN_BASE:-}" ]]; then
+    echo "provenance: solidity-lean $pin + inputs $head (tree $(git -C "$lean_dir" rev-parse "$head^{tree}"), $examples/$name only)"
+elif [[ "$head" != "$pin" ]]; then
+    caveats+=("solidity-lean at $head, not the pinned $pin")
+fi
 [[ -d "$lean_dir/$examples" || ! -e "$lean_dir/$examples" ]] || die "$lean_dir/$examples is not a directory"
 if [[ -f "$lean_dir/lakefile.lean" ]]; then lakefile=lakefile.lean
 elif [[ -f "$lean_dir/lakefile.toml" ]]; then lakefile=lakefile.toml
