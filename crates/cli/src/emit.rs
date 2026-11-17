@@ -361,7 +361,11 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode.bytes, gcx.sess.opts.evm_version),
+                    evm::disassemble(
+                        &bytecode.bytes,
+                        gcx.sess.opts.evm_version,
+                        gcx.sess.opts.unstable.instrument_coverage,
+                    ),
                     Syntax::Disasm,
                 )
             })
@@ -372,7 +376,11 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode.bytes, gcx.sess.opts.evm_version),
+                    evm::disassemble(
+                        &bytecode.bytes,
+                        gcx.sess.opts.evm_version,
+                        gcx.sess.opts.unstable.instrument_coverage,
+                    ),
                     Syntax::Disasm,
                 )
             })
@@ -873,7 +881,11 @@ fn write_disassembly(
             .expect("deployment bytecode should end with runtime bytecode");
         write_highlighted(
             writer,
-            evm::disassemble(deployment_prefix, gcx.sess.opts.evm_version),
+            evm::disassemble(
+                deployment_prefix,
+                gcx.sess.opts.evm_version,
+                gcx.sess.opts.unstable.instrument_coverage,
+            ),
             Syntax::Disasm,
         )
         .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
@@ -883,7 +895,11 @@ fn write_disassembly(
             .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         write_highlighted(
             writer,
-            evm::disassemble(runtime, gcx.sess.opts.evm_version),
+            evm::disassemble(
+                runtime,
+                gcx.sess.opts.evm_version,
+                gcx.sess.opts.unstable.instrument_coverage,
+            ),
             Syntax::Disasm,
         )
         .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;

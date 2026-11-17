@@ -1,0 +1,24 @@
+//@ revisions: plain coverage
+//@ compile-flags: -Zevm-ir-pipeline=default -O none -Zdump=disasm-runtime
+//@[plain] filecheck: --check-prefixes=CHECK,PLAIN
+//@[coverage] compile-flags: -Zinstrument-coverage
+//@[coverage] filecheck: --check-prefixes=CHECK,COVERAGE
+
+// `0xc2` is the coverage probe only in an instrumented build; elsewhere it is an unknown byte,
+// such as one of the program data appended here.
+@module coverage_byte
+@data
+  literal_0: hex"c2"
+
+// CHECK-LABEL: ; === coverage_byte (runtime) ===
+// CHECK: RETURN
+// PLAIN-NEXT: UNKNOWN 0xc2
+// COVERAGE-NEXT: COVERAGE
+bb0:
+  push 1
+  push_data literal_0
+  push 0
+  codecopy
+  push 1
+  push 0
+  return

@@ -900,6 +900,7 @@ fn make_bytecode_output(
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
             bytecode.map_or(&[], |bytecode| bytecode.as_ref()),
             gcx.sess.opts.evm_version,
+            gcx.sess.opts.unstable.instrument_coverage,
         ));
     }
     if output_selection.contains(source_map_flag) {

@@ -9,9 +9,12 @@ use std::{
 };
 
 /// Disassembles EVM bytecode into one opcode per line and labels reachable jump destinations.
-pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
+///
+/// `COVERAGE` is decoded only when `instrument_coverage` is set; otherwise `0xc2` is an unknown
+/// byte, as in any other EVM.
+pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion, instrument_coverage: bool) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
-    let instructions = instructions(bytecode, evm_version).collect::<Vec<_>>();
+    let instructions = instructions(bytecode, evm_version, instrument_coverage).collect::<Vec<_>>();
     let labels = reachable_jumpdest_labels(&instructions, evm_version);
 
     for (index, instruction) in instructions.iter().enumerate() {
@@ -175,10 +178,17 @@ fn is_push(instruction: &DecodedInstruction<'_>) -> bool {
 }
 
 /// Disassembles EVM bytecode in the format used by solc's Standard JSON output.
-pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> String {
+///
+/// `COVERAGE` is decoded only when `instrument_coverage` is set; otherwise `0xC2` prints as an
+/// unknown byte, as solc prints it.
+pub fn disassemble_standard_json(
+    bytecode: &[u8],
+    evm_version: EvmVersion,
+    instrument_coverage: bool,
+) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
 
-    for instruction in instructions(bytecode, evm_version) {
+    for instruction in instructions(bytecode, evm_version, instrument_coverage) {
         if instruction.push_width != 0 {
             let width = instruction.push_width;
             write!(output, "PUSH{width} 0x").unwrap();
@@ -262,6 +272,7 @@ enum DecodedOpcode {
 fn instructions(
     bytecode: &[u8],
     evm_version: EvmVersion,
+    instrument_coverage: bool,
 ) -> impl Iterator<Item = DecodedInstruction<'_>> {
     let mut offset = 0;
     std::iter::from_fn(move || {
@@ -272,6 +283,7 @@ fn instructions(
         let push_width =
             if (op::PUSH1..=op::PUSH32).contains(&opcode) { opcode - op::PUSH1 + 1 } else { 0 };
         let kind = if (opcode == op::SLOTNUM && !evm_version.has_slot_num())
+            || (opcode == op::COVERAGE && !instrument_coverage)
             || (matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
                 && !evm_version.has_extended_stack_ops())
         {
