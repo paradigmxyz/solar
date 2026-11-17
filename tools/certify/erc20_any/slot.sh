@@ -12,8 +12,10 @@
 #   OUT/replay, and replay.sh refuses (exit 3) unless its plan is byte-identical to it.
 # Every step before the replay runs under build_cap.sh: its own cgroup with memory.max at the budget
 # (75% of memory), BUILD_JOBS (default 12) lean or rustc processes at most, each lean heap capped
-# by -KleanMemory (6000 MB for the slice and the core, 12000 MB in run.sh). 12 jobs x (12 GB heap +
-# 3 GB mapped oleans) + 6 GB base = 186 GB, within the 283 GB budget. Each step adds its cap,
+# by memory.max, not by -KleanMemory (a lean process has exceeded its -KleanMemory). N=12 from measured
+# peaks: the largest single build process in the 59d0fa44 run was 8.3 GB (check_final; the slice
+# steps 6.1 GB), and 8.3 GB x 1.25 = 10.4 GB; 12 x 10.4 GB + 6 GB base = 131 GB, within the 283 GB
+# budget. Lake runs with -v so each step's log names the commands it ran. Each step adds its cap,
 # peak and verdict to ~/w/slot<N>/gate.txt; the replay adds sched.py's gate. Any FAILED line voids
 # the slot.
 # The replay stops admitting batches REPLAY_MARGIN (default 50) minutes before DEADLINE and kills
@@ -39,21 +41,21 @@ cd $w/solidity-lean && git fetch -q origin "$LEAN_COMMIT" && git checkout -q --d
 echo "slot $slot solar $(git -C $w/solar rev-parse HEAD) lean $(git rev-parse HEAD) deadline $deadline" | tee "$o/identity"
 export SOLC=$HOME/.cache/solc/solc-0.8.35
 step port bash scripts/verify/uniswap_v2_gen.sh || exit 1
-c=$w/candidate
-[[ -d $c ]] || git clone -q https://github.com/paradigmxyz/solar.git "$c"
-git -C "$c" fetch -q origin "$CANDIDATE_COMMIT" && git -C "$c" checkout -q --detach "$CANDIDATE_COMMIT" || exit 1
-CARGO_BUILD_JOBS=4 step candidate cargo build --release --locked --manifest-path "$c/Cargo.toml" --bin solar || exit 1
-[[ $(sha256sum < "$c/target/release/solar" | cut -c1-64) == "$CANDIDATE_SHA256" ]] \
-  || { echo "candidate binary is not $CANDIDATE_SHA256" | tee -a "$o/steps"; exit 1; }
+# The candidate is the pinned binary itself (CANDIDATE_BIN, copied here): a release build embeds its
+# build time, so a rebuild on this machine has another sha256 and is refused.
+cbin=${CANDIDATE_BIN:-$w/candidate-bin/solar}
+[[ $(sha256sum < "$cbin" | cut -c1-64) == "$CANDIDATE_SHA256" ]] \
+  || { echo "candidate binary $cbin is not $CANDIDATE_SHA256" | tee -a "$o/steps"; exit 1; }
+"$cbin" --version > "$o/candidate-version"; echo "candidate $cbin sha256 $CANDIDATE_SHA256" | tee -a "$o/steps"
 v=$w/solar-verify
 [[ -d $v ]] || git clone -q https://github.com/paradigmxyz/solar.git "$v"
 git -C "$v" checkout -q "$SLICE_COMMIT" 2>/dev/null || { git -C "$v" fetch -q origin "$SLICE_COMMIT" && git -C "$v" checkout -q "$SLICE_COMMIT"; } || exit 1
 CARGO_BUILD_JOBS=4 step verify cargo build --release --locked --manifest-path "$v/Cargo.toml" -p solar-verify || exit 1
-step core lake build -KleanMemory=6000 Contracts.UniswapV2.ERC20.Core || exit 1
-SOLAR_DIR=$v SOLAR_VERIFY=$v/target/release/solar-verify step slice bash scripts/verify/uniswap_v2_transfer_slice.sh || exit 1
+step core lake build -v -KleanMemory=6000 Contracts.UniswapV2.ERC20.Core || exit 1
+LAKE_BUILD_FLAGS="-v -KleanMemory=6000" SOLAR_DIR=$v SOLAR_VERIFY=$v/target/release/solar-verify step slice bash scripts/verify/uniswap_v2_transfer_slice.sh || exit 1
 export EXPECT_SOLAR_SHA256=$CANDIDATE_SHA256 EXPECT_SOLAR_COMMIT=$CANDIDATE_COMMIT
-step prep bash "$here/prep.sh" $w/solidity-lean "$c/target/release/solar" $w/solar "$o/prep" || exit 1
-step run bash "$here/run.sh" $w/solidity-lean "$c/target/release/solar" "$o/out" || exit 1
+step prep bash "$here/prep.sh" $w/solidity-lean "$cbin" $w/solar "$o/prep" || exit 1
+step run bash "$here/run.sh" $w/solidity-lean "$cbin" "$o/out" || exit 1
 git status --short > "$o/tree-status"; git diff > "$o/tree.diff"
 export REPLAY_STOP_AT=$(( deadline - ${REPLAY_MARGIN:-50} * 60 )) REPLAY_KILL_AT=$(( deadline - 12 * 60 ))
 [[ -n $prior ]] && export PRIOR_REPLAY=$prior
