@@ -1247,6 +1247,7 @@ symbols! {
         slice_starts_after_end,
         slot,
         solar_dash_cold: "solar-cold",
+        solar_dash_coverage: "solar-coverage",
         solar_dash_inline: "solar-inline",
         solar_dash_optimize: "solar-optimize",
         solar_dash_safe: "solar-safe",

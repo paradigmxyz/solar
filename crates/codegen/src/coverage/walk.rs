@@ -62,7 +62,7 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
         expansions: FxHashMap::default(),
     };
     for &id in &functions {
-        if !gcx.hir.function(id).kind.is_modifier() {
+        if !gcx.hir.function(id).kind.is_modifier() && walker.function_enabled(id) {
             walker.function(id);
         }
     }
@@ -72,7 +72,7 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
         walker.init(id);
     }
     for &id in &functions {
-        if gcx.hir.function(id).kind.is_modifier() {
+        if gcx.hir.function(id).kind.is_modifier() && walker.function_enabled(id) {
             walker.modifier(id);
         }
     }
@@ -176,6 +176,35 @@ impl<'gcx> Walker<'gcx> {
         Count::Counter(id)
     }
 
+    /// Returns whether the innermost `@custom:solar-coverage` tag on `item` or its `contract`
+    /// leaves coverage on, which no tag does too.
+    fn enabled(&self, item: hir::ItemId, contract: Option<hir::ContractId>) -> bool {
+        self.gcx
+            .solar_tags(item)
+            .coverage
+            .or_else(|| {
+                contract.and_then(|id| self.gcx.solar_tags(hir::ItemId::Contract(id)).coverage)
+            })
+            .unwrap_or(true)
+    }
+
+    /// Returns whether coverage is on for a function, a modifier, or a Yul function, which
+    /// follows the function it is written in.
+    fn function_enabled(&self, id: hir::FunctionId) -> bool {
+        let function = self.gcx.hir.function(id);
+        if function.is_yul
+            && let Some(parent) = self.gcx.hir.function_ids().find(|&parent| {
+                let parent = self.gcx.hir.function(parent);
+                !parent.is_yul
+                    && parent.source == function.source
+                    && parent.span.contains(function.span)
+            })
+        {
+            return self.function_enabled(parent);
+        }
+        self.enabled(hir::ItemId::Function(id), function.contract)
+    }
+
     fn begin(&mut self, source: hir::SourceId) {
         self.rec = Rec { files: vec![source], first: self.next, ..Rec::default() };
     }
@@ -224,6 +253,7 @@ impl<'gcx> Walker<'gcx> {
             }
             if let Some(modifier_id) = modifier.id.as_function()
                 && self.gcx.hir.function(modifier_id).kind.is_modifier()
+                && self.function_enabled(modifier_id)
             {
                 self.expansion(modifier, modifier_id);
             }
@@ -338,6 +368,9 @@ impl<'gcx> Walker<'gcx> {
     /// constructor arguments of its inheritance specifiers.
     fn init(&mut self, id: hir::ContractId) {
         let contract = self.gcx.hir.contract(id);
+        if !self.enabled(hir::ItemId::Contract(id), None) {
+            return;
+        }
         self.begin(contract.source);
         for base in contract.bases_args {
             if self.has_regions(|this| {

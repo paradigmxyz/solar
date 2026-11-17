@@ -595,6 +595,8 @@ impl<'gcx> Resolver<'gcx> {
                 gcx.hir.contract(id).kind,
                 hir::ContractKind::Contract | hir::ContractKind::Library
             ),
+            (SolarTag::Coverage, hir::ItemId::Contract(id)) => code_contract(id),
+            (SolarTag::Coverage, hir::ItemId::Function(id)) => gcx.hir.function(id).body.is_some(),
             (SolarTag::Optimize | SolarTag::Cold, hir::ItemId::Function(id)) => {
                 let function = gcx.hir.function(id);
                 function.kind == hir::FunctionKind::Function && function.body.is_some()
@@ -609,7 +611,24 @@ impl<'gcx> Resolver<'gcx> {
             SolarTag::Optimize => self.check_solar_optimize(docs, tag_span),
             SolarTag::Inline => self.check_solar_inline(docs, tag_span),
             SolarTag::Cold => self.check_solar_cold(docs, tag_span),
+            SolarTag::Coverage => self.check_solar_coverage(docs, tag_span),
             _ => {}
+        }
+    }
+
+    /// Reports a `@custom:solar-coverage` tag whose argument is not `off` or `on`, or that follows
+    /// another on the same item.
+    fn check_solar_coverage(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
+        let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_coverage, tag_span)
+        else {
+            return;
+        };
+        if coverage_tag(docs, natspec).is_none() {
+            self.gcx
+                .dcx()
+                .err_at(tag_span, "`@custom:solar-coverage` takes `off` or `on`")
+                .help("write `@custom:solar-coverage off` to leave the code out of coverage")
+                .emit();
         }
     }
 
@@ -970,6 +989,9 @@ pub(crate) enum SolarTag {
     Optimize,
     /// `@custom:solar-cold`: the function is rarely run, as rustc's `#[cold]` says.
     Cold,
+    /// `@custom:solar-coverage <off|on>`: the code of the contract or function is left out of
+    /// coverage or put back in, as rustc's `#[coverage(off)]` says. The innermost tag wins.
+    Coverage,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -983,6 +1005,7 @@ impl SolarTag {
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
             sym::solar_dash_cold => Some(Self::Cold),
+            sym::solar_dash_coverage => Some(Self::Coverage),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -1031,12 +1054,21 @@ pub(crate) fn report_misplaced_solar_tag(
             .err_at(span, "`@custom:solar-cold` must document a function with a body")
             .help("put it on a function that is rarely run")
             .emit(),
+        SolarTag::Coverage => dcx
+            .err_at(
+                span,
+                "`@custom:solar-coverage` must document a contract, a library, or a function \
+                 with a body",
+            )
+            .help("put it on the code to leave out of coverage: `@custom:solar-coverage off`")
+            .emit(),
         SolarTag::Unknown => dcx
             .err_at(span, format!("unknown tag `@custom:{name}`"))
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
-                "the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, \
-                 `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`",
+                "the supported tags are `@custom:solar-cold`, `@custom:solar-coverage`, \
+                 `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, and \
+                 `@custom:solar-trusted`",
             )
             .emit(),
     }
@@ -1052,6 +1084,8 @@ pub struct SolarTags {
     pub optimize: Option<OptimizationMode>,
     /// Whether a `@custom:solar-cold` tag marks the function rarely run.
     pub cold: bool,
+    /// Whether a `@custom:solar-coverage` tag turns coverage `on` or `off` for the code.
+    pub coverage: Option<bool>,
 }
 
 /// What a `@custom:solar-inline` tag asks of the inliner.
@@ -1080,6 +1114,9 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
                     tags.optimize = optimize_objective(&gcx.hir.doc(doc).ast_comments, natspec);
                 }
                 Some(SolarTag::Cold) => tags.cold = true,
+                Some(SolarTag::Coverage) if tags.coverage.is_none() => {
+                    tags.coverage = coverage_tag(&gcx.hir.doc(doc).ast_comments, natspec);
+                }
                 _ => {}
             }
         }
@@ -1096,6 +1133,18 @@ fn inline_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Optio
         (None, _) => Some(InlineTag::Hint),
         (Some("always"), None) => Some(InlineTag::Always),
         (Some("never"), None) => Some(InlineTag::Never),
+        _ => None,
+    }
+}
+
+/// Returns whether a `@custom:solar-coverage` tag turns coverage on, when it says exactly `off` or
+/// `on`.
+fn coverage_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Option<bool> {
+    let content = solar_tag_content(docs, natspec.span);
+    let mut words = content.split_whitespace();
+    match (words.next(), words.next()) {
+        (Some("on"), None) => Some(true),
+        (Some("off"), None) => Some(false),
         _ => None,
     }
 }

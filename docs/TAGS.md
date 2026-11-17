@@ -14,6 +14,7 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 | `solar-trusted` | a function, a modifier, a contract, or a library | Reviewed code that `solar-safe` takes on trust. |
 | `solar-inline [always\|never]` | a function that internal calls reach | Favor inlining it, always inline it, or never inline it. |
 | `solar-cold` | a function with a body | The function is rarely run: price it by bytes, and keep it out of the hot path. |
+| `solar-coverage off` or `on` | a contract, a library, a function with a body, or a modifier | Leave the code out of coverage, or put it back in, under `-Zinstrument-coverage`. |
 | `solar-optimize gas` or `size` | a non-abstract contract, a library, or a function with a body | Optimize its code for this objective instead of the build's, even in an `-O none` build. |
 
 ## `solar-safe` and `solar-trusted`
@@ -92,6 +93,29 @@ clone.
 The tag never makes a call an abort. Code after a call to a cold function runs, as it does after a
 call to any function that returns, so the compiler does not treat that code as unreachable or
 assume the path through the call is never taken.
+
+## `solar-coverage`
+
+```solidity
+/// @custom:solar-coverage off
+contract Mocks {
+    /// @custom:solar-coverage on
+    function covered() external { ... }
+}
+```
+
+The tag documents a contract, a library, a function with a body, or a modifier, appears once, and
+takes exactly `off` or `on`. It is `#[coverage(off)]` in rustc: with `-Zinstrument-coverage`, an
+item that is off gets no probes and no coverage records, so tools report none of its lines, as for
+code the compiler never generated. Without the flag the tag changes nothing.
+
+The innermost tag wins. A function takes its own tag, else the tag of its contract, else coverage
+is on, so `on` on a function puts it back in a contract that is off. The tag on a contract also
+covers its state variable initializers and the arguments of its inheritance specifiers. A Yul
+function follows the function it is written in. A modifier that is off gets no expansion in the
+functions that invoke it, though they stay on, and a function that is off leaves out the expansions
+of the modifiers it invokes. Code that a derived contract inherits keeps the tags of the
+contract that declares it.
 
 ## `solar-optimize`
 
