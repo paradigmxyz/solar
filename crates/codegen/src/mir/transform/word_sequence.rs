@@ -6,10 +6,10 @@
 //! never allocates instructions or values in the function. Only the cheapest
 //! legal recipe is materialized, immediately before the original root, whose
 //! value identity and semantic metadata are retained.
-//! Recipe operations take the root's debug location, except an operand of the root that repeats
-//! the operation of the original operand at its position, at another width or over other
-//! immediates, like `(zext a | zext b) == 0` to `(a | b) == 0`: it replaces that operand one for
-//! one and keeps its location.
+//!
+//! A recipe operand that redoes the original operand's operation, as in `(zext a | zext b) == 0`
+//! to `(a | b) == 0`, keeps that operand's debug location. Every other recipe operation takes the
+//! root's.
 //!
 //! Profitability charges target opcode prices, immediate materialization and
 //! operand copies. The old cost includes only removable, single-use producers;
@@ -318,8 +318,7 @@ impl Recipe {
 
     /// Pairs each recipe child that is an operand of the root with the original instruction at
     /// the same operand position when both are the same operation over the same operands, up to
-    /// integer casts and immediates: the child then computes what that instruction computed, at
-    /// another width.
+    /// integer casts: the child then computes what that instruction computed, at another width.
     fn child_origins(&self, func: &Function, root: InstId) -> FxHashMap<ValueId, InstId> {
         let original = func.inst(root).kind.op();
         self.root
@@ -331,17 +330,17 @@ impl Recipe {
                     return None;
                 };
                 let Value::Inst(inst) = *func.value(operand) else { return None };
-                self.same_operation(func, op, &func.inst(inst).kind.op()).then_some((child, inst))
+                Self::same_operation(func, op, &func.inst(inst).kind.op()).then_some((child, inst))
             })
             .collect()
     }
 
-    fn same_operation(&self, func: &Function, recipe: &Op, original: &Op) -> bool {
+    /// Whether `recipe` applies the operation of `original` to the same operands, or to the
+    /// sources of integer casts of them.
+    fn same_operation(func: &Function, recipe: &Op, original: &Op) -> bool {
         std::mem::discriminant(recipe) == std::mem::discriminant(original)
             && recipe.operands().into_iter().zip(original.operands()).all(|(r, o)| {
                 r == o
-                    || matches!(self.temporaries.get(&r), Some(Temporary::Constant(_)))
-                        && matches!(func.value(o), Value::Immediate(_))
                     || matches!(func.value_inst_kind(o),
                         Some(InstKind::Zext(v) | InstKind::Sext(v, ..) | InstKind::Trunc(v, ..))
                             if *v == r)
@@ -371,10 +370,9 @@ impl Recipe {
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
                 let ty = recipe_type(func, &kind, self.scalar_ty);
-                // A child that replaces the original operation at its place keeps that operation's
-                // location, as the `or` that `foldCastedBitwiseLogic` makes from
-                // `or (zext a), (zext b)` keeps the old `or`'s (LLVM's HowToUpdateDebugInfo,
-                // "When to preserve instruction locations"); other children take the root's.
+                // Keeps the replaced operation's location, as `foldCastedBitwiseLogic` does for
+                // `or (zext a), (zext b)` (LLVM HowToUpdateDebugInfo, "When to preserve
+                // instruction locations").
                 let origin = origins.get(&value).copied().unwrap_or(root);
                 emit_recipe(func, origin, kind, ty, self.scalar_ty, inserted)
             }
@@ -387,13 +385,13 @@ impl Recipe {
 /// Emits a recipe with explicit scalar conversions, returning its detached instruction list.
 fn emit_recipe(
     func: &mut Function,
-    root: InstId,
+    origin: InstId,
     kind: InstKind,
     ty: MirType,
     scalar_ty: MirType,
     inserted: &mut Vec<InstId>,
 ) -> ValueId {
-    let metadata = func.inst(root).metadata.debug_context();
+    let metadata = func.inst(origin).metadata.debug_context();
     let block = crate::mir::BlockId::ENTRY;
     let start = func.blocks[block].instructions.len();
     // operands = zext i1 boolean_operands to i256
