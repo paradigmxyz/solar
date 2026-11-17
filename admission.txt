@@ -1,0 +1,7 @@
+cgroup /system.slice/t5neg-1794945505.scope
+pid 7657
+want_memory_max 45097156608
+memory.max 45097156608
+memory.swap.max 0
+ok admit: memory.max 45097156608, memory.swap.max 0, inner pid 7657 in /system.slice/t5neg-1794945505.scope
+ADMITTED 2026-11-17T19:58:25Z

@@ -1,0 +1,560 @@
++ solar_sha=afaefd409e1bab75ab0453eaba93fc06f197dd44
++ harness_sha=5e14063a246e7d0f79b60c0fd359128044861e7b
++ lean_sha=334d1d924f8f6c29ac827fd81d1cc739721b479a
++ solc_url=https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.35+commit.47b9dedd
++ solc_sha256=fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4
++ export DEBIAN_FRONTEND=noninteractive
++ DEBIAN_FRONTEND=noninteractive
++ sudo -E apt-get update -q
+Get:1 https://pkgs.tailscale.com/stable/ubuntu noble InRelease
+Hit:2 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:4 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:5 http://archive.ubuntu.com/ubuntu noble-security InRelease
+Get:6 https://apt.fury.io/nushell  InRelease [1434 B]
+Fetched 8083 B in 0s (17.0 kB/s)
+Reading package lists...
++ sudo -E apt-get install -yq git build-essential time zstd curl ca-certificates
+Reading package lists...
+Building dependency tree...
+Reading state information...
+zstd is already the newest version (1.5.5+dfsg2-2build1.1).
+curl is already the newest version (8.5.0-2ubuntu10.16).
+ca-certificates is already the newest version (20260816ubuntu0.24.04.2).
+The following additional packages will be installed:
+  fontconfig-config fonts-dejavu-core fonts-dejavu-mono g++ g++-13
+  g++-13-x86-64-linux-gnu g++-x86-64-linux-gnu git-man less libaom3
+  libc-dev-bin libc-devtools libc6-dev libcrypt-dev libcurl3t64-gnutls
+  libdeflate0 liberror-perl libfontconfig1 libgd3 libheif-plugin-aomdec
+  libheif-plugin-aomenc libheif1 libjbig0 libjpeg-turbo8 libjpeg8 liblerc4
+  libsharpyuv0 libstdc++-13-dev libtiff6 libwebp7 libx11-6 libx11-data libxau6
+  libxcb1 libxdmcp6 libxpm4 linux-libc-dev manpages manpages-dev rpcsvc-proto
+Suggested packages:
+  g++-multilib g++-13-multilib gcc-13-doc git-daemon-run | git-daemon-sysvinit
+  git-doc git-email git-gui gitk gitweb git-cvs git-mediawiki git-svn
+  glibc-doc libgd-tools libheif-plugin-libde265 libheif-plugin-x265
+  libheif-plugin-ffmpegdec libheif-plugin-jpegdec libheif-plugin-jpegenc
+  libheif-plugin-j2kdec libheif-plugin-j2kenc libheif-plugin-rav1e
+  libheif-plugin-svtenc libstdc++-13-doc man-browser
+The following NEW packages will be installed:
+  build-essential fontconfig-config fonts-dejavu-core fonts-dejavu-mono g++
+  g++-13 g++-13-x86-64-linux-gnu g++-x86-64-linux-gnu git git-man less libaom3
+  libc-dev-bin libc-devtools libc6-dev libcrypt-dev libcurl3t64-gnutls
+  libdeflate0 liberror-perl libfontconfig1 libgd3 libheif-plugin-aomdec
+  libheif-plugin-aomenc libheif1 libjbig0 libjpeg-turbo8 libjpeg8 liblerc4
+  libsharpyuv0 libstdc++-13-dev libtiff6 libwebp7 libx11-6 libx11-data libxau6
+  libxcb1 libxdmcp6 libxpm4 linux-libc-dev manpages manpages-dev rpcsvc-proto
+  time
+0 upgraded, 43 newly installed, 0 to remove and 0 not upgraded.
+Need to get 33.0 MB of archives.
+After this operation, 127 MB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 less amd64 590-2ubuntu2.1 [142 kB]
+Get:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libxau6 amd64 1:1.0.9-1build6 [7160 B]
+Get:3 http://archive.ubuntu.com/ubuntu noble/main amd64 libxdmcp6 amd64 1:1.1.3-0ubuntu6 [10.3 kB]
+Get:4 http://archive.ubuntu.com/ubuntu noble/main amd64 libxcb1 amd64 1.15-1ubuntu2 [47.7 kB]
+Get:5 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libx11-data all 2:1.8.7-1ubuntu0.1 [116 kB]
+Get:6 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libx11-6 amd64 2:1.8.7-1ubuntu0.1 [653 kB]
+Get:7 http://archive.ubuntu.com/ubuntu noble/main amd64 manpages all 6.7-2 [1384 kB]
+Get:8 http://archive.ubuntu.com/ubuntu noble/main amd64 time amd64 1.9-0.2build1 [45.2 kB]
+Get:9 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libc-dev-bin amd64 2.39-0ubuntu8.12 [20.4 kB]
+Get:10 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 linux-libc-dev amd64 6.8.0-149.149 [1699 kB]
+Get:11 http://archive.ubuntu.com/ubuntu noble/main amd64 libcrypt-dev amd64 1:4.4.36-4build1 [112 kB]
+Get:12 http://archive.ubuntu.com/ubuntu noble/main amd64 rpcsvc-proto amd64 1.4.2-0ubuntu7 [67.4 kB]
+Get:13 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libc6-dev amd64 2.39-0ubuntu8.12 [2125 kB]
+Get:14 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libstdc++-13-dev amd64 13.3.0-6ubuntu2~24.04.1 [2420 kB]
+Get:15 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 g++-13-x86-64-linux-gnu amd64 13.3.0-6ubuntu2~24.04.1 [12.2 MB]
+Get:16 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 g++-13 amd64 13.3.0-6ubuntu2~24.04.1 [16.0 kB]
+Get:17 http://archive.ubuntu.com/ubuntu noble/main amd64 g++-x86-64-linux-gnu amd64 4:13.2.0-7ubuntu1 [964 B]
+Get:18 http://archive.ubuntu.com/ubuntu noble/main amd64 g++ amd64 4:13.2.0-7ubuntu1 [1100 B]
+Get:19 http://archive.ubuntu.com/ubuntu noble/main amd64 build-essential amd64 12.10ubuntu1 [4928 B]
+Get:20 http://archive.ubuntu.com/ubuntu noble/main amd64 fonts-dejavu-mono all 2.37-8 [502 kB]
+Get:21 http://archive.ubuntu.com/ubuntu noble/main amd64 fonts-dejavu-core all 2.37-8 [835 kB]
+Get:22 http://archive.ubuntu.com/ubuntu noble/main amd64 fontconfig-config amd64 2.15.0-1.1ubuntu2 [37.3 kB]
+Get:23 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl3t64-gnutls amd64 8.5.0-2ubuntu10.16 [337 kB]
+Get:24 http://archive.ubuntu.com/ubuntu noble/main amd64 liberror-perl all 0.17029-2 [25.6 kB]
+Get:25 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 git-man all 1:2.43.0-1ubuntu7.4 [1101 kB]
+Get:26 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 git amd64 1:2.43.0-1ubuntu7.4 [3681 kB]
+Get:27 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libaom3 amd64 3.8.2-2ubuntu0.2 [1942 kB]
+Get:28 http://archive.ubuntu.com/ubuntu noble/main amd64 libfontconfig1 amd64 2.15.0-1.1ubuntu2 [139 kB]
+Get:29 http://archive.ubuntu.com/ubuntu noble/main amd64 libsharpyuv0 amd64 1.3.2-0.4build3 [15.8 kB]
+Get:30 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libheif-plugin-aomdec amd64 1.17.6-1ubuntu4.9 [11.9 kB]
+Get:31 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libheif1 amd64 1.17.6-1ubuntu4.9 [277 kB]
+Get:32 http://archive.ubuntu.com/ubuntu noble/main amd64 libjpeg-turbo8 amd64 2.1.5-2ubuntu2 [150 kB]
+Get:33 http://archive.ubuntu.com/ubuntu noble/main amd64 libjpeg8 amd64 8c-2ubuntu11 [2148 B]
+Get:34 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libdeflate0 amd64 1.19-1build1.1 [43.9 kB]
+Get:35 http://archive.ubuntu.com/ubuntu noble/main amd64 libjbig0 amd64 2.1-6.1ubuntu2 [29.7 kB]
+Get:36 http://archive.ubuntu.com/ubuntu noble/main amd64 liblerc4 amd64 4.0.0+ds-4ubuntu2 [179 kB]
+Get:37 http://archive.ubuntu.com/ubuntu noble/main amd64 libwebp7 amd64 1.3.2-0.4build3 [230 kB]
+Get:38 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libtiff6 amd64 4.5.1+git230720-4ubuntu2.5 [200 kB]
+Get:39 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libxpm4 amd64 1:3.5.17-1ubuntu0.24.04.2 [36.7 kB]
+Get:40 http://archive.ubuntu.com/ubuntu noble/main amd64 libgd3 amd64 2.3.3-9ubuntu5 [128 kB]
+Get:41 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libc-devtools amd64 2.39-0ubuntu8.12 [29.4 kB]
+Get:42 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libheif-plugin-aomenc amd64 1.17.6-1ubuntu4.9 [14.7 kB]
+Get:43 http://archive.ubuntu.com/ubuntu noble/main amd64 manpages-dev all 6.7-2 [2013 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 33.0 MB in 0s (77.6 MB/s)
+Selecting previously unselected package less.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 104242 files and directories currently installed.)
+Preparing to unpack .../00-less_590-2ubuntu2.1_amd64.deb ...
+Unpacking less (590-2ubuntu2.1) ...
+Selecting previously unselected package libxau6:amd64.
+Preparing to unpack .../01-libxau6_1%3a1.0.9-1build6_amd64.deb ...
+Unpacking libxau6:amd64 (1:1.0.9-1build6) ...
+Selecting previously unselected package libxdmcp6:amd64.
+Preparing to unpack .../02-libxdmcp6_1%3a1.1.3-0ubuntu6_amd64.deb ...
+Unpacking libxdmcp6:amd64 (1:1.1.3-0ubuntu6) ...
+Selecting previously unselected package libxcb1:amd64.
+Preparing to unpack .../03-libxcb1_1.15-1ubuntu2_amd64.deb ...
+Unpacking libxcb1:amd64 (1.15-1ubuntu2) ...
+Selecting previously unselected package libx11-data.
+Preparing to unpack .../04-libx11-data_2%3a1.8.7-1ubuntu0.1_all.deb ...
+Unpacking libx11-data (2:1.8.7-1ubuntu0.1) ...
+Selecting previously unselected package libx11-6:amd64.
+Preparing to unpack .../05-libx11-6_2%3a1.8.7-1ubuntu0.1_amd64.deb ...
+Unpacking libx11-6:amd64 (2:1.8.7-1ubuntu0.1) ...
+Selecting previously unselected package manpages.
+Preparing to unpack .../06-manpages_6.7-2_all.deb ...
+Unpacking manpages (6.7-2) ...
+Selecting previously unselected package time.
+Preparing to unpack .../07-time_1.9-0.2build1_amd64.deb ...
+Unpacking time (1.9-0.2build1) ...
+Selecting previously unselected package libc-dev-bin.
+Preparing to unpack .../08-libc-dev-bin_2.39-0ubuntu8.12_amd64.deb ...
+Unpacking libc-dev-bin (2.39-0ubuntu8.12) ...
+Selecting previously unselected package linux-libc-dev:amd64.
+Preparing to unpack .../09-linux-libc-dev_6.8.0-149.149_amd64.deb ...
+Unpacking linux-libc-dev:amd64 (6.8.0-149.149) ...
+Selecting previously unselected package libcrypt-dev:amd64.
+Preparing to unpack .../10-libcrypt-dev_1%3a4.4.36-4build1_amd64.deb ...
+Unpacking libcrypt-dev:amd64 (1:4.4.36-4build1) ...
+Selecting previously unselected package rpcsvc-proto.
+Preparing to unpack .../11-rpcsvc-proto_1.4.2-0ubuntu7_amd64.deb ...
+Unpacking rpcsvc-proto (1.4.2-0ubuntu7) ...
+Selecting previously unselected package libc6-dev:amd64.
+Preparing to unpack .../12-libc6-dev_2.39-0ubuntu8.12_amd64.deb ...
+Unpacking libc6-dev:amd64 (2.39-0ubuntu8.12) ...
+Selecting previously unselected package libstdc++-13-dev:amd64.
+Preparing to unpack .../13-libstdc++-13-dev_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking libstdc++-13-dev:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package g++-13-x86-64-linux-gnu.
+Preparing to unpack .../14-g++-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package g++-13.
+Preparing to unpack .../15-g++-13_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking g++-13 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package g++-x86-64-linux-gnu.
+Preparing to unpack .../16-g++-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package g++.
+Preparing to unpack .../17-g++_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking g++ (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package build-essential.
+Preparing to unpack .../18-build-essential_12.10ubuntu1_amd64.deb ...
+Unpacking build-essential (12.10ubuntu1) ...
+Selecting previously unselected package fonts-dejavu-mono.
+Preparing to unpack .../19-fonts-dejavu-mono_2.37-8_all.deb ...
+Unpacking fonts-dejavu-mono (2.37-8) ...
+Selecting previously unselected package fonts-dejavu-core.
+Preparing to unpack .../20-fonts-dejavu-core_2.37-8_all.deb ...
+Unpacking fonts-dejavu-core (2.37-8) ...
+Selecting previously unselected package fontconfig-config.
+Preparing to unpack .../21-fontconfig-config_2.15.0-1.1ubuntu2_amd64.deb ...
+Unpacking fontconfig-config (2.15.0-1.1ubuntu2) ...
+Selecting previously unselected package libcurl3t64-gnutls:amd64.
+Preparing to unpack .../22-libcurl3t64-gnutls_8.5.0-2ubuntu10.16_amd64.deb ...
+Unpacking libcurl3t64-gnutls:amd64 (8.5.0-2ubuntu10.16) ...
+Selecting previously unselected package liberror-perl.
+Preparing to unpack .../23-liberror-perl_0.17029-2_all.deb ...
+Unpacking liberror-perl (0.17029-2) ...
+Selecting previously unselected package git-man.
+Preparing to unpack .../24-git-man_1%3a2.43.0-1ubuntu7.4_all.deb ...
+Unpacking git-man (1:2.43.0-1ubuntu7.4) ...
+Selecting previously unselected package git.
+Preparing to unpack .../25-git_1%3a2.43.0-1ubuntu7.4_amd64.deb ...
+Unpacking git (1:2.43.0-1ubuntu7.4) ...
+Selecting previously unselected package libaom3:amd64.
+Preparing to unpack .../26-libaom3_3.8.2-2ubuntu0.2_amd64.deb ...
+Unpacking libaom3:amd64 (3.8.2-2ubuntu0.2) ...
+Selecting previously unselected package libfontconfig1:amd64.
+Preparing to unpack .../27-libfontconfig1_2.15.0-1.1ubuntu2_amd64.deb ...
+Unpacking libfontconfig1:amd64 (2.15.0-1.1ubuntu2) ...
+Selecting previously unselected package libsharpyuv0:amd64.
+Preparing to unpack .../28-libsharpyuv0_1.3.2-0.4build3_amd64.deb ...
+Unpacking libsharpyuv0:amd64 (1.3.2-0.4build3) ...
+Selecting previously unselected package libheif-plugin-aomdec:amd64.
+Preparing to unpack .../29-libheif-plugin-aomdec_1.17.6-1ubuntu4.9_amd64.deb ...
+Unpacking libheif-plugin-aomdec:amd64 (1.17.6-1ubuntu4.9) ...
+Selecting previously unselected package libheif1:amd64.
+Preparing to unpack .../30-libheif1_1.17.6-1ubuntu4.9_amd64.deb ...
+Unpacking libheif1:amd64 (1.17.6-1ubuntu4.9) ...
+Selecting previously unselected package libjpeg-turbo8:amd64.
+Preparing to unpack .../31-libjpeg-turbo8_2.1.5-2ubuntu2_amd64.deb ...
+Unpacking libjpeg-turbo8:amd64 (2.1.5-2ubuntu2) ...
+Selecting previously unselected package libjpeg8:amd64.
+Preparing to unpack .../32-libjpeg8_8c-2ubuntu11_amd64.deb ...
+Unpacking libjpeg8:amd64 (8c-2ubuntu11) ...
+Selecting previously unselected package libdeflate0:amd64.
+Preparing to unpack .../33-libdeflate0_1.19-1build1.1_amd64.deb ...
+Unpacking libdeflate0:amd64 (1.19-1build1.1) ...
+Selecting previously unselected package libjbig0:amd64.
+Preparing to unpack .../34-libjbig0_2.1-6.1ubuntu2_amd64.deb ...
+Unpacking libjbig0:amd64 (2.1-6.1ubuntu2) ...
+Selecting previously unselected package liblerc4:amd64.
+Preparing to unpack .../35-liblerc4_4.0.0+ds-4ubuntu2_amd64.deb ...
+Unpacking liblerc4:amd64 (4.0.0+ds-4ubuntu2) ...
+Selecting previously unselected package libwebp7:amd64.
+Preparing to unpack .../36-libwebp7_1.3.2-0.4build3_amd64.deb ...
+Unpacking libwebp7:amd64 (1.3.2-0.4build3) ...
+Selecting previously unselected package libtiff6:amd64.
+Preparing to unpack .../37-libtiff6_4.5.1+git230720-4ubuntu2.5_amd64.deb ...
+Unpacking libtiff6:amd64 (4.5.1+git230720-4ubuntu2.5) ...
+Selecting previously unselected package libxpm4:amd64.
+Preparing to unpack .../38-libxpm4_1%3a3.5.17-1ubuntu0.24.04.2_amd64.deb ...
+Unpacking libxpm4:amd64 (1:3.5.17-1ubuntu0.24.04.2) ...
+Selecting previously unselected package libgd3:amd64.
+Preparing to unpack .../39-libgd3_2.3.3-9ubuntu5_amd64.deb ...
+Unpacking libgd3:amd64 (2.3.3-9ubuntu5) ...
+Selecting previously unselected package libc-devtools.
+Preparing to unpack .../40-libc-devtools_2.39-0ubuntu8.12_amd64.deb ...
+Unpacking libc-devtools (2.39-0ubuntu8.12) ...
+Selecting previously unselected package libheif-plugin-aomenc:amd64.
+Preparing to unpack .../41-libheif-plugin-aomenc_1.17.6-1ubuntu4.9_amd64.deb ...
+Unpacking libheif-plugin-aomenc:amd64 (1.17.6-1ubuntu4.9) ...
+Selecting previously unselected package manpages-dev.
+Preparing to unpack .../42-manpages-dev_6.7-2_all.deb ...
+Unpacking manpages-dev (6.7-2) ...
+Setting up libsharpyuv0:amd64 (1.3.2-0.4build3) ...
+Setting up libaom3:amd64 (3.8.2-2ubuntu0.2) ...
+Setting up libxau6:amd64 (1:1.0.9-1build6) ...
+Setting up libxdmcp6:amd64 (1:1.1.3-0ubuntu6) ...
+Setting up time (1.9-0.2build1) ...
+Setting up libxcb1:amd64 (1.15-1ubuntu2) ...
+Setting up liblerc4:amd64 (4.0.0+ds-4ubuntu2) ...
+Setting up manpages (6.7-2) ...
+Setting up libdeflate0:amd64 (1.19-1build1.1) ...
+Setting up libcurl3t64-gnutls:amd64 (8.5.0-2ubuntu10.16) ...
+Setting up less (590-2ubuntu2.1) ...
+Setting up linux-libc-dev:amd64 (6.8.0-149.149) ...
+Setting up libjbig0:amd64 (2.1-6.1ubuntu2) ...
+Setting up liberror-perl (0.17029-2) ...
+Setting up rpcsvc-proto (1.4.2-0ubuntu7) ...
+Setting up libx11-data (2:1.8.7-1ubuntu0.1) ...
+Setting up fonts-dejavu-mono (2.37-8) ...
+Setting up fonts-dejavu-core (2.37-8) ...
+Setting up libjpeg-turbo8:amd64 (2.1.5-2ubuntu2) ...
+Setting up libwebp7:amd64 (1.3.2-0.4build3) ...
+Setting up libcrypt-dev:amd64 (1:4.4.36-4build1) ...
+Setting up git-man (1:2.43.0-1ubuntu7.4) ...
+Setting up libx11-6:amd64 (2:1.8.7-1ubuntu0.1) ...
+Setting up libc-dev-bin (2.39-0ubuntu8.12) ...
+Setting up libjpeg8:amd64 (8c-2ubuntu11) ...
+Setting up manpages-dev (6.7-2) ...
+Setting up libxpm4:amd64 (1:3.5.17-1ubuntu0.24.04.2) ...
+Setting up fontconfig-config (2.15.0-1.1ubuntu2) ...
+Setting up git (1:2.43.0-1ubuntu7.4) ...
+Setting up libtiff6:amd64 (4.5.1+git230720-4ubuntu2.5) ...
+Setting up libc6-dev:amd64 (2.39-0ubuntu8.12) ...
+Setting up libfontconfig1:amd64 (2.15.0-1.1ubuntu2) ...
+Setting up libstdc++-13-dev:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Setting up g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up g++-13 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up g++ (4:13.2.0-7ubuntu1) ...
+update-alternatives: using /usr/bin/g++ to provide /usr/bin/c++ (c++) in auto mode
+update-alternatives: warning: skip creation of /usr/share/man/man1/c++.1.gz because associated file /usr/share/man/man1/g++.1.gz (of link group c++) doesn't exist
+Setting up build-essential (12.10ubuntu1) ...
+Setting up libheif1:amd64 (1.17.6-1ubuntu4.9) ...
+Setting up libgd3:amd64 (2.3.3-9ubuntu5) ...
+Setting up libc-devtools (2.39-0ubuntu8.12) ...
+Setting up libheif-plugin-aomdec:amd64 (1.17.6-1ubuntu4.9) ...
+Setting up libheif-plugin-aomenc:amd64 (1.17.6-1ubuntu4.9) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.12) ...
++ sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+kernel.apparmor_restrict_unprivileged_userns = 0
++ unshare -r -m -p -f --mount-proc true
++ mkdir -p /home/ubuntu/.local/bin /home/ubuntu/.cache/solc
++ curl -fsSL https://sh.rustup.rs
++ sh -s -- -y --profile minimal --default-toolchain stable
+info: downloading installer
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-12 for version 1.100.0 (0ef1bc386 2026-11-09)
+info: downloading 3 components
+info: default toolchain set to stable-x86_64-unknown-linux-gnu
+
+  stable-x86_64-unknown-linux-gnu installed - rustc 1.100.0 (0ef1bc386 2026-11-09)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env"     # For sh/ash/dash/pdksh/bash
+source "~/.cargo/env.nu" # For nushell
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CPATH
+cargo:rerun-if-env-changed=C_INCLUDE_PATH
+cargo:rerun-if-env-changed=CPLUS_INCLUDE_PATH
+cargo:rerun-if-env-changed=OBJC_INCLUDE_PATH
+cargo:rerun-if-env-changed=OBJCPLUS_INCLUDE_PATH
+cargo:rerun-if-env-changed=COMPILER_PATH
+cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH
+cargo:rerun-if-env-changed=GCC_EXEC_PREFIX
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
++ curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
++ sh -s -- -y --default-toolchain none
+info: downloading installer
++ curl -fsSL https://astral.sh/uv/install.sh
++ sh
+downloading uv 0.13.9 x86_64-unknown-linux-gnu
+installing to /home/ubuntu/.local/bin
+  uv
+  uvx
+everything's installed!
++ export PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/.elan/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
++ PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/.elan/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
++ uv python install 3.14
+Downloading cpython-3.14.10-linux-x86_64-gnu (download) (35.2MiB)
+ Downloaded cpython-3.14.10-linux-x86_64-gnu (download)
+Installed Python 3.14.10 in 6.08s
+ + cpython-3.14.10-linux-x86_64-gnu (python3.14)
+++ uv python find 3.14
++ py=/home/ubuntu/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/bin/python3.14
++ ln -sf /home/ubuntu/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/bin/python3.14 /home/ubuntu/.local/bin/python3.14
++ ln -sf /home/ubuntu/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/bin/python3.14 /home/ubuntu/.local/bin/python3
++ curl -fsSL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.35+commit.47b9dedd -o /home/ubuntu/.cache/solc/solc-0.8.35
++ echo 'fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4  /home/ubuntu/.cache/solc/solc-0.8.35'
++ sha256sum -c
+/home/ubuntu/.cache/solc/solc-0.8.35: OK
++ chmod +x /home/ubuntu/.cache/solc/solc-0.8.35
++ clone https://github.com/paradigmxyz/solar /home/ubuntu/solar afaefd409e1bab75ab0453eaba93fc06f197dd44
++ git clone -q https://github.com/paradigmxyz/solar /home/ubuntu/solar
++ git -C /home/ubuntu/solar fetch -q origin afaefd409e1bab75ab0453eaba93fc06f197dd44
++ git -C /home/ubuntu/solar checkout -q --detach afaefd409e1bab75ab0453eaba93fc06f197dd44
+++ git -C /home/ubuntu/solar rev-parse HEAD
++ [[ afaefd409e1bab75ab0453eaba93fc06f197dd44 == afaefd409e1bab75ab0453eaba93fc06f197dd44 ]]
++ git clone -q --shared /home/ubuntu/solar /home/ubuntu/harness
+Note: switching to 'afaefd409e1bab75ab0453eaba93fc06f197dd44'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
++ git -C /home/ubuntu/harness fetch -q https://github.com/paradigmxyz/solar 5e14063a246e7d0f79b60c0fd359128044861e7b
++ git -C /home/ubuntu/harness checkout -q --detach 5e14063a246e7d0f79b60c0fd359128044861e7b
++ clone https://github.com/paradigmxyz/solidity-lean /home/ubuntu/sl 334d1d924f8f6c29ac827fd81d1cc739721b479a
++ git clone -q https://github.com/paradigmxyz/solidity-lean /home/ubuntu/sl
++ git -C /home/ubuntu/sl fetch -q origin 334d1d924f8f6c29ac827fd81d1cc739721b479a
++ git -C /home/ubuntu/sl checkout -q --detach 334d1d924f8f6c29ac827fd81d1cc739721b479a
+++ git -C /home/ubuntu/sl rev-parse HEAD
++ [[ 334d1d924f8f6c29ac827fd81d1cc739721b479a == 334d1d924f8f6c29ac827fd81d1cc739721b479a ]]
+++ cat /home/ubuntu/sl/lean-toolchain
++ elan toolchain install leanprover/lean4:v4.35.0
+info: downloading https://releases.lean-lang.org/lean4/v4.35.0/lean-4.35.0-linux.tar.zst
+info: installing /home/ubuntu/.elan/toolchains/leanprover--lean4---v4.35.0
+
+leanprover/lean4:v4.35.0 installed - Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)
+
++ git clone -q /home/ubuntu/sl /home/ubuntu/pk
+Note: switching to '334d1d924f8f6c29ac827fd81d1cc739721b479a'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
++ git -C /home/ubuntu/pk checkout -q --detach 334d1d924f8f6c29ac827fd81d1cc739721b479a
++ cd /home/ubuntu/pk
++ lake exe cache get
+info: mathlib: materializing new dependency
+info: mathlib: fetching revision '56a005855ea17e0b0958f73ec801ae140b0a1679' from https://github.com/leanprover-community/mathlib4
+info: mathlib: checking out revision '56a005855ea17e0b0958f73ec801ae140b0a1679'
+info: EthLib: materializing new dependency
+info: EthLib: fetching revision '2cd5d14a6a2f6fd22ef6b68423e45cfa3a21001a' from https://github.com/ethereum/EthLib.git
+info: EthLib: checking out revision '2cd5d14a6a2f6fd22ef6b68423e45cfa3a21001a'
+info: plausible: materializing new dependency
+info: plausible: fetching revision 'dfa4f38190d07c37e315953e08b90fe2d95b3c24' from https://github.com/leanprover-community/plausible
+info: plausible: checking out revision 'dfa4f38190d07c37e315953e08b90fe2d95b3c24'
+info: LeanSearchClient: materializing new dependency
+info: LeanSearchClient: fetching revision 'd6b4c7be5be75ec4917c873ac50c756dc1436372' from https://github.com/leanprover-community/LeanSearchClient
+info: LeanSearchClient: checking out revision 'd6b4c7be5be75ec4917c873ac50c756dc1436372'
+info: importGraph: materializing new dependency
+info: importGraph: fetching revision 'a41f0e9a4dea23188ea9cc1c41ac9f8bbafe0b93' from https://github.com/leanprover-community/import-graph
+info: importGraph: checking out revision 'a41f0e9a4dea23188ea9cc1c41ac9f8bbafe0b93'
+info: proofwidgets: materializing new dependency
+info: proofwidgets: fetching revision 'df72b022e558978a1c50264cfc4d7fec86fa8e04' from https://github.com/leanprover-community/ProofWidgets4
+info: proofwidgets: checking out revision 'df72b022e558978a1c50264cfc4d7fec86fa8e04'
+info: aesop: materializing new dependency
+info: aesop: fetching revision '4a174c490d8707121c4a9290800489f105d85e07' from https://github.com/leanprover-community/aesop
+info: aesop: checking out revision '4a174c490d8707121c4a9290800489f105d85e07'
+info: Qq: materializing new dependency
+info: Qq: fetching revision 'dce0ad79c486cb1fb504af04f953c3466b0c6db8' from https://github.com/leanprover-community/quote4
+info: Qq: checking out revision 'dce0ad79c486cb1fb504af04f953c3466b0c6db8'
+info: batteries: materializing new dependency
+info: batteries: fetching revision '66e469188fe07963e5cf666c7d4433f45b8131c5' from https://github.com/leanprover-community/batteries
+info: batteries: checking out revision '66e469188fe07963e5cf666c7d4433f45b8131c5'
+info: VCVio: materializing new dependency
+info: VCVio: fetching revision 'bbf05eeeedf84c5f98baaf5ab846f2d2479cc8ab' from https://github.com/Verified-zkEVM/VCVio.git
+info: VCVio: checking out revision 'bbf05eeeedf84c5f98baaf5ab846f2d2479cc8ab'
+info: Cli: materializing new dependency
+info: Cli: fetching revision 'c24fe6078c630e89b489bffe59b3e20ac30d12c8' from https://github.com/leanprover/lean4-cli
+info: Cli: checking out revision 'c24fe6078c630e89b489bffe59b3e20ac30d12c8'
+info: QuantumFoundations: materializing new dependency
+info: QuantumFoundations: fetching revision '901aaab7967ceecd2240d0b38bbde7cf3e2c14ac' from https://github.com/lean-crypto-foundations/QuantumFoundations
+info: QuantumFoundations: checking out revision '901aaab7967ceecd2240d0b38bbde7cf3e2c14ac'
+info: PolyFun: materializing new dependency
+info: PolyFun: fetching revision '4181c82238142d9b73403fbf4c4b13e1a801e400' from https://github.com/Verified-zkEVM/PolyFun
+info: PolyFun: checking out revision '4181c82238142d9b73403fbf4c4b13e1a801e400'
+info: cslib: materializing new dependency
+info: cslib: fetching revision '5b56df99362532c46e1175381fbbdd755bd56030' from https://github.com/leanprover/cslib
+info: cslib: checking out revision '5b56df99362532c46e1175381fbbdd755bd56030'
+✔ [2/6] Built Cache.Cli (128ms)
+✔ [3/6] Built Cache.Lean (140ms)
+✔ [7/43] Built Cache.Cli:c.o (58ms)
+✔ [8/43] Built Cache.Lean:c.o (71ms)
+✔ [9/43] Built Cache.Env (134ms)
+✔ [10/43] Built Cache.Env:c.o (73ms)
+✔ [11/43] Built Batteries.Tactic.OpenPrivate (373ms)
+✔ [12/43] Built Cache.Infra (149ms)
+✔ [13/43] Built Cache.Infra:c.o (83ms)
+✔ [14/43] Built Cache.Location (185ms)
+✔ [15/43] Built Cache.Location:c.o (110ms)
+✔ [16/43] Built Batteries.Tactic.OpenPrivate:c.o (482ms)
+✔ [17/43] Built Cache.IO (522ms)
+✔ [18/43] Built Cache.Hashing (246ms)
+✔ [19/43] Built Cache.Hashing:c.o (263ms)
+✔ [20/43] Built Cache.IO:c.o (707ms)
+✔ [21/43] Built Cache.Requests (666ms)
+✔ [22/43] Built Cache.Marker (155ms)
+✔ [23/43] Built Cache.Marker:c.o (64ms)
+✔ [24/43] Built Cache.Upload.Curl (184ms)
+✔ [25/43] Built Cache.Upload.Rclone (203ms)
+✔ [26/43] Built Cache.Query (220ms)
+✔ [27/43] Built Cache.Upload.Curl:c.o (100ms)
+✔ [28/43] Built Cache.Upload.Azure (187ms)
+✔ [29/43] Built Cache.Upload.Rclone:c.o (131ms)
+✔ [30/43] Built Cache.Query:c.o (137ms)
+✔ [31/43] Built Cache.Upload.S3 (237ms)
+✔ [32/43] Built Cache.Warning (260ms)
+✔ [33/43] Built Cache.Upload.Azure:c.o (68ms)
+✔ [34/43] Built Cache.Upload.Defs (178ms)
+✔ [35/43] Built Cache.Upload.S3:c.o (133ms)
+✔ [36/43] Built Cache.Upload.Defs:c.o (69ms)
+✔ [37/43] Built Cache.Warning:c.o (145ms)
+✔ [38/43] Built Cache.Upload (152ms)
+✔ [39/43] Built Cache.Upload:c.o (51ms)
+✔ [40/43] Built Cache.Requests:c.o (1.2s)
+✔ [41/43] Built Cache.Main (371ms)
+✔ [42/43] Built Cache.Main:c.o (409ms)
+✔ [43/43] Built cache:exe (296ms)
+Current branch: HEAD
+Using cache from origin: (some leanprover-community/mathlib4)
+Attempting to download 9031 file(s) from leanprover-community/mathlib4 cache at https://cache.mathlib.org/mathlib4-master
+Downloaded: 1 file(s) [attempted 1/9031 = 0%, 1236 KB/s][KDownloaded: 139 file(s) [attempted 139/9031 = 1%, 119 KB/s][KDownloaded: 315 file(s) [attempted 315/9031 = 3%, 2624 KB/s][KDownloaded: 440 file(s) [attempted 440/9031 = 4%, 636 KB/s][KDownloaded: 566 file(s) [attempted 566/9031 = 6%, 2006 KB/s][KDownloaded: 721 file(s) [attempted 721/9031 = 7%, 884 KB/s][KDownloaded: 872 file(s) [attempted 872/9031 = 9%, 372 KB/s][KDownloaded: 1046 file(s) [attempted 1046/9031 = 11%, 2590 KB/s][KDownloaded: 1196 file(s) [attempted 1196/9031 = 13%, 449 KB/s][KDownloaded: 1346 file(s) [attempted 1346/9031 = 14%, 1347 KB/s][KDownloaded: 1501 file(s) [attempted 1501/9031 = 16%, 546 KB/s][KDownloaded: 1659 file(s) [attempted 1659/9031 = 18%, 476 KB/s][KDownloaded: 1797 file(s) [attempted 1797/9031 = 19%, 1212 KB/s][KDownloaded: 1893 file(s) [attempted 1893/9031 = 20%, 3070 KB/s][KDownloaded: 2024 file(s) [attempted 2024/9031 = 22%, 1244 KB/s][KDownloaded: 2179 file(s) [attempted 2179/9031 = 24%, 174 KB/s][KDownloaded: 2346 file(s) [attempted 2346/9031 = 25%, 1279 KB/s][KDownloaded: 2494 file(s) [attempted 2494/9031 = 27%, 1017 KB/s][KDownloaded: 2642 file(s) [attempted 2642/9031 = 29%, 2386 KB/s][KDownloaded: 2777 file(s) [attempted 2777/9031 = 30%, 1614 KB/s][KDownloaded: 2923 file(s) [attempted 2923/9031 = 32%, 148 KB/s][KDownloaded: 3068 file(s) [attempted 3068/9031 = 33%, 304 KB/s][KDownloaded: 3216 file(s) [attempted 3216/9031 = 35%, 3997 KB/s][KDownloaded: 3331 file(s) [attempted 3331/9031 = 36%, 379 KB/s][KDownloaded: 3445 file(s) [attempted 3445/9031 = 38%, 1196 KB/s][KDownloaded: 3591 file(s) [attempted 3591/9031 = 39%, 150 KB/s][KDownloaded: 3736 file(s) [attempted 3736/9031 = 41%, 2003 KB/s][KDownloaded: 3863 file(s) [attempted 3863/9031 = 42%, 1757 KB/s][KDownloaded: 4027 file(s) [attempted 4027/9031 = 44%, 733 KB/s][KDownloaded: 4177 file(s) [attempted 4177/9031 = 46%, 642 KB/s][KDownloaded: 4333 file(s) [attempted 4333/9031 = 47%, 89 KB/s][KDownloaded: 4471 file(s) [attempted 4471/9031 = 49%, 1415 KB/s][KDownloaded: 4616 file(s) [attempted 4616/9031 = 51%, 246 KB/s][KDownloaded: 4733 file(s) [attempted 4733/9031 = 52%, 417 KB/s][KDownloaded: 4850 file(s) [attempted 4850/9031 = 53%, 113 KB/s][KDownloaded: 4988 file(s) [attempted 4988/9031 = 55%, 2086 KB/s][KDownloaded: 5165 file(s) [attempted 5165/9031 = 57%, 526 KB/s][KDownloaded: 5325 file(s) [attempted 5325/9031 = 58%, 722 KB/s][KDownloaded: 5470 file(s) [attempted 5470/9031 = 60%, 559 KB/s][KDownloaded: 5606 file(s) [attempted 5606/9031 = 62%, 3850 KB/s][KDownloaded: 5752 file(s) [attempted 5752/9031 = 63%, 2023 KB/s][KDownloaded: 5888 file(s) [attempted 5888/9031 = 65%, 282 KB/s][KDownloaded: 6026 file(s) [attempted 6026/9031 = 66%, 1275 KB/s][KDownloaded: 6145 file(s) [attempted 6145/9031 = 68%, 497 KB/s][KDownloaded: 6243 file(s) [attempted 6243/9031 = 69%, 133 KB/s][KDownloaded: 6374 file(s) [attempted 6374/9031 = 70%, 2981 KB/s][KDownloaded: 6519 file(s) [attempted 6519/9031 = 72%, 3705 KB/s][KDownloaded: 6651 file(s) [attempted 6651/9031 = 73%, 615 KB/s][KDownloaded: 6796 file(s) [attempted 6796/9031 = 75%, 1324 KB/s][KDownloaded: 6949 file(s) [attempted 6949/9031 = 76%, 295 KB/s][KDownloaded: 7094 file(s) [attempted 7094/9031 = 78%, 722 KB/s][KDownloaded: 7235 file(s) [attempted 7235/9031 = 80%, 404 KB/s][KDownloaded: 7380 file(s) [attempted 7380/9031 = 81%, 1789 KB/s][KDownloaded: 7526 file(s) [attempted 7526/9031 = 83%, 508 KB/s][KDownloaded: 7655 file(s) [attempted 7655/9031 = 84%, 682 KB/s][KDownloaded: 7748 file(s) [attempted 7748/9031 = 85%, 954 KB/s][KDownloaded: 7903 file(s) [attempted 7903/9031 = 87%, 1016 KB/s][KDownloaded: 8036 file(s) [attempted 8036/9031 = 88%, 1149 KB/s][KDownloaded: 8177 file(s) [attempted 8177/9031 = 90%, 298 KB/s][KDownloaded: 8313 file(s) [attempted 8313/9031 = 92%, 6453 KB/s][KDownloaded: 8451 file(s) [attempted 8451/9031 = 93%, 229 KB/s][KDownloaded: 8606 file(s) [attempted 8606/9031 = 95%, 1552 KB/s][KDownloaded: 8771 file(s) [attempted 8771/9031 = 97%, 511 KB/s][KDownloaded: 8936 file(s) [attempted 8936/9031 = 98%, 3205 KB/s][KDownloaded: 9031 file(s) [attempted 9031/9031 = 100%, 3205 KB/s][K
+Still decompressing downloaded files...
+Decompressed 9031 file(s)
+Already decompressed 9031 file(s)
+++ git -C /home/ubuntu/solar rev-parse HEAD
++ echo 'solar afaefd409e1bab75ab0453eaba93fc06f197dd44'
+++ git -C /home/ubuntu/harness rev-parse HEAD
++ echo 'harness 5e14063a246e7d0f79b60c0fd359128044861e7b'
+++ git -C /home/ubuntu/sl rev-parse HEAD
++ echo 'solidity-lean 334d1d924f8f6c29ac827fd81d1cc739721b479a'
+++ git -C /home/ubuntu/pk rev-parse HEAD
++ echo 'package-cache 334d1d924f8f6c29ac827fd81d1cc739721b479a'
+++ sha256sum
+++ cut -c1-64
+++ /home/ubuntu/.cache/solc/solc-0.8.35 --version
+++ tail -1
++ echo 'solc fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4 Version: 0.8.35+commit.47b9dedd.Linux.g++'
+++ python3 --version
++ echo 'python3 Python 3.14.10'
+++ rustc --version
++ echo 'rustc rustc 1.100.0 (0ef1bc386 2026-11-09)'
+++ cargo --version
++ echo 'cargo cargo 1.100.0 (3acc79c0c 2026-11-05)'
+++ cd /home/ubuntu/sl
+++ lean --version
++ echo 'lean Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)'
+++ cd /home/ubuntu/sl
+++ lake --version
++ echo 'lake Lake version 5.0.0-src+eb6cafb (Lean version 4.35.0)'
+++ gcc --version
+++ head -1
++ echo 'gcc gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0'
+++ dpkg-query -W '-f=${Version}' time
++ echo 'time 1.9-0.2build1'
+++ uname -r
++ echo 'kernel 6.8.0-149-generic'
+++ nproc
++ echo 'nproc 12'
+++ awk '/MemTotal/ {print $2 * 1024}' /proc/meminfo
++ echo 'mem_total_bytes 49559273472'
+++ awk '/SwapTotal/ {print $2 * 1024}' /proc/meminfo
++ echo 'swap_total_bytes 0'
++ df -B1 --output=size,avail /home/ubuntu
++ tail -1
++ awk '{print "disk_bytes " $1 " avail " $2}'
++ cat /home/ubuntu/t5-versions.txt
+solar afaefd409e1bab75ab0453eaba93fc06f197dd44
+harness 5e14063a246e7d0f79b60c0fd359128044861e7b
+solidity-lean 334d1d924f8f6c29ac827fd81d1cc739721b479a
+package-cache 334d1d924f8f6c29ac827fd81d1cc739721b479a
+solc fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4 Version: 0.8.35+commit.47b9dedd.Linux.g++
+python3 Python 3.14.10
+rustc rustc 1.100.0 (0ef1bc386 2026-11-09)
+cargo cargo 1.100.0 (3acc79c0c 2026-11-05)
+lean Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)
+lake Lake version 5.0.0-src+eb6cafb (Lean version 4.35.0)
+gcc gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+time 1.9-0.2build1
+kernel 6.8.0-149-generic
+nproc 12
+mem_total_bytes 49559273472
+swap_total_bytes 0
+disk_bytes 943441641472 avail 879254867968

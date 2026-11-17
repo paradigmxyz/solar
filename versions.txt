@@ -1,0 +1,17 @@
+solar afaefd409e1bab75ab0453eaba93fc06f197dd44
+harness 5e14063a246e7d0f79b60c0fd359128044861e7b
+solidity-lean 334d1d924f8f6c29ac827fd81d1cc739721b479a
+package-cache 334d1d924f8f6c29ac827fd81d1cc739721b479a
+solc fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4 Version: 0.8.35+commit.47b9dedd.Linux.g++
+python3 Python 3.14.10
+rustc rustc 1.100.0 (0ef1bc386 2026-11-09)
+cargo cargo 1.100.0 (3acc79c0c 2026-11-05)
+lean Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)
+lake Lake version 5.0.0-src+eb6cafb (Lean version 4.35.0)
+gcc gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+time 1.9-0.2build1
+kernel 6.8.0-149-generic
+nproc 12
+mem_total_bytes 49559273472
+swap_total_bytes 0
+disk_bytes 943441641472 avail 879254867968

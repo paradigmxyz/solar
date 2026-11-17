@@ -1,0 +1,21 @@
+{
+  "solar_commit": "afaefd409e1bab75ab0453eaba93fc06f197dd44",
+  "driver_commit": "afaefd409e1bab75ab0453eaba93fc06f197dd44",
+  "harness_commit": "5e14063a246e7d0f79b60c0fd359128044861e7b",
+  "escape_hatches": {
+    "CERTIFY_ALLOW_UNPINNED": "unset",
+    "CERTIFY_ALLOW_FOREIGN_SOLAR": "unset"
+  },
+  "binary_path": "/home/ubuntu/solar/target/debug/solar",
+  "binary_sha256": "5871a7e68c34e15901d871e553e56e129cc4412f05c9cda7d8b251731014c37d",
+  "binary_commit": "afaefd409e1bab75ab0453eaba93fc06f197dd44",
+  "version": "solar 0.3.0-dev+commit.afaefd40",
+  "build_command": "cargo build --locked --bin solar",
+  "profile": "debug",
+  "driver_options": "[\"-Ogas\", \"--evm-version\", \"osaka\"]",
+  "driver_environment": "\"one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message (fixed, not quantified)\"",
+  "driver_lean_memory": "\"6000\"",
+  "stage_cache": null,
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+  "recorded": "2026-11-17T19:58:59+00:00"
+}
