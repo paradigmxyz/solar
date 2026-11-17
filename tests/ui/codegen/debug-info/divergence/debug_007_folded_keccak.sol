@@ -1,6 +1,7 @@
 //@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
+// The dump only makes the tester run FileCheck; it reads the source map.
 
 // DEBUG-007: `keccak256` of `abi.encode` or `abi.encodePacked` of constants is folded at compile
 // time. The hash is a push in the code that reads it, so the call and its arguments have no entry,

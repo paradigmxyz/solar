@@ -1,6 +1,7 @@
 //@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
+// The dump only makes the tester run FileCheck; it reads the source map.
 
 // DEBUG-001: a statement whose value is a constant, a copy or a folded constant expression has no
 // instruction of its own. The value sits in the push or dup of the code that reads it, or in a

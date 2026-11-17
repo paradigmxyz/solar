@@ -1389,7 +1389,6 @@ reported.
 Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
 `tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.
 
-
 ## Debug Info and Source Maps
 
 Debug info maps each instruction to the source construct it executes. We do
@@ -1400,9 +1399,10 @@ source-map entry. At `-Onone`, `forge coverage` reports it as not covered where
 leaves its branch path unanchored too, because `forge` anchors the path on the
 arm's first instruction.
 
-Each test below checks the legacy source map of the contract: no entry starts
-where `solc` has one, and entries of neighbouring code show the check is not
-vacuous.
+These entries compare with `solc`'s legacy output, which `forge coverage`
+anchors on at `-Onone`. Each test checks that the legacy source map has no entry
+at the statement's offset but has entries for nearby code, so the check cannot
+pass on an empty map.
 
 ### DEBUG-001: Statements with a constant, copy or folded value
 
@@ -1418,9 +1418,7 @@ vacuous.
   `if` arm or `catch` block that holds only such statements has no instruction
   either.
 - Rationale: the value sits in the `PUSH` or `DUP` of the code that reads it,
-  or in a stack rename, so nothing executes for the statement. Mapping the
-  reader's instruction to the statement would name code that does not run for
-  it, and keeping a dead instruction would change codegen.
+  or in a stack rename, so nothing executes for the statement.
 - Coverage:
   `tests/ui/codegen/debug-info/divergence/debug_001_constant_statements.sol`.
 
@@ -1432,8 +1430,7 @@ vacuous.
   loop have no instruction for `break` or `continue`. `solc` emits a `JUMP` for
   each.
 - Rationale: the branch on the `if` condition jumps to the loop exit or the
-  loop's increment directly, so no separate jump is left. Keeping an empty block
-  and its jump only for the location would change codegen.
+  loop's increment directly, so no separate jump is left.
 - Coverage: `tests/ui/codegen/debug-info/divergence/debug_002_loop_jumps.sol`.
 
 ### DEBUG-003: Tail calls and forwarders
@@ -1441,14 +1438,13 @@ vacuous.
 - ID: DEBUG-003
 - Status: intentional
 - Difference: a call statement at the end of a function has no instruction when
-  the code before it jumps to the callee directly, as the `require` does in
-  `require(x != 0); _set(x);`. A function that only forwards, such as
+  the code before it jumps to the callee directly, as the `require` does for
+  `_set(x);` after `require(x != 0);`. A function that only forwards, such as
   `_forward` with the body `return _twice(x);`, has no entry label and no jump,
   and callers jump past it to the callee. `solc` emits the call's jump, and the
   forwarder's entry and jump.
 - Rationale: the jump to the callee and the jump from the forwarder do the work
-  of the call, so the call has no code of its own. Keeping them only for the
-  location would change codegen.
+  of the call, so the call has no code of its own.
 - Coverage: `tests/ui/codegen/debug-info/divergence/debug_003_tail_calls.sol`.
 
 ### DEBUG-004: Identical reverts share one block
@@ -1457,10 +1453,9 @@ vacuous.
 - Status: intentional
 - Difference: identical custom-error reverts in one function, such as two
   `revert E(1);` or two `require(c, E(7));` with the same error and arguments,
-  share one revert block at every optimization level. The block's location is
-  the merge of its sites, which the legacy source map writes as `-1`. Neither
-  statement has an entry, where `solc` maps each revert separately. ETHDebug
-  lists every site.
+  share one revert block. The block's location is the merge of its sites, which
+  the legacy source map writes as `-1`. Neither statement has an entry, where
+  `solc` maps the error call of each. ETHDebug lists every site.
 - Rationale: the block runs for either site, so no single site is its location.
   Locations merge as LLVM merges those of instructions it combines. Keeping a
   block per site would grow the code.
@@ -1473,11 +1468,11 @@ vacuous.
 - Status: intentional
 - Difference: identical terminal blocks in one function merge, such as two
   `return true;`, two `return 1;` or two `return abi.encodeCall(...);` with the
-  same arguments. MIR `cfg-simplify` merges them, and the legacy source map
-  writes the merged location as `-1`. None of the merged returns has an entry,
-  where `solc` maps each separately. A `return` that no other block matches
-  keeps its entry.
-- Rationale: as for DEBUG-004.
+  same arguments. The legacy source map writes the merged location as `-1`.
+  None of the merged returns has an entry, where `solc` maps each separately.
+  A `return` that no other block matches keeps its entry.
+- Rationale: MIR `cfg-simplify` merges identical terminal blocks, as for
+  DEBUG-004.
 - Coverage:
   `tests/ui/codegen/debug-info/divergence/debug_005_merged_returns.sol`.
 
@@ -1485,14 +1480,13 @@ vacuous.
 
 - ID: DEBUG-006
 - Status: intentional
-- Difference: MIR lowering inlines a pure internal function whose only
-  statement returns a struct constructor, such as `make(a, b)` with the body
-  `return P(a, b);`. Neither the function nor its `return` has an entry. The
-  code that builds the struct maps to each call, `make(x, 1)` and
-  `make(x, 2)`. `solc` emits the function once and maps its `return` to it.
-- Rationale: the code runs at the call, so the call is its location. The
-  function is no longer a callee, and emitting it for its location would add
-  code.
+- Difference: a pure internal function whose only statement returns a struct
+  constructor, such as `make(a, b)` with the body `return P(a, b);`, has no
+  entry, and neither has its `return`. The code that builds the struct maps to
+  each call, `make(x, 1)` and `make(x, 2)`. `solc` emits the function once and
+  maps its `return` to it.
+- Rationale: MIR lowering inlines the function into each call, so the code runs
+  at the call and the call is its location.
 - Coverage:
   `tests/ui/codegen/debug-info/divergence/debug_006_inlined_struct_constructor.sol`.
 
@@ -1506,6 +1500,5 @@ vacuous.
   entry. `solc` folds only a string literal argument and runs the others, so it
   maps the call and its arguments. A `keccak256` of a runtime value keeps its
   entry.
-- Rationale: the call has no code left to map. Folding is the optimization, and
-  keeping the memory writes for their locations would change codegen.
+- Rationale: the call has no code left to map.
 - Coverage: `tests/ui/codegen/debug-info/divergence/debug_007_folded_keccak.sol`.

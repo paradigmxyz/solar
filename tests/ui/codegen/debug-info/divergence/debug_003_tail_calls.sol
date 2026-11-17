@@ -1,6 +1,7 @@
 //@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
+// The dump only makes the tester run FileCheck; it reads the source map.
 
 // DEBUG-003: a call in tail position has no instruction of its own when the code before it jumps
 // to the callee directly, as the `require` does for `_set(x);`, or when the caller jumps past a

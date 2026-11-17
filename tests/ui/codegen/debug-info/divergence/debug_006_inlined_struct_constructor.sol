@@ -1,6 +1,7 @@
 //@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
+// The dump only makes the tester run FileCheck; it reads the source map.
 
 // DEBUG-006: a pure internal function whose only statement returns a struct constructor is
 // lowered into each call. The function has no code of its own, and the code that builds the struct
