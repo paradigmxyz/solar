@@ -7,6 +7,9 @@ operations, undefined operands and excessive expansion never become tree nodes.
 Supplied internal bodies expand with private SSA environments and explicit
 return continuations. Memory pointers retain their word carrier, not an assumed
 validity or freshness proof. Allocation remains a fallible stateful request.
+FMP reads use the kernel-proved MLOAD request constructor. Constructor-range
+queries keep their base/end identity and arbitrary reply; other layout queries
+remain unsupported, rather than receiving a default placement.
 """
 
 import hashlib
@@ -179,16 +182,24 @@ def render(model, definitions):
                             "effect-tree raw operands require word carriers"
                         )
                     returns = inst["result"] is not None
-                    if op["kind"] == "allocate":
+                    if op["kind"] == "free_pointer":
+                        request = "MIR.LowerAlloc.freePointerRequest"
+                    elif op["kind"] == "layout":
+                        request = f"(MIR.LowerAlloc.constructorRequest {'true' if op['end'] else 'false'})"
+                    elif op["kind"] == "allocate":
                         operation = f".allocate {'true' if op['zeroed'] else 'false'} {'true' if op['checked'] else 'false'}"
                     else:
                         row = definitions[op["name"]]
                         if row["stack"] != [len(args), int(returns)]:
                             raise Unsupported("effect-tree opcode signature mismatch")
                         operation = f".opcode {row['opcode']}"
-                    values = ",".join(value for value, _ in args)
+                    if op["kind"] not in {"free_pointer", "layout"}:
+                        values = ",".join(value for value, _ in args)
+                        request = (
+                            f"⟨{operation},[{values}],{'true' if returns else 'false'}⟩"
+                        )
                     prefix.append(
-                        f"MIR.Effects.Tree.request ⟨{operation},[{values}],{'true' if returns else 'false'}⟩ (fun reply{work} =>"
+                        f"MIR.Effects.Tree.request {request} (fun reply{work} =>"
                     )
                     close.append(")")
                     expression = f"reply{work}.setWidth {bits}"
@@ -301,6 +312,29 @@ def render(model, definitions):
                     or inst["type"].get("kind") != "pointer"
                 ):
                     raise Unsupported("effect-tree allocation signature mismatch")
+            elif op["kind"] == "free_pointer":
+                ty = inst["type"] or {}
+                if (
+                    op["args"]
+                    or inst["result"] is None
+                    or ty.get("kind") != "pointer"
+                    or ty.get("location") != "memory"
+                ):
+                    raise Unsupported("effect-tree FMP signature mismatch")
+            elif op["kind"] == "layout":
+                ty = inst["type"] or {}
+                if (
+                    set(op) != {"kind", "query", "end", "args"}
+                    or op["query"] != "constructor"
+                    or type(op["end"]) is not bool
+                    or op["args"]
+                    or inst["result"] is None
+                    or ty.get("kind") != "word"
+                    or ty.get("bits") != 256
+                ):
+                    raise Unsupported(
+                        "effect trees require an explicit constructor-range query"
+                    )
             elif op["kind"] not in {
                 "word",
                 "low_bits",
@@ -367,6 +401,7 @@ def check(a, b, timeout, executable):
 theorem pair_correct {binders} : before {args} = after {args} := by
   simp [before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
+    MIR.LowerAlloc.freePointerRequest, MIR.LowerAlloc.constructorRequest,
     BitVec.ofNatLT_eq_ofNat, BitVec.ult]
 #print axioms pair_correct
 """
@@ -399,6 +434,19 @@ theorem pair_correct {binders} : before {args} = after {args} := by
                 "supplied_functions": len(program.symbolic_mir["model"]["functions"]),
                 "allocation_sites": sum(
                     inst["operation"]["kind"] == "allocate"
+                    for function in program.symbolic_mir["model"]["functions"]
+                    for block in function["blocks"]
+                    for inst in block["instructions"]
+                ),
+                "normalized_fmp_reads": sum(
+                    inst["operation"]["kind"] == "free_pointer"
+                    for function in program.symbolic_mir["model"]["functions"]
+                    for block in function["blocks"]
+                    for inst in block["instructions"]
+                ),
+                "constructor_range_queries": sum(
+                    inst["operation"]["kind"] == "layout"
+                    and inst["operation"]["query"] == "constructor"
                     for function in program.symbolic_mir["model"]["functions"]
                     for block in function["blocks"]
                     for inst in block["instructions"]

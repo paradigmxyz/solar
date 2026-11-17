@@ -244,13 +244,16 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
     # Large effectful bodies can spend most of their proof budget
     # unfolding identical storage and memory. Try the exact interaction-trace
     # obligation first; it is explicitly reported as a different certificate.
-    if (
-        sum(
-            len(block["instructions"])
-            for function in a.symbolic_mir["model"]["functions"]
-            for block in function["blocks"]
-        )
-        >= 40
+    if sum(
+        len(block["instructions"])
+        for function in a.symbolic_mir["model"]["functions"]
+        for block in function["blocks"]
+    ) >= 40 or any(
+        inst["operation"]["kind"] == "layout"
+        and inst["operation"]["query"] == "constructor"
+        for function in a.symbolic_mir["model"]["functions"]
+        for block in function["blocks"]
+        for inst in block["instructions"]
     ):
         try:
             return mir_effects.check(a, b, timeout, replay_executable)

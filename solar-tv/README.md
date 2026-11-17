@@ -82,7 +82,7 @@ before either a proof or a counterexample can be accepted.
 | --- | --- | --- |
 | MIR scalar projection | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
-| MIR compositional effects | Acyclic integer/pointer functions, supplied internal callees and explicit opcode/allocation effects, without layout queries. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
+| MIR compositional effects | Acyclic integer/pointer functions, supplied internal callees, explicit opcode/allocation effects and constructor-range requests. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
 | EVM post-precompile suffix | A changed tail after an exactly shared prefix, with canonical recovery-precompile calls and GAS reads retained. | All shared prefix halts are identical; successful suffixes preserve their exit and complete stack/world with no less gas. The shared prefix-executor binding remains trusted. |
@@ -166,8 +166,26 @@ STOP, raw RETURN, revert and exception end the frame. Allocations retain their
 size, zeroing and checked-failure policy as explicit requests. Results are
 arbitrary pointer carriers: no allocation success, fresh address, implicit FMP
 setup or backend return-buffer placement is assumed. Pointer offsets wrap; they
-establish no validity or provenance proof. External calls, tail calls, layout
-queries, GAS sampling and code observers are rejected by this route.
+establish no validity or provenance proof. Constructor base/end queries remain
+distinct ordered requests, with arbitrary results and no selected placement.
+External calls, tail calls, other layout queries, GAS sampling and code observers
+are rejected by this route.
+
+The `lower-alloc` example is reduced from Morpho's constructor. Its FMP read
+becomes `mload(0x40)` followed by a pointer-carrier cast. The request constructors
+in [MIR/Transforms/LowerAlloc.lean](SolarTV/MIR/Transforms/LowerAlloc.lean) have
+kernel-checked primitive correspondence, including memory expansion and failure.
+The constructor range remains unknown; no default FMP or heap floor is supplied.
+This is still a compositional interaction certificate with a trusted SSA
+projection, rather than a whole-contract or physical-gas proof.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/fmp-lowering/{before,after}.mir \
+  --function constructor --report target/tv/fmp-lowering.json
+# A wrong FMP slot, with matching Lean and original-MIR Rust replay:
+solar-tv/solar-tv mir solar-tv/examples/mir/fmp-lowering/{before,broken}.mir \
+  --function constructor --world solar-tv/examples/mir/fmp-lowering/world.json
+```
 SSTORE stays a request that can fail, but changes in physical scalar gas costs
 and their effect on its gas sentry are outside this unpriced MIR certificate.
 Undefined operands and unmodeled operations cannot be discarded as dead lets.
@@ -1405,6 +1423,14 @@ width-guard lemmas avoid unnecessary symbolic expansion. The reduced pairs and
 a broken-width counterexample are in `examples/mir/width-guard/` and
 `examples/mir/erc20-width-guard/`. The counterexample is independently replayed;
 its concrete fixture never establishes the positive universal result.
+
+After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
+9 unsupported. Rechecking those frozen pairs with FMP read correspondence
+verifies **16 of 24**, with 8 unsupported, no timeouts and no counterexamples.
+Only Morpho's `lower-alloc` constructor changes status. Check identities and
+compiler-output fingerprints are unchanged. This uses a new compiler/capture
+fingerprint; it is not comparable to the older 17-of-24 selection above.
+See [CORRECTNESS.md](CORRECTNESS.md#remaining-obligations) for the fingerprints.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/erc20-width-guard/{before,after}.mir \

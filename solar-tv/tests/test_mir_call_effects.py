@@ -156,7 +156,7 @@ bb0:
         }
         helper = "fn @end() {\nbb0:\nv0 = heap_floor\nret\n}\n"
         model = self.model(program("icall @end\nret 0", helper))
-        with self.assertRaisesRegex(Unsupported, "unmodeled effect-tree operation"):
+        with self.assertRaisesRegex(Unsupported, "explicit constructor-range query"):
             mir_effects.render(model.symbolic_mir["model"], definitions)
         helper = "fn @empty() {\nbb0:\nret\n}\n"
         model = self.model(program("icall @empty\n" * 100 + "ret 0", helper))
