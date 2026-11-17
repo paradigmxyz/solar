@@ -46,8 +46,11 @@ pub(crate) fn pointer_bases(
             }
         }
         InstKind::PtrAdd(base, _) => bases.push(base),
+        // A step back from a step back is not trusted: the heap prefix guard judges the sum of the
+        // steps, which can pass `max_step_back` where each step does not.
         InstKind::Sub(base, delta)
             if func.value_u64(delta).is_some_and(|step| step <= max_step_back)
+                && !is_step_back(func, base)
                 && !steps_back_in_loop(func, value) =>
         {
             bases.push(base);
@@ -55,6 +58,18 @@ pub(crate) fn pointer_bases(
         _ => {}
     }
     bases
+}
+
+/// Whether `value` subtracts a constant, or adds one that wraps, as a step back.
+fn is_step_back(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    match func.inst(*inst).kind {
+        InstKind::Sub(_, delta) => func.value_u256(delta).is_some(),
+        InstKind::Add(a, b) => {
+            [a, b].into_iter().any(|word| func.value_u256(word).is_some_and(|word| word.bit(255)))
+        }
+        _ => false,
+    }
 }
 
 /// Whether `offset` is a word that cannot wrap a pointer around the address space.

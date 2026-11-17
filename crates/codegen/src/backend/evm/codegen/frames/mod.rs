@@ -1362,6 +1362,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
             Some(reach + i128::from(back))
         };
+        // Rounding a pointer down moves it back by at most the padding, which does not carry a
+        // step that stays within the heap start past it.
+        let padded = |reach: i128, padding: u64| {
+            let reach_with_padding = reach + i128::from(padding);
+            if reach <= i128::from(EvmMemoryLayout::HEAP_START) {
+                reach_with_padding.min(i128::from(EvmMemoryLayout::HEAP_START))
+            } else {
+                reach_with_padding
+            }
+        };
+        // The reach of the alternatives of a phi or select: those within the heap start decide
+        // it, since a longer one reserves nothing.
+        let merged = |reaches: &[Option<i128>]| {
+            let reaches = reaches.iter().flatten().copied();
+            reaches
+                .clone()
+                .filter(|&reach| reach <= i128::from(EvmMemoryLayout::HEAP_START))
+                .max()
+                .or_else(|| reaches.max())
+        };
         let offset = (|| match func.value(value) {
             Value::Arg(index) => argument_offsets
                 .and_then(|offsets| offsets.get(index).copied().map(i128::from))
@@ -1413,21 +1433,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else {
                         u256_to_u64(!mask)?
                     };
-                    Some(derive(base, visiting, memo)? + i128::from(padding))
+                    Some(padded(derive(base, visiting, memo)?, padding))
                 }
                 InstKind::Shl(..) | InstKind::Mul(..) => {
                     let (base, padding) = Self::heap_prefix_alignment(func, value)?;
-                    Some(derive(base, visiting, memo)? + i128::from(padding))
+                    Some(padded(derive(base, visiting, memo)?, padding))
                 }
                 InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
                     derive(*base, visiting, memo)
                 }
-                InstKind::Phi(incoming) => incoming
-                    .iter()
-                    .filter_map(|&(_, incoming)| derive(incoming, visiting, memo))
-                    .max(),
+                InstKind::Phi(incoming) => {
+                    let reaches = incoming
+                        .iter()
+                        .map(|&(_, incoming)| derive(incoming, visiting, memo))
+                        .collect::<Vec<_>>();
+                    // An incoming value that does not derive, as a back edge through the phi,
+                    // may step back from the others, so nothing is certainly above the object.
+                    let underived = reaches.iter().any(Option::is_none);
+                    merged(&reaches).map(|reach| if underived { reach.max(0) } else { reach })
+                }
                 InstKind::Select(_, then_value, else_value) => {
-                    derive(*then_value, visiting, memo).max(derive(*else_value, visiting, memo))
+                    let then_reach = derive(*then_value, visiting, memo);
+                    merged(&[then_reach, derive(*else_value, visiting, memo)])
                 }
                 _ if func.value_ty(value).is_some_and(MirType::is_memory_reference) => Some(0),
                 _ => None,
@@ -1956,6 +1983,44 @@ mod tests {
         assert_eq!(guard(&[(0x120, false), (0x100, true)]), 0x20);
         assert_eq!(guard(&[(0x100, true), (0x120, false)]), 0x20);
         assert_eq!(guard(&[(0xa0, false), (0x80, true)]), 0x20);
+    }
+
+    #[test]
+    fn heap_prefix_guard_judges_each_alternative_and_the_rounded_pointer() {
+        let guard = |build: &dyn Fn(&mut FunctionBuilder<'_>, ValueId) -> ValueId| {
+            let mut function = Function::new(Ident::DUMMY);
+            let mut builder = FunctionBuilder::new(&mut function);
+            let base = builder.fmp();
+            let address = build(&mut builder, base);
+            let zero = builder.imm(0);
+            builder.append_instruction(Instruction::new(
+                InstKind::Store(address, zero, PtrLocation::Memory),
+                None,
+            ));
+            EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None)
+        };
+        // A select of a near and a far step back reserves the near one.
+        assert_eq!(
+            guard(&|builder, base| {
+                let condition = builder.add_param(MirType::I1);
+                let near = builder.imm(0x20);
+                let far = builder.imm(0xa0);
+                let near = builder.sub(base, near);
+                let far = builder.sub(base, far);
+                builder.select(condition, near, far)
+            }),
+            0x20
+        );
+        // Rounding down a step of the heap start keeps it within the heap start.
+        assert_eq!(
+            guard(&|builder, base| {
+                let step = builder.imm(EvmMemoryLayout::HEAP_START);
+                let mask = builder.imm(u64::MAX - 31);
+                let stepped = builder.sub(base, step);
+                builder.and(stepped, mask)
+            }),
+            EvmMemoryLayout::HEAP_START
+        );
     }
 
     #[test]
