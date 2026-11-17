@@ -129,7 +129,7 @@ iso_bin=
 toolchain=
 resolve_toolchain() {
     [[ -z "$toolchain" ]] || return 0
-    local dir tc
+    local dir
     dir="$(cd "$(dirname "$(readlink -f "$(cd "$lean_dir" && lake env which lean)")")/.." && pwd)" ||
         die "cannot find the toolchain"
     # tools/certify/toolchain_digest.sh fails as "cannot digest toolchain" on any listing or hashing
@@ -289,8 +289,6 @@ elif [[ -f "$lean_dir/lakefile.toml" ]]; then lakefile=lakefile.toml
 else die "$lean_dir has no lakefile"; fi
 echo "solidity-lean $(git -C "$lean_dir" rev-parse HEAD) at $lean_dir"
 dir="$examples/$name"
-committed=0
-git -C "$lean_dir" ls-files --error-unmatch "$dir/bytecode.hex" > /dev/null 2>&1 && committed=1
 cd "$lean_dir"
 mkdir -p "$dir"
 source="$dir/$name.sol"
@@ -544,6 +542,7 @@ lean_modules() {
         printf '%s\n' "${f//\//.}"
     done
 }
+stages=() runs=()
 capture_nonempty stages "the list of $contract's exported stages ($dir/gen/$contract)" lean_modules "$name/gen/$contract"
 capture_nonempty runs "the list of the run proofs ($dir/Proofs/Runs)" lean_modules "$name/Proofs/Runs"
 # One module at a time, so that one Lean process runs at a time: the exported stages, which the
@@ -591,10 +590,14 @@ echo "== 6. the spec (solar-verify) and the headline theorems"
 # What the headline and the published statement import from the lake packages, built first.
 pre_targets=()
 if [[ -f "$dir/headline" || -f "$dir/spec" ]]; then
-    capture pre_lines "the theorems $dir/headline names" entries $( [[ -f "$dir/headline" ]] && echo "$dir/headline" ) $( [[ -f "$dir/spec" ]] && echo "$dir/spec" )
+    pre_files=() pre_lines=()
+    [[ ! -f "$dir/headline" ]] || pre_files+=("$dir/headline")
+    [[ ! -f "$dir/spec" ]] || pre_files+=("$dir/spec")
+    capture pre_lines "the theorems $dir/headline names" entries "${pre_files[@]}"
     for line in "${pre_lines[@]}"; do read -r m _ <<<"$line"; pre_targets+=("$m"); done
 fi
 if [[ -f "$dir/shape.json" ]]; then
+    pre_shape=()
     capture pre_shape "the modules $dir/shape.json names" \
         python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json"
     pre_targets+=("${pre_shape[@]}")
@@ -690,6 +693,7 @@ open SolidCore.Verify.VC
         fi
         [[ -f "$dir/spec" ]] || die "--require-spec: $dir/spec is missing: solidity-lean discharges no VC of $name against its bytecode"
         spec_theorems() { entries "$dir/spec" | awk '{print $2}'; }
+        spec_thms=()
         capture_nonempty spec_thms "the theorems $dir/spec names" spec_theorems
         spec_status+="; composed with the bytecode by ${spec_thms[*]}"
     fi
@@ -702,6 +706,7 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
     hfiles=()
     [[ ! -f "$dir/headline" ]] || hfiles+=("$dir/headline")
     [[ ! -f "$dir/spec" ]] || hfiles+=("$dir/spec")
+    lines=()
     capture lines "the theorems $dir/headline names" entries "${hfiles[@]}"
     [[ ${#lines[@]} -gt 0 ]] || die "$dir/headline names no theorem"
     hmods=()
@@ -711,6 +716,7 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
         hmods+=("$hmod") hthms+=("$hthm")
     done
     sort_unique() { printf '%s\n' "$@" | sort -u; }
+    umods=()
     capture umods "the list of the headline modules" sort_unique "${hmods[@]}"
     # The backend proofs need no Mathlib; a headline over SolidCore may, so fetch its build cache
     # rather than build it.
@@ -857,6 +863,7 @@ PYEOF
     # Its record is where the statuses come from: missing, empty or malformed fails the run.
     check_final_record "$final_record"
     bash "$here/audit.sh" scan "$dir/Final.lean" "$dir/Statement.lean" || die "the published statement fails the scan"
+    fmods=()
     capture_nonempty fmods "the modules $dir/shape.json names" \
         python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("\n".join(d.get("spec_modules",[])+[d["proof_module"]]))' "$dir/shape.json"
     for module in "${fmods[@]}"; do [[ -n "$module" ]] || die "$dir/shape.json names an empty module"; done
@@ -933,6 +940,7 @@ PYEOF
     # anything it imports) can then never rewrite another module, whatever the statements on disk.
     python3 "$here/guard_build.py" order "$lean_dir" "$lean_dir/.lake/certify-order" "$name.Final" -- "$name.Statement" ||
         die "cannot order the modules of the proof of $name"
+    order=()
     capture_nonempty order "the build order of the proof of $name" cat "$lean_dir/.lake/certify-order"
     [[ "${order[-1]}" == "$name.Final" ]] || die "the build order of the proof of $name does not end with $name.Final"
     for m in "${order[@]}"; do
