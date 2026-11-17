@@ -37,6 +37,19 @@ want_controls = [n for n in registered if cls_of.get(n) == "control"]
 expect0 = [r[0] for r in rows_of(cases_file) if r[2] == "0"]
 
 
+def producer_ok(d):
+    """Why case directory D's producer check fails, or None when producer-check.json says ok. A
+    missing, unreadable or non-ok file fails closed."""
+    p = d / "producer-check.json"
+    if not p.exists():
+        return "no producer-check.json"
+    try:
+        r = json.loads(p.read_text()).get("result")
+    except Exception as e:
+        return f"unreadable producer-check.json ({type(e).__name__})"
+    return None if r == "ok" else f"producer check {r!r}"
+
+
 def control_check(name):
     """Why the registered control NAME fails the gate, or None when it passes."""
     d = out / name
@@ -66,7 +79,7 @@ def control_check(name):
         return f"independent --replay exit {c.get('independent_replay_exit')!r}"
     if g.get("stage_ok") is not True:
         return "stage_ok false"
-    return None
+    return producer_ok(d)
 
 
 rows, controls, sem = [], [], []
@@ -83,7 +96,7 @@ for d in sorted(p for p in out.iterdir() if p.is_dir() and not p.name.startswith
     if cls == "control":
         controls.append((d.name, ok))
     elif cls == "semantic":
-        sem.append((d.name, ok))
+        sem.append((d.name, ok, producer_ok(d)))
     rows.append([d.name, kv.get("driver", kv.get("solar", ""))[:10], kv.get("lean", "")[:10],
                  kv.get("expect", ""), kv.get("exit", ""), match, cls, kind,
                  "yes" if ok else ("no" if g else ""), kv.get("replay", ""), kv.get("producer", ""),
@@ -104,5 +117,9 @@ print(f"Control gate: {'PASS' if gate else 'FAIL'} ("
       + ", ".join(f"{n} {'ok' if not why else 'no: ' + why}" for n, why in fails.items())
       + (f"; {'; '.join(p for p in problems if not p.split()[0] in fails)}" if any(not p.split()[0] in fails for p in problems) else "")
       + ")")
-counted = [n for n, o in sem if o] if gate else []
+# A semantic rejection counts only with its stage matched and its producer check ok.
+counted = [n for n, o, pw in sem if o and not pw] if gate else []
 print(f"Semantic rejections counted: {len(counted)} of {len(sem)}" + (f": {', '.join(counted)}" if counted else ""))
+held = [f"{n} ({pw})" for n, o, pw in sem if o and pw]
+if held:
+    print(f"Not counted, producer check: {', '.join(held)}")
