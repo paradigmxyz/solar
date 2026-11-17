@@ -326,9 +326,8 @@ fn run(func: &mut Function) -> bool {
         // block only when the destination already holds an instruction with the identical
         // location; otherwise the move drops it, as in LICM. The read's origin is its
         // function's declaration, which a debugger shows at the function header.
-        if holds_debug_loc(func, target, &instruction.metadata) {
-            copy.metadata.preserve_debug_loc(&instruction.metadata);
-        } else {
+        copy.metadata.preserve_debug_loc(&instruction.metadata);
+        if !holds_debug_loc(func, target, &instruction.metadata) {
             copy.metadata.drop_debug_loc(DebugLocKind::Dropped);
         }
         let (copy_inst, copy_value) = func.alloc_value_inst(copy);
