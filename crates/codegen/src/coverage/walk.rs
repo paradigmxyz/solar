@@ -314,9 +314,7 @@ impl<'gcx> Walker<'gcx> {
                 && function.kind != hir::FunctionKind::Constructor)
                 .then_some(entry);
             self.stmts(body.stmts, known);
-            if !function.is_yul {
-                self.body_skips(body.span);
-            }
+            self.body_skips(body.span, !function.is_yul);
         }
         self.close();
         self.end(RecordOwner::Function(id), function.source);
@@ -358,7 +356,7 @@ impl<'gcx> Walker<'gcx> {
         let first_decision = self.rec.decisions.len();
         self.open(modifier.span, &entry);
         self.stmts(body.stmts, Some(entry.clone()));
-        self.body_skips(body.span);
+        self.body_skips(body.span, true);
         self.close();
         // The branches and decisions of the body live in the record of the modifier only, because
         // `llvm-cov` sums the branches of a record and of its expansions.
@@ -445,7 +443,7 @@ impl<'gcx> Walker<'gcx> {
                 let entry = self.counter(Site::Function(id));
                 self.open(modifier.span, &entry);
                 self.stmts(body.stmts, Some(entry));
-                self.body_skips(body.span);
+                self.body_skips(body.span, true);
                 self.close();
                 self.dry = false;
                 // Nothing counts the body, so no code takes the count of a gap.
@@ -564,8 +562,10 @@ impl<'gcx> Walker<'gcx> {
                 {
                     self.region(Span::new(end, stmt.span.lo()), RegionKind::Gap(count));
                 }
+                // A statement without a count, such as an empty block, leaves the gap to the one
+                // that follows the last statement that has one.
+                previous_end = Some(stmt.span.hi());
             }
-            previous_end = Some(stmt.span.hi());
         }
     }
 
@@ -581,8 +581,10 @@ impl<'gcx> Walker<'gcx> {
     ///
     /// A run covers whole lines, from the first byte of its first line to the newline that ends its
     /// last, so it starts and ends on its own lines: `llvm-cov` maps none of its lines, and the
-    /// line before and the line after it keep the counts of the code on them.
-    fn body_skips(&mut self, body: Span) {
+    /// line before and the line after it keep the counts of the code on them. The body of a Yul
+    /// function has only the closing `}`, since the runs of the enclosing body cover its other
+    /// lines.
+    fn body_skips(&mut self, body: Span, runs: bool) {
         let files = self.gcx.sess.source_map().files();
         let Ok(text) = files.span_to_snippet(body) else { return };
         let lo = body.lo().0;
@@ -598,11 +600,11 @@ impl<'gcx> Walker<'gcx> {
             let last = lines.peek().is_none();
             let code = has_code(line, &mut block_comment);
             // The lines with the braces of the body hold code.
-            if code || first || last {
+            if runs && (code || first || last) {
                 if let Some((start, end)) = run.take() {
                     skips.push(Span::new(at(start), at(end)));
                 }
-            } else {
+            } else if runs {
                 run = Some((run.map_or(offset, |(start, _)| start), offset + line.len()));
             }
             if last
@@ -709,10 +711,17 @@ impl<'gcx> Walker<'gcx> {
                 // arguments were evaluated or before they ran.
                 let called = self.counter(Site::Decision(Site::key(try_stmt)));
                 let mut clauses = Vec::with_capacity(try_stmt.clauses.len());
-                for clause in try_stmt.clauses {
+                for (index, clause) in try_stmt.clauses.iter().enumerate() {
                     let taken = self.counter(Site::Arm(Site::key(clause)));
-                    let remaining = called.clone().sub(taken.clone());
-                    self.region(clause.span, RegionKind::Branch(taken.clone(), remaining));
+                    // The success clause holds when the call returned, which decoding its return
+                    // data can still revert; its body counts only the decodes that completed.
+                    let holds = if index == 0 {
+                        self.counter(Site::Success(Site::key(try_stmt)))
+                    } else {
+                        taken.clone()
+                    };
+                    let remaining = called.clone().sub(holds.clone());
+                    self.region(clause.span, RegionKind::Branch(holds, remaining));
                     clauses.push(taken);
                 }
                 for (clause, taken) in try_stmt.clauses.iter().zip(clauses) {
@@ -1024,9 +1033,11 @@ impl<'gcx> Visit<'gcx> for Walker<'gcx> {
 }
 
 /// Returns whether `line` holds code, which is anything but whitespace and comments. A block
-/// comment that does not end on the line continues on the next, which `block_comment` tracks.
+/// comment that does not end on the line continues on the next, which `block_comment` tracks. The
+/// scan runs to the end of the line, past code, to find the comment that the line opens.
 fn has_code(line: &str, block_comment: &mut bool) -> bool {
     let bytes = line.as_bytes();
+    let mut code = false;
     let mut index = 0;
     while index < bytes.len() {
         if *block_comment {
@@ -1035,19 +1046,30 @@ fn has_code(line: &str, block_comment: &mut bool) -> bool {
                     index += end + 2;
                     *block_comment = false;
                 }
-                None => return false,
+                None => return code,
             }
             continue;
         }
         match bytes[index] {
             b if b.is_ascii_whitespace() => index += 1,
-            b'/' if bytes.get(index + 1) == Some(&b'/') => return false,
+            b'/' if bytes.get(index + 1) == Some(&b'/') => return code,
             b'/' if bytes.get(index + 1) == Some(&b'*') => {
                 *block_comment = true;
                 index += 2;
             }
-            _ => return true,
+            quote @ (b'"' | b'\'') => {
+                code = true;
+                index += 1;
+                while index < bytes.len() && bytes[index] != quote {
+                    index += if bytes[index] == b'\\' { 2 } else { 1 };
+                }
+                index += 1;
+            }
+            _ => {
+                code = true;
+                index += 1;
+            }
         }
     }
-    false
+    code
 }

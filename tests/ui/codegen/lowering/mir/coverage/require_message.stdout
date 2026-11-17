@@ -44,3 +44,63 @@ fn @custom(arg0: i1, arg1: i256) [selector=0xeecf602a, pure, abi_params=[bool, u
     coverage 9
     ret
 }
+
+; function field(Item[] memory items, uint256 i, bool ok) external pure [selector 0xaa4c8c73]
+fn @field(arg0: ptr<memory>, arg1: i256, arg2: i1) [selector=0xaa4c8c73, pure, abi_params=[array<_, tuple<bytes>>, uint256, bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 10
+    coverage 11
+    jumpi arg2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 12
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = mload arg0
+    v1 = lt arg1, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = shl arg1, 5
+    v4 = ptradd arg0, v3
+    v5 = ptradd v4, 32
+    v6 = mload v5, ptr<memory>
+    v7 = mload v6, ptr<memory>
+    icall require<error_string>, arg2, v7
+    ret
+}
+
+; function plain(Item memory item, bool ok) external pure [selector 0x87bbf9de]
+fn @plain(arg0: ptr<memory>, arg1: i1) [selector=0x87bbf9de, pure, abi_params=[tuple<bytes>, bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 13
+    coverage 14
+    v0 = mload arg0, ptr<memory>
+    icall require<error_string>, arg1, v0
+    coverage 15
+    ret
+}
+
+; function overflow(bool ok) external pure [selector 0x2dab65f2]
+fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 16
+    coverage 17
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 18
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = icall @constant_1
+    v1 = zext i8 v0 to i256
+    icall require<custom_error [word]>, arg0, 0x2ff06700000000000000000000000000000000000000000000000000000000, v1
+    ret
+}
+
+fn @constant_1() -> i8 {
+  bb0:
+    v0 = checked_add uint8, i8 255, i8 1
+    ret v0
+}

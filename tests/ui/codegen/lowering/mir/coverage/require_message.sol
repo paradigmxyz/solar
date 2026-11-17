@@ -8,6 +8,11 @@
 error E(uint256);
 
 string constant MESSAGE = "no";
+uint8 constant OVERFLOW = uint8(255) + 1;
+
+struct Item {
+    string reason;
+}
 
 contract RequireMessage {
     // CHECK-LABEL: fn @f(
@@ -42,5 +47,39 @@ contract RequireMessage {
     // CHECK-NEXT: coverage {{[0-9]+}}
     function custom(bool ok, uint256 x) external pure {
         require(ok, E(x));
+    }
+
+    // An index reads out of bounds, so the counter comes before the message.
+    // CHECK-LABEL: fn @field(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: jumpi arg2, [[HELD:bb[0-9]+]],
+    // CHECK: [[HELD]]:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK: icall panic_if<0x32>
+    function field(Item[] memory items, uint256 i, bool ok) external pure {
+        require(ok, items[i].reason);
+    }
+
+    // A field of a variable cannot revert.
+    // CHECK-LABEL: fn @plain(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NOT: jumpi
+    // CHECK: icall require<error_string>
+    function plain(Item memory item, bool ok) external pure {
+        require(ok, item.reason);
+    }
+
+    // A constant that does not fold panics when it is read, so the counter comes before it.
+    // CHECK-LABEL: fn @overflow(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: jumpi arg0, [[HELD:bb[0-9]+]],
+    function overflow(bool ok) external pure {
+        require(ok, E(OVERFLOW));
     }
 }

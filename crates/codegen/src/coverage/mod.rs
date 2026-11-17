@@ -64,7 +64,8 @@
 //! - the start of the path a decision takes when its condition holds, and of the right operand of
 //!   `&&` and `||`; a `require` counts its condition when it holds, before its message runs;
 //! - the start of each clause of a `try` statement and of each case of a `switch`, and the point
-//!   after the call of a `try`, which its clauses fail against;
+//!   after the call of a `try`, which its clauses fail against, and the top of its success path,
+//!   before the return data is decoded, which counts the success clause as taken;
 //! - the start of each state variable initializer and base constructor argument list that has a
 //!   decision.
 //!
@@ -496,6 +497,9 @@ pub(crate) enum Site {
     /// After the value of a decision that no branch consumes, keyed by the `&&` or `||`
     /// expression. Lowering branches on the value to count its true outcomes.
     Value(usize),
+    /// The start of the success path of a `try` statement, before the decode of its return data,
+    /// keyed by the statement.
+    Success(usize),
     /// The start of an initializer or base constructor argument list, keyed by the variable or the
     /// modifier node.
     Init(usize),

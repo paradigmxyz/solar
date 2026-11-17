@@ -998,12 +998,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(exprs.split_at(N))
     }
 
-    /// Returns whether evaluating the message of a `require` may revert: anything but a constant,
-    /// a variable, or a custom error whose arguments are constants or variables.
+    /// Returns whether evaluating the message of a `require` may revert: anything but a constant
+    /// that folds, a variable or a field of one, or a custom error whose arguments are such.
     fn message_may_revert(&self, message: &'gcx hir::Expr<'gcx>) -> bool {
         let gcx = self.cx.gcx;
         let message = message.peel_parens();
-        if gcx.const_eval().eval_expr(message).is_ok() || gcx.resolved_variable(message).is_some() {
+        if self.is_plain_read(message) {
             return false;
         }
         match message.kind {
@@ -1016,6 +1016,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 args.exprs().any(|arg| self.message_may_revert(arg))
             }
             _ => true,
+        }
+    }
+
+    /// Returns whether reading `expr` cannot revert: a constant that folds, or a variable reached
+    /// through plain identifiers and member accesses, with no index or call.
+    fn is_plain_read(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        let gcx = self.cx.gcx;
+        let expr = expr.peel_parens();
+        if gcx.const_eval().eval_expr(expr).is_ok() {
+            return true;
+        }
+        let Some(id) = gcx.resolved_variable(expr) else { return false };
+        if gcx.hir.variable(id).is_constant() {
+            return gcx.const_eval().eval_var(id).is_ok();
+        }
+        match expr.kind {
+            ExprKind::Ident(_) => true,
+            ExprKind::Member(base, _) => self.is_plain_read(base),
+            _ => false,
         }
     }
 

@@ -492,6 +492,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(success, success_block, catch_block);
 
         self.builder.switch_to_block(success_block);
+        // coverage success; the decode of the return data may still revert
+        self.coverage(Site::Success(Site::key(try_stmt)));
         if let Some(binding) = creation_binding {
             // success.address = address
             let Some(value) = creation_value else {

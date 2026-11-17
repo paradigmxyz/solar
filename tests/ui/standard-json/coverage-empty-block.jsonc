@@ -1,0 +1,34 @@
+//@ filecheck:
+// A statement that has no count, such as an empty block, does not end the chain of gaps: the gap, kind
+// 3, runs from the end of the `require` to the start of the statement that follows the block, with
+// that statement's count, so the line of the empty block takes the count of `r = x` and not the
+// count of the function.
+// CHECK: "name": "A.sol:E.f(uint256)",
+// CHECK: {{^ *3,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 98,
+// CHECK-NEXT: 20,
+// CHECK-NEXT: 17
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract E {\n    function f(uint256 x) external pure returns (uint256 r) {\n        require(x > 1);\n        {}\n        r = x;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

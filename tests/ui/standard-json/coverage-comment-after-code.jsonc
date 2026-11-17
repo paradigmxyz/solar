@@ -1,0 +1,38 @@
+//@ filecheck:
+// A block comment that opens after code on a line continues on the next line, which holds no code:
+// the second `require` follows a gap, kind 3, over the code between the statements, and the
+// continuation line, `           more */` with its newline, is a skipped region, kind 2, that nests
+// in the gap.
+// CHECK: "name": "A.sol:C.f(uint256)",
+// CHECK: {{^ *3,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 78,
+// CHECK-NEXT: 36,
+// CHECK-NEXT: 17
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 87,
+// CHECK-NEXT: 19
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C {\n    function f(uint256 x) external pure {\n        require(x > 1); /* note\n           more */\n        require(x > 2);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}
