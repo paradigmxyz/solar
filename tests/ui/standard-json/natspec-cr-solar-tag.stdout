@@ -1,0 +1,22 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "abi": [
+          {
+            "type": "function",
+            "name": "f",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          }
+        ]
+      }
+    }
+  }
+}

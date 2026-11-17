@@ -1,0 +1,41 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f()": {
+              "notice": "a b"
+            },
+            "g()": {
+              "notice": "first"
+            },
+            "h()": {
+              "notice": "p q r"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "g()": {
+              "details": "second",
+              "custom:tag": "third"
+            },
+            "i()": {
+              "details": "x y"
+            }
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}

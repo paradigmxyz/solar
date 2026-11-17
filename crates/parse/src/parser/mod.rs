@@ -1288,9 +1288,9 @@ fn parse_natspec(
         }
     };
 
-    // Iterate over each line and look for tags.
+    // Iterate over each line and look for tags. As in solc, a line ends at LF, CR LF or a lone CR.
     let mut prev_line_end = 0;
-    for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
+    for line_end in memchr::memchr2_iter(b'\n', b'\r', bytes).chain(std::iter::once(bytes.len())) {
         if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end])
             && is_line_start(line_start, line_start + tag_offset)
         {
