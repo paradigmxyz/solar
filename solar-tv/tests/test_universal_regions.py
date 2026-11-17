@@ -130,10 +130,9 @@ class UniversalRegionTests(unittest.TestCase):
         # 1024-word incoming stack cannot take the new edge.
         self.pair(before, after, status=2)
 
-    def test_incoming_words_and_unmodeled_context_are_not_assumed(self):
+    def test_incoming_words_and_unproved_cycles_are_not_assumed(self):
         for body, diagnostic in (
             ("mload\n pop\n stop", "entry stack"),
-            ("callvalue\n pop\n stop", "unmodeled EVM"),
             ("jump bb0", "cyclic"),
         ):
             with self.subTest(body=body):
@@ -157,6 +156,18 @@ class UniversalRegionTests(unittest.TestCase):
             check.check(
                 program, program, 15, replay_command="unused", replay_executable=replay
             )
+
+    def test_identical_context_reads_have_a_distinct_structural_proof(self):
+        text = "@module Context\nbb0:\n callvalue\n pop\n stop\n"
+        _, record = self.pair(text, text)
+        self.assertEqual(record["region"]["proof"], "universal-source-graph-identity")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        self.assertNotIn("world", record)
+
+    def test_changed_context_reads_are_not_replaced_by_zero(self):
+        text = "@module Context\nbb0:\n callvalue\n push 0\n mstore\n push 32\n push 0\n return\n"
+        _, record = self.pair(text, text.replace("callvalue", "push 0"), status=2)
+        self.assertIn("unmodeled EVM", record["diagnostic"])
 
 
 if __name__ == "__main__":

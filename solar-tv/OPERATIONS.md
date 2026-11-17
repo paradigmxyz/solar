@@ -22,6 +22,11 @@ preserves that meaning, independent replay covers it, and boundary tests pass.
 Naming it, returning an arbitrary value, trusting a successful external call, or
 treating an effect as a no-op does not implement it.
 
+Source-graph identity certificates do not increase these operation counts. They
+retain identical operations under shared node semantics, without inventing
+values or discarding effects. They do not enable rewrites of an unsupported
+operation or establish physical transfer prices.
+
 ## Implemented fragment
 
 All 26 pure EVM word operations are modeled, including zero division, signed
@@ -211,7 +216,10 @@ through terminal outcomes, with symbolic live-in stacks and memory. Internal
 labels and stack layouts need not correspond. Pure cyclic regions with equal
 independently exported source graphs also admit an all-execution-bounds proof.
 General loop invariants, dynamic/escaping labels, priced region transfers and
-stateful region operations remain unsupported. See
+stateful region rewrites that change the exported graph remain unsupported.
+Identical independently exported stateful graphs have a separate structural
+certificate for every execution bound; opcode and physical-layout bindings
+remain trusted. See
 the [region examples](README.md#multi-block-evm-ir-regions).
 
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.

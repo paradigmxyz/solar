@@ -156,6 +156,15 @@ def record(
                     "no physical gas, code-image or backend placement claim",
                 ]
             )
+        elif program and program.scope == "source-identity":
+            assumptions.extend(
+                [
+                    "exact identity of independently exported reachable EVM graphs, including entry, node labels, all operations, terminals, edges and transfer stack-growth checks",
+                    "every initial state and execution bound under arbitrary shared node handlers, including stateful effects, early failures and resource state; no sampled stack, world or successful-execution assumption",
+                    "structural source certificate; Rust parser/CFG normalizer, constructor binding and interpretation of nodes remain trusted; no opcode-implementation or physical transfer-pricing proof",
+                    "code-image observers and calls excluded; logical labels and shared declarations retained; no backend layout, physical gas or whole-pass claim",
+                ]
+            )
         elif program and program.scope == "function-pruning":
             assumptions.extend(
                 [
@@ -292,6 +301,7 @@ def record(
                 "function-pruning",
                 "allocation-prefix",
                 "interior-window",
+                "source-identity",
             }
             and program.symbolic_mir is None
         ):
@@ -327,7 +337,9 @@ def record(
         "target": target,
         "gas_policy": (
             "unpriced-structural"
-            if program and program.scope in {"function-pruning", "allocation-prefix"}
+            if program
+            and program.scope
+            in {"function-pruning", "allocation-prefix", "source-identity"}
             else program.gas
             if program
             and program.scope
@@ -397,6 +409,19 @@ def record(
             if program
             and program.scope
             in {"effectful-prefix", "shared-prefix-suffix", "interior-window"}
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "region",
+                    "name": program.selector,
+                    "proof": "universal-source-graph-identity",
+                    "stack_height": None,
+                },
+            }
+            if program and program.scope == "source-identity"
             else {}
         ),
         **(

@@ -407,6 +407,23 @@ evidence; native execution also checks the larger storage/log context and its
 early failures. A hypothetical bad stack at an unknown entry still cannot be
 reported as a reachable compiler counterexample.
 
+The separate `universal-source-graph-identity` route covers exactly identical
+independently exported reachable EVM graphs, including previously unmodeled
+stateful operations. Kernel-checked data equality retains entry/node identities,
+all operands and terminals, control edges and transfer stack-growth checks.
+`EVM.SourceGraph.identity` proves equality for every initial state and every
+execution bound under shared node handlers. Handlers may mutate state or fail;
+stateful cycles do not acquire a termination or fixed-unrolling assumption.
+No context read is replaced by zero. The Rust parser/CFG normalizer and raw
+constructor binding remain trusted, and this is a structural certificate, not
+an opcode-implementation, physical-gas or backend-layout proof. Code-image
+observers and calls remain excluded. The fallback only handles unsupported
+instructions; it cannot replace failed import certificates or counterexamples.
+The real layout pair and a changed-store kernel/native witness are in
+`examples/evmir/graph-identity/`. Tests also reject a changed jump-growth check
+and demonstrate its possible overflow under an abstract handler, without
+claiming that arbitrary handler state is reachable in the source module.
+
 ## Remaining obligations
 
 After rebasing onto `main`, the new frozen sample has a different selection of
@@ -414,11 +431,13 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **18 of 24**, with
-6 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+Rechecking those same frozen pairs at 30 seconds now verifies **19 of 24**, with
+5 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
 constructor first raised the count to 16; the OpenZeppelin ERC20Mock
 `lower-alloc` constructor then raised it to 17, and WETH's `block-cse` window
-raised it to 18. No other check changes status.
+raised it to 18. WETH's `block-layout` region then raised it to 19 through the
+separately reported source-graph identity certificate. No other check changes
+status.
 The selected check identities, input hashes and compiler-output hashes are
 identical; compilation results are reused.
 The compiler fingerprint is
@@ -453,12 +472,19 @@ sentries cannot be bypassed with a cheaper-prefix assumption. Shared context
 executor bindings and logical relocation context remain explicit trust
 boundaries; no physical code-placement or whole-pass claim follows.
 
+WETH's `block-layout` region retains exactly the same independently exported
+reachable graph, including its stateful reads/writes, context reads, log and
+branch edges. The structural identity certificate preserves these nodes under
+shared handlers without supplying a stack height or zero-valued context. This
+does not establish opcode implementations or physical transfer prices; those
+remain separate from source-graph equality.
+
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |
-| General loops | Acyclic expansion or equal pure cyclic source graphs | Inductive simulation/invariants, including phis, state, divergence and failures; real loop-pass pairs and broken invariants. |
+| General loops | Acyclic expansion, equal pure cyclic interpreter graphs, or exact structural EVM source-graph identity | Inductive simulation/invariants, including phis, state, divergence and failures; real loop-pass pairs and broken invariants. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results and acyclic calls | ABI entry, allocation/layout preconditions, recursive call invariants and broader defined memory domains. |
 | EVM entry stacks and indirect transfers | Fixed entry heights, universally quantified effect-free prefixes, or complete terminal-region proofs over every stack | Stateful context/window correspondence, call/return stack relations and verified indirect targets; never assume an unknown height or destination. |

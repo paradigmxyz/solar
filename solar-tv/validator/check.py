@@ -143,6 +143,8 @@ def load(
         try:
             program = evm_region.translate(projection, region, stack_height)
         except Unsupported as error:
+            if str(error).startswith("unmodeled EVM IR instruction: "):
+                raise evm_region.UnmodeledInstruction(str(error)) from None
             if (
                 stack_height is None
                 or str(error) != "cyclic EVM regions require loop invariants"
@@ -783,10 +785,34 @@ def main() -> int:
                     for path in (args.before, args.after)
                 ]
             except Unsupported as error:
+                if (
+                    args.ir == "evmir"
+                    and args.region
+                    and not args.world
+                    and not args.gas
+                    and isinstance(error, evm_region.UnmodeledInstruction)
+                ):
+                    from . import source_identity
+
+                    # Identical independently parsed source graphs admit a
+                    # separate structural proof. Never replace a failed import
+                    # certificate or an actual counterexample with this route.
+                    try:
+                        result = source_identity.check(
+                            (args.before, args.after),
+                            solar,
+                            rust_replay,
+                            version,
+                            args.timeout,
+                            args.region,
+                        )
+                    except Unsupported:
+                        raise error from None
+                    programs = list(result.pair)
                 # An unchanged cyclic call suffix does not need unrolling when
                 # a producer-valid allocation prefix has a contextual proof.
                 # Keep the original rejection if the exact cut is not admitted.
-                if (
+                elif (
                     args.ir == "mir"
                     and args.function
                     and not args.world
@@ -933,6 +959,11 @@ def main() -> int:
                 record["region"]["blocks_after"] = list(
                     regions.blocks(programs[1].canonical_ir)
                 )
+                if result.program and result.program.scope == "source-identity":
+                    record["region"]["proof"] = "universal-source-graph-identity"
+                    record["region"]["stack_height"] = None
+                    if args.stack_height is not None:
+                        record["region"]["requested_stack_height"] = args.stack_height
         if args.report:
             audit.write(args.report, record)
     except OSError as error:

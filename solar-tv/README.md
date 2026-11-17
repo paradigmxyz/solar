@@ -87,6 +87,7 @@ before either a proof or a counterexample can be accepted.
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
 | EVM post-precompile suffix | A changed tail after an exactly shared prefix, with canonical recovery-precompile calls and GAS reads retained. | All shared prefix halts are identical; successful suffixes preserve their exit and complete stack/world with no less gas. The shared prefix-executor binding remains trusted. |
 | EVM scalar island | An exact-cost stack rewrite between unchanged contexts, including storage sentries, logs and static guards. | All prefix exits, checked stacks and remaining gas are preserved; context-executor bindings remain trusted. |
+| EVM source graph identity | Identical independently exported reachable graphs, including stateful operations and transfer stack checks. | Every initial state and execution bound under shared node handlers; structural evidence, without an opcode-implementation or physical gas/layout proof. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
@@ -1188,6 +1189,34 @@ gas regions remain unsupported. Memory uses the existing constant-access
 256-byte projection. No whole-pass or arbitrary-world claim follows from a
 verified region.
 
+### Identical reachable source graphs
+
+An instruction unsupported by the region interpreter need not block a pair
+whose independently exported reachable graphs are exactly identical:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/graph-identity/{before,after}.evmir \
+  --region bb0 --stack-height 0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/graph-identity/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/graph-identity/world.json --gas exact
+```
+
+The example is a real `block-layout` pair. The kernel checks the entry, node
+labels, every operation and operand, terminal, edge and transfer stack-growth
+check. `EVMIR/SourceGraph.lean` proves equality for every initial state and every
+execution bound under the same node interpreter, including early failures and
+stateful cycles. An unchanged context read is retained, never replaced by zero.
+Changed operations, branches or transfer checks require a different proof.
+
+Reports distinguish `universal-source-graph-identity` and `unpriced-structural`
+from the direct interpreter certificates. The Rust parser/CFG normalizer and
+source-data constructor binding remain trusted. This proves structural source
+identity, not a new opcode implementation or physical transfer-pricing theorem.
+Code-image observers and calls remain excluded. Only an unsupported instruction
+selects this fallback; failed import certificates and actual counterexamples
+are never replaced. The broken store has a separate kernel/native scenario
+counterexample. Live pass auditing still leaves emitted bytecode unchanged.
+
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
 A checker launch or protocol failure is a compiler error. Each unsuccessful
@@ -1472,11 +1501,12 @@ a broken-width counterexample are in `examples/mir/width-guard/` and
 its concrete fixture never establishes the positive universal result.
 
 After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
-9 unsupported. Rechecking those frozen pairs with FMP read correspondence
-verifies **16 of 24**, with 8 unsupported, no timeouts and no counterexamples.
-Only Morpho's `lower-alloc` constructor changes status. Check identities and
-compiler-output fingerprints are unchanged. This uses a new compiler/capture
-fingerprint; it is not comparable to the older 17-of-24 selection above.
+9 unsupported. Rechecking those frozen pairs now verifies **19 of 24**, with
+5 unsupported, no errors, timeouts or counterexamples. The additional checks
+use FMP lowering, conditional allocation-prefix, exact scalar-island and
+structural source-graph identity certificates, as documented above. Check
+identities and compiler-output fingerprints are unchanged. This uses a new
+compiler/capture fingerprint; it is not comparable to the older 17-of-24 selection above.
 See [CORRECTNESS.md](CORRECTNESS.md#remaining-obligations) for the fingerprints.
 
 ```sh
