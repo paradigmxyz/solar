@@ -279,11 +279,17 @@ def main():
                 if word(a) is not None and rhs is not None:
                     facts.append((("bin", op, word(a), rhs), "false"))
     bm = re.match(r"\.branch \(\.value (\d+)\) ", blocks[head]["term"])
-    if not bm or int(bm.group(1)) not in pure:
-        die(f"{fname}: the header does not branch on a comparison")
-    op, a, c = pure[int(bm.group(1))]
-    exitc = ("bin", op, word(a), c if c[0] == "lit" else word(c[1]))
-    cases = [facts, [(exitc, "false")]]
+    if not facts:
+        # No assumption to case on: one iteration run, under no facts, covers every header frame.
+        cases = [[]]
+    elif bm and int(bm.group(1)) in pure:
+        op, a, c = pure[int(bm.group(1))]
+        exitc = ("bin", op, word(a), c if c[0] == "lit" else word(c[1]))
+        cases = [facts, [(exitc, "false")]]
+    else:
+        die(
+            f"{fname}: the loop assumes facts and the header does not branch on a comparison"
+        )
 
     def slot(s):
         return f"(.hw {s[1]})" if s[0] == "hw" else f"(.fixed {lean_expr(s[1])})"
