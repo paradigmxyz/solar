@@ -248,9 +248,9 @@ impl<'a> Verifier<'a> {
     /// rule to check it and is rejected, which keeps a new use of the flag from passing
     /// verification unverified.
     ///
-    /// Coverage instrumentation glues the counter push to its probe, `push <id>; coverage`, so
-    /// that the instrumenting EVM reads the id from the stack top. Every `coverage` must follow
-    /// such a push.
+    /// Coverage instrumentation glues the counter push to its probe, `push <id>; coverage`, which
+    /// assembly emits as `COVERAGE; PUSHn <id>` so the instrumenting EVM reads the id from the push
+    /// and skips it. Every `coverage` must follow such a push.
     fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
         const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
         for (index, inst) in block.instructions.iter().enumerate() {

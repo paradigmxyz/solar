@@ -14,8 +14,8 @@
 // CHECK: "count": 9
 // CHECK: "count": 10
 // CHECK: "count": 15
-// A glued counter push feeds each COVERAGE probe.
-// CHECK: PUSH1 0x1 COVERAGE PUSH1 0x2 COVERAGE
+// Each COVERAGE probe precedes the counter push it skips.
+// CHECK: COVERAGE PUSH1 0x1 COVERAGE PUSH1 0x2
 {
   "language": "Solidity",
   "sources": {

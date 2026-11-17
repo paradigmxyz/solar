@@ -5,16 +5,21 @@
 //@[coverage] filecheck: --check-prefixes=CHECK,COVERAGE
 
 // `0xc2` is the coverage probe only in an instrumented build; elsewhere it is an unknown byte,
-// such as one of the program data appended here.
+// such as one of the program data appended here. Assembly emits the probe before its counter push,
+// which the instrumenting EVM reads and skips.
 @module coverage_byte
 @data
   literal_0: hex"c2"
 
 // CHECK-LABEL: ; === coverage_byte (runtime) ===
+// COVERAGE: COVERAGE
+// COVERAGE-NEXT: PUSH1 0x07
 // CHECK: RETURN
 // PLAIN-NEXT: UNKNOWN 0xc2
 // COVERAGE-NEXT: COVERAGE
 bb0:
+  push 7 !meta(keep_with_next)
+  coverage
   push 1
   push_data literal_0
   push 0

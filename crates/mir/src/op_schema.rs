@@ -2769,7 +2769,7 @@ define_mir_ops! {
 
     // Instrumentation
     /// Coverage counter probe: `coverage id`, which counts each time control reaches it. The
-    /// backend emits it as `PUSHn id; COVERAGE`. See `solar_codegen::coverage`.
+    /// backend emits it as `COVERAGE; PUSHn id`. See `solar_codegen::coverage`.
     #[mir_op(
         mnemonic = "coverage",
         result = None,

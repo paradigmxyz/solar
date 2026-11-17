@@ -4,9 +4,10 @@
 //! source region to an expression over them. A walk of the HIR, before any function is lowered,
 //! assigns counters to every function, statement, and decision of every source, so the map also
 //! covers functions that no bytecode contains. Lowering then emits a `coverage` MIR instruction for
-//! a counter wherever control reaches its site; the backend emits it as `PUSHn <counter>;
-//! COVERAGE`. Counters start at 1 and are unique within the compilation, so a probe names its
-//! region without a table of program counters.
+//! a counter wherever control reaches its site; the backend emits it as `COVERAGE; PUSHn
+//! <counter>`. The instrumenting EVM reads the counter from the push and skips it, so a probe costs
+//! no gas or stack, and JUMPDEST analysis still sees a whole push. Counters start at 1 and are
+//! unique within the compilation, so a probe names its region without a table of program counters.
 //!
 //! A counter's sites are:
 //! - the entry of a function, modifier, or Yul function body;

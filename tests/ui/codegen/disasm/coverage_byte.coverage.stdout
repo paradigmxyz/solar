@@ -1,6 +1,8 @@
 ; === coverage_byte (runtime) ===
+COVERAGE
+PUSH1 0x07
 PUSH1 0x01
-PUSH1 0x0a
+PUSH1 0x0d
 PUSH0
 CODECOPY
 PUSH1 0x01
