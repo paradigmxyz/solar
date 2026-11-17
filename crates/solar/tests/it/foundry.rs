@@ -14,3 +14,9 @@ fn foundry() {
 fn external() {
     solar_tester::foundry::run_external_suite(Path::new(SOLAR));
 }
+
+#[test]
+#[ignore = "coverage parity mode; run via `cargo tq foundry-coverage`"]
+fn coverage() {
+    solar_tester::foundry::run_coverage_suite(Path::new(SOLAR));
+}

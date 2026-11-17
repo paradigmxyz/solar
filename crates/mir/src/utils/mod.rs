@@ -49,6 +49,9 @@ fn remap_blocks(func: &mut Function, order: &[BlockId]) -> IndexVec<BlockId, Blo
         if let Some(terminator) = &mut block.terminator {
             remap_terminator_blocks(terminator, &remap);
         }
+        block
+            .terminator_metadata
+            .remap_edge_targets(|target| Some(remap[target]).filter(|&new| new != BlockId::MAX));
         retained_instructions.extend_from_slice(&block.instructions);
     }
     for inst_id in retained_instructions {
@@ -182,7 +185,8 @@ fn remove_predecessor(func: &mut Function, block: BlockId, predecessor: BlockId)
 ///
 /// Before adding an edge to a block with phis, the caller must supply that predecessor's phi
 /// inputs. Removed edges lose their inputs; retained edges keep theirs, including duplicate
-/// branch arms and switch cases. Debug metadata is unchanged; cached CFG analyses are not updated.
+/// branch arms and switch cases. Debug metadata is unchanged, except that the edge assignments of a
+/// jump or branch go when the kind of terminator changes; cached CFG analyses are not updated.
 pub fn replace_terminator(func: &mut Function, block: BlockId, terminator: Terminator) {
     let mut old =
         func.blocks[block].terminator.as_ref().map(Terminator::successors).unwrap_or_default();
@@ -202,6 +206,26 @@ pub fn replace_terminator(func: &mut Function, block: BlockId, terminator: Termi
                 }
             }
         }
+    }
+    // The assignments of the edges of a jump or a branch hold only for that kind of terminator.
+    let kind = func.blocks[block].terminator.as_ref().map(std::mem::discriminant);
+    if kind != Some(std::mem::discriminant(&terminator)) {
+        func.blocks[block].terminator_metadata.clear_edge_assignments();
+    } else if !func.blocks[block].terminator_metadata.edge_assignments().is_empty()
+        && let Some(old) = func.blocks[block].terminator.clone()
+    {
+        // A record for an edge holds only while the same arm enters its target.
+        let arm = |terminator: &Terminator, target| match terminator {
+            Terminator::Branch { then_block, else_block, .. }
+                if (*then_block == target) != (*else_block == target) =>
+            {
+                Some(*then_block == target)
+            }
+            _ => None,
+        };
+        func.blocks[block].terminator_metadata.retain_edge_targets(|target| {
+            arm(&old, target).is_some() && arm(&old, target) == arm(&terminator, target)
+        });
     }
     // block: old_terminator -> terminator !metadata(old terminator)
     func.blocks[block].terminator = Some(terminator);

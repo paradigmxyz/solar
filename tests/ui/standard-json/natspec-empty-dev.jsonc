@@ -1,0 +1,24 @@
+// An empty `@dev` or `@author` documents nothing, so solc omits the entry that only it would fill.
+// CHECK: "devdoc"
+// CHECK-NOT: "details": ""
+// CHECK-NOT: "author": ""
+// CHECK: "kept()"
+// CHECK-NEXT: "details": "kept"
+// CHECK-NOT: "details": ""
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C {\n    /// @dev\n    uint256 public v;\n\n    /// @dev\n    event E();\n\n    /// @dev\n    error Er();\n\n    /// @dev\n    constructor() {}\n\n    /// @dev\n    function f() public {}\n\n    /// @dev kept\n    function kept() public {}\n\n    function use() public {\n        emit E();\n        revert Er();\n    }\n}\n\n/// @dev\ncontract D {}\n\n/// @author\ncontract E {}\n"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": [
+          "devdoc"
+        ]
+      }
+    }
+  }
+}

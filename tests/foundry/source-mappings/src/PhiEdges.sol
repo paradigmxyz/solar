@@ -50,6 +50,16 @@ contract PhiEdges {
         return x + a;
     }
 
+    function threadedArm(uint256 n) external pure returns (uint256) {
+        uint256 state = 0;
+        for (uint256 i = 0; i < n; i++) {
+            if (i % 3 == 0) {
+                state = 7;
+            }
+        }
+        return state;
+    }
+
     function copyOnArm(bool c, uint256 a, uint256 b) external returns (uint256) {
         uint256 s = a * b;
         uint256 x = 1;

@@ -1,0 +1,29 @@
+//@ compile-flags: --base-path ../../tests/ui/standard-json/natspec-callback-errors
+// Like solc, errors of one signature come in the order solc parses their sources in: the given
+// sources by name, then the sources that imports load, each source's new imports by name.
+// Here that is `G.sol`, `M.sol`, `Y.sol`, `Z.sol`, `A.sol`, and not the order of the names.
+// CHECK: "F(uint256)": [
+// CHECK: "notice": "from G"
+// CHECK: "notice": "from Y"
+// CHECK: "notice": "from Z"
+// CHECK: "notice": "from A"
+{
+  "language": "Solidity",
+  "sources": {
+    "M.sol": {
+      "content": "import \"Z.sol\";\nimport \"Y.sol\";\nimport {IG} from \"G.sol\";\n\ncontract C {\n    function f(uint256 a) external pure {\n        if (a == 1) revert IZ.F(1);\n        if (a == 2) revert IY.F(2);\n        if (a == 3) revert IA.F(3);\n        revert IG.F(4);\n    }\n}\n"
+    },
+    "G.sol": {
+      "content": "interface IG {\n    /// @notice from G\n    error F(uint256 x);\n}\n"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "M.sol": {
+        "C": [
+          "userdoc"
+        ]
+      }
+    }
+  }
+}
