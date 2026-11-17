@@ -17,7 +17,10 @@ passed BUDGET_KB. Writes batch-exits ("INDEX EXIT PEAK_KB STATUS"), samples.tsv 
 For a run split across machines: SCHED_SKIP names an earlier batch-exits; its batches that ran and
 exited 0 are not run again ("skipped-done"). SCHED_STOP_AT (Unix time) stops admitting batches
 ("not-started"); SCHED_KILL_AT kills the batches still running ("killed-deadline", their modules
-unverified). Exit 0: every batch ran here and exited 0 and the gate held. Exit 2: the same for every
+unverified). SCHED_WALLS ("INDEX WALL_S", a projected wall per batch, used as given) admits a batch
+only if now plus its projected wall is before SCHED_KILL_AT; a batch that cannot fit is
+"not-started-projected" (its modules unverified), and since time only advances it is dropped at once.
+Batches SCHED_WALLS lacks get its largest. Exit 0: every batch ran here and exited 0 and the gate held. Exit 2: the same for every
 batch that ran, but some were skipped, not started or killed at the deadline. Exit 1 otherwise.
 """
 import os
@@ -77,6 +80,10 @@ def main():
     stop_at = float(os.environ.get("SCHED_STOP_AT", "inf"))
     kill_at = float(os.environ.get("SCHED_KILL_AT", "inf"))
     stop_at = min(stop_at, kill_at)
+    walls = {}
+    if os.environ.get("SCHED_WALLS"):
+        walls = {l.split()[0]: int(l.split()[1]) for l in open(os.environ["SCHED_WALLS"]) if l.strip()}
+    big_wall = max(walls.values(), default=0)
     queue = sorted((b for b in batches if b[0] not in done), key=lambda b: -est.get(b[0], big))
     running, results = {}, []
     peak = {"used": 0, "n": 0, "sum": 0}
@@ -117,6 +124,10 @@ def main():
         if queue and time.time() >= stop_at:
             results.extend(f"{b[0]} -1 0 not-started" for b in queue)
             queue = []
+        if queue and walls and kill_at != float("inf"):
+            late = [b for b in queue if time.time() + walls.get(b[0], big_wall) > kill_at]
+            results.extend(f"{b[0]} -1 0 not-started-projected" for b in late)
+            queue = [b for b in queue if b not in late]
         if queue and not killed and len(running) < par:
             _, used = meminfo()
             b = queue[0]

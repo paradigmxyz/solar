@@ -17,6 +17,13 @@
 # admitting batches and kill the running ones. A slot that leaves batches unreplayed exits 2 after
 # writing verdicts (each module: verified in this slot, verified earlier, or unverified); merge.py
 # then combines the slots. A whole replay in one slot is accounted by replay.py and exits 0.
+#
+# Parallel shards (shard.sh): REPLAY_EXPECT_PLAN is the sha256 the plan must have (exit 3 before
+# anything runs if it differs, which voids the slot that made that plan). REPLAY_BATCHES is a
+# shard's batches file from shard_plan.py, used instead of the 400-module batches: every module in
+# it must be planned, and none may appear twice. SCHED_WALLS (the shard's walls file) lets sched.py
+# admit a batch only if its projected wall ends before REPLAY_KILL_AT. A shard never accounts the
+# closure itself: when its batches all ran it exits 2 too, and merge.py combines it with the others.
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd); certify=$(cd "$here/.." && pwd)
 lean=$(realpath "$1"); out=$(realpath "$2"); par=${3:-4}; head=${4:-25}
@@ -28,10 +35,31 @@ python3 "$certify/replay.py" plan "$out/check_final.log" "$rd/plan" --syslib "$t
   --require "$name.Final" --require "$name.Statement" --require "$name.Proof" --include-trusted || exit 1
 awk '$1 == "replay" { print $2, $3 }' "$rd/plan" | sort > "$rd/inventory"
 sha256sum "$rd/plan" "$rd/inventory" | tee "$rd/inventory.sha256"
+if [[ -n ${REPLAY_EXPECT_PLAN:-} ]]; then
+  got=$(sha256sum < "$rd/plan" | cut -c1-64)
+  if [[ $got != "$REPLAY_EXPECT_PLAN" ]]; then
+    echo "plan $got is not the expected $REPLAY_EXPECT_PLAN: the earlier slot's replay is void" | tee -a "$rd/summary"
+    exit 3
+  fi
+  echo "plan $got as expected" | tee -a "$rd/summary"
+fi
 mapfile -t mods < <(awk '$1 == "replay" { print $2 }' "$rd/plan")
 echo "closure modules to replay: ${#mods[@]}" | tee "$rd/summary"
 : > "$rd/batches"
-for ((i = 0; i < ${#mods[@]}; i += 400)); do echo "$i ${mods[*]:i:400}" >> "$rd/batches"; done
+if [[ -n ${REPLAY_BATCHES:-} ]]; then
+  [[ -z ${PRIOR_REPLAY:-} ]] || { echo "REPLAY_BATCHES and PRIOR_REPLAY exclude each other" | tee -a "$rd/summary"; exit 1; }
+  awk '$1 == "replay" { print $2 }' "$rd/plan" | sort > "$rd/planned"
+  awk '{ for (i = 2; i <= NF; i++) print $i }' "$REPLAY_BATCHES" | sort > "$rd/shard-modules"
+  if [[ -n $(uniq -d "$rd/shard-modules") || -n $(comm -13 "$rd/planned" "$rd/shard-modules") ]] \
+    || [[ -n $(awk '$1 !~ /^[0-9]+$/ || NF < 2' "$REPLAY_BATCHES") || -n $(awk '{ print $1 }' "$REPLAY_BATCHES" | sort | uniq -d) ]]; then
+    echo "shard batches $REPLAY_BATCHES name an unplanned or repeated module or a bad index" | tee -a "$rd/summary"
+    exit 1
+  fi
+  cp "$REPLAY_BATCHES" "$rd/batches"
+  echo "shard modules: $(wc -l < "$rd/shard-modules") in $(wc -l < "$rd/batches") batches, batches sha256 $(sha256sum < "$rd/batches" | cut -c1-64)" | tee -a "$rd/summary"
+else
+  for ((i = 0; i < ${#mods[@]}; i += 400)); do echo "$i ${mods[*]:i:400}" >> "$rd/batches"; done
+fi
 skip=()
 if [[ -n ${PRIOR_REPLAY:-} ]]; then
   if ! cmp -s "$PRIOR_REPLAY/plan" "$rd/plan" || ! cmp -s "$PRIOR_REPLAY/batches" "$rd/batches"; then
@@ -44,7 +72,7 @@ if [[ -n ${PRIOR_REPLAY:-} ]]; then
 fi
 find .lake -name '*.olean' -print0 | sort -z | xargs -0 sha256sum | sha256sum > "$rd/oleans.before"
 total=$(awk '/MemTotal/ { print $2 }' /proc/meminfo); budget=$(( total * (100 - head) / 100 ))
-env "${skip[@]}" SCHED_STOP_AT="${REPLAY_STOP_AT:-inf}" SCHED_KILL_AT="${REPLAY_KILL_AT:-inf}" \
+env "${skip[@]}" SCHED_WALLS="${SCHED_WALLS:-}" SCHED_STOP_AT="${REPLAY_STOP_AT:-inf}" SCHED_KILL_AT="${REPLAY_KILL_AT:-inf}" \
   python3 "$here/sched.py" "$rd" "$par" "$budget" "$peaks" -- lake env "$tc/bin/leanchecker" --verbose \
   | tee -a "$rd/summary"
 sched=${PIPESTATUS[0]}
@@ -65,6 +93,7 @@ PY
 awk '{ print $3 }' "$rd/verdicts" | sort | uniq -c | tee -a "$rd/summary"
 if [[ $sched == 2 ]]; then echo "partial slot: merge with merge.py" | tee -a "$rd/summary"; exit 2; fi
 [[ $sched == 0 ]] || exit 1
+if [[ -n ${REPLAY_BATCHES:-} ]]; then echo "shard: every batch ran; merge with merge.py" | tee -a "$rd/summary"; exit 2; fi
 : > "$rd/all.out"
 while read -r i _; do cat "$rd/b$i.out" >> "$rd/all.out"; done < "$rd/batches"
 python3 "$certify/replay.py" account "$rd/plan" "$rd/all.out" 0 "$rd/receipt.json" \

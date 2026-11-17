@@ -5,8 +5,9 @@
 
 Each SLOT_DIR is a replay.sh OUT/replay directory: plan, batches, batch-exits, gate.txt and the
 b<INDEX>.out of each batch. The merge refuses unless every slot's plan is byte-identical (the same
-modules with the same olean sha256s, so the same compiled inputs), the batches are the same, no
-module is trusted by directory, every slot's gate.txt passed, and every planned module was replayed
+modules with the same olean sha256s, so the same compiled inputs), each slot's batches name only
+planned modules and none twice (slots may batch differently: parallel shards use smaller batches of
+the modules an earlier slot left unverified), no module is trusted by directory, every slot's gate.txt passed, and every planned module was replayed
 exactly once, by a batch that ran and exited 0 in exactly one slot, whose leanchecker output names
 it. The receipt lists every module with its slot and batch.
 """
@@ -30,8 +31,6 @@ if not slots:
 plans = [read(f"{s}/plan") for s in slots]
 if len(set(plans)) != 1:
     fail("the slots' plans differ: their builds' oleans are not identical, so no slot's replay counts")
-if len({read(f"{s}/batches") for s in slots}) != 1:
-    fail("the slots' batches differ")
 rows = [l.split() for l in plans[0].splitlines() if l]
 planned = [r[1] for r in rows if r[0] == "replay"]
 trusted = [r[1] for r in rows if r[0] == "trusted"]
@@ -41,9 +40,18 @@ for s in slots:
     g = read(f"{s}/gate.txt")
     if "FAILED" in g or not re.search(r"kills 0", g):
         fail(f"{s}/gate.txt did not pass:\n{g}")
-batch_mods = {l.split()[0]: l.split()[1:] for l in read(f"{slots[0]}/batches").splitlines() if l}
 credit = {}
 for k, s in enumerate(slots, 1):
+    batch_mods = {}
+    for l in read(f"{s}/batches").splitlines():
+        if l:
+            i, *mods = l.split()
+            if i in batch_mods:
+                fail(f"slot {k} has batch {i} twice")
+            batch_mods[i] = mods
+    named = [m for mods in batch_mods.values() for m in mods]
+    if len(set(named)) != len(named) or not set(named) <= set(planned):
+        fail(f"slot {k}'s batches name an unplanned module or one module twice")
     for f in (l.split() for l in read(f"{s}/batch-exits").splitlines() if l):
         if f[3] != "ran":
             continue
