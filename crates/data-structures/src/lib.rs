@@ -25,6 +25,9 @@ pub use bump_ext::BumpExt;
 mod collect;
 pub use collect::CollectAndApply;
 
+mod never;
+pub use never::Never;
+
 mod drop_guard;
 pub use drop_guard::{DropGuard, defer};
 
