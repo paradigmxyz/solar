@@ -13,12 +13,22 @@
 # which must fail with its pattern; a control on unedited copies must pass. The edits:
 #
 # - CtxGas: the checker certificate's environment-reads flag set (AnyCaller's premise
-#   cx.base.reads = false fails), and its first block cost lowered by one (check_ok fails);
+#   cx.base.reads = false fails); each block's cost set one below the block's actual cost, and the
+#   entry block's cost set to 0 (blocks_ok's decide fails on blocksXL). A block's actual cost is
+#   read from the exact bytecode, not from the certificate: the instructions of the block's
+#   straight-line run (from its offset to its first STOP, RETURN, REVERT, INVALID or JUMP, or the
+#   next block), less a final STOP, RETURN or REVERT, whose base gas is 0 (their memory expansion
+#   is the bound's separate memoryGasCost term). A control sets every cost to its actual cost,
+#   which blocks_ok must accept, so the bound is tight; a declared cost below the actual one fails
+#   the run before any case;
 # - AnyCaller: its gas bound lowered by one (gas_le fails);
 # - stage0: the call value check's branch taken the other way, and the call value read as the
 #   caller (the checks for every caller and for value calls in Lowering fail);
 # - Statement: the every-caller conjunct's gas bound lowered by one, and its real-context premise
 #   (ctx.Ok: a caller below 2^160 other than the contract) dropped (Final fails).
+#
+# Pattern controls: an unrelated edit (a syntax error appended) to CtxGas and to Lowering must fail
+# without the cost and stage0 patterns, so neither pattern matches any error.
 #
 # A case whose text is not in the module counts as a skip, and the run fails on any skip, since
 # every module of the any route has them. LEAN_MEMORY caps each Lean process (MB, default 6000).
@@ -60,12 +70,14 @@ open(sys.argv[2], "w").write(s)
 shadow() {
     local d="$tmp/$1/olean/$name"
     mkdir -p "$d"
-    cp -rs "$built/." "$d/"
+    # Each file a link, each directory made (cp -rs is not portable here).
+    (cd "$built" && find . -type d -exec mkdir -p "$d/{}" \; && find . ! -type d -exec ln -s "$built/{}" "$d/{}" \;)
 }
 
 # run CASE MODULE PROOF EXPECT PATTERN: compile the case's edited MODULE (unless it is PROOF) into
 # its shadow tree, then elaborate PROOF (a module path under NAME: the edited copy when it is
-# MODULE, else the unchanged source). EXPECT is pass, or fail with PATTERN in the output.
+# MODULE, else the unchanged source). EXPECT is pass, fail with PATTERN in the output, or other: fail
+# without PATTERN in it.
 run() {
     local case=$1 module=$2 proof=$3 expect=$4 pattern=${5:-}
     local dir="$tmp/$case" out="$tmp/$case/out" file status=0
@@ -86,6 +98,11 @@ run() {
         else echo "FAIL $case: $proof rejects the unedited modules:"; sed 's/^/  /' "$out" | head -20; failures=$((failures + 1)); fi
     elif [[ $status -eq 0 ]]; then
         echo "FAIL $case: $proof accepts the edited $module"; failures=$((failures + 1))
+    elif [[ $expect == other ]]; then
+        if tr -s '\n ' '  ' < "$out" | grep -Eq "$pattern"; then
+            echo "FAIL $case: an unrelated edit matches the pattern ($pattern):"; sed 's/^/  /' "$out" | head -20
+            failures=$((failures + 1))
+        else echo "ok   $case: $proof fails without the pattern: $(grep -m1 -E 'error' "$out" | cut -c1-160)"; fi
     elif tr -s '\n ' '  ' < "$out" | grep -Eq "$pattern"; then
         echo "ok   $case: $proof rejects it: $(grep -m1 -E 'error' "$out" | cut -c1-160)"
     else
@@ -94,13 +111,24 @@ run() {
     fi
 }
 
-# case_ CASE MODULE PROOF PATTERN PYTHON: one edit, skipped (and counted) when its text is absent.
+# case_ CASE MODULE PROOF PATTERN PYTHON [EXPECT]: one edit, skipped (and counted) when its text is
+# absent; EXPECT (default fail) as for run.
 case_() {
-    local case=$1 module=$2 proof=$3 pattern=$4 code=$5 rc=0
+    local case=$1 module=$2 proof=$3 pattern=$4 code=$5 expect=${6:-fail} rc=0
     edit "$case" "$module" "$code" || rc=$?
     if [[ $rc -eq 2 ]]; then echo "skip $case: no such text in $module"; skips=$((skips + 1)); return; fi
     [[ $rc -eq 0 ]] || { echo "FAIL $case: the edit failed"; failures=$((failures + 1)); return; }
-    run "$case" "$module" "$proof" fail "$pattern"
+    run "$case" "$module" "$proof" "$expect" "$pattern"
+}
+
+# set_costs VALUES: Python setting the certificate's costs to VALUES, a comma-separated list in
+# which an empty entry keeps the declared cost.
+set_costs() {
+    echo 'm = re.search(r"costs := \[([0-9, ]*)\]", s)
+c = [int(x) for x in m.group(1).split(",")]
+v = "'"$1"'".split(",")
+c = [int(x) if x else d for x, d in zip(v, c)] if len(v) == len(c) else None
+s = s[:m.start(1)] + ", ".join(map(str, c)) + s[m.end(1):]'
 }
 
 bound="$(sed -nE 's/^theorem gas_le : .* ≤ ([0-9]+) := .*/\1/p' "$src/AnyCaller.lean")"
@@ -109,14 +137,55 @@ below=$((bound - 1))
 contract="$(sed -nE 's/^import [^.]+\.gen\.([A-Za-z0-9_]+)\.Stage0$/\1/p' "$src/Lowering.lean")"
 [[ -n $contract ]] || { echo "negative_any: no stage0 import in Lowering.lean" >&2; exit 1; }
 
+# Each block's actual cost from the exact bytecode (see the header), against the declared costs.
+read -r declared actual < <(python3 -I - "$src/CtxGas.lean" "$src/bytecode.hex" <<'EOF'
+import re, sys
+s = open(sys.argv[1]).read()
+code = bytes.fromhex(open(sys.argv[2]).read().strip())
+offs = [int(x, 0) for x in re.search(r"offsets := \[([0-9a-fx, ]*)\]", s).group(1).split(",")]
+costs = [int(x) for x in re.search(r"costs := \[([0-9, ]*)\]", s).group(1).split(",")]
+if len(offs) != len(costs):
+    sys.exit("negative_any: %d offsets but %d costs" % (len(offs), len(costs)))
+actual = []
+for b, o in enumerate(offs):
+    end = offs[b + 1] if b + 1 < len(offs) else len(code)
+    n, pc, last = 0, o, None
+    while pc < end:
+        op = code[pc]
+        n, last = n + 1, op
+        pc += 1 + (op - 0x5F if 0x60 <= op <= 0x7F else 0)
+        if op in (0x00, 0x56, 0xF3, 0xFD, 0xFE):
+            break
+    actual.append(n - (1 if last in (0x00, 0xF3, 0xFD) else 0))
+print(",".join(map(str, costs)), ",".join(map(str, actual)))
+EOF
+)
+[[ -n $actual ]] || { echo "negative_any: no block costs from CtxGas.lean and bytecode.hex" >&2; exit 1; }
+echo "block costs: declared $declared, actual $actual"
+IFS=, read -ra dcost <<< "$declared"
+IFS=, read -ra acost <<< "$actual"
+for b in "${!acost[@]}"; do
+    (( acost[b] <= dcost[b] )) || { echo "negative_any: block $b declares $((dcost[b])) below its actual cost $((acost[b]))" >&2; exit 1; }
+done
+cost_pattern='proposition AssembleCtxGas\.blocksXL F \(norm prog\) cx 0 \(norm prog\)\.blocks = true is false'
+
 run control-AnyCaller "" AnyCaller pass
 run control-Final "" Final pass
 run control-Lowering "" Lowering pass
 case_ CtxGas-reads CtxGas AnyCaller 'error' 's = s.replace("reads := false", "reads := true", 1)'
-case_ CtxGas-cost CtxGas CtxGas 'check_ok|blocks_ok|decide' 's = re.sub(r"costs := \[(\d+)", lambda m: "costs := [%d" % (int(m.group(1)) - 1), s, count=1)'
+case_ control-CtxGas-actual CtxGas CtxGas '' "$(set_costs "$actual")" pass
+for b in "${!acost[@]}"; do
+    v=(); for k in "${!acost[@]}"; do if (( k == b )); then v+=($((acost[b] - 1))); else v+=(""); fi; done
+    case_ "CtxGas-cost-b$b" CtxGas CtxGas "$cost_pattern" "$(set_costs "$(IFS=,; echo "${v[*]}")")"
+done
+v=(0); for ((k = 1; k < ${#acost[@]}; k++)); do v+=(""); done
+case_ CtxGas-cost-zero CtxGas CtxGas "$cost_pattern" "$(set_costs "$(IFS=,; echo "${v[*]}")")"
+case_ control-CtxGas-pattern CtxGas CtxGas "$cost_pattern" 's += "\ntheorem pattern_control : (\n"' other
 case_ AnyCaller-gas-below AnyCaller AnyCaller 'gas_le|decide' "s = s.replace('$bound', '$below')"
-case_ Stage0-value-branch "gen/$contract/Stage0" Lowering 'check_sym_stage0|checkValueSym_stage0' 's = re.sub(r"(\.effect \(some (\d+)\) \.callvalue \[\],\s*\.ne (\d+) \(\.value \2\) \(\.const 0\)\],\s*\.branch \(\.value \3\)) (\d+) (\d+)", r"\1 \5 \4", s, count=1)'
-case_ Stage0-callvalue-as-caller "gen/$contract/Stage0" Lowering 'check_sym_stage0|checkValueSym_stage0' 's = re.sub(r"\.effect \(some (\d+)\) \.callvalue \[\]", r".effect (some \1) .caller []", s, count=1)'
+stage0_pattern="proposition Generic\\.checkSym fuel mirFuel coreLit SolarTV\\.Export\\.$contract\\.stage0 fns = true is false|proposition Generic\\.checkValue mirFuel coreLit SolarTV\\.Export\\.$contract\\.stage0 fns Generic\\.EnvFlags\\.allSym = true is false"
+case_ Stage0-value-branch "gen/$contract/Stage0" Lowering "$stage0_pattern" 's = re.sub(r"(\.effect \(some (\d+)\) \.callvalue \[\],\s*\.ne (\d+) \(\.value \2\) \(\.const 0\)\],\s*\.branch \(\.value \3\)) (\d+) (\d+)", r"\1 \5 \4", s, count=1)'
+case_ Stage0-callvalue-as-caller "gen/$contract/Stage0" Lowering "$stage0_pattern" 's = re.sub(r"\.effect \(some (\d+)\) \.callvalue \[\]", r".effect (some \1) .caller []", s, count=1)'
+case_ control-Lowering-pattern Lowering Lowering "$stage0_pattern" 's += "\ntheorem pattern_control : (\n"' other
 case_ Statement-any-gas-below Statement Final 'error' "s = s.replace('(fun _ => $bound)', '(fun _ => $below)', 1)"
 case_ Statement-any-no-ctx-ok Statement Final 'error' 's = s.replace("ctx.Ok → ∃ c,", "True → ∃ c,", 1)'
 
