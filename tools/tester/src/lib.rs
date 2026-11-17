@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
+    time::Duration,
 };
 use ui_test::{
     CommentParser, Errored, Revisioned,
@@ -162,6 +163,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             envs: vec![(solar_config::version::TEST_VERSION_ENV.into(), Some("1".into()))],
             cfg_flag: None,
         },
+        // A hung compiler would stall the run until nextest kills it, naming no fixture.
+        command_timeout: Some(Duration::from_secs(120)),
         output_conflict_handling: ui_test::error_on_output_conflict,
         bless_command: Some("cargo bless".into()),
         out_dir: ui_out_dir().join(mode.to_str()),
