@@ -20,8 +20,9 @@
 //! size) stay in loops that call or create, and nothing moves out of a loop that reads the
 //! remaining gas. Frame loads and the free memory pointer never move.
 //!
-//! A loop without a computable trip count counts as running `2^MAX_TRIP_COUNT_BITS` times, so
-//! scalar evolution still bounds its affine offsets, far below a wrap of the address space.
+//! In gas mode, a loop without a computable trip count counts as running
+//! `2^MAX_TRIP_COUNT_BITS` times, so scalar evolution still bounds its affine offsets, far below
+//! a wrap of the address space.
 //! A load hoisted behind a store of the same word in the preheader reads the stored value, and
 //! a load of the same word left in the loop reads the hoisted one.
 //!
@@ -975,9 +976,13 @@ impl LoopOptimizer {
         if !expr.terms.is_empty() {
             // A loop without a computable trip count still runs at most
             // `2^MAX_TRIP_COUNT_BITS` times, so the counter stays near its start and ranges on
-            // the same base meet only where their offset intervals overlap.
-            let trip_count =
-                loop_data.trip_count.map_or(1 << Target::MAX_TRIP_COUNT_BITS, i128::from);
+            // the same base meet only where their offset intervals overlap. Only gas mode
+            // takes it: a size build pays a `pop` after the loop for each word it carries.
+            let trip_count = if self.hoist_cheap {
+                loop_data.trip_count.map_or(1 << Target::MAX_TRIP_COUNT_BITS, i128::from)
+            } else {
+                i128::from(loop_data.trip_count?)
+            };
             if trip_count == 0 {
                 return None;
             }

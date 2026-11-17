@@ -1,12 +1,19 @@
-//@compile-flags: -Zmir-pipeline=licm
-//@filecheck: --enable-var-scope
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=licm
+//@[size] compile-flags: -Osize -Zmir-pipeline=licm
+//@[gas] filecheck: --enable-var-scope --check-prefixes=CHECK,GAS
+//@[size] filecheck: --enable-var-scope --check-prefixes=CHECK,SIZE
 @module LicmUnknownTripRanges
 
 // No loop runs more than `2^64` times, so even with an unknown trip count an element index
-// stays above the length word of the array it indexes.
+// stays above the length word of the array it indexes. Size builds do not take the bound: the
+// hoisted word costs a `pop` after the loop.
 // CHECK-LABEL: @hoist_len_over_element_stores
-// CHECK: + [[LEN:v[0-9]+]] = mload arg0
-// CHECK: - [[LEN]] = mload arg0
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: - [[LEN]] = mload arg0
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
 fn @hoist_len_over_element_stores(arg0: i256) {
   bb0:
     jump bb1
@@ -28,8 +35,11 @@ fn @hoist_len_over_element_stores(arg0: i256) {
 
 // Byte stores from the first element on stay above the length word too.
 // CHECK-LABEL: @hoist_len_over_byte_stores
-// CHECK: + [[LEN:v[0-9]+]] = mload arg0
-// CHECK: - [[LEN]] = mload arg0
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: - [[LEN]] = mload arg0
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
 fn @hoist_len_over_byte_stores(arg0: i256) {
   bb0:
     jump bb1
@@ -146,9 +156,12 @@ fn @keep_len_over_unknown_start(arg0: i256, arg1: i256) {
 
 // The hoisted read takes the length word the preheader just stored.
 // CHECK-LABEL: @forward_len_from_preheader_store
-// CHECK: - [[LEN:v[0-9]+]] = mload arg0
-// CHECK-NEXT: - [[CMP:v[0-9]+]] = lt {{v[0-9]+}}, [[LEN]]
-// CHECK-NEXT: + [[CMP]] = lt {{v[0-9]+}}, arg1
+// GAS: - [[LEN:v[0-9]+]] = mload arg0
+// GAS-NEXT: - [[CMP:v[0-9]+]] = lt {{v[0-9]+}}, [[LEN]]
+// GAS-NEXT: + [[CMP]] = lt {{v[0-9]+}}, arg1
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
 fn @forward_len_from_preheader_store(arg0: i256, arg1: i256) {
   bb0:
     mstore arg0, arg1
@@ -171,8 +184,11 @@ fn @forward_len_from_preheader_store(arg0: i256, arg1: i256) {
 
 // A store that may alias the word between the length store and the read blocks the forward.
 // CHECK-LABEL: @keep_hoisted_len_after_unknown_store
-// CHECK: + [[LEN:v[0-9]+]] = mload arg0
-// CHECK: lt {{v[0-9]+}}, [[LEN]]
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: lt {{v[0-9]+}}, [[LEN]]
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
 fn @keep_hoisted_len_after_unknown_store(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     mstore arg0, arg1
