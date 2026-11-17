@@ -77,7 +77,91 @@ def last_stage(stages_text):
     }
 
 
-def any_caller_lean(name, contract, g, shape, stages, bound, K):
+def spec_from_lean(name, contract, g, shape, sns, K, C, sct):
+    """The spec of the exact bytecode from every caller at every value (published_spec_any), from
+    NAME.SpecConnect's _holds_from theorems (spec_connect.py --any-caller), or "" when SpecConnect
+    proves no function's spec from every caller. Every function of the export must have one: a
+    spec proved of only some functions states nothing of the rest, so none is stated."""
+    q = chr(96)
+    SC = f"{name}.SpecConnect"
+    B = f"Certified.{name}.gen.{contract}.Spec.{contract}"
+    if f"abbrev spec : Bundle := {B}" not in sct:
+        fail(f"{name}/SpecConnect.lean is not about this run's export {B}")
+    idx = {
+        m.group(1): int(m.group(2))
+        for m in re.finditer(
+            r"^def (\w+)_spec : FnSpec := spec\.spec\.specs\[(\d+)\]", sct, re.MULTILINE
+        )
+    }
+    froms = set(re.findall(r"^theorem (\w+)_holds_from \{c", sct, re.MULTILINE))
+    if not froms:
+        return ""
+    if not idx or froms != set(idx) or sorted(idx.values()) != list(range(len(idx))):
+        fail(f"{name}/SpecConnect.lean proves the spec from every caller of only some functions")
+    storage, fns = g["storage"], g["fns"]
+    cases = [
+        f"    · exact holdsFn_scope (fn := {SC}.fn_{fid}) (by rfl) (by decide)\n"
+        f"        ({SC}.{fid}_holds_from hc _ (fun _ _ _ => rfl) ctx.caller hctx.1 hctx.2)"
+        for fid, _ in sorted(idx.items(), key=lambda kv: kv[1])
+    ]
+    cases.append(f"    · simp [{B}] at hi <;> omega")
+    ctxf = "SolidCore.Verify.AnyCaller.ctxOfCallFrom ctx.caller"
+    Sh = "SolidCore.Refinement.Shapes"
+    return f"""
+/-- One function's spec on the statement's calls, from its spec on the calls of the function of its
+selector at every value: a call of another selector meets no precondition of it. -/
+theorem holdsFn_scope {{S : Sem}} {{p : S.Prog}} {{fns : List Abi.Fn}} {{s : List (Nat × Nat)}}
+    {{b : SolidCore.Spec.Bundle}} {{ctxOf : Call → SolidCore.Spec.Ctx}}
+    {{step : SolidCore.Spec.GhostStep}} {{fs : SolidCore.Spec.FnSpec}} {{fn : Abi.Fn}}
+    (hfn : fn.sel = fs.selector) (hok : {Sh}.selOk fns fn.sel fn.params.length = true)
+    (h : SolidCore.Spec.HoldsFn S p (SolidCore.Spec.valueScope fn s) b ctxOf step fs) :
+    SolidCore.Spec.HoldsFn S p (SolidCore.Verify.AnyCaller.scope s fns) b ctxOf step fs := by
+  rintro _ ⟨σ, v, hcov, hvlt, g, hg, args, hlen, hargs, rfl⟩ iargs pre hpre
+  have hk := List.all_eq_true.mp hok g hg
+  simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true, bne_iff_ne, ne_eq,
+    beq_iff_eq] at hk
+  obtain ⟨hlt, hk⟩ := hk
+  by_cases he : g.sel = fn.sel
+  · have hl := hk.resolve_left (not_not.mpr he)
+    exact h _ ⟨σ, v, hcov, hvlt, fn, List.mem_singleton_self _, args, hlen.trans hl, hargs,
+      by rw [he]⟩ iargs pre hpre
+  · exact absurd hpre ({Sh}.not_pre_of_sel hlt (hfn ▸ he) args v σ)
+
+/-- **{contract}'s exported spec of the exact bytecode, from every caller and at every value.** In
+every real context, on every call of the statement (any value below {q}2 ^ 256{q}) and at every gas
+from {K} on, whatever the exact bytecode run from the context's caller finishes with has a status
+the spec allows and meets the spec's postcondition, read in the context of that caller
+({q}ctxOfCallFrom ctx.caller{q}: its sender and value; the contract at {q}0x1000{q}, timestamp 1).
+This is {q}published_any{q} composed with {q}{SC}{q}'s {q}_holds_from{q} theorems
+({q}SolidCore.Spec.holdsFn_of_tree_from{q}): partial correctness, no ghost update. -/
+theorem published_spec_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →
+    ∀ call, {shape["valid"]} call → ∀ gas, (fun _ => {K}) call ≤ gas → ∀ obs,
+      SolidCore.Verify.Generic.runAt ctx gas {C}.code call = some obs →
+        {Sh}.bundleAllowed {B} ({ctxf}) call obs ∧
+          {Sh}.bundlePost {B} ({ctxf}) {Sh}.idStep call obs := by
+  intro ctx hctx call hv gas hg obs hrun
+  obtain ⟨c, hc, h⟩ := published_any ctx hctx
+  rw [h call hv gas hg] at hrun
+  have hs : {SC}.deployed = ({storage}) := by decide
+  have hholds : SolidCore.Spec.Holds (solidCoreFrom ctx.caller {sns}.fuel) c
+      (SolidCore.Verify.AnyCaller.scope {SC}.deployed ({fns})) {B} ({ctxf}) {Sh}.idStep := by
+    refine {Sh}.holds_of_getElem ?_
+    intro i hi
+    rcases i with {' | '.join(['_'] * len(idx))} | i
+""" + "\n".join(cases) + f"""
+  have hsc : ∀ call, {shape["valid"]} call →
+      SolidCore.Verify.AnyCaller.scope {SC}.deployed ({fns}) call := fun _ h => by
+    rw [hs]; exact h
+  exact ⟨{Sh}.allowed_of_holds hsc hholds call hv obs hrun,
+    {Sh}.meets_of_bundle hsc hholds call hv obs hrun⟩
+
+/-- info: 'Certified.{name}.AnyCaller.published_spec_any' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms published_spec_any
+"""
+
+
+def any_caller_lean(name, contract, g, shape, stages, bound, K, sct=None):
     """NAME.AnyCaller for the caller route "any": AnyCaller.bytes_eq_source_from on Lowering's
     check for every caller (check_sym_stage0, checkValueSym_stage0), solar-tv's backend stages to
     the final EVM IR under every oracle, the final EVM IR's run within its fuel on every call and
@@ -99,6 +183,9 @@ def any_caller_lean(name, contract, g, shape, stages, bound, K):
         "Verify.AnyCaller.Theorem",
         "Verify.ShapeGeneric",
     ]
+    spec_from = spec_from_lean(name, contract, g, shape, sns, K, C, sct) if sct else ""
+    if spec_from:
+        mods += [f"{name}.SpecConnect", "Verify.ShapeSpecExport"]
     return (
         "\n".join(f"import {m}" for m in mods)
         + f"""
@@ -245,7 +332,7 @@ theorem valid_any_value : ∀ call, {shape["valid"]} call → ∀ v, v < 2 ^ 256
 /-- info: 'Certified.{name}.AnyCaller.valid_any_value' depends on axioms: [propext] -/
 #guard_msgs (whitespace := lax) in
 #print axioms valid_any_value
-
+""" + spec_from + f"""
 end Certified.{name}.AnyCaller
 """
     )
@@ -305,7 +392,11 @@ def any_caller_route(name, shape, g, root, gen, contract, stages, value):
         fail(
             f"shape.json: any_caller gas bound {K} is below the checker's {bound} or not below 2^64"
         )
-    return ctx_text, any_caller_lean(name, contract, g, shape, stages, bound, K)
+    # The spec from every caller, when spec_connect.py proved it (--any-caller): NAME.SpecConnect
+    # is written in this run before this module.
+    sc_path = root / "SpecConnect.lean"
+    sct = sc_path.read_text() if g.get("spec_connect") and sc_path.exists() else None
+    return ctx_text, any_caller_lean(name, contract, g, shape, stages, bound, K, sct)
 
 
 def main():
