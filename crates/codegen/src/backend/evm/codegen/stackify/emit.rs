@@ -386,17 +386,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
             let records = self.edge_records(func, source, target);
-            let generated_exit = !records.is_empty()
-                && records.iter().all(|record| record.generated_exit == Some(true));
+            let dropped_exit = !records.is_empty()
+                && records.iter().all(|record| record.dropped_exit == Some(true));
             self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
             // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
             // The jump replaces the arm's jump, so it keeps that jump's location, as LLVM's
             // Preserve rule gives a replacement the location of what it replaces. The jump out of
             // an `if` arm has none, and the branch's origin would show the condition's line again
             // after the arm ran.
-            if generated_exit {
+            if dropped_exit {
                 self.asm.set_source_span(None);
-                self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+                self.asm.set_debug_loc_kind(DebugLocKind::Dropped);
             }
             self.emit_stackified_jump(target, None);
         }

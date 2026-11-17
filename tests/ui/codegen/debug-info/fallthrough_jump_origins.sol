@@ -10,7 +10,7 @@
 // CHECK-LABEL: ; function f(
 // CHECK: push 0x1172b83c7d517adce
 // CHECK: shr !metadata(span=
-// CHECK-NEXT: jump bb{{[0-9]+}} !metadata(compiler_generated)
+// CHECK-NEXT: jump bb{{[0-9]+}}{{$}}
 // CHECK-LABEL: ; function g(
 // CHECK: push 0x1172b83c7d517adce
 // CHECK: shr !metadata(span=

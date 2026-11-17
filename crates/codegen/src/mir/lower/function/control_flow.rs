@@ -66,14 +66,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
     /// at the span the builder has when it places them.
     ///
-    /// With `generated_exits`, the jumps that leave the arms and the merge block's label belong to
-    /// no source construct, instead of taking `label_span` and the span in force.
+    /// With `dropped_exits`, the jumps that leave the arms and the merge block's label have no
+    /// location, instead of taking `label_span` and the span in force.
     pub(super) fn lower_branches_labeled<T>(
         &mut self,
         condition: ValueId,
         then_first: bool,
         label_span: Option<Span>,
-        generated_exits: bool,
+        dropped_exits: bool,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -95,7 +95,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let then_values = std::mem::take(&mut self.values);
         let then_storage_refs = std::mem::take(&mut self.storage_refs);
         if !then_terminated {
-            self.with_generated_origin(generated_exits, |this| this.builder.jump(merge_block));
+            self.with_dropped_loc(dropped_exits, |this| this.builder.jump(merge_block));
         }
 
         self.values = before_values.clone();
@@ -107,13 +107,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let else_values = std::mem::take(&mut self.values);
         let else_storage_refs = std::mem::take(&mut self.storage_refs);
         if !else_terminated {
-            self.with_generated_origin(generated_exits, |this| this.builder.jump(merge_block));
+            self.with_dropped_loc(dropped_exits, |this| this.builder.jump(merge_block));
         }
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.with_generated_origin(generated_exits, |this| {
-            this.place_block(merge_block, label_span.filter(|_| !generated_exits))
+        self.with_dropped_loc(dropped_exits, |this| {
+            this.place_block(merge_block, label_span.filter(|_| !dropped_exits))
         });
         self.values = self.merge_values(
             before_values,
@@ -160,12 +160,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // that code implements no source construct, and mapping it to the `if`, as solc's
         // `LocationSetter(m_context, _ifStatement)` does, would show the condition line again
         // after the arm ran. A debugger stops once on the `if`, at the condition.
-        let generated_exits = loop_break.is_none();
+        let dropped_exits = loop_break.is_none();
         let branches = self.lower_branches_labeled(
             condition,
             true,
             Some(label_span),
-            generated_exits,
+            dropped_exits,
             |this| {
                 this.builder.replace_source_span(previous);
                 this.lower_stmt(then_stmt)
@@ -183,9 +183,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    /// Runs `f` as code that belongs to no source construct when `generated`.
-    fn with_generated_origin(&mut self, generated: bool, f: impl FnOnce(&mut Self)) {
-        let previous = generated.then(|| self.builder.mark_compiler_generated());
+    /// Runs `f` with its locations dropped when `dropped`.
+    fn with_dropped_loc(&mut self, dropped: bool, f: impl FnOnce(&mut Self)) {
+        let previous = dropped.then(|| self.builder.drop_debug_loc());
         f(self);
         if let Some(previous) = previous {
             self.builder.restore_debug_context(previous);

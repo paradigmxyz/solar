@@ -12,9 +12,9 @@ contract C {
 
     // CHECK-LABEL: ; function arms(
     // CHECK: push 3 !metadata(span=
-    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]] !metadata(compiler_generated)
+    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]{{$}}
     // CHECK: push 2 !metadata(span=
-    // CHECK-NEXT: jump [[JOIN]] !metadata(compiler_generated)
+    // CHECK-NEXT: jump [[JOIN]]{{$}}
     // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: push 0 !metadata(span=
     function arms(bool c) external returns (uint256 r) {
@@ -34,7 +34,7 @@ contract C {
     // CHECK: swap 2 !metadata(span=
     // CHECK-NEXT: pop !metadata(span=
     // CHECK-NEXT: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
-    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
+    // CHECK-NEXT: jump {{bb[0-9]+}}{{$}}
     function phiArm(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {

@@ -9,7 +9,7 @@
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: bb{{[0-9]+}} !metadata(span=[[IF:[0-9]+\.\.[0-9]+]]):{{[[:space:]]+}}swap 2 !metadata(span=[[IF]])
 // CHECK-NEXT: pop !metadata(span=[[IF]])
-// CHECK-NEXT: jump bb{{[0-9]+}} !metadata(compiler_generated)
+// CHECK-NEXT: jump bb{{[0-9]+}}{{$}}
 contract C {
     function choose(uint256 a, uint256 b, uint256 c, uint256 n)
         public pure returns (uint256, uint256, uint256)

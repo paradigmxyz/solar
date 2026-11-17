@@ -761,15 +761,15 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool, on
         .filter(|assignment| assignment.edge.is_none())
         .cloned()
         .collect::<Vec<_>>();
-    let generated_exit = func.blocks[block_id].terminator_metadata.debug_loc_kind()
-        == DebugLocKind::CompilerGenerated;
+    let dropped_exit =
+        func.blocks[block_id].terminator_metadata.debug_loc_kind() == DebugLocKind::Dropped;
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
     for &pred in &predecessors {
         redirect_edge(func, pred, block_id, target);
     }
     if let &[pred] = predecessors.as_slice() {
-        move_edge_assignments(func, pred, target, assignments, generated_exit);
+        move_edge_assignments(func, pred, target, assignments, dropped_exit);
     }
     let _ = invalidate_unreachable_block(func, block_id);
 }
@@ -793,7 +793,7 @@ fn move_edge_assignments(
     pred: BlockId,
     target: BlockId,
     assignments: Vec<EdgeAssignment>,
-    generated_exit: bool,
+    dropped_exit: bool,
 ) {
     let block = &mut func.blocks[pred];
     let edge = match &block.terminator {
@@ -808,7 +808,7 @@ fn move_edge_assignments(
     // The jump of the edge replaces the forwarder's jump, so it keeps that jump's lack of a
     // location.
     for assignment in assignments {
-        block.terminator_metadata.add_bypassed_assignment(assignment, edge, generated_exit);
+        block.terminator_metadata.add_bypassed_assignment(assignment, edge, dropped_exit);
     }
 }
 

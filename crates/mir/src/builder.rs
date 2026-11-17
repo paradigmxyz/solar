@@ -157,16 +157,15 @@ impl<'a> FunctionBuilder<'a> {
         previous
     }
 
-    /// Makes newly emitted instructions belong to no source construct, as LLVM's
-    /// `DebugLoc::getCompilerGenerated`, and returns the context to give back to
-    /// [`Self::restore_debug_context`].
-    pub fn mark_compiler_generated(&mut self) -> InstructionMetadata {
+    /// Drops the location of newly emitted instructions, as LLVM's `Instruction::dropLocation`,
+    /// and returns the context to give back to [`Self::restore_debug_context`].
+    pub fn drop_debug_loc(&mut self) -> InstructionMetadata {
         let previous = self.current_debug_context.clone();
-        self.current_debug_context.drop_debug_loc(DebugLocKind::CompilerGenerated);
+        self.current_debug_context.drop_debug_loc(DebugLocKind::Dropped);
         previous
     }
 
-    /// Restores a context returned by [`Self::mark_compiler_generated`].
+    /// Restores a context returned by [`Self::drop_debug_loc`].
     pub fn restore_debug_context(&mut self, context: InstructionMetadata) {
         self.current_debug_context = context;
     }

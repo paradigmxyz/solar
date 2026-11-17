@@ -27,9 +27,9 @@ contract C {
     // which leaves the arm of an `if` and has none.
     // CHECK-LABEL: ; function sameValueTwice(
     // CHECK: sstore
-    // CHECK-NEXT: dup 1 !metadata(compiler_generated)
-    // CHECK-NEXT: dup 1 !metadata(compiler_generated)
-    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
+    // CHECK-NEXT: dup 1{{$}}
+    // CHECK-NEXT: dup 1{{$}}
+    // CHECK-NEXT: jump {{bb[0-9]+}}{{$}}
     function sameValueTwice(bool c, uint256 a, uint256 b) external returns (uint256) {
         uint256 s = a * b;
         uint256 x = 1;
