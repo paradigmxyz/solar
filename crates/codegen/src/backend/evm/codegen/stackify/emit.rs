@@ -783,13 +783,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// they enclose its own, and any other value keeps the origins of the instruction that defines
     /// it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
-        let consumer = self.asm.debug_origin();
         if self.capture_debug_info
             && let Value::Inst(inst) = func.value(value)
             && let metadata = &func.inst(*inst).metadata
             && metadata.source_spans().next().is_some()
+            && let consumer = self.asm.debug_origin()
             && (!is_operandless_read(func, value)
-                || consumer.source_spans().next().is_none()
+                || !consumer.has_source_spans()
                 || metadata
                     .source_spans()
                     .all(|span| consumer.source_spans().any(|user| user.contains(span))))
@@ -798,16 +798,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             // origins, as LLVM's `TargetInstrInfo::reMaterialize` clones the original with its
             // `DebugLoc`.
             //
-            // A read without operands, such as a calldata parameter or `msg.sender`, is no
-            // computation of its own: it is re-executed at the use like an immediate, which takes
-            // the user's origins. LLVM materializes a per-use constant under the user's location
-            // (`FastISel::flushLocalValueMap` gives a local value the `DebugLoc` of the first
-            // instruction after it, and SelectionDAG materializes constants at the user's
-            // `SDLoc`), and a reload has no location of its own (`loadRegFromStackSlot` builds it
-            // with `DebugLoc()`), so the use's line continues. The definition's location would
-            // send the debugger back to the parameter list or to an earlier statement at every
-            // use. A definition inside the use, such as the `msg.sender` of `msg.sender == owner`,
-            // is the more precise origin of this very read, so it stays.
+            // A read without operands, such as a calldata parameter or `msg.sender`, is
+            // re-executed at the use like an immediate, so it takes the user's origins, as LLVM
+            // gives a per-use materialized constant the user's location and a reload none of its
+            // own. The definition's origins would send the debugger back to the parameter list or
+            // to an earlier statement at every use. A definition inside the use is the more precise
+            // origin of this very read, so it stays.
             self.asm.set_source_spans(metadata.source_spans());
             self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
