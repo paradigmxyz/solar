@@ -1,0 +1,24 @@
+{
+  "lean_base": {"selected": "7dfef8168be7304638e4af73ba8917d437defe6d", "default_pin": "334d1d924f8f6c29ac827fd81d1cc739721b479a", "selected_tree": "dda24817de5e08906145f6a574768fc9a2ab021d"},
+  "solar": {"r1": "ea124c8915f454e588024b6d8296023a6950da32", "tree": "3f8dcc05cdd4799cad9353b77c57b161b520b508", "worktree": "/home/hand/h2/hsrc (a fresh clone of the r1 bundle on this box; this runner is its only writer)"},
+  "sources": {"Counter.sol": "f1c87a334b8db31fc8f80541febeaf8617318d20b685634f44e26c74146ad326", "CounterFn.sol": "5fc81856e19da3b1ae84d75f5f7eeb3d12cca84358f45e800e5ddcd6f5413ea8", "CounterMut.sol": "022d695899d77e698bbcba466af6ec0d6b7a9c4cf42efe3fb903a750d60b1e78"},
+  "spec": "none (generic.py spec argument none; Expected not applicable to these BLOCKED/REJECTED runs)",
+  "options": "19372780bdd4837745df54941645574ecdf56b0998e9ec40f17d0ce6ec7deb9d generic.py; per-case options in rec-*/record.json",
+  "solc": "fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4",
+  "z3": "1bfaf5bbe81fd0b7800500ee08eef426aaabe18f8b9c4c4c32adffcd72f86cd5 Z3 version 4.15.4 - 64 bit",
+  "producer": {
+  "binary_sha256": "fbd677af4382b6b170e9f256691a4f8a59156847f6f1131dd45ca67f4556bf9f",
+  "binary_path": "/home/hand/h2/hsrc/target/debug/solar",
+  "embedded_commit": "ea124c8915f454e588024b6d8296023a6950da32",
+  "driver_commit": "ea124c8915f454e588024b6d8296023a6950da32",
+  "dirty": false,
+  "profile": "debug",
+  "features": "mimalloc,tracing",
+  "build_command": "cargo build --locked --bin solar --bin solar-verify -v",
+  "built_on": "this box, fresh target",
+  "solar_verify_sha256": "6da8516d5d3488eed396473bf8d39c752c3e5ff8f5bc8eb8619c506307c5e15c",
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)"
+},
+  "edge_open": "the published statement does not apply loop_equiv yet (loop_cuts.py); an Obl build is not final equivalence, termination, property or resources",
+  "resources": "OPEN", "lifecycle": "OPEN"
+}

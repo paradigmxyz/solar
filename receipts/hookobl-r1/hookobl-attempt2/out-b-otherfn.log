@@ -1,0 +1,5 @@
+== generic: /home/hand/hopack/CounterFn.sol (5fc81856e19da3b1ae84d75f5f7eeb3d12cca84358f45e800e5ddcd6f5413ea8) as counterfn_5fc81856, requested tier compiled
+loop heads: c57b3a98d078117b5fea56bd620eadfa1797ab6accb12f668d183b3a940f8a1b; loop functions bump2
+loop cut bump2: BLOCKED at obligations: the generator refuses: loop obligations: refused: the summary was proved for another function or body than the imported one
+resource obligation (fixed fuel): REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)
+REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)

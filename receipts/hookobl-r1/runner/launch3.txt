@@ -1,0 +1,1 @@
+2026-11-17T23:25:08Z launch (attempt 3; attempt 2 blocked b-mutsrc and c-own at the generator imports' lake build, which then built outside the scope; full.py now logs lake's error lines): setsid nohup bash /home/hand/hopack/hookobl.sh 1794962910 > /home/hand/hookobl-runner.out 2>&1 < /dev/null &

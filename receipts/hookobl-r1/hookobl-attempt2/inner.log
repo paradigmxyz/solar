@@ -1,0 +1,9 @@
+2026-11-17T23:16:55Z producer {"binary_sha256":"fbd677af4382b6b170e9f256691a4f8a59156847f6f1131dd45ca67f4556bf9f","binary_path":"/home/hand/h2/hsrc/target/debug/solar","embedded_commit":"ea124c8915f454e588024b6d8296023a6950da32","driver_commit":"ea124c8915f454e588024b6d8296023a6950da32","dirty":false,"profile":"debug","features":"mimalloc,tracing","build_command":"cargobuild--locked--binsolar--binsolar-verify-v","built_on":"thisbox,freshtarget","solar_verify_sha256":"6da8516d5d3488eed396473bf8d39c752c3e5ff8f5bc8eb8619c506307c5e15c","rustc":"rustc1.100.0(0ef1bc3862026-11-09)"}
+2026-11-17T23:16:55Z case a-nosummary start
+2026-11-17T23:18:31Z case a-nosummary exit 1
+2026-11-17T23:18:33Z case b-otherfn start
+2026-11-17T23:20:22Z case b-otherfn exit 1
+2026-11-17T23:20:24Z case b-mutsrc start
+2026-11-17T23:22:08Z case b-mutsrc exit 1
+2026-11-17T23:22:10Z case c-own start
+2026-11-17T23:23:54Z case c-own exit 1

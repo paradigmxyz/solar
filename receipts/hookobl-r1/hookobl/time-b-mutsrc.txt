@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "python3 /home/hand/hopack/full.py /home/hand/h2/hookobl/cmd-b-mutsrc.jsonl -- /home/hand/hopack/CounterMut.sol none --contract Counter --solidity-lean /home/hand/h2/sl --base 7dfef8168be7304638e4af73ba8917d437defe6d --work /home/hand/h2/acc/w-b-mutsrc --record-dir /home/hand/h2/hookobl/rec-b-mutsrc --solc /home/hand/.cache/solc/solc-0.8.35 --probe-cache /home/hand/h2/cache --loop-summary bump=Verify.LoopSource.Equiv.Counter.Summary:Verify.LoopSource.Equiv.CounterSummary.summary"
+	User time (seconds): 116.39
+	System time (seconds): 18.48
+	Percent of CPU this job got: 128%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:45.07
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3075344
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4123819
+	Voluntary context switches: 346861
+	Involuntary context switches: 6628
+	Swaps: 0
+	File system inputs: 200
+	File system outputs: 24181600
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

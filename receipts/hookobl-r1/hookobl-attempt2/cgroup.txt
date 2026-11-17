@@ -1,0 +1,4 @@
+unit hookobl-1794957385.scope
+cgroup /system.slice/hookobl-1794957385.scope
+memory.max 47244640256
+memory.swap.max 0

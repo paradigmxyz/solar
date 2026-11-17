@@ -1,0 +1,9 @@
+2026-11-17T23:25:08Z hookobl start; expires 2026-11-18T00:48:30Z; ttl_left_s 5002; nproc 12; mem_kb 48397724
+2026-11-17T23:25:11Z apt installed: none
+2026-11-17T23:25:22Z STEP staged
+2026-11-17T23:25:22Z scope hookobl-1794957922: memory.max 47244640256 swap.max 0
+2026-11-17T23:25:22Z STEP scope
+2026-11-17T23:34:08Z fresh check started with 4462 s left; it is stopped at TTL-15min and then recorded OPEN
+2026-11-17T23:36:53Z scope ended; EXIT 0
+2026-11-17T23:36:53Z STEP done
+2026-11-17T23:36:53Z VERDICT FINISHED 0

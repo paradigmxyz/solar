@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "python3 /home/hand/hopack/full.py /home/hand/h2/hookobl/cmd-a-nosummary.jsonl -- /home/hand/hopack/Counter.sol none --contract Counter --solidity-lean /home/hand/h2/sl --base 7dfef8168be7304638e4af73ba8917d437defe6d --work /home/hand/h2/acc/w-a-nosummary --record-dir /home/hand/h2/hookobl/rec-a-nosummary --solc /home/hand/.cache/solc/solc-0.8.35 --probe-cache /home/hand/h2/cache"
+	User time (seconds): 121.56
+	System time (seconds): 19.51
+	Percent of CPU this job got: 146%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:36.45
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2678860
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 159
+	Minor (reclaiming a frame) page faults: 6553572
+	Voluntary context switches: 316826
+	Involuntary context switches: 8367
+	Swaps: 0
+	File system inputs: 6568
+	File system outputs: 27272832
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

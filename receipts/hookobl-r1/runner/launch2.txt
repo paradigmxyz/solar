@@ -1,0 +1,1 @@
+2026-11-17T23:16:12Z launch (attempt 2; attempt 1 stopped at cargo: command not found in the scope): setsid nohup bash /home/hand/hopack/hookobl.sh 1794962910 > /home/hand/hookobl-runner.out 2>&1 < /dev/null &

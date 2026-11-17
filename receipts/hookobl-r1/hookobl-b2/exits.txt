@@ -1,0 +1,2 @@
+case 1
+diag 1

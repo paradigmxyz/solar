@@ -1,0 +1,9 @@
+{
+ "name": "pyramid-prd-t7-hookobl-61bd",
+ "plan": "m4-metal-small",
+ "region": "FRA",
+ "keep_alive": "2h0m0s",
+ "created_at": "2026-11-17T22:48:30.965928975Z",
+ "expires_at": "2026-11-18T00:48:30.965928975Z",
+ "source": "boxctl get_box"
+}

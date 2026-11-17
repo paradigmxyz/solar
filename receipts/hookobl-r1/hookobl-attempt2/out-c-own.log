@@ -1,0 +1,14 @@
+== generic: /home/hand/hopack/Counter.sol (f1c87a334b8db31fc8f80541febeaf8617318d20b685634f44e26c74146ad326) as counter_f1c87a33, requested tier compiled
+loop heads: 296742d04195d6114323f9c1c2ecd89a5726194b843042e7f0b2eb71f6300ec7; loop functions bump
+loop cut bump: BLOCKED at obligations: lake cannot build the generator's imports: pVC.lean:353:26: This simp argument is unused:
+  z2
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [m, z0, z1]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Some required targets logged failures:
+- Contracts.VerifyCounter.Source
+error: build failed
+resource obligation (fixed fuel): REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)
+REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)

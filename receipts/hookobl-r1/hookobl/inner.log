@@ -1,0 +1,13 @@
+2026-11-17T23:25:52Z producer {"binary_sha256":"9491083231e1c07d1bb56c6cf40924e41298f0e204472aa91f65fb5f87b8f73f","binary_path":"/home/hand/h2/hsrc/target/debug/solar","embedded_commit":"ea124c8915f454e588024b6d8296023a6950da32","driver_commit":"ea124c8915f454e588024b6d8296023a6950da32","dirty":false,"profile":"debug","features":"mimalloc,tracing","build_command":"cargobuild--locked--binsolar--binsolar-verify-v","built_on":"thisbox,freshtarget","solar_verify_sha256":"f9d84c9ba96859598909660302aaf33f39f475a1d26e4b8735da6cb3ded3cf8d","rustc":"rustc1.100.0(0ef1bc3862026-11-09)"}
+2026-11-17T23:25:52Z case a-nosummary start
+2026-11-17T23:27:29Z case a-nosummary exit 1
+2026-11-17T23:27:31Z case b-otherfn start
+2026-11-17T23:29:16Z case b-otherfn exit 1
+2026-11-17T23:29:18Z case b-mutsrc start
+2026-11-17T23:31:03Z case b-mutsrc exit 1
+2026-11-17T23:31:05Z case c-own start
+2026-11-17T23:33:22Z case c-own exit 1
+2026-11-17T23:33:23Z axioms exit 0
+2026-11-17T23:34:07Z leanchecker per module: counter_f1c87a33.Loops.bump.Data 0 counter_f1c87a33.Loops.bump.Obl 0 counter_f1c87a33.Loops.bump.V0 0 counter_f1c87a33.Loops.bump.V1 0 counter_f1c87a33.Loops.bump.V2 0 counter_f1c87a33.Loops.bump.V3 0 counter_f1c87a33.Loops.bump.V4 0 counter_f1c87a33.Loops.bump.V5 0 counter_f1c87a33.Loops.bump.V6 0 counter_f1c87a33.Loops.bump.V7 0 
+2026-11-17T23:34:09Z leanchecker --fresh Obl start
+2026-11-17T23:36:48Z leanchecker --fresh exit fresh 0

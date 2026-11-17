@@ -1,0 +1,5 @@
+'Certified.counter_f1c87a33.Loops.bump.leaves' depends on axioms: [propext, Quot.sound]
+'Certified.counter_f1c87a33.Loops.bump.tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Certified.counter_f1c87a33.Loops.bump.seqs' depends on axioms: [propext]
+'Certified.counter_f1c87a33.Loops.bump.valid' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Certified.counter_f1c87a33.Loops.bump.obl' depends on axioms: [propext, Classical.choice, Quot.sound]

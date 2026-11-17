@@ -1,0 +1,13 @@
+{
+  "binary_sha256": "9491083231e1c07d1bb56c6cf40924e41298f0e204472aa91f65fb5f87b8f73f",
+  "binary_path": "/home/hand/h2/hsrc/target/debug/solar",
+  "embedded_commit": "ea124c8915f454e588024b6d8296023a6950da32",
+  "driver_commit": "ea124c8915f454e588024b6d8296023a6950da32",
+  "dirty": false,
+  "profile": "debug",
+  "features": "mimalloc,tracing",
+  "build_command": "cargo build --locked --bin solar --bin solar-verify -v",
+  "built_on": "this box, fresh target",
+  "solar_verify_sha256": "f9d84c9ba96859598909660302aaf33f39f475a1d26e4b8735da6cb3ded3cf8d",
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)"
+}

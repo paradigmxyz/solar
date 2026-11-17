@@ -1,0 +1,1 @@
+fresh OPEN (not finished before the TTL-15min stop)

@@ -1,0 +1,8 @@
+2026-11-17T23:14:44Z hookobl start; expires 2026-11-18T00:48:30Z; ttl_left_s 5626; nproc 12; mem_kb 48397724
+2026-11-17T23:14:49Z apt installed: git time libc6-dev
+2026-11-17T23:15:19Z STEP staged
+2026-11-17T23:15:19Z scope hookobl-1794957319: memory.max 47244640256 swap.max 0
+2026-11-17T23:15:19Z STEP scope
+2026-11-17T23:15:24Z scope ended; EXIT 1
+2026-11-17T23:15:24Z STEP done
+2026-11-17T23:15:24Z VERDICT FINISHED 1

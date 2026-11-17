@@ -1,0 +1,4 @@
+unit hookobl-b2-1794958725.scope
+memory.max 47244640256
+memory.swap.max 0
+started 2026-11-17T23:38:47Z: b-mutsrc diagnosis

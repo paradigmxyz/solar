@@ -1,0 +1,5 @@
+unit hookobl-b-1794958441.scope
+cgroup /system.slice/hookobl-b-1794958441.scope
+memory.max 21474836480
+memory.swap.max 0
+started 2026-11-17T23:34:03Z beside the main scope, to rerun the b cases

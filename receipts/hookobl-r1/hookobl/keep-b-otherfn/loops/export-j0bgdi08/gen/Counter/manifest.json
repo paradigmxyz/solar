@@ -1,0 +1,105 @@
+{
+  "arguments": [
+    "CounterFn.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=gen"
+  ],
+  "bytecode": "34603b575f3560e01c806306661abd14605157806312eb23211460725780636d5433e61460b5578063a4d66daf14605a578063d09de08a146064575b5f5ffd5b6011602052634e487b715f526024601cfd5b5f545f5260205ff35b6001545f5260205ff35b5f546001018015603f575f55005b60243610603b576004355f54818101818110603f576001541060d757905f035f60a7565b50906001018015603f579060010160015b816096571560b357505f555b005b60443610603b5760043560243580821060d057505f5260205ff35b5f5260205ff35b636f76657260e01b6004602080526040526060526308c379a05f526064601cfd",
+  "bytecode_sha256": "5ae251d51d362eb60d3d472a16cb2346d619461f304f4bfe4a950ce9638b7129",
+  "compiler": "0.8.38+commit.ea124c89.solar.0.3.0-dev",
+  "contract": "Counter",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"CounterFn.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, solar_tv_capture: false, emit_lean_stages: Some(\"gen\"), validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, keep_asts: false, forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "CounterFn.sol",
+      "sha256": "5fc81856e19da3b1ae84d75f5f7eeb3d12cca84358f45e800e5ddcd6f5413ea8"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "b8c31c666bad30476a55efb6bd9dfbea29891c2a35135c520676124e024f5709"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "3c0f4b8425504ec49f3f0e3aca1a51a0a46f3cfbc37d7a2268d24d6a8044ba01"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "edadab928d17259a2d290d24390923ec1f3643f2803cc9c559e75c6e0985ba85"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "compact-pushes",
+      "sha256": "e4e310a79fcc22e555f702f799f925669c0b6e110100f3213c1897b0b29dc574"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "4c7d212376fc820f10fcf8aad0ba59bcc2a919093565d3eb9a13ec4cebeb1732"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "dfcc50c12d77afd8f625da2008ce404ff8cca35f68881e8f7c64241ed70e394e"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "ec76f5097bb85d4a237602dbca4fcca96cfc47f497c03fdc8408d8a39f88ff8e"
+    },
+    {
+      "definition": "evm6",
+      "file": "Evm6.lean",
+      "index": 6,
+      "kind": "evm",
+      "pass": "block-cse",
+      "sha256": "fe7fd30ebd158f76b2e4e274a60d7ee680c31229a43ee507856ed1bae015ff56"
+    },
+    {
+      "definition": "evm7",
+      "file": "Evm7.lean",
+      "index": 7,
+      "kind": "evm",
+      "pass": "loop-layout",
+      "sha256": "4e47f9dbbec43765bf89ea577fa79c3a6e9c4aa273eed2335632b876f7ac64d3"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "9ab70ff093ebd8161b630a81ca825b9c5096a449b36c1a966fe29a58e3648b03"
+    }
+  ]
+}

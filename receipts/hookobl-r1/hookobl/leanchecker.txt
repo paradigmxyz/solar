@@ -1,0 +1,11 @@
+counter_f1c87a33.Loops.bump.Data 0
+counter_f1c87a33.Loops.bump.Obl 0
+counter_f1c87a33.Loops.bump.V0 0
+counter_f1c87a33.Loops.bump.V1 0
+counter_f1c87a33.Loops.bump.V2 0
+counter_f1c87a33.Loops.bump.V3 0
+counter_f1c87a33.Loops.bump.V4 0
+counter_f1c87a33.Loops.bump.V5 0
+counter_f1c87a33.Loops.bump.V6 0
+counter_f1c87a33.Loops.bump.V7 0
+fresh 0

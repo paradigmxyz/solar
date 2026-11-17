@@ -1,0 +1,14 @@
+== generic: /home/hand/hopack/CounterMut.sol (022d695899d77e698bbcba466af6ec0d6b7a9c4cf42efe3fb903a750d60b1e78) as countermut_022d6958, requested tier compiled
+loop heads: 7e03ef2e755a145949bcc154ddc0e0d6114a5970af90c28d5c4d74e1476cf5da; loop functions bump
+loop cut bump: BLOCKED at obligations: lake cannot build the generator's imports: pVC.lean:353:26: This simp argument is unused:
+  z2
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [m, z0, z1]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Some required targets logged failures:
+- Contracts.VerifyCounter.Source
+error: build failed
+resource obligation (fixed fuel): REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)
+REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)

@@ -1,0 +1,144 @@
+{
+  "schema": "solar-certify-generic/1",
+  "name": "counter_f1c87a33",
+  "started": "2026-11-17T23:31:06+00:00",
+  "command": [
+    "/home/hand/h2/hsrc/tools/certify/certify",
+    "/home/hand/hopack/Counter.sol",
+    "none",
+    "--contract",
+    "Counter",
+    "--solidity-lean",
+    "/home/hand/h2/sl",
+    "--base",
+    "7dfef8168be7304638e4af73ba8917d437defe6d",
+    "--work",
+    "/home/hand/h2/acc/w-c-own",
+    "--record-dir",
+    "/home/hand/h2/hookobl/rec-c-own",
+    "--solc",
+    "/home/hand/.cache/solc/solc-0.8.35",
+    "--probe-cache",
+    "/home/hand/h2/cache",
+    "--loop-summary",
+    "bump=Verify.LoopSource.Equiv.Counter.Summary:Verify.LoopSource.Equiv.CounterSummary.summary"
+  ],
+  "requested_tier": "compiled",
+  "source": {
+    "file": "/home/hand/hopack/Counter.sol",
+    "sha256": "f1c87a334b8db31fc8f80541febeaf8617318d20b685634f44e26c74146ad326"
+  },
+  "spec": {
+    "kind": "none",
+    "sha256": null
+  },
+  "invariants": {
+    "file": null,
+    "sha256": null
+  },
+  "options": [
+    "-Ogas",
+    "--evm-version",
+    "osaka"
+  ],
+  "solar": {
+    "commit": "ea124c8915f454e588024b6d8296023a6950da32",
+    "dirty": false
+  },
+  "solc": {
+    "version": "0.8.35",
+    "path": "/home/hand/.cache/solc/solc-0.8.35",
+    "sha256": "fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4"
+  },
+  "lean_toolchain": {
+    "recorded_digest": "953aa1e72283c07686567bb71eeb3fca202baafe2958a7e57987d3b8c4434c25"
+  },
+  "loop_cuts_solar_sha256": "9491083231e1c07d1bb56c6cf40924e41298f0e204472aa91f65fb5f87b8f73f",
+  "loop_heads": {
+    "path": "/home/hand/h2/acc/w-c-own/loops/loop-heads.json",
+    "sha256": "296742d04195d6114323f9c1c2ecd89a5726194b843042e7f0b2eb71f6300ec7",
+    "checked": true
+  },
+  "loop_cuts": {
+    "bump": {
+      "loop_heads": {
+        "path": "/home/hand/h2/acc/w-c-own/loops/loop-heads.json",
+        "sha256": "296742d04195d6114323f9c1c2ecd89a5726194b843042e7f0b2eb71f6300ec7"
+      },
+      "cut": {
+        "path": "/home/hand/h2/acc/w-c-own/loops/LoopCut.bump.lean",
+        "sha256": "e583390029cc3fe86685bcf8b84bed2500907103349508c8fdb6caa9f63578c5"
+      },
+      "obligations": [
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/Data.lean",
+          "sha256": "6ca3bbb38c4dcf2dba3723715b77c6fcb7b76bb0fba2edd1f085b0757a40f109"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V0.lean",
+          "sha256": "11fc9125d8285884a4e0f034829584e392eadfabbdb81c79d6753986120fc2d1"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V1.lean",
+          "sha256": "b87ebb479da873ebf862d6143f5b816ad15ed98ee21e23087d6a0f45b8de5180"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V2.lean",
+          "sha256": "fc9c6b3d3b415391490a2680f0e8d48e9473cd86964d246370b983c2fb7ece8e"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V3.lean",
+          "sha256": "40e066b4feda3f2e2ed4cd8eb48b66fe5e2f424098a735bf1673bac1bc170fc2"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V4.lean",
+          "sha256": "c10dfeeb8a2ef13eb11b52c3faf77f4cf6b145d66b67198ccf76f0c035c39a5b"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V5.lean",
+          "sha256": "70bc5f59fb8a2bf4c1979507495899b1a64e4a7690491f85611174b3e7c6efd2"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V6.lean",
+          "sha256": "d275a41a8fd68f207aa462e4df6e3bcc1d459bd2df2b3b87a714025b3a53f1c1"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/V7.lean",
+          "sha256": "ae5b6d9208d4b7d56764d7367f93efb0d970ff3d23505f0273643f0dd29d8c03"
+        },
+        {
+          "path": "/home/hand/h2/acc/w-c-own/solidity-lean/Certified/counter_f1c87a33/Loops/bump/Obl.lean",
+          "sha256": "d1030240378244622b21d8dcb47312aca0945e5b1906947ffc73c8d71a211da1"
+        }
+      ],
+      "measure": "SolidCore.Refinement.Generic.WExpr.bin   (SolidCore.Refinement.Generic.BinOp.sub)   (SolidCore.Refinement.Generic.WExpr.lit 0)   (SolidCore.Refinement.Generic.WExpr.arg 1)"
+    }
+  },
+  "loop_cuts_blocked": {},
+  "resource_obligation": {
+    "kind": "fixed-fuel",
+    "loop": {
+      "function": "bump",
+      "src": "704:64:0",
+      "M": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+      "limit": "word"
+    },
+    "final_evm_ir": "Evm7",
+    "header": 8,
+    "B": 2,
+    "X": 3,
+    "E": 2,
+    "F": 231584178474632390847141970017375815706539969331281128078915168015826259279875,
+    "M": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+    "bmax": 32,
+    "memory": 12,
+    "per_iteration_gas": 1414400,
+    "exit_gas": 3536012,
+    "G": 163776331017260026807098801196288176867665066311082013777408806820792330562727600012,
+    "verdict": "out-of-gas",
+    "lean": "Verify.Gas.FixedFuel.verdictOf (some 115792089237316195423570985008687907853269984665640564039457584007913129639935) 1414400 3536012"
+  },
+  "rejected_for": "resource: out of gas",
+  "status": "REJECTED",
+  "finished": "2026-11-17T23:33:22+00:00"
+}
