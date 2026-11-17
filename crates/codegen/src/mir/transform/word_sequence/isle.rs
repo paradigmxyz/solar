@@ -263,7 +263,9 @@ impl generated::Context for Context<'_> {
 
     fn width_shifts(&mut self, bits: U256, fits: bool) -> bool {
         u32::try_from(bits).is_ok_and(|bits| {
-            self.target.shifts_bits_test(bits, fits, self.read.branch, self.read.in_loop)
+            // The shifted word is nonzero when the word does not fit.
+            let reads_word = if fits { self.read.fails_to_cold } else { self.read.branch };
+            self.target.shifts_bits_test(bits, fits, reads_word, self.read.in_loop)
         })
     }
 

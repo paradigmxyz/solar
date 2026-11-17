@@ -59,4 +59,26 @@ contract PhiEdges {
         }
         return state;
     }
+
+    function copyOnArm(bool c, uint256 a, uint256 b) external returns (uint256) {
+        uint256 s = a * b;
+        uint256 x = 1;
+        if (c) {
+            x = s;
+            stored = 2;
+        }
+        return x + s;
+    }
+
+    function sameValueTwice(bool c, uint256 a, uint256 b) external returns (uint256) {
+        uint256 s = a * b;
+        uint256 x = 1;
+        uint256 w = 2;
+        if (c) {
+            x = s;
+            w = s;
+            stored = 3;
+        }
+        return x + w + s;
+    }
 }

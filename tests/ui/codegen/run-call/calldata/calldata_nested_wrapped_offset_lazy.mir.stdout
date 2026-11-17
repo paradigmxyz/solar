@@ -1,0 +1,168 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_nested_wrapped_offset_lazy.sol:C ===
+@module C
+; function blen(S[] calldata items) external pure returns (uint256) [selector 0x6bd55553]
+fn @blen(arg0: slice<calldata>) -> i256 [selector=0x6bd55553, pure, abi_params=[array<_, tuple<uint256, bytes>>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = calldatasize
+    v7 = sub v6, v5
+    v8 = slt v7, 32
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = calldataload v5
+    v10 = ptrtoint ptr<calldata> v3 to i256
+    v11 = add v10, v9
+    v12 = calldatasize
+    v13 = ptrtoint ptr<calldata> v3 to i256
+    v14 = sub v12, v13
+    v15 = sub v14, 63
+    v16 = slt v9, v15
+    v17 = eq v16, false
+    icall revert_if<invalid_calldata_tail_offset>, v17
+    v18 = inttoptr i256 v11 to ptr<calldata>
+    v19 = make_calldata_slice v18, 32
+    v20 = extract_value slice<calldata>, v19, 0
+    v21 = ptrtoint ptr<calldata> v20 to i256
+    v22 = add v21, 32
+    v23 = calldatasize
+    v24 = sub v23, v22
+    v25 = slt v24, 32
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = calldataload v22
+    v27 = ptrtoint ptr<calldata> v20 to i256
+    v28 = add v27, v26
+    v29 = calldatasize
+    v30 = ptrtoint ptr<calldata> v20 to i256
+    v31 = sub v29, v30
+    v32 = sub v31, 31
+    v33 = slt v26, v32
+    v34 = eq v33, false
+    icall revert_if<invalid_calldata_tail_offset>, v34
+    v35 = calldataload v28
+    v36 = calldatasize
+    v37 = gt v35, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v37
+    v38 = add v28, 32
+    v39 = sub v36, v35
+    v40 = slt v39, v38
+    icall revert_if<calldata_tail_too_short>, v40
+    v41 = inttoptr i256 v38 to ptr<calldata>
+    v42 = make_calldata_slice v41, v35
+    v43 = extract_value slice<calldata>, v42, 1
+    ret v43
+}
+
+; function vlen(T[] calldata items) external pure returns (uint256) [selector 0xbf810a8e]
+fn @vlen(arg0: slice<calldata>) -> i256 [selector=0xbf810a8e, pure, abi_params=[array<_, tuple<uint256, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = calldatasize
+    v7 = sub v6, v5
+    v8 = slt v7, 32
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = calldataload v5
+    v10 = ptrtoint ptr<calldata> v3 to i256
+    v11 = add v10, v9
+    v12 = calldatasize
+    v13 = ptrtoint ptr<calldata> v3 to i256
+    v14 = sub v12, v13
+    v15 = sub v14, 63
+    v16 = slt v9, v15
+    v17 = eq v16, false
+    icall revert_if<invalid_calldata_tail_offset>, v17
+    v18 = inttoptr i256 v11 to ptr<calldata>
+    v19 = make_calldata_slice v18, 32
+    v20 = extract_value slice<calldata>, v19, 0
+    v21 = ptrtoint ptr<calldata> v20 to i256
+    v22 = add v21, 32
+    v23 = calldatasize
+    v24 = sub v23, v22
+    v25 = slt v24, 32
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = calldataload v22
+    v27 = ptrtoint ptr<calldata> v20 to i256
+    v28 = add v27, v26
+    v29 = calldatasize
+    v30 = ptrtoint ptr<calldata> v20 to i256
+    v31 = sub v29, v30
+    v32 = sub v31, 31
+    v33 = slt v26, v32
+    v34 = eq v33, false
+    icall revert_if<invalid_calldata_tail_offset>, v34
+    v35 = calldataload v28
+    v36 = calldatasize
+    v37 = gt v35, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v37
+    v38 = mul v35, 32
+    v39 = add v28, 32
+    v40 = sub v36, v38
+    v41 = slt v40, v39
+    icall revert_if<calldata_tail_too_short>, v41
+    v42 = inttoptr i256 v39 to ptr<calldata>
+    v43 = make_calldata_slice v42, v35
+    v44 = extract_value slice<calldata>, v43, 1
+    ret v44
+}
+
+; function dp(D[] calldata items) external pure returns (P memory) [selector 0x48174d1f]
+fn @dp(arg0: slice<calldata>) -> ptr<memory> [selector=0x48174d1f, pure, abi_params=[array<_, tuple<bytes, tuple<uint256, uint256>>>], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = gt v2, 0
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = ptrtoint ptr<calldata> v5 to i256
+    v7 = add v6, 0
+    v8 = calldatasize
+    v9 = sub v8, v7
+    v10 = slt v9, 32
+    icall revert_if<calldata_tail_too_short>, v10
+    v11 = calldataload v7
+    v12 = ptrtoint ptr<calldata> v5 to i256
+    v13 = add v12, v11
+    v14 = calldatasize
+    v15 = ptrtoint ptr<calldata> v5 to i256
+    v16 = sub v14, v15
+    v17 = sub v16, 95
+    v18 = slt v11, v17
+    v19 = eq v18, false
+    icall revert_if<invalid_calldata_tail_offset>, v19
+    v20 = inttoptr i256 v13 to ptr<calldata>
+    v21 = make_calldata_slice v20, 32
+    v22 = extract_value slice<calldata>, v21, 0
+    v23 = ptrtoint ptr<calldata> v22 to i256
+    v24 = add v23, 32
+    v25 = inttoptr i256 v24 to ptr<calldata>
+    v26 = make_calldata_slice v25, 64
+    v27 = extract_value slice<calldata>, v26, 0
+    v28 = calldatasize
+    v29 = ptrtoint ptr<calldata> v27 to i256
+    v30 = sub v28, v29
+    v31 = slt v30, 64
+    icall revert_if<calldata_tail_too_short>, v31
+    v32 = alloc 64
+    v33 = calldataload v27
+    mstore v32, v33
+    v34 = ptrtoint ptr<calldata> v27 to i256
+    v35 = add v34, 32
+    v36 = calldataload v35
+    v37 = ptradd v32, 32
+    mstore v37, v36
+    ret v32
+}

@@ -66,9 +66,9 @@ fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_p
     v34 = calldatasize
     v35 = gt v33, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v35
-    v36 = sub v34, v33
-    v37 = ptrtoint ptr<calldata> v32 to i256
-    v38 = slt v36, v37
+    v36 = ptrtoint ptr<calldata> v32 to i256
+    v37 = add v36, v33
+    v38 = lt v34, v37
     icall revert_if<calldata_tail_too_short>, v38
     v39 = extract_value slice<calldata>, v31, 1
     v40 = add v39, 31

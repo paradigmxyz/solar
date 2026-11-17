@@ -1,0 +1,12 @@
+//~? ERROR: EVM IR verification failed: block 1: `pop` on an empty stack
+@module module
+
+// A `jump` whose label push is kept with it is a direct edge, so the walk reaches the block it
+// enters, as it does for `jump bb1`, and checks the stack there.
+bb0:
+  push bb1 !meta(keep_with_next)
+  jump
+
+bb1:
+  pop
+  stop
