@@ -22,6 +22,7 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 /// Drops the counters that another counter always has the hits of.
@@ -44,6 +45,10 @@ impl MirPass for CoverageAlias {
         true
     }
 
+    fn preserves_debugify_sites(&self) -> bool {
+        true
+    }
+
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
         let aliases = find_aliases(module);
         if aliases.is_empty() {
@@ -54,7 +59,11 @@ impl MirPass for CoverageAlias {
             for block in func.blocks.indices() {
                 let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
                 instructions.retain(|&inst| {
-                    !matches!(func.inst(inst).kind, InstKind::Coverage(id) if dropped.contains(&id))
+                    let drop = matches!(func.inst(inst).kind, InstKind::Coverage(id) if dropped.contains(&id));
+                    if drop {
+                        func.inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
+                    }
+                    !drop
                 });
                 func.blocks[block].instructions = instructions;
             }
