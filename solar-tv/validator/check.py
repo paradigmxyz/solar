@@ -675,7 +675,7 @@ def main() -> int:
     selection.add_argument(
         "--prune",
         action="store_true",
-        help="prove deletion-only rooted MIR function tables",
+        help="prove unreachable-function or unused-type erasure in MIR modules",
     )
     parser.add_argument(
         "--stack-height",
@@ -747,7 +747,11 @@ def main() -> int:
             from . import prune
 
             result = prune.check(
-                (args.before, args.after), solar, version, args.timeout
+                (args.before, args.after),
+                solar,
+                version,
+                args.timeout,
+                executable=rust_replay,
             )
             programs = list(result.pair)
         elif args.prefix:

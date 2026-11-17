@@ -164,10 +164,10 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             and region["kind"] == "region"
             and row["rejection"] == "incoming EVM stack height is unknown"
         )
-        prune = (
-            row["layer"] == "mir"
-            and row["rejection"] == "function was removed or its identity changed"
-        )
+        prune = row["layer"] == "mir" and row["rejection"] in {
+            "function was removed or its identity changed",
+            "shared MIR declarations or phase changed; no function-local claim",
+        }
         if row["rejection"] and not (prefix or universal_region or prune):
             record = {
                 "version": 1,

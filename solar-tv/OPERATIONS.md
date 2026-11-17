@@ -229,6 +229,12 @@ certificate for every execution bound; opcode and physical-layout bindings
 remain trusted. See
 the [region examples](README.md#multi-block-evm-ir-regions).
 
+Complete unused MIR type-table erasure also has a module-level structural
+certificate. It checks independently resolved typed data for every retained
+function and preserves globals, phase and source text. This does not relax
+normal GAS execution or prove primitive instruction implementations; see
+the [type-pruning example](README.md#removing-unused-mir-type-declarations).
+
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
    Derive general MIR message budgets from priced execution rather than supplied
    boundary inputs; model root reentry through MIR entry semantics.

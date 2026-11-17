@@ -81,6 +81,28 @@ global declarations or phases, deleted external roots and missing call targets
 are unsupported. A changed live result has an independent semantic
 counterexample in `examples/mir/function-dce/`.
 
+Complete unused named-type table erasure has a separate resolved-data theorem
+in `MIR/Transforms/TypeDCE.lean`. Each source module is independently parsed and
+validated. All functions are exported, including unreachable bodies, with
+structural types resolved in parameters, results, operands and operations. The
+kernel checks these complete typed graphs and the full retained canonical text
+for equality. Functions, numeric identities, order, phase, linked declarations,
+attributes and executable lines must remain unchanged. Partial table rewrites
+and simultaneous function removal are rejected.
+
+The theorem covers every initial state, work bound and interpreter of the
+resolved data. It does not execute unsupported operations, invent GAS results,
+assume that loops terminate or accept two matching model errors. The separate
+module export is explicitly structural: ordinary source/replay requests keep
+their GAS execution restrictions. Compiler parsing, schema export and typed
+constructor rendering remain trusted; primitive instruction implementations,
+physical gas and backend layout remain outside this structural certificate.
+Reports identify `resolved-type-table-erasure`, retain module scope with
+`whole_pass: false`, list every retained function and erased type, and hash the
+independent resolved graphs. Tests reject corrupted resolved data despite equal
+retained text. The real pass pair and a wrong-store kernel/native witness are
+in `examples/mir/type-pruning/`.
+
 Allocation coalescing has a separate conditional prefix certificate in
 `MIR/Transforms/CoalesceAlloc.lean`. Kernel-checked normalization separates the
 ordered data writes from reservation updates. It proves equality of complete
@@ -479,21 +501,30 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **21 of 24**, with
-3 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+Rechecking those same frozen pairs at 30 seconds now verifies **22 of 24**, with
+2 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
 constructor first raised the count to 16; the OpenZeppelin ERC20Mock
 `lower-alloc` constructor then raised it to 17, and WETH's `block-cse` window
 raised it to 18. WETH's `block-layout` region then raised it to 19 through the
 separately reported source-graph identity certificate. ERC20Mock's
 `block-layout` region then raised it to 20 through the stack-layout simulation.
 WETH's `lower-alloc` body raises it to 21 under the explicitly reported
-fresh-heap placement/FMP producer condition. No other check changes status.
+fresh-heap placement/FMP producer condition. Morpho's unused type-table erasure
+raises it to 22 through resolved module-data identity. No other check changes
+status.
 The selected check identities, input hashes and compiler-output hashes are
 identical; compilation results are reused.
-The compiler fingerprint is
+The original capture compiler fingerprint is
 `8a897a40c88678e68e53f3b08b0e86099d5190f94478681ceda9c68e3ef3ae37`
 and independent replay is
 `b3e69bf9df7c153571cb67cecc99249abcb8a75c4600d0f51bfcdcd4183e182d`.
+The current validation compiler is
+`3b234fd5cb924dc426bbc8048f0093a3f90cf9635090fff7b1b890a92216dc6e`
+and the helper with structural module export is
+`122a13e1e1891d513c3b8c351176888332e623b8e6465007755ee1da407f6f57`.
+The original captures and check IDs are reused; plain ABI and bytecode outputs
+from the new compiler match every saved contract fingerprint. Live audit and
+capture bytecode neutrality also have end-to-end tests.
 
 Morpho's `lower-alloc` constructor pair now verifies through the compositional
 effect-tree route. The FMP request is defined as `MLOAD(64)` and its primitive
@@ -546,6 +577,14 @@ extents. A concrete disagreeing floor demonstrates why the condition cannot
 be omitted. Proving that callers and actual backend placements establish this
 condition remains separate work; this is not unrestricted caller-state or
 physical-gas equivalence.
+
+Morpho's `lower-structs` pair removes only `struct0` through `struct3` from the
+presentation table. All 47 functions, including unreachable bodies, are
+independently exported with resolved types. The kernel checks the complete
+typed tables and retained text for equality. This is the structural certificate
+described above, not a claim that every primitive operation or physical layout
+has a proved interpreter embedding. The two remaining frozen cases still need
+storage-loop invariants and a priced GAS/call boundary, respectively.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.

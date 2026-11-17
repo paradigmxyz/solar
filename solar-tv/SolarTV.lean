@@ -44,6 +44,7 @@ import SolarTV.EVMIR.Effects
 import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
 import SolarTV.MIR.Transforms.FreshHeap
+import SolarTV.MIR.Transforms.TypeDCE
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -322,3 +323,7 @@ import SolarTV.MIR.Transforms.FreshHeap
 /-- info: 'SolarTV.MIR.FreshHeap.inhabited' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.FreshHeap.inhabited
+
+/-- info: 'SolarTV.MIR.TypeDCE.certificate' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.MIR.TypeDCE.certificate

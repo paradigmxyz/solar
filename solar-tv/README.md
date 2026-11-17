@@ -1418,6 +1418,42 @@ function-pointer dispatchers, backend-memory records, changed surviving bodies
 or globals, and modules without explicit entry points are unsupported. Each
 module is limited to 1 MiB and 128 functions.
 
+### Removing unused MIR type declarations
+
+`--prune` also checks complete named-type table erasure when every function,
+global, phase and retained source line stays unchanged. Both source modules are
+independently parsed and validated, with named types resolved into structural
+parameter, result, operand and operation types. The kernel compares the complete
+resolved function tables and retained text:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/type-pruning/{before,after}.mir --prune
+solar-tv/solar-tv mir solar-tv/examples/mir/type-pruning/{after,broken}.mir \
+  --function f
+```
+
+The first example is real `lower-structs` output. The second has a wrong store,
+with a counterexample checked by Lean and independent Rust replay. Changing
+retained code, globals, phase, declaration order or resolved type identity is
+rejected. Partial type-table rewrites and simultaneous function deletion are
+outside this certificate.
+
+Reports use `resolved-type-table-erasure`, module scope and
+`unpriced-structural`. The theorem quantifies the interpreter, complete state
+and every execution bound. Cycles, calls and GAS nodes remain data; no operation
+is executed or assigned a default value to establish identity. A separate
+`--mir-module-model` source export retains every function, including unreachable
+bodies. It cannot select a function or relax normal replay's GAS restriction.
+The parser/schema exporter and typed constructor renderer remain trusted;
+primitive instruction implementations, physical gas and backend layout are
+not certified. Limits are 128 functions, 512 blocks, 4,096 instructions, 65,536
+type nodes and 64 KiB of exported constant data.
+
+Live audits automatically try this module certificate after a shared-declaration
+change. Unsupported edits still fail the checker; the adapter never drops an
+arbitrary header or phase change. Capture-only records retain their original
+rejection and selection, so the frozen corpus denominator stays unchanged.
+
 ### Allocation prefixes before unchanged cyclic callees
 
 An allocation-coalescing constructor can finish all changed instructions before
@@ -1563,14 +1599,17 @@ a broken-width counterexample are in `examples/mir/width-guard/` and
 its concrete fixture never establishes the positive universal result.
 
 After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
-9 unsupported. Rechecking those frozen pairs now verifies **21 of 24**, with
-3 unsupported, no errors, timeouts or counterexamples. The additional checks
+9 unsupported. Rechecking those frozen pairs now verifies **22 of 24**, with
+2 unsupported, no errors, timeouts or counterexamples. The additional checks
 use FMP lowering, conditional allocation-prefix, exact scalar-island,
 source-graph identity, stack-layout and conditional fresh-heap SSA certificates,
 as documented above. WETH's new `lower-alloc` result explicitly requires the
 named placement/FMP producer condition; it does not establish that condition
-at every caller. Selected check identities and compiler-output fingerprints
-are unchanged. This uses a new
+at every caller. Morpho's removal of four unused type definitions now verifies
+by preserving all 47 resolved function graphs and every retained source line.
+Selected check identities and compiler-output fingerprints are unchanged;
+plain outputs from the updated validation compiler match all three saved
+contract fingerprints. This uses a new
 compiler/capture fingerprint; it is not comparable to the older 17-of-24 selection above.
 See [CORRECTNESS.md](CORRECTNESS.md#remaining-obligations) for the fingerprints.
 

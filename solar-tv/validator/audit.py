@@ -156,6 +156,16 @@ def record(
                     "no physical gas, code-image or backend placement claim",
                 ]
             )
+        elif program and program.scope == "unused-type-erasure":
+            assumptions.extend(
+                [
+                    "complete canonical module code and declaration order retained; only the entire unused named-type table is erased",
+                    "independently parsed whole modules retain every function and resolve parameter, result, operand and operation types; kernel checks resolved program data and retained source text for equality",
+                    "arbitrary interpreter, complete live state and execution bound; calls, failure and cycles are retained rather than unrolled or assumed successful",
+                    "trusted independent compiler parser/schema export and typed constructor renderer; named references are resolved before constructing the semantic view",
+                    "structural resolved-module identity, not primitive instruction implementations, physical gas or backend layout; normal GAS execution restrictions remain unchanged",
+                ]
+            )
         elif program and program.scope == "fresh-heap-function":
             assumptions.extend(
                 [
@@ -299,7 +309,8 @@ def record(
         if (
             program
             and program.scope
-            and program.scope not in {"function-pruning", "allocation-prefix"}
+            and program.scope
+            not in {"function-pruning", "unused-type-erasure", "allocation-prefix"}
         ):
             assumptions.append(
                 "function-local proof with supplied callees; no whole-pass claim"
@@ -320,6 +331,7 @@ def record(
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "function-pruning",
+                "unused-type-erasure",
                 "allocation-prefix",
                 "interior-window",
                 "source-identity",
@@ -363,6 +375,7 @@ def record(
             and program.scope
             in {
                 "function-pruning",
+                "unused-type-erasure",
                 "allocation-prefix",
                 "source-identity",
                 "stack-layout",
@@ -415,6 +428,19 @@ def record(
                 },
             }
             if program and program.scope == "function-pruning"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "resolved-type-table-erasure",
+                    "removed_types": program.import_evidence["removed_types"],
+                    "functions": program.import_evidence["functions"],
+                },
+            }
+            if program and program.scope == "unused-type-erasure"
             else {}
         ),
         **(
