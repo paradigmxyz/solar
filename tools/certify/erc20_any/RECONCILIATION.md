@@ -34,7 +34,9 @@ Executed inputs that are NOT in any commit:
   stage manifest: the kernel proves `Manifest.stages = pinnedStages` (18 file sha256s) and
   `bytecode = runtimeBytes`, and a fresh build of 697fc686 reproduces all 18 stage files with
   exactly those sha256s (section 2). The box's Manifest.lean (dd296c8c…) differs from a fresh
-  export only in the temporary output path recorded in its arguments; that path was not kept.
+  export's (564d2f49…). The export records its temporary output directory in its arguments,
+  which differs on every run and was not kept, so the difference is expected but not shown to
+  be only that path: the box's file is gone.
 * `.cache/uniswap-v2/src` (the port) and `scripts/verify/uniswap-v2/UniswapV2ERC20.sol`:
   regenerated here from the pinned scripts; the three port sources' sha256s equal the
   Statement's `pinnedSources`.
