@@ -54,18 +54,27 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
         ),
         sites: FxHashMap::default(),
         next: 1,
+        scope: 0,
         next_decision: gcx.sess.opts.unstable.coverage_mcdc.then_some(0),
         dry: false,
         virtual_next: VIRTUAL_COUNTER,
         rec: Rec::default(),
+        expansions: FxHashMap::default(),
     };
     for &id in &functions {
-        walker.function(id);
+        if !gcx.hir.function(id).kind.is_modifier() {
+            walker.function(id);
+        }
     }
     let mut contracts = gcx.hir.contract_ids().collect::<Vec<_>>();
     contracts.sort_by_key(|&id| gcx.hir.contract(id).span.lo());
     for id in contracts {
         walker.init(id);
+    }
+    for &id in &functions {
+        if gcx.hir.function(id).kind.is_modifier() {
+            walker.modifier(id);
+        }
     }
     let mut map = CoverageMap { sources: walker.sources, sites: walker.sites };
     for source in map.sources.iter_mut() {
@@ -78,6 +87,8 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
 #[derive(Default)]
 struct Rec {
     files: Vec<hir::SourceId>,
+    /// The index of the file that regions are in.
+    file: u32,
     first: u32,
     regions: Vec<Region>,
     decisions: Vec<Decision>,
@@ -138,14 +149,18 @@ struct Outcome {
 struct Walker<'gcx> {
     gcx: Gcx<'gcx>,
     sources: IndexVec<hir::SourceId, SourceCoverage>,
-    sites: FxHashMap<Site, u32>,
+    sites: FxHashMap<(usize, Site), u32>,
     next: u32,
+    /// The modifier expansion that is being walked, keyed by its invocation, or `0`.
+    scope: usize,
     /// The ID of the next MC/DC decision, or `None` without `-Zcoverage-mcdc`.
     next_decision: Option<u32>,
     /// Whether to build the regions without counters, to learn their shape.
     dry: bool,
     virtual_next: u32,
     rec: Rec,
+    /// The regions of each expansion of each modifier.
+    expansions: FxHashMap<hir::FunctionId, Vec<Vec<Region>>>,
 }
 
 impl<'gcx> Walker<'gcx> {
@@ -156,7 +171,7 @@ impl<'gcx> Walker<'gcx> {
         }
         let id = self.next;
         self.next += 1;
-        let previous = self.sites.insert(site, id);
+        let previous = self.sites.insert((self.scope, site), id);
         debug_assert!(previous.is_none(), "coverage site {site:?} has two counters");
         Count::Counter(id)
     }
@@ -181,7 +196,8 @@ impl<'gcx> Walker<'gcx> {
     }
 
     fn region(&mut self, span: Span, kind: RegionKind) {
-        self.rec.regions.push(Region { file: 0, span, kind });
+        let file = self.rec.file;
+        self.rec.regions.push(Region { file, span, kind });
     }
 
     /// Opens a code region unless an enclosing one has the same count.
@@ -206,6 +222,11 @@ impl<'gcx> Walker<'gcx> {
             for arg in modifier.args.exprs() {
                 self.expr(arg);
             }
+            if let Some(modifier_id) = modifier.id.as_function()
+                && self.gcx.hir.function(modifier_id).kind.is_modifier()
+            {
+                self.expansion(modifier, modifier_id);
+            }
         }
         if let Some(body) = function.body {
             // A constructor runs its state variable initializers first.
@@ -216,6 +237,100 @@ impl<'gcx> Walker<'gcx> {
         }
         self.close();
         self.end(RecordOwner::Function(id), function.source);
+    }
+
+    /// Walks the body of `modifier_id` as invoked by `invocation`, in a virtual file of its own.
+    fn expansion(&mut self, invocation: &'gcx hir::Modifier<'gcx>, modifier_id: hir::FunctionId) {
+        let modifier = self.gcx.hir.function(modifier_id);
+        let Some(body) = modifier.body else { return };
+        let file = self.rec.files.len() as u32;
+        self.rec.files.push(modifier.source);
+        let scope = mem::replace(&mut self.scope, Site::key(invocation));
+        let entry = self.counter(Site::Function(modifier_id));
+        self.region(invocation.span, RegionKind::Expansion(entry.clone(), file));
+        let previous_file = mem::replace(&mut self.rec.file, file);
+        let enclosing = mem::take(&mut self.rec.enclosing);
+        let start = self.rec.regions.len();
+        self.open(modifier.span, &entry);
+        self.stmts(body.stmts, Some(entry));
+        self.close();
+        let regions = self.rec.regions[start..].to_vec();
+        self.expansions.entry(modifier_id).or_default().push(regions);
+        self.rec.enclosing = enclosing;
+        self.rec.file = previous_file;
+        self.scope = scope;
+    }
+
+    /// Builds the record of a modifier, whose counts are the sums of its expansions' counts.
+    ///
+    /// The decisions of the expansions have probes of their own, so the record has only the
+    /// branches of their conditions.
+    fn modifier(&mut self, id: hir::FunctionId) {
+        let modifier = self.gcx.hir.function(id);
+        let Some(body) = modifier.body else { return };
+        self.begin(modifier.source);
+        let mut regions = match self.expansions.remove(&id) {
+            Some(expansions) => {
+                let mut expansions = expansions.into_iter();
+                let mut regions = expansions.next().unwrap_or_default();
+                for expansion in expansions {
+                    for (region, other) in regions.iter_mut().zip(expansion) {
+                        match (&mut region.kind, other.kind) {
+                            (RegionKind::Code(count), RegionKind::Code(other)) => {
+                                *count = mem::replace(count, Count::Zero).add(other);
+                            }
+                            (
+                                RegionKind::Branch(holds, fails)
+                                | RegionKind::McdcBranch { holds, fails, .. },
+                                RegionKind::Branch(other_holds, other_fails)
+                                | RegionKind::McdcBranch {
+                                    holds: other_holds,
+                                    fails: other_fails,
+                                    ..
+                                },
+                            ) => {
+                                *holds = mem::replace(holds, Count::Zero).add(other_holds);
+                                *fails = mem::replace(fails, Count::Zero).add(other_fails);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                regions
+            }
+            None => {
+                // Without an expansion nothing counts the body, but its regions still show it.
+                self.dry = true;
+                let entry = self.counter(Site::Function(id));
+                self.open(modifier.span, &entry);
+                self.stmts(body.stmts, Some(entry));
+                self.close();
+                self.dry = false;
+                let mut regions = mem::take(&mut self.rec.regions);
+                for region in &mut regions {
+                    match &mut region.kind {
+                        RegionKind::Code(count) => *count = Count::Zero,
+                        RegionKind::Branch(holds, fails) => {
+                            *holds = Count::Zero;
+                            *fails = Count::Zero;
+                        }
+                        _ => {}
+                    }
+                }
+                regions
+            }
+        };
+        regions.retain(|region| !matches!(region.kind, RegionKind::Decision(_)));
+        for region in &mut regions {
+            region.file = 0;
+            let kind = mem::replace(&mut region.kind, RegionKind::Code(Count::Zero));
+            region.kind = match kind {
+                RegionKind::McdcBranch { holds, fails, .. } => RegionKind::Branch(holds, fails),
+                kind => kind,
+            };
+        }
+        self.rec.regions = regions;
+        self.end(RecordOwner::Function(id), modifier.source);
     }
 
     /// Walks the code of `id` that runs outside its functions: the initializers of its state
@@ -498,12 +613,12 @@ impl<'gcx> Walker<'gcx> {
         // COVERAGE; PUSH4 1<operation:2><decision:21><weight:8>
         let probe = |operation: u32, weight: u32| 1 << 31 | operation << 29 | id << 8 | weight;
         let key = Site::expr(op.expr);
-        self.sites.insert(Site::McdcBegin(key), probe(0, 0));
-        self.sites.insert(Site::McdcEnd(key), probe(2, 0));
+        self.sites.insert((self.scope, Site::McdcBegin(key)), probe(0, 0));
+        self.sites.insert((self.scope, Site::McdcEnd(key)), probe(2, 0));
         let mut conditions = FxHashMap::default();
         for (leaf, condition) in graph.iter() {
             if condition.weight > 0 {
-                self.sites.insert(Site::McdcAdd(leaf), probe(1, condition.weight));
+                self.sites.insert((self.scope, Site::McdcAdd(leaf)), probe(1, condition.weight));
             }
             conditions.insert(leaf, condition);
         }

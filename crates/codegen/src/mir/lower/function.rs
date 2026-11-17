@@ -235,6 +235,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     storage_refs: FxHashMap<VariableId, StorageAccess>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
+    /// The modifier expansion whose body is being lowered, keyed by its invocation, or `0`.
+    coverage_scope: usize,
     /// The pure struct constructors being inlined.
     inlined_struct_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
@@ -573,6 +575,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_refs: FxHashMap::default(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
+            coverage_scope: 0,
             inlined_struct_constructors: FxHashSet::default(),
             base_args: Vec::new(),
             loops: Vec::new(),

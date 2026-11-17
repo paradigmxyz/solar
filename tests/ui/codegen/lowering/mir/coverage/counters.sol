@@ -1,9 +1,10 @@
 //@compile-flags: -O none -Zinstrument-coverage -Zdump=mir
 //@filecheck: --enable-var-scope
 
-// Counters number functions, statements, and decisions in source order, so the modifier comes
-// first. A leaf condition counts once it is evaluated, before the branch on it, and a path counts
-// at its start. The first statement of a path shares the count of the path.
+// Counters number functions, statements, and decisions in source order, and a modifier counts in
+// each function that invokes it. A leaf condition counts once it is evaluated, before the branch
+// on it, and a path counts at its start. The first statement of a path shares the count of the
+// path.
 contract Counters {
     uint256 public total;
 
@@ -14,13 +15,13 @@ contract Counters {
 
     // CHECK-LABEL: fn @branches(
     // CHECK-NEXT: bb0:
-    // CHECK-NEXT: coverage 5
     // CHECK-NEXT: coverage 1
-    // CHECK-NEXT: ne arg0, 0
     // CHECK-NEXT: coverage 2
-    // CHECK: icall revert_if<empty>
+    // CHECK-NEXT: ne arg0, 0
     // CHECK-NEXT: coverage 3
+    // CHECK: icall revert_if<empty>
     // CHECK-NEXT: coverage 4
+    // CHECK-NEXT: coverage 5
     // CHECK-NEXT: coverage 6
     // CHECK-NEXT: [[LHS:v[0-9]+]] = gt arg0, 10
     // CHECK-NEXT: coverage 7
@@ -114,15 +115,15 @@ contract Counters {
     // CHECK-NEXT: coverage 30
     // CHECK: phi
     // CHECK-NEXT: zext
-    // CHECK-NEXT: coverage 1
+    // CHECK-NEXT: coverage 31
     function modified(bool b) external pure nonZero(b ? 1 : 2) {}
 
     // Fusing the packed encoding into the hash keeps both statement counters.
     // CHECK-LABEL: fn @packed(
     // CHECK-NEXT: bb0:
-    // CHECK-NEXT: coverage 31
+    // CHECK-NEXT: coverage 35
     // CHECK-NEXT: keccak256_packed
-    // CHECK-NEXT: coverage 32
+    // CHECK-NEXT: coverage 36
     // CHECK-NEXT: ret
     function packed(uint256 x) external pure returns (bytes32) {
         bytes memory p = abi.encodePacked(x);

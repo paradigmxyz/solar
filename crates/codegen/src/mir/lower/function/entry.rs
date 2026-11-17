@@ -310,7 +310,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Emits the counter of `site` when coverage instrumentation gave it one and the current block
     /// is reachable.
     pub(super) fn coverage(&mut self, site: Site) {
-        if let Some(counter) = coverage_map(self.cx.gcx).and_then(|map| map.counter(site))
+        if let Some(counter) =
+            coverage_map(self.cx.gcx).and_then(|map| map.counter(self.coverage_scope, site))
             && !self.is_terminated()
         {
             // A function's entry counter belongs to its definition, which may not be the
@@ -332,7 +333,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Emits the counter of `site` on the path where the boolean `value` holds, when the site has
     /// one. The value is unchanged: the paths rejoin right away.
     pub(super) fn coverage_if_true(&mut self, site: Site, value: Word, ty: Ty<'gcx>) -> Option<()> {
-        if coverage_map(self.cx.gcx).is_some_and(|map| map.counter(site).is_some()) {
+        if coverage_map(self.cx.gcx)
+            .is_some_and(|map| map.counter(self.coverage_scope, site).is_some())
+        {
             let holds = value.clean(self, ty);
             self.lower_branches(
                 holds,

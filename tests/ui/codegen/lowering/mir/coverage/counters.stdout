@@ -10,14 +10,14 @@ fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word
 ; function branches(uint256 a, bool b) external pure nonZero(a) returns (uint256 r) [selector 0x9b9fe2dd]
 fn @branches(arg0: i256, arg1: i1) -> i256 [selector=0x9b9fe2dd, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    coverage 5
     coverage 1
-    v0 = ne arg0, 0
     coverage 2
+    v0 = ne arg0, 0
+    coverage 3
     v1 = eq v0, false
     icall revert_if<empty>, v1
-    coverage 3
     coverage 4
+    coverage 5
     coverage 6
     v2 = gt arg0, 10
     coverage 7
@@ -165,13 +165,13 @@ fn @modified(arg0: i1) [selector=0xdb672b0e, pure, abi_params=[bool], abi_return
   bb4:                                            ; preds = bb2, bb3
     v0 = phi [bb2: i8 1], [bb3: i8 2]
     v1 = zext i8 v0 to i256
-    coverage 1
+    coverage 31
     v2 = ne v1, 0
-    coverage 2
+    coverage 32
     v3 = eq v2, false
     icall revert_if<empty>, v3
-    coverage 3
-    coverage 4
+    coverage 33
+    coverage 34
     jump bb5
   bb5:                                            ; preds = bb4
     jump bb1
@@ -182,8 +182,8 @@ fn @modified(arg0: i1) [selector=0xdb672b0e, pure, abi_params=[bool], abi_return
 ; function packed(uint256 x) external pure returns (bytes32) [selector 0x977eca9c]
 fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    coverage 31
+    coverage 35
     v0 = keccak256_packed (uint256 arg0)
-    coverage 32
+    coverage 36
     ret v0
 }

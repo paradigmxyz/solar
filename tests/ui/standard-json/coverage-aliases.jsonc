@@ -1,31 +1,31 @@
 //@ filecheck:
 // A counter that is always hit with an earlier counter of its segment, with nothing between them
-// that can halt, is dropped. The function entry `5` keeps the modifier entry `1`, the check of
-// `n != 0` `2`, and the `_` placeholder `4` follows the check `3`, which keeps the statements `6`
-// and `7` behind it: the addition after `7` can revert, but the counter is hit before it. A call
-// ends a segment, so the counters `8` and `9` around it stay, and `9` keeps the `if` `10` and its
-// left condition `11`. Probes whose counters have no alias stay in the code.
+// that can halt, is dropped. The function entry `1` keeps the modifier entry `2` and the check of
+// `n != 0` `3`, and the `_` placeholder `5` follows the check's `require` path `4`, which keeps the
+// statements `6` and `7` behind it: the addition after `7` can revert, but the counter is hit
+// before it. A call ends a segment, so the counters `8` and `9` around it stay, and `9` keeps the
+// `if` `10` and its left condition `11`. Probes whose counters have no alias stay in the code.
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "coverageAliases": [
 // CHECK-NEXT: [
-// CHECK-NEXT: 1,
-// CHECK-NEXT: 5
-// CHECK-NEXT: ],
-// CHECK-NEXT: [
 // CHECK-NEXT: 2,
-// CHECK-NEXT: 5
+// CHECK-NEXT: 1
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
-// CHECK-NEXT: 4,
-// CHECK-NEXT: 3
+// CHECK-NEXT: 3,
+// CHECK-NEXT: 1
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 5,
+// CHECK-NEXT: 4
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
 // CHECK-NEXT: 6,
-// CHECK-NEXT: 3
+// CHECK-NEXT: 4
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
 // CHECK-NEXT: 7,
-// CHECK-NEXT: 3
+// CHECK-NEXT: 4
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
 // CHECK-NEXT: 10,

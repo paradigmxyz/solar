@@ -2,8 +2,9 @@
 //!
 //! The map follows LLVM's source-based coverage model. A walk of the HIR, before any function is
 //! lowered, gives every function, modifier, and Yul function a record: a list of regions of the
-//! source, each with a count that is a counter or an expression over counters. The walk covers
-//! functions that no bytecode contains too. Lowering then emits a `coverage` MIR instruction for a
+//! source, each with a count that is a counter or an expression over counters. The record also
+//! lists the virtual files of the modifiers it expands. The walk covers functions that no bytecode
+//! contains too. Lowering then emits a `coverage` MIR instruction for a
 //! counter wherever control reaches its site; the backend emits it as `COVERAGE; PUSHn <counter>`.
 //! The instrumenting EVM reads the counter from the push and skips it, so a probe costs no gas or
 //! stack, and JUMPDEST analysis still sees a whole push. Counters start at 1 and are unique within
@@ -20,10 +21,18 @@
 //! no counter sits on the edge and the code needs no extra jump. A condition that reverts takes
 //! neither side.
 //!
+//! # Modifiers
+//!
+//! Each invocation of a modifier lowers the body once more, so it has counters of its own, inside
+//! the range of the function that invokes it. The function's record has an expansion region at the
+//! invocation, and repeats the regions of the body under a virtual file for the expansion. The
+//! record of the modifier owns no counters: each of its counts is the sum of the matching counts of
+//! its expansions, and a modifier that nothing invokes counts zero.
+//!
 //! # Counters
 //!
 //! A counter's sites are:
-//! - the entry of a function, modifier, or Yul function body;
+//! - the entry of a function, modifier expansion, or Yul function body;
 //! - the start of a statement written in the source, unless the statement starts a path whose own
 //!   counter immediately precedes it, such as the first statement of a body;
 //! - the point after each leaf condition of a decision is evaluated;
@@ -46,7 +55,8 @@
 //!
 //! Sites are keyed by the address of their HIR node, which lowering reaches through the same arena
 //! references. A counter whose site lowering never reaches stays at zero, as for code that is
-//! never generated.
+//! never generated. Each expansion of a modifier lowers the same HIR nodes, so a site also has the
+//! expansion it belongs to.
 
 use crate::backend::evm::op;
 use alloy_primitives::keccak256;
@@ -102,6 +112,8 @@ pub struct Region {
 pub enum RegionKind {
     /// Code, `0`.
     Code(Count),
+    /// The expansion of a modifier into the file at this index, `1`.
+    Expansion(Count, u32),
     /// A condition with the counts of its true and false outcomes, `4`.
     Branch(Count, Count),
     /// An MC/DC decision, given by its index in [`Record::decisions`], `5`.
@@ -139,7 +151,8 @@ pub struct Decision {
 pub struct Record {
     /// What the record belongs to.
     pub owner: RecordOwner,
-    /// The virtual file table. The first entry is the source of the record.
+    /// The virtual file table. The first entry is the source of the record; each modifier
+    /// expansion adds one.
     pub files: Vec<hir::SourceId>,
     /// The contiguous range of counters the record owns, as its first counter and its length.
     pub counters: [u32; 2],
@@ -213,6 +226,10 @@ impl Record {
                 let mut row = vec![0, i64::from(region.file), i64::from(start), i64::from(len)];
                 match &region.kind {
                     RegionKind::Code(count) => row.push(encoder.count(count) as i64),
+                    RegionKind::Expansion(count, file) => {
+                        row[0] = 1;
+                        row.extend([encoder.count(count) as i64, i64::from(*file)]);
+                    }
                     RegionKind::Branch(true_count, false_count) => {
                         row[0] = 4;
                         row.extend([
@@ -296,7 +313,7 @@ pub struct SourceCoverage {
 #[derive(Debug, Default)]
 pub struct CoverageMap {
     sources: IndexVec<hir::SourceId, SourceCoverage>,
-    sites: FxHashMap<Site, u32>,
+    sites: FxHashMap<(usize, Site), u32>,
 }
 
 impl CoverageMap {
@@ -309,9 +326,10 @@ impl CoverageMap {
         &self.sources[source]
     }
 
-    /// Returns the counter of `site`, if it has one.
-    pub(crate) fn counter(&self, site: Site) -> Option<u32> {
-        self.sites.get(&site).copied()
+    /// Returns the counter of `site` in modifier expansion `scope`, if it has one. Code outside
+    /// every expansion has scope `0`.
+    pub(crate) fn counter(&self, scope: usize, site: Site) -> Option<u32> {
+        self.sites.get(&(scope, site)).copied()
     }
 }
 

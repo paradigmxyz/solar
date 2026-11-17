@@ -1,0 +1,55 @@
+//@ filecheck:
+// Each invocation of a modifier has counters of its own, inside the range of the function that
+// invokes it: `b` has two. The function's record has an expansion region, kind 1, at the
+// invocation, `[1, file, start, length, count, expanded file]`, and repeats the regions of the
+// modifier under a virtual file for it, so `files` has one more entry for each expansion. The
+// record of the modifier owns no counters and counts the sum of its expansions: `counters` has
+// length 0, and its first region adds the entry counters 2, 9, and 15.
+// CHECK: "name": "A.sol:E.guard(uint256)",
+// CHECK-NEXT: "hash"
+// CHECK-NEXT: "counters": [
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK: "name": "A.sol:E.a(uint256)",
+// CHECK: "counters": [
+// CHECK-NEXT: 1,
+// CHECK-NEXT: 7
+// CHECK-NEXT: ],
+// CHECK-NEXT: "files": [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK: "name": "A.sol:E.b(uint256)",
+// CHECK: "counters": [
+// CHECK-NEXT: 8,
+// CHECK-NEXT: 13
+// CHECK-NEXT: ],
+// CHECK-NEXT: "files": [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract E {\n    modifier guard(uint256 n) {\n        require(n > 1 && n < 9);\n        _;\n    }\n\n    function a(uint256 x) external guard(x) {}\n\n    function b(uint256 y) external guard(y + 1) guard(2) {}\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}
