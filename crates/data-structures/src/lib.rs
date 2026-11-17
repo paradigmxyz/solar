@@ -7,7 +7,6 @@
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs))]
 #![cfg_attr(feature = "nightly", feature(extern_types))]
-#![cfg_attr(feature = "nightly", feature(never_type))]
 #![cfg_attr(feature = "nightly", allow(internal_features, stable_features))]
 
 pub mod fmt;
@@ -25,9 +24,6 @@ pub use bump_ext::BumpExt;
 
 mod collect;
 pub use collect::CollectAndApply;
-
-mod never;
-pub use never::Never;
 
 mod drop_guard;
 pub use drop_guard::{DropGuard, defer};

@@ -26,10 +26,7 @@ use crate::{
     hir::{self, StmtKind, Visit},
     ty::{Gcx, Traced, traced_functions},
 };
-use solar_data_structures::{
-    Never,
-    map::{FxHashSet, FxIndexMap},
-};
+use solar_data_structures::map::{FxHashSet, FxIndexMap};
 use solar_interface::{Span, Symbol, sym};
 use std::ops::ControlFlow;
 
@@ -247,7 +244,7 @@ impl Scan<'_> {
 }
 
 impl<'gcx> Visit<'gcx> for Scan<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

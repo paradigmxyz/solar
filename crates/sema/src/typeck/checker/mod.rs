@@ -13,7 +13,6 @@ use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{
-    Never,
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
     pluralize,
@@ -3907,7 +3906,7 @@ impl<'gcx> TypeChecker<'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

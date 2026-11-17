@@ -1,6 +1,5 @@
 use crate::LintContext;
 use solar_ast::{self as ast, visit::Visit};
-use solar_interface::data_structures::Never;
 use std::ops::ControlFlow;
 
 /// A lint pass that runs directly on the parsed AST.
@@ -91,7 +90,7 @@ impl<'s, 'ast> Visit<'ast> for EarlyLintVisitor<'_, 's, 'ast>
 where
     's: 'ast,
 {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn visit_doc_comment(
         &mut self,
