@@ -651,8 +651,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 79,
+                        "length": 5
                       }
                     }
                   }
@@ -668,8 +668,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 79,
+                        "length": 5
                       }
                     }
                   }
