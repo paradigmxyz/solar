@@ -137,8 +137,7 @@ class Route(unittest.TestCase):
             f"    ({FORALL} ∀ call, _root_.{NS}.spec.Valid ctx call →\n"
             "      call.callvalue ≠ 0 → ∀ gas, (fun _ => 2000) call ≤ gas →\n"
             f"        _root_.SolidCore.Verify.Generic.runAt ctx gas (_root_.SolidCore.Verify.Generic.runtimeCode _root_.{NS}.runtimeBytes) call =\n"
-            "          some { success := false, output := [], logs := [],\n"
-            "            storage := _root_.SolarTV.slotValue call.storage }) ∧\n"
+            "          some { success := false, output := [], logs := [], storage := _root_.SolarTV.slotValue call.storage }) ∧\n"
             f"    (∀ ctx call, _root_.{NS}.spec.Valid ctx call → ∀ v, v < 2 ^ 256 →\n"
             f"      _root_.{NS}.spec.Valid ctx {{ call with callvalue := v }})",
             st,
