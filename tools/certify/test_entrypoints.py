@@ -5,8 +5,9 @@ need that is only present untracked (or on another branch) can leave them passin
 driver itself fails at its first step. These tests copy the commit's tracked files alone
 (`git archive HEAD`) and run, from that copy, the real paths that reach cutpoints: generic.py's
 stage-proof step (`gas_need`, which runs certify.py), asm_ctx.py's main, and the cutpoints calls
-negative.sh makes, from the directory negative.sh resolves. They need a solar binary (SOLAR, else
-target/debug/solar) and fail without one rather than skip.
+negative.sh makes, from the directory negative.sh resolves. They use the solar binary SOLAR names,
+else build this checkout's as the driver does (generic.build_solar), and fail rather than skip when
+neither gives one.
 """
 
 import json
@@ -20,7 +21,10 @@ import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-SOLAR = pathlib.Path(os.environ.get("SOLAR", ROOT / "target" / "debug" / "solar"))
+sys.path.insert(0, str(HERE))
+import generic
+
+SOLAR = None
 COUNTER = "tools/certify/examples/counter.sol"
 MILESTONE_LINE = (
     'milestone="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../solar-tv/milestone" && pwd)"'
@@ -30,8 +34,16 @@ MILESTONE_LINE = (
 class CleanCheckoutEntrypoints(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        global SOLAR
+        if "SOLAR" in os.environ:
+            SOLAR = pathlib.Path(os.environ["SOLAR"])
+        else:
+            try:
+                SOLAR = generic.build_solar()
+            except generic.Failed as e:
+                raise AssertionError(f"cannot build solar: {e}") from None
         if not SOLAR.is_file():
-            raise AssertionError(f"no solar binary at {SOLAR} (build it or set SOLAR)")
+            raise AssertionError(f"no solar binary at {SOLAR}")
         cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="certify-entry-"))
         cls.clean = cls.tmp / "clean"
         cls.clean.mkdir()
