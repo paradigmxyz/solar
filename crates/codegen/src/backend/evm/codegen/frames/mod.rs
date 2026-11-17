@@ -1432,7 +1432,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else if let Some(amount) = Self::heap_prefix_constant(func, *first, 0) {
                         shifted(*second, amount, visiting, memo)
                     } else {
-                        Reach::join(derive(*first, visiting, memo), derive(*second, visiting, memo))
+                        let first = derive(*first, visiting, memo);
+                        let second = derive(*second, visiting, memo);
+                        // An operand that is no heap pointer adds an unknown amount.
+                        Self::unknown_unless_both(first, second)
                     }
                 }
                 InstKind::Sub(base, amount) => shifted(
@@ -1485,7 +1488,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 InstKind::Select(_, then_value, else_value) => {
                     let then_reach = derive(*then_value, visiting, memo);
-                    Reach::join(then_reach, derive(*else_value, visiting, memo))
+                    let else_reach = derive(*else_value, visiting, memo);
+                    Self::unknown_unless_both(then_reach, else_reach)
                 }
                 _ if func.value_ty(value).is_some_and(MirType::is_memory_reference) => {
                     Some(Reach::exact(0))
@@ -1499,6 +1503,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             memo.offsets.insert(value, offset);
         }
         offset
+    }
+
+    /// Joins two operands or alternatives, where one that does not derive may be anything, so the
+    /// other's reach only bounds the result.
+    fn unknown_unless_both(first: Option<Reach>, second: Option<Reach>) -> Option<Reach> {
+        let both = first.is_some() && second.is_some();
+        Reach::join(first, second).map(|reach| if both { reach } else { Reach::bound(reach.back) })
     }
 
     /// Returns the ranges of `func`'s memory accesses whose offset and size are both
@@ -2065,6 +2076,16 @@ mod tests {
                 let mask = builder.imm(u64::MAX - 31);
                 let stepped = builder.sub(base, step);
                 builder.and(stepped, mask)
+            }),
+            EvmMemoryLayout::HEAP_START
+        );
+        // A far step back plus an amount known only at run time is not an exact step back.
+        assert_eq!(
+            guard(&|builder, base| {
+                let step = builder.imm(0x100);
+                let amount = builder.add_param(MirType::I256);
+                let stepped = builder.sub(base, step);
+                builder.add(stepped, amount)
             }),
             EvmMemoryLayout::HEAP_START
         );
