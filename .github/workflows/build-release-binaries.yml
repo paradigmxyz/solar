@@ -285,6 +285,5 @@ jobs:
         run: |
           set -euo pipefail
 
-          dist generate --mode=ci --check
           dist build --artifacts=global --output-format=json \
             > target/pgo-global-dist-manifest.json
