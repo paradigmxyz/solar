@@ -1362,11 +1362,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
             Some(reach + i128::from(back))
         };
-        // Rounding a pointer down moves it back by at most the padding, which does not carry a
-        // step that stays within the heap start past it.
+        // Rounding a pointer down to a word or less moves it back by less than a word, and the heap
+        // starts at a word boundary, so a step within the heap start stays within it. A wider mask
+        // can carry it further.
         let padded = |reach: i128, padding: u64| {
             let reach_with_padding = reach + i128::from(padding);
-            if reach <= i128::from(EvmMemoryLayout::HEAP_START) {
+            if padding < EvmMemoryLayout::WORD_SIZE
+                && reach <= i128::from(EvmMemoryLayout::HEAP_START)
+            {
                 reach_with_padding.min(i128::from(EvmMemoryLayout::HEAP_START))
             } else {
                 reach_with_padding
@@ -2020,6 +2023,17 @@ mod tests {
                 builder.and(stepped, mask)
             }),
             EvmMemoryLayout::HEAP_START
+        );
+        // A wider mask can move the pointer further back, so a step of one word through it
+        // reaches past the heap start.
+        assert_eq!(
+            guard(&|builder, base| {
+                let step = builder.imm(0x20);
+                let mask = builder.imm(!U256::from(0xff));
+                let stepped = builder.sub(base, step);
+                builder.and(stepped, mask)
+            }),
+            0
         );
     }
 
