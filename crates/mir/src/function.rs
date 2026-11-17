@@ -923,8 +923,9 @@ impl Function {
 
     fn keeps_checked_object_offset(&self, inst: InstId, new: &InstKind) -> bool {
         let Some((_, new_step)) = self.constant_step(new) else { return true };
+        // A constant that replaces a variable offset has no checked step to sum.
         let Some((mut base, mut step)) = self.constant_step(&self.inst(inst).kind) else {
-            return true;
+            return false;
         };
         // Follow the checked steps below the old base until their sum is the new step. The new
         // base is the value the last of them steps from, or one that value merged into.
