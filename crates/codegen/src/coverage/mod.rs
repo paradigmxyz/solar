@@ -81,9 +81,9 @@ pub enum Count {
     /// The hits of one counter.
     Counter(u32),
     /// The sum of two counts.
-    Add(Box<[Count; 2]>),
+    Add(Box<[Self; 2]>),
     /// The difference of two counts.
-    Sub(Box<[Count; 2]>),
+    Sub(Box<[Self; 2]>),
 }
 
 impl Count {

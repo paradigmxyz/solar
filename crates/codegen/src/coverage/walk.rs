@@ -123,9 +123,9 @@ enum Node<'gcx> {
     Const(bool),
     /// A leaf condition and the counter after its evaluation.
     Leaf(&'gcx hir::Expr<'gcx>, Count),
-    Not(Box<Node<'gcx>>),
-    And(Box<Node<'gcx>>, Box<Node<'gcx>>, Operator<'gcx>),
-    Or(Box<Node<'gcx>>, Box<Node<'gcx>>, Operator<'gcx>),
+    Not(Box<Self>),
+    And(Box<Self>, Box<Self>, Operator<'gcx>),
+    Or(Box<Self>, Box<Self>, Operator<'gcx>),
 }
 
 /// An `&&` or `||` of a decision.

@@ -18,9 +18,9 @@ pub(super) const MAX_VECTORS: usize = 256;
 /// The shape of a decision, with the leaves keyed by their expressions.
 pub(super) enum Cond {
     Leaf(usize),
-    Not(Box<Cond>),
-    And(Box<Cond>, Box<Cond>),
-    Or(Box<Cond>, Box<Cond>),
+    Not(Box<Self>),
+    And(Box<Self>, Box<Self>),
+    Or(Box<Self>, Box<Self>),
 }
 
 /// Where evaluation goes after a condition.
