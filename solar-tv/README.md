@@ -86,6 +86,7 @@ before either a proof or a counterexample can be accepted.
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
 | EVM post-precompile suffix | A changed tail after an exactly shared prefix, with canonical recovery-precompile calls and GAS reads retained. | All shared prefix halts are identical; successful suffixes preserve their exit and complete stack/world with no less gas. The shared prefix-executor binding remains trusted. |
+| EVM scalar island | An exact-cost stack rewrite between unchanged contexts, including storage sentries, logs and static guards. | All prefix exits, checked stacks and remaining gas are preserved; context-executor bindings remain trusted. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
@@ -1241,6 +1242,35 @@ The pass hook uses this mode for unknown-height block windows. Capture retains
 its original rejection and region identity; evaluation chooses the proof mode
 **after** sampling. A failed universal proof is unsupported, since a hypothetical
 stack need not be reachable. It never fabricates a compiler counterexample.
+
+### Exact scalar rewrites inside stateful blocks
+
+`--prefix` also checks a scalar island after an unchanged gas-sensitive prefix:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/interior-cse/{before,after}.evmir \
+  --prefix bb0 --report target/tv-interior.json
+solar-tv/solar-tv evmir solar-tv/examples/evmir/interior-cse/counterexample-{before,broken}.evmir \
+  --world solar-tv/examples/evmir/interior-cse/world.json --gas exact
+```
+
+The reduced WETH example runs storage updates and a static guard before
+`block-cse` replaces a repeated `push 32` with `dup 1`. The checker retains the
+complete shared prefix and suffix, terminal and physical successor. Its
+`universal-exact-scalar-island` certificate proves the middle for every stack
+and gas budget. Prefix exits remain exits; successful prefixes supply their
+actual context, stack, gas and live world. The suffix may observe gas or fail a
+storage sentry, so cheaper rewrites are rejected rather than given a weaker
+gas-insensitivity assumption.
+
+`EVMIR/Suffix.lean` lifts the middle's checked-stack and exact-price proof through
+both shared contexts. Their parser/schema and executor bindings remain trusted;
+this is a local compositional certificate, not full-state importer or physical
+code-placement correspondence. Code-image observers, external calls, broken
+static guards and Amsterdam's two-resource gas remain unsupported. The small
+broken-store example has a kernel-confirmed counterexample matched by Rust
+replay. The full storage/log fixture is also replayed independently, including
+static violations and out-of-gas before the island.
 
 ### Terminal regions with unknown incoming stacks
 

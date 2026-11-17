@@ -216,6 +216,15 @@ def record(
                     "abstract MIR operations unpriced; no physical gas, backend placement or whole-contract claim",
                 ]
             )
+        elif program and program.scope == "interior-window":
+            assumptions.extend(
+                [
+                    "independently exported identical complete prefix and suffix, including terminal and physical successor; shared context-executor bindings remain trusted",
+                    "arbitrary prefix exits, storage, logs, memory, gas and live context are retained; no successful-prefix or entry-default assumption",
+                    "scalar island preserves every incoming stack and exact remaining gas, including underflow, overflow and out-of-gas; gas-sensitive storage sentries in the shared context remain observable",
+                    "code-image observers, external calls and Amsterdam two-resource gas excluded; logical local certificate, not full-state importer correspondence or physical code-placement proof",
+                ]
+            )
         elif program and program.scope == "prefix-window":
             assumptions.extend(
                 [
@@ -282,6 +291,7 @@ def record(
                 "shared-prefix-suffix",
                 "function-pruning",
                 "allocation-prefix",
+                "interior-window",
             }
             and program.symbolic_mir is None
         ):
@@ -321,7 +331,12 @@ def record(
             else program.gas
             if program
             and program.scope
-            in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
+            in {
+                "prefix-window",
+                "effectful-prefix",
+                "shared-prefix-suffix",
+                "interior-window",
+            }
             else policy
         )
         or (
@@ -369,7 +384,9 @@ def record(
                 "region": {
                     "kind": "window",
                     "name": program.selector,
-                    "proof": "universal-post-precompile-suffix"
+                    "proof": "universal-exact-scalar-island"
+                    if program.scope == "interior-window"
+                    else "universal-post-precompile-suffix"
                     if program.scope == "shared-prefix-suffix"
                     else "universal-branching-effect-prefix"
                     if program.import_evidence.get("conditional_transfers")
@@ -377,7 +394,9 @@ def record(
                     "stack_height": None,
                 },
             }
-            if program and program.scope in {"effectful-prefix", "shared-prefix-suffix"}
+            if program
+            and program.scope
+            in {"effectful-prefix", "shared-prefix-suffix", "interior-window"}
             else {}
         ),
         **(

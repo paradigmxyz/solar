@@ -291,3 +291,7 @@ import SolarTV.EVMIR.Effects
 /-- info: 'SolarTV.MIR.LowerAllocPrefix.contextual' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.LowerAllocPrefix.contextual
+
+/-- info: 'SolarTV.EVM.Suffix.scalar_contextual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Suffix.scalar_contextual

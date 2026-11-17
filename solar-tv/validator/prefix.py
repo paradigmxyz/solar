@@ -194,6 +194,18 @@ def check(paths, solar, executable, timeout, entry, version, policy):
                 return suffix.check(
                     texts, models, entry, catalog, version, policy, timeout
                 )
+    from . import interior
+
+    shared = interior.common_length(
+        models[0]["instructions"], models[1]["instructions"]
+    )
+    if models[0]["instructions"] != models[1]["instructions"] and any(
+        catalog.get(line, {}).get("observes_gas", False)
+        for line in models[0]["instructions"][:shared]
+    ):
+        # An exact scalar island can follow an unchanged gas-sensitive prefix.
+        # Keep that prefix and its early exits, rather than assuming it succeeds.
+        return interior.check(texts, models, entry, catalog, version, timeout)
     old, suffix, need_a, peak_a, price_a = split(models[0], catalog, version)
     new, next_suffix, need_b, peak_b, price_b = split(models[1], catalog, version)
     prologue = []

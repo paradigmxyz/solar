@@ -898,7 +898,12 @@ def main() -> int:
                 args.prefix
                 or result.program
                 and result.program.scope
-                in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
+                in {
+                    "prefix-window",
+                    "effectful-prefix",
+                    "shared-prefix-suffix",
+                    "interior-window",
+                }
             ):
                 shared = result.program and result.program.import_evidence.get(
                     "shared_prologue_operations"
@@ -914,6 +919,8 @@ def main() -> int:
                     if result.program and result.program.scope == "effectful-prefix"
                     else "universal-memory-prefix"
                     if shared
+                    else "universal-exact-scalar-island"
+                    if result.program and result.program.scope == "interior-window"
                     else "universal-stack-prefix"
                 )
                 if args.stack_height is not None:

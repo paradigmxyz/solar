@@ -390,6 +390,23 @@ The ten-second control run verifies 16 checks, with 7 unsupported and the larger
 MIR proof still timing out. It takes about 25 seconds at the larger budget. The
 budget difference is explicit; this is not a seventeen-of-24 result at ten seconds.
 
+A `universal-exact-scalar-island` certificate handles a scalar rewrite inside
+an otherwise unchanged stateful block. It retains the independently exported
+common prefix, complete suffix, terminal and physical successor. The kernel
+checks their equality, the middle's stack behavior for every input and its exact
+cost. `EVM.Suffix.scalar_contextual` lifts that proof through arbitrary shared
+context executors, including prefix exits and gas-sensitive suffixes. Prefix
+storage updates, logs and static guards are not discarded or replaced by
+successful-access assumptions. The contexts' source/executor bindings remain
+trusted; this is not a direct full-state importer certificate. Code-image
+observers, external calls and Amsterdam two-resource gas remain excluded.
+The real reduced `block-cse` example, malformed contexts and exact-gas boundary
+tests are in `examples/evmir/interior-cse/` and `tests/test_interior.py`. Its
+small wrong-store-address counterexample has kernel and independent Rust
+evidence; native execution also checks the larger storage/log context and its
+early failures. A hypothetical bad stack at an unknown entry still cannot be
+reported as a reachable compiler counterexample.
+
 ## Remaining obligations
 
 After rebasing onto `main`, the new frozen sample has a different selection of
@@ -397,10 +414,11 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **17 of 24**, with
-7 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+Rechecking those same frozen pairs at 30 seconds now verifies **18 of 24**, with
+6 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
 constructor first raised the count to 16; the OpenZeppelin ERC20Mock
-`lower-alloc` constructor then raised it to 17. No other check changes status.
+`lower-alloc` constructor then raised it to 17, and WETH's `block-cse` window
+raised it to 18. No other check changes status.
 The selected check identities, input hashes and compiler-output hashes are
 identical; compilation results are reused.
 The compiler fingerprint is
@@ -426,6 +444,14 @@ constructor's reachable call graph and explicitly excluded from this
 function-local claim. Reports retain the unchanged callee set and list that
 unrelated changed body. Neither loops nor allocation preconditions are silently
 assumed away.
+
+WETH's unknown-height `block-cse` window uses the exact scalar-island
+certificate. Its repeated nonzero constant push becomes `dup 1` before a log.
+The complete shared prefix retains its storage updates, memory
+work and static guard, including all early exits. Its gas-sensitive storage
+sentries cannot be bypassed with a cheaper-prefix assumption. Shared context
+executor bindings and logical relocation context remain explicit trust
+boundaries; no physical code-placement or whole-pass claim follows.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.
