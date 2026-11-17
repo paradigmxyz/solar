@@ -155,15 +155,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // it. A user `break` is narrower than its `if`.
         let loop_break = else_stmt
             .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous));
-        let label_span = loop_break.map_or(previous, |stmt| stmt.span);
-        // A source `if` leaves its arms and starts the code after it without a location: that code
-        // implements no source construct, and mapping it to the `if` would show the condition line
-        // again after the arm ran. A debugger stops once on the `if`, at the condition.
+        let label_span = loop_break.map(|stmt| stmt.span);
+        // NOTE: A source `if` leaves its arms and starts the code after it without a location:
+        // that code implements no source construct, and mapping it to the `if`, as solc's
+        // `LocationSetter(m_context, _ifStatement)` does, would show the condition line again
+        // after the arm ran. A debugger stops once on the `if`, at the condition. The arms then
+        // take the span in force, which is the condition's.
         let generated_exits = loop_break.is_none();
         let branches = self.lower_branches_labeled(
             condition,
             true,
-            Some(label_span),
+            label_span,
             generated_exits,
             |this| {
                 this.builder.replace_source_span(previous);

@@ -29,12 +29,12 @@ contract C {
     }
 
     // An arm that only assigns a local leaves no code of its own: the edge from the branch to the
-    // join holds the push of the assignment and the jump, which take the assignment's origin.
+    // join holds the push of the assignment, which has its origin, and the jump, which has none.
     // CHECK-LABEL: ; function phiArm(
     // CHECK: swap 2 !metadata(span=
     // CHECK-NEXT: pop !metadata(span=
-    // CHECK-NEXT: push 1 !metadata(span=[[#ASSIGN:]]..{{[0-9]+}})
-    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span=[[#ASSIGN]]..{{[0-9]+}})
+    // CHECK-NEXT: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
+    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
     function phiArm(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {

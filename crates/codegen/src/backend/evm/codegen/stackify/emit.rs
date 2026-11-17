@@ -26,6 +26,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -383,14 +384,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
-            let last_assignment = assignments.last().map(|&(_, origin)| origin);
+            let bypassed_arm = !assignments.is_empty();
             self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
             // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
-            // The jump replaces the arm's jump, so it keeps the location of what the arm held, as
-            // LLVM's Preserve rule gives a replacement the location of what it replaces. The
-            // branch's origin would show the condition's line again after the arm ran.
-            if let Some(origin) = last_assignment {
-                self.set_origins(origin);
+            // The jump replaces the arm's jump, which leaves an arm of an `if` and has no
+            // location, so it keeps that location, as LLVM's Preserve rule gives a replacement the
+            // location of what it replaces. The branch's origin would show the condition's line
+            // again after the arm ran.
+            if bypassed_arm && self.capture_debug_info {
+                self.asm.set_source_span(None);
+                self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
             }
             self.emit_stackified_jump(target, None);
         }
