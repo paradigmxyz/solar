@@ -2041,6 +2041,37 @@ def lifecycle_run(
     )
 
 
+def lake_jobs_env(lean_dir, env):
+    """ENV for a lake build of LEAN_DIR with CERTIFY_LAKE_JOBS lean processes at once.
+
+    lake is a Lean program whose build scheduler runs on Lean's task pool, which LEAN_NUM_THREADS
+    sizes, so with LEAN_NUM_THREADS=1 it compiles one module at a time. At CERTIFY_LAKE_JOBS 1
+    (the default) ENV is returned unchanged. Above 1, lake gets that many threads and runs lean
+    from tools/certify/sysroot.sh's threads mode, which gives each lean ENV's LEAN_NUM_THREADS
+    back."""
+    jobs = os.environ.get("CERTIFY_LAKE_JOBS", "1")
+    if not re.fullmatch(r"[1-9][0-9]*", jobs):
+        sys.exit("generic: CERTIFY_LAKE_JOBS must be a positive integer")
+    if jobs == "1":
+        return env
+    rc, out, err = run(["lake", "env", "which", "lean"], cwd=lean_dir, env=env)
+    if rc != 0:
+        sys.exit(f"generic: cannot find lean: {err.strip()}")
+    tc = pathlib.Path(out.strip()).resolve().parent.parent
+    sysroot = pathlib.Path(lean_dir) / ".lake" / "certify-sysroot-threads"
+    rc, out, err = run(
+        ["bash", str(HERE / "sysroot.sh"), str(tc), str(sysroot), "threads"]
+    )
+    if rc != 0:
+        sys.exit(f"generic: cannot set up the threads sysroot: {err.strip()}")
+    return dict(
+        env,
+        PATH=f"{out.strip()}:{env.get('PATH', '')}",
+        LEAN_NUM_THREADS=jobs,
+        CERTIFY_LEAN_THREADS=env.get("LEAN_NUM_THREADS", "1"),
+    )
+
+
 def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
     """Build the run's module Certified/NAME/MOD.lean (with Source.lean) in the run's clone of the
     base, one Lean thread at a time: (ok, output)."""
@@ -2060,7 +2091,7 @@ def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
         )
         if rc != 0:
             raise Failed(f"cannot copy the probe cache: {err[:200]}")
-    env = dict(os.environ, LEAN_NUM_THREADS="1")
+    env = lake_jobs_env(lean_dir, dict(os.environ, LEAN_NUM_THREADS="1"))
     rc, out, err = run(
         ["lake", "build", "-KleanMemory=6000", f"{name}.{mod}"], cwd=lean_dir, env=env
     )
