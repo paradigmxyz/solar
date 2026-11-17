@@ -60,8 +60,8 @@ pub(crate) fn pointer_bases(
     bases
 }
 
-/// Whether `value`, or an operand that it adds, merges or casts, subtracts a constant or adds one
-/// that wraps, as a step back.
+/// Whether `value`, or an operand that it adds, rounds, merges or casts, subtracts a constant or
+/// adds one that wraps, as a step back.
 fn is_step_back(func: &Function, value: ValueId) -> bool {
     let mut seen = DenseBitSet::new_empty(func.num_values());
     let mut pending = vec![value];
@@ -84,9 +84,14 @@ fn is_step_back(func: &Function, value: ValueId) -> bool {
             {
                 return true;
             }
-            // A forward step keeps a step back below it, which can pass `max_step_back` with the
-            // step that is subtracted from the sum.
-            InstKind::Add(a, b) => pending.extend([*a, *b]),
+            // A forward step or a rounding keeps a step back below it, which can pass
+            // `max_step_back` with the step that is subtracted from the result.
+            InstKind::Add(a, b)
+            | InstKind::And(a, b)
+            | InstKind::Mul(a, b)
+            | InstKind::Shl(a, b)
+            | InstKind::Shr(a, b)
+            | InstKind::Div(a, b) => pending.extend([*a, *b]),
             InstKind::PtrToInt(base, _) | InstKind::IntToPtr(base) | InstKind::PtrAdd(base, _) => {
                 pending.push(*base);
             }
@@ -255,6 +260,7 @@ pub(crate) fn is_floor_clamp(
 mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, MirType};
+    use alloy_primitives::U256;
     use solar_interface::Ident;
 
     #[test]
@@ -275,7 +281,13 @@ mod tests {
         let again = builder.sub(merged, far);
         let sum = builder.add(first, offset);
         let sum_again = builder.sub(sum, far);
+        // rounded = (base - 0x40) & ~0x1f
+        // rounded_again = rounded - 0x60
+        let mask = builder.imm(!U256::from(0x1f));
+        let rounded = builder.and(first, mask);
+        let rounded_again = builder.sub(rounded, far);
         assert_eq!(pointer_bases(&function, first, 0x80).len(), 1);
+        assert!(pointer_bases(&function, rounded_again, 0x80).is_empty());
         assert!(pointer_bases(&function, again, 0x80).is_empty());
         assert!(pointer_bases(&function, sum_again, 0x80).is_empty());
     }
