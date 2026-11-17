@@ -66,6 +66,9 @@ Options:
       -Zsolar-tv-capture
           Capture changed pass inputs and regions without checking them. Requires solar-tv
 
+      -Zemit-lean-stages <DIR>
+          Write the program after every stage of the backend to DIR as Lean definitions of the `solar-tv` semantics, in a directory per contract: the first lowered MIR, the module after each MIR pass that changes it, the scheduled runtime EVM IR, the program after each EVM IR pass that changes it, the runtime bytecode, and a manifest binding them to the sources, the compiler and its options. Code the semantics cannot represent is an error
+
       -Zvalidate-ir=<BOOL>
           Validate MIR and EVM IR after each pass. Enabled by default in debug builds. Accepts `true` or `false`
 

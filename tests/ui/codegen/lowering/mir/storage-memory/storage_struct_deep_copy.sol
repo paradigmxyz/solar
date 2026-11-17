@@ -45,7 +45,7 @@ contract StorageStructDeepCopy {
     // SDC-LABEL: fn @assignFixed
     // Assignment through a fixed storage-array element must deep-copy the
     // struct fields instead of storing the memory pointer as one word.
-    // SDC-DAG: sload 3
+    // SDC-DAG: sload 4
     // SDC-DAG: sstore 3,
     // SDC-DAG: sstore 4,
     function assignFixed(address a, bytes4 x) public {

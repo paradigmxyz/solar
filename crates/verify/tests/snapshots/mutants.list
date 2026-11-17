@@ -1,0 +1,22 @@
+Mutants.whenOpen GDL line 10: `if (!open) revert();` -> ``
+Mutants.deposit SDL line 15: `require(x > 0 && total + x <= 1000);` -> ``
+Mutants.deposit ROR line 15: `>` -> `>=`
+Mutants.deposit CRP line 15: `0` -> `1`
+Mutants.deposit LCR line 15: `&&` -> `||`
+Mutants.deposit AOR line 15: `+` -> `-`
+Mutants.deposit ROR line 15: `<=` -> `<`
+Mutants.deposit CRP line 15: `1000` -> `999`
+Mutants.deposit CRP line 15: `1000` -> `1001`
+Mutants.deposit SDL line 16: `total += x;` -> ``
+Mutants.deposit AOR line 16: `+=` -> `-=`
+Mutants.deposit SDL line 17: `slots[0] = x;` -> ``
+Mutants.deposit ROR line 18: `==` -> `!=`
+Mutants.deposit CRP line 18: `7` -> `6`
+Mutants.deposit CRP line 18: `7` -> `8`
+Mutants.deposit BOOL line 18: `false` -> `true`
+Mutants.pick SDL line 26: `result = a > b || a == 0;` -> ``
+Mutants.pick ROR line 26: `>` -> `>=`
+Mutants.pick LCR line 26: `||` -> `&&`
+Mutants.pick ROR line 26: `==` -> `!=`
+Mutants.pick CRP line 26: `0` -> `1`
+21 mutants in 3 functions; 7 mutation sites in trusted code or code no spec reaches
