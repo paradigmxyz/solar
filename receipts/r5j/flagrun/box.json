@@ -1,0 +1,10 @@
+{
+ "name": "pyramid-prd-r5jflag-4f5d",
+ "plan": "m4-metal-small",
+ "region": "FRA",
+ "keep_alive": "2h0m0s",
+ "created_at": "2026-11-17T18:37:57.341155577Z",
+ "expires_at": "2026-11-17T20:37:57.341155577Z",
+ "latitude_server_id": "sv_BDXM5ExbYNrpk",
+ "source": "boxctl get_box"
+}

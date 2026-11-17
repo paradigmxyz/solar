@@ -1,0 +1,143 @@
+--- r5ipack/r5irun.sh	2026-11-17 17:12:17.867973942 +0000
++++ r5jpack/r5jrun.sh	2026-11-17 18:30:53.011360731 +0000
+@@ -1,37 +1,33 @@
+ #!/usr/bin/env bash
+-# r5irun.sh EXPIRES_EPOCH: r5i Flag certify on a boxctl box from the staged pack in ~/r5ipack: solar
+-# at 0e5c9f80 (FREEZE v2) with its producer built fresh on the staging host at that commit, and
+-# solidity-lean base 334d1d92. The run's scope is r5i-<epoch>; cgroup.txt names it, memory.max is
+-# read back from it, the inner process must be in it, and every sample checks that each descendant
+-# of the inner process is in it (pidtree.tsv), killing the scope on any escape. At driver minute 10
+-# the replay start is projected from r5h's measured driver-to-replay time (2134 s) plus 300 s for
+-# the package modules stripped from the run's package copy, and the run aborts if it would miss
+-# the gate. The run's package copy (--packages-from ~/h2/pkgrun) is the staged cache minus the
+-# build outputs of the 25 EthLib modules only the statement's closure imports (strip.txt), so the
+-# fixed per-step prebuild must build them outside the sandbox; coldstart.txt records each
+-# package's olean count before and after. Fail closed: every pack file's sha256 must match
+-# pack.sha256, the staged producer must be fresh (cargo builds nothing) with the staged sha256,
+-# and the scope's memory.max and swap.max and the replay's shard count must read back before the
+-# driver starts. Gates: the closure replay must start with >= 60 min of TTL left; a hard stop at
+-# TTL-10 min kills the scope. Post steps each run only if their budget fits before the hard stop.
++# r5jrun.sh EXPIRES_EPOCH: the v3 Flag re-certification on a boxctl box from the staged pack in
++# ~/r5jpack: solar at afaefd40 (v3 head) with its producer built on this box from that commit
++# (cargo build --locked --bin solar, dev profile), and solidity-lean base 334d1d92. Same terms as
++# r5irun.sh (r5i-2), with these changes: the source pack holds no build outputs and the producer
++# is built here, then checked fresh (a second cargo build compiles nothing); its embedded commit
++# must be afaefd40 and its compiler sources clean (dirty false); producer.json records its typed
++# fields (generic.py hashes the binary it runs and passes that digest to scripts/certify itself);
++# libc6-dev is part of the base install; and the replay gate and projection use r5i-2's
++# measured times (driver-to-replay 2175 s + 300 s margin; replay start needs >= 1800 s of TTL,
++# about 6x r5i-2's measured 288 s replay-plus-post). Hard stop at TTL-10 min as before.
+ # Everything is recorded under ~/h2/flagrun.
+ set -u
+ expires=$1
+-H=/home/hand; P=$H/r5ipack; O=$H/h2/flagrun; S=$H/h2/r5isrc
+-HEADC=0e5c9f80cf537d7e97f5815d71a78f7391b6cb28; BASE=334d1d924f8f6c29ac827fd81d1cc739721b479a
++H=/home/hand; P=$H/r5jpack; O=$H/h2/flagrun; S=$H/h2/r5isrc
++HEADC=afaefd409e1bab75ab0453eaba93fc06f197dd44; BASE=334d1d924f8f6c29ac827fd81d1cc739721b479a
+ mkdir -p $O
+ log() { echo "$(date -u +%FT%TZ) $*" | tee -a $O/r4.log; }
+ verdict() { echo "$1" > $O/VERDICT; log "VERDICT $1"; exit 0; }
+ left() { echo $(( expires - $(date +%s) )); }
+-log "r5i start; expires $(date -u -d @$expires +%FT%TZ); ttl_left_s $(left); nproc $(nproc); mem_kb $(awk '/MemTotal/{print $2}' /proc/meminfo)"
++log "r5j start; expires $(date -u -d @$expires +%FT%TZ); ttl_left_s $(left); nproc $(nproc); mem_kb $(awk '/MemTotal/{print $2}' /proc/meminfo)"
+ log "locale: $(locale 2>/dev/null | tr '\n' ' ')"
+ cd $P && sha256sum -c pack.sha256 > $O/pack.verify 2>&1 || { cat $O/pack.verify >> $O/r4.log; verdict "ABORTED-staging: a pack file's sha256 differs"; }
+ log "pack verified: $(sha256sum pack.sha256)"
+ sudo tar --zstd -xpf $P/tools.tar.zst -C / && sudo chown -R $(id -u):$(id -g) /opt/hand-tools $H/.local || verdict "ABORTED-staging: tools unpack failed"
+ # The image lacks git and GNU time: installed from the distribution, versions recorded.
+ for b in git time; do [ -x /usr/bin/$b ] || need="${need:-} $b"; done
++[ -e /usr/lib/x86_64-linux-gnu/Scrt1.o ] || need="${need:-} libc6-dev"
+ [ -z "${need:-}" ] || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q $need > $O/apt.log 2>&1 || verdict "ABORTED-staging: apt install$need failed"
+-{ /usr/bin/git --version; dpkg-query -W -f='${Package} ${Version}\n' git time 2>/dev/null; } > $O/apt-versions.txt
++{ /usr/bin/git --version; dpkg-query -W -f='${Package} ${Version}\n' git time libc6-dev 2>/dev/null; } > $O/apt-versions.txt
+ log "apt installed:${need:- none}; $(/usr/bin/git --version); $(dpkg-query -W -f='time ${Version}' time 2>/dev/null)"
+ cd $H
+ tar --zstd -xf $P/elan.tar.zst && tar --zstd -xf $P/small.tar.zst && tar --zstd -xf $P/cache-src.tar.zst &&
+@@ -65,10 +61,10 @@
+ log "preflight ok: $(grep -c . $O/preflight.txt) commands and files resolved; sha256 $(sha256sum < $O/preflight.txt | cut -c1-16)"
+ # The solar checkout's git: a standalone repository from the bundle, HEAD at the v2 commit, index
+ # refreshed without touching the working tree (its mtimes keep the staged build fresh).
+-(cd $S && rm -rf .git && /usr/bin/git init -q && /usr/bin/git fetch -q $P/src.bundle certified-b150:refs/heads/certified-b150 &&
+-  /usr/bin/git symbolic-ref HEAD refs/heads/certified-b150 && /usr/bin/git reset -q) || verdict "ABORTED-staging: solar git restore failed"
++(cd $S && rm -rf .git && /usr/bin/git init -q && /usr/bin/git fetch -q $P/src.bundle r5j-v3:refs/heads/r5j-v3 &&
++  /usr/bin/git symbolic-ref HEAD refs/heads/r5j-v3 && /usr/bin/git reset -q) || verdict "ABORTED-staging: solar git restore failed"
+ [ "$(/usr/bin/git -C $S rev-parse HEAD)" = $HEADC ] || verdict "ABORTED-staging: solar HEAD is not $HEADC"
+-[ "$(/usr/bin/git -C $S rev-parse HEAD^{tree})" = c17d845d959ac4a2a4b22dadfdec43d70d1fb906 ] || verdict "ABORTED-staging: solar tree is not c17d845d"
++[ "$(/usr/bin/git -C $S rev-parse HEAD^{tree})" = 80b152c0e210b6c9bae653bec88c8b781794592a ] || verdict "ABORTED-staging: solar tree is not 80b152c0"
+ [ -z "$(/usr/bin/git -C $S status --short --untracked-files=no)" ] || verdict "ABORTED-staging: solar tracked files differ from HEAD"
+ [ "$(/usr/bin/git -C $H/h2/sl rev-parse $BASE^{tree})" = 59f18cc7e1bcfcde5c1cc99695b89e8dd338e6b3 ] || verdict "ABORTED-staging: solidity-lean base tree is not 59f18cc7"
+ [ "$(/usr/bin/git -C $H/h2/sl show $BASE:lake-manifest.json | sha256sum | cut -c1-64)" = b2777a1807af2c4bec7481ef1955b5a66b63a18d14062f69ef8a4488a88eca42 ] || verdict "ABORTED-staging: lake-manifest sha256 differs"
+@@ -95,13 +91,25 @@
+   LEAN_NUM_THREADS=1 CERTIFY_REPLAY_SHARDS=1 LANG=C.UTF-8
+ env | grep -q -E "^(CERTIFY_ALLOW_|SOLAR=|CERTIFY_SKIP_BUILD=|CERTIFY_REPLAY_TRUST_UPSTREAM=)" && verdict "ABORTED-staging: a hatch variable is set"
+ log "python $(python3 --version 2>&1); rustc $(rustc --version); git $(/usr/bin/git -C $S rev-parse HEAD)"
+-want=$(cut -d' ' -f1 $P/solar.sha256)
+-(cd $S && cargo build --locked --bin solar -v) > $O/cargo-fresh.log 2>&1 || verdict "ABORTED-staging: cargo build failed"
+-grep -q -E '^ *(Compiling|Running)' $O/cargo-fresh.log && verdict "ABORTED-staging: the staged producer is not fresh (cargo recompiled)"
+-got=$(sha256sum < $S/target-r5i/debug/solar | cut -d' ' -f1)
+-[ "$got" = "$want" ] || verdict "ABORTED-staging: producer sha256 $got is not the staged $want"
+-$S/target-r5i/debug/solar --version > $O/producer-version.txt 2>&1
+-log "producer fresh: $S/target-r5i/debug/solar sha256 $got version $(cat $O/producer-version.txt) driver $(/usr/bin/git -C $S rev-parse HEAD) flags: cargo build --locked --bin solar (dev profile) CARGO_TARGET_DIR=$CARGO_TARGET_DIR VERGEN_BUILD_TIMESTAMP=$VERGEN_BUILD_TIMESTAMP"
++[ -e $S/target-r5i ] && verdict "ABORTED-staging: build outputs were staged"
++t_b=$(date +%s)
++(cd $S && cargo build --locked --bin solar -v) > $O/cargo-build.log 2>&1 || verdict "ABORTED-staging: cargo build failed"
++log "producer built on the box in $(( $(date +%s) - t_b )) s: $(grep -c -E '^ *Compiling' $O/cargo-build.log) crates compiled"
++(cd $S && cargo build --locked --bin solar -v) > $O/cargo-fresh.log 2>&1 || verdict "ABORTED-staging: second cargo build failed"
++grep -q -E '^ *(Compiling|Running)' $O/cargo-fresh.log && verdict "ABORTED-staging: the producer is not fresh (a second cargo build recompiled)"
++bin=$S/target-r5i/debug/solar
++got=$(sha256sum < $bin | cut -d' ' -f1)
++$bin --version > $O/producer-version.txt 2>&1
++emb=$(sed -n 's/^Commit SHA: //p' $O/producer-version.txt)
++[ "$emb" = $HEADC ] || verdict "ABORTED-staging: the producer embeds commit $emb, not $HEADC"
++drv=$(/usr/bin/git -C $S rev-parse HEAD)
++[ "$drv" = $HEADC ] || verdict "ABORTED-staging: the driver checkout is $drv, not $HEADC"
++dirt=$(/usr/bin/git -C $S status --porcelain -- crates scripts tools/certify Cargo.toml Cargo.lock)
++[ -z "$dirt" ] || verdict "ABORTED-staging: the compiler or driver sources are dirty: $(echo $dirt | cut -c1-200)"
++prof=$(sed -n 's/^Build Profile: //p' $O/producer-version.txt); feat=$(sed -n 's/^Build Features: //p' $O/producer-version.txt)
++printf '{\n  "binary_sha256": "%s",\n  "binary_path": "%s",\n  "embedded_commit": "%s",\n  "driver_commit": "%s",\n  "dirty": false,\n  "profile": "%s",\n  "features": "%s",\n  "build_command": "cargo build --locked --bin solar -v",\n  "built_on": "this box",\n  "cargo_target_dir": "%s",\n  "vergen_build_timestamp": "%s",\n  "rustc": "%s"\n}\n' \
++  "$got" "$bin" "$emb" "$drv" "$prof" "$feat" "$CARGO_TARGET_DIR" "$VERGEN_BUILD_TIMESTAMP" "$(rustc --version)" > $O/producer.json
++log "producer: $bin sha256 $got embedded $emb driver $drv dirty false profile $prof features $feat flags: cargo build --locked --bin solar (dev profile) CARGO_TARGET_DIR=$CARGO_TARGET_DIR VERGEN_BUILD_TIMESTAMP=$VERGEN_BUILD_TIMESTAMP"
+ # The run: one scope, 44G, no swap; the inner script waits for the go file.
+ cat > $O/inner.sh <<'EOF'
+ #!/usr/bin/env bash
+@@ -115,11 +123,11 @@
+   > $O/driver.log 2>&1
+ echo $? > $O/EXIT
+ echo "$(date -u +%FT%TZ) driver exit $(cat $O/EXIT)" >> $O/stages.log
+-bash /home/hand/r5ipack/post.sh >> $O/post.log 2>&1
++bash /home/hand/r5jpack/post.sh >> $O/post.log 2>&1
+ echo $? > $O/POST_EXIT
+ EOF
+ chmod +x $O/inner.sh
+-unit="r5i-$(date +%s)"
++unit="r5j-$(date +%s)"
+ sudo -E systemd-run --quiet --scope --unit="$unit" -p MemoryMax=44G -p MemorySwapMax=0 \
+   --uid=$(id -u) --gid=$(id -g) --setenv=HOME=$HOME --setenv=PATH=$PATH \
+   env RUSTUP_HOME=$RUSTUP_HOME CARGO_HOME=$CARGO_HOME CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=$CARGO_TARGET_DIR \
+@@ -139,8 +147,8 @@
+ shards=$(tr '\0' '\n' < /proc/$ipid/environ 2>/dev/null | sed -n 's/^CERTIFY_REPLAY_SHARDS=//p')
+ echo "$shards" > $O/shards.readback
+ log "admission: memory.max $mm swap.max $sm CERTIFY_REPLAY_SHARDS $shards (inner pid $ipid) ttl_left_s $(left)"
+-if [ -z "$cg" ] || [ -z "$ipid" ] || [ "$icg" != "$cg" ] || [ "$mm" != 47244640256 ] || [ "$sm" != 0 ] || [ "$shards" != 1 ] || [ $(left) -lt 6034 ]; then
+-  sudo systemctl kill "$unit.scope"; verdict "ABORTED-admission: read-back differs or under 6034 s TTL at driver start (3600 s replay gate + 2434 s projected driver-to-replay)"
++if [ -z "$cg" ] || [ -z "$ipid" ] || [ "$icg" != "$cg" ] || [ "$mm" != 47244640256 ] || [ "$sm" != 0 ] || [ "$shards" != 1 ] || [ $(left) -lt 4275 ]; then
++  sudo systemctl kill "$unit.scope"; verdict "ABORTED-admission: read-back differs or under 4275 s TTL at driver start (1800 s replay gate + 2475 s projected driver-to-replay)"
+ fi
+ touch $O/go; t0=$(date +%s); projected=0
+ printf 'utc\tndesc\tnprocs_cg\tescaped\tforeign\tescaped_pids\n' > $O/pidtree.tsv
+@@ -171,12 +179,12 @@
+   cp $cgp/memory.events $O/memory.events 2>/dev/null; cat $cgp/memory.peak > $O/memory.peak 2>/dev/null
+   if [ $seen_replay = 0 ] && pgrep -f 'replay_closure.lean' > /dev/null; then
+     seen_replay=1; l=$(left); log "replay start; ttl_left_s $l"
+-    if [ $l -lt 3600 ]; then sudo systemctl kill "$unit.scope"; verdict "ABORTED-gate: replay would start with $l s left (< 3600)"; fi
++    if [ $l -lt 1800 ]; then sudo systemctl kill "$unit.scope"; verdict "ABORTED-gate: replay would start with $l s left (< 1800)"; fi
+   fi
+   pidtree || { sudo systemctl kill "$unit.scope"; verdict "ABORTED-escape: a descendant of the inner process is outside $unit.scope"; }
+   if [ $projected = 0 ] && [ $seen_replay = 0 ] && [ $(( $(date +%s) - t0 )) -ge 600 ]; then
+-    projected=1; pl=$(( expires - t0 - 2434 )); log "minute-10 projection: replay start with $pl s left"
+-    if [ $pl -lt 3600 ]; then sudo systemctl kill "$unit.scope"; verdict "ABORTED-projection: replay projected to start with $pl s left (< 3600)"; fi
++    projected=1; pl=$(( expires - t0 - 2475 )); log "minute-10 projection: replay start with $pl s left"
++    if [ $pl -lt 1800 ]; then sudo systemctl kill "$unit.scope"; verdict "ABORTED-projection: replay projected to start with $pl s left (< 1800)"; fi
+   fi
+   if [ $(left) -lt 600 ]; then sudo systemctl kill "$unit.scope"; log "hard stop at TTL-10"; verdict "ABORTED-infra: hard stop at TTL-10 min"; fi
+   sleep 2

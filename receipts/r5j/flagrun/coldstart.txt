@@ -1,0 +1,57 @@
+# staged package cache /home/hand/h2/cache/.lake/packages (probe cache), oleans per package
+Cli 0
+EthLib 1730
+LeanSearchClient 4
+PolyFun 34
+Qq 14
+QuantumFoundations 0
+VCVio 186
+aesop 132
+batteries 195
+cslib 10
+importGraph 35
+mathlib 8643
+plausible 13
+proofwidgets 13
+# mathlib build/lib from lake exe cache get on this box (mathlib-cache-get.log): present
+# run package copy /home/hand/h2/pkgrun/.lake/packages (--packages-from) after stripping 25 modules (strip.txt)
+Cli 0
+EthLib 1705
+LeanSearchClient 4
+PolyFun 34
+Qq 14
+QuantumFoundations 0
+VCVio 186
+aesop 132
+batteries 195
+cslib 10
+importGraph 35
+mathlib 8643
+plausible 13
+proofwidgets 13
+# after the run: stripped modules (absent at start) in /home/hand/h2/flagwork/solidity-lean/.lake/packages
+EthLib.Base.Proofs.MapM present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.Create present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.Instructions present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.MessageCall present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.Parent present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.Run present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.StaticMessage present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.StaticStep present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Call.StepRules present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Gas.CallGas present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Gas.Prices present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Gas.StateGas present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Instructions.SelfDestruct present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Instructions.Static present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Instructions.TransientStorage present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Call present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.CallSteps present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Copy present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.FailsOn present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Known present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Loop present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Message present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Region present; built by prebuild_packages
+EthLib.Execution.Proofs.Evm.Logic.Route present; built by prebuild_packages
+EthLib.Execution.Proofs.State.Frame present; built by prebuild_packages

@@ -1,0 +1,1 @@
+2026-11-17T19:11:45Z launch: setsid nohup bash /home/hand/r5jpack/r5jrun.sh 1794947877 > /home/hand/r5j-runner.out 2>&1 < /dev/null &

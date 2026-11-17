@@ -1,0 +1,7 @@
+# r5j deviations from r5i-2 (recorded; acceptance unchanged)
+box: m4-metal-small FRA, 12 cores, MemTotal 64913352 kB (r5i-2: 48 cores, 395739244 kB); larger plans out of stock
+gate: replay-start abort gate 1800 s TTL (r5i-2: 3600 s); admission 4275 s; minute-10 projection uses 2475 s driver-to-replay; ruled an operational deviation at 13:20 CST
+producer: built on the box from afaefd40 (r5i-2: staged prebuilt producer checked fresh); same dev profile, flags and VERGEN_BUILD_TIMESTAMP
+base apt: libc6-dev installed with git and time (r5i-2 launch 3 had it from an earlier launch)
+runner: line 166 printed 'cgroup.procs: No such file or directory' once at scope end (the watch loop read the scope after it ended); EXIT 0 POST_EXIT 0
+r5jrun.sh sha256 b87fd2ac949a65a80e017369a3e7a517de161fd638768ab3b6c8b6338a3b835c; diff against r5irun.sh in r5jrun-vs-r5irun.diff sha256 ad7f342d63124a21fa894888909307f5b5b45b08394d7b6aa2ae5ad78fa62cf4

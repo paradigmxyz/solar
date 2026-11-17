@@ -1,0 +1,117 @@
+⚠ [2313/2492] Replayed EvmYul.UInt256
+warning: EvmYul/UInt256.lean: imports `Mathlib.Data.Nat.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Data.Fin.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Data.Vector.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Algebra.Group.Defs` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Algebra.GroupWithZero.Defs` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Algebra.Ring.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Algebra.Order.Floor.Defs` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Algebra.Order.Floor.Ring` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Algebra.Order.Floor.Semiring` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Data.ZMod.Defs` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/UInt256.lean: imports `Mathlib.Tactic.Ring` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [2349/2492] Replayed EvmYul.Wheels
+warning: EvmYul/Wheels.lean: imports `Mathlib.Data.Finmap` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [2464/2492] Replayed EvmYul.Maps.ByteMap
+warning: EvmYul/Maps/ByteMap.lean:20:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2466/2492] Replayed EvmYul.Operations
+warning: EvmYul/Operations.lean: imports `Mathlib.Data.Finmap` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [2472/2492] Replayed EvmYul.Maps.StorageMap
+warning: EvmYul/Maps/StorageMap.lean: imports `Mathlib.Data.Multiset.Sort` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/Maps/StorageMap.lean:20:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2474/2492] Replayed EvmYul.State.Substate
+warning: EvmYul/State/Substate.lean:1:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2475/2492] Replayed Conform.Wheels
+warning: Conform/Wheels.lean: imports `Mathlib.Data.Multiset.Sort` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: Conform/Wheels.lean:4:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2476/2492] Replayed EvmYul.State.Transaction
+warning: EvmYul/State/Transaction.lean: imports `Mathlib.Data.List.AList` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [2479/2492] Replayed EvmYul.Maps.AccountMap
+warning: EvmYul/Maps/AccountMap.lean:20:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2482/2492] Replayed EvmYul.State.Block
+warning: EvmYul/State/Block.lean: imports `Mathlib.Data.Finset.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [2483/2492] Replayed EvmYul.State
+warning: EvmYul/State.lean: imports `Mathlib.Data.Finset.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: EvmYul/State.lean:1:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2490/2492] Replayed EvmYul.MachineStateOps
+warning: EvmYul/MachineStateOps.lean:1:0: it is recommended to use Std.TreeMap instead
+'Batteries.Data.RBMap' has been deprecated: please replace this import by
+
+import Batteries.Data.RBMap.Basic
+import Batteries.Data.RBMap.Depth
+import Batteries.Data.RBMap.Lemmas
+import Batteries.Data.RBMap.Alter
+import Batteries.Data.RBMap.WF
+⚠ [2492/2492] Replayed EvmInteraction.Simulation.Outcome
+warning: EvmInteraction/Simulation/Outcome.lean: imports `Mathlib.Data.List.Basic` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+Build completed successfully (2492 jobs).
+✔ [1312/1357] Built EthLib.Execution.Proofs.Evm.Gas.StateGas (1.0s)
+✔ [1314/1357] Built EthLib.Base.Proofs.MapM (821ms)
+✔ [1317/1357] Built EthLib.Execution.Proofs.State.Frame (778ms)
+✔ [1319/1357] Built EthLib.Execution.Proofs.Evm.Gas.Prices (692ms)
+✔ [1321/1357] Built EthLib.Execution.Proofs.Evm.Call.MessageCall (1.3s)
+✔ [1323/1357] Built EthLib.Execution.Proofs.Evm.Gas.CallGas (696ms)
+✔ [1325/1357] Built EthLib.Execution.Proofs.Evm.Call.Run (1.1s)
+✔ [1327/1357] Built EthLib.Execution.Proofs.Evm.Logic.Loop (713ms)
+✔ [1335/1357] Built EthLib.Execution.Proofs.Evm.Instructions.TransientStorage (1.1s)
+✔ [1336/1357] Built EthLib.Execution.Proofs.Evm.Call.Instructions (1.1s)
+✔ [1338/1357] Built EthLib.Execution.Proofs.Evm.Instructions.SelfDestruct (774ms)
+✔ [1340/1357] Built EthLib.Execution.Proofs.Evm.Call.Create (942ms)
+✔ [1341/1357] Built EthLib.Execution.Proofs.Evm.Instructions.Static (866ms)
+✔ [1343/1357] Built EthLib.Execution.Proofs.Evm.Call.StaticStep (1.3s)
+✔ [1345/1357] Built EthLib.Execution.Proofs.Evm.Call.StaticMessage (1.8s)
+✔ [1347/1357] Built EthLib.Execution.Proofs.Evm.Call.StepRules (1.3s)
+✔ [1349/1357] Built EthLib.Execution.Proofs.Evm.Call.Parent (886ms)
+✔ [1351/1357] Built EthLib.Execution.Proofs.Evm.Logic.Message (798ms)
+✔ [1352/1357] Built EthLib.Execution.Proofs.Evm.Logic.Copy (781ms)
+✔ [1353/1357] Built EthLib.Execution.Proofs.Evm.Logic.FailsOn (789ms)
+✔ [1354/1357] Built EthLib.Execution.Proofs.Evm.Logic.Region (768ms)
+✔ [1355/1357] Built EthLib.Execution.Proofs.Evm.Logic.Route (1.1s)
+✔ [1356/1357] Built EthLib.Execution.Proofs.Evm.Logic.Known (805ms)
+✔ [1357/1357] Built EthLib.Execution.Proofs.Evm.Logic.Call (1.3s)
+Build completed successfully (1357 jobs).
+✔ [1354/1354] Built EthLib.Execution.Proofs.Evm.Logic.CallSteps (1.1s)
+Build completed successfully (1354 jobs).
+Build completed successfully (1305 jobs).

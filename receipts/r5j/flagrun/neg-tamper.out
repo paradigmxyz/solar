@@ -1,0 +1,9 @@
+replay_closure: the kernel rejects the closure of Certified.flag_4ce5cf9a.Final.final: while replaying declaration 'Nat.add_zero':
+(kernel) declaration type mismatch, 'Nat.add_zero' has type
+  ∀ (n : Nat), n.le n
+but it is expected to have type
+  ∀ (n : Nat), Eq (HAdd.hAdd n 0) n
+TEST tampered Nat.add_zero with the proof of Nat.le_refl
+CLOSURE 33892 constants, 31488 groups
+AXIOMS [Classical.choice, Quot.sound, propext]
+SHARD 0 1 13035 theorem proofs to check

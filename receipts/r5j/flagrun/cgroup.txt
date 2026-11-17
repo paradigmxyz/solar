@@ -1,0 +1,6 @@
+unit r5j-1794942828.scope
+cgroup /system.slice/r5j-1794942828.scope
+memory.max 47244640256 (read back from /sys/fs/cgroup/system.slice/r5j-1794942828.scope/memory.max)
+memory.swap.max 0
+inner_pid 33941
+inner_pid_cgroup /system.slice/r5j-1794942828.scope

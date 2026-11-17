@@ -1,0 +1,14 @@
+2026-11-17T19:11:45Z r5j start; expires 2026-11-17T20:37:57Z; ttl_left_s 5172; nproc 12; mem_kb 64913352
+2026-11-17T19:11:45Z locale: LANG=C.UTF-8 LANGUAGE= LC_CTYPE="C.UTF-8" LC_NUMERIC="C.UTF-8" LC_TIME="C.UTF-8" LC_COLLATE="C.UTF-8" LC_MONETARY="C.UTF-8" LC_MESSAGES="C.UTF-8" LC_PAPER="C.UTF-8" LC_NAME="C.UTF-8" LC_ADDRESS="C.UTF-8" LC_TELEPHONE="C.UTF-8" LC_MEASUREMENT="C.UTF-8" LC_IDENTIFICATION="C.UTF-8" LC_ALL=C.UTF-8 
+2026-11-17T19:11:46Z pack verified: 372cfc8c23867f1ccdcae6448712a33b4b742336c7ac67e720c4914afd5f5c62  pack.sha256
+2026-11-17T19:11:50Z apt installed: git time libc6-dev; git version 2.43.0; time 1.9-0.2build1
+2026-11-17T19:13:07Z mathlib: lake exe cache get exit 0; Decompressed 9031 file(s) Already decompressed 9031 file(s) 
+2026-11-17T19:13:07Z preflight ok: 64 commands and files resolved; sha256 aeca82c98a20e917
+2026-11-17T19:13:21Z cold start: stripped 25 EthLib modules; EthLib 1730 EthLib 1705 
+2026-11-17T19:13:21Z python Python 3.14.8; rustc rustc 1.100.0 (0ef1bc386 2026-11-09); git afaefd409e1bab75ab0453eaba93fc06f197dd44
+2026-11-17T19:13:48Z producer built on the box in 27 s: 217 crates compiled
+2026-11-17T19:13:48Z producer: /home/hand/h2/r5isrc/target-r5i/debug/solar sha256 95db1006cb41a2a06203440f2331c0e5299e2ff8c4b01ab16b8259b6719685b6 embedded afaefd409e1bab75ab0453eaba93fc06f197dd44 driver afaefd409e1bab75ab0453eaba93fc06f197dd44 dirty false profile debug features mimalloc,tracing flags: cargo build --locked --bin solar (dev profile) CARGO_TARGET_DIR=/home/hand/h2/r5isrc/target-r5i VERGEN_BUILD_TIMESTAMP=2026-11-17T16:30:00Z
+2026-11-17T19:13:48Z admission: memory.max 47244640256 swap.max 0 CERTIFY_REPLAY_SHARDS 1 (inner pid 33941) ttl_left_s 5049
+2026-11-17T19:23:49Z minute-10 projection: replay start with 2574 s left
+2026-11-17T19:42:18Z replay start; ttl_left_s 3339
+2026-11-17T19:46:18Z scope ended; EXIT 0 POST_EXIT 0
