@@ -432,7 +432,7 @@ jobs:
         with:
           version: ${{ env.PINNED_SCCACHE_VERSION }}
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2.90.2
         with:
           tool: cargo-codspeed
       - name: Build the benchmark targets
@@ -441,7 +441,7 @@ jobs:
           -p solar-bench
           --bench criterion
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@61efe07e57e55bedeab750c434504de272a56e8c # v5.6.1
+        uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f # v5.6.3
         with:
           run: >-
             cargo codspeed run -m simulation

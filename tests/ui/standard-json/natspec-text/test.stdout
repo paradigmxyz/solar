@@ -87,6 +87,154 @@
           },
           "version": 1
         }
+      },
+      "F": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "n()": {
+              "notice": "base notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "n()": {
+              "details": "base dev more base dev"
+            }
+          },
+          "version": 1
+        }
+      },
+      "G": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "n()": {
+              "notice": "local notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "n()": {
+              "details": "base dev more base dev"
+            }
+          },
+          "version": 1
+        }
+      },
+      "H": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "n()": {
+              "notice": "base notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "n()": {
+              "details": "local dev"
+            }
+          },
+          "version": 1
+        }
+      },
+      "K": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "g()": {
+              "notice": "   block nine"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f()": {
+              "details": "   Multiplies by 7"
+            }
+          },
+          "version": 1
+        }
+      },
+      "L": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "n()": {
+              "notice": "base notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "n()": {
+              "details": "local dev continued"
+            }
+          },
+          "version": 1
+        }
+      },
+      "IA": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "q()": {
+              "notice": "IA notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "IB": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "q()": {
+              "notice": "IB notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "M": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "q()": {
+              "notice": "IB notice"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
       }
     }
   }

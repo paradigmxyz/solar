@@ -24,9 +24,10 @@ cargo run -- -Zhelp                    # Unstable flags help
 
 Filter tests with `cargo tq <mode> <path-substring>` (bless with
 `cargo bless <mode> <path-substring>`), and Rust tests with
-`cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating and broader checks once the change settles.
-For documentation-only changes, check prose, examples, and spelling; do not
-build or run tests. Avoid plain `cargo test`.
+`cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating
+and broader checks once the change settles. Avoid plain `cargo test`. For
+documentation-only changes, check prose, examples, and spelling; do not build
+or run tests.
 
 NEVER RUN TESTS WITH `--all-features`: it enables `tracy`, whose per-process
 overhead turns the UI tests into minutes of 100% CPU.
@@ -37,30 +38,20 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
 
 - `crates/parse`: Solidity and Yul lexer and parser. `crates/ast`: AST and
   visitors.
-- `crates/sema`: `ast_lowering/` (name resolution, AST -> HIR), `hir/`, `ty/`,
-  `typeck/`, `output/` (ABI, NatSpec, storage layout).
-- `crates/mir`: the MIR data model, operation schema (`op_schema.rs`) and the
-  semantics it declares (`semantics.rs`), text format (`parser.rs`,
-  `display.rs`, with the backend memory records of `backend_memory.rs`), and
-  verifier (`analysis/validator.rs`). `crates/mir-interpreter`: runs lowered
-  MIR.
-- `crates/codegen`: `mir/lower/` (HIR -> MIR), `mir/transform/` (one file per
-  MIR pass), `mir/pass.rs` (pass registry and pipelines),
-  `backend/evm/codegen/` (instruction selection, stack scheduling),
-  `backend/evm/ir/passes/` (EVM IR passes), `backend/assembler/`, `target.rs`
-  (cost model).
-- `crates/evmir`: the EVM IR data model, text format, and verifier (`ir/`),
-  the opcode table and word semantics (`op.rs`, `op/word.rs`), the gas
-  schedule (`gas.rs`). `crates/evmir-interpreter`: runs EVM IR.
-- `crates/ir`: what MIR and EVM IR share: program data and library tables
-  (`link.rs`), debug-span bounds (`debug.rs`), and the IR text parser
-  (`ir_parse.rs`).
+- `crates/sema`: name resolution and AST -> HIR (`ast_lowering/`), `hir/`,
+  `ty/`, `typeck/`, and `output/` (ABI, NatSpec, storage layout).
+- `crates/mir` and `crates/evmir`: the data model, text format, and verifier
+  of each IR; `crates/ir`: what both share. `crates/mir-interpreter` and
+  `crates/evmir-interpreter` run them.
+- `crates/codegen`: HIR -> MIR (`mir/lower/`), MIR passes (`mir/transform/`,
+  one file per pass; registry and pipelines in `mir/pass.rs`), stack
+  scheduling (`backend/evm/codegen/`), EVM IR passes
+  (`backend/evm/ir/passes/`), the assembler, and the cost model (`target.rs`).
 - `crates/interface`: sources, spans, diagnostics, symbols.
   `crates/data-structures`: index types, bitsets, arena helpers.
   `crates/config`: options and `-Z` flags (`opts.rs`; bless
-  `tests/ui/cli/Zhelp.stdout`). `crates/cli`: driver.
-  `crates/solar`: binary and test entry point. Also `lsp`, `lint`, `capi`,
-  `macros`.
+  `tests/ui/cli/Zhelp.stdout`). `crates/cli`: driver. `crates/solar`: binary
+  and test entry point. Also `lsp`, `lint`, `capi`, `macros`.
 - `tools/tester`: UI and integration test runners. `tools/xtask`: `cargo tq`.
 
 ### MIR and EVM IR
@@ -74,69 +65,34 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   placement here.
 - Stack scheduling sits at the MIR-to-EVM boundary. It keeps value identities
   and virtual stack layouts private and emits scheduled EVM IR directly.
-- Keep the assembler primitive: a compact stream of opcodes, labels, deferred
-  pushes, and immutable placeholders, solved to a least fixed point of label
-  offsets and PUSH widths. Never add optimizations to this stream; add them to
-  block EVM IR.
+- Keep the assembler primitive: opcodes, labels, deferred pushes, and immutable
+  placeholders, solved to a least fixed point of label offsets and PUSH widths.
+  Add optimizations to EVM IR, never to the assembler.
 - MIR must not learn EVM stack layout; EVM IR must not rediscover Solidity types
   or call semantics.
 
-### Debug Info
-
-Debug info must never change codegen: no changes to executable MIR or EVM IR,
-optimization decisions, stack scheduling, layout, or bytecode to keep metadata,
-and no kept instructions, duplicated code, or disabled optimizations to keep
-a source location. Keep valid metadata when possible; otherwise mark it
-dropped or unknown rather than inventing a location or picking an arbitrary
-origin for shared code. Explain deliberate limits with a `NOTE:` comment. Cover
-debug-info changes with bytecode-neutrality tests.
-
-Pick locations in this order; the first rule that applies wins.
-
-1. **solc.** For which source span an expression or statement maps to, follow
-   solc: the `LocationSetter` calls in `testdata/solidity/libsolidity/codegen`
-   for legacy, `@src` for via-IR. Cite the solc file and line in the code
-   comment and the PR body.
-2. **LLVM, rustc, clang.** For how locations survive a rewrite, copy them; do
-   not invent rules. LLVM's
-   [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html)
-   has four:
-   - Preserve: a replacement for one instruction keeps its location.
-   - Merge (`applyMergedLocation`): only when new code replaces several
-     instructions and produces each of their outputs, as when hoisting or
-     sinking identical code, or merging tails.
-   - Drop (`dropLocation`): when keeping the location would mislead, as when
-     hoisting into another block.
-   - Remap: cloned code keeps its location.
-
-   Never move a deleted instruction's location onto code that survives. CSE
-   keeps only the survivor's own location.
-3. **Our own rule.** Only where neither applies. Give the reason in the code
-   comment and the PR body. Never add a rule only to lower an audit count.
-
 ### MIR Phases
 
-MIR has two phases, `semantic` (typed SSA, aggregates, semantic operations) and
-`lowered` (word SSA and backend-supported operations; calls and phis survive
-until stack scheduling). Required conversion passes in between stay small and
-named and keep SSA and type invariants. `lower-evm-shaped` checks legality and
-calls `Module::advance_phase`; the backend takes the checked `LoweredModule`.
-Conversion errors stop the pipeline, even with `-Zmir-pipeline`; never skip a
-lowering silently. Add instruction legality to `Instruction::unlowered_reason`
-and type/module rules to the phase verifier, and test them under
-`tests/ui/codegen/mir/`. See [docs/MIR.md](docs/MIR.md#phase-model).
+MIR has a `semantic` phase (typed SSA, aggregates, semantic operations) and a
+`lowered` phase (word SSA and backend-supported operations). The conversion
+passes between them stay small and keep SSA and type invariants;
+`lower-evm-shaped` checks legality and advances the phase. Conversion errors
+stop the pipeline, even with `-Zmir-pipeline`; never skip a lowering silently.
+Add instruction legality to `Instruction::unlowered_reason` and type and module
+rules to the phase verifier, and test them under `tests/ui/codegen/mir/`. See
+[docs/MIR.md](docs/MIR.md#phase-model).
 
 ### Operation Schema and ISLE Rules
 
-Declare MIR operations only in `crates/mir/src/op_schema.rs` and EVM
-opcodes only in `crates/evmir/src/op.rs`; never add a parallel `match` that
-classifies operations elsewhere. Write rewrite rules in ISLE under
-`crates/codegen/isle/`, and never hand-edit the generated `prelude.isle` or
-`extractors.isle`; regenerate them with
+Declare MIR operations only in `crates/mir/src/op_schema.rs` and EVM opcodes
+only in `crates/evmir/src/op.rs`; never add a parallel `match` that classifies
+operations elsewhere. Write rewrite rules in ISLE under `crates/codegen/isle/`.
+Never hand-edit the generated `prelude.isle` and `extractors.isle` files;
+regenerate them with
 `SNAPSHOTS=overwrite cargo nextest run -p solar-codegen isle_prelude`. Rules
 that affect execution need runtime coverage, and word rules need the
-`scripts/evm-rules/` checker. Read [docs/CODEGEN.md](docs/CODEGEN.md) before adding
-operations, writing rules, or extending the `egraph` pass.
+`scripts/evm-rules/` checker. Read [docs/CODEGEN.md](docs/CODEGEN.md) before
+adding operations, writing rules, or extending the `egraph` pass.
 
 ### Target Cost Model
 
@@ -145,108 +101,51 @@ Price every choice between equivalent code shapes with the cost model in
 stack scheduler, or the backend; add a tier or query to the model and pin it
 with a unit test there.
 
-### Visitor Pattern
+### Debug Info
 
-Use `type BreakValue = Never` if the visitor never breaks. Override `visit_*` and
-always call `walk_*` to continue traversal:
+Debug info must never change codegen: do not change executable MIR or EVM IR,
+optimization decisions, stack scheduling, layout, or bytecode to keep metadata,
+and do not keep instructions, duplicate code, or disable optimizations to keep a
+source location. Keep valid metadata when possible; otherwise mark it dropped or
+unknown rather than invent a location or pick an arbitrary origin for shared
+code. Explain deliberate limits with a `NOTE:` comment, and cover debug-info
+changes with bytecode-neutrality tests.
 
-```rust
-fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
-    // Your logic here.
-    walk_expr(self, expr)
-}
-```
+Pick locations by the first rule that applies:
+
+1. **solc** decides which source span an expression or statement maps to: the
+   `LocationSetter` calls in `testdata/solidity/libsolidity/codegen` for
+   legacy, `@src` for via-IR. Cite the solc file and line in the code comment
+   and the PR body.
+2. **LLVM, rustc, and clang** decide how locations survive a rewrite. Follow
+   LLVM's [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html):
+   code that replaces one instruction, and cloned code, keep their location;
+   merge locations only when new code replaces several instructions and
+   produces each of their outputs; drop a location that would mislead, such as
+   on code hoisted into another block. Never move a deleted instruction's
+   location onto surviving code; CSE keeps only the survivor's location.
+3. **Our own rule**, only where neither applies, with the reason in the code
+   comment and the PR body. Never add a rule only to lower an audit count.
 
 ## Testing
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output.
-- Frontend tests go in `parser/`, `resolve/`, and `typeck/`, in a topic
-  subdirectory when one fits, such as `typeck/conversions/` or `parser/using/`.
+- Put each test in the directory for the layer it checks, as the
+  [tester guide](tools/tester/README.md#test-layout) lists, and keep leaf
+  directories under about 80 tests.
 - For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
   revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
   outputs, use one test with `//@ revisions:` and revision-scoped directives.
   Use separate files only when the source text itself differs in purpose.
-- Do not check in huge outputs, such as a 1,500-line standard-json `.stdout`
-  for a one-line fix. Check the lines that matter with FileCheck.
-- Many small test files are fine. Put a new family of tests in its own
-  subdirectory, not in an already large one, and split a giant test source
-  into small focused files.
 - Put imported or secondary sources in `auxiliary/` next to the test, never
   `aux/` (Windows rejects it).
 - Assert formatted output in Rust tests with `snapbox` snapshots, not
-  `.contains(...)`.
+  `.contains(...)`. Snapshot bytecode as disassembly, never raw bytes or
+  offsets.
 - Python: run `bash scripts/check-python.sh` and use uv, never pip; see
   [CONTRIBUTING.md](CONTRIBUTING.md#python-tooling).
-
-### Compiler comparisons
-
-For requested comparisons with solc, use
-`uv run --project tools/compiler-diff compiler-diff` from the repository root
-and read its [guide](tools/compiler-diff/README.md) first. Never hide errors or
-unsupported checks with expectations. Report coverage counts, reduce new
-failures into regression tests, and record accepted differences in
-[SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
-
-- Do not chase solc parity on differences ordinary Solidity would not hit, such
-  as revert data only, assembly-forged values, dirty bits left by earlier storage
-  writes, or absurd type sizes: record them in SOLC_DIVERGENCE.md with a UI test
-  that pins our behavior. Malformed calldata may differ from solc only in revert
-  data: never accept an input that solc rejects. Never accept a parity fix that
-  makes the compiler more complex or slower, or the generated code bigger or
-  slower, unless the difference matters by that test.
-
-### Codegen / MIR Pass Tests
-
-Every MIR and EVM IR pass module starts with module docs that let a reviewer
-understand it without the code: what it rewrites, the analysis or algorithm,
-the main safety and profitability limits, its place in the pipeline, and any
-deliberate omissions. A one-line restatement of the name is not enough.
-
-- Before adding a pass, check `mir/transform/` and `backend/evm/ir/passes/`
-  for one to extend.
-- Test pass behavior with UI tests, by layer:
-  - Solidity to MIR lowering, checked with an explicit `-Zdump=mir`:
-    `tests/ui/codegen/lowering/mir/<topic>/`.
-  - MIR to EVM IR lowering (stack scheduling, spills, phis, resident words,
-    frames, switches, program data), checked with an explicit
-    `-Zdump=evm-ir*` or `disasm*`, or with `run-call` when the bug is in stack
-    scheduling: `tests/ui/codegen/lowering/evm-ir/<topic>/`.
-  - Runtime behaviour of a Solidity feature, checked with `run-call` and no
-    explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as
-    `abi-decode`, `storage-arrays`, or `modifiers`. FileCheck on the codegen
-    matrix's `mir` revision does not make a test a lowering test.
-  - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
-    A test that runs one pass with `-Zmir-pipeline=<pass>` belongs there.
-  - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:
-    `tests/ui/codegen/mir/lowering/`.
-  - Lowered MIR checked against the MIR interpreter with `run-call`:
-    `tests/ui/codegen/mir/interp/`.
-  - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
-    name). A test that runs one pass with `-Zevm-ir-pipeline=<pass>` belongs
-    there.
-  - EVM IR checked against the EVM IR interpreter with `run-call`:
-    `tests/ui/codegen/evm-ir/interp/`.
-  - Bytecode layout through the disassembly: `tests/ui/codegen/disasm/`. Code
-    size and stack depth limits: `tests/ui/codegen/size-limits/`. Codegen dump,
-    timing, and tuning flags: `tests/ui/codegen/flags/`.
-  - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
-    `validation/`.
-  - Source maps, debugify, origins, and debug info kept or dropped by a pass:
-    `tests/ui/codegen/debug-info/` for Solidity sources, and
-    `tests/ui/codegen/debug-info/mir/`, `debug-info/evm-ir/` for IR sources,
-    named `<pass>_<what>`.
-- Keep a leaf directory under about 80 tests; split a growing one by topic.
-- Keep `.stdout`/`.stderr` expectations beside their source.
-- Never write Rust unit tests that run whole passes; unit-test only small pure
-  helpers.
-- In Rust tests of bytecode, snapshot the disassembly, never raw bytes or
-  offsets.
-- Check pass output with MIR snapshots or FileCheck, then add runtime or
-  differential tests when execution can change.
-- Keep pass adapters small and beside the transform. The pass manager only
-  coordinates names, pipelines, and `dyn ModulePass` execution.
 
 ### UI Test Annotations
 
@@ -258,73 +157,90 @@ contract Test {
 }
 ```
 
-Annotations: `//~ ERROR:`, `WARN:`, `NOTE:`, `HELP:`, `ICE:`, and
-`//~ diagnostic_code`. `^`/`v` point to lines above/below, `|` adds another
-annotation for the same line, and `?` marks a diagnostic outside the test file.
+Annotations are `//~ ERROR:`, `WARN:`, `NOTE:`, `HELP:`, `ICE:`, and
+`//~ diagnostic_code`. `^` and `v` point to lines above and below, `|` adds
+another annotation for the same line, and `?` marks a diagnostic outside the
+test file.
 
 The runner infers the exit status: 1 with `ERROR` or `ICE` annotations, else 0.
 Add `//@ check-pass`, `//@ check-fail`, or `//@ failure-status: N` only when the
 inferred status is wrong.
 
-Other directives: `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
+Other directives are `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
 `//@ ignore-host: windows`, and:
 
 - `//@ run-call: add 1, 2 => 3` deploys a fresh contract, calls the function,
   and compares the ABI-encoded result; `//@ run-call-fail: fail()` requires a
-  failure. See the [tester guide](tools/tester/README.md#runtime-directives)
-  for settings. Use them for one isolated call; use `tests/foundry/`
-  (`cargo tq foundry`) for multiple transactions, state, actors, events,
+  failure. Use them for one isolated call, and `tests/foundry/`
+  (`cargo tq foundry`) for several transactions, state, actors, events,
   cheatcodes, or complex setup. Lowered `.mir` and `.evmir` tests also run each
   call through the MIR or EVM IR interpreter and name the function by signature
-  and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
-- `//@ filecheck: ARGS` runs LLVM FileCheck on the `.stdout` with `ARGS`.
+  and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. See the
+  [tester guide](tools/tester/README.md#runtime-directives) for settings.
+- `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`.
 
-Use FileCheck when full snapshots are too brittle or the test checks order,
-presence, or absence. Put `// CHECK:` lines immediately above the function or
-block they cover, specific enough to catch the bug, anchored with `CHECK-LABEL`
-when output has several sections. Use the default `CHECK` prefix unless
-revisions need more. Keep patterns short, capture changing values with
-`[[NAME:regex]]`, and keep one function's checks in one comment block.
+### FileCheck
 
-`cargo tq foundry-external [name]` runs real-world projects as a local-only
-differential suite; see the
-[tester guide](tools/tester/README.md#external-foundry-suite). Any fix it finds
-lands with a reduced regression test.
+Do not check in huge outputs, such as a 1,500-line standard-JSON `.stdout` for a
+one-line fix; check the lines that matter with FileCheck. Use it also when a
+full snapshot is brittle or the test checks order, presence, or absence.
 
-### Porting Tests from Solc
+Put `// CHECK:` lines directly above the function or block they cover, specific
+enough to catch the bug, and anchor them with `CHECK-LABEL` when the output has
+several sections. Use the default `CHECK` prefix unless revisions need more.
+Keep patterns short, capture changing values with `[[NAME:regex]]`, and keep
+one function's checks in one comment block.
 
-Read the solc test in `testdata/solidity` when porting. Split
-`==== Source: ... ====` sections into `auxiliary/` and fix imports. When the
-port keeps the test's semantics one to one (renames are fine), add
-`// ported-from: test/libsolidity/.../name.sol`, one line per upstream file, no
-trailing punctuation, after the leading `//@` directives or at the top. To
-update the tracked solc version, follow
+### Codegen Passes
+
+Before adding a pass, look for one to extend in `mir/transform/` and
+`backend/evm/ir/passes/`. Start every pass module with docs that let a reviewer
+understand it without the code: what it rewrites, the algorithm, its main
+safety and profitability limits, its place in the pipeline, and deliberate
+omissions. Keep the pass adapter small and beside the transform; the pass
+manager only coordinates names, pipelines, and `dyn ModulePass` execution.
+
+Test passes with UI tests, checked with snapshots or FileCheck, plus runtime or
+differential tests when execution can change. Never write Rust unit tests that
+run whole passes; unit-test only small pure helpers.
+
+### Solc Parity
+
+For requested comparisons with solc, use
+`uv run --project tools/compiler-diff compiler-diff` from the repository root
+and read its [guide](tools/compiler-diff/README.md) first. Never hide errors or
+unsupported checks with expectations. Report coverage counts, record accepted
+differences in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md), and reduce each
+new failure from compiler-diff or `cargo tq foundry-external` into a regression
+test.
+
+Do not chase parity on differences ordinary Solidity would not hit, such as
+revert data alone, assembly-forged values, dirty bits left by earlier storage
+writes, or absurd type sizes. Record them in SOLC_DIVERGENCE.md too, with a UI
+test that pins our behavior. Malformed calldata may differ from solc only in
+revert data: never accept an input that solc rejects. Reject a parity fix that
+makes the compiler more complex or slower, or the generated code bigger or
+slower, unless ordinary Solidity hits the difference.
+
+When porting a solc test, split `==== Source: ... ====` sections into
+`auxiliary/` and fix imports. If the port keeps the test's semantics one to one
+(renames are fine), add `// ported-from: test/libsolidity/.../name.sol`, one
+line per upstream file and no trailing punctuation, after the leading `//@`
+directives or at the top. To update the tracked solc version, follow
 [CONTRIBUTING.md](CONTRIBUTING.md#updating-solc).
 
 ## Diagnostics Style
 
-- No full stops at the end of messages.
-- Quote code with backticks, not double quotes.
-- Keep the main message short.
-- Reuse solc's code for every diagnostic solc also emits (so `--allow` matches
-  for warnings). Most solar-only diagnostics have no code; give one only when
-  users should address it by code, such as to `--allow` a warning, and pick a
-  number below 1000, since solc assigns codes from 1000 to 9999.
+- Keep the main message short. End no message, note, or help with a full
+  stop, and quote code with backticks.
+- Reuse solc's code for every diagnostic solc also emits, so `--allow` matches.
+  Give a diagnostic solc lacks a code only when users need one, such as to
+  `--allow` a warning, and pick a number below 1000; solc uses 1000 to 9999.
 - Return `Result<(), ErrorGuaranteed>` rather than `bool` from emitting code
   where practical, and pass the guarantee to `mk_ty_err`. Never use
   `ErrorGuaranteed::new_unchecked()` when a real guarantee exists.
 - Add context with `note` (why), `help` (how to fix), and `span_note` (related
   code).
-
-```rust
-self.dcx()
-    .err("cannot override non-virtual function")
-    .code(error_code!(4334))
-    .span(base.span)
-    .span_note(overriding.span, "overriding function is here")
-    .help("add `virtual` to the base function to allow overriding")
-    .emit();
-```
 
 ## Commits and PRs
 
@@ -345,6 +261,8 @@ self.dcx()
 - Comments end with periods (except URLs); files end with LF.
 - Follow existing patterns; fix the existing path before adding infrastructure.
 - Never expose secrets.
+- Do not call the project "Solar" in the third person; say "we" or "the
+  compiler". `docs/SOLC_DIVERGENCE.md` may contrast `solar` with `solc`.
 
 ### Rust
 
@@ -374,76 +292,52 @@ self.dcx()
 - Omit type hints unless inference fails; then prefer turbofish.
 - Leave a blank line between items and item groups (imports count as one),
   except for one struct with one `impl` or a run of similar `impl`s.
-
-### IR construction and rewrites
-
-- Generated MIR scalars are `i1`, `i160`, `i256`, or `ptr<memory>`; structs
-  and slices keep their types. `ptr<memory>` is opaque, like LLVM's `ptr`:
-  reach object words with `ptradd` and `mload`/`mstore`, never with integer
-  arithmetic. Keep source widths, signedness, and ABI encodings in operation or
-  layout metadata.
-- `iN` names bit width. MIR syntax accepts any positive 32-bit width, but source
-  lowering emits only `i1`, `i160`, and `i256`; other widths need EVM IR
-  lowering support first.
-- Every `iN` value has zero bits above N, including arguments, loads, call
-  results, phis, and constants, so optimizations need not clean it. Raw memory
-  and assembly values stay `i256` until an explicit cast.
-- Addresses are `i160`: narrow with `trunc i256 v to i160`, widen with
-  `zext i160 v to i256`, and keep the width until EVM IR.
-- Every `i1` is exactly 0 or 1, including values from inline assembly; normalize
-  raw words with `ne v, 0`. Branches and selects take only `i1`.
-- Cast explicitly between value types; never retag a value or rely on equal
-  storage width. Use LLVM casts (`trunc`, `zext`, `sext`, `ptrtoint`,
-  `inttoptr`) with `type v to type` syntax; `trunc` to `i1` keeps the low bit
-  and does not test for nonzero.
-- Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Rewrites
-  keep value and type; bool-to-word needs `zext i1 v to i256`.
-- Write a test that a word fits in `k` bits as `lt x, 2^k` and one that it does not as
-  `gt x, 2^k - 1`, for 1 <= k < 256, never as a shift against zero: `spell-width-tests` picks the
-  spelling where the uses are known, and every pass reads the compare. See
-  [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
-- `ptr<memory>` is not an integer; pointer casts do not establish validity,
-  provenance, ownership, or non-wrapping arithmetic.
-- Memory pointers are never null: store the zero slot or a default object as a
-  default memory value, never 0, and read pointers without zero guards. See
-  [docs/MIR.md](docs/MIR.md#value-types-and-conversions).
-- Keep raw Solidity bool and address bits as `i256` where assembly can see them;
-  convert to `i1` for logic and branches.
-- Put an IR or pseudo-IR comment, in emitted order and one instruction per line
-  where that helps, directly above each piece of code that writes, moves, or
-  rearranges IR: the match arm, branch, loop, or builder sequence, not the top of
-  a large function. No `IR:` label, prose, or full stop.
-
-## Notes
-
-- Use `IndexVec<I, T>` for every collection indexed by `I`, including locals;
-  repeated `x.index()` signals the wrong collection.
-- Audit `IndexVec`s for sentinel entries (`None`, empty, zero, max ID). Switch to
-  `FxHashMap<I, T>` only when measured occupancy shows sentinels dominate.
-- Never use `Vec<bool>`. Use fixed dense or mixed bitsets for stable domains,
-  growable bitsets when indices grow while the set lives, and hash sets for
-  sparse or unbounded domains. Iterate with the bitset's iterators, never by
-  probing `0..domain_size`.
+- Use `IndexVec<I, T>` for every collection indexed by `I`; repeated
+  `x.index()` signals the wrong collection. Audit `IndexVec`s for sentinel
+  entries, and switch to `FxHashMap<I, T>` only when measured occupancy shows
+  sentinels dominate.
+- Never use `Vec<bool>`: use the bitsets in `crates/data-structures`, or a hash
+  set for sparse domains. Iterate with their iterators, never by probing
+  `0..domain_size`.
 - Compare symbols with `sym::name`/`kw::Keyword`, not `.as_str()`. Never call
   `Symbol::intern` on a literal; add it to `symbols!` in
   `crates/interface/src/symbol.rs`.
-- Allocate AST nodes in the arena; write in place where possible, else use
-  `alloc_vec`, `alloc_smallvec`, `alloc_from_iter`, and friends in
-  `crates/data-structures/src/bump_ext.rs`.
-- Do not call the project "Solar" in the third person; say "we" or "the
-  compiler". `docs/SOLC_DIVERGENCE.md` may contrast `solar` with `solc`.
+- Allocate AST nodes in the arena; write in place where possible, else use the
+  helpers in `crates/data-structures/src/bump_ext.rs`.
+- In visitors, use `type BreakValue = Never` when the visitor never breaks, and
+  call `walk_*` from every overridden `visit_*` to continue traversal.
+
+### IR construction and rewrites
+
+[docs/MIR.md](docs/MIR.md#value-types-and-conversions) defines MIR types and
+casts. The rules most code touches:
+
+- Every `iN` value has zero bits above N, and every `i1` is 0 or 1, so passes
+  need not clean them. Normalize raw words with `ne v, 0`; branches and selects
+  take only `i1`.
+- Addresses are `i160`. Keep raw Solidity bool and address bits that assembly
+  can see as `i256`, and convert to `i1` for logic and branches.
+- Cast explicitly with LLVM casts (`trunc`, `zext`, `sext`, `ptrtoint`,
+  `inttoptr`); never retag a value or rely on equal storage width. `trunc` to
+  `i1` keeps the low bit and does not test for nonzero.
+- Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Write a
+  test that a word fits in `k` bits as `lt x, 2^k` and one that it does not as
+  `gt x, 2^k - 1`, for 1 <= k < 256, never as a shift against zero;
+  `spell-width-tests` picks the final spelling. See
+  [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
+- `ptr<memory>` is opaque: reach object words with `ptradd` and loads and
+  stores, never integer arithmetic. Memory pointers are never null: a default
+  memory value is the zero slot or a default object, never 0, and code reads
+  pointers without zero guards.
+- Put an IR or pseudo-IR comment, in emitted order and one instruction per line
+  where that helps, directly above each piece of code that writes, moves, or
+  rearranges IR: the match arm, branch, loop, or builder sequence, not the top
+  of a large function. No `IR:` label, prose, or full stop.
 
 ## Codegen Benchmarking
 
 Rank changes by correctness and `-Ogas` runtime gas, then `-Ogas` and `-Osize`
 bytecode size, then compile time and memory; reject changes that only speed up
-compilation. Record a baseline before editing, and follow the
+compilation. Follow the
 [local build workflow](benches/runtime/README.md#comparing-local-builds). For
 parser benchmarks, see [benches/README.md](benches/README.md).
-
-- Reuse the frozen baseline's results; do not rerun it.
-- Narrow with `--tests` while iterating.
-- Check output identity with compile-only runs and output fingerprints.
-- Use release binaries for corpus-wide compiles.
-- Make a local WIP commit before scripted bulk edits.
-- Delete your own `target/` and worktree when done; keep evidence elsewhere.

@@ -36,7 +36,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, ExternalReferences> {
             .gcx
             .yul_references(*span)
             .iter()
-            .filter(|r| !span.contains(hir.variable(r.declaration).span))
+            .filter(|r| !span.contains(hir.item(r.declaration).span()))
             .collect::<Vec<_>>();
         // solc sorts the entries by name, then by the text of their location.
         refs.sort_by_cached_key(|r| (cx.text(r.span), cx.src(r.span).to_string()));
