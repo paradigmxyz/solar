@@ -1,12 +1,13 @@
 //! Typed message adapters, independent of builtin lowering.
 //!
-//! Address-call input is either a memory object (whose length word is read) or
-//! a logical memory slice. Calls have no output buffer and replace volatile
-//! returndata. Implicit gas requires a host that prices the caller's boundary
+//! External-call input is empty, a memory object (whose length word is read), or
+//! a logical memory slice. Output is discarded or written to a scratch word,
+//! zeroed first except for constant SHA-256 and RIPEMD-160 callees. Returndata
+//! is replaced. Implicit gas requires a host that prices the caller's boundary
 //! and applies the EIP-150 cap. Returndata objects reserve
 //! uninitialized memory, write their length and copy exactly the returned bytes.
 //!
-//! `lower_builtins::lower_address_call` samples GAS before CALL on EIP-150
+//! `lower_builtins::lower_extcall` samples GAS before CALL on EIP-150
 //! targets. That request is at least the gas left after CALL's upfront charges,
 //! so its clipped budget is the cap. Before EIP-150, the compiler's reserve
 //! depends on instruction pricing; that case remains unsupported here.
@@ -15,18 +16,29 @@ use super::{Outcome, Run, RuntimeValue, limit};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_evmir::op;
-use solar_mir::AllocationSemantics;
+use solar_mir::{AllocationSemantics, CallOutput};
 use std::ops::ControlFlow;
 
 impl Run<'_, '_, '_> {
-    pub(super) fn semantic_address_call(
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn semantic_extcall(
         &mut self,
-        opcode: u8,
+        mut opcode: u8,
+        output: CallOutput,
+        clear_word: bool,
         address: U256,
-        input: RuntimeValue,
+        input: Option<RuntimeValue>,
         gas: Option<U256>,
         value: Option<U256>,
     ) -> ControlFlow<Outcome, U256> {
+        if opcode == op::STATICCALL && self.lacks(opcode) {
+            if !(U256::from(1)..=U256::from(4)).contains(&address) {
+                return ControlFlow::Break(Outcome::Unsupported(
+                    "pre-Byzantium static extcall requires a precompile",
+                ));
+            }
+            opcode = op::CALL;
+        }
         if self.lacks(opcode) {
             return ControlFlow::Break(Outcome::Invalid);
         }
@@ -39,11 +51,12 @@ impl Run<'_, '_, '_> {
             ));
         }
         let (offset, length) = match input {
-            RuntimeValue::Word(object) => {
+            None => (U256::ZERO, U256::ZERO),
+            Some(RuntimeValue::Word(object)) => {
                 let length = limit(self.memory.load(object))?;
                 (object.wrapping_add(U256::from(32)), length)
             }
-            RuntimeValue::Aggregate(fields) => {
+            Some(RuntimeValue::Aggregate(fields)) => {
                 let [RuntimeValue::Word(pointer), RuntimeValue::Word(length)] = fields.as_slice()
                 else {
                     return ControlFlow::Break(Outcome::Unsupported(
@@ -54,13 +67,17 @@ impl Run<'_, '_, '_> {
             }
             _ => return ControlFlow::Break(Outcome::Unsupported("undefined address-call input")),
         };
+        if output == CallOutput::Word && clear_word {
+            limit(self.memory.store(U256::ZERO, U256::ZERO))?;
+        }
         let mut args = vec![address];
         if opcode == op::CALL {
             args.push(value.unwrap_or_default());
         } else if value.is_some() {
             return ControlFlow::Break(Outcome::Unsupported("value on non-value address call"));
         }
-        args.extend([offset, length, U256::ZERO, U256::ZERO]);
+        let output_length = if output == CallOutput::Word { 32 } else { 0 };
+        args.extend([offset, length, U256::ZERO, U256::from(output_length)]);
         self.external_message(opcode, &args, gas)
     }
 

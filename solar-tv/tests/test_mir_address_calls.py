@@ -29,7 +29,8 @@ def source(
     option = "" if gas is None else f", gas {gas}"
     if amount is not None:
         option += f", value {amount}"
-    body = prefix + f"v3 = address_{kind} v0, {'v2' if sliced else 'v1'}{option}\n"
+    policy = {"call": "", "staticcall": " static", "delegatecall": " delegate"}[kind]
+    body = prefix + f"v3 = extcall{policy} v0, {'v2' if sliced else 'v1'}{option}\n"
     if object_result:
         body += "v4 = icall returndata_bytes<>\nv5 = ptrtoint ptr<memory> v4 to i256\nret v5"
     else:
@@ -99,7 +100,7 @@ class MirAddressCallsTests(unittest.TestCase):
         )
         body = (
             prefix.replace("}\n", "")
-            + "v7 = address_call v0, v1, gas 0\nv8 = icall returndata_bytes<>\nv9 = ptrtoint ptr<memory> v8 to i256\nret v9\n}\n"
+            + "v7 = extcall v0, v1, gas 0\nv8 = icall returndata_bytes<>\nv9 = ptrtoint ptr<memory> v8 to i256\nret v9\n}\n"
         )
         self.lowered_pair(body, fixture())
         self.lowered_pair(source(gas="0"), fixture())
@@ -114,12 +115,86 @@ class MirAddressCallsTests(unittest.TestCase):
         )
         self.assertIn("Amsterdam MIR message gas", result.stderr)
 
+    def test_absent_input_does_not_read_an_object_header(self):
+        text = state.module(
+            "v0 = extcall i160 4, gas 100000\n"
+            "v1 = zext i1 v0 to i256\nv2 = msize\nv3 = add v1, v2\nret v3"
+        )
+        initial = {"memory": {"data": "0x", "size": 0}}
+        self.lowered_pair(text, initial)
+        self.pair(text, text.replace("ret v3", "ret 1"), fixture=initial)
+
+    def test_word_output_clears_bytes_beyond_short_returndata(self):
+        text = state.module(
+            f"v0 = extcall word i160 {ADDRESS}, gas 100000\nv1 = mload 0\nret v1"
+        )
+        for code in ("602a5f5360015ff3", "602a5f5360015ffd", "00"):
+            with self.subTest(code=code):
+                initial = fixture(code, memory={"data": "0x" + "ff" * 32, "size": 32})
+                self.lowered_pair(text, initial)
+        initial = fixture(
+            "602a5f5360015ff3", memory={"data": "0x" + "ff" * 32, "size": 32}
+        )
+        self.pair(
+            text, text.replace("extcall word", "extcall"), fixture=initial, status=1
+        )
+
     def test_zero_length_slice_ignores_its_out_of_range_pointer(self):
         text = state.module(
             f"v0 = trunc i256 {ADDRESS} to i160\n"
             f"v1 = inttoptr i256 {2**256 - 1} to ptr<memory>\n"
             "v2 = make_memory_slice v1, 0\n"
-            "v3 = address_staticcall v0, v2, gas 100000\n"
+            "v3 = extcall static v0, v2, gas 100000\n"
             "v4 = returndatasize\nret v4"
         )
         self.lowered_pair(text, fixture())
+
+    def test_pre_byzantium_world_is_not_claimed_as_verified(self):
+        before = state.module(
+            "v0 = extcall static word i160 4, gas 100000\nv1 = mload 0\nret v1"
+        )
+        after = state.module(
+            "v0 = call 100000, 4, 0, 0, 0, 0, 32\nv1 = mload 0\nret v1"
+        )
+        result, _ = self.pair(
+            before,
+            after,
+            fixture={"memory": {"data": "0x" + "ff" * 32, "size": 32}},
+            version="homestead",
+            status=2,
+        )
+        self.assertIn("explicit-world execution supports Istanbul", result.stderr)
+
+    def test_word_output_reads_header_before_clearing_input_aliases(self):
+        initial = {
+            "memory": {
+                "data": "0x" + (1).to_bytes(32, "big").hex() + "aa" + "ff" * 31,
+                "size": 64,
+            }
+        }
+        for sliced in (False, True):
+            with self.subTest(sliced=sliced):
+                text = state.module(
+                    f"v0 = inttoptr i256 {31 if sliced else 0} to ptr<memory>\n"
+                    + ("v1 = make_memory_slice v0, 1\n" if sliced else "")
+                    + f"v2 = extcall word i160 4, {'v1' if sliced else 'v0'}, gas 100000\n"
+                    + "v3 = mload 0\nret v3"
+                )
+                self.lowered_pair(text, initial)
+                self.pair(
+                    text,
+                    text.replace("ret v3", f"ret {0 if sliced else 0xAA << 248}"),
+                    fixture=initial,
+                )
+
+    def test_constant_hash_callees_skip_clear_even_when_the_call_fails(self):
+        initial = {"memory": {"data": "0x" + "ff" * 32, "size": 32}}
+        for address in (2, 3):
+            with self.subTest(address=address):
+                text = state.module(
+                    f"v0 = extcall static word i160 {address}, gas 0\nv1 = mload 0\nret v1"
+                )
+                self.lowered_pair(text, initial)
+                self.pair(
+                    text, text.replace("ret v1", f"ret {2**256 - 1}"), fixture=initial
+                )

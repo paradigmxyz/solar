@@ -117,7 +117,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         })
         || input.creation_gas.len() > 128
         || input.creation_gas.iter().any(|&gas| gas > 30_000_000)
-        || input.builtin_gas.len() > 128
+        || !input.builtin_gas.is_empty()
         || input.builtin_gas.iter().any(|&gas| gas > 30_000_000)
     {
         return Err("direct MIR replay input limit".into());

@@ -4,7 +4,7 @@ fn @f() -> i256 {
   bb0:
     mstore 128, 3
     mstore 160, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v3 = address_call i160 0x40000, ptr<memory> 128, gas 100
+    v3 = extcall i160 0x40000, ptr<memory> 128, gas 100
     returndatacopy 224, 0, 32
     v4 = mload 224
     ret v4

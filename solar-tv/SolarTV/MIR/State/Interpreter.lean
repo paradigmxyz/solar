@@ -78,22 +78,9 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
       let some (effect,work) ← external fuel cfg frame opcode args gas | stop .outOfGas frame
       match effect with
       | .returned (value,parent) =>
-        if (match op with | .transfer true | .hash _ | .recover => true | _ => false) && value == some 0 then
-          stop (.reverted parent.returnData) parent
-        else
-          let (value,parent) ← match op with
-            | .transfer true => pure (none,parent)
-            | .hash ripemd => do
-              let memory ← expand parent.memory 0 32
-              let digest := readWord memory 0
-              pure (some (if ripemd then digest <<< 96 else digest),{parent with memory})
-            | .recover => do
-              let memory ← expand parent.memory 0 32
-              pure (some (readWord memory 0),{parent with memory})
-            | _ => pure (value,parent)
-          match ← assign parent inst.result inst.ty value with
-          | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
-          | _ => .error "MIR message result assignment failed"
+        match ← assign parent inst.result inst.ty value with
+        | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
+        | _ => .error "MIR message result assignment failed"
       | .reverted data => stop (.reverted (failureData data)) frame
       | .invalid => stop .invalid frame
     | .call callee =>

@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AbiWordValidator, AllocationFailure, AllocationSemantics, BlockId, CallPolicy, CalldataTail,
-    FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
-    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
-    Terminator, Value, ValueId,
+    AbiEncodeMode, AbiWordValidator, AllocationFailure, AllocationSemantics, BlockId, CallPolicy,
+    CalldataTail, FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId,
+    InstKind, Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion,
+    MirType, PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias,
+    StructId, Terminator, Value, ValueId,
 };
 use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};

@@ -85,7 +85,6 @@ mod frames;
 mod links;
 mod messages;
 mod placement;
-mod precompiles;
 mod returns;
 mod storage;
 
@@ -1098,13 +1097,17 @@ impl<'a> Run<'_, 'a, '_> {
                     let address = self.semantic_frame_address(body, offset, mode, kind)?;
                     return self.semantic_frame_store(address, kind, value);
                 }
-                Semantics::AddressCall(name, address, input, gas, value) => {
+                Semantics::ExtCall(name, output, address, input, gas, value) => {
+                    let clear_word = body.extcall_clears_word(address);
                     let gas = if let Some(gas) = gas { Some(frame.read(gas)?) } else { None };
                     let value =
                         if let Some(value) = value { Some(frame.read(value)?) } else { None };
-                    let (address, input) = (frame.read(address)?, frame.read_value(input)?);
+                    let address = frame.read(address)?;
+                    let input =
+                        if let Some(input) = input { Some(frame.read_value(input)?) } else { None };
                     let opcode = op::from_mnemonic(name).expect("schema message opcode");
-                    let result = self.semantic_address_call(opcode, address, input, gas, value)?;
+                    let result = self
+                        .semantic_extcall(opcode, output, clear_word, address, input, gas, value)?;
                     self.frame().values[instruction.result().expect("address call result")] =
                         Some(RuntimeValue::Word(result));
                     return ControlFlow::Continue(());
@@ -1297,15 +1300,6 @@ impl<'a> Run<'_, 'a, '_> {
             {
                 self.semantic_require(body, kind, args)?;
                 return ControlFlow::Continue(());
-            }
-            Semantics::Call(
-                Callee::Builtin(
-                    builtin @ (Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover),
-                ),
-                args,
-            ) if self.semantic.is_some() => {
-                let args = frame.read_values(args)?;
-                self.semantic_precompile(builtin, args.as_raw_slice())?
             }
             Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
                 let words = frame.read_all(args)?;

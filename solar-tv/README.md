@@ -733,15 +733,13 @@ MIR `selfdestruct` applies fork-specific account lifetime and balance effects,
 including Cancun's preservation of existing accounts, and rejects static writes.
 Amsterdam's changed destruction semantics remain unsupported in this path.
 
-SHA-256, RIPEMD-160 and address recovery also run as direct MIR builtins.
-Provide an ordered `builtin_gas` list in the world fixture, with the child gas
-budget at each executed precompile call. Like `creation_gas`, this is an explicit
-boundary input because semantic MIR has no physical caller gas price. Budgets
-are shared across internal calls; missing budgets make the check inconclusive.
-Consumption of creation and builtin budgets remains observable at internal
-returns, so a rewrite cannot silently shift a caller's later budget sequence.
-Both successful and out-of-gas calls run the actual precompile in Lean and in
-independent replay, preserving scratch writes and volatile returndata.
+SHA-256, RIPEMD-160 and address recovery use `extcall static word`, with explicit
+input staging, failure checks and scratch reads. Both successful and out-of-gas
+calls run the actual precompile in Lean and independent replay. The requested
+child gas is an explicit call operand, or uses the ordered caller budgets in
+`message_gas` for implicit forwarding. Caller budgets are shared across internal
+calls and remain observable, including at terminal boundaries. The removed
+builtins' `builtin_gas` option is rejected rather than silently ignored.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,after}.mir \
@@ -878,8 +876,11 @@ we do not compile it into an EVM image. The Lean and native interpreters share
 neither an imported instruction recipe nor child results. Both execute the real
 child, including nested messages, precompiles, exact revert data and rollback.
 
-Typed `address_call`, `address_staticcall` and `address_delegatecall` also accept
-memory objects or slices. They reserve no output buffer;
+Typed `extcall`, `extcall static` and `extcall delegate` accept optional memory
+objects or slices. An absent input is empty and reads no object header. The
+default output range is empty; `word` selects bytes `0..32` of scratch memory,
+clearing them before the call except for constant SHA-256 and RIPEMD-160 callees. Explicit-world CLI checks remain limited
+to Istanbul through Osaka and Amsterdam's supported environment fragment.
 `icall returndata_bytes<>` copies the live return buffer to an uninitialized
 bytes object, retaining dirty padding and leaving the buffer available. With
 `message_gas`, an omitted gas option forwards the EIP-150 cap after the boundary's
@@ -936,7 +937,7 @@ solar-tv/solar-tv mir solar-tv/examples/mir/implicit-gas/{before,broken}.mir \
 Without `message_gas`, CALL assumes sufficient caller gas to avoid clipping.
 CREATE instead needs explicit ordered child budgets, for example
 `{"version":1,"creation_gas":[100000,200000]}`. The two modes cannot be combined.
-Precompile builtins still use `builtin_gas` for their requested gas operand.
+Precompiles use the same `extcall` gas operands and caller budgets as other calls.
 Budgets are limited to 128 entries and 30 million gas per entry. Independent
 native replay also limits combined child gas spent to 30 million and child
 instructions to one million. Child bytecode always pays fork-specific gas.

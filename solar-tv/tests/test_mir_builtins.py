@@ -13,10 +13,11 @@ PIPELINE = "lower-builtins,lower-checks,lower-slices,lower-memory-objects"
 
 def send(kind, amount=0):
     body = f"v0 = trunc i256 {calls.ADDRESS} to i160\n"
+    body += f"v3 = extcall v0, gas {2300 if amount == 0 else 0}, value {amount}\n"
     if kind == "send":
-        body += f"v1 = icall send<>, v0, {amount}\nret v1"
+        body += "v1 = zext i1 v3 to i256\nret v1"
     else:
-        body += f"icall transfer<>, v0, {amount}\nret 7"
+        body += "jumpi v3, bb1, bb2\nbb2:\nv4 = returndatasize\nreturndatacopy 0, 0, v4\nrevert 0, v4\nbb1:\nret 7"
     return state.module(body)
 
 

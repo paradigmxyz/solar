@@ -26,7 +26,7 @@
     "clear_storage_words": "direct_state",
     "validate_abi": "direct_state",
     "abi_encode_packed": "direct_state",
-    "address_call": "partial_family",
+    "extcall": "partial_family",
     "add": "checked_fragment",
     "sub": "checked_fragment",
     "mul": "checked_fragment",

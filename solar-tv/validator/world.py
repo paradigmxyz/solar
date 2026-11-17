@@ -118,6 +118,10 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         raise Unsupported("builtin child gas exceeds 30000000")
     if kind != "mir" and builtin_gas:
         raise Unsupported("builtin_gas is an explicit MIR boundary input")
+    if builtin_gas:
+        raise Unsupported(
+            "builtin_gas belongs to removed MIR builtins; use message_gas or explicit extcall gas"
+        )
     message_gas = value.get("message_gas")
     if message_gas is not None:
         if kind != "mir" or not isinstance(message_gas, list) or len(message_gas) > 128:

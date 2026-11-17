@@ -254,17 +254,6 @@ def operation(value, definitions):
         expression = f".ternary .{name} true"
     elif kind == "namespace":
         expression = ".slot .namespace"
-    elif kind == "value_transfer":
-        expression = f".external (.transfer {'true' if value['revert'] else 'false'})"
-    elif kind == "precompile_builtin":
-        tag = {
-            "sha256": ".hash false",
-            "ripemd160": ".hash true",
-            "ecrecover": ".recover",
-        }.get(value["name"])
-        if tag is None:
-            raise Unsupported("unknown precompile builtin")
-        expression = f".external ({tag})"
     elif kind == "require_literal":
         data = ",".join(number(byte, 256) for byte in value["bytes"])
         expression = f".abi (.require (.literal [{data}]))"
@@ -345,14 +334,14 @@ def operation(value, definitions):
         variants = value["variants"]
         bound = "none" if variants is None else f"some {number(variants, 257)}"
         expression = f".object (.array ({layout}) ({bound}))"
-    elif kind == "address_call":
+    elif kind == "extcall":
         name = value["name"]
         if name not in {"call", "staticcall", "delegatecall"}:
             raise Unsupported("unknown address-call kind")
         opcode = number(definitions[name]["opcode"], 256)
         return (
-            f"some {opcode}",
-            f".external (.address {opcode} {'true' if value['gas'] else 'false'} {'true' if value['value'] else 'false'})",
+            "none" if name == "staticcall" else f"some {opcode}",
+            f".external (.address {opcode} {'true' if value['gas'] else 'false'} {'true' if value['value'] else 'false'} {'true' if value['input'] else 'false'} {'true' if value['output_word'] else 'false'} {'true' if value['clear_word'] else 'false'})",
             args,
         )
     elif kind == "returndata_bytes":
@@ -594,8 +583,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
     ]
     env = world.environment_expression(fixture)
     external = any(
-        inst["operation"]["kind"]
-        in {"address_call", "value_transfer", "precompile_builtin"}
+        inst["operation"]["kind"] in {"extcall"}
         or (
             inst["operation"]["kind"] == "opcode"
             and inst["operation"]["name"]
