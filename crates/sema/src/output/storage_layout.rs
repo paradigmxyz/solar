@@ -222,7 +222,11 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
     }
 
     fn generate_type(&mut self, ty: Ty<'gcx>) -> String {
-        let key = self.storage_type_key(ty);
+        self.generate_type_with(ty, false)
+    }
+
+    fn generate_type_with(&mut self, ty: Ty<'gcx>, pointer: bool) -> String {
+        let key = self.storage_type_key_with(ty, None, pointer);
         if self.types.contains_key(&key) {
             return key;
         }
@@ -248,7 +252,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         match ty.kind {
             TyKind::Mapping(key_ty, value_ty) => {
                 info.encoding = StorageEncoding::Mapping;
-                info.key = Some(self.generate_type(key_ty));
+                info.key = Some(self.generate_type_with(self.mapping_key(key_ty), true));
                 info.value = Some(
                     self.generate_type(value_ty.with_loc_if_ref(self.gcx, DataLocation::Storage)),
                 );
@@ -275,8 +279,10 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         key
     }
 
-    fn storage_type_key(&self, ty: Ty<'gcx>) -> String {
-        self.storage_type_key_with(ty, None, false)
+    /// Like solc, we type a `string` or `bytes` mapping key as a memory pointer, as in
+    /// `t_string_memory_ptr`, rather than as the bare `t_string`.
+    fn mapping_key(&self, key: Ty<'gcx>) -> Ty<'gcx> {
+        key.with_loc_if_ref(self.gcx, DataLocation::Memory)
     }
 
     fn storage_type_key_with(
@@ -306,7 +312,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
             TyKind::Mapping(key, value) => format!(
                 "t_mapping({},{})",
-                self.storage_type_key_with(key, None, false),
+                self.storage_type_key_with(self.mapping_key(key), None, true),
                 self.storage_type_key_with(
                     value.with_loc_if_ref(self.gcx, DataLocation::Storage),
                     None,

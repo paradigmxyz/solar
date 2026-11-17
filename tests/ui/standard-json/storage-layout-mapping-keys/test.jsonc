@@ -1,0 +1,26 @@
+// CHECK: "type": "t_mapping(t_string_memory_ptr,t_address)"
+// CHECK: "type": "t_mapping(t_bytes_memory_ptr,t_uint256)"
+// CHECK: "type": "t_mapping(t_string_memory_ptr,t_mapping(t_bytes_memory_ptr,t_uint256))"
+// CHECK: "type": "t_mapping(t_bytes32,t_uint256)"
+// CHECK: "t_mapping(t_string_memory_ptr,t_address)": {
+// CHECK: "key": "t_string_memory_ptr"
+// CHECK: "t_string_memory_ptr": {
+// CHECK-NEXT: "encoding": "bytes",
+// CHECK-NEXT: "label": "string",
+// CHECK: "t_mapping(t_bytes_memory_ptr,t_uint256)": {
+// CHECK: "key": "t_bytes_memory_ptr"
+// CHECK: "t_bytes_memory_ptr": {
+// CHECK-NEXT: "encoding": "bytes",
+// CHECK-NEXT: "label": "bytes",
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "keys.sol": {
+        "MappingKeys": [
+          "storageLayout"
+        ]
+      }
+    }
+  }
+}
