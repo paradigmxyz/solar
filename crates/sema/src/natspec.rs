@@ -24,6 +24,16 @@ impl<'gcx> ResolvedNatSpec<'gcx> {
     pub(crate) fn items(self) -> &'gcx [hir::NatSpecItem] {
         self.items
     }
+
+    /// The item's own tags, without the inherited ones.
+    pub(crate) fn local_items(self) -> &'gcx [hir::NatSpecItem] {
+        &self.items[..self.local_len]
+    }
+
+    /// The span of the `@inheritdoc` tag and the item it names.
+    pub(crate) fn inheritdoc_target(self) -> Option<(Span, hir::ItemId)> {
+        self.inheritdoc_target
+    }
 }
 
 pub(crate) fn references<'gcx>(
@@ -141,7 +151,7 @@ struct CallableVariables<'gcx> {
 bitflags::bitflags! {
     /// Tracks which documentation tags are locally defined.
     #[derive(Clone, Copy, Debug, Default)]
-    struct LocalTags: u8 {
+    pub(crate) struct LocalTags: u8 {
         const NOTICE = 1 << 0;
         const DEV    = 1 << 1;
         const TITLE  = 1 << 2;
@@ -167,7 +177,7 @@ bitflags::bitflags! {
 }
 
 impl LocalTags {
-    fn from_items(items: &[hir::NatSpecItem]) -> Self {
+    pub(crate) fn from_items(items: &[hir::NatSpecItem]) -> Self {
         let mut tags = Self::empty();
         for item in items {
             match item.kind {
@@ -183,6 +193,22 @@ impl LocalTags {
             }
         }
         tags
+    }
+
+    /// Whether an inherited tag of `kind` survives these local tags: a local tag replaces the
+    /// inherited ones of its kind, and custom and internal tags are not inherited.
+    pub(crate) fn inherits(self, kind: &hir::NatSpecKind) -> bool {
+        match kind {
+            hir::NatSpecKind::Notice => !self.contains(Self::NOTICE),
+            hir::NatSpecKind::Dev => !self.contains(Self::DEV),
+            hir::NatSpecKind::Title => !self.contains(Self::TITLE),
+            hir::NatSpecKind::Author => !self.contains(Self::AUTHOR),
+            hir::NatSpecKind::Param { .. } => !self.contains(Self::PARAM),
+            hir::NatSpecKind::Return { .. } => !self.contains(Self::RETURN),
+            hir::NatSpecKind::Custom { .. }
+            | hir::NatSpecKind::Internal { .. }
+            | hir::NatSpecKind::Inheritdoc { .. } => false,
+        }
     }
 }
 
@@ -320,7 +346,14 @@ impl<'gcx> Resolver<'gcx> {
         let mut state = ValidationState::default();
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
 
-        for doc_comment in docs.iter() {
+        for (i, doc_comment) in docs.iter().enumerate() {
+            // solc reads only the last group of doc comments, so a tag that may appear once
+            // counts within one group.
+            // NOTE: `@return` tags still count across groups, unlike in solc; counting them in
+            // the last group alone needs the diagnostics of the earlier groups dropped as well.
+            if i > 0 && starts_group(self.gcx, &docs[i - 1], doc_comment) {
+                state.seen_tags = SeenTags::default();
+            }
             for natspec in doc_comment.natspec.iter() {
                 let tag_span = natspec.span;
 
@@ -771,27 +804,9 @@ impl<'gcx> Resolver<'gcx> {
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
-        use hir::NatSpecKind as HirKind;
-
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
-
-        for item in inherited_tags.iter() {
-            let should_inherit = match &item.kind {
-                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
-                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
-                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
-                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
-                HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
-                HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
-                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
-                HirKind::Inheritdoc { .. } => false,
-            };
-
-            if should_inherit {
-                merged.push(*item);
-            }
-        }
-
+        merged
+            .extend(inherited_tags.iter().filter(|item| local_tags.inherits(&item.kind)).copied());
         self.gcx.arena().alloc_slice_copy(&merged)
     }
 
@@ -1141,4 +1156,21 @@ pub(crate) fn report_misplaced_solar_tags(dcx: &DiagCtxt, docs: &[ast::DocCommen
             report_misplaced_solar_tag(dcx, tag, name.name, item.span);
         }
     }
+}
+
+/// Whether `doc` starts a new group of doc comments after `prev`: anything but two `///` comments
+/// on consecutive lines. solc ends a line at LF, CR LF, or a lone CR.
+pub(crate) fn starts_group(
+    gcx: Gcx<'_>,
+    prev: &ast::DocComment<'_>,
+    doc: &ast::DocComment<'_>,
+) -> bool {
+    let gap = gcx
+        .sess
+        .source_map()
+        .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
+        .unwrap_or_default();
+    !(prev.kind == ast::CommentKind::Line
+        && doc.kind == ast::CommentKind::Line
+        && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
 }

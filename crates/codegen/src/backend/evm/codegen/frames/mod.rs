@@ -1329,9 +1329,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return Some(prefix.saturating_sub(forward));
             }
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
-            // NOTE: A step back this far never reaches the frames: it takes a heap pointer no
-            // execution can afford, and from any other one it wraps to the top of memory, as for a
-            // constant out-of-bounds index, whose bounds check reverts first.
+            // NOTE: A step back this far reserves nothing. From a pointer that execution has
+            // accessed it wraps to the top of memory, as for a constant out-of-bounds index, whose
+            // bounds check reverts first. Assembly can raise the free memory pointer that far
+            // without accessing it, so the spill hazard analysis does not trust such a step.
             if back >= EvmMemoryLayout::UNREACHABLE_MEMORY {
                 return None;
             }

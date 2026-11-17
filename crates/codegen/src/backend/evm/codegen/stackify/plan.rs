@@ -296,13 +296,16 @@ impl Reference {
     pub(super) fn progress(&self) -> &Progress {
         &self.progress
     }
+}
 
-    /// The loop headers whose hints differ between the reference and `hints`.
-    fn changed(&self, hints: &FxHashMap<BlockId, Layout>) -> SmallVec<[BlockId; 4]> {
-        let changed = self.hints.iter().filter(|&(block, layout)| hints.get(block) != Some(layout));
-        let added = hints.keys().filter(|block| !self.hints.contains_key(block));
-        changed.map(|(&block, _)| block).chain(added.copied()).collect()
-    }
+/// The loop headers whose hinted layouts differ between `old` and `new`.
+pub(super) fn changed_hints<'a>(
+    old: &'a FxHashMap<BlockId, Layout>,
+    new: &'a FxHashMap<BlockId, Layout>,
+) -> impl Iterator<Item = BlockId> + 'a {
+    let changed = old.iter().filter(|&(block, layout)| new.get(block) != Some(layout));
+    let added = new.keys().filter(|block| !old.contains_key(block));
+    changed.map(|(&block, _)| block).chain(added.copied())
 }
 
 /// The test that a replan's total must pass for the replan to be worth finishing, and the
@@ -325,7 +328,12 @@ impl<'a> Settle<'a> {
         hints: &FxHashMap<BlockId, Layout>,
         beats: &'a dyn Fn(Cost) -> bool,
     ) -> Self {
-        Self { changed: reference.changed(hints), reference: Some(reference), beats, bound: true }
+        Self {
+            changed: changed_hints(&reference.hints, hints).collect(),
+            reference: Some(reference),
+            beats,
+            bound: true,
+        }
     }
 
     /// The reference alone: the replan stops only once it reaches a block in the reference's
@@ -955,19 +963,11 @@ impl<'a> Planner<'a> {
         // Without saturation anywhere, the remaining blocks add exactly what they added to the
         // reference.
         let total = reference.progress.cost;
-        let sum = |own: u32, total: u32, at: u32| {
-            u32::try_from(u64::from(own) + u64::from(total - at))
-                .ok()
-                .filter(|&sum| sum != u32::MAX)
-        };
-        let (Some(gas), Some(bytes), Some(steps)) = (
-            sum(self.cost.gas, total.gas, mark.cost.gas).filter(|_| total.gas != u32::MAX),
-            sum(self.cost.bytes, total.bytes, mark.cost.bytes).filter(|_| total.bytes != u32::MAX),
-            sum(self.cost.steps, total.steps, mark.cost.steps).filter(|_| total.steps != u32::MAX),
-        ) else {
+        let sum = self.cost.plus(total.saturating_sub(mark.cost));
+        if [total, sum].iter().any(|cost| [cost.gas, cost.bytes, cost.steps].contains(&u32::MAX)) {
             return Ok(());
-        };
-        if (settle.beats)(Cost::new(gas, bytes).with_steps(steps)) {
+        }
+        if (settle.beats)(sum) {
             self.settle = None;
             Ok(())
         } else {
@@ -1743,24 +1743,18 @@ impl<'a> Planner<'a> {
     /// as it is, else the deepest one in reach, which leaves the next ones on top.
     fn restore_saved(&self, sim: &mut Sim, saved: &[Victim]) -> Result<(), Fail> {
         let mut pending = SmallVec::<[Victim; 4]>::from_slice(saved);
-        let mut seen = SmallVec::<[bool; 4]>::new();
         while !pending.is_empty() {
             debug_assert!(pending.iter().all(|victim| sim.depth_of(victim.saved_slot()).is_some()));
-            // The saved word on top, else the deepest one in reach, from one scan of the words in
-            // reach that takes the shallowest copy of each.
-            seen.clear();
-            seen.resize(pending.len(), false);
-            let mut chosen = None;
-            for (depth, &slot) in sim.stack.iter().rev().take(self.reach + 1).enumerate() {
-                if let Some(index) = pending.iter().position(|victim| victim.saved_slot() == slot)
-                    && !std::mem::replace(&mut seen[index], true)
-                {
-                    chosen = Some((index, depth));
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
+            // The saved word on top, else the deepest one in reach, each at its shallowest copy.
+            let chosen = pending
+                .iter()
+                .enumerate()
+                .filter_map(|(index, victim)| {
+                    let mut in_reach = sim.stack.iter().rev().take(self.reach + 1);
+                    let depth = in_reach.position(|&slot| slot == victim.saved_slot())?;
+                    Some((index, depth))
+                })
+                .max_by_key(|&(_, depth)| if depth == 0 { usize::MAX } else { depth });
             // Beyond reach: the swap of the last one fails and names a word to spill.
             let (index, depth) = chosen.unwrap_or_else(|| {
                 let index = pending.len() - 1;
