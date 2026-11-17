@@ -24,6 +24,16 @@ impl<'gcx> ResolvedNatSpec<'gcx> {
     pub(crate) fn items(self) -> &'gcx [hir::NatSpecItem] {
         self.items
     }
+
+    /// The item's own tags, without the inherited ones.
+    pub(crate) fn local_items(self) -> &'gcx [hir::NatSpecItem] {
+        &self.items[..self.local_len]
+    }
+
+    /// The span of the `@inheritdoc` tag and the item it names.
+    pub(crate) fn inheritdoc_target(self) -> Option<(Span, hir::ItemId)> {
+        self.inheritdoc_target
+    }
 }
 
 pub(crate) fn references<'gcx>(
@@ -141,7 +151,7 @@ struct CallableVariables<'gcx> {
 bitflags::bitflags! {
     /// Tracks which documentation tags are locally defined.
     #[derive(Clone, Copy, Debug, Default)]
-    struct LocalTags: u8 {
+    pub(crate) struct LocalTags: u8 {
         const NOTICE = 1 << 0;
         const DEV    = 1 << 1;
         const TITLE  = 1 << 2;
@@ -167,9 +177,14 @@ bitflags::bitflags! {
 }
 
 impl LocalTags {
-    fn from_items(items: &[hir::NatSpecItem]) -> Self {
+    /// The kinds of tag that the items of one group of doc comments start. A `///` line without a
+    /// tag after another item continues that item's tag, so it starts none.
+    pub(crate) fn from_group(gcx: Gcx<'_>, items: &[hir::NatSpecItem]) -> Self {
         let mut tags = Self::empty();
-        for item in items {
+        for (i, item) in items.iter().enumerate() {
+            if i > 0 && is_untagged_line(gcx, item) {
+                continue;
+            }
             match item.kind {
                 hir::NatSpecKind::Notice => tags.insert(Self::NOTICE),
                 hir::NatSpecKind::Dev => tags.insert(Self::DEV),
@@ -183,6 +198,22 @@ impl LocalTags {
             }
         }
         tags
+    }
+
+    /// Whether an inherited tag of `kind` survives these local tags: a local tag replaces the
+    /// inherited ones of its kind, and custom and internal tags are not inherited.
+    pub(crate) fn inherits(self, kind: &hir::NatSpecKind) -> bool {
+        match kind {
+            hir::NatSpecKind::Notice => !self.contains(Self::NOTICE),
+            hir::NatSpecKind::Dev => !self.contains(Self::DEV),
+            hir::NatSpecKind::Title => !self.contains(Self::TITLE),
+            hir::NatSpecKind::Author => !self.contains(Self::AUTHOR),
+            hir::NatSpecKind::Param { .. } => !self.contains(Self::PARAM),
+            hir::NatSpecKind::Return { .. } => !self.contains(Self::RETURN),
+            hir::NatSpecKind::Custom { .. }
+            | hir::NatSpecKind::Internal { .. }
+            | hir::NatSpecKind::Inheritdoc { .. } => false,
+        }
     }
 }
 
@@ -276,9 +307,8 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         let doc = self.gcx.hir.doc(doc_id);
-        let (local_tags, inheritdoc_target) =
+        let (local_tags, local_sections, inheritdoc_target) =
             self.validate_item_natspec(&doc.ast_comments, item_id, doc.source);
-        let local_sections = LocalTags::from_items(&local_tags);
         let inherited = inheritdoc_target.map(|(_, target)| self.gcx.natspec_resolution(target));
         let items: &'gcx [hir::NatSpecItem] = if let Some(inherited) = inherited {
             self.merge_natspec_tags(&local_tags, local_sections, inherited.items)
@@ -305,7 +335,7 @@ impl<'gcx> Resolver<'gcx> {
         docs: &[ast::DocComment<'gcx>],
         item_id: hir::ItemId,
         source_id: hir::SourceId,
-    ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(Span, hir::ItemId)>) {
+    ) -> (SmallVec<[hir::NatSpecItem; 8]>, LocalTags, Option<(Span, hir::ItemId)>) {
         let permissions = TagPermissions::from_item_id(item_id);
         let mut parameters: Option<FxHashSet<Symbol>> = None;
         let mut returns: Option<&[hir::VariableId]> = None;
@@ -319,8 +349,19 @@ impl<'gcx> Resolver<'gcx> {
         let mut inheritdoc = None;
         let mut state = ValidationState::default();
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
+        let mut sections = LocalTags::empty();
+        let mut group_start = 0;
 
-        for doc_comment in docs.iter() {
+        for (i, doc_comment) in docs.iter().enumerate() {
+            // solc reads only the last group of doc comments, so a tag that may appear once
+            // counts within one group.
+            // NOTE: `@return` tags still count across groups, unlike in solc; counting them in
+            // the last group alone needs the diagnostics of the earlier groups dropped as well.
+            if i > 0 && starts_group(self.gcx, &docs[i - 1], doc_comment) {
+                state.seen_tags = SeenTags::default();
+                sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
+                group_start = local_tags.len();
+            }
             for natspec in doc_comment.natspec.iter() {
                 let tag_span = natspec.span;
 
@@ -472,7 +513,8 @@ impl<'gcx> Resolver<'gcx> {
             }
         }
 
-        (local_tags, inheritdoc)
+        sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
+        (local_tags, sections, inheritdoc)
     }
 
     fn lower_return_natspec(
@@ -771,27 +813,9 @@ impl<'gcx> Resolver<'gcx> {
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
-        use hir::NatSpecKind as HirKind;
-
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
-
-        for item in inherited_tags.iter() {
-            let should_inherit = match &item.kind {
-                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
-                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
-                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
-                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
-                HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
-                HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
-                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
-                HirKind::Inheritdoc { .. } => false,
-            };
-
-            if should_inherit {
-                merged.push(*item);
-            }
-        }
-
+        merged
+            .extend(inherited_tags.iter().filter(|item| local_tags.inherits(&item.kind)).copied());
         self.gcx.arena().alloc_slice_copy(&merged)
     }
 
@@ -1117,7 +1141,7 @@ pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> Str
             {
                 return content;
             }
-            for (index, line) in item.content().lines().enumerate() {
+            for (index, line) in item.content().split(['\n', '\r']).enumerate() {
                 let line = line.trim();
                 let line = if doc.kind == ast::CommentKind::Block && index > 0 {
                     line.strip_prefix('*').unwrap_or(line).trim_start()
@@ -1141,4 +1165,37 @@ pub(crate) fn report_misplaced_solar_tags(dcx: &DiagCtxt, docs: &[ast::DocCommen
             report_misplaced_solar_tag(dcx, tag, name.name, item.span);
         }
     }
+}
+
+/// Whether `doc` starts a new group of doc comments after `prev`: anything but two `///` comments
+/// on consecutive lines. solc ends a line at LF, CR LF, or a lone CR.
+pub(crate) fn starts_group(
+    gcx: Gcx<'_>,
+    prev: &ast::DocComment<'_>,
+    doc: &ast::DocComment<'_>,
+) -> bool {
+    let gap = gcx
+        .sess
+        .source_map()
+        .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
+        .unwrap_or_default();
+    !(prev.kind == ast::CommentKind::Line
+        && doc.kind == ast::CommentKind::Line
+        && matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r"))
+}
+
+/// Whether `item` is the whole text of a comment without a tag, which solc reads as a notice.
+pub(crate) fn is_untagged(item: &hir::NatSpecItem) -> bool {
+    matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0
+}
+
+/// Whether `item` is a `///` line without a tag. After another tag of its group it continues that
+/// tag instead of being a notice.
+pub(crate) fn is_untagged_line(gcx: Gcx<'_>, item: &hir::NatSpecItem) -> bool {
+    is_untagged(item)
+        && gcx
+            .sess
+            .source_map()
+            .span_to_snippet(item.span)
+            .is_ok_and(|snippet| snippet.starts_with("///"))
 }

@@ -35,6 +35,7 @@ mod flycheck_freshness;
 mod folding_range;
 mod goto_definition;
 mod hover;
+mod hover_inherited_notice;
 mod implementation;
 mod import_completion;
 mod import_definition;

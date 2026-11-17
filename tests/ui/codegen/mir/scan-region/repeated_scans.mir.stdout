@@ -1,4 +1,4 @@
-; === ROOT/tests/ui/codegen/mir/bit-scan/shared_proofs.sol:SharedProofs ===
+; === ROOT/tests/ui/codegen/mir/scan-region/repeated_scans.sol:SharedProofs ===
 @module SharedProofs
 ; function first(uint256 x) external pure returns (uint256 r) [selector 0x0b3f62f5]
 fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -143,7 +143,7 @@ fn @missFirst(arg0: i256) -> i256 [selector=0xca7b9b97, pure, abi_params=[uint25
     v26 = shl v25, 2
     v27 = or v22, v26
     v28 = shr arg0, v27
-    v29 = byte v28, 0x10102020202020303030303030300000000000000000000000000000000
+    v29 = byte v28, 0x10102020202030303030303020300000000000000000000000000000000
     v30 = or v27, v29
     ret v30
 }
@@ -180,7 +180,7 @@ fn @missSecond(arg0: i256) -> i256 [selector=0x691d13c2, pure, abi_params=[uint2
     v26 = shl v25, 2
     v27 = or v22, v26
     v28 = shr arg0, v27
-    v29 = byte v28, 0x10102020202020303030303030300000000000000000000000000000000
+    v29 = byte v28, 0x10102020202030303030303020300000000000000000000000000000000
     v30 = or v27, v29
     ret v30
 }

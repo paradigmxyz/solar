@@ -122,19 +122,20 @@ pub(crate) struct AstFacts<'gcx> {
     /// The type solc gives an expression where it differs from the type of type checking: the
     /// common type of the operands of a comparison or a logical operation.
     pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    /// The Yul identifiers that name a variable or a library, with their suffix, ordered by
+    /// position.
     pub(crate) yul_references: Vec<YulReference>,
 }
 
-/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+/// A Yul identifier that names a variable or a library, such as `x`, `x.slot` or `L`.
 #[derive(Clone, Copy, Debug)]
 pub struct YulReference {
     /// The span of the identifier, with its suffix.
     pub span: Span,
     /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
     pub suffix: Option<Symbol>,
-    /// The variable the identifier names.
-    pub declaration: hir::VariableId,
+    /// The variable or library the identifier names.
+    pub declaration: hir::ItemId,
 }
 
 /// The target selected for a call callee expression.
@@ -1928,11 +1929,11 @@ fn function_call_ops(gcx: _, id: hir::FunctionId) -> &'gcx [call_graph::CallOp] 
     gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_function(gcx, id))
 }
 
-/// Returns what the initializer of the given constant reaches, before a contract resolves the
+/// Returns what the initializer of the given variable reaches, before a contract resolves the
 /// overrides its calls dispatch to.
-fn constant_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
+fn initializer_call_ops(gcx: _, id: hir::VariableId) -> &'gcx [call_graph::CallOp] {
     assert!(gcx.has_typeck_results(), "call operations require type checking");
-    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_constant(gcx, id))
+    gcx.cached_arena().alloc_slice_fill_iter(call_graph::record_initializer(gcx, id))
 }
 
 fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
@@ -2222,6 +2223,34 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
         StructChains { direct_depth: direct, reaches_cycle: any.is_none() }
     });
     IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
+}
+
+/// Returns the position of each source in the order solc parses them, like `CompilerStack::parse`:
+/// the given sources by name, then the sources its import callback loads, each source's new
+/// imports by name as the source is parsed.
+pub(crate) fn source_parse_order(gcx: _, key: ()) -> &'gcx IndexSlice<hir::SourceId, [usize]> {
+    let by_name = |&a: &hir::SourceId, &b: &hir::SourceId| {
+        let name = |id| &gcx.hir.source(id).file.name;
+        name(a).cmp_source_unit_name(name(b))
+    };
+    let mut queue =
+        gcx.hir.source_ids().filter(|&id| !gcx.hir.source(id).imported).collect::<Vec<_>>();
+    queue.sort_by(by_name);
+    let mut seen = queue.iter().copied().collect::<FxHashSet<_>>();
+    let mut i = 0;
+    while let Some(&id) = queue.get(i) {
+        i += 1;
+        let mut new =
+            gcx.hir.source(id).imports.iter().map(|&(_, import)| import).collect::<Vec<_>>();
+        new.retain(|&import| seen.insert(import));
+        new.sort_by(by_name);
+        queue.extend(new);
+    }
+    let mut order = IndexVec::from_vec(vec![usize::MAX; gcx.hir.sources().len()]);
+    for (position, id) in queue.into_iter().enumerate() {
+        order[id] = position;
+    }
+    IndexSlice::from_slice(gcx.bump().alloc_slice_copy(order.as_raw_slice()))
 }
 
 /// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.

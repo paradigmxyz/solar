@@ -794,7 +794,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let mut best: Option<FunctionPlan> = None;
         let mut constants = Vec::new();
-        let mut spill_blocks = None;
+        let spill_blocks = SpillBlocks::new(func, &analysis.cfg);
         // Candidate loop header layouts: as the preheader leaves its stack, by first use in the
         // loop, and then repeatedly as the best plan's latches leave their stacks.
         let mut candidates = vec![FxHashMap::default()];
@@ -813,9 +813,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             tried.push(hints.clone());
-            // What the last plan decided before the first block the new hints can change, and
-            // then what the last failed plan under these hints decided before the spills it asked
-            // for.
             // A complete plan made with the same spills, which this round stops against once it
             // reaches a block in that plan's state and cannot beat the best plan from there.
             let rounds_at = restarts;
@@ -831,10 +828,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             };
             let best_cost = best.as_ref().map(|best| best.cost);
             let beats = |cost: Cost| best_cost.is_none_or(|best| target.cmp(cost, best).is_lt());
+            // What the last plan decided before the first block the new hints can change, and
+            // then what the last failed plan under these hints decided before the spills it asked
+            // for.
             let mut progress = last.take().map(|(last_hints, mut progress, _)| {
-                let blocks =
-                    spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
-                progress.rewind(blocks.first_hinted(func, &last_hints, &hints));
+                progress.rewind(spill_blocks.first_hinted(func, &last_hints, &hints));
                 progress
             });
             let outcome = loop {
@@ -895,10 +893,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         restarts += 1;
                         match victim {
                             Some(Victim::Value(value)) if !spilled.contains(value) => {
-                                let blocks = spill_blocks
-                                    .get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
                                 spilled.insert(value);
-                                let mut first = blocks.first_affected(func, value);
+                                let mut first = spill_blocks.first_affected(func, value);
                                 // Each restart replans the function from the first block a new
                                 // spill affects; after a few, spill a growing batch of the other
                                 // words beyond reach too.
@@ -906,7 +902,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     let batch = 1 << (restarts - single_spills).min(6);
                                     for value in beyond.into_iter().take(batch) {
                                         if spilled.insert(value) {
-                                            first = first.min(blocks.first_affected(func, value));
+                                            first =
+                                                first.min(spill_blocks.first_affected(func, value));
                                         }
                                     }
                                 }
@@ -955,7 +952,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             last = Some((hints, progress, restarts));
         }
         let mut best = best.expect("at least one plan");
-        let blocks = &*spill_blocks.get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
         // A replan resumes from the best plan before the first block its hints can change, when no
         // later round spilled more.
         let reference = best_progress
@@ -980,7 +976,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             };
             let mut progress = reference.as_ref().map(|reference| {
                 let mut progress = reference.progress().clone();
-                progress.rewind(blocks.first_hinted(func, &best_hints, hints));
+                progress.rewind(spill_blocks.first_hinted(func, &best_hints, hints));
                 progress
             });
             #[cfg(debug_assertions)]
@@ -1419,11 +1415,8 @@ impl SpillBlocks {
         old: &FxHashMap<BlockId, Layout>,
         new: &FxHashMap<BlockId, Layout>,
     ) -> usize {
-        let changed = old.iter().filter(|&(block, layout)| new.get(block) != Some(layout));
-        let added = new.iter().filter(|&(block, _)| !old.contains_key(block));
-        changed
-            .chain(added)
-            .flat_map(|(&block, _)| {
+        plan::changed_hints(old, new)
+            .flat_map(|block| {
                 std::iter::once(block).chain(func.blocks[block].predecessors.iter().copied())
             })
             .map(|block| self.positions[block])

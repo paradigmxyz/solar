@@ -1,7 +1,10 @@
 {
   "sources": {
-    "A.sol": {
+    "Z.sol": {
       "id": 0
+    },
+    "A.sol": {
+      "id": 1
     }
   },
   "contracts": {
@@ -91,6 +94,9 @@
               },
               {
                 "notice": "X failed."
+              },
+              {
+                "notice": "Z failed."
               }
             ]
           },
@@ -137,6 +143,45 @@
               "returns": {
                 "_0": "the value"
               }
+            }
+          },
+          "version": 1
+        }
+      },
+      "B": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "k()": {
+              "notice": "base k"
+            },
+            "m()": {
+              "notice": "base m"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "D": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "k()": {
+              "notice": "base k"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "m()": {
+              "details": "only this"
             }
           },
           "version": 1

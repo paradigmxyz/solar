@@ -45,7 +45,7 @@
 // word and set a result bit. Every step is a pure two-phi diamond, so it
 // becomes a scaled shift and a scaled or with no branch; only the zero test
 // keeps its jump. The optimized revision targets Prague, which has no `CLZ`
-// for `bit-scan` to replace the selected search with.
+// for `scan-region` to replace the selected search with.
 library LibBit {
     function fls(uint256 x) internal pure returns (uint256 r) {
         if (x == 0) return 256;

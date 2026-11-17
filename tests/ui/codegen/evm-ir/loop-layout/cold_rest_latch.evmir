@@ -1,0 +1,61 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=loop-layout
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=loop-layout
+// A search loop nested in an outer loop whose body block exits the function on a match and
+// otherwise passes a cold panic check before it jumps back toward the outer loop. The cold
+// branch is never taken, so the rest of the block only leaves the loop and the exit keeps half
+// the mass: the latch carries more than the outer loop's preheader and gas builds move it
+// before the header.
+@module ColdRestLatch
+bb0:
+  push 0
+  jump bb1
+bb1:
+  dup 1
+  push 4
+  gt
+  push bb2
+  jumpi
+  pop
+  stop
+bb2:
+  push 0
+  jump bb3
+bb3:
+  dup 1
+  calldataload
+  dup 1
+  push bb4
+  jumpi
+  dup 1
+  push 1
+  eq
+  push bb8
+  jumpi
+  dup 1
+  push 2
+  eq
+  push bb6
+  jumpi
+  jump bb5
+bb4:
+  pop
+  push 32
+  add
+  jump bb3
+bb5:
+  pop
+  pop
+  push 1
+  add
+  dup 1
+  calldataload
+  push bb2
+  jumpi
+  jump bb1
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb8:
+  stop

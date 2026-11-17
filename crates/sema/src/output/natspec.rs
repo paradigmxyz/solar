@@ -1,7 +1,11 @@
 //! NatSpec outputs matching solc's Standard JSON output fields.
 
 use super::DocumentationKind;
-use crate::{ast, hir, ty::Gcx};
+use crate::{
+    hir,
+    natspec::{LocalTags, is_untagged, is_untagged_line, starts_group},
+    ty::Gcx,
+};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::Span;
@@ -145,7 +149,7 @@ impl<'gcx> Gcx<'gcx> {
                 documentation.events.insert(signature, documentation_item);
             }
         }
-        for error_id in self.interface_errors(contract_id).iter() {
+        for error_id in interface_errors(self, contract_id) {
             let documentation_item = dev_doc_item(self, error_id.into());
             if !documentation_item.is_empty() {
                 documentation
@@ -200,7 +204,7 @@ impl<'gcx> Gcx<'gcx> {
                 );
             }
         }
-        for error_id in self.interface_errors(contract_id).iter() {
+        for error_id in interface_errors(self, contract_id) {
             if let Some(notice) =
                 natspec_text(self, error_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice))
             {
@@ -256,8 +260,11 @@ fn dev_doc_item(gcx: Gcx<'_>, item: hir::ItemId) -> DocumentationItem {
     documentation
 }
 
+/// Appends a tag's text, like solc, which omits a tag without any.
 fn append_doc(target: &mut Option<String>, content: &str) {
-    target.get_or_insert_default().push_str(content);
+    if !content.is_empty() {
+        target.get_or_insert_default().push_str(content);
+    }
 }
 
 fn return_docs(
@@ -281,9 +288,12 @@ fn return_docs(
 struct DocItem {
     kind: hir::NatSpecKind,
     content: String,
+    /// Whether the line of the tag ends right after its name, so that the next line's leading
+    /// whitespace goes.
+    bare: bool,
 }
 
-/// Returns the NatSpec items of `doc_id` with their text joined and trimmed like solc.
+/// Returns the NatSpec items of `item_id` with their text joined and trimmed like solc.
 ///
 /// solc's scanner joins the lines of a doc comment with newlines, dropping the leading `///` of
 /// each line and the leading whitespace and first `*` of each line of a block comment, and
@@ -291,28 +301,30 @@ struct DocItem {
 /// appends every later line to the tag before it, with a space unless the line starts with one.
 /// A `///` line without a tag is such a continuation, so it extends the item before it instead of
 /// being a notice of its own.
+///
+/// Only the last group of doc comments counts, for the tags, the `@inheritdoc` target and whether
+/// the item inherits implicitly. The target's items are joined on their own and follow the local
+/// ones, without the kinds the local ones replace.
 fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
-    let doc_id = gcx.hir.item(item_id).doc();
-    let natspec = gcx.natspec_doc_comments(doc_id);
-    if natspec.is_empty() {
+    let resolved = gcx.natspec_resolution(item_id);
+    let ignored = ignored_doc_comments(gcx, gcx.hir.item(item_id).doc());
+    let read = |span: Span| !ignored.is_some_and(|ignored| ignored.contains(span));
+    let local =
+        resolved.local_items().iter().copied().filter(|item| read(item.span)).collect::<Vec<_>>();
+    let target = resolved.inheritdoc_target().filter(|&(span, _)| read(span));
+    if local.is_empty() && target.is_none() {
         return inherited_doc_items(gcx, item_id);
     }
-    let ignored = ignored_doc_comments(gcx, doc_id);
     let mut items: Vec<DocItem> = Vec::new();
-    for item in natspec.iter().copied() {
-        if ignored.is_some_and(|ignored| ignored.contains(item.span)) {
-            continue;
-        }
-        let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
-        let line_comment = untagged
-            && gcx
-                .sess
-                .source_map()
-                .span_to_snippet(item.span)
-                .is_ok_and(|snippet| snippet.starts_with("///"));
-        if line_comment && let Some(previous) = items.last_mut() {
-            // A tag with no text on its line takes the next line, without its leading whitespace.
-            if previous.content.is_empty() {
+    for &item in &local {
+        let untagged = is_untagged(&item);
+        let bare = !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t']);
+        if is_untagged_line(gcx, &item)
+            && let Some(previous) = items.last_mut()
+        {
+            // A tag with nothing after it on its line takes the next line, without its leading
+            // whitespace.
+            if previous.content.is_empty() && previous.bare {
                 previous.content.push_str(item.content().trim_start_matches([' ', '\t']));
             } else {
                 append_doc_line(&mut previous.content, item.content());
@@ -320,7 +332,7 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             continue;
         }
         let mut content = String::new();
-        for (i, line) in item.content().split('\n').enumerate() {
+        for (i, line) in item.content().split(['\n', '\r']).enumerate() {
             if i == 0 {
                 content.push_str(if untagged {
                     line.trim_start_matches([' ', '\t'])
@@ -336,13 +348,19 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             if line.is_empty() {
                 continue;
             }
-            if content.is_empty() {
+            if content.is_empty() && bare {
                 content.push_str(line.trim_start_matches([' ', '\t']));
             } else {
                 append_doc_line(&mut content, line);
             }
         }
-        items.push(DocItem { kind: item.kind, content });
+        items.push(DocItem { kind: item.kind, content, bare });
+    }
+    if let Some((_, target)) = target {
+        let local_tags = LocalTags::from_group(gcx, &local);
+        items.extend(
+            doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
+        );
     }
     items
 }
@@ -385,19 +403,30 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
         return None;
     }
     let docs = gcx.hir.doc(doc_id).ast_comments();
-    let start = (1..docs.len()).rev().find(|&i| {
-        let (prev, doc) = (&docs[i - 1], &docs[i]);
-        let gap = gcx
-            .sess
-            .source_map()
-            .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
-            .unwrap_or_default();
-        !(prev.kind == ast::CommentKind::Line
-            && doc.kind == ast::CommentKind::Line
-            && gap.chars().all(|c| c.is_ascii_whitespace())
-            && gap.matches('\n').count() == 1)
-    })?;
+    let start = (1..docs.len()).rev().find(|&i| starts_group(gcx, &docs[i - 1], &docs[i]))?;
     Some(docs[0].span.with_hi(docs[start].span.lo()))
+}
+
+/// Returns the errors documented for a contract in solc's order, by AST ID: errors of the same
+/// signature from different sources are listed by the order solc parses the sources in, then by
+/// position.
+fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::ErrorId> {
+    let mut errors = gcx.interface_errors(contract_id).iter().collect::<Vec<_>>();
+    let imported = errors.iter().any(|&error| gcx.hir.source(gcx.hir.error(error).source).imported);
+    // Without imported sources, the order is by source name.
+    let order = imported.then(|| gcx.source_parse_order(()));
+    errors.sort_by(|&a, &b| {
+        let (a, b) = (gcx.hir.error(a), gcx.hir.error(b));
+        let source = match &order {
+            Some(order) => order[a.source].cmp(&order[b.source]),
+            None => {
+                let name = |error: &hir::Error<'_>| &gcx.hir.source(error.source).file.name;
+                name(a).cmp_source_unit_name(name(b))
+            }
+        };
+        source.then(a.span.lo().cmp(&b.span.lo()))
+    });
+    errors
 }
 
 /// Returns the events documented for a contract with their signatures, like solc's

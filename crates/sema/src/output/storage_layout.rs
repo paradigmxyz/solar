@@ -230,17 +230,22 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
 
         let location = ty.loc();
         let ty = ty.peel_refs();
+        let label = self.storage_type_label(ty);
+        // A struct's layout gives its members and its size at once.
+        let mut members = Vec::new();
+        if let TyKind::Struct(struct_id) = ty.kind {
+            let slots;
+            (members, slots) = self.layout_members(self.gcx.hir.strukt(struct_id).fields);
+            self.struct_slots.insert(struct_id, slots);
+        }
         let mut info = StorageLayoutType {
             encoding: StorageEncoding::Inplace,
-            label: self.storage_type_label(ty),
+            label,
             number_of_bytes: self.storage_bytes(ty).to_string(),
+            members,
             ..Default::default()
         };
         match ty.kind {
-            TyKind::Struct(struct_id) => {
-                let (members, _) = self.layout_members(self.gcx.hir.strukt(struct_id).fields);
-                info.members = members;
-            }
             TyKind::Mapping(key_ty, value_ty) => {
                 info.encoding = StorageEncoding::Mapping;
                 info.key = Some(self.generate_type(key_ty));
@@ -259,6 +264,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 info.encoding = StorageEncoding::Bytes;
             }
             TyKind::Elementary(_)
+            | TyKind::Struct(_)
             | TyKind::Contract(_)
             | TyKind::Enum(_)
             | TyKind::Fn(_)

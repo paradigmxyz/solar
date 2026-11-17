@@ -1,0 +1,33 @@
+//@ compile-flags: -Zmir-pipeline=lower-structs,lower-slices,lower-integers
+//@ filecheck:
+@module EmptyStructArg
+
+@types
+  struct0: {}
+
+// lower-structs drops the zero-field parameter, and the old argument value, which nothing reads,
+// becomes undefined rather than indexing past the parameters for the passes that read the type
+// of every value.
+// CHECK-LABEL: (after lower-integers)
+// CHECK: fn @f() -> i256 {
+// CHECK: ret 1
+fn @f(arg0: struct0) -> i256 {
+  bb0:
+    ret 1
+}
+
+// A live zero-field struct argument has no parameter left either; its value becomes undefined
+// once the call that reads it takes no argument.
+// CHECK-LABEL: fn @user(arg0: i256) -> i256 {
+// CHECK: icall @empty
+// CHECK: ret arg0
+fn @empty(arg0: struct0) -> struct0 {
+  bb0:
+    ret arg0
+}
+
+fn @user(arg0: i256, arg1: struct0) -> i256 {
+  bb0:
+    v0 = icall @empty, arg1
+    ret arg0
+}

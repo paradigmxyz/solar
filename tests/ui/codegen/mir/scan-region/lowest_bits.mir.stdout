@@ -1,4 +1,4 @@
-; === ROOT/tests/ui/codegen/mir/bit-scan/lowest_bits.sol:LowestBits ===
+; === ROOT/tests/ui/codegen/mir/scan-region/lowest_bits.sol:LowestBits ===
 @module LowestBits
 ; function ffs(uint256 x) external pure returns (uint256 r) [selector 0x2297890a]
 fn @ffs(arg0: i256) -> i256 [selector=0x2297890a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
