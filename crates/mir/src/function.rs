@@ -900,7 +900,10 @@ impl Function {
             {
                 self.inst_mut(new).metadata.clear_checked_object_offset();
             }
-            InstKind::PtrAdd(..) if self.inst(old).metadata.unchecked() => {
+            InstKind::PtrAdd(..)
+                if self.inst(old).metadata.unchecked()
+                    && matches!(self.inst(new).kind, InstKind::PtrAdd(..)) =>
+            {
                 self.inst_mut(new).metadata.set_unchecked(true);
             }
             _ => {}

@@ -1315,9 +1315,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 memo,
             )
         };
+        let checked = matches!(func.value(value), Value::Inst(inst)
+            if func.inst(*inst).metadata.checked_object_offset());
         let shifted = |base,
                        adjustment: U256,
-                       checked: bool,
                        visiting: &mut DenseBitSet<ValueId>,
                        memo: &mut HeapPrefixCache| {
             if Self::heap_prefix_constant(func, base, 0).is_some() {
@@ -1345,8 +1346,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             Some(prefix.saturating_add(back))
         };
-        let checked = matches!(func.value(value), Value::Inst(inst)
-            if func.inst(*inst).metadata.checked_object_offset());
         let offset = (|| match func.value(value) {
             Value::Arg(index) => {
                 argument_offsets.and_then(|offsets| offsets.get(index).copied()).or_else(|| {
@@ -1368,9 +1367,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // order does not put on the right, so both sides are tried.
                 InstKind::Add(first, second) => {
                     if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
-                        shifted(*first, amount, checked, visiting, memo)
+                        shifted(*first, amount, visiting, memo)
                     } else if let Some(amount) = Self::heap_prefix_constant(func, *first, 0) {
-                        shifted(*second, amount, checked, visiting, memo)
+                        shifted(*second, amount, visiting, memo)
                     } else {
                         derive(*first, visiting, memo).max(derive(*second, visiting, memo))
                     }
@@ -1378,7 +1377,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Sub(base, amount) => shifted(
                     *base,
                     U256::ZERO.wrapping_sub(Self::heap_prefix_constant(func, *amount, 0)?),
-                    checked,
                     visiting,
                     memo,
                 ),

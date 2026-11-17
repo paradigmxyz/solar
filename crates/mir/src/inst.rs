@@ -305,7 +305,7 @@ impl InstructionMetadata {
     }
 
     /// Clears the marker of a word addition that another, unchecked computation joined.
-    pub fn clear_checked_object_offset(&mut self) {
+    pub(crate) fn clear_checked_object_offset(&mut self) {
         self.flags.clear_checked_object_offset();
     }
 
