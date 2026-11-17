@@ -325,7 +325,7 @@ fn run(func: &mut Function) -> bool {
         // LLVM's HowToUpdateDebugInfo keeps the location of an instruction that moves to another
         // block only when the destination already holds an instruction with the identical
         // location; otherwise the move drops it, as in LICM. The read's origin is its
-        // parameter, which a debugger shows at the function header.
+        // function's declaration, which a debugger shows at the function header.
         if holds_debug_loc(func, target, &instruction.metadata) {
             copy.metadata.preserve_debug_loc(&instruction.metadata);
         } else {

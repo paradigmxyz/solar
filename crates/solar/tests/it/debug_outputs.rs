@@ -190,6 +190,13 @@ fn iszero_origin_debug_outputs_are_bytecode_neutral() {
     );
 }
 
+#[test]
+fn place_reads_origin_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/place-reads/sunk_read_origin.sol",
+    );
+}
+
 fn assert_debug_outputs_are_bytecode_neutral(source: &str) {
     for mode in ["gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
