@@ -981,8 +981,12 @@ def fresh_certified(clone, name, contract):
     stanza = lakefile_lib(name, contract)
     if stanza in text:
         held = True
-    elif re.search(rf"^lean_lib («{re.escape(name)}»|{re.escape(name)})( |$)", text, re.M):
-        raise Failed(f"the base's lakefile declares lean_lib {name} other than as this driver writes it")
+    elif re.search(
+        rf"^lean_lib («{re.escape(name)}»|{re.escape(name)})( |$)", text, re.MULTILINE
+    ):
+        raise Failed(
+            f"the base's lakefile declares lean_lib {name} other than as this driver writes it"
+        )
     else:
         with open(lf, "a") as f:
             f.write(stanza)
@@ -1887,7 +1891,19 @@ end {ns}
 """.replace("§", "\u0060")
 
 
-def lifecycle_all(lean_dir, name, source_text, contract, init, plain, deployed, ws, storage, rec_dir, cache):
+def lifecycle_all(
+    lean_dir,
+    name,
+    source_text,
+    contract,
+    init,
+    plain,
+    deployed,
+    ws,
+    storage,
+    rec_dir,
+    cache,
+):
     """The all-arguments stage, recorded beside a proved lifecycle module and never changing its
     verdict: {"ok", "detail", "statement"?, "lean_sha256"?}. ok when the base has the symbolic
     creation frame and the run's clone builds Certified.NAME.LifecycleAll."""
@@ -1914,7 +1930,9 @@ def lifecycle_all(lean_dir, name, source_text, contract, init, plain, deployed, 
         )
     else:
         errs = " | ".join(l for l in out.splitlines() if "error" in l)[:400]
-        rec["detail"] = f"the symbolic creation frame does not prove every creation: {errs}"
+        rec["detail"] = (
+            f"the symbolic creation frame does not prove every creation: {errs}"
+        )
     return rec
 
 
@@ -3354,7 +3372,9 @@ def main():
         if fresh_certified(lean_dir, name, contract):
             # The base already holds this source's record: regenerated here in full, never reused.
             record["base_held_record"] = True
-            log(f"base holds Certified/{name}: removed in this run's clone and regenerated in full")
+            log(
+                f"base holds Certified/{name}: removed in this run's clone and regenerated in full"
+            )
         d.mkdir(parents=True)
         shutil.copy(src, d / f"{name}.sol")
         (d / "options").write_text("\n".join(OPTIONS) + "\n")

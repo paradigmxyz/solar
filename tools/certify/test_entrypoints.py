@@ -22,7 +22,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 SOLAR = pathlib.Path(os.environ.get("SOLAR", ROOT / "target" / "debug" / "solar"))
 COUNTER = "tools/certify/examples/counter.sol"
-MILESTONE_LINE = 'milestone="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../solar-tv/milestone" && pwd)"'
+MILESTONE_LINE = (
+    'milestone="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../solar-tv/milestone" && pwd)"'
+)
 
 
 class CleanCheckoutEntrypoints(unittest.TestCase):
@@ -33,15 +35,27 @@ class CleanCheckoutEntrypoints(unittest.TestCase):
         cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="certify-entry-"))
         cls.clean = cls.tmp / "clean"
         cls.clean.mkdir()
-        archive = subprocess.run(["git", "-C", str(ROOT), "archive", "HEAD"], check=True,
-                                 capture_output=True).stdout
+        archive = subprocess.run(
+            ["git", "-C", str(ROOT), "archive", "HEAD"], check=True, capture_output=True
+        ).stdout
         subprocess.run(["tar", "-x", "-C", str(cls.clean)], input=archive, check=True)
         cls.certify = cls.clean / "tools" / "certify"
         # The exported stages of a small contract, as generic.py exports them.
         cls.gen = cls.tmp / "gen"
-        p = subprocess.run([str(SOLAR), str(cls.clean / COUNTER), "-Ogas", "--evm-version", "osaka",
-                            "--emit=bin-runtime", f"-Zemit-lean-stages={cls.gen}"],
-                           capture_output=True, text=True)
+        p = subprocess.run(
+            [
+                str(SOLAR),
+                str(cls.clean / COUNTER),
+                "-Ogas",
+                "--evm-version",
+                "osaka",
+                "--emit=bin-runtime",
+                f"-Zemit-lean-stages={cls.gen}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         assert p.returncode == 0, p.stderr
 
     @classmethod
@@ -51,8 +65,14 @@ class CleanCheckoutEntrypoints(unittest.TestCase):
     def run_clean(self, code):
         """Run Python code with only the clean checkout's modules on its path."""
         env = dict(os.environ, PYTHONPATH="", PYTHONSAFEPATH="1")
-        return subprocess.run([sys.executable, "-c", code], cwd=self.tmp, env=env,
-                              capture_output=True, text=True)
+        return subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=self.tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
     def test_generic_stage_proofs(self):
         # generic.py's own step that runs certify.py, which rejected every run while cutpoints
@@ -74,9 +94,21 @@ class CleanCheckoutEntrypoints(unittest.TestCase):
 
     def test_asm_ctx_main(self):
         out = self.tmp / "Ctx.lean"
-        p = subprocess.run([sys.executable, str(self.certify / "asm_ctx.py"), str(self.gen / "Counter"),
-                            "--gen-module", "X.gen.Counter", "--out", str(out)],
-                           capture_output=True, text=True, cwd=self.tmp)
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(self.certify / "asm_ctx.py"),
+                str(self.gen / "Counter"),
+                "--gen-module",
+                "X.gen.Counter",
+                "--out",
+                str(out),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.tmp,
+            check=False,
+        )
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("theorem block_0", out.read_text())
 
@@ -105,9 +137,24 @@ class CleanCheckoutEntrypoints(unittest.TestCase):
 
     def test_cutpoints_api(self):
         # Every name tools/certify reads from cutpoints.
-        names = ("EXCLUDED_FUNCTIONS EXCLUDED_SELECTORS JOINS MIR_JOINS SCOPE SEGMENT Unsupported "
-                 "evm_cfg evm_states loops mir_headers on_cycle parse_evm parse_mir scope_parts "
-                 "stage_body").split()
+        names = [
+            "EXCLUDED_FUNCTIONS",
+            "EXCLUDED_SELECTORS",
+            "JOINS",
+            "MIR_JOINS",
+            "SCOPE",
+            "SEGMENT",
+            "Unsupported",
+            "evm_cfg",
+            "evm_states",
+            "loops",
+            "mir_headers",
+            "on_cycle",
+            "parse_evm",
+            "parse_mir",
+            "scope_parts",
+            "stage_body",
+        ]
         code = (
             "import sys\n"
             f"sys.path.insert(0, {str(self.clean / 'solar-tv' / 'milestone')!r})\n"

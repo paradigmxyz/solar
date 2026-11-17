@@ -184,10 +184,17 @@ def parse_sym(line):
     name, rest = parts[1], parts[2] if len(parts) > 2 else ""
     if rest in ("none", "noerase"):
         return name, (None if rest == "none" else "noerase"), None, None
-    m = re.fullmatch(r"(true|false) (?:some )?(\[[^\]]*\]|none) TREE (.*)", rest, re.DOTALL)
+    m = re.fullmatch(
+        r"(true|false) (?:some )?(\[[^\]]*\]|none) TREE (.*)", rest, re.DOTALL
+    )
     if not m:
         sys.exit(f"spec_connect: unreadable probe line: {line[:200]}")
-    return name, m.group(1) == "true", None if m.group(2) == "none" else m.group(2), m.group(3)
+    return (
+        name,
+        m.group(1) == "true",
+        None if m.group(2) == "none" else m.group(2),
+        m.group(3),
+    )
 
 
 def any_caller_refusal(sym, slots, tree_only=False):
@@ -209,7 +216,9 @@ def any_caller_refusal(sym, slots, tree_only=False):
     return None
 
 
-def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings, payable=False, tree_only=False):
+def from_block(
+    fid, name, n, nsi, ns, mod, bundle, ws, usings, payable=False, tree_only=False
+):
     """--any-caller: `fid`'s spec of SolidCore's run sent by every account `a < 2 ^ 160` other than the
     contract, each in its own context (`ctxOfCallFrom a`), at every value below `2 ^ 256`
     (`SolidCore.Spec.holdsFn_of_tree_from`, Verify/Spec/TreeFrom.lean), from the symbolic-caller
@@ -219,7 +228,9 @@ def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings, payable=False, tr
     ds0 = f"{fid}_tree_from, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, SolidCore.Spec.ctxAt, hca"
     payable = "true" if payable else "false"
     wsl = "none" if ws is None else f"some {ws}"
-    caller = "  intro a ha hne\n  have hca : a % 2 ^ 256 = a := Nat.mod_eq_of_lt (by omega)"
+    caller = (
+        "  intro a ha hne\n  have hca : a % 2 ^ 256 = a := Nat.mod_eq_of_lt (by omega)"
+    )
     meets0 = f"{caller}\n  tree_meets_fixed [{ds0 if nsi else ds}]"
     out = [
         f"/-- The stage's erasure of `{name}` for every caller (`msg.sender` the symbolic word). -/",
@@ -303,6 +314,7 @@ def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings, payable=False, tr
         "",
     ]
     return out
+
 
 def succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, bundle):
     """A function with succeeds-if conditions: the spec without them (the same tactic, with the
@@ -447,7 +459,11 @@ def main():
     args = ap.parse_args()
     only = {x for x in args.only.split(",") if x}
 
-    sym = PROBE_SYM.format(ns=args.namespace, bundle=args.bundle) if args.any_caller else ""
+    sym = (
+        PROBE_SYM.format(ns=args.namespace, bundle=args.bundle)
+        if args.any_caller
+        else ""
+    )
 
     probe = PROBE.format(
         core=args.core_module,
@@ -455,7 +471,9 @@ def main():
         ns=args.namespace,
         bundle=args.bundle,
         sym=sym,
-        sym_import="import SolidCore.Refinement.Generic.StageFrom\n" if args.any_caller else "",
+        sym_import="import SolidCore.Refinement.Generic.StageFrom\n"
+        if args.any_caller
+        else "",
     )
     with tempfile.NamedTemporaryFile(
         "w", suffix=".lean", dir=args.cwd, delete=False
@@ -629,8 +647,22 @@ def main():
         if args.tree_only:
             if args.any_caller:
                 payable, ws, ftree = syms[name]
-                out += [x.replace("@TREE@", ftree) for x in
-                        from_block(fid, name, n, nsi, ns, mod, args.bundle, ws, usings, payable, True)]
+                out += [
+                    x.replace("@TREE@", ftree)
+                    for x in from_block(
+                        fid,
+                        name,
+                        n,
+                        nsi,
+                        ns,
+                        mod,
+                        args.bundle,
+                        ws,
+                        usings,
+                        payable,
+                        True,
+                    )
+                ]
             continue
         out += (
             succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, args.bundle)
@@ -690,15 +722,19 @@ def main():
         ]
         if args.any_caller:
             _, ws, ftree = syms[name]
-            out += [x.replace("@TREE@", ftree) for x in
-                    from_block(fid, name, n, nsi, ns, mod, args.bundle, ws, usings)]
+            out += [
+                x.replace("@TREE@", ftree)
+                for x in from_block(fid, name, n, nsi, ns, mod, args.bundle, ws, usings)
+            ]
     out += [f"end {args.module_name}", ""]
     args.out.write_text("\n".join(out).replace("`", chr(96)))
     check_output(args)
     for _, name, fid, *_ in fns:
         print(f"{args.module_name}.{fid}_{'tree' if args.tree_only else 'holds'}")
         if args.any_caller:
-            print(f"{args.module_name}.{fid}_{'tree_from' if args.tree_only else 'holds_from'}")
+            print(
+                f"{args.module_name}.{fid}_{'tree_from' if args.tree_only else 'holds_from'}"
+            )
 
 
 if __name__ == "__main__":

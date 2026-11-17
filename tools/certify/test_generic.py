@@ -1717,7 +1717,9 @@ class SpecConnectAnyCaller(unittest.TestCase):
         import spec_connect
 
         for nsi in (0, 1):
-            lines = spec_connect.from_block("f", "C.f", 2, nsi, "NS", "M", "B", "[256, 256]", "u")
+            lines = spec_connect.from_block(
+                "f", "C.f", 2, nsi, "NS", "M", "B", "[256, 256]", "u"
+            )
             text = "\n".join(lines)
             self.assertIn("theorem f_holds_from", text)
             self.assertIn("holdsFn_of_tree_from hdd", text)
@@ -1730,14 +1732,24 @@ class SpecConnectAnyCaller(unittest.TestCase):
         import spec_connect
 
         mapped = spec_connect.parse_sym("sym C.f false some [160, 256] TREE .stop")
-        self.assertIsNone(spec_connect.any_caller_refusal(mapped[1:], ([1], []), tree_only=True))
+        self.assertIsNone(
+            spec_connect.any_caller_refusal(mapped[1:], ([1], []), tree_only=True)
+        )
         none = spec_connect.parse_sym("sym C.h noerase")
-        self.assertIn("eraseFnSym", spec_connect.any_caller_refusal(none[1:], ([1], []), tree_only=True))
-        lines = spec_connect.from_block("f", "C.f", 2, 1, "NS", "M", "B", "[160, 256]", "u", False, True)
+        self.assertIn(
+            "eraseFnSym",
+            spec_connect.any_caller_refusal(none[1:], ([1], []), tree_only=True),
+        )
+        lines = spec_connect.from_block(
+            "f", "C.f", 2, 1, "NS", "M", "B", "[160, 256]", "u", False, True
+        )
         text = "\n".join(lines)
         self.assertIn("def f_tree_from", text)
         self.assertIn("kernel_rfl f_erase_from_eq", text)
-        self.assertIn("some 2, some f_tree_from, false, some [160, 256]".replace("some 2", "(2"), text)
+        self.assertIn(
+            "some 2, some f_tree_from, false, some [160, 256]".replace("some 2", "(2"),
+            text,
+        )
         self.assertNotIn("theorem", text)
 
 
@@ -2011,6 +2023,7 @@ class FreshCertified(unittest.TestCase):
 
     def test_existing_record(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as t:
             c = pathlib.Path(t)
             (c / "Certified" / "n_1" / "Proofs").mkdir(parents=True)
@@ -2018,15 +2031,21 @@ class FreshCertified(unittest.TestCase):
             (c / "lakefile.lean").write_text("x" + generic.lakefile_lib("n_1", "C"))
             self.assertTrue(generic.fresh_certified(c, "n_1", "C"))
             self.assertFalse((c / "Certified" / "n_1").exists())
-            self.assertEqual((c / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1)
+            self.assertEqual(
+                (c / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1
+            )
 
     def test_new_and_foreign(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as t:
             c = pathlib.Path(t)
             (c / "lakefile.lean").write_text("x\n")
             self.assertFalse(generic.fresh_certified(c, "n_1", "C"))
-            self.assertEqual((c / "lakefile.lean").read_text(), "x\n" + generic.lakefile_lib("n_1", "C"))
+            self.assertEqual(
+                (c / "lakefile.lean").read_text(),
+                "x\n" + generic.lakefile_lib("n_1", "C"),
+            )
             (c / "lakefile.lean").write_text("lean_lib «n_1» where\n  roots := #[]\n")
             with self.assertRaises(generic.Failed):
                 generic.fresh_certified(c, "n_1", "C")
@@ -2037,44 +2056,70 @@ class FreshCertifiedControls(unittest.TestCase):
     supplied base is never touched (only its clone), and duplicate or foreign stanzas are handled."""
 
     def setUp(self):
-        import tempfile, subprocess
+        import subprocess
+        import tempfile
+
         self.t = tempfile.TemporaryDirectory()
         root = pathlib.Path(self.t.name)
         self.base = root / "base"
         (self.base / "Certified" / "n_1" / "gen").mkdir(parents=True)
-        (self.base / "Certified" / "n_1" / "gen" / "Stage0.lean").write_text("stale export")
+        (self.base / "Certified" / "n_1" / "gen" / "Stage0.lean").write_text(
+            "stale export"
+        )
         (self.base / "Certified" / "n_1" / "Final.lean").write_text("stale final")
         (self.base / "lakefile.lean").write_text("x" + generic.lakefile_lib("n_1", "C"))
         g = ["git", "-c", "user.name=t", "-c", "user.email=t@l"]
         subprocess.run(g + ["init", "-q", str(self.base)], check=True)
         subprocess.run(g + ["-C", str(self.base), "add", "-A"], check=True)
         subprocess.run(g + ["-C", str(self.base), "commit", "-qm", "base"], check=True)
-        self.head = subprocess.run(["git", "-C", str(self.base), "rev-parse", "HEAD"], check=True,
-                                   capture_output=True, text=True).stdout
+        self.head = subprocess.run(
+            ["git", "-C", str(self.base), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
         self.clone = root / "clone"
-        subprocess.run(["git", "clone", "-q", "--shared", str(self.base), str(self.clone)], check=True)
+        subprocess.run(
+            ["git", "clone", "-q", "--shared", str(self.base), str(self.clone)],
+            check=True,
+        )
 
     def tearDown(self):
         self.t.cleanup()
 
     def base_unchanged(self):
         import subprocess
-        st = subprocess.run(["git", "-C", str(self.base), "status", "--porcelain"], check=True,
-                            capture_output=True, text=True).stdout
-        head = subprocess.run(["git", "-C", str(self.base), "rev-parse", "HEAD"], check=True,
-                              capture_output=True, text=True).stdout
+
+        st = subprocess.run(
+            ["git", "-C", str(self.base), "status", "--porcelain"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        head = subprocess.run(
+            ["git", "-C", str(self.base), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
         self.assertEqual((st, head), ("", self.head))
-        self.assertEqual((self.base / "Certified" / "n_1" / "Final.lean").read_text(), "stale final")
+        self.assertEqual(
+            (self.base / "Certified" / "n_1" / "Final.lean").read_text(), "stale final"
+        )
 
     def test_stale_and_duplicate(self):
         self.assertTrue(generic.fresh_certified(self.clone, "n_1", "C"))
         # The stale generated files are gone from the clone, so nothing of the base's record is reused.
         self.assertFalse((self.clone / "Certified" / "n_1").exists())
-        self.assertEqual((self.clone / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1)
+        self.assertEqual(
+            (self.clone / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1
+        )
         self.base_unchanged()
 
     def test_foreign_stanza(self):
-        (self.clone / "lakefile.lean").write_text("lean_lib n_1 where\n  roots := #[]\n")
+        (self.clone / "lakefile.lean").write_text(
+            "lean_lib n_1 where\n  roots := #[]\n"
+        )
         with self.assertRaises(generic.Failed):
             generic.fresh_certified(self.clone, "n_1", "C")
         self.base_unchanged()
@@ -2083,8 +2128,9 @@ class FreshCertifiedControls(unittest.TestCase):
         (self.clone / "Certified" / "m_2").mkdir()
         (self.clone / "Certified" / "m_2" / "Final.lean").write_text("other")
         generic.fresh_certified(self.clone, "n_1", "C")
-        self.assertEqual((self.clone / "Certified" / "m_2" / "Final.lean").read_text(), "other")
-
+        self.assertEqual(
+            (self.clone / "Certified" / "m_2" / "Final.lean").read_text(), "other"
+        )
 
 
 class ChangedPaths(unittest.TestCase):
