@@ -198,10 +198,10 @@ def record(
             assumptions.extend(
                 [
                     "acyclic integer/pointer MIR effect tree from the independently parsed source; trusted constructor renderer",
-                    "every ordered opcode/allocation request, operand, arbitrary result word and terminal boundary is preserved",
+                    "every ordered opcode/allocation/constructor-range request, operand, arbitrary result word and terminal boundary is preserved",
                     "all stateful effect handlers, including early failure and arbitrary aliasing; no empty-world or successful-access assumption",
                     "compositional interaction certificate, not a full-state interpreter proof; supplied acyclic internal bodies expand with private SSA locals and shared effect state; normal returns resume the caller, frame-ending outcomes do not",
-                    "allocations preserve size, zeroing and checked-failure policy; no successful allocation, freshness, implicit FMP or backend return placement is assumed; external calls, layout queries, GAS sampling and code observers excluded",
+                    "allocations preserve size, zeroing and checked-failure policy; no successful allocation, freshness, implicit FMP or backend return placement is assumed; FMP reads use the kernel-proved MLOAD(64) request; constructor base/end remain distinct arbitrary requests without supplied placements; external calls, other layout queries, GAS sampling and code observers excluded",
                     "SSTORE remains a request that may fail; scalar gas costs and their effect on the EIP-2200 sentry are outside this unpriced MIR certificate",
                     "abstract scalar steps unpriced; no physical gas, backend layout or whole-contract claim",
                 ]

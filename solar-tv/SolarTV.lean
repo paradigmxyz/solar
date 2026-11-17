@@ -9,6 +9,7 @@ import SolarTV.MIR.Transforms.CheckElim
 import SolarTV.MIR.Transforms.AbiValidation
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
 import SolarTV.MIR.Transforms.RenamePhiPredecessors
+import SolarTV.MIR.Transforms.LowerAlloc
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 import SolarTV.EVMIR.Transforms.StackPeephole
 import SolarTV.EVMIR.StackSafety
@@ -277,3 +278,11 @@ import SolarTV.EVMIR.Effects
 /-- info: 'SolarTV.EVM.Effects.expansion_correct' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Effects.expansion_correct
+
+/-- info: 'SolarTV.MIR.LowerAlloc.free_pointer_request' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAlloc.free_pointer_request
+
+/-- info: 'SolarTV.MIR.LowerAlloc.constructor_request' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAlloc.constructor_request

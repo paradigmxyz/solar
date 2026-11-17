@@ -11,8 +11,10 @@ SSA importer; this theorem does not certify that importer or physical gas costs.
 Acyclic internal calls expand their supplied bodies, with isolated SSA locals
 and shared request state. Allocation requests retain their size, zeroing and
 checked-failure policy. No allocation success, fresh address, implicit FMP or
-return-buffer placement is assumed. Layout queries and code/GAS sampling are
-not imported here. This remains an unpriced interaction certificate.
+return-buffer placement is assumed. Constructor-range queries retain their
+base/end discriminator as ordered requests; no range is chosen or assumed to
+exist. Other layout queries and code/GAS sampling are not imported here.
+This remains an unpriced interaction certificate.
 SSTORE remains an opaque request, including possible sentry failure; differences
 in physical scalar gas costs and their effect on that sentry are not certified.
 This certificate is deliberately distinct from full-state interpreter proofs.
@@ -24,6 +26,7 @@ open EvmRules
 inductive Operation where
   | opcode (code : Nat)
   | allocate (zeroed checked : Bool)
+  | constructorRange (isEnd : Bool)
   deriving DecidableEq
 
 structure Request where

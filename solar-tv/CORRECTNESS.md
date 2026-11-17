@@ -372,6 +372,31 @@ budget difference is explicit; this is not a seventeen-of-24 result at ten secon
 
 ## Remaining obligations
 
+After rebasing onto `main`, the new frozen sample has a different selection of
+24 obligations: its baseline verifies 15, with 9 unsupported and no timeouts or
+counterexamples. This is a new compiler/capture fingerprint, not a regression
+comparison with the earlier 17-of-24 sample above.
+
+Rechecking those same frozen pairs at 30 seconds now verifies **16 of 24**, with
+8 unsupported and no counterexamples, timeouts or errors. Only Morpho's
+`lower-alloc` constructor changes status. The selected check identities, input
+hashes and compiler-output hashes are identical; compilation results are reused.
+The compiler fingerprint is
+`8a897a40c88678e68e53f3b08b0e86099d5190f94478681ceda9c68e3ef3ae37`
+and independent replay is
+`b3e69bf9df7c153571cb67cecc99249abcb8a75c4600d0f51bfcdcd4183e182d`.
+
+Morpho's `lower-alloc` constructor pair now verifies through the compositional
+effect-tree route. The FMP request is defined as `MLOAD(64)` and its primitive
+correspondence is kernel-proved in `MIR/Transforms/LowerAlloc.lean`, including
+memory expansion and failures. Constructor base/end requests retain their
+discriminator and arbitrary results; no layout, cursor, fresh memory or
+successful access is supplied. Whole SSA projection and call expansion remain
+trusted. This does not establish physical gas or backend-layout correspondence.
+The reduced real pair, changed-slot counterexample with independent replay,
+and constructor-range distinction tests are in `examples/mir/fmp-lowering/`
+and `tests/test_fmp_lowering.py`.
+
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.
 
