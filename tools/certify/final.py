@@ -70,6 +70,7 @@ solar-verify's export (spec_export) and the non-vacuity witnesses (nonvacuous) i
 
 import argparse
 import json
+import pathlib
 import re
 import sys
 
@@ -187,7 +188,7 @@ def statuses(kind, spec=None, bound=False, vacuity=None):
     }
 
 
-def caller_route(shape):
+def caller_route(shape, shape_dir=None):
     """The callers the published statement is about. shape.json's generic.caller is "0x2000" (or
     absent: the fixed frame, Context.default) or "any" (the driver's check for every caller,
     tools/certify/generic.py's caller_route, accepted every function: Lowering.lean proves
@@ -237,9 +238,19 @@ def caller_route(shape):
         fail(
             "shape.json: any_caller.proof must be a published_any, beside its every-value claims"
         )
+    # The exported spec of the bytecode from every caller (shape_gen.py's published_spec_any),
+    # stated when that module proves it: only when spec_connect.py proved every function's spec
+    # from every caller (--any-caller). Without it the statement is the one above.
+    spec_any = None
+    any_lean = shape_dir / "AnyCaller.lean" if shape_dir is not None else None
+    if any_lean is not None and any_lean.exists() and re.search(
+        r"^theorem published_spec_any :", any_lean.read_text(), re.MULTILINE
+    ):
+        spec_any = f"{m.group(1)}.published_spec_any"
     return mod, proof, expr(anyc, "gas"), (
         f"{m.group(1)}.published_nonpayable",
         f"{m.group(1)}.valid_any_value",
+        spec_any,
     )
 
 
@@ -280,7 +291,7 @@ def expected_mode(
     if not isinstance(entries, list) or not entries:
         fail("shape.json: entries must list the external functions")
     storage = expr(shape, "storage")
-    route = caller_route(shape)
+    route = caller_route(shape, pathlib.Path(a.shape).parent)
     ent_terms, witnesses = [], []
     for e in entries:
         if not (isinstance(e, dict) and set(e) == {"signature", "fn", "sel", "arity"}):
@@ -303,7 +314,7 @@ def expected_mode(
     # The fixed route adds nothing, so its text is the fixed-frame statement byte for byte.
     any_doc = any_stmt = any_import = any_proof = ""
     if route is not None:
-        any_mod, any_term, any_gas, (np_term, val_term) = route
+        any_mod, any_term, any_gas, (np_term, val_term, spec_term) = route
         any_doc = (
             " With the check for every caller, also: in every real context\n"
             "(a caller below §2 ^ 160§ other than the contract), every valid call and every gas from the\n"
@@ -311,6 +322,12 @@ def expected_mode(
             "run from it; every valid call with a value other than 0 reverts there with empty output,\n"
             "no logs and its storage; and the valid calls are closed under every value below §2 ^ 256§."
         )
+        if spec_term is not None:
+            any_doc += (
+                "\nAnd in every real context, at every value and every gas from that bound on, whatever\n"
+                "the exact bytes finish with meets the exported spec's allowed statuses and postcondition,\n"
+                "read in the context of that caller (§ctxOfCallFrom ctx.caller§): partial correctness."
+            )
         any_stmt = (
             f" ∧\n    (∀ ctx : {G}.Context, ctx.Ok → ∃ c, _root_.{ns}.src.checked = .ok c ∧\n"
             f"      ∀ call, _root_.{ns}.spec.Valid ctx call → ∀ gas, ({any_gas}) call ≤ gas →\n"
@@ -324,6 +341,17 @@ def expected_mode(
             f"    (∀ ctx call, _root_.{ns}.spec.Valid ctx call → ∀ v, v < 2 ^ 256 →\n"
             f"      _root_.{ns}.spec.Valid ctx {{ call with callvalue := v }})"
         )
+        if spec_term is not None:
+            B = f"_root_.Certified.{a.name}.gen.{a.contract}.Spec.{a.contract}"
+            Sh = "_root_.SolidCore.Refinement.Shapes"
+            cf = "_root_.SolidCore.Verify.AnyCaller.ctxOfCallFrom ctx.caller"
+            any_stmt += (
+                f" ∧\n    (∀ ctx : {G}.Context, ctx.Ok → ∀ call, _root_.{ns}.spec.Valid ctx call →\n"
+                f"      ∀ gas, ({any_gas}) call ≤ gas → ∀ obs,\n"
+                f"        {G}.runAt ctx gas ({G}.runtimeCode _root_.{ns}.runtimeBytes) call = some obs →\n"
+                f"          {Sh}.bundleAllowed {B} ({cf}) call obs ∧\n"
+                f"            {Sh}.bundlePost {B} ({cf}) {Sh}.idStep call obs)"
+            )
         any_import = f"import {any_mod}\n"
         any_proof = f""",
     fun ctx hctx => by
@@ -335,6 +363,11 @@ def expected_mode(
       rw [{G}.runtimeCode_eq _root_.{ns}.bound]
       exact ({np_term}) ctx hctx call hv hv0 gas hg,
     fun _ call hv v hlt => ({val_term}) call hv v hlt"""
+        if spec_term is not None:
+            any_proof += f""",
+    fun ctx hctx call hv gas hg obs h => by
+      rw [{G}.runtimeCode_eq _root_.{ns}.bound] at h
+      exact ({spec_term}) ctx hctx call hv gas hg obs h"""
     imports = [
         "Verify.Generic.Expected",
         "Verify.ShapeBundle",
@@ -342,6 +375,7 @@ def expected_mode(
         f"{a.name}.gen.{a.contract}.Spec",
         f"{a.name}.gen.{a.contract}.Bytecode",
         *spec_mods,
+        *(["Verify.AnyCaller.Context"] if route is not None and route[3][2] is not None else []),
     ]
     lines = [f"import {m}" for m in dict.fromkeys(imports)]
     stmt_text = (

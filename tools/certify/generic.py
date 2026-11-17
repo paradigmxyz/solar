@@ -2194,6 +2194,10 @@ def shape_json(
                 "check_value_sym": "checkValueSym_stage0",
             }
         )
+        # The spec from every caller at every value (spec_connect.py --any-caller, composed with
+        # the bytecode by shape_gen.py's published_spec_any): when the statement has the spec.
+        if "spec_connect" in shape["generic"]:
+            shape["generic"]["spec_connect"]["any_caller"] = True
         shape["any_caller"] = {
             "module": f"{name}.AnyCaller",
             "proof": f"Certified.{name}.AnyCaller.published_any",

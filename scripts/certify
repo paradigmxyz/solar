@@ -748,6 +748,7 @@ s = json.load(open(sys.argv[1]))
 g = s["generic"]; c = g["spec_connect"]
 print(c.get("core", g["lowering"])); print(c.get("ns", g.get("source_ns", g["ns"])))
 if c.get("ghost_fixed"): print("--ghost-fixed")
+if c.get("any_caller"): print("--any-caller")
 for u in c.get("using", []): print("--using"); print(u)
 for m in c.get("imports", []): print("--import"); print(m)
 PYEOF
@@ -761,6 +762,7 @@ PYEOF
             SolidCore.Refinement.KernelRfl)
         for ((k = 0; k < ${#sc_more[@]}; k++)); do
             if [[ "${sc_more[k]}" == "--import" ]]; then sc_build+=("${sc_more[k+1]}"); fi
+            if [[ "${sc_more[k]}" == "--any-caller" ]]; then sc_build+=(Verify.Spec.TreeFrom SolidCore.Refinement.Generic.StageFrom); fi
         done
         for module in "${sc_build[@]}"; do
             printf '%s: ' "$module"
