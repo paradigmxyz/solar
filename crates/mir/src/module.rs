@@ -19,8 +19,14 @@ use solar_ir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
 use std::{borrow::Cow, fmt, sync::Arc};
 
 /// Returns whether pass managers should validate IR after each pass.
+///
+/// Coverage builds always validate, including in release, so the glued `push; coverage` pair that
+/// passes must preserve is checked where it matters; such builds are not performance-critical.
 pub fn should_validate_ir(sess: &Session) -> bool {
-    sess.opts.unstable.validate_ir.unwrap_or(cfg!(debug_assertions))
+    sess.opts
+        .unstable
+        .validate_ir
+        .unwrap_or(cfg!(debug_assertions) || sess.opts.unstable.instrument_coverage)
 }
 
 /// A named immutable declared by a MIR module.

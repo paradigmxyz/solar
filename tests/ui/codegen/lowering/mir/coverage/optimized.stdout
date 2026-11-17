@@ -1,0 +1,80 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/optimized.sol:C ===
+@module C
+@phase lowered
+; backend-memory-v1
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xb7d796e => bb3, 0x3cf3bbf4 => bb4]
+  bb4:                                            ; preds = bb2
+    tail_call @twice
+  bb3:                                            ; preds = bb2
+    tail_call @loop
+  bb1 [cold]:                                     ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function add(uint256 x) internal
+fn @add(arg0: i256) {
+  bb0:
+    coverage 1
+    coverage 2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:                                            ; preds = bb0
+    sstore 0, v2 !metadata(storage=slot(0))
+    ret
+  bb1 [cold]:                                     ; preds = bb0
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+; function loop(uint256 n) external [selector 0x0b7d796e]
+fn @loop() {
+  bb0:
+    v6 = calldataload 4
+    coverage 3
+    coverage 4
+    coverage 5
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v1 = phi [bb0: 0], [bb3: v3]
+    v2 = lt v1, v6
+    coverage 6
+    jumpi v2, bb3, bb2
+  bb2:                                            ; preds = bb1
+    stop
+  bb3:                                            ; preds = bb1
+    coverage 7
+    coverage 8
+    icall @add, v1
+    coverage 9
+    v3 = add v1, 1
+    jump bb1
+}
+
+; function twice(uint256 a) external [selector 0x3cf3bbf4]
+fn @twice() {
+  bb0:
+    v2 = calldataload 4
+    coverage 10
+    coverage 11
+    icall @add, v2
+    coverage 12
+    icall @add, v2
+    stop
+}
