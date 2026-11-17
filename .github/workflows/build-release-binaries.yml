@@ -95,6 +95,8 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
+          # Release binaries report the real build timestamp; `.cargo/config.toml` defaults to 1.
+          VERGEN_IDEMPOTENT: "0"
         run: |
           set -euo pipefail
 

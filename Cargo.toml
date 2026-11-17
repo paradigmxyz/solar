@@ -250,3 +250,7 @@ unicode-width = "0.2"
 # by the `url` crate.
 # See the `idna_adapter` README.md for more details: https://docs.rs/crate/idna_adapter/latest
 idna_adapter = "=1.1.0"
+
+# TODO: Remove once a smolgen release includes https://github.com/alloy-rs/smolgen/pull/2.
+[patch.crates-io]
+smolgen = { git = "https://github.com/alloy-rs/smolgen", rev = "99abe6c759b5674db76d10ba2ea07fbb7490d57b" }
