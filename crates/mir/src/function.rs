@@ -928,6 +928,7 @@ impl Function {
             if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut f);
                 block.terminator_metadata.rewrite_operand_origins(&mut f);
+                block.terminator_metadata.rewrite_edge_assignments(&mut f);
             }
         }
     }
