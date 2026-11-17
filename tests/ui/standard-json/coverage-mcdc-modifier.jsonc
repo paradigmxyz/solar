@@ -1,0 +1,45 @@
+//@ filecheck:
+// `llvm-cov` reports the branches of a file only from the records of that file, so the record of
+// a modifier keeps the branch regions and the MC/DC regions of its body, counted over all its
+// expansions, and one code region over its header. Its decision lists the IDs of the decision in
+// each expansion, `f` and `g`, whose test vectors share one structure.
+// CHECK: "name": "A.sol:M.both(uint256,bool)",
+// CHECK: "decisions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "expansions": [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 1
+// CHECK-NEXT: ],
+// CHECK-NEXT: "conditions": 2,
+// CHECK: "name": "A.sol:M.f(uint256,bool)",
+// CHECK: "decisions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": 0,
+// CHECK: "name": "A.sol:M.g(uint256,bool)",
+// CHECK: "decisions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": 1,
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract M {\n    modifier both(uint256 a, bool b) {\n        require(a > 1 && b);\n        _;\n    }\n\n    function f(uint256 x, bool b) external both(x, b) {}\n\n    function g(uint256 x, bool b) external both(x, b) {}\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage",
+        "coverage-mcdc"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

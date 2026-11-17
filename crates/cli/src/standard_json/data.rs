@@ -341,7 +341,12 @@ pub(super) struct CoverageRecordOutput {
 /// An MC/DC decision of a coverage record.
 #[derive(Debug, Serialize)]
 pub(super) struct DecisionCoverageOutput {
-    pub(super) id: u32,
+    /// The ID of the probes of a decision of a function.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) id: Option<u32>,
+    /// The IDs of a decision of a modifier in each of its expansions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) expansions: Option<Vec<u32>>,
     pub(super) conditions: u32,
     pub(super) vectors: Vec<String>,
 }

@@ -22,8 +22,11 @@
 // CHECK-NEXT: {{[0-9]+}},
 // CHECK-NEXT: 26,
 // CHECK-NEXT: 7
-// CHECK-NEXT: ]
-// CHECK-NEXT: ]
+// CHECK-NEXT: ],
+// The record also has the branch regions of the body, counted over all expansions, since `llvm-cov`
+// reports the branches of a file only from the records of that file.
+// CHECK-NEXT: [
+// CHECK-NEXT: 4,
 // CHECK: "name": "A.sol:E.a(uint256)",
 // CHECK: "counters": [
 // CHECK-NEXT: 1,

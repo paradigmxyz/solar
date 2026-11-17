@@ -1,0 +1,33 @@
+//@ filecheck:
+// A comment line directly before the first statement of a body, whose count is the count of the
+// body, is a skipped run that ends at the end of the comment line, not where the next line starts.
+// A run that ended on the next line would be the segment that wraps into it, and `llvm-cov` maps
+// no line that starts no region after one. The `require` has no code region of its own.
+// CHECK: "name": "A.sol:S.f(uint256)",
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 70,
+// CHECK-NEXT: 19
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        total = x;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

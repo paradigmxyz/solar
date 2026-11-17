@@ -166,13 +166,23 @@ pub enum RegionKind {
 /// An MC/DC decision of a record.
 #[derive(Debug)]
 pub struct Decision {
-    /// The ID that the probes of the decision name, unique within the compilation.
-    pub id: u32,
+    /// The ID that the probes of the decision name.
+    pub id: DecisionId,
     /// The number of conditions.
     pub conditions: u32,
     /// The test vectors, in the order of their indexes. A vector has a character for each
     /// condition, `T`, `F`, or `-` when evaluation skipped it, then one for the outcome.
     pub vectors: Vec<String>,
+}
+
+/// The probes that name a [`Decision`].
+#[derive(Debug)]
+pub enum DecisionId {
+    /// The ID of a decision of a function, unique within the compilation.
+    Probe(u32),
+    /// The IDs of the decision in each expansion of a modifier, which the record of the modifier
+    /// sums. The decisions of the expansions share one structure.
+    Expansions(Vec<u32>),
 }
 
 /// The coverage regions of one function, modifier, or Yul function, or of the initializers of one

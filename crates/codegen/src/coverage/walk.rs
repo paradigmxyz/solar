@@ -22,7 +22,7 @@
 //! lowering folds it.
 
 use super::{
-    Count, CoverageMap, Decision, Record, RecordOwner, Region, RegionKind, Scope, Site,
+    Count, CoverageMap, Decision, DecisionId, Record, RecordOwner, Region, RegionKind, Scope, Site,
     SourceCoverage,
     mcdc::{self, Cond},
 };
@@ -174,6 +174,14 @@ impl Node<'_> {
 /// The MC/DC conditions of a decision, by the key of their leaves.
 struct Mcdc(FxHashMap<usize, mcdc::Condition>);
 
+/// The regions and the decisions of one expansion of a modifier.
+struct Expansion {
+    regions: Vec<Region>,
+    decisions: Vec<Decision>,
+    /// The index of the first of its decisions in the record of the invoking function.
+    first_decision: u32,
+}
+
 /// What a decision leaves for its consumer.
 enum Outcome {
     /// Lowering folds the condition to this constant.
@@ -198,7 +206,7 @@ struct Walker<'gcx> {
     virtual_next: u32,
     rec: Rec,
     /// The regions of each expansion of each modifier.
-    expansions: FxHashMap<hir::FunctionId, Vec<Vec<Region>>>,
+    expansions: FxHashMap<hir::FunctionId, Vec<Expansion>>,
 }
 
 impl<'gcx> Walker<'gcx> {
@@ -346,12 +354,27 @@ impl<'gcx> Walker<'gcx> {
         let previous_file = mem::replace(&mut self.rec.file, file);
         let enclosing = mem::take(&mut self.rec.enclosing);
         let start = self.rec.regions.len();
+        let first_decision = self.rec.decisions.len();
         self.open(modifier.span, &entry);
         self.stmts(body.stmts, Some(entry));
         self.body_skips(body.span);
         self.close();
-        let regions = self.rec.regions[start..].to_vec();
-        self.expansions.entry(modifier_id).or_default().push(regions);
+        let expansion = Expansion {
+            regions: self.rec.regions[start..].to_vec(),
+            decisions: self.rec.decisions[first_decision..]
+                .iter()
+                .map(|decision| Decision {
+                    id: match decision.id {
+                        DecisionId::Probe(id) => DecisionId::Probe(id),
+                        DecisionId::Expansions(_) => unreachable!("a function owns its probes"),
+                    },
+                    conditions: decision.conditions,
+                    vectors: decision.vectors.clone(),
+                })
+                .collect(),
+            first_decision: first_decision as u32,
+        };
+        self.expansions.entry(modifier_id).or_default().push(expansion);
         self.rec.enclosing = enclosing;
         self.rec.file = previous_file;
         self.scope = scope;
@@ -359,9 +382,12 @@ impl<'gcx> Walker<'gcx> {
 
     /// Builds the record of a modifier.
     ///
-    /// The expansions carry the regions of the body, and `llvm-cov` adds up the regions that share
-    /// a span, so a modifier that something invokes has only its header, which no expansion
-    /// covers, counted as often as its expansions are entered. A modifier that nothing invokes
+    /// The expansions carry the regions of the body, and `llvm-cov` adds up the code regions that
+    /// share a span, so a modifier that something invokes has one code region, over its header,
+    /// which no expansion covers, counted as often as its expansions are entered. `llvm-cov`
+    /// reports the branches of a file only from the records of that file, not from expansions, so
+    /// the record also has the branch regions of the body, counted over all expansions, and its
+    /// decisions, which list the IDs they have in each expansion. A modifier that nothing invokes
     /// keeps the regions of its body, counted zero.
     fn modifier(&mut self, id: hir::FunctionId) {
         let modifier = self.gcx.hir.function(id);
@@ -370,14 +396,62 @@ impl<'gcx> Walker<'gcx> {
         match self.expansions.remove(&id) {
             Some(expansions) => {
                 let mut count = Count::Zero;
-                for expansion in expansions {
-                    if let Some(Region { kind: RegionKind::Code(entry), .. }) =
-                        expansion.into_iter().next()
-                    {
-                        count = count.add(entry);
+                let mut branches = Vec::<Region>::new();
+                let mut decisions = Vec::<Decision>::new();
+                for (index, expansion) in expansions.into_iter().enumerate() {
+                    let Expansion { regions, decisions: expanded, first_decision } = expansion;
+                    if let Some(Region { kind: RegionKind::Code(entry), .. }) = regions.first() {
+                        count = count.add(entry.clone());
+                    }
+                    // The expansions share one structure, so their branches line up.
+                    let mut position = 0;
+                    for mut region in regions {
+                        if !matches!(
+                            region.kind,
+                            RegionKind::Branch(..)
+                                | RegionKind::McdcBranch { .. }
+                                | RegionKind::Decision(_)
+                        ) {
+                            continue;
+                        }
+                        if index == 0 {
+                            region.file = 0;
+                            if let RegionKind::Decision(decision) = &mut region.kind {
+                                *decision -= first_decision;
+                            }
+                            branches.push(region);
+                        } else if let Some(Region { kind: sum, .. }) = branches.get_mut(position)
+                            && let (
+                                RegionKind::Branch(holds, fails)
+                                | RegionKind::McdcBranch { holds, fails, .. },
+                                RegionKind::Branch(other_holds, other_fails)
+                                | RegionKind::McdcBranch {
+                                    holds: other_holds,
+                                    fails: other_fails,
+                                    ..
+                                },
+                            ) = (sum, region.kind)
+                        {
+                            *holds = mem::replace(holds, Count::Zero).add(other_holds);
+                            *fails = mem::replace(fails, Count::Zero).add(other_fails);
+                        }
+                        position += 1;
+                    }
+                    for (position, decision) in expanded.into_iter().enumerate() {
+                        let DecisionId::Probe(id) = decision.id else { continue };
+                        match decisions.get_mut(position) {
+                            Some(Decision { id: DecisionId::Expansions(ids), .. }) => ids.push(id),
+                            _ => decisions.push(Decision {
+                                id: DecisionId::Expansions(vec![id]),
+                                conditions: decision.conditions,
+                                vectors: decision.vectors,
+                            }),
+                        }
                     }
                 }
                 self.region(modifier.span.with_hi(body.span.lo()), RegionKind::Code(count));
+                self.rec.regions.extend(branches);
+                self.rec.decisions = decisions;
             }
             None => {
                 self.dry = true;
@@ -518,18 +592,20 @@ impl<'gcx> Walker<'gcx> {
     /// Adds skipped regions to the body of a function or a modifier: each run of whole lines that
     /// hold only whitespace and comments, and a closing `}` that stands on a line of its own.
     ///
-    /// A run starts at its first line and ends where the line after it starts, so the lines have
-    /// no count of their own and the code after them has its own. An enclosing region of the
-    /// body would give them its count, as it does the gaps between statements.
+    /// A run starts at its first line, so `llvm-cov` maps none of its lines, and ends at the end of
+    /// its last line, so the count of the code around it wraps into the line after it, where the
+    /// statement that starts there may have no region of its own. A single empty line has nothing
+    /// to span, so its region starts at the end of the line before.
     fn body_skips(&mut self, body: Span) {
         let files = self.gcx.sess.source_map().files();
         let Ok(text) = files.span_to_snippet(body) else { return };
         let lo = body.lo().0;
         let at = |offset: usize| solar_interface::BytePos(lo + offset as u32);
         let mut skips = Vec::new();
-        let mut offset = 0;
-        let mut run = None;
+        // The first byte of a run and the end of its last line.
+        let mut run: Option<(usize, usize)> = None;
         let mut block_comment = false;
+        let mut offset = 0;
         let mut lines = text.split_inclusive('\n').peekable();
         let mut first = true;
         while let Some(line) = lines.next() {
@@ -537,11 +613,13 @@ impl<'gcx> Walker<'gcx> {
             let code = has_code(line, &mut block_comment);
             // The lines with the braces of the body hold code.
             if code || first || last {
-                if let Some(start) = run.take() {
-                    skips.push(Span::new(at(start), at(offset)));
+                if let Some((start, end)) = run.take() {
+                    let start = if end > start { start } else { start - 1 };
+                    skips.push(Span::new(at(start), at(end)));
                 }
             } else {
-                run.get_or_insert(offset);
+                let end = offset + line.trim_end_matches(['\n', '\r']).len();
+                run = Some((run.map_or(offset, |(start, _)| start), end));
             }
             if last
                 && let Some(before) = line.strip_suffix('}')
@@ -850,7 +928,7 @@ impl<'gcx> Walker<'gcx> {
         }
         let index = self.rec.decisions.len() as u32;
         self.rec.decisions.push(Decision {
-            id,
+            id: DecisionId::Probe(id),
             conditions: graph.conditions() as u32,
             vectors: graph.vectors,
         });

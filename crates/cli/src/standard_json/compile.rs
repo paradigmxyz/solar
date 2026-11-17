@@ -19,7 +19,7 @@ use rayon::prelude::*;
 use serde_json::json;
 use solar_codegen::{
     ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
-    coverage::{CoverageMap, RecordOwner},
+    coverage::{CoverageMap, DecisionId, RecordOwner},
 };
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
@@ -731,7 +731,14 @@ fn source_coverage_output(
                     .decisions
                     .iter()
                     .map(|decision| DecisionCoverageOutput {
-                        id: decision.id,
+                        id: match decision.id {
+                            DecisionId::Probe(id) => Some(id),
+                            DecisionId::Expansions(_) => None,
+                        },
+                        expansions: match &decision.id {
+                            DecisionId::Probe(_) => None,
+                            DecisionId::Expansions(ids) => Some(ids.clone()),
+                        },
                         conditions: decision.conditions,
                         vectors: decision.vectors.clone(),
                     })
