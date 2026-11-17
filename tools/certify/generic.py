@@ -2462,6 +2462,21 @@ def build_solar():
     return ROOT / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
 
 
+def build_solar_verify():
+    """This checkout's solar-verify, built as build_solar builds solar."""
+    env = dict(os.environ, CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "2"))
+    rc, _out, err = run(
+        ["cargo", "build", "--locked", "-p", "solar-verify", "--bin", "solar-verify"],
+        cwd=ROOT,
+        env=env,
+    )
+    if rc != 0:
+        raise Failed(f"cargo cannot build solar-verify: {err.strip()[-400:]}")
+    return (
+        ROOT / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar-verify"
+    )
+
+
 COMPILER_SOURCES = ("crates", "Cargo.toml", "Cargo.lock")
 
 
@@ -2609,6 +2624,105 @@ def loop_resources(record, src, ast, contract):
     if ob["verdict"] == "out-of-gas":
         record["rejected_for"] = "resource: out of gas"
         raise Failed(fixed_fuel.verdict_line(ob)[1][len("REJECTED: ") :])
+
+
+def loop_cuts(record, src, ast, a, work, name, src_sha):
+    """The loop cut-point hook beside loop_resources (tools/certify/loop_cuts.py): for each
+    function solar-verify's manifest gives a loop, the manifest, loop_equiv.py's certificate and
+    the base's obligation modules, built in a clone of the base. Records loop_heads, loop_cuts
+    (only the functions every step completed for) and loop_cuts_blocked, and returns the extra
+    BLOCKED reasons. The run stays BLOCKED in every case: the published statement does not apply
+    loop_equiv yet."""
+    import fixed_fuel
+    import loop_cuts as lc
+
+    try:
+        contract = fixed_fuel.contract_of(ast, a.contract)
+    except fixed_fuel.Unsupported as e:
+        record["loop_cuts_blocked"] = {"*": {"step": "abi", "why": str(e)}}
+        return lc.reasons({}, record["loop_cuts_blocked"])
+
+    def tool(build):
+        def get():
+            try:
+                return build()
+            except Failed as e:
+                raise lc.Stop("build", str(e)) from None
+
+        return get
+
+    def checked_solar():
+        # The same binary rule as the run's: this checkout's compiler, and the expected digest
+        # when the runner names one.
+        solar = build_solar()
+        if (
+            why := solar_problem(
+                solar,
+                ROOT,
+                os.environ.get("CERTIFY_SOLAR_SHA256"),
+                os.environ.get("CERTIFY_ALLOW_FOREIGN_SOLAR") == "1",
+            )
+        ) is not None:
+            raise Failed(f"solar: {why}")
+        record["loop_cuts_solar_sha256"] = sha256_file(solar)
+        return solar
+
+    def lean_dir():
+        try:
+            _, _, d = clone_base(a, work)
+        except Failed as e:
+            raise lc.Stop("obligations", f"cannot clone the base: {e}") from None
+        rc, body, err = frontend(d, src, src_sha, name, contract, a.solc)
+        if rc != 0:
+            raise lc.Stop(
+                "obligations",
+                f"the solc-AST front end refuses the source: {err.strip()[-300:]}",
+            )
+        (d / "Certified" / name).mkdir(parents=True, exist_ok=True)
+        (d / "Certified" / name / "Source.lean").write_text(source_lean(body))
+        declare_lean_lib(
+            d / "lakefile.lean",
+            name,
+            f'\nlean_lib «{name}» where\n  srcDir := "Certified"\n  globs := #[.submodules `{name}]\n',
+            (lean_lib_body(name),),
+        )
+        return d
+
+    heads, cuts, blocked = lc.hook(
+        run=run,
+        solar=tool(checked_solar),
+        verify=tool(build_solar_verify),
+        z3=os.environ.get("SOLAR_VERIFY_Z3"),
+        src=src,
+        ast=ast,
+        contract=contract,
+        name=name,
+        work=work,
+        stages=lambda solar, tmp: export_stages(solar, src, contract, tmp),
+        lean_dir=lean_dir,
+        lake_env=lambda d: lake_jobs_env(d, dict(os.environ, LEAN_NUM_THREADS="1")),
+        log=log,
+    )
+    record["loop_heads"] = heads
+    record["loop_cuts"] = cuts
+    record["loop_cuts_blocked"] = blocked
+    return lc.reasons(cuts, blocked)
+
+
+def clone_base(a, work):
+    """The run's clone of the solidity-lean base (--base, else the pin) in WORK/solidity-lean,
+    checked out detached with its submodules: (source repository, base commit, clone)."""
+    lean_src = pathlib.Path(a.solidity_lean).resolve()
+    base = a.base or (HERE / "solidity-lean.rev").read_text().strip()
+    base = git(lean_src, "rev-parse", base + "^{commit}")
+    lean_dir = work / "solidity-lean"
+    if lean_dir.exists():
+        raise Failed(f"{lean_dir} exists: the work directory must be fresh")
+    work.mkdir(parents=True, exist_ok=True)
+    git(work, "clone", "-q", "--no-checkout", "--shared", str(lean_src), str(lean_dir))
+    git(lean_dir, "checkout", "-q", "--detach", base)
+    git(lean_dir, "submodule", "update", "-q", "--init", "--recursive", check=False)
+    return lean_src, base, lean_dir
 
 
 def source_bound(record):
@@ -3387,6 +3501,9 @@ def main():
         except Blocked as b:
             if any(r["feature"] == "loop" for r in b.reasons):
                 loop_resources(record, src, ast, a.contract)
+                raise Blocked(
+                    b.reasons + loop_cuts(record, src, ast, a, work, name, src_sha)
+                ) from b
             raise
         record["contract"] = contract
         record["functions"] = [
@@ -3469,34 +3586,7 @@ def main():
         record["gas_bound"] = need
         log(f"gas bound (the loop checker's, from this export): {need}")
         # The source AST through the solidity-lean front end; a refusal is outside the envelope.
-        lean_src = pathlib.Path(a.solidity_lean).resolve()
-        base = a.base or (HERE / "solidity-lean.rev").read_text().strip()
-        base = git(lean_src, "rev-parse", base + "^{commit}")
-        lean_dir = work / "solidity-lean"
-        if lean_dir.exists():
-            raise Failed(f"{lean_dir} exists: the work directory must be fresh")
-        git(
-            work,
-            "clone",
-            "-q",
-            "--no-checkout",
-            "--shared",
-            str(lean_src),
-            str(lean_dir),
-        ) if work.exists() else None
-        if not lean_dir.exists():
-            work.mkdir(parents=True)
-            git(
-                work,
-                "clone",
-                "-q",
-                "--no-checkout",
-                "--shared",
-                str(lean_src),
-                str(lean_dir),
-            )
-        git(lean_dir, "checkout", "-q", "--detach", base)
-        git(lean_dir, "submodule", "update", "-q", "--init", "--recursive", check=False)
+        lean_src, base, lean_dir = clone_base(a, work)
         rc, body, err = frontend(lean_dir, src, src_sha, name, contract, a.solc)
         if rc != 0:
             raise Blocked(
