@@ -4,9 +4,9 @@ status-level = "leak"
 
 # The UI harness runs thousands of compiler invocations in parallel itself, and prints the real
 # fixture count in its own `test result:` line, which nextest hides on a pass by default. The stable
-# CI job sets `SOLAR_RUN_CALL_EVM_IR`, which compiles each `run-call` fixture a second time and
-# makes the suite over twice as slow, past 10 minutes on slow runners. The harness's 120 s
-# per-command timeout still catches a hung compiler everywhere but in that second compile.
+# CI job sets `SOLAR_RUN_CALL_EVM_IR`, which compiles each `run-call` fixture a second time and can
+# push the suite past 10 minutes. The harness's 120 s per-command timeout still catches a hung
+# compiler, but not in the extra compiles of `run-call` checks in `tools/tester/src/run_call/`.
 [[profile.default.overrides]]
 filter = 'package(solar-compiler) & test(=ui_test)'
 threads-required = "num-test-threads"
