@@ -46,9 +46,8 @@ shown above. Byte identity of the oleans a fresh build of e368ace5 produces is N
 box is gone and comparing would mean rebuilding the closure. The receipt binds each of the
 4028 replayed modules to its olean sha256; the sorted `module olean_sha256` inventory hashes
 to 528a7926189d1a5279c9441970a271c8ec71e9bdf380175535488dbc82419f63, and the olean set's
-digest was 2abd63dc… before and after the replay. Reusing the receipt for e368ace5 therefore
-holds by source, import and option identity; a rebuild that rehashes the 4028 oleans against
-that inventory would close olean identity, and is owed if that rule is required.
+digest was 2abd63dc… before and after the replay. Source, import and option identity does not
+establish compiled-input identity, so the receipt is not rebound to e368ace5 (section 6).
 
 ## 2. Cached compiler against f71b7554
 
@@ -70,14 +69,17 @@ CARGO_BUILD_JOBS=4, and run on the same source with the same arguments the expor
 | ABI (16 entries) | | equal to 697fc686's except the version field |
 
 Provenance-only differences: the compiler string in the manifest and the ABI's version field.
-Semantic differences: every stage from Stage0 (lower-evm-shaped, the first MIR) on. The
-first differing stage is Stage0: its value numbering and its blocks differ (146 changed
-lines, such as a block that reverted with the return data now ending in a compare and a
-branch). The Sched file's sha256 is equal while its MIR input differs. Storage layout cannot
+Artifact divergence: every stage from Stage0 (lower-evm-shaped, the first MIR) on. The
+first differing stage is Stage0: its representation differs in value numbering and block
+structure (146 changed lines, such as a block that reverted with the return data now ending
+in a compare and a branch). This is a difference in the emitted artifacts, which the certified
+statement pins; it is not a claim that either compiler behaves wrongly, and no behavioural
+difference between the two runtimes was tested. The Sched file's sha256 is equal while its MIR input differs. Storage layout cannot
 be compared by emit: this compiler has no storage-layout output. `balanceSlot = 1` is a
 Statement constant that the proofs check against the 697fc686 artifacts only.
 
-**Result: the receipt does NOT reconcile to f71b7554.** It holds for the bytes 697fc686
+**Result: the receipt does NOT reconcile to f71b7554.** Receipt 59d0fa44 is non-head evidence
+for 697fc686's 1183-byte runtime only, and is not rebound. It holds for the bytes 697fc686
 emits, which a fresh 697fc686 build reproduces byte for byte at every stage. The open item is
 certifying f71b7554's 1200-byte runtime, whose stages differ from Stage0 on. Stage identity,
 where it holds, says nothing about the generic fresh-byte gate.
@@ -183,7 +185,9 @@ RSS of lean, lake, leanchecker, solar, cargo and rustc processes; it covered 03:
 the whole replay included. No limit was set on the replay (no ulimit, no cgroup cap).
 
 All 11 replay batches ran at the same time (03:43Z to 04:26:34Z): the replay script's
-parallelism argument (6) did not hold. Peak machine use was 341,495,072 kB at 04:24:24Z
+parallelism argument (6) did not hold. Cause: the script counted running batches with
+`$(jobs -rp | wc -l)`, and `jobs` inside a command substitution runs in a subshell that has
+no jobs, so the count was always 0. Peak machine use was 341,495,072 kB at 04:24:24Z
 (about 36 GB, 9%, headroom of 377 GB); summed checker RSS 338,699,412 kB. No batch was killed:
 every batch and the account step exited 0 by normal exit, and every olean kept its digest.
 The kernel log was not checked for OOM messages before the box was deleted.
@@ -221,3 +225,16 @@ Every nonzero or killed attempt:
   digest_stage2 uncapped exit 1.
 * negatives run 1: invalid, as above.
 * Short leanchecker scaling probes ran beside the replay; they are not counted.
+
+## 6. Unresolved historical provenance
+
+These stay unresolved for receipt 59d0fa44. The receipt is immutable non-head evidence and is
+not rebound or rebuilt to resolve them.
+
+* Compiled-input identity: e368ace5's source equality with the replayed files does not
+  establish that its build yields the 4028 oleans the receipt names.
+* Stage export manifest: the box's `Manifest.lean` (dd296c8c…) was deleted with the box, so
+  it cannot be shown to differ from a fresh export only in the temporary output path.
+* Execution policy: the replay's concurrency cap (6) is a FAILED gate. 11 batches ran at once
+  and left 9% memory headroom. The replay's exits and accounting are as recorded, but the run
+  did not meet its own execution policy.
