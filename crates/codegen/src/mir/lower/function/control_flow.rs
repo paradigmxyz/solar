@@ -801,11 +801,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if || { branch(lhs, lhs, rhs) }
         // result = phi(rhs_value, short_circuit_value)
         let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
+        self.coverage(Site::McdcBegin(Site::expr(expr)));
         let lhs = self.lower_expr(lhs_expr)?;
         self.coverage(Site::Leaf(Site::expr(lhs_expr)));
         let condition = lhs.clean(self, ty);
         let is_and = op == BinOpKind::And;
+        // The left operand holds on the path to the right operand of `&&` and on the short
+        // circuit of `||`.
+        let lhs_holds = Site::McdcAdd(Site::expr(lhs_expr));
         let short = |this: &mut Self| {
+            if !is_and {
+                this.coverage(lhs_holds);
+            }
             if lhs.is_raw() && !is_and {
                 Some(lhs)
             } else {
@@ -813,10 +820,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let rhs = |this: &mut Self| {
+            if is_and {
+                this.coverage(lhs_holds);
+            }
             this.coverage(Site::Arm(Site::expr(rhs_expr)));
-            let rhs = this.lower_expr(rhs_expr);
+            let rhs = this.lower_expr(rhs_expr)?;
             this.coverage(Site::Leaf(Site::expr(rhs_expr)));
-            rhs
+            this.coverage_if_true(Site::McdcAdd(Site::expr(rhs_expr)), rhs, ty)?;
+            Some(rhs)
         };
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -831,21 +842,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.join_words(&[(rhs.block, rhs.value), (short.block, short.value)], ty)
         };
+        self.coverage(Site::McdcEnd(Site::expr(expr)));
         // A decision that no branch consumes counts how often its value holds.
-        if coverage_map(self.cx.gcx)
-            .is_some_and(|map| map.counter(Site::Value(Site::expr(expr))).is_some())
-        {
-            let holds = result.clean(self, ty);
-            self.lower_branches(
-                holds,
-                true,
-                |this| {
-                    this.coverage(Site::Value(Site::expr(expr)));
-                    Some(())
-                },
-                |_| Some(()),
-            )?;
-        }
+        self.coverage_if_true(Site::Value(Site::expr(expr)), result, ty)?;
         Some(result)
     }
 

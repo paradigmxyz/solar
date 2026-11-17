@@ -329,6 +329,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Emits the counter of `site` on the path where the boolean `value` holds, when the site has
+    /// one. The value is unchanged: the paths rejoin right away.
+    pub(super) fn coverage_if_true(&mut self, site: Site, value: Word, ty: Ty<'gcx>) -> Option<()> {
+        if coverage_map(self.cx.gcx).is_some_and(|map| map.counter(site).is_some()) {
+            let holds = value.clean(self, ty);
+            self.lower_branches(
+                holds,
+                true,
+                |this| {
+                    this.coverage(site);
+                    Some(())
+                },
+                |_| Some(()),
+            )?;
+        }
+        Some(())
+    }
+
     pub(super) fn materialize_default_bindings(&mut self) {
         let mut ids = self
             .default_bindings

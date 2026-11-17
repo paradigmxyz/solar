@@ -334,6 +334,16 @@ pub(super) struct CoverageRecordOutput {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(super) expressions: Vec<[u64; 2]>,
     pub(super) regions: Vec<Vec<i64>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(super) decisions: Vec<DecisionCoverageOutput>,
+}
+
+/// An MC/DC decision of a coverage record.
+#[derive(Debug, Serialize)]
+pub(super) struct DecisionCoverageOutput {
+    pub(super) id: u32,
+    pub(super) conditions: u32,
+    pub(super) vectors: Vec<String>,
 }
 
 #[derive(Debug, Default, Serialize)]

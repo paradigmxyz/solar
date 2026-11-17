@@ -1,0 +1,44 @@
+//@ filecheck:
+// An MC/DC decision has a decision region, kind 5, whose last field indexes `decisions`, and a
+// branch region, kind 6, for each condition: `[6, file, start, length, true, false, condition,
+// false next, true next]`, where `-1` ends the decision. The test vectors have a character for
+// each condition, `T`, `F`, or `-` if the condition was not evaluated, and one for the outcome. They
+// are in the order of their indexes, which the weights of the probes sum to: `a` adds 2, `b` adds 2,
+// and `c` adds 1, so `TFTT` is index 3.
+// CHECK: "decisions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": 0,
+// CHECK-NEXT: "conditions": 3,
+// CHECK-NEXT: "vectors": [
+// CHECK-NEXT: "F-FF",
+// CHECK-NEXT: "F-TT",
+// CHECK-NEXT: "TFFF",
+// CHECK-NEXT: "TFTT",
+// CHECK-NEXT: "TT-T"
+// CHECK-NEXT: ]
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract M {\n    function f(bool a, bool b, bool c) external pure returns (uint256 r) {\n        if ((a && b) || c) {\n            r = 1;\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage",
+        "coverage-mcdc"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

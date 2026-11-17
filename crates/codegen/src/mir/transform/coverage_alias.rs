@@ -12,8 +12,8 @@
 //! its leader, and the other probes of the segment follow it. A counter `c` aliases the counter
 //! `k` when every probe of `c` follows `k` as leader in its segment, and every probe of `k` is
 //! such a leader, so both are hit exactly as often as their segments run. A counter that appears
-//! twice in one segment keeps its probes, as does every MC/DC probe, which updates the state of a
-//! decision.
+//! twice in one segment keeps its probes. MC/DC probes keep theirs too: they update the state of a
+//! decision, and halt nothing.
 //!
 //! The pass runs last, after the order of the instructions is final.
 
@@ -122,5 +122,4 @@ fn can_halt(kind: &InstKind) -> bool {
             kind.effect_kind(),
             EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
         )
-        || matches!(*kind, InstKind::Coverage(id) if is_mcdc(id))
 }

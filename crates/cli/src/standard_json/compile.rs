@@ -3,10 +3,11 @@
 use super::{
     data::{
         BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
-        CoverageRecordOutput, DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput,
-        MetadataHash, MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags,
-        ReadCallbackResult, Settings, SourceCoverageOutput, SourceOutput, StandardJsonReadCallback,
-        optimizer_settings, print_standard_json_stats, strip_json_comments,
+        CoverageRecordOutput, DebugInfoComponent, DebugSettings, DecisionCoverageOutput,
+        EthdebugOutput, EvmOutput, MetadataHash, MetadataSettings, OffsetLength, OutputSelection,
+        OutputSelectionFlags, ReadCallbackResult, Settings, SourceCoverageOutput, SourceOutput,
+        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
+        strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -726,6 +727,15 @@ fn source_coverage_output(
                 files: record.files.iter().map(|file| file.index() as u32).collect(),
                 expressions: encoded.expressions,
                 regions: encoded.regions,
+                decisions: record
+                    .decisions
+                    .iter()
+                    .map(|decision| DecisionCoverageOutput {
+                        id: decision.id,
+                        conditions: decision.conditions,
+                        vectors: decision.vectors.clone(),
+                    })
+                    .collect(),
             }
         })
         .collect();

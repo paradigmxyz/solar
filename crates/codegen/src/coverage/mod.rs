@@ -37,6 +37,13 @@
 //! Lowering folds a constant expression without evaluating its parts, so the walk skips constant
 //! expressions.
 //!
+//! With `-Zcoverage-mcdc`, a decision of two or more conditions also has three kinds of MC/DC
+//! probe, `COVERAGE; PUSH4 <probe>` with bit 31 of the probe set. Bits 30 and 29 are the operation,
+//! `0` to begin, `1` to add, and `2` to end the decision; bits 28 to 8 are its ID, and bits 7 to 0
+//! the weight an add carries. A decision begins before its first condition, adds the weight of each
+//! condition that holds, and ends once its value is known, so the sum of the weights is the index
+//! of the test vector the run took.
+//!
 //! Sites are keyed by the address of their HIR node, which lowering reaches through the same arena
 //! references. A counter whose site lowering never reaches stays at zero, as for code that is
 //! never generated.
@@ -47,6 +54,7 @@ use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::Span;
 use solar_sema::{Gcx, hir};
 
+mod mcdc;
 mod walk;
 
 /// An execution count, given by counter hits.
@@ -96,6 +104,33 @@ pub enum RegionKind {
     Code(Count),
     /// A condition with the counts of its true and false outcomes, `4`.
     Branch(Count, Count),
+    /// An MC/DC decision, given by its index in [`Record::decisions`], `5`.
+    Decision(u32),
+    /// A condition of an MC/DC decision, `6`.
+    McdcBranch {
+        /// How often the condition held.
+        holds: Count,
+        /// How often the condition failed.
+        fails: Count,
+        /// The ID of the condition in its decision, in the order of evaluation.
+        condition: u32,
+        /// The ID of the condition evaluated when this one fails, or `-1` if the decision ends.
+        false_next: i32,
+        /// The ID of the condition evaluated when this one holds, or `-1` if the decision ends.
+        true_next: i32,
+    },
+}
+
+/// An MC/DC decision of a record.
+#[derive(Debug)]
+pub struct Decision {
+    /// The ID that the probes of the decision name, unique within the compilation.
+    pub id: u32,
+    /// The number of conditions.
+    pub conditions: u32,
+    /// The test vectors, in the order of their indexes. A vector has a character for each
+    /// condition, `T`, `F`, or `-` when evaluation skipped it, then one for the outcome.
+    pub vectors: Vec<String>,
 }
 
 /// The coverage regions of one function, modifier, or Yul function, or of the initializers of one
@@ -110,6 +145,8 @@ pub struct Record {
     pub counters: [u32; 2],
     /// The regions, outer regions before the regions nested in them.
     pub regions: Vec<Region>,
+    /// The MC/DC decisions.
+    pub decisions: Vec<Decision>,
 }
 
 /// The item a [`Record`] belongs to.
@@ -181,6 +218,20 @@ impl Record {
                         row.extend([
                             encoder.count(true_count) as i64,
                             encoder.count(false_count) as i64,
+                        ]);
+                    }
+                    RegionKind::Decision(decision) => {
+                        row[0] = 5;
+                        row.push(i64::from(*decision));
+                    }
+                    RegionKind::McdcBranch { holds, fails, condition, false_next, true_next } => {
+                        row[0] = 6;
+                        row.extend([
+                            encoder.count(holds) as i64,
+                            encoder.count(fails) as i64,
+                            i64::from(*condition),
+                            i64::from(*false_next),
+                            i64::from(*true_next),
                         ]);
                     }
                 }
@@ -324,6 +375,13 @@ pub(crate) enum Site {
     /// The start of an initializer or base constructor argument list, keyed by the variable or the
     /// modifier node.
     Init(usize),
+    /// The MC/DC probe that begins a decision, keyed by the `&&` or `||` expression that ends the
+    /// unary operators of the decision. Its value is the probe, not a counter.
+    McdcBegin(usize),
+    /// The MC/DC probe that adds the weight of the true outcome of a leaf, keyed by the leaf.
+    McdcAdd(usize),
+    /// The MC/DC probe that ends a decision, keyed like [`Site::McdcBegin`].
+    McdcEnd(usize),
 }
 
 impl Site {

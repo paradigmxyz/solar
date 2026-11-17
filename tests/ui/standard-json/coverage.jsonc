@@ -36,8 +36,9 @@
 // CHECK: "counters": [
 // CHECK-NEXT: 7,
 // CHECK-NEXT: 6
-// Each COVERAGE probe precedes the counter push it skips.
-// CHECK: COVERAGE PUSH1 0x1 PUSH1 0x1 DUP2 GT COVERAGE PUSH1 0x2
+// Each COVERAGE probe precedes the counter push it skips. The condition `x > 1` shares the count of
+// the function entry, so its counter `2` has no probe.
+// CHECK: COVERAGE PUSH1 0x1 PUSH1 0x1 DUP2 GT PUSH1 0x{{[0-9A-F]+}} JUMPI COVERAGE PUSH1 0x4
 {
   "language": "Solidity",
   "sources": {

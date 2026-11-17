@@ -488,6 +488,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub instrument_coverage: bool,
 
+    /// Count the test vectors of each decision with two or more conditions, for modified
+    /// condition/decision coverage. Each decision gets begin, add, and end probes, which are
+    /// `PUSH4` counters with bit 31 set, and a list of its test vectors in the coverage map.
+    /// Requires `-Zinstrument-coverage`.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub coverage_mcdc: bool,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -544,6 +551,7 @@ impl UnstableOpts {
             tune,
             pack_wide_jump_tables,
             instrument_coverage,
+            coverage_mcdc,
             keep_asts: _,
             ui_testing: _,
             track_diagnostics: _,
@@ -580,6 +588,7 @@ impl UnstableOpts {
         self.tune = tune;
         self.pack_wide_jump_tables = pack_wide_jump_tables;
         self.instrument_coverage = instrument_coverage;
+        self.coverage_mcdc = coverage_mcdc;
     }
 }
 

@@ -17,7 +17,10 @@
 //! `R`. The false count of a leaf is its completions minus its true count, so a leaf that reverts
 //! takes neither side.
 
-use super::{Count, CoverageMap, Record, RecordOwner, Region, RegionKind, Site, SourceCoverage};
+use super::{
+    Count, CoverageMap, Decision, Record, RecordOwner, Region, RegionKind, Site, SourceCoverage,
+    mcdc::{self, Cond},
+};
 use solar_ast::{BinOpKind, UnOpKind};
 use solar_data_structures::{Never, index::IndexVec, map::FxHashMap};
 use solar_interface::Span;
@@ -51,6 +54,7 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
         ),
         sites: FxHashMap::default(),
         next: 1,
+        next_decision: gcx.sess.opts.unstable.coverage_mcdc.then_some(0),
         dry: false,
         virtual_next: VIRTUAL_COUNTER,
         rec: Rec::default(),
@@ -76,6 +80,7 @@ struct Rec {
     files: Vec<hir::SourceId>,
     first: u32,
     regions: Vec<Region>,
+    decisions: Vec<Decision>,
     /// The counts of the code regions that enclose the current statement.
     enclosing: Vec<Count>,
 }
@@ -85,10 +90,16 @@ enum Node<'gcx> {
     /// A leaf condition and the counter after its evaluation.
     Leaf(&'gcx hir::Expr<'gcx>, Count),
     Not(Box<Node<'gcx>>),
-    /// `lhs && rhs`, the right operand, and the counter at its start.
-    And(Box<Node<'gcx>>, Box<Node<'gcx>>, &'gcx hir::Expr<'gcx>, Count),
-    /// `lhs || rhs`, the right operand, and the counter at its start.
-    Or(Box<Node<'gcx>>, Box<Node<'gcx>>, &'gcx hir::Expr<'gcx>, Count),
+    And(Box<Node<'gcx>>, Box<Node<'gcx>>, Operator<'gcx>),
+    Or(Box<Node<'gcx>>, Box<Node<'gcx>>, Operator<'gcx>),
+}
+
+/// An `&&` or `||` of a decision.
+struct Operator<'gcx> {
+    expr: &'gcx hir::Expr<'gcx>,
+    rhs: &'gcx hir::Expr<'gcx>,
+    /// The counter at the start of the right operand.
+    r: Count,
 }
 
 impl Node<'_> {
@@ -97,12 +108,25 @@ impl Node<'_> {
         match self {
             Self::Leaf(_, v) => v.clone(),
             Self::Not(node) => node.completed(),
-            Self::And(lhs, rhs, _, r) | Self::Or(lhs, rhs, _, r) => {
-                lhs.completed().sub(r.clone()).add(rhs.completed())
+            Self::And(lhs, rhs, op) | Self::Or(lhs, rhs, op) => {
+                lhs.completed().sub(op.r.clone()).add(rhs.completed())
             }
         }
     }
+
+    /// Returns the shape of the tree for MC/DC.
+    fn cond(&self) -> Cond {
+        match self {
+            Self::Leaf(expr, _) => Cond::Leaf(Site::key(*expr)),
+            Self::Not(node) => Cond::Not(Box::new(node.cond())),
+            Self::And(lhs, rhs, _) => Cond::And(Box::new(lhs.cond()), Box::new(rhs.cond())),
+            Self::Or(lhs, rhs, _) => Cond::Or(Box::new(lhs.cond()), Box::new(rhs.cond())),
+        }
+    }
 }
+
+/// The MC/DC conditions of a decision, by the key of their leaves.
+struct Mcdc(FxHashMap<usize, mcdc::Condition>);
 
 /// What a decision leaves for its consumer: how often the evaluation of the condition completed,
 /// and how often it held.
@@ -116,6 +140,8 @@ struct Walker<'gcx> {
     sources: IndexVec<hir::SourceId, SourceCoverage>,
     sites: FxHashMap<Site, u32>,
     next: u32,
+    /// The ID of the next MC/DC decision, or `None` without `-Zcoverage-mcdc`.
+    next_decision: Option<u32>,
     /// Whether to build the regions without counters, to learn their shape.
     dry: bool,
     virtual_next: u32,
@@ -145,7 +171,13 @@ impl<'gcx> Walker<'gcx> {
         // A region comes before the regions nested in it.
         regions.sort_by_key(|region| (region.file, region.span.lo(), Reverse(region.span.hi())));
         let counters = [rec.first, self.next - rec.first];
-        self.sources[source].records.push(Record { owner, files: rec.files, counters, regions });
+        self.sources[source].records.push(Record {
+            owner,
+            files: rec.files,
+            counters,
+            regions,
+            decisions: rec.decisions,
+        });
     }
 
     fn region(&mut self, span: Span, kind: RegionKind) {
@@ -403,12 +435,12 @@ impl<'gcx> Walker<'gcx> {
             ExprKind::Binary(lhs, op, rhs) if op.kind.is_logical() => {
                 let lhs = Box::new(self.tree(lhs));
                 let r = self.counter(Site::Arm(Site::expr(rhs)));
-                let rhs_expr = rhs;
+                let operator = Operator { expr, rhs, r };
                 let rhs = Box::new(self.tree(rhs));
                 if op.kind == BinOpKind::And {
-                    Node::And(lhs, rhs, rhs_expr, r)
+                    Node::And(lhs, rhs, operator)
                 } else {
-                    Node::Or(lhs, rhs, rhs_expr, r)
+                    Node::Or(lhs, rhs, operator)
                 }
             }
             _ => self.leaf(expr),
@@ -434,31 +466,86 @@ impl<'gcx> Walker<'gcx> {
         let tree = self.tree(root);
         let taken = self.counter(consumer);
         let completed = tree.completed();
-        self.branches(&tree, taken.clone());
+        let mcdc = self.mcdc(&tree);
+        self.branches(&tree, taken.clone(), mcdc.as_ref());
         Outcome { completed, taken }
     }
 
+    /// Gives the decision of `tree` MC/DC probes and a region, when it has two or more conditions
+    /// and few enough test vectors.
+    ///
+    /// The decision ends where its value is known, which a leading `!` does not change, so it
+    /// starts at the first `&&` or `||`.
+    fn mcdc(&mut self, tree: &Node<'gcx>) -> Option<Mcdc> {
+        let id = self.next_decision.filter(|_| !self.dry)?;
+        let mut root = tree;
+        while let Node::Not(node) = root {
+            root = node;
+        }
+        let (Node::And(_, _, op) | Node::Or(_, _, op)) = root else { return None };
+        let Some(graph) = mcdc::graph(&root.cond()) else {
+            self.gcx
+                .dcx()
+                .note("decision has too many test vectors for MC/DC, so it only has branches")
+                .span(op.expr.span)
+                .emit();
+            return None;
+        };
+        if id >= 1 << 21 {
+            return None;
+        }
+        self.next_decision = Some(id + 1);
+        // COVERAGE; PUSH4 1<operation:2><decision:21><weight:8>
+        let probe = |operation: u32, weight: u32| 1 << 31 | operation << 29 | id << 8 | weight;
+        let key = Site::expr(op.expr);
+        self.sites.insert(Site::McdcBegin(key), probe(0, 0));
+        self.sites.insert(Site::McdcEnd(key), probe(2, 0));
+        let mut conditions = FxHashMap::default();
+        for (leaf, condition) in graph.iter() {
+            if condition.weight > 0 {
+                self.sites.insert(Site::McdcAdd(leaf), probe(1, condition.weight));
+            }
+            conditions.insert(leaf, condition);
+        }
+        let index = self.rec.decisions.len() as u32;
+        self.rec.decisions.push(Decision {
+            id,
+            conditions: graph.conditions() as u32,
+            vectors: graph.vectors,
+        });
+        self.region(op.expr.span, RegionKind::Decision(index));
+        Some(Mcdc(conditions))
+    }
+
     /// Adds the branch regions of the leaves of `node`, which holds `holds` times.
-    fn branches(&mut self, node: &Node<'gcx>, holds: Count) {
+    fn branches(&mut self, node: &Node<'gcx>, holds: Count, mcdc: Option<&Mcdc>) {
         match node {
             Node::Leaf(expr, completed) => {
-                self.region(
-                    expr.span,
-                    RegionKind::Branch(holds.clone(), completed.clone().sub(holds)),
-                );
+                let fails = completed.clone().sub(holds.clone());
+                let kind = match mcdc.and_then(|mcdc| mcdc.0.get(&Site::key(*expr))) {
+                    Some(condition) => RegionKind::McdcBranch {
+                        holds,
+                        fails,
+                        condition: condition.id,
+                        false_next: condition.false_next,
+                        true_next: condition.true_next,
+                    },
+                    None => RegionKind::Branch(holds, fails),
+                };
+                self.region(expr.span, kind);
                 self.expr(expr);
             }
-            Node::Not(node) => self.branches(node, node.completed().sub(holds)),
-            Node::And(lhs, rhs, rhs_expr, r) => {
-                self.branches(lhs, r.clone());
-                self.region(rhs_expr.span, RegionKind::Code(r.clone()));
-                self.branches(rhs, holds);
+            Node::Not(node) => self.branches(node, node.completed().sub(holds), mcdc),
+            Node::And(lhs, rhs, op) => {
+                self.branches(lhs, op.r.clone(), mcdc);
+                self.region(op.rhs.span, RegionKind::Code(op.r.clone()));
+                self.branches(rhs, holds, mcdc);
             }
-            Node::Or(lhs, rhs, rhs_expr, r) => {
-                let lhs_holds = lhs.completed().sub(r.clone());
-                self.branches(lhs, lhs_holds.clone());
-                self.region(rhs_expr.span, RegionKind::Code(r.clone()));
-                self.branches(rhs, holds.sub(lhs_holds));
+            Node::Or(lhs, rhs, op) => {
+                let lhs_holds = lhs.completed().sub(op.r.clone());
+                self.branches(lhs, lhs_holds.clone(), mcdc);
+                self.region(op.rhs.span, RegionKind::Code(op.r.clone()));
+                self.branches(rhs, holds.sub(lhs_holds), mcdc);
             }
         }
     }
