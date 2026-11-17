@@ -19,6 +19,7 @@ use crate::{
         PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
+        utils::is_loop_jump,
     },
 };
 use alloy_primitives::U256;
@@ -259,18 +260,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.block_labels.insert(block, label);
         }
 
-        // A block that only jumps on is never emitted; edges into it go to its final target.
+        // A block that only jumps on is never emitted; edges into it go to its final target,
+        // except the jump of a `break` or `continue` statement in an unoptimized build.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
             if block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit
+                && !self.keeps_loop_jump(func, block)
             {
                 for _ in 0..plan.blocks.len() {
                     match plan.blocks[target].as_ref().map(|plan| (&plan.steps, &plan.exit)) {
                         Some((steps, Exit::Jump(next)))
-                            if steps.is_empty() && target != BlockId::ENTRY && target != block =>
+                            if steps.is_empty()
+                                && target != BlockId::ENTRY
+                                && target != block
+                                && !self.keeps_loop_jump(func, target) =>
                         {
                             target = *next;
                         }
@@ -444,6 +450,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .iter()
                     .position(|&(stored, _)| stored == value)
                     .map(|index| assignments.remove(index).1),
+                // A copy of a value that several assignments stored serves one of them, and no
+                // record says which.
+                Step::Dup(_, Some(value)) | Step::Reload(value)
+                    if assignments.iter().filter(|&&(stored, _)| stored == value).count() == 1 =>
+                {
+                    assignments
+                        .iter()
+                        .position(|&(stored, _)| stored == value)
+                        .map(|index| assignments.remove(index).1)
+                }
                 _ => None,
             };
             if let Some(origin) = origin {
@@ -464,6 +480,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         };
         match &plan.exit {
+            Exit::Jump(target) if self.keeps_loop_jump(func, block) => {
+                // push target; jump !metadata(keep_with_next)
+                self.asm.emit_push_label(self.block_labels[&resolve(*target)]);
+                self.asm.keep_last_with_next();
+                self.asm.emit_op(op::JUMP);
+            }
             Exit::Jump(target) => self.emit_stackified_jump(resolve(*target), next),
             Exit::Branch { then_edge, else_edge } => {
                 let falls =
@@ -515,6 +537,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
+                // An unoptimized build keeps the jump of a call statement, the instruction coverage
+                // anchors the statement to, instead of letting a branch jump straight to the
+                // callee.
+                if self.optimization.is_none() && origin.is_some() {
+                    self.asm.keep_last_with_next();
+                }
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -572,6 +600,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         match step {
             &Step::Stack(op) => self.asm.emit_stack_op(op),
+            &Step::Dup(n, _) => self.asm.emit_stack_op(StackOp::Dup(n)),
             &Step::Materialize(value) => self.emit_materialized(func, value),
             &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
             &Step::Spill(value) => {
@@ -682,17 +711,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Returns the assignments, as the value each stored and its source context, whose constants
-    /// the code of the edge out of `block` may push, or none when `exit` is not a jump.
+    /// Returns the assignments, as the value each stored and its source context, whose pushes and
+    /// copies the code of the edge out of `block` may carry, or none when `exit` is not a jump.
     ///
     /// NOTE: A jump is an edge that leaves `block` unconditionally, so its code runs exactly once
     /// per execution of `block`. The assignments in [`InstructionMetadata::edge_assignments`]
-    /// ran in `block`, so the push of the value of one runs exactly when the assignment does and
-    /// may carry its span, as a copy carries the location of the instruction it replaces. An edge
-    /// out of a block that branches keeps the origin of its terminator: its code runs on one arm
-    /// only. Only a push of a constant is matched, by its value: the planner does not record
-    /// which phi a `DUP` or a reload serves, so a copy of a variable keeps the origin of the
-    /// terminator rather than take the span of an arbitrary assignment.
+    /// ran in `block`, so the push or `DUP` of the value of one runs exactly when the assignment
+    /// does and may carry its span, as a copy carries the location of the instruction it
+    /// replaces. An edge out of a block that branches keeps the origin of its terminator: its
+    /// code runs on one arm only. A push is matched by its value. A `DUP` or a reload, which
+    /// [`Step::Dup`] and [`Step::Reload`] name by the value they copy, is matched only when one
+    /// assignment stored the value, since the planner does not record which phi a copy serves.
+    /// A word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
+    /// map.
     fn edge_assignments<'f>(
         &self,
         func: &'f Function,
@@ -727,6 +758,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut combined = metadata(first).clone();
         combined.combine_debug_locs(rest.iter().map(metadata));
         self.set_origins(&combined);
+    }
+
+    /// Returns whether the block ends in the jump of a `break` or `continue` statement that an
+    /// unoptimized build keeps as an executed `JUMP`, the instruction coverage anchors the
+    /// statement to.
+    fn keeps_loop_jump(&self, func: &Function, block: BlockId) -> bool {
+        self.optimization.is_none()
+            && is_loop_jump(self.gcx, &func.blocks[block].terminator_metadata)
     }
 
     /// Jumps to `target` unless it is the next block in the layout.

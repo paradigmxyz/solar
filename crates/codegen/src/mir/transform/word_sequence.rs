@@ -40,9 +40,11 @@
 //! of such a test into that comparison as enabling recipes. The last run, the
 //! `spell-width-tests` pass in the lowered pipeline, sees the final uses and chooses the spelling
 //! with [`Target::shifts_bits_test`]: a branch or the `or` that joins tests for a branch reads a
-//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; an `and` of
-//! a fits test and a zero test becomes one word zero test; a test of the width of a shift the block
-//! already computes reads that shift. Only comparisons, `or` and `and` are roots there.
+//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; a fits test
+//! whose failure branches to a cold block becomes `(x >> k) == 0`, since the branch jumps on
+//! `x >> k`; an `and` of a fits test and a zero test becomes one word zero test; a test of the
+//! width of a shift the block already computes reads that shift. Only comparisons, `or` and `and`
+//! are roots there.
 
 use super::lower_checks::is_check;
 use crate::{
@@ -444,10 +446,17 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
                 ordered.push(inst);
                 continue;
             }
-            let is_branch_only =
-                func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
+            let value = func.inst_result_value(inst);
+            let is_branch_only = value.is_some_and(|value| branch_only.contains(&value));
             let read = ConditionRead {
                 branch: is_branch_only,
+                fails_to_cold: matches!(func.blocks[block].terminator,
+                    Some(Terminator::Branch { condition, then_block, else_block })
+                        if Some(condition) == value
+                            && uses[condition] == 1
+                            && func.blocks[else_block].hotness.is_cold()
+                            && !func.blocks[then_block].hotness.is_cold()
+                            && func.blocks[then_block].predecessors.len() == 1),
                 in_loop: cyclic.as_ref().is_some_and(|cyclic| cyclic.contains(block)),
             };
             let mut best = None;
@@ -646,6 +655,13 @@ fn zero_tested_leaf(
 struct ConditionRead {
     /// A branch reads the word, through the `or` that joins it with other tests, if any.
     branch: bool,
+    /// A branch reads the word itself and goes to a cold block when it is false and to a hot one
+    /// that only it enters when it is true, so the backend places the hot block next and jumps
+    /// when the test fails. A hot block with other predecessors, such as a join or a loop header,
+    /// may be placed elsewhere, and the branch then jumps when the test holds. NOTE: a hot block
+    /// that only jumps on and that stack scheduling forwards breaks this too; no source lowering
+    /// was seen to leave one there after the last CFG cleanup.
+    fails_to_cold: bool,
     in_loop: bool,
 }
 

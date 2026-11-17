@@ -443,8 +443,9 @@ fn phi_operand_copies_map_to_their_assignments() {
         };
         // The copy of each constant on an unconditional edge runs once per run of its assignment:
         // the loop's entry constants, the constant of an `if` arm, and the value of a `return`
-        // that leaves through the modifier's continuation.
-        for statement in ["uint256 sum = 0", "uint256 i = 0", "x = 7", "return true"] {
+        // that leaves through the modifier's continuation. So does the `DUP` that copies a value
+        // that stays live, as in `x = s`.
+        for statement in ["uint256 sum = 0", "uint256 i = 0", "x = 7", "return true", "x = s"] {
             assert!(mapped(statement), "{statement} lost its instruction");
         }
         // The copy on a conditional edge runs on one path only, so it keeps the origin of the
@@ -453,6 +454,8 @@ fn phi_operand_copies_map_to_their_assignments() {
         for statement in ["uint256 r = 5", "x = 11"] {
             assert!(!mapped(statement), "{statement} took the origin of a conditional edge");
         }
+        // Two assignments stored `s`, so the copy on the edge stands for neither of them.
+        assert!(!mapped("w = s"), "`w = s` took a copy that `x = s` shares");
     }
 }
 
