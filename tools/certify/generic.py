@@ -3253,6 +3253,9 @@ def main():
         record["solidity_lean"] = {
             "base": base,
             "inputs_commit": inputs,
+            "inputs_tree": git(lean_dir, "rev-parse", f"{inputs}^{{tree}}"),
+            "provenance": f"solidity-lean {base} + inputs {inputs} (tree "
+            f"{git(lean_dir, 'rev-parse', inputs + '^{tree}')}, Certified/{name} only)",
             "inputs": changed,
             "inputs_sha256": {p: sha256_file(lean_dir / p) for p in changed},
         }
@@ -3310,16 +3313,22 @@ def main():
         # binary it is handed is a provenance caveat whatever its digest), and must get the binary
         # the driver built and compiled the source with: CERTIFY_SOLAR_SHA256 is that binary's digest,
         # so a different build is a caveat too.
+        # The clone is the pin plus one inputs commit under Certified/<name>/: CERTIFY_PIN_BASE has
+        # checkout.sh check exactly that, never the CERTIFY_ALLOW_UNPINNED hatch.
+        pin = (HERE / "solidity-lean.rev").read_text().strip()
+        if base != pin:
+            raise Failed(f"the base {base} is not the pin {pin} of tools/certify/solidity-lean.rev")
         env = dict(
             os.environ,
             SOLIDITY_LEAN_DIR=str(lean_dir),
-            CERTIFY_ALLOW_UNPINNED="1",
+            CERTIFY_PIN_BASE=pin,
             CERTIFY_CLEAN_BUILD="1",
             SOLC=a.solc,
             CERTIFY_SOLAR_SHA256=record["solar"]["binary_sha256"],
             LEAN_MEMORY=LEAN_MEMORY,
         )
         for k in (
+            "CERTIFY_ALLOW_UNPINNED",
             "CERTIFY_REPLAY_TRUST_UPSTREAM",
             "SOLAR",
             "CERTIFY_SKIP_BUILD",
@@ -3344,7 +3353,7 @@ def main():
                 k: env[k]
                 for k in (
                     "SOLIDITY_LEAN_DIR",
-                    "CERTIFY_ALLOW_UNPINNED",
+                    "CERTIFY_PIN_BASE",
                     "CERTIFY_CLEAN_BUILD",
                     "SOLC",
                     "CERTIFY_SOLAR_SHA256",
