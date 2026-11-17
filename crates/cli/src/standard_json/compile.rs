@@ -806,7 +806,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::BYTECODE_ETHDEBUG
-        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA;
+        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA
+        | OutputSelectionFlags::BYTECODE_COVERAGE_ALIASES;
     if output_selection.intersects(bytecode_outputs) {
         evm.bytecode = Some(make_bytecode_output(
             gcx,
@@ -824,7 +825,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA;
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_COVERAGE_ALIASES;
     if output_selection.intersects(deployed_bytecode_outputs) {
         evm.deployed_bytecode = Some(make_bytecode_output(
             gcx,
@@ -871,6 +873,11 @@ fn make_bytecode_output(
         OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
     } else {
         OutputSelectionFlags::BYTECODE_SOURCE_MAP
+    };
+    let coverage_aliases_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_COVERAGE_ALIASES
+    } else {
+        OutputSelectionFlags::BYTECODE_COVERAGE_ALIASES
     };
     let ethdebug_flag = if deployed {
         OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
@@ -939,6 +946,17 @@ fn make_bytecode_output(
             }
         }
         output.cbor_auxdata = Some(by_contract);
+    }
+    if gcx.sess.opts.unstable.instrument_coverage
+        && output_selection.contains(coverage_aliases_flag)
+    {
+        output.coverage_aliases = Some(artifact.map_or_else(Vec::new, |artifact| {
+            if deployed {
+                artifact.runtime_coverage_aliases.clone()
+            } else {
+                artifact.deployment_coverage_aliases.clone()
+            }
+        }));
     }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {

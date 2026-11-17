@@ -1,0 +1,204 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0,
+      "coverage": {
+        "version": 2,
+        "functions": [
+          {
+            "name": "A.sol:A.nonZero(uint256)",
+            "hash": "0xf407ae7eeac8fbdc",
+            "counters": [
+              1,
+              4
+            ],
+            "files": [
+              0
+            ],
+            "expressions": [
+              [
+                9,
+                13
+              ]
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                77,
+                71,
+                5
+              ],
+              [
+                4,
+                0,
+                123,
+                6,
+                13,
+                2
+              ],
+              [
+                0,
+                0,
+                140,
+                2,
+                17
+              ]
+            ]
+          },
+          {
+            "name": "A.sol:A.f(address,uint256,bool)",
+            "hash": "0x36901d3f0dc84268",
+            "counters": [
+              5,
+              10
+            ],
+            "files": [
+              0
+            ],
+            "expressions": [
+              [
+                45,
+                49
+              ],
+              [
+                53,
+                57
+              ]
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                154,
+                181,
+                21
+              ],
+              [
+                0,
+                0,
+                219,
+                6,
+                25
+              ],
+              [
+                0,
+                0,
+                234,
+                10,
+                29
+              ],
+              [
+                0,
+                0,
+                253,
+                6,
+                33
+              ],
+              [
+                0,
+                0,
+                268,
+                6,
+                37
+              ],
+              [
+                0,
+                0,
+                283,
+                46,
+                41
+              ],
+              [
+                4,
+                0,
+                287,
+                1,
+                49,
+                2
+              ],
+              [
+                0,
+                0,
+                292,
+                5,
+                49
+              ],
+              [
+                4,
+                0,
+                292,
+                5,
+                57,
+                6
+              ],
+              [
+                0,
+                0,
+                299,
+                30,
+                57
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "deployedBytecode": {
+            "coverageAliases": [
+              [
+                1,
+                5
+              ],
+              [
+                2,
+                5
+              ],
+              [
+                4,
+                3
+              ],
+              [
+                6,
+                3
+              ],
+              [
+                7,
+                3
+              ],
+              [
+                10,
+                9
+              ],
+              [
+                11,
+                9
+              ],
+              [
+                13,
+                12
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

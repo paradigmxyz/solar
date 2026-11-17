@@ -1,0 +1,67 @@
+//@ filecheck:
+// A counter that is always hit with an earlier counter of its segment, with nothing between them
+// that can halt, is dropped. The function entry `5` keeps the modifier entry `1`, the check of
+// `n != 0` `2`, and the `_` placeholder `4` follows the check `3`, which keeps the statements `6`
+// and `7` behind it: the addition after `7` can revert, but the counter is hit before it. A call
+// ends a segment, so the counters `8` and `9` around it stay, and `9` keeps the `if` `10` and its
+// left condition `11`. Probes whose counters have no alias stay in the code.
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "coverageAliases": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 1,
+// CHECK-NEXT: 5
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 2,
+// CHECK-NEXT: 5
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 4,
+// CHECK-NEXT: 3
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 6,
+// CHECK-NEXT: 3
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 7,
+// CHECK-NEXT: 3
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 10,
+// CHECK-NEXT: 9
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 11,
+// CHECK-NEXT: 9
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 13,
+// CHECK-NEXT: 12
+// CHECK-NEXT: ]
+// CHECK-NEXT: ]
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "interface I {\n    function g() external;\n}\n\ncontract A {\n    uint256 a;\n\n    modifier nonZero(uint256 n) {\n        require(n != 0);\n        _;\n    }\n\n    function f(I i, uint256 x, bool b) external nonZero(x) {\n        a = x;\n        a = x + 1;\n        i.g();\n        a = 2;\n        if (b && x > 3) {\n            a = 3;\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.deployedBytecode.coverageAliases"
+        ]
+      }
+    }
+  }
+}

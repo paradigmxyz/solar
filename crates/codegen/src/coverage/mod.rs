@@ -41,6 +41,7 @@
 //! references. A counter whose site lowering never reaches stays at zero, as for code that is
 //! never generated.
 
+use crate::backend::evm::op;
 use alloy_primitives::keccak256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::Span;
@@ -261,6 +262,36 @@ impl CoverageMap {
     pub(crate) fn counter(&self, site: Site) -> Option<u32> {
         self.sites.get(&site).copied()
     }
+}
+
+/// Returns the aliases of `aliases` that hold in `code`: those whose kept counter it hits.
+///
+/// An alias `[dropped, kept]` holds in every code object that has the probes of the kept counter,
+/// since the dropped counter was always hit with it. Reading `code` as a sequence of
+/// instructions can only find too many probes in data, which adds aliases whose counters nothing
+/// hits.
+pub(crate) fn aliases_in_code(aliases: &[[u32; 2]], code: &[u8]) -> Vec<[u32; 2]> {
+    if aliases.is_empty() {
+        return Vec::new();
+    }
+    let mut counters = solar_data_structures::map::FxHashSet::default();
+    let mut index = 0;
+    let mut after_coverage = false;
+    while let Some(&opcode) = code.get(index) {
+        index += 1;
+        if (op::PUSH1..=op::PUSH32).contains(&opcode) {
+            let width = usize::from(opcode - op::PUSH1) + 1;
+            if after_coverage && width <= 4 {
+                let counter = code.get(index..index + width).map_or(0, |bytes| {
+                    bytes.iter().fold(0_u32, |counter, &byte| counter << 8 | u32::from(byte))
+                });
+                counters.insert(counter);
+            }
+            index += width;
+        }
+        after_coverage = opcode == op::COVERAGE;
+    }
+    aliases.iter().copied().filter(|[_, kept]| counters.contains(kept)).collect()
 }
 
 /// Returns the coverage map of the compilation when `-Zinstrument-coverage` is set.

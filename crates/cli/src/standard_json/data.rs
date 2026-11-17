@@ -404,6 +404,10 @@ pub(super) struct BytecodeOutput {
     pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) cbor_auxdata: Option<FxIndexMap<String, Vec<CborAuxdata>>>,
+    /// The coverage counters dropped from the code, as `[dropped, kept]`, with
+    /// `-Zinstrument-coverage`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) coverage_aliases: Option<Vec<[u32; 2]>>,
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -529,17 +533,19 @@ bitflags::bitflags! {
         const BYTECODE_LINK_REFERENCES = 1 << 20;
         const BYTECODE_ETHDEBUG = 1 << 21;
         const BYTECODE_CBOR_AUXDATA = 1 << 22;
-        const DEPLOYED_BYTECODE_OBJECT = 1 << 23;
-        const DEPLOYED_BYTECODE_OPCODES = 1 << 24;
-        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 25;
-        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 26;
-        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 27;
-        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 28;
-        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 29;
-        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 30;
-        const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 31;
-        const ETHDEBUG_RESOURCES = 1 << 32;
-        const ETHDEBUG_COMPILATION = 1 << 33;
+        const BYTECODE_COVERAGE_ALIASES = 1 << 23;
+        const DEPLOYED_BYTECODE_OBJECT = 1 << 24;
+        const DEPLOYED_BYTECODE_OPCODES = 1 << 25;
+        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 26;
+        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 27;
+        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 28;
+        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 29;
+        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 30;
+        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 31;
+        const DEPLOYED_BYTECODE_CBOR_AUXDATA = 1 << 32;
+        const DEPLOYED_BYTECODE_COVERAGE_ALIASES = 1 << 33;
+        const ETHDEBUG_RESOURCES = 1 << 34;
+        const ETHDEBUG_COMPILATION = 1 << 35;
 
         const YUL = Self::IR.bits()
             | Self::IR_AST.bits()
@@ -551,7 +557,8 @@ bitflags::bitflags! {
             | Self::BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::BYTECODE_GENERATED_SOURCES.bits()
             | Self::BYTECODE_LINK_REFERENCES.bits()
-            | Self::BYTECODE_CBOR_AUXDATA.bits();
+            | Self::BYTECODE_CBOR_AUXDATA.bits()
+            | Self::BYTECODE_COVERAGE_ALIASES.bits();
         const DEPLOYED_BYTECODE = Self::DEPLOYED_BYTECODE_OBJECT.bits()
             | Self::DEPLOYED_BYTECODE_OPCODES.bits()
             | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
@@ -559,7 +566,8 @@ bitflags::bitflags! {
             | Self::DEPLOYED_BYTECODE_GENERATED_SOURCES.bits()
             | Self::DEPLOYED_BYTECODE_LINK_REFERENCES.bits()
             | Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES.bits()
-            | Self::DEPLOYED_BYTECODE_CBOR_AUXDATA.bits();
+            | Self::DEPLOYED_BYTECODE_CBOR_AUXDATA.bits()
+            | Self::DEPLOYED_BYTECODE_COVERAGE_ALIASES.bits();
         const EVM = Self::ASSEMBLY.bits()
             | Self::LEGACY_ASSEMBLY.bits()
             | Self::METHOD_IDENTIFIERS.bits()
@@ -627,6 +635,7 @@ impl OutputSelectionFlags {
             "evm.bytecode.linkReferences" => Self::BYTECODE_LINK_REFERENCES,
             "evm.bytecode.ethdebug" => Self::BYTECODE_ETHDEBUG,
             "evm.bytecode.cborAuxdata" => Self::BYTECODE_CBOR_AUXDATA,
+            "evm.bytecode.coverageAliases" => Self::BYTECODE_COVERAGE_ALIASES,
             "evm.deployedBytecode" => Self::DEPLOYED_BYTECODE,
             "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE_OBJECT,
             "evm.deployedBytecode.opcodes" => Self::DEPLOYED_BYTECODE_OPCODES,
@@ -639,6 +648,7 @@ impl OutputSelectionFlags {
             }
             "evm.deployedBytecode.ethdebug" => Self::DEPLOYED_BYTECODE_ETHDEBUG,
             "evm.deployedBytecode.cborAuxdata" => Self::DEPLOYED_BYTECODE_CBOR_AUXDATA,
+            "evm.deployedBytecode.coverageAliases" => Self::DEPLOYED_BYTECODE_COVERAGE_ALIASES,
             "ethdebug.resources" => Self::ETHDEBUG_RESOURCES,
             "ethdebug.compilation" => Self::ETHDEBUG_COMPILATION,
             _ => Self::empty(),

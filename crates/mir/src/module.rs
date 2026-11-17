@@ -152,6 +152,9 @@ pub struct Module {
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
     pub tagged_inline_growth: usize,
+    /// The coverage counters `coverage-alias` dropped, as pairs of a dropped counter and the kept
+    /// counter that has its hits.
+    pub coverage_aliases: Vec<[u32; 2]>,
 }
 
 impl Module {
@@ -223,6 +226,7 @@ impl Module {
             lowered_checked: false,
             optimization: OptimizationMode::default(),
             tagged_inline_growth: 0,
+            coverage_aliases: Vec::new(),
         }
     }
 
