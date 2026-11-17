@@ -82,7 +82,7 @@ contract HeapPrefixTuple {
     function check(uint256 seed) external pure returns (uint256 result) {
         assembly {
             function pair() -> first, second {
-                first := sub(mload(0x40), 160)
+                first := sub(mload(0x40), 128)
                 second := 7
             }
             let live := add(seed, 1)
@@ -128,7 +128,7 @@ contract HeapPrefixConstructorHelper {
     function build(uint256 seed) internal pure returns (uint256) {
         bytes memory data = new bytes(32);
         assembly {
-            mstore(sub(data, 160), 0xdeadbeef)
+            mstore(sub(data, 128), 0xdeadbeef)
         }
         return seed;
     }
@@ -143,7 +143,7 @@ contract HeapPrefixRecursive {
         if (depth != 0) return build(seed, depth - 1) + 1;
         bytes memory data = new bytes(32);
         assembly {
-            mstore(sub(data, 288), 0xdeadbeef)
+            mstore(sub(data, 128), 0xdeadbeef)
         }
         return seed;
     }

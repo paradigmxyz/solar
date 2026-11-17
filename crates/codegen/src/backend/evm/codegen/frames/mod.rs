@@ -995,8 +995,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// immediately before an object through any memory read or write. Reserve
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
-    /// adding a negative constant reserves the same prefix as subtracting its magnitude. A step
-    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing.
+    /// adding a negative constant reserves the same prefix as subtracting its magnitude.
+    ///
+    /// Under solc the first heap object starts at [`EvmMemoryLayout::HEAP_START`], so a program
+    /// can rely only on a step back of at most that many bytes: it lands in the reserved low words,
+    /// where we keep frames. A longer step lands in an earlier heap object, which has the same
+    /// relative layout in both compilers, or wraps and runs out of gas under solc. The
+    /// reservation is therefore capped at that size, and a longer step reserves nothing.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1022,8 +1027,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 guard = guard.max(prefix);
             }
         });
-        // Saturation forces the heap-floor addition to report an unrepresentable prefix.
-        guard.checked_next_multiple_of(EvmMemoryLayout::WORD_SIZE).unwrap_or(u64::MAX)
+        guard
+            .checked_next_multiple_of(EvmMemoryLayout::WORD_SIZE)
+            .unwrap_or(u64::MAX)
+            .min(EvmMemoryLayout::HEAP_START)
     }
 
     /// Visits the loads of a multi-word call's extra results that follow the call before any
@@ -1329,11 +1336,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return Some(prefix.saturating_sub(forward));
             }
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
-            // NOTE: A step back this far reserves nothing. From a pointer that execution has
-            // accessed it wraps to the top of memory, as for a constant out-of-bounds index, whose
-            // bounds check reverts first. Assembly can raise the free memory pointer that far
-            // without accessing it, so the spill hazard analysis does not trust such a step.
-            if back >= EvmMemoryLayout::UNREACHABLE_MEMORY {
+            // NOTE: A longer step back reserves nothing, so the spill hazard analysis does not
+            // trust it either.
+            if back > EvmMemoryLayout::HEAP_START {
                 return None;
             }
             Some(prefix.saturating_add(back))
@@ -1899,6 +1904,33 @@ mod tests {
                 32
             );
         }
+    }
+
+    #[test]
+    fn heap_prefix_guard_stops_at_the_heap_start() {
+        let guard = |steps: &[u64]| {
+            let mut function = Function::new(Ident::DUMMY);
+            let mut builder = FunctionBuilder::new(&mut function);
+            // address = fmp - step, ...
+            let mut address = builder.fmp();
+            for &step in steps {
+                let step = builder.imm(step);
+                address = builder.sub(address, step);
+            }
+            let zero = builder.imm(0);
+            builder.append_instruction(Instruction::new(
+                InstKind::Store(address, zero, PtrLocation::Memory),
+                None,
+            ));
+            EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None)
+        };
+        // A step back of at most the heap start reserves its size, a longer one nothing, and the
+        // reservation stops at the heap start however many steps add up to it.
+        assert_eq!(guard(&[0x60]), 0x60);
+        assert_eq!(guard(&[EvmMemoryLayout::HEAP_START]), EvmMemoryLayout::HEAP_START);
+        assert_eq!(guard(&[EvmMemoryLayout::HEAP_START + 0x20]), 0);
+        assert_eq!(guard(&[1 << 32]), 0);
+        assert_eq!(guard(&[0x60, 0x60]), EvmMemoryLayout::HEAP_START);
     }
 
     #[test]

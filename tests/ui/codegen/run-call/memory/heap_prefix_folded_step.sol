@@ -2,10 +2,9 @@
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: f 1 => 0xc8c80166610cedbdd21ec5dd1e8ab4e9eaa4a94ee980d51d8e685dbd1ddc2017
 
-// Assembly steps back two words from an array, and a checked index then steps forward one word
-// from that address. Folding the two additions leaves one step back of one word, which only the
-// unchecked part of the sum made: the heap prefix guard must still keep a word of room below the
-// heap, or the store lands on the words where the eighteen hashes spill.
+// Assembly steps back two words from an array, and an index then steps forward one word from that
+// address. The net step back of one word is within the start of the heap, so the guard must keep
+// a word of room below the heap, or the store lands on the words where the eighteen hashes spill.
 contract HeapPrefixFoldedStep {
     function f(uint256 s) external pure returns (bytes32) {
         bytes32 a1 = keccak256(abi.encode(s + 1)); bytes32 a2 = keccak256(abi.encode(s + 2));

@@ -13,8 +13,9 @@
 //! so a `ptradd` keeps its pointer, and `lower-memory-objects` marks the additions it makes for
 //! them.
 //!
-//! Stepping back from a pointer by a constant stays above the heap prefix the frames reserve, but
-//! a loop that steps back on every iteration walks down through the frames without limit.
+//! Stepping back from a pointer by a constant of at most the start of the heap stays above the heap
+//! prefix the frames reserve, but a loop that steps back on every iteration walks down through the
+//! frames without limit.
 
 use crate::mir::{ArithmeticKind, CheckedOp, Function, InstKind, Value, ValueId};
 use smallvec::SmallVec;

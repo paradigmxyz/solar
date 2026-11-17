@@ -5,11 +5,10 @@
 //@[native] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call-fail: f 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
-// Assembly steps back one word from the array, to the address the checked index `~1` reaches.
-// Both computations are one value after value numbering, which a checked offset may not stay: the
-// guard must still keep a word of room below the heap for the assembly store.
+// Assembly steps back one word from the array, and the checked index `~1` reaches the same
+// address. The step is within the start of the heap, so the guard keeps a word of room below it.
 // NATIVE: backend-entry {{[0-9]+}} 0xa0
-contract HeapPrefixUncheckedMerge {
+contract HeapPrefixNearStep {
     function f(uint256 x) external pure returns (uint32) {
         uint32[] memory a = new uint32[](2);
         a[~uint256(1)] ^= uint32(uint256(keccak256(abi.encode(x))));
