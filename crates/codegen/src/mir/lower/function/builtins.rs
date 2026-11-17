@@ -549,6 +549,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition_expr = required.first()?;
                 let condition = self.operand(condition_expr)?.id();
+                self.coverage(Site::Leaf(Site::expr(condition_expr)));
                 // The message is evaluated regardless of the condition, like a function call
                 // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
@@ -556,7 +557,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(message) => Some(self.prepare_revert_payload(message)?),
                     None => None,
                 };
-                let taken = self.coverage_decision(condition_expr);
+                let taken = Site::Arm(Site::expr(condition_expr));
                 let Some(message) = message else {
                     let is_false = self.builder.eq_zero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);

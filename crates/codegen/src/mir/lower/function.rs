@@ -959,7 +959,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Binary(lhs, op, rhs) => {
                 self.assert_operand_ty_registered(expr);
                 if op.kind.is_logical() {
-                    return self.lower_logical(lhs, op.kind, rhs);
+                    return self.lower_logical(expr, lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
                     let lhs = self.lower_expr(lhs)?;

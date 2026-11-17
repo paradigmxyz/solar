@@ -1,0 +1,45 @@
+//@ filecheck:
+// A leaf condition of `a && b` has a branch region of its own, and the right operand a code
+// region that counts how often evaluation reaches it. The counts are tagged integers: the low bits
+// `1` name a counter and `2` an expression that subtracts. With counters `V(a) = 2`, `R = 3`,
+// `V(b) = 4`, and `T = 5`, `a` holds `R` times and fails `V(a) - R` times, and `b` holds `T` times
+// and fails `V(b) - T` times. The `else` path runs `V(a) - R + V(b) - T` times.
+// CHECK: "name": "A.sol:D.f(bool,bool)",
+// CHECK: "expressions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 9,
+// CHECK-NEXT: 13
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 17,
+// CHECK-NEXT: 21
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 2,
+// CHECK-NEXT: 17
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 11,
+// CHECK-NEXT: 21
+// CHECK-NEXT: ]
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract D {\n    function f(bool a, bool b) external pure returns (uint256 r) {\n        if (a && b) r = 1;\n        else r = 2;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": ["instrument-coverage"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

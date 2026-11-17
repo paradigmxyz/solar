@@ -319,49 +319,21 @@ pub(super) struct SourceOutput<'a, 'gcx> {
 /// The coverage map of a source, with `-Zinstrument-coverage`.
 #[derive(Debug, Serialize)]
 pub(super) struct SourceCoverageOutput {
-    pub(super) functions: Vec<FunctionCoverageOutput>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(super) contracts: Vec<ContractCoverageOutput>,
+    pub(super) version: u32,
+    pub(super) functions: Vec<CoverageRecordOutput>,
 }
 
-/// The decisions of a contract outside its functions.
+/// The regions of a function, a modifier, or the initializers of a contract, laid out like LLVM's
+/// function coverage records.
 #[derive(Debug, Serialize)]
-pub(super) struct ContractCoverageOutput {
+pub(super) struct CoverageRecordOutput {
     pub(super) name: String,
-    pub(super) branches: Vec<BranchCoverageOutput>,
-}
-
-#[derive(Debug, Serialize)]
-pub(super) struct FunctionCoverageOutput {
-    pub(super) name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) contract: Option<String>,
-    pub(super) src: String,
-    pub(super) count: CoverageCountOutput,
+    pub(super) hash: String,
+    pub(super) counters: [u32; 2],
+    pub(super) files: Vec<u32>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(super) statements: Vec<StatementCoverageOutput>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(super) branches: Vec<BranchCoverageOutput>,
-}
-
-#[derive(Debug, Serialize)]
-pub(super) struct StatementCoverageOutput {
-    pub(super) src: String,
-    pub(super) count: CoverageCountOutput,
-}
-
-#[derive(Debug, Serialize)]
-pub(super) struct BranchCoverageOutput {
-    pub(super) src: String,
-    pub(super) paths: Vec<CoverageCountOutput>,
-}
-
-/// A counter, or the first counter minus the others.
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub(super) enum CoverageCountOutput {
-    Counter(u32),
-    Difference { sub: Box<[u32]> },
+    pub(super) expressions: Vec<[u64; 2]>,
+    pub(super) regions: Vec<Vec<i64>>,
 }
 
 #[derive(Debug, Default, Serialize)]

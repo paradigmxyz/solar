@@ -141,8 +141,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_stmt: Option<&'gcx hir::Stmt<'gcx>>,
     ) -> Option<()> {
         let condition_span = condition.span;
+        let condition_expr = condition;
         let condition = self.operand(condition)?.id();
-        let taken = self.coverage_decision(stmt);
+        self.coverage(Site::Leaf(Site::expr(condition_expr)));
+        let taken = Site::Arm(Site::key(stmt));
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
@@ -224,7 +226,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values = before_values.clone();
             self.storage_refs = before_storage_refs.clone();
             self.builder.switch_to_block(block);
-            self.coverage(Site::Taken(Site::key(case)));
+            self.coverage(Site::Arm(Site::key(case)));
             self.lower_block(case.body)?;
             let terminated = self.is_terminated();
             let exit = self.builder.current_block();
@@ -511,7 +513,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.values.insert(binding, value);
             }
         }
-        self.coverage(Site::Taken(Site::key(returns_clause)));
+        self.coverage(Site::Arm(Site::key(returns_clause)));
         self.lower_block(returns_clause.block)?;
         let success_terminated = self.is_terminated();
         let success_exit = self.builder.current_block();
@@ -654,7 +656,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 self.values.insert(binding, value);
             }
-            self.coverage(Site::Taken(Site::key(catch_clause)));
+            self.coverage(Site::Arm(Site::key(catch_clause)));
             self.lower_block(catch_clause.block)?;
             let catch_terminated = self.is_terminated();
             let catch_exit = self.builder.current_block();
@@ -756,13 +758,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Word> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
+        let condition_expr = condition;
         let condition = self.operand(condition)?.id();
-        let taken = self.coverage_decision(then_expr);
+        self.coverage(Site::Leaf(Site::expr(condition_expr)));
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
             |this| {
-                this.coverage(taken);
+                this.coverage(Site::Arm(Site::expr(then_expr)));
                 this.lower_ternary_value(then_expr, ty)
             },
             |this| this.lower_ternary_value(else_expr, ty),
@@ -789,6 +792,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_logical(
         &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
         lhs_expr: &'gcx hir::Expr<'gcx>,
         op: BinOpKind,
         rhs_expr: &'gcx hir::Expr<'gcx>,
@@ -798,6 +802,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = phi(rhs_value, short_circuit_value)
         let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
         let lhs = self.lower_expr(lhs_expr)?;
+        self.coverage(Site::Leaf(Site::expr(lhs_expr)));
         let condition = lhs.clean(self, ty);
         let is_and = op == BinOpKind::And;
         let short = |this: &mut Self| {
@@ -807,10 +812,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(Word::from_clean(this.builder.imm_bool(!is_and)))
             }
         };
-        let taken = self.coverage_decision(rhs_expr);
         let rhs = |this: &mut Self| {
-            this.coverage(taken);
-            this.lower_expr(rhs_expr)
+            this.coverage(Site::Arm(Site::expr(rhs_expr)));
+            let rhs = this.lower_expr(rhs_expr);
+            this.coverage(Site::Leaf(Site::expr(rhs_expr)));
+            rhs
         };
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -820,11 +826,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )?;
         let (rhs, short) =
             if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
-        if rhs.terminated {
-            Some(short.value)
+        let result = if rhs.terminated {
+            short.value
         } else {
-            Some(self.join_words(&[(rhs.block, rhs.value), (short.block, short.value)], ty))
+            self.join_words(&[(rhs.block, rhs.value), (short.block, short.value)], ty)
+        };
+        // A decision that no branch consumes counts how often its value holds.
+        if coverage_map(self.cx.gcx)
+            .is_some_and(|map| map.counter(Site::Value(Site::expr(expr))).is_some())
+        {
+            let holds = result.clean(self, ty);
+            self.lower_branches(
+                holds,
+                true,
+                |this| {
+                    this.coverage(Site::Value(Site::expr(expr)));
+                    Some(())
+                },
+                |_| Some(()),
+            )?;
         }
+        Some(result)
     }
 
     pub(super) fn lower_ternary_values(
@@ -837,14 +859,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::Tuple(types) = ty.kind else {
             return self.lower_ternary(condition, then_expr, else_expr, ty).map(|word| vec![word]);
         };
+        let condition_expr = condition;
         let condition = self.operand(condition)?.id();
-        let taken = self.coverage_decision(then_expr);
+        self.coverage(Site::Leaf(Site::expr(condition_expr)));
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
             |this| {
-                this.coverage(taken);
+                this.coverage(Site::Arm(Site::expr(then_expr)));
                 this.lower_ternary_components(then_expr, types)
             },
             |this| this.lower_ternary_components(else_expr, types),

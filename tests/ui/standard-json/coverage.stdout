@@ -15,92 +15,148 @@
     "A.sol": {
       "id": 0,
       "coverage": {
+        "version": 2,
         "functions": [
           {
-            "name": "f",
-            "contract": "A",
-            "src": "17:121:0",
-            "count": 1,
-            "statements": [
-              {
-                "src": "81:20:0",
-                "count": 2
-              },
-              {
-                "src": "92:9:0",
-                "count": 5
-              },
-              {
-                "src": "110:22:0",
-                "count": 6
-              }
+            "name": "A.sol:A.f(uint256)",
+            "hash": "0x3b390f45db319118",
+            "counters": [
+              1,
+              6
             ],
-            "branches": [
-              {
-                "src": "81:20:0",
-                "paths": [
-                  4,
-                  {
-                    "sub": [
-                      3,
-                      4
-                    ]
-                  }
-                ]
-              },
-              {
-                "src": "117:14:0",
-                "paths": [
-                  8,
-                  {
-                    "sub": [
-                      7,
-                      8
-                    ]
-                  }
-                ]
-              }
+            "files": [
+              0
+            ],
+            "expressions": [
+              [
+                9,
+                13
+              ],
+              [
+                21,
+                25
+              ]
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                17,
+                121,
+                5
+              ],
+              [
+                4,
+                0,
+                85,
+                5,
+                13,
+                2
+              ],
+              [
+                0,
+                0,
+                92,
+                9,
+                13
+              ],
+              [
+                0,
+                0,
+                110,
+                22,
+                17
+              ],
+              [
+                4,
+                0,
+                117,
+                6,
+                25,
+                6
+              ],
+              [
+                0,
+                0,
+                126,
+                1,
+                25
+              ],
+              [
+                0,
+                0,
+                130,
+                1,
+                6
+              ]
             ]
           },
           {
-            "name": "free",
-            "src": "142:88:0",
-            "count": 9,
-            "statements": [
-              {
-                "src": "198:16:0",
-                "count": 10
-              },
-              {
-                "src": "219:9:0",
-                "count": 15
-              }
+            "name": "A.sol:free(bool,bool)",
+            "hash": "0x640dba3fc860dc9c",
+            "counters": [
+              7,
+              6
             ],
-            "branches": [
-              {
-                "src": "198:15:0",
-                "paths": [
-                  14,
-                  {
-                    "sub": [
-                      13,
-                      14
-                    ]
-                  }
-                ]
-              },
-              {
-                "src": "206:6:0",
-                "paths": [
-                  {
-                    "sub": [
-                      11,
-                      12
-                    ]
-                  },
-                  12
-                ]
-              }
+            "files": [
+              0
+            ],
+            "expressions": [
+              [
+                33,
+                37
+              ],
+              [
+                33,
+                2
+              ],
+              [
+                45,
+                2
+              ],
+              [
+                41,
+                10
+              ]
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                142,
+                88,
+                29
+              ],
+              [
+                4,
+                0,
+                206,
+                1,
+                2,
+                6
+              ],
+              [
+                0,
+                0,
+                211,
+                1,
+                37
+              ],
+              [
+                4,
+                0,
+                211,
+                1,
+                10,
+                14
+              ],
+              [
+                0,
+                0,
+                219,
+                9,
+                49
+              ]
             ]
           }
         ]
@@ -112,7 +168,7 @@
       "A": {
         "evm": {
           "deployedBytecode": {
-            "opcodes": "CALLVALUE PUSH1 0x13 JUMPI PUSH0 CALLDATALOAD PUSH1 0xE0 SHR DUP1 PUSH4 0xB3DE648B EQ PUSH1 0x17 JUMPI JUMPDEST PUSH0 PUSH0 REVERT JUMPDEST PUSH1 0x24 CALLDATASIZE LT PUSH1 0x57 JUMPI PUSH1 0x4 CALLDATALOAD COVERAGE PUSH1 0x1 COVERAGE PUSH1 0x2 PUSH1 0x1 DUP2 GT COVERAGE PUSH1 0x3 PUSH1 0x4A JUMPI COVERAGE PUSH1 0x6 COVERAGE PUSH1 0x7 PUSH1 0x2 SWAP1 PUSH1 0x43 JUMPI COVERAGE PUSH1 0x8 PUSH1 0x1 JUMPDEST PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN JUMPDEST COVERAGE PUSH1 0x4 COVERAGE PUSH1 0x5 PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN JUMPDEST PUSH0 PUSH0 REVERT "
+            "opcodes": "CALLVALUE PUSH1 0x13 JUMPI PUSH0 CALLDATALOAD PUSH1 0xE0 SHR DUP1 PUSH4 0xB3DE648B EQ PUSH1 0x17 JUMPI JUMPDEST PUSH0 PUSH0 REVERT JUMPDEST PUSH1 0x24 CALLDATASIZE LT PUSH1 0x51 JUMPI PUSH1 0x4 CALLDATALOAD COVERAGE PUSH1 0x1 PUSH1 0x1 DUP2 GT COVERAGE PUSH1 0x2 PUSH1 0x47 JUMPI COVERAGE PUSH1 0x4 COVERAGE PUSH1 0x5 PUSH1 0x2 SWAP1 PUSH1 0x40 JUMPI COVERAGE PUSH1 0x6 PUSH1 0x1 JUMPDEST PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN JUMPDEST COVERAGE PUSH1 0x3 PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN JUMPDEST PUSH0 PUSH0 REVERT "
           }
         }
       }

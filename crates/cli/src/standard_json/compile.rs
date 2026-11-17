@@ -2,13 +2,11 @@
 
 use super::{
     data::{
-        BranchCoverageOutput, BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput,
-        ContractCoverageOutput, ContractOutput, CoverageCountOutput, DebugInfoComponent,
-        DebugSettings, EthdebugOutput, EvmOutput, FunctionCoverageOutput, MetadataHash,
-        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
-        Settings, SourceCoverageOutput, SourceOutput, StandardJsonReadCallback,
-        StatementCoverageOutput, optimizer_settings, print_standard_json_stats,
-        strip_json_comments,
+        BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
+        CoverageRecordOutput, DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput,
+        MetadataHash, MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags,
+        ReadCallbackResult, Settings, SourceCoverageOutput, SourceOutput, StandardJsonReadCallback,
+        optimizer_settings, print_standard_json_stats, strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -20,15 +18,15 @@ use rayon::prelude::*;
 use serde_json::json;
 use solar_codegen::{
     ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
-    coverage::{BranchCoverage, CoverageCount, CoverageMap},
+    coverage::{CoverageMap, RecordOwner},
 };
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode, RevertStrings, UnstableOpts,
 };
-use solar_data_structures::map::{FxHashMap, FxIndexMap};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::{
-    SourceMap, Span,
+    SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::{FileLoader, RealFileLoader},
 };
@@ -470,9 +468,11 @@ fn compile(
                 if let Some(coverage) = solar_codegen::coverage::coverage_map(gcx)
                     && let Some(sources) = &mut output.sources
                 {
+                    let mut names = FxHashSet::default();
                     for id in gcx.hir.source_ids() {
                         if let Some(source) = sources.get_mut(&source_name(gcx, id)) {
-                            source.coverage = Some(source_coverage_output(gcx, coverage, id));
+                            source.coverage =
+                                Some(source_coverage_output(gcx, coverage, id, &mut names));
                         }
                     }
                 }
@@ -704,54 +704,55 @@ fn source_coverage_output(
     gcx: Gcx<'_>,
     coverage: &CoverageMap,
     id: solar_sema::hir::SourceId,
+    names: &mut FxHashSet<String>,
 ) -> SourceCoverageOutput {
-    let start_pos = gcx.hir.source(id).file.start_pos;
-    let src = |span: Span| {
-        let start = span.lo().0 - start_pos.0;
-        format!("{start}:{}:{}", span.hi().0 - span.lo().0, id.index())
-    };
-    let count = |count: &CoverageCount| match count {
-        CoverageCount::Counter(counter) => CoverageCountOutput::Counter(*counter),
-        CoverageCount::Difference(sub) => CoverageCountOutput::Difference { sub: sub.clone() },
-    };
-    let branch = |branch: &BranchCoverage| BranchCoverageOutput {
-        src: src(branch.span),
-        paths: branch.paths.iter().map(count).collect(),
-    };
-    let coverage = coverage.source(id);
     let functions = coverage
-        .functions
+        .source(id)
+        .records
         .iter()
-        .map(|function| {
-            let hir_function = gcx.hir.function(function.id);
-            FunctionCoverageOutput {
-                name: hir_function.name_or_kind().to_string(),
-                contract: hir_function
-                    .contract
-                    .map(|contract| gcx.hir.contract(contract).name.to_string()),
-                src: src(hir_function.span),
-                count: count(&function.count),
-                statements: function
-                    .statements
-                    .iter()
-                    .map(|statement| StatementCoverageOutput {
-                        src: src(statement.span),
-                        count: count(&statement.count),
-                    })
-                    .collect(),
-                branches: function.branches.iter().map(branch).collect(),
+        .map(|record| {
+            let mut name = record_name(gcx, id, record.owner);
+            if !names.insert(name.clone()) {
+                // Yul functions of different blocks can share a name.
+                let start = record.regions.first().map_or(0, |region| region.span.lo().0);
+                name = format!("{name}@{start}");
+                names.insert(name.clone());
+            }
+            let encoded = record.encode(gcx);
+            CoverageRecordOutput {
+                name,
+                hash: format!("{:#018x}", encoded.hash),
+                counters: record.counters,
+                files: record.files.iter().map(|file| file.index() as u32).collect(),
+                expressions: encoded.expressions,
+                regions: encoded.regions,
             }
         })
         .collect();
-    let contracts = coverage
-        .contracts
-        .iter()
-        .map(|contract| ContractCoverageOutput {
-            name: gcx.hir.contract(contract.id).name.to_string(),
-            branches: contract.branches.iter().map(branch).collect(),
-        })
-        .collect();
-    SourceCoverageOutput { functions, contracts }
+    SourceCoverageOutput { version: 2, functions }
+}
+
+/// Returns the PGO name of a record: the source path, the contract, and the function with its
+/// parameter types.
+fn record_name(gcx: Gcx<'_>, source: solar_sema::hir::SourceId, owner: RecordOwner) -> String {
+    let path = source_name(gcx, source);
+    match owner {
+        RecordOwner::Init(contract) => {
+            format!("{path}:{}.<init>", gcx.hir.contract(contract).name)
+        }
+        RecordOwner::Function(id) => {
+            let function = gcx.hir.function(id);
+            let signature = gcx.mk_abi_signature(
+                function.name_or_kind().as_str(),
+                gcx.item_parameter_types(id).iter().copied(),
+                false,
+            );
+            match function.contract {
+                Some(contract) => format!("{path}:{}.{signature}", gcx.hir.contract(contract).name),
+                None => format!("{path}:{signature}"),
+            }
+        }
+    }
 }
 
 fn make_contract_output<'gcx>(

@@ -1,19 +1,22 @@
+//@ filecheck:
 // Decisions in inheritance arguments and state variable initializers run in creation code, so the
-// source lists them by contract outside its functions. The constant's folded ternary has no
-// counters.
-// CHECK: "coverage": {
-// CHECK: "functions": [
-// CHECK: "contracts": [
-// CHECK-NEXT: {
-// CHECK-NEXT: "name": "B",
-// CHECK-NEXT: "branches": [
-// CHECK: "src": "84:24:0",
-// CHECK-NEXT: "paths": [
-// CHECK-NEXT: 7,
-// CHECK: "src": "128:27:0",
-// CHECK: "src": "183:39:0",
-// CHECK: "src": "183:47:0",
-// CHECK-NOT: "src"
+// source gets an `<init>` record for the contract. The constant's folded ternary has no counters.
+// CHECK: "name": "A.sol:A.constructor(uint256)",
+// CHECK: "name": "A.sol:B.<init>",
+// CHECK-NEXT: "hash"
+// CHECK-NEXT: "counters": [
+// CHECK-NEXT: 6,
+// CHECK-NEXT: 10
+// CHECK-NEXT: ],
+// The leaf of the inheritance argument has a branch region of its own.
+// CHECK: "regions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 4,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 84,
+// CHECK-NEXT: 16,
+// CHECK: "name": "A.sol:C.constructor(bool)",
+// CHECK-NOT: "name": "A.sol:B.
 {
   "language": "Solidity",
   "sources": {

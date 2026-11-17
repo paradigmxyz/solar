@@ -59,6 +59,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Like solc's `appendStateVariableInitialization`, map the conversion and the store
             // to the variable declaration.
             let previous = self.builder.replace_source_span(variable.declaration_span());
+            self.coverage(Site::Init(Site::key(variable)));
             let result = self.lower_state_initializer(id, initializer);
             self.builder.replace_source_span(previous);
             result?;
@@ -326,15 +327,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.replace_source_span(previous);
             }
         }
-    }
-
-    /// Emits the counters of a two-way decision keyed by `node` once its condition is evaluated,
-    /// and returns the key of the counter that the path taken when the condition holds starts
-    /// with.
-    pub(super) fn coverage_decision<T>(&mut self, node: &T) -> Site {
-        let key = Site::key(node);
-        self.coverage(Site::Decision(key));
-        Site::Taken(key)
     }
 
     pub(super) fn materialize_default_bindings(&mut self) {

@@ -381,8 +381,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
+                let condition_expr = condition;
                 let condition = self.operand(condition)?.id();
-                let taken = self.coverage_decision(*then_expr);
+                self.coverage(Site::Leaf(Site::expr(condition_expr)));
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {
@@ -395,7 +396,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     condition,
                     true,
                     |this| {
-                        this.coverage(taken);
+                        this.coverage(Site::Arm(Site::expr(then_expr)));
                         lower_branch(this, then_expr)
                     },
                     |this| lower_branch(this, else_expr),
