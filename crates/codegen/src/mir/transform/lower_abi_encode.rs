@@ -940,6 +940,10 @@ fn write_head_before_object(
     // => [32, length, payload...]
     let back = builder.imm(-32);
     let start = builder.ptradd(object, back);
+    // No bounds check covers this step back, so the heap prefix guard must reserve it.
+    if let Value::Inst(step) = *builder.func().value(start) {
+        builder.func_mut().inst_mut(step).metadata.set_unchecked(true);
+    }
     let offset = builder.imm(32);
     builder.store(start, offset);
     let total = builder.add_offset(extent, 64);

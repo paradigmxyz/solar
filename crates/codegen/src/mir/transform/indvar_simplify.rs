@@ -852,7 +852,9 @@ impl IndVarSimplifier {
             let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
                 let Value::Inst(inst) = *func.value(value) else { continue };
-                func.set_inst_kind(inst, offset_kind(stepped, magnitude, offset >= 0));
+                let kind = offset_kind(stepped, magnitude, offset >= 0);
+                func.retain_checked_object_offset(inst, &kind);
+                func.set_inst_kind(inst, kind);
             }
         }
         func.replace_uses(&replacements);
@@ -1729,7 +1731,9 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = *func.value(value) else { return };
         let Some(magnitude) = offset.checked_abs() else { return };
         let Some(magnitude) = self.offset_value(func, magnitude) else { return };
-        func.set_inst_kind(inst_id, offset_kind(pointer, magnitude, offset >= 0));
+        let kind = offset_kind(pointer, magnitude, offset >= 0);
+        func.retain_checked_object_offset(inst_id, &kind);
+        func.set_inst_kind(inst_id, kind);
     }
 
     /// Appends `delta / magnitude` to `block`: a shift for a power of two, a division otherwise.

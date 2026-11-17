@@ -40,7 +40,9 @@
 //! its extra gas runs only on a failing call, so it keeps the smaller node.
 //! Instructions are rewritten in place at their original position; merged
 //! instructions are deleted and their uses redirected. Placement never
-//! changes, and local rules cannot increase the MIR instruction count.
+//! changes, and local rules cannot increase the MIR instruction count. The
+//! representative keeps its checked-object-offset marker only while its constant is the sum of
+//! checked steps: folding an unchecked addition into it, or merging one, clears the marker.
 //!
 //! Instructions with effects, phis, and terminators form the skeleton. They
 //! stay in place and see their operands canonicalized; `rewrite` rules still
@@ -857,6 +859,7 @@ impl<'a> Builder<'a> {
             ?into,
             "mir_egraph"
         );
+        self.func.merge_checked_object_offset(result, into);
         self.merged[result] = Some(into);
         self.dead.insert(inst_id);
         self.changed += 1;

@@ -861,6 +861,9 @@ impl Function {
             return;
         }
 
+        for (&old, &new) in replacements {
+            self.merge_checked_object_offset(old, new);
+        }
         self.rewrite_all_operands(|value| {
             *value = replacements.get(value).copied().unwrap_or(*value);
         });
@@ -874,9 +877,87 @@ impl Function {
             return;
         }
 
+        for &old in replacements.keys() {
+            self.merge_checked_object_offset(
+                old,
+                super::utils::resolve_replacement(old, replacements),
+            );
+        }
         self.rewrite_all_operands(|value| {
             *value = super::utils::resolve_replacement(*value, replacements);
         });
+    }
+
+    /// Records that `new` replaces `old`. A checked object offset stays one only while every
+    /// addition merged into it is one, so `new` loses the marker when `old` was an unchecked
+    /// addition, and a pointer offset that no bounds check covers stays unchecked.
+    pub fn merge_checked_object_offset(&mut self, old: ValueId, new: ValueId) {
+        let Value::Inst(old) = *self.value(old) else { return };
+        let Value::Inst(new) = *self.value(new) else { return };
+        match self.inst(old).kind {
+            InstKind::Add(..) | InstKind::Sub(..)
+                if !self.inst(old).metadata.checked_object_offset() =>
+            {
+                self.inst_mut(new).metadata.clear_checked_object_offset();
+            }
+            InstKind::PtrAdd(..) if self.inst(old).metadata.unchecked() => {
+                self.inst_mut(new).metadata.set_unchecked(true);
+            }
+            _ => {}
+        }
+    }
+
+    /// Drops the checked-object-offset marker of `inst` unless its constant step stays the sum of
+    /// steps that checked offsets took. A fold through an unchecked addition, as in
+    /// `add(sub(p, 64), 32) => sub(p, 32)`, must not let the checked 32 vouch for the unchecked 64.
+    pub fn retain_checked_object_offset(&mut self, inst: InstId, new: &InstKind) {
+        if self.inst(inst).metadata.checked_object_offset()
+            && !self.keeps_checked_object_offset(inst, new)
+        {
+            self.inst_mut(inst).metadata.clear_checked_object_offset();
+        }
+    }
+
+    fn keeps_checked_object_offset(&self, inst: InstId, new: &InstKind) -> bool {
+        let Some((_, new_step)) = self.constant_step(new) else { return true };
+        let Some((mut base, mut step)) = self.constant_step(&self.inst(inst).kind) else {
+            return true;
+        };
+        // Follow the checked steps below the old base until their sum is the new step. The new
+        // base is the value the last of them steps from, or one that value merged into.
+        for _ in 0..self.num_values() {
+            if step == new_step {
+                return true;
+            }
+            let Value::Inst(def) = *self.value(base) else { return false };
+            let def = self.inst(def);
+            let Some((inner, inner_step)) = def
+                .metadata
+                .checked_object_offset()
+                .then(|| self.constant_step(&def.kind))
+                .flatten()
+            else {
+                return false;
+            };
+            base = inner;
+            step = step.wrapping_add(inner_step);
+        }
+        false
+    }
+
+    /// Splits `add base, constant` and `sub base, constant` into the base and the wrapping step.
+    fn constant_step(&self, kind: &InstKind) -> Option<(ValueId, U256)> {
+        match *kind {
+            InstKind::Add(a, b) => match (self.value_u256(a), self.value_u256(b)) {
+                (None, Some(step)) => Some((a, step)),
+                (Some(step), None) => Some((b, step)),
+                _ => None,
+            },
+            InstKind::Sub(base, amount) if self.value_u256(base).is_none() => {
+                Some((base, U256::ZERO.wrapping_sub(self.value_u256(amount)?)))
+            }
+            _ => None,
+        }
     }
 
     /// Replaces the uses of values in one instruction according to a one-step replacement map.

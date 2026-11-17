@@ -996,7 +996,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
     /// adding a negative constant reserves the same prefix as subtracting its magnitude. A step
-    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing.
+    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing, and so does a
+    /// wrapped constant added through a checked object offset, whose bounds check reverts first.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1316,6 +1317,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let shifted = |base,
                        adjustment: U256,
+                       checked: bool,
                        visiting: &mut DenseBitSet<ValueId>,
                        memo: &mut HeapPrefixCache| {
             if Self::heap_prefix_constant(func, base, 0).is_some() {
@@ -1328,6 +1330,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(forward) = u256_to_u64(adjustment) {
                 return Some(prefix.saturating_sub(forward));
             }
+            // A checked offset lies within its object, so a wrapped constant is an index whose
+            // bounds check reverts first, not a step back.
+            if checked {
+                return Some(prefix);
+            }
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
             // NOTE: A step back this far reserves nothing. From a pointer that execution has
             // accessed it wraps to the top of memory, as for a constant out-of-bounds index, whose
@@ -1338,6 +1345,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             Some(prefix.saturating_add(back))
         };
+        let checked = matches!(func.value(value), Value::Inst(inst)
+            if func.inst(*inst).metadata.checked_object_offset());
         let offset = (|| match func.value(value) {
             Value::Arg(index) => {
                 argument_offsets.and_then(|offsets| offsets.get(index).copied()).or_else(|| {
@@ -1359,9 +1368,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // order does not put on the right, so both sides are tried.
                 InstKind::Add(first, second) => {
                     if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
-                        shifted(*first, amount, visiting, memo)
+                        shifted(*first, amount, checked, visiting, memo)
                     } else if let Some(amount) = Self::heap_prefix_constant(func, *first, 0) {
-                        shifted(*second, amount, visiting, memo)
+                        shifted(*second, amount, checked, visiting, memo)
                     } else {
                         derive(*first, visiting, memo).max(derive(*second, visiting, memo))
                     }
@@ -1369,6 +1378,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Sub(base, amount) => shifted(
                     *base,
                     U256::ZERO.wrapping_sub(Self::heap_prefix_constant(func, *amount, 0)?),
+                    checked,
                     visiting,
                     memo,
                 ),

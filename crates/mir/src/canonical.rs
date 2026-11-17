@@ -64,7 +64,9 @@ impl Function {
 
     /// Sets the kind of an existing instruction, in canonical operand order, and leaves its
     /// metadata and result type to the caller. This is for a rewrite that manages both itself,
-    /// such as a lowering; an equivalent rewrite uses [`Self::replace_inst_kind`].
+    /// such as a lowering; an equivalent rewrite uses [`Self::replace_inst_kind`]. A rewrite that
+    /// folds the constant of an addition into another calls
+    /// [`Self::retain_checked_object_offset`] first.
     pub fn set_inst_kind(&mut self, inst: InstId, kind: InstKind) {
         self.inst_mut(inst).kind = self.canonical_kind(kind);
     }
@@ -77,6 +79,7 @@ impl Function {
     /// rewrite. The caller must prove equivalence and preserve the result representation.
     pub fn replace_inst_kind(&mut self, inst: InstId, kind: InstKind) {
         let kind = self.canonical_kind(kind);
+        self.retain_checked_object_offset(inst, &kind);
         self.inst_mut(inst).replace_kind(kind);
     }
 

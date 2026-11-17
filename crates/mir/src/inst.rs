@@ -252,14 +252,16 @@ impl InstructionMetadata {
         self.flags.set_memory_region(region);
     }
 
-    /// Returns whether this instruction was lowered from an unchecked arithmetic context.
+    /// Returns whether this instruction was lowered from an unchecked arithmetic context, or is a
+    /// pointer offset that no bounds check covers.
     #[must_use]
     pub fn unchecked(&self) -> bool {
         self.flags.unchecked()
     }
 
-    /// Sets whether this instruction was lowered from an unchecked arithmetic context.
-    pub(crate) fn set_unchecked(&mut self, unchecked: bool) {
+    /// Sets whether this instruction was lowered from an unchecked arithmetic context, or is a
+    /// pointer offset that no bounds check covers.
+    pub fn set_unchecked(&mut self, unchecked: bool) {
         self.flags.set_unchecked(unchecked);
     }
 
@@ -300,6 +302,11 @@ impl InstructionMetadata {
     /// Marks a word addition that came from pointer arithmetic on a memory object.
     pub fn set_checked_object_offset(&mut self) {
         self.flags.set_checked_object_offset();
+    }
+
+    /// Clears the marker of a word addition that another, unchecked computation joined.
+    pub fn clear_checked_object_offset(&mut self) {
+        self.flags.clear_checked_object_offset();
     }
 
     /// Returns whether this allocation must keep its free-memory-pointer address and bump.
@@ -432,6 +439,10 @@ impl MetadataFlags {
 
     fn set_checked_object_offset(&mut self) {
         self.0 |= Self::CHECKED_OBJECT_OFFSET;
+    }
+
+    fn clear_checked_object_offset(&mut self) {
+        self.0 &= !Self::CHECKED_OBJECT_OFFSET;
     }
 
     fn preserves_fmp(self) -> bool {

@@ -18,7 +18,7 @@
 -     returndata v2, v3
 +     v4 = mload v0
 +     v5 = shl v4, 5
-+     v6 = ptradd v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v6 = ptradd v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(unchecked)
 +     mstore v6, 32
 +     v7 = add v5, 64
 +     v8 = make_memory_slice v6, v7
@@ -66,7 +66,7 @@
 +     v8 = ptrtoint ptr<memory> v7 to i256
 +     v9 = add v8, v4
 +     mstore v9, 0
-+     v10 = ptradd v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v10 = ptradd v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(unchecked)
 +     mstore v10, 32
 +     v11 = add v6, 64
 +     v12 = make_memory_slice v10, v11
