@@ -1,0 +1,36 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "kept()": {
+              "details": "kept"
+            }
+          },
+          "version": 1
+        }
+      },
+      "D": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "E": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      }
+    }
+  }
+}

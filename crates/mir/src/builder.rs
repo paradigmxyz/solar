@@ -181,7 +181,7 @@ impl<'a> FunctionBuilder<'a> {
     ) {
         let block = &mut self.func.blocks[block];
         if matches!(block.terminator, Some(Terminator::Jump(_))) {
-            block.terminator_metadata.add_edge_assignment(value, origin);
+            block.terminator_metadata.add_edge_assignment(value, origin, None);
         }
     }
 
