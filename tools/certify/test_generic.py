@@ -3,12 +3,14 @@
 binding and --replay's manifest check. Run: python3 tools/certify/test_generic.py"""
 
 import argparse
+import ast as pyast
 import contextlib
 import hashlib
 import io
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -2125,6 +2127,105 @@ class ChangedPaths(unittest.TestCase):
         (self.d / "x\u00e9y.lean").write_text("x")
         self.assertEqual(self.outside(), ["x\u00e9y.lean"])
         self.assertIn(f"Certified/{NAME}/a b.lean", generic.changed_paths(self.d))
+
+
+class AfterRunPackages(unittest.TestCase):
+    """The post-run check gets the pinned package set, never the pinned commit string: main's
+    after-run call is the path the r5e run crashed on (`pin` rebound to the rev)."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        root = pathlib.Path(self.t.name)
+        self.repo, self.base, cache = lean_fixture(root)
+        (self.repo / ".lake/packages").mkdir(parents=True)
+        shutil.move(cache / ".lake/packages/Pkg", self.repo / ".lake/packages/Pkg")
+        (self.repo / ".gitignore").write_text(".lake\n")
+        (self.repo / "Certified" / NAME).mkdir(parents=True)
+        (self.repo / "Certified" / NAME / "S.lean").write_text("-- s\n")
+        g = ["git", "-C", str(self.repo), "-c", "user.name=t", "-c", "user.email=t@t"]
+        subprocess.run([*g, "add", "-A"], check=True)
+        subprocess.run(
+            [*g, "-c", "commit.gpgsign=false", "commit", "-qm", "inputs"], check=True
+        )
+        self.inputs = generic.git(self.repo, "rev-parse", "HEAD")
+        self.pin, _ = generic.pinned_packages(self.repo, self.base)
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def problem(self, pin=None):
+        return generic.after_run_problem(
+            self.repo,
+            NAME,
+            self.inputs,
+            {"solidity_lean": self.inputs},
+            self.pin if pin is None else pin,
+        )
+
+    def test_pinned_set_passes(self):
+        (self.repo / "Certified" / NAME / "Final.lean").write_text("-- run output\n")
+        self.assertIsNone(self.problem())
+
+    def test_edited_package_refused(self):
+        (self.repo / ".lake/packages/Pkg/Pkg/Foo.lean").write_text("def foo := 9\n")
+        why = self.problem()
+        self.assertTrue(why.startswith("packages: after the run: "), why)
+        self.assertIn("edited or untracked", why)
+
+    def test_executed_tree_refused_first(self):
+        (self.repo / "SolidCore/A.lean").write_text("-- edited base\n")
+        why = self.problem()
+        self.assertTrue(why.startswith("executed tree: "), why)
+        self.assertIn("SolidCore/A.lean", why)
+
+    def test_rev_string_is_not_a_pin(self):
+        """What main passed before the fix: the rev string crashes packages_problem."""
+        with self.assertRaises(TypeError):
+            self.problem(pin=self.base)
+
+    def test_main_passes_the_pinned_set(self):
+        """In main, every name given as the pin to packages_problem or after_run_problem is bound
+        only by pinned_packages, so no later rebinding (such as the pinned rev) can reach it."""
+        src = pathlib.Path(generic.__file__).read_text()
+        main = next(
+            n
+            for n in pyast.walk(pyast.parse(src))
+            if isinstance(n, pyast.FunctionDef) and n.name == "main"
+        )
+        pos = {"packages_problem": 1, "after_run_problem": 4}
+        used = {
+            c.args[pos[c.func.id]].id
+            for c in pyast.walk(main)
+            if isinstance(c, pyast.Call)
+            and isinstance(c.func, pyast.Name)
+            and c.func.id in pos
+            and len(c.args) > pos[c.func.id]
+            and isinstance(c.args[pos[c.func.id]], pyast.Name)
+        }
+        self.assertIn("pin", used)
+        bad = []
+        for n in pyast.walk(main):
+            if not isinstance(
+                n, (pyast.Assign, pyast.AnnAssign, pyast.AugAssign, pyast.NamedExpr)
+            ):
+                continue
+            targets = n.targets if isinstance(n, pyast.Assign) else [n.target]
+            names = {
+                t.id
+                for tg in targets
+                for t in pyast.walk(tg)
+                if isinstance(t, pyast.Name) and t.id in used
+            }
+            from_pin = (
+                isinstance(n.value, pyast.Call)
+                and isinstance(n.value.func, pyast.Name)
+                and n.value.func.id == "pinned_packages"
+            )
+            if names and not from_pin:
+                bad.append((sorted(names), n.lineno))
+        self.assertEqual(
+            bad, [], "the pin passed to the package checks is rebound in main"
+        )
 
 
 if __name__ == "__main__":
