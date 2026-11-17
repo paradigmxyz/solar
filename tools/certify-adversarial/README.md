@@ -25,3 +25,13 @@ SHIP_REMOTE=<git remote> SHIP_BRANCH=<branch> bash tools/certify-adversarial/run
   checkout, whose commit is recorded as `harness`.
 - `ship.sh` packs each case as it finishes (without its work tree, with a sha256 manifest) and
   pushes it to `SHIP_BRANCH` under `runs/<solar commit>/<case>`.
+
+## On a box
+
+`box/setup.sh SOLAR_SHA HARNESS_SHA LEAN_SHA` prepares a fresh box from public sources (pinned
+solc by sha256) and writes every tool version to `~/t5-versions.txt`. `box/go.sh MEMORY_MAX_BYTES`
+starts `run.sh` in a transient systemd scope with that `memory.max` and `memory.swap.max` 0, and
+starts nothing unless the driver's `tools/certify/box_admit.sh admit` reads both back
+(`$OUT.admission`). Each case also re-reads its own cgroup's limits and refuses (`REFUSED-SCOPE`)
+when `memory.max` is not a byte count or swap is allowed, and records `memory.peak` and
+`memory.events` in `scope.txt`.

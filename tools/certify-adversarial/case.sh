@@ -24,11 +24,20 @@ if [[ "$driver" != "$SOLAR_SHA" || -n "$(git -C "$SOLAR_DIR" status --porcelain 
     exit 0
 fi
 harness=$(git -C "$here" rev-parse HEAD 2>/dev/null || echo unknown)
+# The case runs only under a finite memory limit, read back from its own cgroup.
+cg=$(sed -n 's/^0:://p' /proc/self/cgroup | head -1)
+mmax=$(cat "/sys/fs/cgroup$cg/memory.max" 2>/dev/null || echo unreadable)
+smax=$(cat "/sys/fs/cgroup$cg/memory.swap.max" 2>/dev/null || echo unreadable)
+if [[ ! "$mmax" =~ ^[0-9]+$ || "$smax" != 0 ]]; then
+    echo "REFUSED-SCOPE $(date -u +%FT%TZ) cgroup=$cg memory.max=$mmax memory.swap.max=$smax" > "$R/status"
+    bash "$here/ship.sh" "$name"
+    exit 0
+fi
 # Both escape hatches are unset above; the status line records this case's own environment.
 hatches="CERTIFY_ALLOW_UNPINNED=${CERTIFY_ALLOW_UNPINNED-unset} CERTIFY_ALLOW_FOREIGN_SOLAR=${CERTIFY_ALLOW_FOREIGN_SOLAR-unset}"
 export LEAN_MEMORY=6000 LEAN_NUM_THREADS=1
 now=$(date +%s); left=$((DEADLINE - now))
-echo "START $(date -u +%FT%TZ) driver=$driver harness=$harness lean=$LEAN_SHA expect=$expect budget_s=$left $hatches" > "$R/status"
+echo "START $(date -u +%FT%TZ) driver=$driver harness=$harness lean=$LEAN_SHA expect=$expect budget_s=$left $hatches cgroup=$cg memory.max=$mmax memory.swap.max=$smax" > "$R/status"
 args=(tools/certify/certify "$src" natspec --solidity-lean "$LEAN_DIR" --base "$LEAN_SHA"
       --work "$R/work" --record-dir "$R/rec")
 [[ -z "${PACKAGES_FROM:-}" ]] || args+=(--packages-from "$PACKAGES_FROM")
@@ -67,4 +76,8 @@ if [[ $kind == DONE ]]; then
     for e in "${ok[@]}"; do [[ "$rc" == "$e" ]] && match=yes; done
 fi
 echo "$kind exit=$rc expect=$expect match=$match producer=$pc log_sha256=$(sha256sum < "$R/certify.log" | cut -c1-64) $(date -u +%FT%TZ)" >> "$R/status"
+{
+    echo "memory.events $(tr '\n' ' ' < "/sys/fs/cgroup$cg/memory.events" 2>/dev/null)"
+    echo "memory.peak $(cat "/sys/fs/cgroup$cg/memory.peak" 2>/dev/null || echo unreadable)"
+} > "$R/scope.txt"
 bash "$here/ship.sh" "$name"
