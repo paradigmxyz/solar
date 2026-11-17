@@ -1,0 +1,33 @@
+// A lone CR ends a line of a block doc comment, as in solc: it ends a tag, and the lines of a
+// notice join with a space.
+// CHECK: "userdoc"
+// CHECK: "f()"
+// CHECK-NEXT: "notice": "a b"
+// CHECK: "g()"
+// CHECK-NEXT: "notice": "first"
+// CHECK: "h()"
+// CHECK-NEXT: "notice": "p q r"
+// CHECK: "devdoc"
+// CHECK: "g()"
+// CHECK-NEXT: "details": "second",
+// CHECK-NEXT: "custom:tag": "third"
+// CHECK: "i()"
+// CHECK-NEXT: "details": "x y"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C {\r    /** @notice a\r     * b\r     */\r    function f() public {}\r    /** @notice first\r     * @dev second\r     * @custom:tag third\r     */\r    function g() public {}\r    /**\r     * @notice p\r     * q\r\r     * r\r     */\r    function h() public {}\r    /** @dev x\r\n     * y\r\n     */\r\n    function i() public {}\r}\r"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": [
+          "userdoc",
+          "devdoc"
+        ]
+      }
+    }
+  }
+}

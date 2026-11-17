@@ -20,7 +20,6 @@ use crate::{
         PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
-        utils::is_loop_jump,
     },
 };
 use alloy_primitives::U256;
@@ -261,23 +260,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.block_labels.insert(block, label);
         }
 
-        // A block that only jumps on is never emitted; edges into it go to its final target,
-        // except the jump of a `break` or `continue` statement in an unoptimized build.
+        // A block that only jumps on is never emitted; edges into it go to its final target.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
             if block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit
-                && !self.keeps_loop_jump(func, block)
             {
                 for _ in 0..plan.blocks.len() {
                     match plan.blocks[target].as_ref().map(|plan| (&plan.steps, &plan.exit)) {
                         Some((steps, Exit::Jump(next)))
-                            if steps.is_empty()
-                                && target != BlockId::ENTRY
-                                && target != block
-                                && !self.keeps_loop_jump(func, target) =>
+                            if steps.is_empty() && target != BlockId::ENTRY && target != block =>
                         {
                             target = *next;
                         }
@@ -389,9 +383,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.set_terminator_origin(func, source);
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
-            for step in &steps {
-                self.emit_stackified_step(func_id, func, step, cold);
-            }
+            let assignments = self.edge_assignments(func, source, target);
+            self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
             self.emit_stackified_jump(target, None);
         }
         self.asm.repeating_code = repeating;
@@ -444,34 +437,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.set_terminator_origin(func, block);
-        let mut assignments = self.edge_assignments(func, block, &plan.exit);
-        for step in terminator {
-            let origin = match *step {
-                Step::Materialize(value) => assignments
-                    .iter()
-                    .position(|&(stored, _)| stored == value)
-                    .map(|index| assignments.remove(index).1),
-                // A copy of a value that several assignments stored serves one of them, and no
-                // record says which.
-                Step::Dup(_, Some(value)) | Step::Reload(value)
-                    if assignments.iter().filter(|&&(stored, _)| stored == value).count() == 1 =>
-                {
-                    assignments
-                        .iter()
-                        .position(|&(stored, _)| stored == value)
-                        .map(|index| assignments.remove(index).1)
-                }
-                _ => None,
-            };
-            if let Some(origin) = origin {
-                let terminator_origin = self.asm.debug_origin();
-                self.set_origins(origin);
-                self.emit_stackified_step(func_id, func, step, cold);
-                self.asm.set_debug_origin(terminator_origin);
-            } else {
-                self.emit_block_step(func_id, func, block, step, cold);
-            }
-        }
+        let assignments = match plan.exit {
+            Exit::Jump(target) => self.edge_assignments(func, block, target),
+            _ => Vec::new(),
+        };
+        self.emit_edge_steps(func_id, func, block, terminator, assignments, cold);
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
@@ -481,12 +451,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         };
         match &plan.exit {
-            Exit::Jump(target) if self.keeps_loop_jump(func, block) => {
-                // push target; jump !metadata(keep_with_next)
-                self.asm.emit_push_label(self.block_labels[&resolve(*target)]);
-                self.asm.keep_last_with_next();
-                self.asm.emit_op(op::JUMP);
-            }
             Exit::Jump(target) => self.emit_stackified_jump(resolve(*target), next),
             Exit::Branch { then_edge, else_edge } => {
                 let falls =
@@ -504,9 +468,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
                 let label = edge_label(self, taken);
                 self.emit_conditional_jump(label, invert);
-                for step in fall.trampoline.iter().flatten() {
-                    self.emit_stackified_step(func_id, func, step, cold);
-                }
+                let assignments = self.edge_assignments(func, block, fall.target);
+                let steps = fall.trampoline.as_deref().unwrap_or_default();
+                self.emit_edge_steps(func_id, func, block, steps, assignments, cold);
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {
@@ -538,12 +502,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
-                // An unoptimized build keeps the jump of a call statement, the instruction coverage
-                // anchors the statement to, instead of letting a branch jump straight to the
-                // callee.
-                if self.optimization.is_none() && origin.is_some() {
-                    self.asm.keep_last_with_next();
-                }
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -712,30 +670,89 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits the code of an edge, giving each push of the value that an assignment of
+    /// `assignments` stored the source context of that assignment.
+    fn emit_edge_steps(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        block: BlockId,
+        steps: &[Step],
+        mut assignments: Vec<(ValueId, &InstructionMetadata)>,
+        cold: bool,
+    ) {
+        for step in steps {
+            let origin = match *step {
+                Step::Materialize(value) => assignments
+                    .iter()
+                    .position(|&(stored, _)| stored == value)
+                    .map(|index| assignments.remove(index).1),
+                // A copy of a value that several assignments stored serves one of them, and no
+                // record says which.
+                Step::Dup(_, Some(value)) | Step::Reload(value)
+                    if assignments.iter().filter(|&&(stored, _)| stored == value).count() == 1 =>
+                {
+                    assignments
+                        .iter()
+                        .position(|&(stored, _)| stored == value)
+                        .map(|index| assignments.remove(index).1)
+                }
+                _ => None,
+            };
+            if let Some(origin) = origin {
+                let terminator_origin = self.asm.debug_origin();
+                self.set_origins(origin);
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(terminator_origin);
+            } else {
+                self.emit_block_step(func_id, func, block, step, cold);
+            }
+        }
+    }
+
     /// Returns the assignments, as the value each stored and its source context, whose pushes and
-    /// copies the code of the edge out of `block` may carry, or none when `exit` is not a jump.
+    /// copies the code of the edge from `block` to `target` may carry.
     ///
-    /// NOTE: A jump is an edge that leaves `block` unconditionally, so its code runs exactly once
-    /// per execution of `block`. The assignments in [`InstructionMetadata::edge_assignments`]
-    /// ran in `block`, so the push or `DUP` of the value of one runs exactly when the assignment
-    /// does and may carry its span, as a copy carries the location of the instruction it
-    /// replaces. An edge out of a block that branches keeps the origin of its terminator: its
-    /// code runs on one arm only. A push is matched by its value. A `DUP` or a reload, which
+    /// NOTE: The code of an edge runs exactly when control takes the edge. An assignment that ran
+    /// in `block` runs once per run of `block`, so it matches an edge out of a jump: the push or
+    /// `DUP` of its value runs exactly when the assignment does and may carry its span, as a copy
+    /// carries the location of the instruction it replaces. An edge out of a branch keeps the
+    /// origin of its terminator unless the assignment is exact for that edge, as one that a
+    /// bypassed arm left on it is ([`InstructionMetadata::edge_assignments`]), and the branch has
+    /// no other edge to `target`. A push is matched by its value. A `DUP` or a reload, which
     /// [`Step::Dup`] and [`Step::Reload`] name by the value they copy, is matched only when one
-    /// assignment stored the value, since the planner does not record which phi a copy serves.
-    /// A word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
+    /// assignment stored the value, since the planner does not record which phi a copy serves. A
+    /// word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
     /// map.
     fn edge_assignments<'f>(
         &self,
         func: &'f Function,
         block: BlockId,
-        exit: &Exit,
+        target: BlockId,
     ) -> Vec<(ValueId, &'f InstructionMetadata)> {
-        if !self.capture_debug_info || !matches!(exit, Exit::Jump(_)) {
+        if !self.capture_debug_info {
             return Vec::new();
         }
-        let assignments = func.blocks[block].terminator_metadata.edge_assignments();
-        assignments.iter().map(|assignment| (assignment.value, &assignment.origin)).collect()
+        let block = &func.blocks[block];
+        let jump = matches!(block.terminator, Some(Terminator::Jump(_)));
+        let single_edge = match &block.terminator {
+            Some(Terminator::Jump(next)) => *next == target,
+            Some(Terminator::Branch { then_block, else_block, .. }) => {
+                (*then_block == target) != (*else_block == target)
+            }
+            _ => false,
+        };
+        if !single_edge {
+            return Vec::new();
+        }
+        (block.terminator_metadata.edge_assignments().iter())
+            .filter(
+                |assignment| {
+                    if jump { assignment.edge.is_none() } else { assignment.edge == Some(target) }
+                },
+            )
+            .map(|assignment| (assignment.value, &assignment.origin))
+            .collect()
     }
 
     /// Attributes the push of a retained constant to `origins`, the combined origin of its readers
@@ -759,14 +776,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut combined = metadata(first).clone();
         combined.combine_debug_locs(rest.iter().map(metadata));
         self.set_origins(&combined);
-    }
-
-    /// Returns whether the block ends in the jump of a `break` or `continue` statement that an
-    /// unoptimized build keeps as an executed `JUMP`, the instruction coverage anchors the
-    /// statement to.
-    fn keeps_loop_jump(&self, func: &Function, block: BlockId) -> bool {
-        self.optimization.is_none()
-            && is_loop_jump(self.gcx, &func.blocks[block].terminator_metadata)
     }
 
     /// Jumps to `target` unless it is the next block in the layout.

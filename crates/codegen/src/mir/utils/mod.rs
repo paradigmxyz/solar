@@ -4,8 +4,6 @@
 mod call;
 pub(crate) mod eval;
 mod gas;
-mod loop_jump;
 pub(crate) use call::emit_call;
 pub(crate) use gas::pre_tangerine_call_gas;
-pub(crate) use loop_jump::is_loop_jump;
 pub(crate) use solar_mir::utils::*;

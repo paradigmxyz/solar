@@ -3,7 +3,7 @@
 use super::DocumentationKind;
 use crate::{
     hir,
-    natspec::{LocalTags, starts_group},
+    natspec::{LocalTags, is_untagged, is_untagged_line, starts_group},
     ty::Gcx,
 };
 use serde::Serialize;
@@ -260,8 +260,11 @@ fn dev_doc_item(gcx: Gcx<'_>, item: hir::ItemId) -> DocumentationItem {
     documentation
 }
 
+/// Appends a tag's text, like solc, which omits a tag without any.
 fn append_doc(target: &mut Option<String>, content: &str) {
-    target.get_or_insert_default().push_str(content);
+    if !content.is_empty() {
+        target.get_or_insert_default().push_str(content);
+    }
 }
 
 fn return_docs(
@@ -313,18 +316,12 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
         return inherited_doc_items(gcx, item_id);
     }
     let mut items: Vec<DocItem> = Vec::new();
-    // The items that start a tag; continuation lines replace no inherited tag.
-    let mut tagged = Vec::new();
     for &item in &local {
-        let untagged = matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0;
+        let untagged = is_untagged(&item);
         let bare = !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t']);
-        let line_comment = untagged
-            && gcx
-                .sess
-                .source_map()
-                .span_to_snippet(item.span)
-                .is_ok_and(|snippet| snippet.starts_with("///"));
-        if line_comment && let Some(previous) = items.last_mut() {
+        if is_untagged_line(gcx, &item)
+            && let Some(previous) = items.last_mut()
+        {
             // A tag with nothing after it on its line takes the next line, without its leading
             // whitespace.
             if previous.content.is_empty() && previous.bare {
@@ -335,7 +332,7 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             continue;
         }
         let mut content = String::new();
-        for (i, line) in item.content().split('\n').enumerate() {
+        for (i, line) in item.content().split(['\n', '\r']).enumerate() {
             if i == 0 {
                 content.push_str(if untagged {
                     line.trim_start_matches([' ', '\t'])
@@ -358,10 +355,9 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
             }
         }
         items.push(DocItem { kind: item.kind, content, bare });
-        tagged.push(item);
     }
     if let Some((_, target)) = target {
-        let local_tags = LocalTags::from_items(&tagged);
+        let local_tags = LocalTags::from_group(gcx, &local);
         items.extend(
             doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
         );
@@ -411,16 +407,24 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
     Some(docs[0].span.with_hi(docs[start].span.lo()))
 }
 
-/// Returns the errors documented for a contract in solc's order, by AST ID: solc parses its
-/// sources in the order of their names, so errors of the same signature from different sources
-/// are listed by source name, then by position. Sources solc loads through its import callback
-/// come after the given ones, which this order does not model.
+/// Returns the errors documented for a contract in solc's order, by AST ID: errors of the same
+/// signature from different sources are listed by the order solc parses the sources in, then by
+/// position.
 fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::ErrorId> {
     let mut errors = gcx.interface_errors(contract_id).iter().collect::<Vec<_>>();
+    let imported = errors.iter().any(|&error| gcx.hir.source(gcx.hir.error(error).source).imported);
+    // Without imported sources, the order is by source name.
+    let order = imported.then(|| gcx.source_parse_order(()));
     errors.sort_by(|&a, &b| {
         let (a, b) = (gcx.hir.error(a), gcx.hir.error(b));
-        let name = |error: &hir::Error<'_>| &gcx.hir.source(error.source).file.name;
-        name(a).cmp_source_unit_name(name(b)).then(a.span.lo().cmp(&b.span.lo()))
+        let source = match &order {
+            Some(order) => order[a.source].cmp(&order[b.source]),
+            None => {
+                let name = |error: &hir::Error<'_>| &gcx.hir.source(error.source).file.name;
+                name(a).cmp_source_unit_name(name(b))
+            }
+        };
+        source.then(a.span.lo().cmp(&b.span.lo()))
     });
     errors
 }

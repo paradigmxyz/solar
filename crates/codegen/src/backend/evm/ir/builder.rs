@@ -690,7 +690,6 @@ impl<'gcx> Assembler<'gcx> {
                 && jump.opcode == op::JUMP
                 && let Some(target) = push.pushed_block()
                 && push.is_encoded_push()
-                && !push.keeps_with_next()
             {
                 (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2, jump.metadata.clone())
             } else if let Some(last) = block.instructions.last()

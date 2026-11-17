@@ -14,6 +14,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let hir_sources = self.sources.iter_enumerated().map(|(id, source)| {
             let mut hir_source = hir::Source {
                 file: source.file.clone(),
+                imported: source.imported,
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
                 usings: &[],
