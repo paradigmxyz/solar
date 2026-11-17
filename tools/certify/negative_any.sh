@@ -17,8 +17,12 @@
 # - AnyCaller: its gas bound lowered by one (gas_le fails);
 # - stage0: the call value check's branch taken the other way, and the call value read as the
 #   caller (the checks for every caller and for value calls in Lowering fail);
+# - AnyCaller: the every-value claim's premise of a value other than 0 dropped (published_nonpayable
+#   fails: a call without value runs the function);
 # - Statement: the every-caller conjunct's gas bound lowered by one, and its real-context premise
-#   (ctx.Ok: a caller below 2^160 other than the contract) dropped (Final fails).
+#   (ctx.Ok: a caller below 2^160 other than the contract) dropped (Final fails); the every-value
+#   conjunct's premise of a value other than 0 dropped, its revert stated as a success, and the
+#   value range widened past 2^256 (Final fails).
 #
 # A case whose text is not in the module counts as a skip, and the run fails on any skip, since
 # every module of the any route has them. LEAN_MEMORY caps each Lean process (MB, default 6000).
@@ -119,6 +123,10 @@ case_ Stage0-value-branch "gen/$contract/Stage0" Lowering 'check_sym_stage0|chec
 case_ Stage0-callvalue-as-caller "gen/$contract/Stage0" Lowering 'check_sym_stage0|checkValueSym_stage0' 's = re.sub(r"\.effect \(some (\d+)\) \.callvalue \[\]", r".effect (some \1) .caller []", s, count=1)'
 case_ Statement-any-gas-below Statement Final 'error' "s = s.replace('(fun _ => $bound)', '(fun _ => $below)', 1)"
 case_ Statement-any-no-ctx-ok Statement Final 'error' 's = s.replace("ctx.Ok → ∃ c,", "True → ∃ c,", 1)'
+case_ AnyCaller-nonpayable-no-value AnyCaller AnyCaller 'published_nonpayable|error' 's = s.replace("call.callvalue ≠ 0 →\n", "True →\n", 1)'
+case_ Statement-nonpayable-no-value Statement Final 'error' 's = s.replace("call.callvalue ≠ 0 →", "True →", 1)'
+case_ Statement-nonpayable-success Statement Final 'error' 's = s.replace("some { success := false,", "some { success := true,", 1)'
+case_ Statement-value-wide Statement Final 'error' 's = s.replace("∀ v, v < 2 ^ 256 →", "∀ v, v < 2 ^ 257 →", 1)'
 
 echo "$name every-caller negative tests: $cases cases, $failures failed, $skips skipped"
 [[ $failures -eq 0 && $skips -eq 0 ]]

@@ -127,9 +127,24 @@ class Route(unittest.TestCase):
         self.assertIn(f"(_root_.{NS}.src.semAt ctx).run c call", st)
         # The claim is added to the fixed statement, never in place of it.
         self.assertIn(
-            f"_root_.SolidCore.Verify.Generic.Expected _root_.{NS}.src _root_.{NS}.spec _root_.{NS}.runtimeBytes ∧\n    {FORALL}",
+            f"_root_.SolidCore.Verify.Generic.Expected _root_.{NS}.src _root_.{NS}.spec _root_.{NS}.runtimeBytes ∧\n    ({FORALL}",
             st,
         )
+        # Every value: a value other than 0 reverts in the bytes from every caller, and the valid
+        # calls are closed under every value, each its own conjunct beside the equivalence.
+        self.assertIn(
+            f"(_root_.{NS}.src.semAt ctx).run c call) ∧\n"
+            f"    ({FORALL} ∀ call, _root_.{NS}.spec.Valid ctx call →\n"
+            "      call.callvalue ≠ 0 → ∀ gas, (fun _ => 2000) call ≤ gas →\n"
+            f"        _root_.SolidCore.Verify.Generic.runAt ctx gas (_root_.SolidCore.Verify.Generic.runtimeCode _root_.{NS}.runtimeBytes) call =\n"
+            "          some { success := false, output := [], logs := [],\n"
+            "            storage := _root_.SolarTV.slotValue call.storage }) ∧\n"
+            f"    (∀ ctx call, _root_.{NS}.spec.Valid ctx call → ∀ v, v < 2 ^ 256 →\n"
+            f"      _root_.{NS}.spec.Valid ctx {{ call with callvalue := v }})",
+            st,
+        )
+        self.assertIn("(Certified.c_1.AnyCaller.published_nonpayable) ctx hctx call hv hv0 gas hg", out["final"])
+        self.assertIn("(Certified.c_1.AnyCaller.valid_any_value) call hv v hlt", out["final"])
         head = fx.split("/-- **The published statement.**")[0]
         self.assertTrue(st.startswith(head))
         self.assertIn("import c_1.AnyCaller\n", out["final"])
@@ -175,6 +190,16 @@ class FailsClosed(unittest.TestCase):
         g = dict(ANY_GENERIC, check_sym="check_stage0")
         self.refused(
             shape(generic=g, any_caller=ANY_PROOF), "needs the check for every caller"
+        )
+
+    def test_any_with_foreign_proof_name(self):
+        # The every-value claims are published_any's siblings: another proof name has none.
+        self.refused(
+            shape(
+                generic=ANY_GENERIC,
+                any_caller=dict(ANY_PROOF, proof="Certified.c_1.AnyCaller.other"),
+            ),
+            "any_caller.proof must be a published_any",
         )
 
     def test_any_without_proof(self):

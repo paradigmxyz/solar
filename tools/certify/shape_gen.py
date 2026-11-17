@@ -116,6 +116,11 @@ every caller ({q}{ns}.{g["check_sym"]}{q}, {q}{ns}.{g["check_value_sym"]}{q}), t
 {q}{M}.{stages["compose"]}{q} under every oracle, the run of {q}{stages["last"]}{q} within {N} blocks and
 {q}{C}.check_ok{q}. The gas bound of the checker with contexts is {bound}. This is translation
 equality for every caller; the specification is not part of it.
+
+{q}published_nonpayable{q}: in the same contexts, every call of the statement with a value other than 0
+reverts in the exact bytecode with empty output, no logs and its storage (every function is
+non-payable: {q}{ns}.{g["check_value_sym"]}{q}); {q}valid_any_value{q}: the calls of the statement are
+closed under every value below {q}2 ^ 256{q}.
 -/
 
 namespace Certified.{name}.AnyCaller
@@ -172,6 +177,74 @@ theorem published_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →
 /-- info: 'Certified.{name}.AnyCaller.published_any' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms published_any
+
+/-- **SolidCore rejects a value from every caller, on the check's scope**: a call of the scope with a
+value other than 0, sent by any account, reverts with empty output, no logs and its storage. Every
+function of the scope is non-payable ({q}checkValue{q} asks it), so this is {q}source_run_value_from{q}
+on the function the call selects. -/
+theorem source_rejects_value (a : Nat) {{fuel mirFuel : Nat}}
+    {{c : SolidCore.Solidity.TypeCheck.CheckedContract}} {{d : SolidCore.Solidity.Source.State}}
+    {{s : List (Nat × Nat)}} (hd : SolidCore.Refinement.Wide.DeployedAt fuel c d s)
+    {{m : MIR.Lowered.Module}} {{fns : List Abi.Fn}} (hchk : Generic.checkSym fuel mirFuel c.core m fns = true)
+    (hval : Generic.checkValue mirFuel c.core m fns .allSym = true) :
+    ∀ call, SolidCore.Verify.AnyCaller.scope s fns call → call.callvalue ≠ 0 →
+      (solidCoreFrom a fuel).run c call = some (SolidCore.Refinement.Abi.rejected call.storage) := by
+  rintro _ ⟨σ, v, -, hv, f, hf, args, hlen, hargs, rfl⟩ hv0
+  have hcf := List.all_eq_true.mp hchk f hf
+  have hcv := List.all_eq_true.mp hval f hf
+  unfold Generic.checkFnSym at hcf
+  unfold Generic.checkValueFn at hcv
+  cases hfind : c.core.findFunctionBySelector? f.sel with
+  | none => simp [hfind] at hcf
+  | some fn =>
+  cases ht1 : Generic.eraseFnSym (Generic.envOf c.core) fuel fn with
+  | none => simp [hfind, ht1] at hcf
+  | some t1 =>
+  cases ht2 : Generic.symTreeValue m f.sel f.params.length mirFuel .allSym with
+  | none => simp [hfind, ht2] at hcv
+  | some T =>
+  simp only [hfind, ht1, Bool.and_eq_true, decide_eq_true_eq] at hcf
+  obtain ⟨hsel, hpl, -⟩ := hcf
+  simp only [hfind, ht2, Bool.and_eq_true, Bool.not_eq_true'] at hcv
+  obtain ⟨hpay, -⟩ := hcv
+  obtain ⟨ws, hw⟩ := Generic.eraseFnSym_widths ht1
+  exact Generic.source_run_value_from a hd hsel hfind hw hpay args (by rw [hlen, hpl]) hargs hv0 hv σ
+
+/-- **{contract} rejects a value from every caller.** In every real context, every call of the
+statement with a value other than 0 and every gas from {K} on, the exact bytecode reverts with empty
+output, no logs and the storage before the call. -/
+theorem published_nonpayable : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →
+    ∀ call, {shape["valid"]} call → call.callvalue ≠ 0 →
+      ∀ gas, (fun _ => {K}) call ≤ gas →
+        SolidCore.Verify.Generic.runAt ctx gas {C}.code call =
+          some {{ success := false, output := [], logs := [], storage := SolarTV.slotValue call.storage }} := by
+  intro ctx hctx call hv hv0 gas hg
+  obtain ⟨c, hc, h⟩ := published_any ctx hctx
+  rw [h call hv gas hg]
+  obtain ⟨hk, d, hd⟩ := {ns}.deployed_of hc
+  have hchk : Generic.checkSym {sns}.fuel {ns}.mirFuel c.core {X}.stage0 ({g["fns"]}) = true := by
+    rw [hk]; exact {ns}.{g["check_sym"]}
+  have hval : Generic.checkValue {ns}.mirFuel c.core {X}.stage0 ({g["fns"]}) .allSym = true := by
+    rw [hk]; exact {ns}.{g["check_value_sym"]}
+  exact source_rejects_value ctx.caller hd hchk hval call hv hv0
+
+/-- **Every value**: the calls of the statement are closed under every call value below
+{q}2 ^ 256{q}, so the claims above quantify the value, not one value. -/
+theorem valid_any_value : ∀ call, {shape["valid"]} call → ∀ v, v < 2 ^ 256 →
+    {shape["valid"]} {{ call with callvalue := v }} := by
+  intro call hv v hlt
+  change SolidCore.Verify.AnyCaller.scope ({g["storage"]}) ({g["fns"]}) call at hv
+  change SolidCore.Verify.AnyCaller.scope ({g["storage"]}) ({g["fns"]}) _
+  obtain ⟨σ, v', hcov, -, f, hf, args, hlen, hargs, rfl⟩ := hv
+  exact ⟨σ, v, hcov, hlt, f, hf, args, hlen, hargs, rfl⟩
+
+/-- info: 'Certified.{name}.AnyCaller.published_nonpayable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms published_nonpayable
+
+/-- info: 'Certified.{name}.AnyCaller.valid_any_value' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms valid_any_value
 
 end Certified.{name}.AnyCaller
 """
