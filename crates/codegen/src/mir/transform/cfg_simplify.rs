@@ -805,13 +805,10 @@ fn move_edge_assignments(
         }
         _ => return,
     };
-    for assignment in assignments {
-        block.terminator_metadata.add_edge_assignment(assignment.value, assignment.origin, edge);
-    }
     // The jump of the edge replaces the forwarder's jump, so it keeps that jump's lack of a
     // location.
-    if generated_exit {
-        block.terminator_metadata.mark_edge_exit_generated(edge);
+    for assignment in assignments {
+        block.terminator_metadata.add_bypassed_assignment(assignment, edge, generated_exit);
     }
 }
 

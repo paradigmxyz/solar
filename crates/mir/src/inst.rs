@@ -78,19 +78,26 @@ impl InstructionMetadata {
     /// target block, or on the jump that ends the block when `edge` is `None`. `origin` is the
     /// source context the assignment was lowered under, as [`Self::debug_context`] copies it.
     pub fn add_edge_assignment(&mut self, value: ValueId, origin: Self, edge: Option<BlockId>) {
-        let assignment = EdgeAssignment { value, origin, edge, generated_exit: false };
+        let assignment = EdgeAssignment { value, origin, edge, generated_exit: None };
         let assignments = &mut self.edge_assignments.get_or_insert_default().0;
         if !assignments.contains(&assignment) {
             assignments.push(assignment);
         }
     }
 
-    /// Records that the jump of `edge` replaces a jump that belongs to no source construct.
-    pub fn mark_edge_exit_generated(&mut self, edge: Option<BlockId>) {
-        let assignments =
-            self.edge_assignments.iter_mut().flat_map(|assignments| &mut assignments.0);
-        for assignment in assignments.filter(|assignment| assignment.edge == edge) {
-            assignment.generated_exit = true;
+    /// Records `assignment`, left by a bypassed block whose jump `generated` says belongs to no
+    /// source construct, as exact for `edge`. It keeps what an earlier bypass recorded.
+    pub fn add_bypassed_assignment(
+        &mut self,
+        mut assignment: EdgeAssignment,
+        edge: Option<BlockId>,
+        generated: bool,
+    ) {
+        assignment.edge = edge;
+        assignment.generated_exit.get_or_insert(generated);
+        let assignments = &mut self.edge_assignments.get_or_insert_default().0;
+        if !assignments.contains(&assignment) {
+            assignments.push(assignment);
         }
     }
 
@@ -384,9 +391,10 @@ pub struct EdgeAssignment {
     pub value: ValueId,
     /// The source context of the assignment, as [`InstructionMetadata::debug_context`] copies it.
     pub origin: InstructionMetadata,
-    /// Whether the edge replaces a jump that belongs to no source construct, such as the jump out
-    /// of an `if` arm, so the code that jumps along the edge belongs to none either.
-    pub generated_exit: bool,
+    /// Whether the jump of the edge replaces a jump that belongs to no source construct, such as
+    /// the jump out of an `if` arm, or one that does. `None` until a bypassed block's jump is
+    /// replaced by the edge.
+    pub generated_exit: Option<bool>,
 }
 
 /// The assignments of a jump, boxed on instructions that have any, so others pay one word.
