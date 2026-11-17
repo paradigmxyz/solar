@@ -16,6 +16,7 @@ import sys
 import tempfile
 import typing
 import unittest
+import unittest.mock
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -2319,6 +2320,73 @@ class AfterRunPackages(unittest.TestCase):
         self.assertEqual(
             bad, [], "the pin passed to the package checks is rebound in main"
         )
+
+
+class LakeJobsAdmission(unittest.TestCase):
+    """CERTIFY_LAKE_JOBS Lean processes of LEAN_MEMORY MB start only when they fit the memory.max of
+    the driver's cgroup, read under a fixture CERTIFY_CGROUP_ROOT."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = pathlib.Path(tmp.name)
+        lines = pathlib.Path("/proc/self/cgroup").read_text().splitlines()
+        path = next(line[3:] for line in lines if line.startswith("0::"))
+        self.cg = self.root / path.strip("/")
+        self.cg.mkdir(parents=True, exist_ok=True)
+
+    def admit(self, jobs, limit):
+        if limit is not None:
+            (self.cg / "memory.max").write_text(f"{limit}\n")
+        env = dict(
+            os.environ, CERTIFY_LAKE_JOBS=str(jobs), CERTIFY_CGROUP_ROOT=str(self.root)
+        )
+        with unittest.mock.patch.dict(os.environ, env, clear=True):
+            try:
+                generic.admit_lake_jobs()
+            except SystemExit as e:
+                return str(e)
+        return None
+
+    def driver(self, jobs, limit):
+        """scripts/certify itself, which must refuse before it reads its arguments."""
+        (self.cg / "memory.max").write_text(f"{limit}\n")
+        env = dict(
+            os.environ,
+            CERTIFY_LAKE_JOBS=str(jobs),
+            CERTIFY_CGROUP_ROOT=str(self.root),
+            LEAN_MEMORY="3000",
+        )
+        return subprocess.run(
+            ["bash", str(HERE.parent.parent / "scripts" / "certify")],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_one_job_needs_no_limit(self):
+        self.assertIsNone(self.admit(1, None))
+        self.assertIsNone(self.admit(1, "max"))
+
+    def test_fits(self):
+        self.assertIsNone(self.admit(2, 2 * 6000 * 1024 * 1024))
+
+    def test_too_big(self):
+        err = self.admit(3, 2 * 6000 * 1024 * 1024)
+        self.assertIn("need 18000 MB, more than the 12000 MB", err)
+        r = self.driver(4, 8000 * 1024 * 1024)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("need 12000 MB, more than the 8000 MB", r.stderr)
+
+    def test_unlimited(self):
+        self.assertIn("is max (no limit)", self.admit(2, "max"))
+        r = self.driver(2, "max")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("is max (no limit)", r.stderr)
+
+    def test_unreadable(self):
+        self.assertIn("cannot read", self.admit(2, None))
 
 
 if __name__ == "__main__":

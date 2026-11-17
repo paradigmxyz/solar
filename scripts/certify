@@ -65,7 +65,9 @@
 # certification.
 #
 # Environment: SOLIDITY_LEAN_DIR, SOLAR, CERTIFY_SKIP_BUILD, LEAN_MEMORY (MB per Lean process,
-# default 3000), LEAN_NUM_THREADS (default 1), CARGO_BUILD_JOBS (default 2), CERTIFY_WRAP (a
+# default 3000), LEAN_NUM_THREADS (default 1: threads per Lean process), CERTIFY_LAKE_JOBS (default
+# 1: Lean processes lake runs at once; peak memory is about CERTIFY_LAKE_JOBS * LEAN_MEMORY),
+# CARGO_BUILD_JOBS (default 2), CERTIFY_WRAP (a
 # command prefix for every cargo, lake and lean process, such as a job slot limiter),
 # CERTIFY_EXAMPLES (default Certified). Two escape hatches, each reported in the result line and
 # refused when CI or GITHUB_ACTIONS is set: CERTIFY_ALLOW_UNPINNED=1 accepts a SOLIDITY_LEAN_DIR at another commit, and
@@ -78,8 +80,16 @@ export LC_ALL=C
 root="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
 here="$root/tools/certify"
 export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-1}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
+# lake is a Lean program whose build scheduler runs on Lean's task pool, which LEAN_NUM_THREADS
+# sizes: with LEAN_NUM_THREADS=1 lake compiles one module at a time. So each lake build gets
+# CERTIFY_LAKE_JOBS, and the sandboxed lean it starts (tools/certify/lean_iso.sh) gets
+# LEAN_NUM_THREADS back through CERTIFY_LEAN_THREADS.
+export CERTIFY_LAKE_JOBS="${CERTIFY_LAKE_JOBS:-1}" CERTIFY_LEAN_THREADS="$LEAN_NUM_THREADS"
+[[ "$CERTIFY_LAKE_JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "certify: error: CERTIFY_LAKE_JOBS must be a positive integer" >&2; exit 1; }
 export LEAN_MEMORY="${LEAN_MEMORY:-3000}"
 memory="$LEAN_MEMORY"
+# Several Lean processes at once start only when their caps fit the run's cgroup memory limit.
+bash "$here/admit.sh" "$CERTIFY_LAKE_JOBS" "$memory" || exit 1
 examples="${CERTIFY_EXAMPLES:-Certified}"
 read -r -a wrap <<<"${CERTIFY_WRAP:-}"
 caveats=()
@@ -144,6 +154,19 @@ no_planted_bins() {
         die "cannot search $lean_dir for build bin directories"
     [[ -z "$found" ]] || die "the checkout has executables lake env would run before the toolchain's: $(head -3 <<<"$found" | tr '\n' ' ')"
 }
+# threads: the command prefix of the unsandboxed lake builds (the path dependencies and the upstream
+# packages), whose lean is the toolchain's own, not lean_iso.sh. With CERTIFY_LAKE_JOBS at 1 it is
+# empty, so those builds run exactly as before; above 1, lake gets CERTIFY_LAKE_JOBS and runs lean
+# from tools/certify/sysroot.sh's threads mode, which gives each lean LEAN_NUM_THREADS back.
+threads=()
+threads_setup() {
+    [[ "$CERTIFY_LAKE_JOBS" != 1 && ${#threads[@]} -eq 0 ]] || return 0
+    local bin
+    resolve_toolchain
+    bin="$(bash "$here/sysroot.sh" "$toolchain" "$lean_dir/.lake/certify-sysroot-threads" threads)" ||
+        die "cannot set up the lean of the unsandboxed builds"
+    threads=(env "PATH=$bin:$PATH" "LEAN_NUM_THREADS=$CERTIFY_LAKE_JOBS")
+}
 iso_setup() {
     [[ -n "$iso_bin" ]] && return
     local tcroot
@@ -176,7 +199,8 @@ prebuild_packages() {
         (cd "$lean_dir" && run lake exe cache get) >&2 || die "cannot fetch Mathlib's build cache"
     fi
     printf 'lake packages (%s modules imported): ' "${#todo[@]}"
-    (cd "$lean_dir" && lake "-KleanMemory=$memory" build "${todo[@]/#/+}" >> "$plog" 2>&1) ||
+    threads_setup
+    (cd "$lean_dir" && ${threads[@]+"${threads[@]}"} lake "-KleanMemory=$memory" build "${todo[@]/#/+}" >> "$plog" 2>&1) ||
         { grep -E '^error' -A8 "$plog" | head -40 >&2; die "the lake packages $* import do not build"; }
     tail -n 1 "$plog"
     for m in "${todo[@]}"; do prebuilt[$m]=1; done
@@ -375,7 +399,8 @@ if [[ "${CERTIFY_CLEAN_BUILD:-}" == 1 ]]; then
     mkdir -p "$lean_dir/.lake/build"
     # The path dependencies (vendor/, committed and checked above) build here, before any module of
     # the run's own proofs exists, since the sandboxed steps may write the package's build only.
-    (cd "$lean_dir" && run lake "-KleanMemory=$memory" build EvmYul EvmInteraction 2>&1 | tail -n 1) ||
+    threads_setup
+    (cd "$lean_dir" && run ${threads[@]+"${threads[@]}"} lake "-KleanMemory=$memory" build EvmYul EvmInteraction 2>&1 | tail -n 1) ||
         die "cannot build the path dependencies of $lean_dir"
 else
     caveats+=("provenance: the starting build directory is trusted, not rebuilt from source (CERTIFY_CLEAN_BUILD=1)")
@@ -529,7 +554,7 @@ execution=()
 [[ -f "$dir/Proofs/Execution.lean" ]] && execution=("$name.Proofs.Execution")
 for module in "${stages[@]}" "${runs[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "${execution[@]}" "$name.Proofs"; do
     printf '%s: ' "$module"
-    if ! guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module"; then
+    if ! guarded "$log" "$module" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$module"; then
         grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
         die "$module does not check"
     fi
@@ -612,7 +637,7 @@ if [[ -n "$verify" ]]; then
         fi
         bash "$here/audit.sh" scan "$dir/VC.lean" || die "the exported conditions fail the scan"
         printf '%s: ' "$name.VC"
-        guarded "$log" "$name.VC" lake "-KleanMemory=$memory" build "$name.VC" || { tail -40 "$log" >&2; die "$name.VC does not check"; }
+        guarded "$log" "$name.VC" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$name.VC" || { tail -40 "$log" >&2; die "$name.VC does not check"; }
         tail -n 1 "$log"
         # How many obligations the script has and which are vacuous (their hypotheses refuted),
         # by evaluation: the count only sizes the generated modules, whose proof fails when it is
@@ -636,7 +661,7 @@ open SolidCore.Verify.VC
         mapfile -t parts < <(cd "$examples" && ls "$name"/Discharge/Part*.lean 2>/dev/null | sed 's|\.lean$||; s|/|.|g' | sort -V)
         for module in "${parts[@]}" "$name.Discharge"; do
             printf '%s: ' "$module"
-            guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check: the conditions are not discharged"; }
+            guarded "$log" "$module" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$module" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check: the conditions are not discharged"; }
             tail -n 1 "$log"
         done
         audit "$lean_dir/.lake/certify-vc-$name.out" "$name.Discharge" -- "Certified.$cap.VC.script_valid"
@@ -658,7 +683,7 @@ open SolidCore.Verify.VC
             [[ ${#holds[@]} -gt 0 ]] || die "spec_connect.py connects no function of $contract"
             bash "$here/audit.sh" scan "$dir/SpecConnect.lean" || die "$dir/SpecConnect.lean fails the scan"
             printf '%s: ' "$name.SpecConnect"
-            guarded "$log" "$name.SpecConnect" lake "-KleanMemory=$memory" build "$name.SpecConnect" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$name.SpecConnect does not check"; }
+            guarded "$log" "$name.SpecConnect" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$name.SpecConnect" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$name.SpecConnect does not check"; }
             tail -n 1 "$log"
             audit "$lean_dir/.lake/certify-spec-$name.out" "$name.SpecConnect" -- "${holds[@]}"
             spec_status+="; source spec holds of SolidCore (generic, not yet of the bytecode): ${holds[*]}"
@@ -699,7 +724,7 @@ if [[ -f "$dir/headline" || ( $require_spec -eq 1 && -f "$dir/spec" ) ]]; then
         if [[ -f "$hfile" ]]; then
             bash "$here/audit.sh" scan "$hfile" || die "$hfile fails the scan"
         fi
-        if ! guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module"; then
+        if ! guarded "$log" "$module" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$module"; then
             grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
             die "$module does not check"
         fi
@@ -793,7 +818,7 @@ PYEOF
         done
         for module in "${sc_build[@]}"; do
             printf '%s: ' "$module"
-            guarded "$log" "$module" lake "-KleanMemory=$memory" build "$module" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check"; }
+            guarded "$log" "$module" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$module" || { grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2; die "$module does not check"; }
             tail -n 1 "$log"
         done
         iso_setup
@@ -843,7 +868,7 @@ PYEOF
     done
     # The statement first, before any code of the proof module runs.
     printf '%s: ' "$name.Statement"
-    if ! guarded "$log" "$name.Statement" lake "-KleanMemory=$memory" build "$name.Statement"; then
+    if ! guarded "$log" "$name.Statement" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$name.Statement"; then
         grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
         die "$name.Statement does not check"
     fi
@@ -911,7 +936,7 @@ PYEOF
     capture_nonempty order "the build order of the proof of $name" cat "$lean_dir/.lake/certify-order"
     [[ "${order[-1]}" == "$name.Final" ]] || die "the build order of the proof of $name does not end with $name.Final"
     for m in "${order[@]}"; do
-        if ! guarded "$log" "=$m" lake "-KleanMemory=$memory" build "$m"; then
+        if ! guarded "$log" "=$m" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$m"; then
             grep -E '^error' -A12 "$log" | head -60 >&2 || tail -40 "$log" >&2
             die "$name.Final does not check ($m): the proof is not of the published statement"
         fi

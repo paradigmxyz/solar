@@ -34,7 +34,8 @@ unshare -r -m -p -f --kill-child --mount-proc bash -c 'set -e; ro=$1 rw=$2; shif
     mount --bind "$ro" "$ro"; mount -o remount,bind,ro,nosuid,nodev "$ro"
     mount --bind "$rw" "$rw"; mount -o remount,bind,rw,nosuid,nodev "$rw"
     for t in /tmp /dev/shm /var/tmp /run/user; do if [[ -d "$t" ]]; then mount -t tmpfs tmpfs "$t"; fi; done
-    exec "$@"' _ "${CERTIFY_ISO_RO:?}" "$scratch" "$real" ${args[@]+"${args[@]}"}
+    exec "$@"' _ "${CERTIFY_ISO_RO:?}" "$scratch" \
+    env LEAN_NUM_THREADS="${CERTIFY_LEAN_THREADS:-1}" "$real" ${args[@]+"${args[@]}"}
 for n in ${moves[@]+"${!moves[@]}"}; do
     out="$scratch/out$n"
     [[ -e "$out" || -L "$out" ]] || continue
