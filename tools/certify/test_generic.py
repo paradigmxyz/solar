@@ -1956,5 +1956,32 @@ class LifecycleEnvelope(unittest.TestCase):
             self.assertIn("UNSUPPORTED-lifecycle", p.stdout)
 
 
+class FreshCertified(unittest.TestCase):
+    """A base that already holds Certified/NAME (a published record of the same source): the run's
+    clone drops it and keeps one library stanza; a foreign stanza for NAME is refused."""
+
+    def test_existing_record(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as t:
+            c = pathlib.Path(t)
+            (c / "Certified" / "n_1" / "Proofs").mkdir(parents=True)
+            (c / "Certified" / "n_1" / "Final.lean").write_text("stale")
+            (c / "lakefile.lean").write_text("x" + generic.lakefile_lib("n_1", "C"))
+            self.assertTrue(generic.fresh_certified(c, "n_1", "C"))
+            self.assertFalse((c / "Certified" / "n_1").exists())
+            self.assertEqual((c / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1)
+
+    def test_new_and_foreign(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as t:
+            c = pathlib.Path(t)
+            (c / "lakefile.lean").write_text("x\n")
+            self.assertFalse(generic.fresh_certified(c, "n_1", "C"))
+            self.assertEqual((c / "lakefile.lean").read_text(), "x\n" + generic.lakefile_lib("n_1", "C"))
+            (c / "lakefile.lean").write_text("lean_lib «n_1» where\n  roots := #[]\n")
+            with self.assertRaises(generic.Failed):
+                generic.fresh_certified(c, "n_1", "C")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
