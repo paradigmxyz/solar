@@ -31,9 +31,10 @@ others="$(grep -v -E " $prefix($gen/(Manifest\.lean|manifest\.json)|$dir/record\
     [[ $? -eq 1 ]] || die "cannot read git status on $dir"
 [[ -z "$others" ]] || { echo "$others" >&2; git diff --stat -- "$dir" "$lakefile" >&2; die "regenerated files differ from solidity-lean's committed ones"; }
 # Every line but the compiler's version, in either file, must be the committed one; the options'
-# thread count, which solar takes from the machine and which changes no output, is compared as N.
+# thread count, which solar took from the machine, changed no output and no longer records, is
+# left out of a committed copy that still has it.
 norm() { grep -v -E '^(def compiler : String := "[^"]*"|  "compiler": "[^"]*",)$' |
-    sed -E 's/threads: [0-9]+/threads: N/'; }
+    sed -E 's/ threads: [0-9]+,//'; }
 changed=
 for f in "$gen/Manifest.lean" "$gen/manifest.json"; do
     git show "HEAD:./$f" | norm > .lake/certify-committed
