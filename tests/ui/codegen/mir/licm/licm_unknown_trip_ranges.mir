@@ -209,3 +209,54 @@ fn @keep_hoisted_len_after_unknown_store(arg0: i256, arg1: i256, arg2: i256) {
   bb3:
     stop
 }
+
+// A second read of the word in a block that does not dominate the exit reuses the hoisted one.
+// GAS-LABEL: @reuse_hoisted_len_for_body_read
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: - [[LEN]] = mload arg0
+// GAS: - [[TWIN:v[0-9]+]] = mload arg0
+// GAS: - mstore {{v[0-9]+}}, [[TWIN]]
+// GAS-NEXT: + mstore {{v[0-9]+}}, [[LEN]]
+fn @reuse_hoisted_len_for_body_read(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v8 = mload arg0
+    v4 = shl v0, 5
+    v5 = add arg0, 32
+    v6 = add v5, v4
+    mstore v6, v8
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// Both reads stay when the loop may write the word.
+// CHECK-LABEL: @keep_both_reads_when_loop_writes_len
+// CHECK: bb1:
+// CHECK-NEXT: {{v[0-9]+}} = phi
+// CHECK-NEXT: {{v[0-9]+}} = mload arg0
+// CHECK: bb2:
+// CHECK: {{v[0-9]+}} = mload arg0
+fn @keep_both_reads_when_loop_writes_len(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v8 = mload arg0
+    mstore arg0, v8
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}

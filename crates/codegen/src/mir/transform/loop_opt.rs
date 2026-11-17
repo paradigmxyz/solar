@@ -512,30 +512,32 @@ impl LoopOptimizer {
     ) {
         let mut values = FxHashMap::default();
         let mut replacements = FxHashMap::default();
-        let mut dead = Vec::new();
+        let mut dead = FxHashSet::default();
         for &inst_id in moved {
             if let InstKind::Load(addr, PtrLocation::Memory) = func.inst(inst_id).kind
                 && let Some(result) = func.inst_result_value(inst_id)
             {
+                // mstore a, s; ...; r = mload a  =>  uses of r become s
                 let stored = self.preheader_stored_word(func, preheader, inst_id, addr);
                 if let Some(stored) =
                     stored.filter(|&word| func.value_ty(word) == func.value_ty(result))
                 {
                     replacements.insert(result, stored);
-                    dead.push(inst_id);
+                    dead.insert(inst_id);
                 }
                 values.entry(addr).or_insert(replacements.get(&result).copied().unwrap_or(result));
             }
         }
         for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
+                // h = mload a (hoisted); ...; t = mload a  =>  uses of t become h
                 if let InstKind::Load(addr, PtrLocation::Memory) = func.inst(inst_id).kind
                     && let Some(&value) = values.get(&addr)
                     && let Some(twin) = func.inst_result_value(inst_id)
                     && func.value_ty(twin) == func.value_ty(value)
                 {
                     replacements.insert(twin, value);
-                    dead.push(inst_id);
+                    dead.insert(inst_id);
                 }
             }
         }
