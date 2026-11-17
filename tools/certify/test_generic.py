@@ -10,6 +10,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -2139,6 +2140,109 @@ class FreshCertifiedControls(unittest.TestCase):
         self.assertEqual(
             (self.clone / "Certified" / "m_2" / "Final.lean").read_text(), "other"
         )
+
+
+class LeanLibDeclaredOnce(unittest.TestCase):
+    """No path that appends a lean_lib stanza declares NAME a second time: a base whose lakefile
+    already declares it, in either spelling, keeps one declaration (the driver's own stanza is
+    reused, any other is refused) in the probe clones, the run's clone and the lifecycle build."""
+
+    FOREIGN = "x\nlean_lib n_1 where\n  roots := #[]\n"
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.t.name)
+        self.saved = generic.run
+
+    def tearDown(self):
+        generic.run = self.saved
+        self.t.cleanup()
+
+    def count(self, lf):
+        return len(
+            re.findall(r"^lean_lib (n_1|«n_1»)( |$)", lf.read_text(), re.MULTILINE)
+        )
+
+    def base(self, lakefile):
+        b = self.root / "base"
+        b.mkdir()
+        (b / "lakefile.lean").write_text(lakefile)
+        g = ["git", "-c", "user.name=t", "-c", "user.email=t@l"]
+        subprocess.run(g + ["init", "-q", str(b)], check=True)
+        subprocess.run(g + ["-C", str(b), "add", "-A"], check=True)
+        subprocess.run(g + ["-C", str(b), "commit", "-qm", "base"], check=True)
+        (self.root / "w").mkdir()
+        return b
+
+    def lake_unreached(self):
+        def fake_run(cmd, *a, **kw):
+            # Git still runs; lake would read the lakefile under test.
+            if cmd[0] != "lake":
+                return self.saved(cmd, *a, **kw)
+            raise AssertionError(
+                f"lake runs on a lakefile that declares n_1 twice: {cmd}"
+            )
+
+        generic.run = fake_run
+
+    def test_spellings(self):
+        for text in (
+            "lean_lib n_1 where\n",
+            "lean_lib n_1\n",
+            "lean_lib «n_1» where\n",
+        ):
+            self.assertTrue(generic.lean_lib_declared(text, "n_1"), text)
+        for text in ("lean_lib n_10 where\n", "-- lean_lib n_1 where\n"):
+            self.assertFalse(generic.lean_lib_declared(text, "n_1"), text)
+
+    def test_run_clone(self):
+        lf = self.root / "lakefile.lean"
+        lf.write_text(self.FOREIGN)
+        with self.assertRaises(generic.Failed):
+            generic.fresh_certified(self.root, "n_1", "C")
+        self.assertEqual(self.count(lf), 1)
+
+    def test_probe_clone(self):
+        b = self.base(self.FOREIGN)
+        self.lake_unreached()
+        with self.assertRaises(generic.Failed):
+            generic.run_probe(b, self.root / "w", "n_1", "C", [], "", None)
+        self.assertEqual(
+            self.count(self.root / "w" / "probe-lean" / "lakefile.lean"), 1
+        )
+
+    def test_lifecycle_probe_clone(self):
+        b = self.base(self.FOREIGN)
+        self.lake_unreached()
+        with self.assertRaises(generic.Failed):
+            generic.run_lifecycle_probe(
+                b, self.root / "w", "n_1", "C", "", b"", [], None
+            )
+        self.assertEqual(
+            self.count(self.root / "w" / "life-probe" / "lakefile.lean"), 1
+        )
+
+    def test_lifecycle_build(self):
+        lf = self.root / "lakefile.lean"
+        for foreign in (self.FOREIGN, "lean_lib «n_1» where\n  roots := #[]\n"):
+            lf.write_text(foreign)
+            self.lake_unreached()
+            with self.assertRaises(generic.Failed):
+                generic.lifecycle_build(self.root, "n_1", "", "Lifecycle", "", None)
+            self.assertEqual(lf.read_text(), foreign)
+
+    def test_lifecycle_build_reuses(self):
+        lf = self.root / "lakefile.lean"
+        generic.run = lambda cmd, *a, **kw: (0, "", "")
+        # The run's or the probe's own stanza, already in the base, is kept as it is.
+        lf.write_text("x" + generic.lakefile_lib("n_1", "C"))
+        self.assertTrue(generic.lifecycle_build(self.root, "n_1", "", "L", "", None)[0])
+        self.assertEqual(lf.read_text(), "x" + generic.lakefile_lib("n_1", "C"))
+        # Its own stanza is appended once, however many modules it builds.
+        lf.write_text("x\n")
+        for mod in ("Lifecycle", "LifecycleAll"):
+            generic.lifecycle_build(self.root, "n_1", "", mod, "", None)
+        self.assertEqual(self.count(lf), 1)
 
 
 class ChangedPaths(unittest.TestCase):

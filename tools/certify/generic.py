@@ -959,11 +959,45 @@ def lakefile_lib(name, contract):
     return f"""
 -- {name}: the stages of Certified/{name}/{name}.sol's {contract} and their kernel proofs, which
 -- solar's scripts/certify writes.
-lean_lib «{name}» where
+""" + lean_lib_body(name)
+
+
+def lean_lib_body(name):
+    """The declaration of lakefile_lib's stanza, without its comment."""
+    return f"""lean_lib «{name}» where
   srcDir := "Certified"
   roots := #[§{name}.Proofs]
   globs := #[.submodules §{name}]
 """.replace("§", "\u0060")
+
+
+def lean_lib_declared(text, name):
+    """Whether the lakefile TEXT declares lean_lib NAME, as `lean_lib «NAME»` or `lean_lib NAME`."""
+    return (
+        re.search(
+            rf"^lean_lib («{re.escape(name)}»|{re.escape(name)})( |$)",
+            text,
+            re.MULTILINE,
+        )
+        is not None
+    )
+
+
+def declare_lean_lib(lf, name, stanza, own=()):
+    """Append STANZA to the lakefile LF unless LF already declares lean_lib NAME, so that no path
+    declares it twice. A declaration is reused only when LF holds STANZA or one of OWN (another
+    stanza this driver writes for NAME); any other declaration of NAME, in either spelling, is
+    refused. Returns whether LF declared it already."""
+    text = lf.read_text()
+    if any(s in text for s in (stanza, *own)):
+        return True
+    if lean_lib_declared(text, name):
+        raise Failed(
+            f"the base's lakefile declares lean_lib {name} other than as this driver writes it"
+        )
+    with open(lf, "a") as f:
+        f.write(stanza)
+    return False
 
 
 def fresh_certified(clone, name, contract):
@@ -976,20 +1010,8 @@ def fresh_certified(clone, name, contract):
     held = d.exists()
     if held:
         shutil.rmtree(d)
-    lf = clone / "lakefile.lean"
-    text = lf.read_text()
-    stanza = lakefile_lib(name, contract)
-    if stanza in text:
+    if declare_lean_lib(clone / "lakefile.lean", name, lakefile_lib(name, contract)):
         held = True
-    elif re.search(
-        rf"^lean_lib («{re.escape(name)}»|{re.escape(name)})( |$)", text, re.MULTILINE
-    ):
-        raise Failed(
-            f"the base's lakefile declares lean_lib {name} other than as this driver writes it"
-        )
-    else:
-        with open(lf, "a") as f:
-            f.write(stanza)
     return held
 
 
@@ -2234,12 +2256,13 @@ def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
     d.mkdir(parents=True, exist_ok=True)
     (d / "Source.lean").write_text(source_text)
     (d / f"{mod}.lean").write_text(text)
-    lf = lean_dir / "lakefile.lean"
-    if f"lean_lib «{name}»" not in lf.read_text():
-        with open(lf, "a") as f:
-            f.write(
-                f'\nlean_lib «{name}» where\n  srcDir := "Certified"\n  globs := #[.submodules `{name}]\n'
-            )
+    # A base that already declares NAME as lakefile_lib does keeps that stanza.
+    declare_lean_lib(
+        lean_dir / "lakefile.lean",
+        name,
+        f'\nlean_lib «{name}» where\n  srcDir := "Certified"\n  globs := #[.submodules `{name}]\n',
+        (lean_lib_body(name),),
+    )
     if cache and not (lean_dir / ".lake").exists():
         rc, _, err = run(
             ["cp", "-a", str(pathlib.Path(cache) / ".lake"), str(lean_dir / ".lake")]
