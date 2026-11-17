@@ -2037,5 +2037,95 @@ class FreshCertifiedControls(unittest.TestCase):
         self.assertEqual((self.clone / "Certified" / "m_2" / "Final.lean").read_text(), "other")
 
 
+
+class ChangedPaths(unittest.TestCase):
+    """The executed-tree check reads git status whole: a tracked file edited inside the run's own
+    directory is never misread as one outside it, and a file outside it is still reported."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.d = pathlib.Path(self.t.name)
+        g = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(self.d)]
+        self.g = g
+        subprocess.run(["git", "init", "-q", str(self.d)], check=True)
+        (self.d / "Certified" / NAME).mkdir(parents=True)
+        (self.d / "Certified" / NAME / "Shape.lean").write_text("old shape")
+        (self.d / "lakefile.lean").write_text("lakefile")
+        (self.d / "Base.lean").write_text("base")
+        subprocess.run(g + ["add", "-A"], check=True)
+        subprocess.run(g + ["commit", "-qm", "base"], check=True)
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def outside(self):
+        return generic.changed_outside(self.d, f"Certified/{NAME}/")
+
+    def test_tracked_edit_inside_sorts_first(self):
+        """A modified tracked file in Certified/<name>/ is the first status line (' M ...')."""
+        (self.d / "Certified" / NAME / "Shape.lean").write_text("new shape")
+        (self.d / "Certified" / NAME / "Statement.lean").write_text("new")
+        (self.d / "Certified" / NAME / "gen").mkdir()
+        (self.d / "Certified" / NAME / "gen" / "Stage0.lean").write_text("new")
+        first = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.d),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()[0]
+        self.assertEqual(first, f" M Certified/{NAME}/Shape.lean")
+        self.assertEqual(
+            generic.changed_paths(self.d),
+            [
+                f"Certified/{NAME}/Shape.lean",
+                f"Certified/{NAME}/Statement.lean",
+                f"Certified/{NAME}/gen/Stage0.lean",
+            ],
+        )
+        self.assertEqual(self.outside(), [])
+
+    def test_only_edit_inside(self):
+        (self.d / "Certified" / NAME / "Shape.lean").write_text("new shape")
+        self.assertEqual(self.outside(), [])
+
+    def test_tracked_edit_outside_refused(self):
+        """An edited base file outside Certified/<name>/ is reported, even after an inside edit."""
+        (self.d / "Certified" / NAME / "Shape.lean").write_text("new shape")
+        (self.d / "lakefile.lean").write_text("edited")
+        self.assertEqual(self.outside(), ["lakefile.lean"])
+
+    def test_untracked_and_deleted_outside_refused(self):
+        (self.d / "Certified" / "other").mkdir()
+        (self.d / "Certified" / "other" / "X.lean").write_text("x")
+        (self.d / f"Certified/{NAME}x.lean").write_text("sibling prefix")
+        (self.d / "Base.lean").unlink()
+        self.assertEqual(
+            sorted(self.outside()),
+            ["Base.lean", f"Certified/{NAME}x.lean", "Certified/other/X.lean"],
+        )
+
+    def test_rename_into_the_directory_reports_its_source(self):
+        """A staged rename from outside into Certified/<name>/ still names the base file it moved."""
+        subprocess.run(
+            self.g + ["mv", "Base.lean", f"Certified/{NAME}/Base.lean"], check=True
+        )
+        self.assertEqual(self.outside(), ["Base.lean"])
+
+    def test_quoted_path_kept_whole(self):
+        """A path git would quote in plain porcelain output (a space, a non-ASCII byte) is read
+        verbatim."""
+        (self.d / "Certified" / NAME / "a b.lean").write_text("x")
+        (self.d / "x\u00e9y.lean").write_text("x")
+        self.assertEqual(self.outside(), ["x\u00e9y.lean"])
+        self.assertIn(f"Certified/{NAME}/a b.lean", generic.changed_paths(self.d))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
