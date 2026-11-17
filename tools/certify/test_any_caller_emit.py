@@ -240,7 +240,9 @@ class AnyRoute(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             st = (t / "Statement.lean").read_text()
             self.assertIn(f"∀ gas, (fun _ => {BOUND}) call ≤ gas →", st)
-            self.assertIn("call.callvalue ≠ 0 → ∀ gas, (fun _ => %d) call ≤ gas →" % BOUND, st)
+            self.assertIn(
+                f"call.callvalue ≠ 0 → ∀ gas, (fun _ => {BOUND}) call ≤ gas →", st
+            )
             self.assertIn("∀ v, v < 2 ^ 256 →", st)
             self.assertIn(f"import {NAME}.AnyCaller\n", (t / "Final.lean").read_text())
 

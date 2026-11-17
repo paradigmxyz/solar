@@ -243,14 +243,23 @@ def caller_route(shape, shape_dir=None):
     # from every caller (--any-caller). Without it the statement is the one above.
     spec_any = None
     any_lean = shape_dir / "AnyCaller.lean" if shape_dir is not None else None
-    if any_lean is not None and any_lean.exists() and re.search(
-        r"^theorem published_spec_any :", any_lean.read_text(), re.MULTILINE
+    if (
+        any_lean is not None
+        and any_lean.exists()
+        and re.search(
+            r"^theorem published_spec_any :", any_lean.read_text(), re.MULTILINE
+        )
     ):
         spec_any = f"{m.group(1)}.published_spec_any"
-    return mod, proof, expr(anyc, "gas"), (
-        f"{m.group(1)}.published_nonpayable",
-        f"{m.group(1)}.valid_any_value",
-        spec_any,
+    return (
+        mod,
+        proof,
+        expr(anyc, "gas"),
+        (
+            f"{m.group(1)}.published_nonpayable",
+            f"{m.group(1)}.valid_any_value",
+            spec_any,
+        ),
     )
 
 
@@ -374,7 +383,11 @@ def expected_mode(
         f"{a.name}.gen.{a.contract}.Spec",
         f"{a.name}.gen.{a.contract}.Bytecode",
         *spec_mods,
-        *(["Verify.AnyCaller.Context"] if route is not None and route[3][2] is not None else []),
+        *(
+            ["Verify.AnyCaller.Context"]
+            if route is not None and route[3][2] is not None
+            else []
+        ),
     ]
     lines = [f"import {m}" for m in dict.fromkeys(imports)]
     stmt_text = (

@@ -142,8 +142,13 @@ class Route(unittest.TestCase):
             f"      _root_.{NS}.spec.Valid ctx {{ call with callvalue := v }})",
             st,
         )
-        self.assertIn("(Certified.c_1.AnyCaller.published_nonpayable) ctx hctx call hv hv0 gas hg", out["final"])
-        self.assertIn("(Certified.c_1.AnyCaller.valid_any_value) call hv v hlt", out["final"])
+        self.assertIn(
+            "(Certified.c_1.AnyCaller.published_nonpayable) ctx hctx call hv hv0 gas hg",
+            out["final"],
+        )
+        self.assertIn(
+            "(Certified.c_1.AnyCaller.valid_any_value) call hv v hlt", out["final"]
+        )
         head = fx.split("/-- **The published statement.**")[0]
         self.assertTrue(st.startswith(head))
         self.assertIn("import c_1.AnyCaller\n", out["final"])

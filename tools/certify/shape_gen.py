@@ -97,7 +97,9 @@ def spec_from_lean(name, contract, g, shape, sns, K, C, sct):
     if not froms:
         return ""
     if not idx or froms != set(idx) or sorted(idx.values()) != list(range(len(idx))):
-        fail(f"{name}/SpecConnect.lean proves the spec from every caller of only some functions")
+        fail(
+            f"{name}/SpecConnect.lean proves the spec from every caller of only some functions"
+        )
     storage, fns = g["storage"], g["fns"]
     cases = [
         f"    · exact holdsFn_scope (fn := {SC}.fn_{fid}) (by rfl) (by decide)\n"
@@ -107,7 +109,8 @@ def spec_from_lean(name, contract, g, shape, sns, K, C, sct):
     cases.append(f"    · simp [{B}] at hi <;> omega")
     ctxf = "SolidCore.Verify.AnyCaller.ctxOfCallFrom ctx.caller"
     Sh = "SolidCore.Refinement.Shapes"
-    return f"""
+    return (
+        f"""
 /-- One function's spec on the statement's calls, from its spec on the calls of the function of its
 selector at every value: a call of another selector meets no precondition of it. -/
 theorem holdsFn_scope {{S : Sem}} {{p : S.Prog}} {{fns : List Abi.Fn}} {{s : List (Nat × Nat)}}
@@ -147,8 +150,10 @@ theorem published_spec_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok 
       (SolidCore.Verify.AnyCaller.scope {SC}.deployed ({fns})) {B} ({ctxf}) {Sh}.idStep := by
     refine {Sh}.holds_of_getElem ?_
     intro i hi
-    rcases i with {' | '.join(['_'] * len(idx))} | i
-""" + "\n".join(cases) + f"""
+    rcases i with {" | ".join(["_"] * len(idx))} | i
+"""
+        + "\n".join(cases)
+        + f"""
   have hsc : ∀ call, {shape["valid"]} call →
       SolidCore.Verify.AnyCaller.scope {SC}.deployed ({fns}) call := fun _ h => by
     rw [hs]; exact h
@@ -159,6 +164,7 @@ theorem published_spec_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok 
 #guard_msgs (whitespace := lax) in
 #print axioms published_spec_any
 """
+    )
 
 
 def any_caller_lean(name, contract, g, shape, stages, bound, K, sct=None):
@@ -332,7 +338,9 @@ theorem valid_any_value : ∀ call, {shape["valid"]} call → ∀ v, v < 2 ^ 256
 /-- info: 'Certified.{name}.AnyCaller.valid_any_value' depends on axioms: [propext] -/
 #guard_msgs (whitespace := lax) in
 #print axioms valid_any_value
-""" + spec_from + f"""
+"""
+        + spec_from
+        + f"""
 end Certified.{name}.AnyCaller
 """
     )
