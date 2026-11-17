@@ -26,6 +26,7 @@ mod collect;
 pub use collect::CollectAndApply;
 
 mod never;
+#[doc(hidden)]
 pub use never::Never;
 
 mod drop_guard;

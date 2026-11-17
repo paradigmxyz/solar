@@ -1,4 +1,5 @@
 /// The [`!` (never)](primitive@never) type.
+#[doc(hidden)]
 pub type Never = !;
 
 #[cfg(test)]
