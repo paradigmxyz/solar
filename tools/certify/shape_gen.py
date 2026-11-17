@@ -38,6 +38,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_cert
+import fuel_rank
 import gen_ctxgas
 
 
@@ -77,13 +78,16 @@ def last_stage(stages_text):
     }
 
 
-def any_caller_lean(name, contract, g, shape, stages, bound, K):
+def any_caller_lean(name, contract, g, shape, stages, bound, K, rank=None):
     """NAME.AnyCaller for the caller route "any": AnyCaller.bytes_eq_source_from on Lowering's
     check for every caller (check_sym_stage0, checkValueSym_stage0), solar-tv's backend stages to
     the final EVM IR under every oracle, the final EVM IR's run within its fuel on every call and
-    NAME.CtxGas's checker with contexts and gas on the exact bytes. The same text for every
-    contract on the route, from shape.json and Stages.lean alone; untrusted: the kernel re-derives
-    every claim, and final.py states the type it must have."""
+    NAME.CtxGas's checker with contexts and gas on the exact bytes. With RANK (fuel_rank.py's rank
+    of a loop-free final EVM IR, within the fuel), that run is Acyclic.ends_of_rank on the kernel's
+    check of the rank, from the final EVM IR's blocks alone; without, the backend stages' runs
+    give it. The same text for every contract on the route, from shape.json, Stages.lean and the
+    rank alone; untrusted: the kernel re-derives every claim, and final.py states the type it must
+    have."""
     X = f"SolarTV.Export.{contract}"
     M = stages["ns"]
     ns = g["ns"]
@@ -99,6 +103,31 @@ def any_caller_lean(name, contract, g, shape, stages, bound, K):
         "Verify.AnyCaller.Theorem",
         "Verify.ShapeGeneric",
     ]
+    R = "Verify.Gas.FixedFuel.Acyclic"
+    if rank is not None:
+        mods.append(R)
+        rk = "[" + ", ".join(str(r) for r in rank) + "]"
+        rank_text = f"""
+theorem fuel_rank_ok : {R}.rankOk {last} {rk} = true := by decide +kernel
+
+theorem fuel_rank_le : {R}.rankFuel {last} {rk} ≤ {N} := by decide +kernel
+
+/-- The final EVM IR ends within {N} blocks on every call under every oracle, from its blocks alone:
+no block jumps dynamically and every static target ranks below its block. -/
+theorem ends_rank (o : Machine.Oracle) (call : Call) :
+    (EVM.Program.run o {last} call {N}).isSome = true :=
+  {R}.ends_of_rank fuel_rank_ok fuel_rank_le o call
+"""
+        ends_proof = "      exact ends_rank o call\n"
+        run_text = f"the run of {q}{stages['last']}{q} within {N} blocks from its blocks alone ({q}ends_rank{q})"
+    else:
+        rank_text = ""
+        ends_proof = (
+            "      exact SolarTV.Milestone.W1.ends_of_runs (A := EVM.Program.layer) (B := EVM.Program.layer)\n"
+            f"        (o := o) (p := {X}.{stages['prev']}) (q := {last}) (n := {stages['fuel0']}) (m := {N})\n"
+            f"        ({M}.{stages['prev_ends']} o) (fun call _ => {M}.{stages['last_run']} o call) call trivial\n"
+        )
+        run_text = f"the run of {q}{stages['last']}{q} within {N} blocks"
     return (
         "\n".join(f"import {m}" for m in mods)
         + f"""
@@ -113,7 +142,7 @@ def any_caller_lean(name, contract, g, shape, stages, bound, K):
 of the statement and every gas from {K} on, the exact bytecode run from the context's caller is
 SolidCore's run of the source sent by it. It is {q}AnyCaller.bytes_eq_source_from{q} on the check for
 every caller ({q}{ns}.{g["check_sym"]}{q}, {q}{ns}.{g["check_value_sym"]}{q}), the backend stages
-{q}{M}.{stages["compose"]}{q} under every oracle, the run of {q}{stages["last"]}{q} within {N} blocks and
+{q}{M}.{stages["compose"]}{q} under every oracle, {run_text} and
 {q}{C}.check_ok{q}. The gas bound of the checker with contexts is {bound}. This is translation
 equality for every caller; the specification is not part of it.
 -/
@@ -128,7 +157,7 @@ theorem guard_eq : AssembleCtxGas.guard {C}.F (AssembleCtx.norm {last}) = {last}
   {C}.guarded_eq.trans rfl
 
 theorem gas_le : AssembleLoop.gasBoundL {C}.cx.base {N} ≤ {K} := by decide +kernel
-
+{rank_text}
 theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by
   have h := {ns}.shape_eq
   unfold {ns}.shape? at h
@@ -158,10 +187,7 @@ theorem published_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →
       (EVM.Program.run o (AssembleCtxGas.guard {C}.F (AssembleCtx.norm {last})) call {N}).isSome = true :=
     fun o call _ => by
       rw [guard_eq]
-      exact SolarTV.Milestone.W1.ends_of_runs (A := EVM.Program.layer) (B := EVM.Program.layer)
-        (o := o) (p := {X}.{stages["prev"]}) (q := {last}) (n := {stages["fuel0"]}) (m := {N})
-        ({M}.{stages["prev_ends"]} o) (fun call _ => {M}.{stages["last_run"]} o call) call trivial
-  have guard_run : ∀ o call, SolidCore.Verify.AnyCaller.scope ({g["storage"]}) ({g["fns"]}) call →
+{ends_proof}  have guard_run : ∀ o call, SolidCore.Verify.AnyCaller.scope ({g["storage"]}) ({g["fns"]}) call →
       EVM.Program.run o (AssembleCtx.norm {last}) call {N} =
         EVM.Program.run o (AssembleCtxGas.guard {C}.F (AssembleCtx.norm {last})) call {N} :=
     fun o call _ => by rw [guard_eq, norm_eq]
@@ -232,7 +258,13 @@ def any_caller_route(name, shape, g, root, gen, contract, stages, value):
         fail(
             f"shape.json: any_caller gas bound {K} is below the checker's {bound} or not below 2^64"
         )
-    return ctx_text, any_caller_lean(name, contract, g, shape, stages, bound, K)
+    rank = None
+    if stages["last"].startswith("evm"):
+        last_text = (gen / f"Evm{stages['last'][3:]}.lean").read_text()
+        rank = fuel_rank.of_text(last_text)
+    if rank is not None and fuel_rank.fuel(rank) > stages["fuel"]:
+        rank = None
+    return ctx_text, any_caller_lean(name, contract, g, shape, stages, bound, K, rank)
 
 
 def main():
