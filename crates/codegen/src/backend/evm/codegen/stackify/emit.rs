@@ -519,6 +519,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             Exit::TailCall { callee, .. } => {
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
+                // A `return` or `leave` that follows the call as its own statement owns the jump
+                // that leaves this function, as the jump of a plain `return` is its own. The push
+                // and the jump are one terminator in EVM IR, so the push takes its origin too.
+                if Self::tail_call_follows_statement(func, block, &plan.exit) {
+                    self.set_terminator_origin(func, block, None);
+                }
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -686,9 +692,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// NOTE: LLVM folds a call and the return after it into one tail-call instruction that keeps
     /// the call's `DebugLoc` (`X86ISelLowering.cpp` `LowerCall` builds `X86ISD::TC_RETURN` with the
     /// call's location), and the copies that set up a call's arguments carry the call's location,
-    /// so the arguments of a tail call and its jump map to the call, not to the `return`. Scheduler
-    /// steps that precede the block's first instruction still take the `return` span, see
-    /// [`Self::set_insertion_origin`].
+    /// so the arguments of a tail call map to the call, not to the `return`. The jump keeps the
+    /// call too, unless a statement of its own follows the call, see
+    /// [`Self::tail_call_follows_statement`]. Scheduler steps that precede the block's first
+    /// instruction still take the `return` span, see [`Self::set_insertion_origin`].
     fn set_terminator_origin(&mut self, func: &Function, block: BlockId, exit: Option<&Exit>) {
         if self.capture_debug_info {
             let metadata = match exit {
@@ -697,6 +704,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             };
             self.set_origins(metadata);
         }
+    }
+
+    /// Returns whether `exit` is a tail call whose `return` or `leave` is a statement that does
+    /// not enclose the call, as in `f(a); return;`, unlike `return f(a);` or the implicit return
+    /// that ends a function.
+    ///
+    /// NOTE: Such a statement would otherwise map to no code, since the tail call takes the call's
+    /// location for everything but the jump, and a tail call that layout falls through into its
+    /// callee has no jump either; the statement then stays without an entry, as a statement that
+    /// emits no code does.
+    fn tail_call_follows_statement(func: &Function, block: BlockId, exit: &Exit) -> bool {
+        let &Exit::TailCall { origin: Some(call), .. } = exit else { return false };
+        let ret = &func.blocks[block].terminator_metadata;
+        let call = &func.inst(call).metadata;
+        ret.source_spans().next().is_some()
+            && !call.source_spans().all(|call| ret.source_spans().any(|ret| ret.contains(call)))
     }
 
     /// Returns the assignments, as the value each stored and its source context, whose pushes and
