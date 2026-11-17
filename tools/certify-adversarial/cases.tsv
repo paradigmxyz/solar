@@ -1,0 +1,20 @@
+# NAME SOURCE EXPECT: every case of the adversarial suite (see CASES.md). SOURCE is relative to
+# this directory. EXPECT is the exit code the case must end with: 0 for a control (CERTIFIED), 1
+# for a negative rejected at its target stage, 3 for one the envelope must block.
+control-flag cases/FlagControl.sol 0
+control-siblingok cases/SiblingOk.sol 0
+siblingleak cases/SiblingLeak.sol 1
+flag-specwrong cases/FlagSpecWrong.sol 1
+flag-branchleak cases/FlagBranchLeak.sol 1
+flag-frameleak cases/FlagFrameLeak.sol 1
+flag-storagealias cases/FlagStorageAlias.sol 1
+flag-succeedsalways cases/FlagSucceedsAlways.sol 1
+meterwrongspec cases/MeterWrongSpec.sol 1
+clampwrongspec-r2 cases/ClampWrongSpecR2.sol 1
+siblingfns-r2 cases/SiblingFnsR2.sol 1
+initbroken-r2 cases/InitBrokenR2.sol 1|3
+invbroken-r2 cases/InvBrokenR2.sol 1|3
+vacuoussecond-r2a cases/VacuousSecondR2a.sol 1
+vacuoussecond-r2b cases/VacuousSecondR2b.sol 1
+flag-wrap cases/FlagWrap.sol 3
+falseenv cases/FalseEnv.sol 3
