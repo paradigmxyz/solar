@@ -41,7 +41,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, MirModuleTarget, Module, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MirModuleTarget,
+        Module, Value, ValueId,
         analysis::CfgInfo,
         pass::{MirPass, ModuleAnalyses, run_function_pass},
     },
@@ -53,6 +54,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 pub(crate) struct PlaceReads;
@@ -320,7 +322,15 @@ fn run(func: &mut Function) -> bool {
     for (home, inst, result, target) in sunk {
         let instruction = func.inst(inst);
         let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
-        copy.metadata.preserve_debug_loc(&instruction.metadata);
+        // LLVM's HowToUpdateDebugInfo keeps the location of an instruction that moves to another
+        // block only when the destination already holds an instruction with the identical
+        // location; otherwise the move drops it, as in LICM. The read's origin is its
+        // parameter, which a debugger shows at the function header.
+        if holds_debug_loc(func, target, &instruction.metadata) {
+            copy.metadata.preserve_debug_loc(&instruction.metadata);
+        } else {
+            copy.metadata.drop_debug_loc(DebugLocKind::Dropped);
+        }
         let (copy_inst, copy_value) = func.alloc_value_inst(copy);
         let position = func.blocks[target]
             .instructions
@@ -358,4 +368,18 @@ fn run(func: &mut Function) -> bool {
         }
     }
     true
+}
+
+/// Returns whether an instruction or the terminator of `block` has the debug location of
+/// `metadata`.
+fn holds_debug_loc(func: &Function, block: BlockId, metadata: &InstructionMetadata) -> bool {
+    let same = |other: &InstructionMetadata| {
+        other.source_spans().eq(metadata.source_spans())
+            && other.all_source_spans() == metadata.all_source_spans()
+            && other.modifier_depth() == metadata.modifier_depth()
+            && other.debug_loc_kind() == metadata.debug_loc_kind()
+    };
+    let data = &func.blocks[block];
+    data.instructions.iter().any(|&inst| same(&func.inst(inst).metadata))
+        || same(&data.terminator_metadata)
 }
