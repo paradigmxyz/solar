@@ -16,8 +16,8 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Callee, Function, FunctionId, InstId, InstKind, InstructionMetadata, Module,
-        PtrLocation, StackReturn, Terminator, Value, ValueId,
+        BlockId, Callee, EdgeAssignment, Function, FunctionId, InstId, InstKind,
+        InstructionMetadata, Module, PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -385,14 +385,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
-            let bypassed_arm = !assignments.is_empty();
+            let generated_exit =
+                self.edge_records(func, source, target).iter().any(|record| record.generated_exit);
             self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
             // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
-            // The jump replaces the arm's jump, which leaves an arm of an `if` and has no
-            // location, so it keeps that location, as LLVM's Preserve rule gives a replacement the
-            // location of what it replaces. The branch's origin would show the condition's line
-            // again after the arm ran.
-            if bypassed_arm && self.capture_debug_info {
+            // The jump replaces the arm's jump, so it keeps that jump's location, as LLVM's
+            // Preserve rule gives a replacement the location of what it replaces. The jump out of
+            // an `if` arm has none, and the branch's origin would show the condition's line again
+            // after the arm ran.
+            if generated_exit {
                 self.asm.set_source_span(None);
                 self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
             }
@@ -737,26 +738,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Returns the assignments, as the value each stored and its source context, whose pushes and
-    /// copies the code of the edge from `block` to `target` may carry.
-    ///
-    /// NOTE: The code of an edge runs exactly when control takes the edge. An assignment that ran
-    /// in `block` runs once per run of `block`, so it matches an edge out of a jump: the push or
-    /// `DUP` of its value runs exactly when the assignment does and may carry its span, as a copy
-    /// carries the location of the instruction it replaces. An edge out of a branch keeps the
-    /// origin of its terminator unless the assignment is exact for that edge, as one that a
-    /// bypassed arm left on it is ([`InstructionMetadata::edge_assignments`]), and the branch has
-    /// no other edge to `target`. A push is matched by its value. A `DUP` or a reload, which
-    /// [`Step::Dup`] and [`Step::Reload`] name by the value they copy, is matched only when one
-    /// assignment stored the value, since the planner does not record which phi a copy serves. A
-    /// word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
-    /// map.
-    fn edge_assignments<'f>(
+    /// Returns the records on the terminator of `block` that are exact for its edge to `target`.
+    fn edge_records<'f>(
         &self,
         func: &'f Function,
         block: BlockId,
         target: BlockId,
-    ) -> Vec<(ValueId, &'f InstructionMetadata)> {
+    ) -> Vec<&'f EdgeAssignment> {
         if !self.capture_debug_info {
             return Vec::new();
         }
@@ -778,6 +766,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if jump { assignment.edge.is_none() } else { assignment.edge == Some(target) }
                 },
             )
+            .collect()
+    }
+
+    /// Returns the assignments, as the value each stored and its source context, whose pushes and
+    /// copies the code of the edge from `block` to `target` may carry.
+    ///
+    /// NOTE: The code of an edge runs exactly when control takes the edge. An assignment that ran
+    /// in `block` runs once per run of `block`, so it matches an edge out of a jump: the push or
+    /// `DUP` of its value runs exactly when the assignment does and may carry its span, as a copy
+    /// carries the location of the instruction it replaces. An edge out of a branch keeps the
+    /// origin of its terminator unless the assignment is exact for that edge, as one that a
+    /// bypassed arm left on it is ([`InstructionMetadata::edge_assignments`]), and the branch has
+    /// no other edge to `target`. A push is matched by its value. A `DUP` or a reload, which
+    /// [`Step::Dup`] and [`Step::Reload`] name by the value they copy, is matched only when one
+    /// assignment stored the value, since the planner does not record which phi a copy serves. A
+    /// word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
+    /// map.
+    fn edge_assignments<'f>(
+        &self,
+        func: &'f Function,
+        block: BlockId,
+        target: BlockId,
+    ) -> Vec<(ValueId, &'f InstructionMetadata)> {
+        (self.edge_records(func, block, target).into_iter())
             .map(|assignment| (assignment.value, &assignment.origin))
             .collect()
     }

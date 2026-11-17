@@ -47,6 +47,22 @@ contract C {
         return state;
     }
 
+    // The jump of a `break` is a source construct, so the edge that replaces it keeps its origin.
+    // CHECK-LABEL: ; function breakArm(
+    // CHECK: pop !metadata(span=
+    // CHECK-NEXT: push 1 !metadata(span=
+    // CHECK-NEXT: swap 1 !metadata(span=[[#BREAK:]]..{{[0-9]+}})
+    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span=[[#BREAK]]..{{[0-9]+}})
+    function breakArm(uint256 n, uint256 m) external pure returns (uint256 r) {
+        for (uint256 i = 0; i < n; i++) {
+            if (i == m) {
+                r = 1;
+                break;
+            }
+            r = r + i;
+        }
+    }
+
     // CHECK-LABEL: ; function loops(
     // CHECK: bb{{[0-9]+}} [loop] !metadata(span=[[#LOOP:]]..{{[0-9]+}}):
     // CHECK: bb{{[0-9]+}} !metadata(span=[[#LOOP]]..{{[0-9]+}}):
