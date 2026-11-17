@@ -50,9 +50,38 @@ impl HeapPrefixOffsets {
     }
 }
 
+/// How far a pointer can lie before its heap object, or how far it certainly lies above it when
+/// negative, so that steps compose in any order. A reach is exact only while one chain of constant
+/// steps defines it: merging alternatives, rounding or a call boundary makes it an upper bound.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Reach {
+    back: i128,
+    exact: bool,
+}
+
+impl Reach {
+    const fn exact(back: i128) -> Self {
+        Self { back, exact: true }
+    }
+
+    const fn bound(back: i128) -> Self {
+        Self { back, exact: false }
+    }
+
+    /// The reach of a value that is either of two alternatives.
+    fn join(first: Option<Self>, second: Option<Self>) -> Option<Self> {
+        match (first, second) {
+            (Some(first), Some(second)) => {
+                Some(if first == second { first } else { Self::bound(first.back.max(second.back)) })
+            }
+            (reach, None) | (None, reach) => reach,
+        }
+    }
+}
+
 #[derive(Default)]
 struct HeapPrefixCache {
-    offsets: FxHashMap<ValueId, Option<i128>>,
+    offsets: FxHashMap<ValueId, Option<Reach>>,
     cyclic: FxHashSet<ValueId>,
 }
 
@@ -1003,7 +1032,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// relative layout in both compilers, or wraps and runs out of gas under solc. An access
     /// whose net step back is longer than that reserves nothing, so the reservation never exceeds
     /// that size. Steps compose before the access is judged: a long step that a later forward step
-    /// shortens still counts.
+    /// shortens still counts. Where the net step is only an upper bound, as for a merge of
+    /// alternatives or a rounded pointer, a bound beyond that size reserves that size, since an
+    /// alternative may stay within it.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1017,7 +1048,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let mut visiting = DenseBitSet::new_empty(func.num_values());
             let mut memo = HeapPrefixCache::default();
-            if let Some(prefix) = Self::heap_prefix_offset(
+            if let Some(reach) = Self::heap_prefix_reach(
                 func,
                 offset,
                 argument_offsets,
@@ -1025,9 +1056,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 projections,
                 &mut visiting,
                 &mut memo,
-            ) && prefix <= EvmMemoryLayout::HEAP_START
-            {
-                guard = guard.max(prefix);
+            ) {
+                // An exact step back beyond the heap start reserves nothing, and one that only
+                // bounds the reach, as a merge of alternatives does, reserves the heap start.
+                let heap_start = i128::from(EvmMemoryLayout::HEAP_START);
+                let back = reach.back.max(0);
+                guard = guard.max(if back <= heap_start {
+                    back as u64
+                } else if reach.exact {
+                    0
+                } else {
+                    EvmMemoryLayout::HEAP_START
+                });
             }
         });
         // The padding of a word-aligned prefix keeps it within the heap start.
@@ -1307,11 +1347,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             visiting,
             memo,
         )?;
-        Some(reach.clamp(0, i128::from(u64::MAX)) as u64)
+        Some(reach.back.clamp(0, i128::from(u64::MAX)) as u64)
     }
 
-    /// Returns how far `value` can point before its underlying heap object, or how far it
-    /// certainly lies above it when negative, so that steps compose in any order.
+    /// Returns the [`Reach`] of `value`.
     fn heap_prefix_reach(
         func: &Function,
         value: ValueId,
@@ -1320,14 +1359,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut HeapPrefixCache,
-    ) -> Option<i128> {
+    ) -> Option<Reach> {
         if let Some(&offset) = memo.offsets.get(&value) {
             return offset;
         }
         if let Some(component) = projections.and_then(|values| values.get(&value))
             && let Some(&offset) = returned_offsets.get(component)
         {
-            return Some(i128::from(offset));
+            return Some(Reach::bound(i128::from(offset)));
         }
         if !visiting.insert(value) {
             // A failed derivation through a cycle can gain a heap origin on another path.
@@ -1353,54 +1392,37 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return None;
             }
             let reach = derive(base, visiting, memo)?;
-            if reach >= i128::from(u64::MAX) {
+            if reach.back >= i128::from(u64::MAX) {
                 return Some(reach);
             }
             if let Some(forward) = u256_to_u64(adjustment) {
-                return Some(reach - i128::from(forward));
+                return Some(Reach { back: reach.back - i128::from(forward), ..reach });
             }
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
-            Some(reach + i128::from(back))
+            Some(Reach { back: reach.back + i128::from(back), ..reach })
         };
-        // Rounding a pointer down to a word or less moves it back by less than a word, and the heap
-        // starts at a word boundary, so a step within the heap start stays within it. A wider mask
-        // can carry it further.
-        let padded = |reach: i128, padding: u64| {
-            let reach_with_padding = reach + i128::from(padding);
-            if padding < EvmMemoryLayout::WORD_SIZE
-                && reach <= i128::from(EvmMemoryLayout::HEAP_START)
-            {
-                reach_with_padding.min(i128::from(EvmMemoryLayout::HEAP_START))
-            } else {
-                reach_with_padding
-            }
-        };
-        // The reach of the alternatives of a phi or select: those within the heap start decide
-        // it, since a longer one reserves nothing.
-        let merged = |reaches: &[Option<i128>]| {
-            let reaches = reaches.iter().flatten().copied();
-            reaches
-                .clone()
-                .filter(|&reach| reach <= i128::from(EvmMemoryLayout::HEAP_START))
-                .max()
-                .or_else(|| reaches.max())
-        };
+        // Rounding a pointer down moves it back by at most the padding.
+        let padded = |reach: Reach, padding: u64| Reach::bound(reach.back + i128::from(padding));
         let offset = (|| match func.value(value) {
             Value::Arg(index) => argument_offsets
-                .and_then(|offsets| offsets.get(index).copied().map(i128::from))
+                .and_then(|offsets| offsets.get(index).copied().map(i128::from).map(Reach::bound))
                 .or_else(|| {
-                    func.value_ty(value).is_some_and(MirType::is_memory_reference).then_some(0)
+                    func.value_ty(value)
+                        .is_some_and(MirType::is_memory_reference)
+                        .then_some(Reach::exact(0))
                 }),
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
-                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(0),
+                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => {
+                    Some(Reach::exact(0))
+                }
                 InstKind::Load(address, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>
                 {
-                    Some(0)
+                    Some(Reach::exact(0))
                 }
                 InstKind::ICall { function: Callee::Function(function), .. } => {
-                    returned_offsets.get(&(*function, 0)).copied().map(i128::from)
+                    returned_offsets.get(&(*function, 0)).copied().map(i128::from).map(Reach::bound)
                 }
                 // NOTE: `heap_prefix_constant` evaluates constant expressions, which canonical
                 // order does not put on the right, so both sides are tried.
@@ -1410,7 +1432,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else if let Some(amount) = Self::heap_prefix_constant(func, *first, 0) {
                         shifted(*second, amount, visiting, memo)
                     } else {
-                        derive(*first, visiting, memo).max(derive(*second, visiting, memo))
+                        Reach::join(derive(*first, visiting, memo), derive(*second, visiting, memo))
                     }
                 }
                 InstKind::Sub(base, amount) => shifted(
@@ -1446,20 +1468,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                     derive(*base, visiting, memo)
                 }
                 InstKind::Phi(incoming) => {
-                    let reaches = incoming
-                        .iter()
-                        .map(|&(_, incoming)| derive(incoming, visiting, memo))
-                        .collect::<Vec<_>>();
+                    let mut reach = None;
+                    let mut underived = false;
+                    for &(_, incoming) in incoming {
+                        let incoming = derive(incoming, visiting, memo);
+                        underived |= incoming.is_none();
+                        reach = Reach::join(reach, incoming);
+                    }
                     // An incoming value that does not derive, as a back edge through the phi,
                     // may step back from the others, so nothing is certainly above the object.
-                    let underived = reaches.iter().any(Option::is_none);
-                    merged(&reaches).map(|reach| if underived { reach.max(0) } else { reach })
+                    reach.map(
+                        |reach| {
+                            if underived { Reach::bound(reach.back.max(0)) } else { reach }
+                        },
+                    )
                 }
                 InstKind::Select(_, then_value, else_value) => {
                     let then_reach = derive(*then_value, visiting, memo);
-                    merged(&[then_reach, derive(*else_value, visiting, memo)])
+                    Reach::join(then_reach, derive(*else_value, visiting, memo))
                 }
-                _ if func.value_ty(value).is_some_and(MirType::is_memory_reference) => Some(0),
+                _ if func.value_ty(value).is_some_and(MirType::is_memory_reference) => {
+                    Some(Reach::exact(0))
+                }
                 _ => None,
             },
             _ => None,
@@ -2002,7 +2032,8 @@ mod tests {
             ));
             EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None)
         };
-        // A select of a near and a far step back reserves the near one.
+        // A select of a near and a far step back reserves up to the heap start, whichever runs, and
+        // a later forward step that brings the far one within it keeps its reservation.
         assert_eq!(
             guard(&|builder, base| {
                 let condition = builder.add_param(MirType::I1);
@@ -2012,7 +2043,20 @@ mod tests {
                 let far = builder.sub(base, far);
                 builder.select(condition, near, far)
             }),
-            0x20
+            EvmMemoryLayout::HEAP_START
+        );
+        assert_eq!(
+            guard(&|builder, base| {
+                let condition = builder.add_param(MirType::I1);
+                let near = builder.imm(0x20);
+                let far = builder.imm(0x1a0);
+                let near = builder.sub(base, near);
+                let far = builder.sub(base, far);
+                let selected = builder.select(condition, near, far);
+                let forward = builder.imm(0x100);
+                builder.add(selected, forward)
+            }),
+            EvmMemoryLayout::HEAP_START
         );
         // Rounding down a step of the heap start keeps it within the heap start.
         assert_eq!(
@@ -2024,8 +2068,7 @@ mod tests {
             }),
             EvmMemoryLayout::HEAP_START
         );
-        // A wider mask can move the pointer further back, so a step of one word through it
-        // reaches past the heap start.
+        // A wider mask can move the pointer further back, which only bounds the reach.
         assert_eq!(
             guard(&|builder, base| {
                 let step = builder.imm(0x20);
@@ -2033,7 +2076,7 @@ mod tests {
                 let stepped = builder.sub(base, step);
                 builder.and(stepped, mask)
             }),
-            0
+            EvmMemoryLayout::HEAP_START
         );
     }
 
