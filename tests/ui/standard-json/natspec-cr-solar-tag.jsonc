@@ -1,0 +1,21 @@
+// A lone CR ends a line of a block comment for the arguments of a Solar tag too, so `gas` is its
+// objective and the tag raises no error.
+// CHECK-NOT: "severity": "error"
+// CHECK: "abi"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C {\r    /** @custom:solar-optimize\r     * gas\r     */\r    function f() public {}\r}\r"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

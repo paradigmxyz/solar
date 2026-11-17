@@ -7,10 +7,7 @@ use crate::{
     ty::Gcx,
 };
 use serde::Serialize;
-use solar_data_structures::{
-    index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet, FxIndexMap},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::Span;
 
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
@@ -417,7 +414,7 @@ fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::Erro
     let mut errors = gcx.interface_errors(contract_id).iter().collect::<Vec<_>>();
     let imported = errors.iter().any(|&error| gcx.hir.source(gcx.hir.error(error).source).imported);
     // Without imported sources, the order is by source name.
-    let order = imported.then(|| source_parse_order(gcx));
+    let order = imported.then(|| gcx.source_parse_order(()));
     errors.sort_by(|&a, &b| {
         let (a, b) = (gcx.hir.error(a), gcx.hir.error(b));
         let source = match &order {
@@ -430,34 +427,6 @@ fn interface_errors(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Vec<hir::Erro
         source.then(a.span.lo().cmp(&b.span.lo()))
     });
     errors
-}
-
-/// Returns the position of each source in the order solc parses them, like `CompilerStack::parse`:
-/// the given sources by name, then the sources its import callback loads, each source's new
-/// imports by name as the source is parsed.
-fn source_parse_order(gcx: Gcx<'_>) -> IndexVec<hir::SourceId, usize> {
-    let by_name = |&a: &hir::SourceId, &b: &hir::SourceId| {
-        let name = |id| &gcx.hir.source(id).file.name;
-        name(a).cmp_source_unit_name(name(b))
-    };
-    let mut queue =
-        gcx.hir.source_ids().filter(|&id| !gcx.hir.source(id).imported).collect::<Vec<_>>();
-    queue.sort_by(by_name);
-    let mut seen = queue.iter().copied().collect::<FxHashSet<_>>();
-    let mut i = 0;
-    while let Some(&id) = queue.get(i) {
-        i += 1;
-        let mut new =
-            gcx.hir.source(id).imports.iter().map(|&(_, import)| import).collect::<Vec<_>>();
-        new.retain(|&import| seen.insert(import));
-        new.sort_by(by_name);
-        queue.extend(new);
-    }
-    let mut order = index_vec![usize::MAX; gcx.hir.sources().len()];
-    for (position, id) in queue.into_iter().enumerate() {
-        order[id] = position;
-    }
-    order
 }
 
 /// Returns the events documented for a contract with their signatures, like solc's

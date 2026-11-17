@@ -610,11 +610,11 @@ impl<'ast> Sources<'ast> {
 
     /// Like [`Self::get_or_insert_file`], for a file that an import names.
     fn get_or_insert_imported_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
-        let ret = self.get_or_insert_file(file);
-        if ret.1 {
-            self.sources[ret.0].imported = true;
+        let (id, new) = self.get_or_insert_file(file);
+        if new {
+            self.sources[id].imported = true;
         }
-        ret
+        (id, new)
     }
 
     /// Removes the given file from the sources.

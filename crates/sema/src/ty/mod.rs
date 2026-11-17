@@ -2225,6 +2225,34 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
     IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
 }
 
+/// Returns the position of each source in the order solc parses them, like `CompilerStack::parse`:
+/// the given sources by name, then the sources its import callback loads, each source's new
+/// imports by name as the source is parsed.
+pub(crate) fn source_parse_order(gcx: _, key: ()) -> &'gcx IndexSlice<hir::SourceId, [usize]> {
+    let by_name = |&a: &hir::SourceId, &b: &hir::SourceId| {
+        let name = |id| &gcx.hir.source(id).file.name;
+        name(a).cmp_source_unit_name(name(b))
+    };
+    let mut queue =
+        gcx.hir.source_ids().filter(|&id| !gcx.hir.source(id).imported).collect::<Vec<_>>();
+    queue.sort_by(by_name);
+    let mut seen = queue.iter().copied().collect::<FxHashSet<_>>();
+    let mut i = 0;
+    while let Some(&id) = queue.get(i) {
+        i += 1;
+        let mut new =
+            gcx.hir.source(id).imports.iter().map(|&(_, import)| import).collect::<Vec<_>>();
+        new.retain(|&import| seen.insert(import));
+        new.sort_by(by_name);
+        queue.extend(new);
+    }
+    let mut order = IndexVec::from_vec(vec![usize::MAX; gcx.hir.sources().len()]);
+    for (position, id) in queue.into_iter().enumerate() {
+        order[id] = position;
+    }
+    IndexSlice::from_slice(gcx.bump().alloc_slice_copy(order.as_raw_slice()))
+}
+
 /// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.
 ///
 /// A struct on any cycle is dynamically encoded, so the recursion ends on infinite structs too.

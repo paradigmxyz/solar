@@ -180,18 +180,11 @@ impl LocalTags {
     /// The kinds of tag that the items of one group of doc comments start. A `///` line without a
     /// tag after another item continues that item's tag, so it starts none.
     pub(crate) fn from_group(gcx: Gcx<'_>, items: &[hir::NatSpecItem]) -> Self {
-        Self::from_items(
-            items
-                .iter()
-                .enumerate()
-                .filter(|&(i, item)| i == 0 || !is_untagged_line(gcx, item))
-                .map(|(_, item)| item),
-        )
-    }
-
-    fn from_items<'a>(items: impl IntoIterator<Item = &'a hir::NatSpecItem>) -> Self {
         let mut tags = Self::empty();
-        for item in items {
+        for (i, item) in items.iter().enumerate() {
+            if i > 0 && is_untagged_line(gcx, item) {
+                continue;
+            }
             match item.kind {
                 hir::NatSpecKind::Notice => tags.insert(Self::NOTICE),
                 hir::NatSpecKind::Dev => tags.insert(Self::DEV),
@@ -1148,7 +1141,7 @@ pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> Str
             {
                 return content;
             }
-            for (index, line) in item.content().lines().enumerate() {
+            for (index, line) in item.content().split(['\n', '\r']).enumerate() {
                 let line = line.trim();
                 let line = if doc.kind == ast::CommentKind::Block && index > 0 {
                     line.strip_prefix('*').unwrap_or(line).trim_start()
