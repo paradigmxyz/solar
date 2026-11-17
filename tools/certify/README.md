@@ -109,6 +109,26 @@ bases, no constructor parameters and no fallback or receive function, and none o
 A natspec spec may in addition read only `msg.value` from the environment. Nothing in the subset
 is selected by contract name or hash.
 
+### Loop cut-point certificates
+
+[loop_equiv.py](loop_equiv.py) writes a `Verify.LoopSource.Equiv.Cut` certificate for one
+function's loop from solar-verify's loop-head manifest (format `solar-verify loop heads 1`) and
+the `Stage0.lean` that `-Zemit-lean-stages` exports. A certificate is only an input to
+`Cut.check`, a kernel check in solidity-lean that rejects it unless every arrival at the loop
+header matches it; it is never a reason to pass. [test_loop_equiv.py](test_loop_equiv.py) pins its
+reading of the MIR export on a real one (`testdata/loop_equiv/`) and runs without Lean.
+
+generic.py does not call it yet. A loop stays `BLOCKED` before any build (`envelope`), where
+the driver only records the fixed-fuel resource obligation (`loop_resources`). Calling it there
+would need, first, a solar-verify that writes the manifest (`--emit-loop-heads`), which this
+tree's solar-verify does not; second, a solidity-lean pin ([solidity-lean.rev](solidity-lean.rev))
+that has `Verify.LoopSource.Equiv.Cut` and a stage that imports the generated module and runs
+`Cut.check`, which the current pin does not. With both, the hook belongs beside
+`loop_resources`: for each function the manifest lists, write `LoopCut.<function>.lean` into
+the work directory from the run's own `Stage0.lean` (the selector and argument count come from
+the function's ABI), record its path and digest under the record's `loop_cuts`, and leave the run
+`BLOCKED` until the stage that checks it is in the proof.
+
 ## The published statement
 
 A contract with `Certified/NAME/shape.json` gets one published theorem,
