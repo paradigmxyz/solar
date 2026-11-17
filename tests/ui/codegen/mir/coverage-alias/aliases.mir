@@ -1,0 +1,101 @@
+//@ compile-flags: -Zinstrument-coverage -Zmir-pipeline=coverage-alias
+//@ filecheck:
+@module CoverageAlias
+
+fn @callee() {
+  bb0:
+    ret
+}
+
+// A counter that is in several segments keeps its probes unless the counter before it leads all of
+// them, and the leader is in no other segment. Counter 2 follows counter 1 in both of its
+// segments, which are the segments of counter 1, so it is dropped. Counter 3 follows counter 1 in
+// one of the two segments of counter 1, so both stay.
+// The output marks each removed probe with `-`.
+// CHECK-LABEL: fn @several
+// CHECK: bb0:
+// CHECK-NEXT: coverage 1
+// CHECK-NEXT: {{^- +coverage 2$}}
+// CHECK-NEXT: coverage 3
+// CHECK: bb1:
+// CHECK-NEXT: coverage 1
+// CHECK-NEXT: {{^- +coverage 2$}}
+fn @several(arg0: i1) {
+  bb0:
+    coverage 1
+    coverage 2
+    coverage 3
+    jumpi arg0, bb1, bb2
+  bb1:
+    coverage 1
+    coverage 2
+    stop
+  bb2:
+    stop
+}
+
+// Copies of one function body, as inlining makes, can differ: a call between counters 4 and 5 in
+// one copy ends the segment, so counter 5 leads its own, and neither is dropped.
+// CHECK-LABEL: fn @copy_plain
+// CHECK-NEXT: bb0:
+// CHECK-NEXT: coverage 4
+// CHECK-NEXT: coverage 5
+// CHECK-NEXT: stop
+fn @copy_plain() {
+  bb0:
+    coverage 4
+    coverage 5
+    stop
+}
+
+// CHECK-LABEL: fn @copy_call
+// CHECK-NEXT: bb0:
+// CHECK-NEXT: coverage 4
+// CHECK-NEXT: icall @callee
+// CHECK-NEXT: coverage 5
+// CHECK-NEXT: stop
+fn @copy_call() {
+  bb0:
+    coverage 4
+    icall @callee
+    coverage 5
+    stop
+}
+
+// A write to storage halts a frame that a static call runs, so it ends the segment too.
+// CHECK-LABEL: fn @static_context
+// CHECK-NEXT: bb0:
+// CHECK-NEXT: coverage 6
+// CHECK-NEXT: sstore 0, 1
+// CHECK-NEXT: coverage 7
+// CHECK-NEXT: stop
+fn @static_context() {
+  bb0:
+    coverage 6
+    sstore 0, 1
+    coverage 7
+    stop
+}
+
+// A counter twice in one segment keeps its probes: counter 9 follows counter 8 twice in one
+// segment, but counter 8 also leads another segment, so their segments differ.
+// CHECK-LABEL: fn @twice
+// CHECK: bb0:
+// CHECK-NEXT: coverage 8
+// CHECK-NEXT: coverage 9
+// CHECK-NEXT: coverage 9
+// CHECK-NEXT: jumpi
+// CHECK: bb1:
+// CHECK-NEXT: coverage 8
+fn @twice(arg0: i1) {
+  bb0:
+    coverage 8
+    coverage 9
+    coverage 9
+    jumpi arg0, bb1, bb2
+  bb1:
+    coverage 8
+    stop
+  bb2:
+    stop
+}

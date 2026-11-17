@@ -19,7 +19,7 @@
         "functions": [
           {
             "name": "A.sol:A.nonZero(uint256)",
-            "hash": "0x84dacf85c1f5adf6",
+            "hash": "0x1b61ad5e1ac33fbe",
             "counters": [
               15,
               0
@@ -247,24 +247,12 @@
                 1
               ],
               [
-                5,
-                4
-              ],
-              [
                 6,
-                4
-              ],
-              [
-                7,
-                4
-              ],
-              [
-                10,
-                9
+                5
               ],
               [
                 11,
-                9
+                10
               ],
               [
                 13,

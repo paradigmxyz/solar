@@ -8,11 +8,12 @@
 //! counter to those of the kept one, in that code object only, so the result stays exact.
 //!
 //! A probe starts a segment of a block. The segment ends at an instruction that can halt: a call, a
-//! creation, or a check that reverts, as out-of-gas is ignored. The first counter of a segment is
-//! its leader, and the other probes of the segment follow it. A counter `c` aliases the counter
-//! `k` when every probe of `c` follows `k` as leader in its segment, and every probe of `k` is
-//! such a leader, so both are hit exactly as often as their segments run. A counter that appears
-//! twice in one segment keeps its probes. MC/DC probes keep theirs too: they update the state of a
+//! creation, a check that reverts, or a write to storage or a log, which stops the frame of a
+//! static call; out-of-gas is ignored. The first counter of a segment is its leader, and the other
+//! probes of the segment follow it. A counter `c` aliases the counter `k` when `k` leads the
+//! segment of every probe of `c`, and the probes of `k` are in exactly the segments of the probes
+//! of `c`, so both are hit exactly as often as their segments run. A counter that appears twice in
+//! one segment keeps its probes. MC/DC probes keep theirs too: they update the state of a
 //! decision, and halt nothing.
 //!
 //! The pass runs last, after the order of the instructions is final.
@@ -79,6 +80,12 @@ struct Probes {
     segments: Vec<(u32, u32)>,
 }
 
+impl Probes {
+    fn segment_ids(&self) -> impl Iterator<Item = u32> + '_ {
+        self.segments.iter().map(|&(segment, _)| segment)
+    }
+}
+
 fn find_aliases(module: &Module) -> Vec<[u32; 2]> {
     let mut probes = FxHashMap::<u32, Probes>::default();
     let mut segment = 0;
@@ -107,11 +114,11 @@ fn find_aliases(module: &Module) -> Vec<[u32; 2]> {
         .filter_map(|(&counter, probe)| {
             let (_, leader) = *probe.segments.first()?;
             let same_leader = probe.segments.iter().all(|&(_, other)| other == leader);
-            // The leader of every segment of the counter is a probe of its own, and no other
-            // probe of the leader exists.
+            // The leader of every segment of the counter is a probe of its own, and the leader
+            // has no probe in any other segment.
             (leader != counter
                 && same_leader
-                && probes[&leader].segments.len() == probe.segments.len())
+                && probes[&leader].segment_ids().eq(probe.segment_ids()))
             .then_some([counter, leader])
         })
         .collect::<Vec<_>>();
@@ -125,10 +132,16 @@ fn is_mcdc(id: u32) -> bool {
 }
 
 /// Returns whether execution may stop at `kind`, as a callee that reverts or a failed check does.
+/// A state write or a log stops a frame that a static call runs.
 fn can_halt(kind: &InstKind) -> bool {
     kind.effects().control.any()
         || matches!(
             kind.effect_kind(),
-            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+            EffectKind::ExternalCall
+                | EffectKind::ICall
+                | EffectKind::Create
+                | EffectKind::StorageWrite
+                | EffectKind::TransientWrite
+                | EffectKind::Log
         )
 }

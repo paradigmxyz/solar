@@ -2,9 +2,11 @@
 // A counter that is always hit with an earlier counter of its segment, with nothing between them
 // that can halt, is dropped. The function entry `1` keeps the modifier entry `2` and the check of
 // `n != 0` `3`, and the `_` placeholder `5` follows the check's `require` path `4`, which keeps the
-// statements `6` and `7` behind it: the addition after `7` can revert, but the counter is hit
-// before it. A call ends a segment, so the counters `8` and `9` around it stay, and `9` keeps the
-// `if` `10` and its left condition `11`. Probes whose counters have no alias stay in the code.
+// statement `6` behind it. A write to storage, a call, and a check that reverts end a segment, since
+// a static call runs none of the writes: the counter `7` of the statement after the write of `6`
+// stays, and so do the counters `8` and `9` around the call. The write of `9` starts the segment of
+// the `if` `10`, which keeps its left condition `11`, and the right operand `12` keeps `13`.
+// Probes whose counters have no alias stay in the code.
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "coverageAliases": [
 // CHECK-NEXT: [
@@ -16,24 +18,12 @@
 // CHECK-NEXT: 1
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
-// CHECK-NEXT: 5,
-// CHECK-NEXT: 4
-// CHECK-NEXT: ],
-// CHECK-NEXT: [
 // CHECK-NEXT: 6,
-// CHECK-NEXT: 4
-// CHECK-NEXT: ],
-// CHECK-NEXT: [
-// CHECK-NEXT: 7,
-// CHECK-NEXT: 4
-// CHECK-NEXT: ],
-// CHECK-NEXT: [
-// CHECK-NEXT: 10,
-// CHECK-NEXT: 9
+// CHECK-NEXT: 5
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
 // CHECK-NEXT: 11,
-// CHECK-NEXT: 9
+// CHECK-NEXT: 10
 // CHECK-NEXT: ],
 // CHECK-NEXT: [
 // CHECK-NEXT: 13,

@@ -1,0 +1,50 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/modifier_inline.sol:Inlined ===
+@module Inlined
+; function mk(uint256 a) internal pure returns (S memory)
+fn @mk(arg0: i256) -> ptr<memory> [pure] {
+  bb0:
+    coverage 1
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = gt arg0, 1
+    coverage 2
+    jumpi v2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 3
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v3 = phi [bb1: arg0], [bb2: 1]
+    mstore v1, v3
+    ret v1
+}
+
+; function f(uint256 v) external m(v) [selector 0xb3de648b]
+fn @f(arg0: i256) [selector=0xb3de648b, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 4
+    coverage 5
+    coverage 1
+    v0 = alloc 32
+    v1 = gt arg0, 1
+    coverage 2
+    jumpi v1, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    coverage 3
+    jump bb4
+  bb4:                                            ; preds = bb2, bb3
+    v2 = phi [bb2: arg0], [bb3: 1]
+    mstore v0, v2
+    v3 = mload v0
+    sstore 0, v3 !metadata(storage=slot(0))
+    coverage 6
+    jump bb5
+  bb5:                                            ; preds = bb4
+    jump bb1
+  bb1:                                            ; preds = bb5
+    ret
+}
