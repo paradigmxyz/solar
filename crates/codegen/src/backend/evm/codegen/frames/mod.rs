@@ -52,7 +52,7 @@ impl HeapPrefixOffsets {
 
 #[derive(Default)]
 struct HeapPrefixCache {
-    offsets: FxHashMap<ValueId, Option<u64>>,
+    offsets: FxHashMap<ValueId, Option<i128>>,
     cyclic: FxHashSet<ValueId>,
 }
 
@@ -1000,8 +1000,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Under solc the first heap object starts at [`EvmMemoryLayout::HEAP_START`], so a program
     /// can rely only on a step back of at most that many bytes: it lands in the reserved low words,
     /// where we keep frames. A longer step lands in an earlier heap object, which has the same
-    /// relative layout in both compilers, or wraps and runs out of gas under solc. The
-    /// reservation is therefore capped at that size, and a longer step reserves nothing.
+    /// relative layout in both compilers, or wraps and runs out of gas under solc. An access
+    /// whose net step back is longer than that reserves nothing, so the reservation never exceeds
+    /// that size. Steps compose before the access is judged: a long step that a later forward step
+    /// shortens still counts.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1023,14 +1025,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 projections,
                 &mut visiting,
                 &mut memo,
-            ) {
+            ) && prefix <= EvmMemoryLayout::HEAP_START
+            {
                 guard = guard.max(prefix);
             }
         });
-        guard
-            .checked_next_multiple_of(EvmMemoryLayout::WORD_SIZE)
-            .unwrap_or(u64::MAX)
-            .min(EvmMemoryLayout::HEAP_START)
+        // The padding of a word-aligned prefix keeps it within the heap start.
+        guard.next_multiple_of(EvmMemoryLayout::WORD_SIZE)
     }
 
     /// Visits the loads of a multi-word call's extra results that follow the call before any
@@ -1287,7 +1288,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         (factor == divisor && factor != 0).then(|| (base, factor - 1))
     }
 
-    /// Returns how far `value` can point before its underlying heap object.
+    /// Returns how far `value` can point before its underlying heap object, never below zero.
     fn heap_prefix_offset(
         func: &Function,
         value: ValueId,
@@ -1297,13 +1298,36 @@ impl<'gcx> EvmCodegen<'gcx> {
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut HeapPrefixCache,
     ) -> Option<u64> {
+        let reach = Self::heap_prefix_reach(
+            func,
+            value,
+            argument_offsets,
+            returned_offsets,
+            projections,
+            visiting,
+            memo,
+        )?;
+        Some(reach.clamp(0, i128::from(u64::MAX)) as u64)
+    }
+
+    /// Returns how far `value` can point before its underlying heap object, or how far it
+    /// certainly lies above it when negative, so that steps compose in any order.
+    fn heap_prefix_reach(
+        func: &Function,
+        value: ValueId,
+        argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
+        returned_offsets: &FxHashMap<(FunctionId, usize), u64>,
+        projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
+        visiting: &mut DenseBitSet<ValueId>,
+        memo: &mut HeapPrefixCache,
+    ) -> Option<i128> {
         if let Some(&offset) = memo.offsets.get(&value) {
             return offset;
         }
         if let Some(component) = projections.and_then(|values| values.get(&value))
             && let Some(&offset) = returned_offsets.get(component)
         {
-            return Some(offset);
+            return Some(i128::from(offset));
         }
         if !visiting.insert(value) {
             // A failed derivation through a cycle can gain a heap origin on another path.
@@ -1311,7 +1335,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
         let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut HeapPrefixCache| {
-            Self::heap_prefix_offset(
+            Self::heap_prefix_reach(
                 func,
                 value,
                 argument_offsets,
@@ -1328,27 +1352,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             if Self::heap_prefix_constant(func, base, 0).is_some() {
                 return None;
             }
-            let prefix = derive(base, visiting, memo)?;
-            if prefix == u64::MAX {
-                return Some(prefix);
+            let reach = derive(base, visiting, memo)?;
+            if reach >= i128::from(u64::MAX) {
+                return Some(reach);
             }
             if let Some(forward) = u256_to_u64(adjustment) {
-                return Some(prefix.saturating_sub(forward));
+                return Some(reach - i128::from(forward));
             }
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
-            // NOTE: A longer step back reserves nothing, so the spill hazard analysis does not
-            // trust it either.
-            if back > EvmMemoryLayout::HEAP_START {
-                return None;
-            }
-            Some(prefix.saturating_add(back))
+            Some(reach + i128::from(back))
         };
         let offset = (|| match func.value(value) {
-            Value::Arg(index) => {
-                argument_offsets.and_then(|offsets| offsets.get(index).copied()).or_else(|| {
+            Value::Arg(index) => argument_offsets
+                .and_then(|offsets| offsets.get(index).copied().map(i128::from))
+                .or_else(|| {
                     func.value_ty(value).is_some_and(MirType::is_memory_reference).then_some(0)
-                })
-            }
+                }),
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
                 InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(0),
                 InstKind::Load(address, PtrLocation::Memory)
@@ -1358,7 +1377,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Some(0)
                 }
                 InstKind::ICall { function: Callee::Function(function), .. } => {
-                    returned_offsets.get(&(*function, 0)).copied()
+                    returned_offsets.get(&(*function, 0)).copied().map(i128::from)
                 }
                 // NOTE: `heap_prefix_constant` evaluates constant expressions, which canonical
                 // order does not put on the right, so both sides are tried.
@@ -1394,11 +1413,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else {
                         u256_to_u64(!mask)?
                     };
-                    Some(derive(base, visiting, memo)?.saturating_add(padding))
+                    Some(derive(base, visiting, memo)? + i128::from(padding))
                 }
                 InstKind::Shl(..) | InstKind::Mul(..) => {
                     let (base, padding) = Self::heap_prefix_alignment(func, value)?;
-                    Some(derive(base, visiting, memo)?.saturating_add(padding))
+                    Some(derive(base, visiting, memo)? + i128::from(padding))
                 }
                 InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
                     derive(*base, visiting, memo)
@@ -1908,14 +1927,16 @@ mod tests {
 
     #[test]
     fn heap_prefix_guard_stops_at_the_heap_start() {
-        let guard = |steps: &[u64]| {
+        // A step is `(amount, forward)`.
+        let guard = |steps: &[(u64, bool)]| {
             let mut function = Function::new(Ident::DUMMY);
             let mut builder = FunctionBuilder::new(&mut function);
-            // address = fmp - step, ...
+            // address = fmp - step, or fmp + step, ...
             let mut address = builder.fmp();
-            for &step in steps {
+            for &(step, forward) in steps {
                 let step = builder.imm(step);
-                address = builder.sub(address, step);
+                address =
+                    if forward { builder.add(address, step) } else { builder.sub(address, step) };
             }
             let zero = builder.imm(0);
             builder.append_instruction(Instruction::new(
@@ -1924,13 +1945,17 @@ mod tests {
             ));
             EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None)
         };
-        // A step back of at most the heap start reserves its size, a longer one nothing, and the
-        // reservation stops at the heap start however many steps add up to it.
-        assert_eq!(guard(&[0x60]), 0x60);
-        assert_eq!(guard(&[EvmMemoryLayout::HEAP_START]), EvmMemoryLayout::HEAP_START);
-        assert_eq!(guard(&[EvmMemoryLayout::HEAP_START + 0x20]), 0);
-        assert_eq!(guard(&[1 << 32]), 0);
-        assert_eq!(guard(&[0x60, 0x60]), EvmMemoryLayout::HEAP_START);
+        let heap_start = EvmMemoryLayout::HEAP_START;
+        // A net step back of at most the heap start reserves its size, a longer one nothing.
+        assert_eq!(guard(&[(0x60, false)]), 0x60);
+        assert_eq!(guard(&[(heap_start, false)]), heap_start);
+        assert_eq!(guard(&[(heap_start + 0x20, false)]), 0);
+        assert_eq!(guard(&[(1 << 32, false)]), 0);
+        assert_eq!(guard(&[(0x60, false), (0x60, false)]), 0);
+        // Steps compose before the access is judged, in either order.
+        assert_eq!(guard(&[(0x120, false), (0x100, true)]), 0x20);
+        assert_eq!(guard(&[(0x100, true), (0x120, false)]), 0x20);
+        assert_eq!(guard(&[(0xa0, false), (0x80, true)]), 0x20);
     }
 
     #[test]
