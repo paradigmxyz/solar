@@ -18,6 +18,12 @@
 // NONE-NEXT: dup 2 !metadata(span=[[COND]])
 // NONE-NEXT: lt !metadata(span=[[COND]])
 
+// An unoptimized build keeps the definition of a read that is an item of its own, such as the
+// initializer of a local, because the read may be the only instruction that anchors the item.
+// NONE-LABEL: invoke=sender@
+// NONE: caller !metadata(span=[[#START:]]..
+// NONE-SAME: [[#START+10]])
+
 // The global value numbering shares `msg.sender` between the statements, so the emit reads it
 // again under the emit and not under the `require`.
 // GAS-LABEL: invoke=transfer@
@@ -34,6 +40,11 @@ contract C {
         for (uint256 i = 0; i < n; i++) {
             s += i;
         }
+    }
+
+    function sender() external view returns (uint256 r) {
+        address me = msg.sender;
+        r = uint160(me) + 1;
     }
 
     function transfer(address to, uint256 amount) external {
