@@ -3,12 +3,16 @@ slow-timeout = { period = "60s", terminate-after = 2 }
 status-level = "leak"
 
 # The UI harness runs thousands of compiler invocations in parallel itself, and prints the real
-# fixture count in its own `test result:` line, which nextest hides on a pass by default.
+# fixture count in its own `test result:` line, which nextest hides on a pass by default. In the
+# Ubuntu stable CI job, `SOLAR_RUN_CALL_EVM_IR` makes the harness compile each `run-call` fixture a
+# second time, and the suite then takes over 10 minutes on slower runners. The harness's 120 s
+# per-command timeout still catches a hung compiler, but not in the extra compiles of `run-call`
+# checks in `tools/tester/src/run_call/`.
 [[profile.default.overrides]]
 filter = 'package(solar-compiler) & test(=ui_test)'
 threads-required = "num-test-threads"
 success-output = "final"
-slow-timeout = { period = "60s", terminate-after = 10 }
+slow-timeout = { period = "60s", terminate-after = 20 }
 
 # The Foundry suite runs solc once and the compiler at three optimization levels for every project.
 [[profile.default.overrides]]
