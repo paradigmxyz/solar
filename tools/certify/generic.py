@@ -2626,6 +2626,24 @@ def packages_problem(pk, pin):
     return None
 
 
+def after_run_problem(lean_dir, name, inputs, rec, pin):
+    """Why the run scripts/certify reports in REC did not execute the input commit INPUTS of
+    LEAN_DIR with the pinned packages PIN (pinned_packages' set) unedited, or None: only this
+    run's own Certified/NAME/ may differ from the commit after the run."""
+    ran = git(lean_dir, "rev-parse", "HEAD")
+    outside = changed_outside(lean_dir, f"Certified/{name}/")
+    if ran != inputs or rec.get("solidity_lean") != inputs or outside:
+        return (
+            f"executed tree: scripts/certify ran at {rec.get('solidity_lean')} (checkout {ran}), "
+            f"not the input commit {inputs}, or changed files outside Certified/{name}/: {outside[:3]}"
+        )
+    if (
+        why := packages_problem(pathlib.Path(lean_dir) / ".lake" / "packages", pin)
+    ) is not None:
+        return f"packages: after the run: {why}"
+    return None
+
+
 def foreign_oleans(pk, pin):
     """The oleans of the cache's packages with no source module at the package's pinned revision
     (PACKAGE/.lake/build/lib/lean/M.olean without a tracked M.lean): nothing the pinned set builds."""
@@ -3341,13 +3359,16 @@ def main():
         # so a different build is a caveat too.
         # The clone is the pin plus one inputs commit under Certified/<name>/: CERTIFY_PIN_BASE has
         # checkout.sh check exactly that, never the CERTIFY_ALLOW_UNPINNED hatch.
-        pin = (HERE / "solidity-lean.rev").read_text().strip()
-        if base != pin:
-            raise Failed(f"the base {base} is not the pin {pin} of tools/certify/solidity-lean.rev")
+        # pin_rev is the pinned commit; pin stays the pinned package set the post-run check needs.
+        pin_rev = (HERE / "solidity-lean.rev").read_text().strip()
+        if base != pin_rev:
+            raise Failed(
+                f"the base {base} is not the pin {pin_rev} of tools/certify/solidity-lean.rev"
+            )
         env = dict(
             os.environ,
             SOLIDITY_LEAN_DIR=str(lean_dir),
-            CERTIFY_PIN_BASE=pin,
+            CERTIFY_PIN_BASE=pin_rev,
             CERTIFY_CLEAN_BUILD="1",
             SOLC=a.solc,
             CERTIFY_SOLAR_SHA256=record["solar"]["binary_sha256"],
@@ -3424,19 +3445,8 @@ def main():
             )
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
-        # What scripts/certify ran: the input commit, with only this run's own directory changed
-        # by the run, and the pinned packages unedited.
-        ran = git(lean_dir, "rev-parse", "HEAD")
-        outside = changed_outside(lean_dir, f"Certified/{name}/")
-        if ran != inputs or rec.get("solidity_lean") != inputs or outside:
-            finish(
-                "REJECTED",
-                1,
-                f"REJECTED: executed tree: scripts/certify ran at {rec.get('solidity_lean')} (checkout {ran}), "
-                f"not the input commit {inputs}, or changed files outside Certified/{name}/: {outside[:3]}",
-            )
-        if (why := packages_problem(lean_dir / ".lake" / "packages", pin)) is not None:
-            finish("REJECTED", 1, f"REJECTED: packages: after the run: {why}")
+        if (why := after_run_problem(lean_dir, name, inputs, rec, pin)) is not None:
+            finish("REJECTED", 1, f"REJECTED: {why}")
         ok, need_c, comps = strict(dict(rec, name=name, contract=contract), tier)
         reached = reached_tier(comps)
         res = {
