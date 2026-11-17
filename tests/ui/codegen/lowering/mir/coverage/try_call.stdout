@@ -1,0 +1,41 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/try_call.sol:Callee ===
+@module Callee
+; function g(uint256 a) external pure returns (uint256) [selector 0xe420264a]
+fn @g(arg0: i256) -> i256 [selector=0xe420264a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    coverage 1
+    ret arg0
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/try_call.sol:TryCall ===
+@module TryCall
+; function f(Callee c) external pure returns (bool ok) [selector 0xfc68521a]
+fn @f(arg0: i160) -> i1 [selector=0xfc68521a, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    coverage 2
+    v0 = gas
+    mstore 0, 0xe420264a !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v1 = zext i160 arg0 to i256
+    v2 = staticcall v0, v1, 28, 36, 0, 32
+    coverage 3
+    jumpi v2, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jump bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    coverage 5
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v3 = returndatasize
+    v4 = lt v3, 32
+    icall revert_if<tuple_data_too_short>, v4
+    v5 = mload 0 !metadata(memory=scratch)
+    coverage 4
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v6 = phi [bb1: true], [bb4: false]
+    ret v6
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
+}

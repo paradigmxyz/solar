@@ -14,44 +14,50 @@ fn @branches(arg0: i256, arg1: i1) -> i256 [selector=0x9b9fe2dd, pure, abi_param
     coverage 2
     v0 = ne arg0, 0
     coverage 3
+    jumpi v0, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    coverage 4
+    jump bb4
+  bb4:                                            ; preds = bb2, bb3
     v1 = eq v0, false
     icall revert_if<empty>, v1
-    coverage 4
     coverage 5
     coverage 6
     v2 = gt arg0, 10
     coverage 7
-    jumpi v2, bb3, bb4
-  bb4:                                            ; preds = bb0
-    jump bb5
-  bb3:                                            ; preds = bb0
+    jumpi v2, bb6, bb7
+  bb7:                                            ; preds = bb4
+    jump bb8
+  bb6:                                            ; preds = bb4
     coverage 8
     coverage 9
-    jump bb5
-  bb5:                                            ; preds = bb3, bb4
-    v3 = phi [bb3: arg1], [bb4: false]
-    jumpi v3, bb6, bb7
-  bb7:                                            ; preds = bb5
+    jump bb8
+  bb8:                                            ; preds = bb6, bb7
+    v3 = phi [bb6: arg1], [bb7: false]
+    jumpi v3, bb9, bb10
+  bb10:                                           ; preds = bb8
     coverage 11
-    jumpi arg1, bb9, bb10
-  bb10:                                           ; preds = bb7
-    jump bb11
-  bb9:                                            ; preds = bb7
+    jumpi arg1, bb12, bb13
+  bb13:                                           ; preds = bb10
+    jump bb14
+  bb12:                                           ; preds = bb10
     coverage 12
-    jump bb11
-  bb11:                                           ; preds = bb9, bb10
-    v4 = phi [bb9: i8 2], [bb10: i8 3]
+    jump bb14
+  bb14:                                           ; preds = bb12, bb13
+    v4 = phi [bb12: i8 2], [bb13: i8 3]
     v5 = zext i8 v4 to i256
-    jump bb8
-  bb6:                                            ; preds = bb5
+    jump bb11
+  bb9:                                            ; preds = bb8
     coverage 10
-    jump bb8
-  bb8:                                            ; preds = bb6, bb11
-    v6 = phi [bb6: 1], [bb11: v5]
-    jump bb2
-  bb2:                                            ; preds = bb8
+    jump bb11
+  bb11:                                           ; preds = bb9, bb14
+    v6 = phi [bb9: 1], [bb14: v5]
+    jump bb5
+  bb5:                                            ; preds = bb11
     jump bb1
-  bb1:                                            ; preds = bb2
+  bb1:                                            ; preds = bb5
     ret v6
 }
 
@@ -130,18 +136,19 @@ fn @clauses(arg0: i160) -> i1 [selector=0xc6e9de8c, pure, abi_params=[address], 
     mstore 32, 1 !metadata(memory=scratch)
     v1 = zext i160 arg0 to i256
     v2 = staticcall v0, v1, 28, 36, 0, 32
+    coverage 26
     jumpi v2, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    coverage 27
+    coverage 28
     jump bb3
   bb1:                                            ; preds = bb0
     v3 = returndatasize
     v4 = lt v3, 32
     icall revert_if<tuple_data_too_short>, v4
     v5 = mload 0 !metadata(memory=scratch)
-    coverage 26
+    coverage 27
     jump bb3
   bb3:                                            ; preds = bb1, bb4
     v6 = phi [bb1: true], [bb4: false]
@@ -154,36 +161,42 @@ fn @clauses(arg0: i160) -> i1 [selector=0xc6e9de8c, pure, abi_params=[address], 
 ; function modified(bool b) external pure nonZero(b ? 1 : 2) [selector 0xdb672b0e]
 fn @modified(arg0: i1) [selector=0xdb672b0e, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    coverage 28
     coverage 29
+    coverage 30
     jumpi arg0, bb2, bb3
   bb3:                                            ; preds = bb0
     jump bb4
   bb2:                                            ; preds = bb0
-    coverage 30
+    coverage 31
     jump bb4
   bb4:                                            ; preds = bb2, bb3
     v0 = phi [bb2: i8 1], [bb3: i8 2]
     v1 = zext i8 v0 to i256
-    coverage 31
-    v2 = ne v1, 0
     coverage 32
+    v2 = ne v1, 0
+    coverage 33
+    jumpi v2, bb5, bb6
+  bb6:                                            ; preds = bb4
+    jump bb7
+  bb5:                                            ; preds = bb4
+    coverage 34
+    jump bb7
+  bb7:                                            ; preds = bb5, bb6
     v3 = eq v2, false
     icall revert_if<empty>, v3
-    coverage 33
-    coverage 34
-    jump bb5
-  bb5:                                            ; preds = bb4
+    coverage 35
+    jump bb8
+  bb8:                                            ; preds = bb7
     jump bb1
-  bb1:                                            ; preds = bb5
+  bb1:                                            ; preds = bb8
     ret
 }
 
 ; function packed(uint256 x) external pure returns (bytes32) [selector 0x977eca9c]
 fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    coverage 35
-    v0 = keccak256_packed (uint256 arg0)
     coverage 36
+    v0 = keccak256_packed (uint256 arg0)
+    coverage 37
     ret v0
 }

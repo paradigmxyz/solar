@@ -333,21 +333,37 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Emits the counter of `site` on the path where the boolean `value` holds, when the site has
     /// one. The value is unchanged: the paths rejoin right away.
     pub(super) fn coverage_if_true(&mut self, site: Site, value: Word, ty: Ty<'gcx>) -> Option<()> {
-        if coverage_map(self.cx.gcx)
-            .is_some_and(|map| map.counter(self.coverage_scope, site).is_some())
-        {
+        if self.has_coverage(site) {
             let holds = value.clean(self, ty);
-            self.lower_branches(
-                holds,
-                true,
-                |this| {
-                    this.coverage(site);
-                    Some(())
-                },
-                |_| Some(()),
-            )?;
+            self.coverage_branch(site, holds)?;
         }
         Some(())
+    }
+
+    /// Emits the counter of `site` on the path where `holds` is true, when the site has one.
+    pub(super) fn coverage_branch(&mut self, site: Site, holds: ValueId) -> Option<()> {
+        if !self.has_coverage(site) {
+            return Some(());
+        }
+        // branch(holds, hit, join)
+        // hit: coverage counter
+        //      jump join
+        self.lower_branches(
+            holds,
+            true,
+            |this| {
+                this.coverage(site);
+                Some(())
+            },
+            |_| Some(()),
+        )?;
+        Some(())
+    }
+
+    /// Returns whether coverage instrumentation gave `site` a counter.
+    fn has_coverage(&self, site: Site) -> bool {
+        coverage_map(self.cx.gcx)
+            .is_some_and(|map| map.counter(self.coverage_scope, site).is_some())
     }
 
     pub(super) fn materialize_default_bindings(&mut self) {

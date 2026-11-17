@@ -7,7 +7,7 @@
         "functions": [
           {
             "name": "A.sol:A.guard(uint256)",
-            "hash": "0xf30324858e02402d",
+            "hash": "0xf4b992afc80e30c2",
             "counters": [
               11,
               0
@@ -172,7 +172,7 @@
           },
           {
             "name": "A.sol:B.guard(uint256)",
-            "hash": "0xb1374e4a17ec6bb3",
+            "hash": "0x724c2c2615161868",
             "counters": [
               11,
               0

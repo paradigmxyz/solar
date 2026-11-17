@@ -19,8 +19,8 @@ contract Counters {
     // CHECK-NEXT: coverage 2
     // CHECK-NEXT: ne arg0, 0
     // CHECK-NEXT: coverage 3
+    // CHECK: coverage 4
     // CHECK: icall revert_if<empty>
-    // CHECK-NEXT: coverage 4
     // CHECK-NEXT: coverage 5
     // CHECK-NEXT: coverage 6
     // CHECK-NEXT: [[LHS:v[0-9]+]] = gt arg0, 10
@@ -90,13 +90,15 @@ contract Counters {
         }
     }
 
-    // The returns clause counts once its data decodes.
+    // The returns clause counts once its data decodes, and the call counts when it returns.
     // CHECK-LABEL: fn @clauses(
     // CHECK-NEXT: bb0:
     // CHECK-NEXT: coverage 25
-    // CHECK: coverage 27
+    // CHECK: staticcall
+    // CHECK-NEXT: coverage 26
+    // CHECK: coverage 28
     // CHECK: icall revert_if<tuple_data_too_short>
-    // CHECK: coverage 26
+    // CHECK: coverage 27
     function clauses(Counters c) external pure returns (bool ok) {
         try c.cases(1) returns (uint256) {
             ok = true;
@@ -108,22 +110,22 @@ contract Counters {
     // A decision in a modifier argument counts before the modifier runs.
     // CHECK-LABEL: fn @modified(
     // CHECK-NEXT: bb0:
-    // CHECK-NEXT: coverage 28
     // CHECK-NEXT: coverage 29
+    // CHECK-NEXT: coverage 30
     // CHECK-NEXT: jumpi arg0, [[TRUE:bb[0-9]+]],
     // CHECK: [[TRUE]]:
-    // CHECK-NEXT: coverage 30
+    // CHECK-NEXT: coverage 31
     // CHECK: phi
     // CHECK-NEXT: zext
-    // CHECK-NEXT: coverage 31
+    // CHECK-NEXT: coverage 32
     function modified(bool b) external pure nonZero(b ? 1 : 2) {}
 
     // Fusing the packed encoding into the hash keeps both statement counters.
     // CHECK-LABEL: fn @packed(
     // CHECK-NEXT: bb0:
-    // CHECK-NEXT: coverage 35
-    // CHECK-NEXT: keccak256_packed
     // CHECK-NEXT: coverage 36
+    // CHECK-NEXT: keccak256_packed
+    // CHECK-NEXT: coverage 37
     // CHECK-NEXT: ret
     function packed(uint256 x) external pure returns (bytes32) {
         bytes memory p = abi.encodePacked(x);

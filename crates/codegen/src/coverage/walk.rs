@@ -721,10 +721,13 @@ impl<'gcx> Walker<'gcx> {
                 let count = self.stmt_count(stmt, known);
                 self.open(stmt.span, &count);
                 self.expr(&try_stmt.expr);
+                // A clause fails the calls that returned, not those that reverted while their
+                // arguments were evaluated or before they ran.
+                let called = self.counter(Site::Decision(Site::key(try_stmt)));
                 let mut clauses = Vec::with_capacity(try_stmt.clauses.len());
                 for clause in try_stmt.clauses {
                     let taken = self.counter(Site::Arm(Site::key(clause)));
-                    let remaining = count.clone().sub(taken.clone());
+                    let remaining = called.clone().sub(taken.clone());
                     self.region(clause.span, RegionKind::Branch(taken.clone(), remaining));
                     clauses.push(taken);
                 }

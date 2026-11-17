@@ -27,9 +27,10 @@
 //! two statements is that wrapped segment, so a statement that follows one that may revert, such as
 //! a `require`, would show the count of the function. The gap region gives the line it starts on
 //! the count of the statement. A run of lines with no code starts on its first line, so no line of
-//! it has a count, and ends where the next line starts, so the count of the enclosing region does
-//! not wrap into the line after it. The closing `}` of a body is the same: it would show the entry
-//! count of a function that reverted before reaching it.
+//! it has a count, and ends at the end of its last line, so the count around it wraps into the
+//! line after it, where the statement that starts may have no region of its own. The closing `}` of
+//! a body is the same: it would show the entry count of a function that reverted before reaching
+//! it.
 //!
 //! The false count of a branch is an expression, the count of the parent minus the true count, so
 //! no counter sits on the edge and the code needs no extra jump. A condition that reverts takes
@@ -43,8 +44,11 @@
 //! record of the modifier owns no counters. Tools such as `llvm-cov` add up the regions of a span
 //! across records, so the expansions carry the body and the record of a modifier that something
 //! invokes has one code region, over its header from the `modifier` keyword to the `{` of the body,
-//! that counts the sum of the entry counters of its expansions. A modifier that nothing invokes
-//! keeps the regions of its body, counted zero, so its lines show as missed.
+//! that counts the sum of the entry counters of its expansions. `llvm-cov` reports the branches of
+//! a file only from the records of that file, so the record also has the branch and MC/DC regions
+//! of the body, counted over all its expansions, and its decisions list the ID they have in each
+//! expansion. A modifier that nothing invokes keeps the regions of its body, counted zero, so its
+//! lines show as missed.
 //!
 //! # Counters
 //!
@@ -54,8 +58,9 @@
 //!   counter immediately precedes it, such as the first statement of a body;
 //! - the point after each leaf condition of a decision is evaluated;
 //! - the start of the path a decision takes when its condition holds, and of the right operand of
-//!   `&&` and `||`;
-//! - the start of each clause of a `try` statement and of each case of a `switch`;
+//!   `&&` and `||`; a `require` counts its condition when it holds, before its message runs;
+//! - the start of each clause of a `try` statement and of each case of a `switch`, and the point
+//!   after the call of a `try`, which its clauses fail against;
 //! - the start of each state variable initializer and base constructor argument list that has a
 //!   decision.
 //!
@@ -80,9 +85,6 @@
 //! never generated. Each expansion of a modifier lowers the same HIR nodes, so a site also has the
 //! expansion it belongs to. A virtual modifier dispatches to an override in some derived contracts,
 //! so an invocation has an expansion for each modifier it can reach.
-//!
-//! A `require` whose message reverts while it is evaluated counts as a failed condition, since the
-//! counter that ends the condition follows the message.
 
 use crate::backend::evm::op;
 use alloy_primitives::keccak256;
@@ -107,6 +109,17 @@ pub enum Count {
 }
 
 impl Count {
+    /// Appends the counters this count reads to `counters`.
+    fn counters(&self, counters: &mut Vec<u32>) {
+        match self {
+            Self::Zero => {}
+            Self::Counter(id) => counters.push(*id),
+            Self::Add(pair) | Self::Sub(pair) => {
+                pair.iter().for_each(|count| count.counters(counters))
+            }
+        }
+    }
+
     pub(crate) fn add(self, rhs: Self) -> Self {
         match (self, rhs) {
             (Self::Zero, count) | (count, Self::Zero) => count,
@@ -161,6 +174,20 @@ pub enum RegionKind {
         /// The ID of the condition evaluated when this one holds, or `-1` if the decision ends.
         true_next: i32,
     },
+}
+
+impl RegionKind {
+    /// Calls `f` with each count of the region.
+    fn for_each_count(&self, mut f: impl FnMut(&Count)) {
+        match self {
+            Self::Code(count) | Self::Expansion(count, _) | Self::Gap(count) => f(count),
+            Self::Branch(holds, fails) | Self::McdcBranch { holds, fails, .. } => {
+                f(holds);
+                f(fails);
+            }
+            Self::Skipped | Self::Decision(_) => {}
+        }
+    }
 }
 
 /// An MC/DC decision of a record.
@@ -236,10 +263,19 @@ impl Record {
             .iter()
             .map(|&file| gcx.hir.source(file).file.start_pos.0)
             .collect::<Vec<_>>();
-        let (expressions, regions) = self.encode_with(&starts, false);
-        // The hash names own counters by their position in the range, so edits elsewhere in the
-        // compilation, which renumber counters, leave it unchanged.
-        let (hash_expressions, hash_regions) = self.encode_with(&starts, true);
+        let (expressions, regions) = self.encode_with(&starts, None);
+        // The hash names every counter by its index in the record, so edits elsewhere in the
+        // compilation, which renumber counters, leave it unchanged: the own counters come first, by
+        // their position in the range, and then the counters of other records in global order.
+        let mut foreign = Vec::new();
+        for region in &self.regions {
+            region.kind.for_each_count(|count| count.counters(&mut foreign));
+        }
+        let own = self.counters[0]..self.counters[0] + self.counters[1];
+        foreign.retain(|id| !own.contains(id));
+        foreign.sort_unstable();
+        foreign.dedup();
+        let (hash_expressions, hash_regions) = self.encode_with(&starts, Some(foreign));
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.counters[1].to_le_bytes());
         for expression in &hash_expressions {
@@ -253,11 +289,17 @@ impl Record {
         EncodedRecord { hash, expressions, regions }
     }
 
-    fn encode_with(&self, starts: &[u32], relative: bool) -> (Vec<[u64; 2]>, Vec<Vec<i64>>) {
+    /// Encodes the record with the global counter IDs, or with record-local indexes, given the
+    /// sorted IDs of the counters of other records.
+    fn encode_with(
+        &self,
+        starts: &[u32],
+        foreign: Option<Vec<u32>>,
+    ) -> (Vec<[u64; 2]>, Vec<Vec<i64>>) {
         let mut encoder = Encoder {
             first: self.counters[0],
-            end: self.counters[0] + self.counters[1],
-            relative,
+            len: self.counters[1],
+            foreign,
             expressions: Vec::new(),
             interned: FxHashMap::default(),
         };
@@ -312,8 +354,8 @@ impl Record {
 /// counter, `2` for the difference of an expression, and `3` for its sum.
 struct Encoder {
     first: u32,
-    end: u32,
-    relative: bool,
+    len: u32,
+    foreign: Option<Vec<u32>>,
     expressions: Vec<[u64; 2]>,
     interned: FxHashMap<[u64; 2], u64>,
 }
@@ -323,14 +365,15 @@ impl Encoder {
         match count {
             Count::Zero => 0,
             Count::Counter(id) => {
-                let id = if self.relative {
-                    if (self.first..self.end).contains(id) {
+                let id = match &self.foreign {
+                    None => u64::from(*id),
+                    Some(_) if (self.first..self.first + self.len).contains(id) => {
                         u64::from(id - self.first)
-                    } else {
-                        u64::from(*id) | 1 << 40
                     }
-                } else {
-                    u64::from(*id)
+                    Some(foreign) => {
+                        let position = foreign.binary_search(id).unwrap_or_default();
+                        u64::from(self.len) + position as u64
+                    }
                 };
                 id << 2 | 1
             }
@@ -438,7 +481,8 @@ pub(crate) enum Site {
     /// statement, the true arm of a `?:`, or the condition of a `require`; the right operand of
     /// `&&` or `||`; a `try` clause; or a `switch` case.
     Arm(usize),
-    /// After the selector of a `switch` statement, keyed by the statement.
+    /// After the selector of a `switch` statement and after the call of a `try` statement, keyed
+    /// by the statement.
     Decision(usize),
     /// After the value of a decision that no branch consumes, keyed by the `&&` or `||`
     /// expression. Lowering branches on the value to count its true outcomes.

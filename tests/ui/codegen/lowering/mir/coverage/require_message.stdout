@@ -1,0 +1,26 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/require_message.sol:RequireMessage ===
+@module RequireMessage
+; function f(bytes memory a, bool ok) external pure [selector 0x91c0b7ed]
+fn @f(arg0: ptr<memory>, arg1: i1) [selector=0x91c0b7ed, pure, abi_params=[bytes, bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 1
+    coverage 2
+    jumpi arg1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 3
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = mload arg0
+    v1 = gt v0, 5
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 37
+    v4 = mload v3
+    v5 = byte 0, v4
+    v6 = shl v5, 248
+    v7 = abi_encode_packed (bytes1 v6)
+    icall require<error_string>, arg1, v7
+    ret
+}

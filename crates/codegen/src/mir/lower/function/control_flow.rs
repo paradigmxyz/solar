@@ -481,6 +481,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         self.builder.replace_source_span(statement_span);
+        // The call returned, and the clauses count the ways it can go on.
+        self.coverage(Site::Decision(Site::key(try_stmt)));
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -800,9 +802,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         op: BinOpKind,
         rhs_expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<Word> {
+        // coverage_begin
+        // lhs = <lhs>
+        // coverage_leaf(lhs)
         // if && { branch(lhs, rhs, false) }
         // if || { branch(lhs, lhs, rhs) }
+        // rhs: coverage_add(lhs), coverage_arm(rhs), value = <rhs>, coverage_leaf(rhs),
+        //      branch(value, coverage_add(rhs), join)
+        // short: coverage_add(lhs) if ||
         // result = phi(rhs_value, short_circuit_value)
+        // coverage_end
+        // branch(result, coverage_value, join)
         let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
         self.coverage(Site::McdcBegin(Site::expr(expr)));
         let lhs = self.lower_expr(lhs_expr)?;
