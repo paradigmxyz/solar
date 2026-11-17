@@ -336,8 +336,7 @@ def expected_mode(
             f"    (∀ ctx : {G}.Context, ctx.Ok → ∀ call, _root_.{ns}.spec.Valid ctx call →\n"
             f"      call.callvalue ≠ 0 → ∀ gas, ({any_gas}) call ≤ gas →\n"
             f"        {G}.runAt ctx gas ({G}.runtimeCode _root_.{ns}.runtimeBytes) call =\n"
-            f"          some {{ success := false, output := [], logs := [],\n"
-            f"            storage := _root_.SolarTV.slotValue call.storage }}) ∧\n"
+            f"          some {{ success := false, output := [], logs := [], storage := _root_.SolarTV.slotValue call.storage }}) ∧\n"
             f"    (∀ ctx call, _root_.{ns}.spec.Valid ctx call → ∀ v, v < 2 ^ 256 →\n"
             f"      _root_.{ns}.spec.Valid ctx {{ call with callvalue := v }})"
         )
