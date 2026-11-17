@@ -60,7 +60,7 @@ pub(crate) fn pointer_bases(
     bases
 }
 
-/// Whether `value`, or an alternative that it merges or casts, subtracts a constant or adds one
+/// Whether `value`, or an operand that it adds, merges or casts, subtracts a constant or adds one
 /// that wraps, as a step back.
 fn is_step_back(func: &Function, value: ValueId) -> bool {
     let mut seen = DenseBitSet::new_empty(func.num_values());
@@ -84,7 +84,12 @@ fn is_step_back(func: &Function, value: ValueId) -> bool {
             {
                 return true;
             }
-            InstKind::PtrToInt(base, _) | InstKind::IntToPtr(base) => pending.push(*base),
+            // A forward step keeps a step back below it, which can pass `max_step_back` with the
+            // step that is subtracted from the sum.
+            InstKind::Add(a, b) => pending.extend([*a, *b]),
+            InstKind::PtrToInt(base, _) | InstKind::IntToPtr(base) | InstKind::PtrAdd(base, _) => {
+                pending.push(*base);
+            }
             InstKind::Phi(incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
             InstKind::Select(_, then_value, else_value) => {
                 pending.extend([*then_value, *else_value]);
@@ -249,7 +254,7 @@ pub(crate) fn is_floor_clamp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::FunctionBuilder;
+    use crate::mir::{FunctionBuilder, MirType};
     use solar_interface::Ident;
 
     #[test]
@@ -259,13 +264,19 @@ mod tests {
         let base = builder.fmp();
         let cond = builder.imm(1);
         let (near, far) = (builder.imm(0x40), builder.imm(0x60));
+        let offset = builder.add_param(MirType::I256);
         // merged = select(cond, base - 0x40, base - 0x60)
         // again = merged - 0x60
+        // sum = (base - 0x40) + arg0
+        // sum_again = sum - 0x60
         let first = builder.sub(base, near);
         let second = builder.sub(base, far);
         let merged = builder.select(cond, first, second);
         let again = builder.sub(merged, far);
+        let sum = builder.add(first, offset);
+        let sum_again = builder.sub(sum, far);
         assert_eq!(pointer_bases(&function, first, 0x80).len(), 1);
         assert!(pointer_bases(&function, again, 0x80).is_empty());
+        assert!(pointer_bases(&function, sum_again, 0x80).is_empty());
     }
 }
