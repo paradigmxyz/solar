@@ -12,13 +12,36 @@
 # in CI and with CERTIFY_PIN_BASE). Without SOLIDITY_LEAN_DIR the script fetches the pin
 # into target/certify/solidity-lean, a checkout it owns and resets on every run (keeping .lake).
 set -euo pipefail
+die() { echo "certify: error: $*" >&2; exit 1; }
+
+# Refuses, naming the paths, an inputs commit HEAD on BASE in the checkout DIR that changes a path
+# outside INPUTS_DIR/, or leaves under INPUTS_DIR/ a file git ignores (one the run reads but the
+# commit does not hold). generic.py checks the inputs commit it makes with this same function,
+# through checkout.sh --check-inputs DIR BASE HEAD INPUTS_DIR, so both accept the same files.
+check_inputs() {
+    local changed outside ignored
+    [[ "$4" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*[A-Za-z0-9_]$ && "$4" != *..* ]] ||
+        die "CERTIFY_PIN_BASE needs the inputs directory, not '$4'"
+    changed="$(git -C "$1" diff --no-renames --name-only "$2" "$3")" || die "cannot diff $2..$3"
+    outside="$(awk -v p="$4/" 'index($0, p) != 1' <<<"$changed")"
+    [[ -z "$outside" ]] ||
+        die "the inputs commit $3 touches paths outside $4/: $(head -5 <<<"$outside" | tr '\n' ' ')"
+    ignored="$(git -C "$1" ls-files --full-name --others --ignored --exclude-standard -- "$4/")" ||
+        die "cannot list the ignored files of $4/"
+    [[ -z "$ignored" ]] ||
+        die "the inputs commit $3 leaves out files git ignores under $4/: $(head -5 <<<"$ignored" | tr '\n' ' ')"
+}
+if [[ "${1:-}" == --check-inputs ]]; then
+    [[ $# -eq 5 ]] || die "usage: checkout.sh --check-inputs DIR BASE HEAD INPUTS_DIR"
+    check_inputs "$2" "$3" "$4" "$5"
+    exit 0
+fi
 
 if [[ "${CI:-}" == true || -n "${GITHUB_ACTIONS:-}" ]] && [[ -n "${CERTIFY_ALLOW_UNPINNED:-}" ]]; then
     echo "certify: error: CERTIFY_ALLOW_UNPINNED is refused in CI" >&2
     exit 1
 fi
 root="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../.." && pwd)"
-die() { echo "certify: error: $*" >&2; exit 1; }
 pin="$(tr -d '[:space:]' < "$root/tools/certify/solidity-lean.rev")"
 [[ "$pin" =~ ^[0-9a-f]{40}$ ]] || die "tools/certify/solidity-lean.rev does not hold a full commit sha"
 inputs_dir=${1:-}
@@ -32,8 +55,6 @@ if [[ -n "${SOLIDITY_LEAN_DIR:-}" ]]; then
     dir="$(realpath "$SOLIDITY_LEAN_DIR")"
     head="$(git -C "$dir" rev-parse HEAD)" || die "$dir is not a git checkout"
     if [[ "$head" != "$pin" && -n "${CERTIFY_PIN_BASE:-}" ]]; then
-        [[ "$inputs_dir" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*[A-Za-z0-9_]$ && "$inputs_dir" != *..* ]] ||
-            die "CERTIFY_PIN_BASE needs the inputs directory, not '$inputs_dir'"
         read -r -a parents <<<"$(git -C "$dir" rev-list --parents -n 1 HEAD | cut -d' ' -f2-)"
         [[ ${#parents[@]} -eq 1 ]] ||
             die "solidity-lean HEAD $head has ${#parents[@]} parents (${parents[*]}): the inputs must be one commit on the pin $pin"
@@ -41,10 +62,7 @@ if [[ -n "${SOLIDITY_LEAN_DIR:-}" ]]; then
             die "solidity-lean HEAD $head has parent ${parents[0]}, not the pin $pin: the inputs must be one commit on the pin"
         dirty="$(git -C "$dir" status --porcelain --untracked-files=all)" || die "cannot read the status of $dir"
         [[ -z "$dirty" ]] || die "the solidity-lean checkout $dir is not clean: $(head -5 <<<"$dirty" | tr '\n' ';')"
-        changed="$(git -C "$dir" diff --no-renames --name-only "$pin" "$head")" || die "cannot diff $pin..$head"
-        outside="$(awk -v p="$inputs_dir/" 'index($0, p) != 1' <<<"$changed")"
-        [[ -z "$outside" ]] ||
-            die "the inputs commit $head touches paths outside $inputs_dir/: $(head -5 <<<"$outside" | tr '\n' ' ')"
+        check_inputs "$dir" "$pin" "$head" "$inputs_dir"
         tree="$(git -C "$dir" rev-parse "$head^{tree}")"
         echo "certify: solidity-lean $pin + inputs $head (tree $tree, $inputs_dir only)" >&2
     elif [[ "$head" != "$pin" ]]; then

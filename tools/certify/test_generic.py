@@ -2321,5 +2321,109 @@ class AfterRunPackages(unittest.TestCase):
         )
 
 
+class InputsFilterAgrees(unittest.TestCase):
+    """generic.py's input commit and checkout.sh's CERTIFY_PIN_BASE check, fed the same fixture
+    tree, accept the same files: either both accept and the commit holds exactly the files the
+    checkout has under Certified/NAME/, or both refuse."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.t.name)
+        (self.root / "solar" / "tools" / "certify").mkdir(parents=True)
+        shutil.copy(
+            HERE / "checkout.sh",
+            self.root / "solar" / "tools" / "certify" / "checkout.sh",
+        )
+        self.repo = self.root / "sl"
+        (self.repo / "Certified" / "m_2").mkdir(parents=True)
+        (self.repo / "lakefile.lean").write_text("-- lakefile\n")
+        (self.repo / "Certified" / "m_2" / "A.lean").write_text("other\n")
+        (self.repo / ".gitignore").write_text(".lake/\n*.olean\n")
+        self.g("init", "-q")
+        self.g("add", "-A")
+        self.g("commit", "-qm", "pin")
+        self.pin = self.g("rev-parse", "HEAD")
+        (self.root / "solar" / "tools" / "certify" / "solidity-lean.rev").write_text(
+            self.pin + "\n"
+        )
+        (self.repo / "Certified" / "n_1").mkdir()
+        (self.repo / "Certified" / "n_1" / "n_1.sol").write_text("contract C {}\n")
+        (self.repo / "Certified" / "n_1" / "Source.lean").write_text("-- source\n")
+        (self.repo / ".lake").mkdir()
+        (self.repo / ".lake" / "x").write_text("build\n")
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def g(self, *a):
+        return subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.repo),
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@l",
+                *a,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    def both(self):
+        """(generic's inputs or None, checkout.sh's accepted files or None), None for a refusal."""
+        try:
+            _, ins = generic.commit_inputs(self.repo, self.pin, "n_1")
+            ins = sorted(ins)
+        except generic.Failed:
+            ins = None
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("CI", "GITHUB_ACTIONS", "CERTIFY_ALLOW_UNPINNED")
+        }
+        env.update(SOLIDITY_LEAN_DIR=str(self.repo), CERTIFY_PIN_BASE=self.pin)
+        r = subprocess.run(
+            [
+                "bash",
+                str(self.root / "solar" / "tools" / "certify" / "checkout.sh"),
+                "Certified/n_1",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        d = self.repo / "Certified" / "n_1"
+        seen = (
+            sorted(
+                str(q.relative_to(self.repo)) for q in d.rglob("*") if not q.is_dir()
+            )
+            if r.returncode == 0
+            else None
+        )
+        return ins, seen
+
+    def test_plain(self):
+        ins, seen = self.both()
+        self.assertEqual(ins, ["Certified/n_1/Source.lean", "Certified/n_1/n_1.sol"])
+        self.assertEqual(ins, seen)
+
+    def test_lakefile_stanza(self):
+        with open(self.repo / "lakefile.lean", "a") as f:
+            f.write(generic.lakefile_lib("n_1", "C"))
+        self.assertEqual(self.both(), (None, None))
+
+    def test_ignored_input(self):
+        (self.repo / "Certified" / "n_1" / "Gen.olean").write_text("read by the run\n")
+        self.assertEqual(self.both(), (None, None))
+
+    def test_moved_from_another_contract(self):
+        self.g("mv", "Certified/m_2/A.lean", "Certified/n_1/Source2.lean")
+        self.assertEqual(self.both(), (None, None))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
