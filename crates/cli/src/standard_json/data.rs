@@ -1107,6 +1107,7 @@ mod tests {
                 "evm.bytecode.linkReferences",
                 "evm.bytecode.ethdebug",
                 "evm.bytecode.cborAuxdata",
+                "evm.bytecode.coverageAliases",
                 "evm.deployedBytecode.object",
                 "evm.deployedBytecode.opcodes",
                 "evm.deployedBytecode.sourceMap",
@@ -1116,6 +1117,7 @@ mod tests {
                 "evm.deployedBytecode.immutableReferences",
                 "evm.deployedBytecode.ethdebug",
                 "evm.deployedBytecode.cborAuxdata",
+                "evm.deployedBytecode.coverageAliases",
                 "ethdebug.resources",
                 "ethdebug.compilation"
             ]"#,
