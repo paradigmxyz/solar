@@ -1,3 +1,21 @@
+// CHECK: "coverage": {
+// CHECK: "functions": [
+// CHECK: "name": "f"
+// CHECK: "contract": "A"
+// CHECK: "src": "17:121:0"
+// CHECK: "count": 1
+// CHECK: "statements": [
+// CHECK: "count": 2
+// CHECK: "count": 5
+// CHECK: "count": 6
+// CHECK: "branches": [
+// CHECK: "sub": [
+// CHECK: "name": "free"
+// CHECK: "count": 9
+// CHECK: "count": 10
+// CHECK: "count": 15
+// A glued counter push feeds each COVERAGE probe.
+// CHECK: PUSH1 0x1 COVERAGE PUSH1 0x2 COVERAGE
 {
   "language": "Solidity",
   "sources": {
