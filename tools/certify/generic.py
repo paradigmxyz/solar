@@ -2217,6 +2217,32 @@ def git(d, *a, check=True):
     return out.strip()
 
 
+def changed_paths(d):
+    """Every path git status reports in the checkout d, tracked or not, both sides of a rename,
+    read from --porcelain -z so that no path is sliced out of stripped or quoted output."""
+    rc, out, err = run(
+        ["git", "-C", str(d), "status", "--porcelain", "-z", "--untracked-files=all"]
+    )
+    if rc != 0:
+        raise Failed(f"git status in {d}: {err.strip()[:300]}")
+    paths, entries = [], iter(out.split("\0"))
+    for e in entries:
+        if not e:
+            continue
+        # Each entry is XY, a space and the path; a rename or copy is followed by its source path.
+        if len(e) < 4 or e[2] != " ":
+            raise Failed(f"git status in {d}: unreadable entry {e[:80]!r}")
+        paths.append(e[3:])
+        if "R" in e[:2] or "C" in e[:2]:
+            paths.append(next(entries, ""))
+    return paths
+
+
+def changed_outside(d, prefix):
+    """The paths changed in the checkout d (see changed_paths) that are not under prefix."""
+    return [q for q in changed_paths(d) if not q.startswith(prefix)]
+
+
 def build_solar():
     env = dict(os.environ, CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "2"))
     rc, _out, err = run(
@@ -3401,14 +3427,7 @@ def main():
         # What scripts/certify ran: the input commit, with only this run's own directory changed
         # by the run, and the pinned packages unedited.
         ran = git(lean_dir, "rev-parse", "HEAD")
-        moved = [
-            l[3:]
-            for l in git(
-                lean_dir, "status", "--porcelain", "--untracked-files=all"
-            ).splitlines()
-            if l
-        ]
-        outside = [q for q in moved if not q.startswith(f"Certified/{name}/")]
+        outside = changed_outside(lean_dir, f"Certified/{name}/")
         if ran != inputs or rec.get("solidity_lean") != inputs or outside:
             finish(
                 "REJECTED",
