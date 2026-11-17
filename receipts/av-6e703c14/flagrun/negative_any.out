@@ -1,0 +1,25 @@
+block costs: declared 29,4,8,8,14,5, actual 27,3,7,7,13,4
+ok   control-AnyCaller: AnyCaller accepts it
+ok   control-Final: Final accepts it
+ok   control-Lowering: Lowering accepts it
+ok   CtxGas-reads: AnyCaller rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/AnyCaller.lean:77:113: error: Application type mismatch: The argument
+ok   control-CtxGas-actual: CtxGas accepts it
+ok   CtxGas-cost-b0: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-b0/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   CtxGas-cost-b1: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-b1/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   CtxGas-cost-b2: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-b2/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   CtxGas-cost-b3: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-b3/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   CtxGas-cost-b4: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-b4/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   CtxGas-cost-b5: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-b5/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   CtxGas-cost-zero: CtxGas rejects it: /tmp/tmp.ZfF11p0zaV/CtxGas-cost-zero/src/flag_4ce5cf9a/CtxGas.lean:67:48: error: Tactic `decide` proved that the proposition
+ok   control-CtxGas-pattern: CtxGas fails without the pattern: /tmp/tmp.ZfF11p0zaV/control-CtxGas-pattern/src/flag_4ce5cf9a/CtxGas.lean:150:0: error: unexpected end of input; expected ')', '_', '↑', '↥', '⇑' or identi
+ok   AnyCaller-gas-below: AnyCaller rejects it: /tmp/tmp.ZfF11p0zaV/AnyCaller-gas-below/src/flag_4ce5cf9a/AnyCaller.lean:38:93: error: Tactic `decide` proved that the proposition
+ok   Stage0-value-branch: Lowering rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Lowering.lean:124:2: error: Tactic `decide` proved that the proposition
+ok   Stage0-callvalue-as-caller: Lowering rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Lowering.lean:124:2: error: Tactic `decide` proved that the proposition
+ok   control-Lowering-pattern: Lowering fails without the pattern: /tmp/tmp.ZfF11p0zaV/control-Lowering-pattern/src/flag_4ce5cf9a/Lowering.lean:156:0: error: unexpected end of input; expected ')', '_', '↑', '↥', '⇑' or id
+ok   Statement-any-gas-below: Final rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean:16:26: error: Application type mismatch: The argument
+ok   Statement-any-no-ctx-ok: Final rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean:13:81: error: Application type mismatch: The argument
+ok   AnyCaller-nonpayable-no-value: AnyCaller rejects it: /tmp/tmp.ZfF11p0zaV/AnyCaller-nonpayable-no-value/src/flag_4ce5cf9a/AnyCaller.lean:114:93: error: Application type mismatch: The argument
+ok   Statement-nonpayable-no-value: Final rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean:19:86: error: Application type mismatch: The argument
+ok   Statement-nonpayable-success: Final rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean:19:6: error: Type mismatch
+ok   Statement-value-wide: Final rejects it: /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean:20:89: error: Application type mismatch: The argument
+flag_4ce5cf9a every-caller negative tests: 23 cases, 0 failed, 0 skipped

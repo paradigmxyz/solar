@@ -1,0 +1,6 @@
+replay_closure: the kernel rejects the closure of Certified.flag_4ce5cf9a.Final.final: while replaying declaration 'Nat.add_mul_div_left':
+(kernel) unknown constant 'Nat.add_zero'
+TEST omitted Nat.add_zero
+CLOSURE 33994 constants, 31590 groups
+AXIOMS [Classical.choice, Quot.sound, propext]
+SHARD 0 1 13120 theorem proofs to check

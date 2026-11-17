@@ -1,0 +1,90 @@
+{
+  "kind": "certified",
+  "contract": "Certified.flag_4ce5cf9a.Lowering.contract?",
+  "fuel": "Certified.flag_4ce5cf9a.Lowering.fuel",
+  "valid": "SolidCore.Refinement.Shapes.genericValid (Certified.flag_4ce5cf9a.Lowering.fns) (Certified.flag_4ce5cf9a.Lowering.storageLit)",
+  "gas": "fun _ => 3580203",
+  "env": [],
+  "spec": "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)",
+  "spec_modules": [
+    "flag_4ce5cf9a.Lowering",
+    "Verify.ShapeGeneric",
+    "Verify.Spec.TreeMap",
+    "Verify.ShapeSpecExport"
+  ],
+  "proof_module": "flag_4ce5cf9a.Shape",
+  "proof": "Certified.flag_4ce5cf9a.Shape.published",
+  "generic": {
+    "lowering": "flag_4ce5cf9a.Lowering",
+    "ns": "Certified.flag_4ce5cf9a.Lowering",
+    "style": "core",
+    "check": "check_stage0",
+    "check_value": "checkValue_stage0",
+    "fns": "Certified.flag_4ce5cf9a.Lowering.fns",
+    "storage": "Certified.flag_4ce5cf9a.Lowering.storageLit",
+    "spec_connect": {
+      "witness": "lower",
+      "ghost_fixed": true,
+      "using": [],
+      "any_caller": true
+    },
+    "caller": "any",
+    "check_sym": "check_sym_stage0",
+    "check_value_sym": "checkValueSym_stage0"
+  },
+  "excluded": [
+    "deployment: the init code is not covered; the statement is about the runtime bytecode from any storage that holds the slots the constructor writes, as SolidCore's constructor run with no arguments leaves them",
+    "source model trusted: SolidCore's checked contract (the solc AST through scripts/solc_ast_to_lean_source.py and the type checker) is the meaning of the source (frontend trust boundary)",
+    "calls: one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message; no external calls, GAS reads or return data in the code (the loop checker's fragment)",
+    "gas: the bound is the loop checker's (22100 per item times the final EVM IR's block fuel, plus memory), coarse; below it the bytecode may fail without effects, which equivalence admits",
+    "valid calls: lower(), raise(uint256), raised(), value() ABI-encoded with clean argument words, any value below 2^256 (no function is payable: the value reverts on both sides), any storage covering the constructor's slots; other call data is outside the statement",
+    "spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence",
+    "callers: the equivalence of the exact bytecode with the source also holds from every caller below 2^160 other than the contract, at the gas bound of the checker with contexts; the specification, its allowed statuses and the rest of the statement keep the one frame above"
+  ],
+  "source_ast": {
+    "file": "Certified/flag_4ce5cf9a/Source.lean",
+    "namespace": "Certified.flag_4ce5cf9a.Src",
+    "contract": "Flag"
+  },
+  "allowed_export": true,
+  "spec_export": {
+    "ctx": "SolidCore.Refinement.Shapes.ctxOfCall",
+    "step": "SolidCore.Refinement.Shapes.idStep"
+  },
+  "nonvacuous": "Certified.flag_4ce5cf9a.Shape.nonvacuous",
+  "statement": "expected",
+  "source_unit": "Certified.flag_4ce5cf9a.Src.importedSourceUnit",
+  "source_contract": "Flag",
+  "storage": "Certified.flag_4ce5cf9a.Lowering.storageLit",
+  "entries": [
+    {
+      "signature": "lower()",
+      "fn": "Certified.flag_4ce5cf9a.Lowering.fn0",
+      "sel": 3109111917,
+      "arity": 0
+    },
+    {
+      "signature": "raise(uint256)",
+      "fn": "Certified.flag_4ce5cf9a.Lowering.fn1",
+      "sel": 5195779,
+      "arity": 1
+    },
+    {
+      "signature": "raised()",
+      "fn": "Certified.flag_4ce5cf9a.Lowering.fn2",
+      "sel": 4041886716,
+      "arity": 0
+    },
+    {
+      "signature": "value()",
+      "fn": "Certified.flag_4ce5cf9a.Lowering.fn3",
+      "sel": 1067774533,
+      "arity": 0
+    }
+  ],
+  "any_caller": {
+    "module": "flag_4ce5cf9a.AnyCaller",
+    "proof": "Certified.flag_4ce5cf9a.AnyCaller.published_any",
+    "gas": "fun _ => 3845403"
+  }
+}

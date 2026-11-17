@@ -1,0 +1,4 @@
+CLOSURE 33995 constants, 31591 groups
+AXIOMS [Classical.choice, Quot.sound, propext]
+SHARD 0 1 13121 theorem proofs to check
+REPLAYED 33995 constants, 13121 theorem proofs, of the closure of Certified.flag_4ce5cf9a.Final.final (shard 0 of 1)

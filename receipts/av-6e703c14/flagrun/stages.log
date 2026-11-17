@@ -1,0 +1,10 @@
+2026-11-17T21:24:32Z driver start
+2026-11-17T21:55:41Z driver exit 0
+2026-11-17T21:55:41Z prebuild_packages log: 111 lines; Build completed successfully (2492 jobs). Build completed successfully (726 jobs). Build completed successfully (1357 jobs). Build completed successfully (1354 jobs). Build completed successfully (1305 jobs). 
+2026-11-17T21:55:41Z replay receipt 705f8a33162e87bf4a6cbccf0843d60d7d36abe05c744f029a719941aa8f3c99 theorem Certified.flag_4ce5cf9a.Final.final
+2026-11-17T21:55:43Z axioms exit 0: 'Certified.flag_4ce5cf9a.Final.final' depends on axioms: [propext, Classical.choice, Quot.sound] 
+2026-11-17T21:55:48Z flag negative --tamper Nat.add_zero Nat.le_refl: refused (exit 1)
+2026-11-17T21:55:54Z flag negative --omit Nat.add_zero: refused (exit 1)
+2026-11-17T21:57:29Z negative_any exit 0: flag_4ce5cf9a every-caller negative tests: 23 cases, 0 failed, 0 skipped
+2026-11-17T21:57:40Z replay_closure_test exit 0: all closure replay tests pass
+2026-11-17T21:57:41Z bind 3ad63dba917967a55763222de895e37985ce3fe65edafc0f47d949e3680d2dda
