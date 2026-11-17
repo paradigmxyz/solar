@@ -200,7 +200,10 @@ def caller_route(shape):
           ∀ gas, GAS call ≤ gas → Generic.runAt ctx gas CODE call =
             (solidCoreFrom ctx.caller FUEL).run c call
 
-    (CODE the fresh export's bytes, GAS any_caller.gas). Nothing here is trusted: the kernel checks the proof at the
+    (CODE the fresh export's bytes, GAS any_caller.gas), and the every-value claims beside it in the
+    same module: published_nonpayable, in every real context every valid call with a value other
+    than 0 and every gas from GAS on reverts in CODE with empty output, no logs and its storage,
+    and valid_any_value, the valid calls are closed under every value below 2^256. Nothing here is trusted: the kernel checks the proof at the
     statement's type. Every other combination fails closed, so a fixed-frame statement never
     claims a caller it was not checked for, and a statement never omits a claim its shape names."""
     gen = shape.get("generic")
@@ -226,7 +229,18 @@ def caller_route(shape):
     mod = anyc["module"]
     if not isinstance(mod, str) or not NAME.match(mod):
         fail("shape.json: any_caller.module must be a module name")
-    return mod, expr(anyc, "proof"), expr(anyc, "gas")
+    proof = expr(anyc, "proof")
+    # The every-value claims are the proof's siblings in the same module (shape_gen.py's
+    # published_nonpayable and valid_any_value): a proof of another name has no such siblings.
+    m = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_.]*)\.published_any", proof)
+    if m is None:
+        fail(
+            "shape.json: any_caller.proof must be a published_any, beside its every-value claims"
+        )
+    return mod, proof, expr(anyc, "gas"), (
+        f"{m.group(1)}.published_nonpayable",
+        f"{m.group(1)}.valid_any_value",
+    )
 
 
 def expected_mode(
@@ -289,18 +303,26 @@ def expected_mode(
     # The fixed route adds nothing, so its text is the fixed-frame statement byte for byte.
     any_doc = any_stmt = any_import = any_proof = ""
     if route is not None:
-        any_mod, any_term, any_gas = route
+        any_mod, any_term, any_gas, (np_term, val_term) = route
         any_doc = (
             " With the check for every caller, also: in every real context\n"
             "(a caller below §2 ^ 160§ other than the contract), every valid call and every gas from the\n"
             "bound of the checker with contexts on, the exact bytes run from that caller are the source\n"
-            "run from it."
+            "run from it; every valid call with a value other than 0 reverts there with empty output,\n"
+            "no logs and its storage; and the valid calls are closed under every value below §2 ^ 256§."
         )
         any_stmt = (
-            f" ∧\n    ∀ ctx : {G}.Context, ctx.Ok → ∃ c, _root_.{ns}.src.checked = .ok c ∧\n"
+            f" ∧\n    (∀ ctx : {G}.Context, ctx.Ok → ∃ c, _root_.{ns}.src.checked = .ok c ∧\n"
             f"      ∀ call, _root_.{ns}.spec.Valid ctx call → ∀ gas, ({any_gas}) call ≤ gas →\n"
             f"        {G}.runAt ctx gas ({G}.runtimeCode _root_.{ns}.runtimeBytes) call =\n"
-            f"          (_root_.{ns}.src.semAt ctx).run c call"
+            f"          (_root_.{ns}.src.semAt ctx).run c call) ∧\n"
+            f"    (∀ ctx : {G}.Context, ctx.Ok → ∀ call, _root_.{ns}.spec.Valid ctx call →\n"
+            f"      call.callvalue ≠ 0 → ∀ gas, ({any_gas}) call ≤ gas →\n"
+            f"        {G}.runAt ctx gas ({G}.runtimeCode _root_.{ns}.runtimeBytes) call =\n"
+            f"          some {{ success := false, output := [], logs := [],\n"
+            f"            storage := _root_.SolarTV.slotValue call.storage }}) ∧\n"
+            f"    (∀ ctx call, _root_.{ns}.spec.Valid ctx call → ∀ v, v < 2 ^ 256 →\n"
+            f"      _root_.{ns}.spec.Valid ctx {{ call with callvalue := v }})"
         )
         any_import = f"import {any_mod}\n"
         any_proof = f""",
@@ -308,7 +330,11 @@ def expected_mode(
       obtain ⟨c, hc, h⟩ := ({any_term}) ctx hctx
       refine ⟨c, hc, fun call hv gas hg => ?_⟩
       rw [{G}.runtimeCode_eq _root_.{ns}.bound]
-      exact h call hv gas hg"""
+      exact h call hv gas hg,
+    fun ctx hctx call hv hv0 gas hg => by
+      rw [{G}.runtimeCode_eq _root_.{ns}.bound]
+      exact ({np_term}) ctx hctx call hv hv0 gas hg,
+    fun _ call hv v hlt => ({val_term}) call hv v hlt"""
     imports = [
         "Verify.Generic.Expected",
         "Verify.ShapeBundle",

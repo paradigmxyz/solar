@@ -179,6 +179,14 @@ class AnyRoute(unittest.TestCase):
             f"rw [hk]; exact Certified.{NAME}.Lowering.check_sym_stage0",
             f"rw [hk]; exact Certified.{NAME}.Lowering.checkValueSym_stage0",
             "SolidCore.Verify.AnyCaller.bytes_eq_source_from",
+            "theorem source_rejects_value (a : Nat)",
+            "exact Generic.source_run_value_from a hd hsel hfind hw hpay args",
+            "theorem published_nonpayable : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →",
+            "call.callvalue ≠ 0 →",
+            "some { success := false, output := [], logs := [], storage := SolarTV.slotValue call.storage }",
+            "theorem valid_any_value : ∀ call,",
+            "#print axioms published_nonpayable",
+            "#print axioms valid_any_value",
             "depends on axioms: [propext, Classical.choice, Quot.sound]",
         ):
             self.assertIn(want, a)
@@ -232,6 +240,8 @@ class AnyRoute(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             st = (t / "Statement.lean").read_text()
             self.assertIn(f"∀ gas, (fun _ => {BOUND}) call ≤ gas →", st)
+            self.assertIn("call.callvalue ≠ 0 → ∀ gas, (fun _ => %d) call ≤ gas →" % BOUND, st)
+            self.assertIn("∀ v, v < 2 ^ 256 →", st)
             self.assertIn(f"import {NAME}.AnyCaller\n", (t / "Final.lean").read_text())
 
 

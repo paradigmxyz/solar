@@ -24,8 +24,12 @@
 # - AnyCaller: its gas bound lowered by one (gas_le fails);
 # - stage0: the call value check's branch taken the other way, and the call value read as the
 #   caller (the checks for every caller and for value calls in Lowering fail);
+# - AnyCaller: the every-value claim's premise of a value other than 0 dropped (published_nonpayable
+#   fails: a call without value runs the function);
 # - Statement: the every-caller conjunct's gas bound lowered by one, and its real-context premise
-#   (ctx.Ok: a caller below 2^160 other than the contract) dropped (Final fails).
+#   (ctx.Ok: a caller below 2^160 other than the contract) dropped (Final fails); the every-value
+#   conjunct's premise of a value other than 0 dropped, its revert stated as a success, and the
+#   value range widened past 2^256 (Final fails).
 #
 # Pattern controls: an unrelated edit (a syntax error appended) to CtxGas and to Lowering must fail
 # without the cost and stage0 patterns, so neither pattern matches any error.
@@ -188,6 +192,10 @@ case_ Stage0-callvalue-as-caller "gen/$contract/Stage0" Lowering "$stage0_patter
 case_ control-Lowering-pattern Lowering Lowering "$stage0_pattern" 's += "\ntheorem pattern_control : (\n"' other
 case_ Statement-any-gas-below Statement Final 'error' "s = s.replace('(fun _ => $bound)', '(fun _ => $below)', 1)"
 case_ Statement-any-no-ctx-ok Statement Final 'error' 's = s.replace("ctx.Ok → ∃ c,", "True → ∃ c,", 1)'
+case_ AnyCaller-nonpayable-no-value AnyCaller AnyCaller 'published_nonpayable|error' 's = s.replace("call.callvalue ≠ 0 →\n", "True →\n", 1)'
+case_ Statement-nonpayable-no-value Statement Final 'error' 's = s.replace("call.callvalue ≠ 0 →", "True →", 1)'
+case_ Statement-nonpayable-success Statement Final 'error' 's = s.replace("some { success := false,", "some { success := true,", 1)'
+case_ Statement-value-wide Statement Final 'error' 's = s.replace("∀ v, v < 2 ^ 256 →", "∀ v, v < 2 ^ 257 →", 1)'
 
 echo "$name every-caller negative tests: $cases cases, $failures failed, $skips skipped"
 [[ $failures -eq 0 && $skips -eq 0 ]]
