@@ -47,7 +47,8 @@ contract C {
         return state;
     }
 
-    // The jump of a `break` is a source construct, so the edge that replaces it keeps its origin.
+    // The jump of a `break` is a source construct, so the edge that replaces it keeps the origin of
+    // the branch, the condition, and is not dropped.
     // CHECK-LABEL: ; function breakArm(
     // CHECK: pop !metadata(span=
     // CHECK-NEXT: push 1 !metadata(span=

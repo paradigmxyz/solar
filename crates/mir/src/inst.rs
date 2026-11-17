@@ -94,7 +94,7 @@ impl InstructionMetadata {
         dropped: bool,
     ) {
         assignment.edge = edge;
-        assignment.dropped_exit.get_or_insert(dropped);
+        assignment.dropped_exit = Some(assignment.dropped_exit.unwrap_or(true) && dropped);
         let assignments = &mut self.edge_assignments.get_or_insert_default().0;
         if !assignments.contains(&assignment) {
             assignments.push(assignment);

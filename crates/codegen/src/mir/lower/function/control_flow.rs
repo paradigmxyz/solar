@@ -156,11 +156,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let loop_break = else_stmt
             .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous));
         let label_span = loop_break.map_or(previous, |stmt| stmt.span);
+        // A Yul `for` condition is the same, with the span of the condition on its `break`.
+        let desugared_loop = else_stmt.is_some_and(|stmt| {
+            matches!(stmt.kind, StmtKind::Break)
+                && (stmt.span.contains(previous) || stmt.span == condition_span)
+        });
         // NOTE: A source `if` leaves its arms and starts the code after it without a location:
         // that code implements no source construct, and mapping it to the `if`, as solc's
         // `LocationSetter(m_context, _ifStatement)` does, would show the condition line again
         // after the arm ran. A debugger stops once on the `if`, at the condition.
-        let dropped_exits = loop_break.is_none();
+        let dropped_exits = !desugared_loop;
         let branches = self.lower_branches_labeled(
             condition,
             true,
