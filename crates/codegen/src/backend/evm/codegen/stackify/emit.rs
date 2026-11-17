@@ -466,7 +466,23 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if invert { (else_edge, then_edge) } else { (then_edge, else_edge) };
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
                 let label = edge_label(self, taken);
-                self.emit_conditional_jump(label, invert);
+                if invert {
+                    // NOTE: With the plan's inversion, this `ISZERO` computes the innermost peeled
+                    // `eq`, so it keeps that location, as LLVM keeps the location of a replacement
+                    // for one instruction. Without the plan's inversion no instruction stands in
+                    // for the `eq`, so its origin stays dropped.
+                    if self.capture_debug_info
+                        && let Some(zero_test) = plan.zero_test
+                    {
+                        let terminator_origin = self.asm.debug_origin();
+                        self.set_origins(&func.inst(zero_test).metadata);
+                        self.asm.emit_op(op::ISZERO);
+                        self.asm.set_debug_origin(terminator_origin);
+                    } else {
+                        self.asm.emit_op(op::ISZERO);
+                    }
+                }
+                self.emit_conditional_jump(label, false);
                 let assignments = self.edge_assignments(func, block, fall.target);
                 let steps = fall.trampoline.as_deref().unwrap_or_default();
                 self.emit_edge_steps(func_id, func, block, steps, assignments, cold);
