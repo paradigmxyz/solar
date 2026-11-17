@@ -1,4 +1,4 @@
-; === ROOT/tests/ui/codegen/mir/bit-scan/near_misses.sol:NearMisses ===
+; === ROOT/tests/ui/codegen/mir/scan-region/near_misses.sol:NearMisses ===
 @module NearMisses
 ; function toUint(bool b) internal pure returns (uint256 u)
 fn @toUint(arg0: i256) -> i256 [pure] {

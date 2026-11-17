@@ -72,7 +72,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Spelling,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
-    &bit_scan::BitScan,
     &scan_region::ScanRegion,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
@@ -236,7 +235,6 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Early,
     // A search for the highest or the lowest set bit is one `CLZ`. Replace it once comparisons are
     // canonical, before any pass, the inliner above all, prices the search.
-    &bit_scan::BitScan,
     &scan_region::ScanRegion,
     &pre::Pre::Pure,
     // Checked array loops reload one object's length before every bounds
@@ -309,7 +307,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     // Searches written with branches or checked additions are straight-line now.
-    &bit_scan::BitScan,
     &scan_region::ScanRegion,
     &frame_promotion::FrameSlotPromotion,
     // Builtin expansion exposes buffers whose readers are gone.
@@ -338,7 +335,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
     // A size build inlines a search's helper calls only after ABI lowering.
-    &bit_scan::BitScan,
     &scan_region::ScanRegion,
     &memory_dse::MemoryDse::Standard,
     // Expose callee reads before late CSE.
