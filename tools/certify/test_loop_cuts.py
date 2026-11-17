@@ -143,6 +143,7 @@ class Hook(unittest.TestCase):
         (c,) = [c for c in fake.calls if c[0] == sys.executable]
         self.assertEqual(c[-3:-1], ["0xb20eb4c4", "1"])
         gen = (self.clone / "Certified/bump_00000000/Loops/bump/Gen.lean").read_text()
+        self.assertIn("summary? := none", gen)
         self.assertIn("sel := 0xb20eb4c4", gen)
         self.assertIn("nargs := 1", gen)
         self.assertIn("import Verify.LoopSource.Equiv.GenObl", gen)
@@ -213,6 +214,44 @@ class Hook(unittest.TestCase):
         self.assert_blocked(Fake(self.tmp), "obligations", clone=nope)
 
 
+class BodySummary(unittest.TestCase):
+    """GenObl needs a body summary; the driver passes one only when given one."""
+
+    SUMMARY = (
+        "Verify.LoopSource.Equiv.Counter.Summary",
+        "Verify.LoopSource.Equiv.CounterSummary.summary",
+    )
+
+    def test_without_a_summary_the_driver_passes_none(self):
+        gen = lc.gen_driver("CounterRun", "Counter", "bump", SEL, 1)
+        self.assertIn("      summary? := none }\n", gen)
+        self.assertNotIn("body?", gen)
+        self.assertNotIn("Summary", gen.replace("summary?", ""))
+
+    def test_a_summary_is_imported_and_passed(self):
+        gen = lc.gen_driver("CounterRun", "Counter", "bump", SEL, 1, self.SUMMARY)
+        self.assertIn("import Verify.LoopSource.Equiv.Counter.Summary\n", gen)
+        self.assertIn(
+            "      summary? := some Verify.LoopSource.Equiv.CounterSummary.summary }\n",
+            gen,
+        )
+        self.assertIn('"Verify.LoopSource.Equiv.Counter.Summary"]', gen)
+
+    def test_a_malformed_summary_is_refused(self):
+        for summary in [("A B", "x"), ("A", "x\ny"), ("A", 'x"'), ("", "x")]:
+            with self.subTest(summary=summary), self.assertRaises(lc.Stop):
+                lc.gen_driver("CounterRun", "Counter", "bump", SEL, 1, summary)
+
+    def test_summaries_come_only_from_the_option(self):
+        self.assertEqual(generic.loop_summaries([]), {})
+        self.assertEqual(
+            generic.loop_summaries(["bump=A.B:A.B.s"]), {"bump": ("A.B", "A.B.s")}
+        )
+        for bad in ["bump", "bump=A.B", "=A:B", "bump=A:B:C"]:
+            with self.subTest(bad=bad), self.assertRaises(generic.Failed):
+                generic.loop_summaries([bad])
+
+
 class DriverCall(unittest.TestCase):
     """generic.py adds the hook's reasons to a loop BLOCKED and never turns it into a pass."""
 
@@ -225,7 +264,7 @@ class DriverCall(unittest.TestCase):
                 rec,
                 DATA / "Bump.sol",
                 bump_ast(),
-                unittest.mock.Mock(contract=None),
+                unittest.mock.Mock(contract=None, loop_summary=None),
                 pathlib.Path("/nonexistent"),
                 "bump_0",
                 "0" * 64,
@@ -236,10 +275,13 @@ class DriverCall(unittest.TestCase):
 
     def test_the_hook_runs_only_on_a_loop_block(self):
         src = (HERE / "generic.py").read_text()
-        i = src.index("loop_resources(record, src, ast, a.contract)\n")
-        self.assertIn(
-            "loop_cuts(record, src, ast, a, work, name, src_sha)", src[i : i + 300]
+        i = src.index('if any(r["feature"] == "loop" for r in b.reasons):')
+        block = src[i : i + 600]
+        cuts = block.index("loop_cuts(record, src, ast, a, work, name, src_sha)")
+        self.assertLess(
+            cuts, block.index("loop_resources(record, src, ast, a.contract)")
         )
+        self.assertIn("raise Blocked(b.reasons + extra) from b", block)
 
 
 if __name__ == "__main__":
