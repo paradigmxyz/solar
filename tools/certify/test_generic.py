@@ -1726,6 +1726,20 @@ class SpecConnectAnyCaller(unittest.TestCase):
             self.assertNotIn(" ctxOf ", text)
             self.assertNotIn("sorry", text)
 
+    def test_tree_only_any_caller(self):
+        import spec_connect
+
+        mapped = spec_connect.parse_sym("sym C.f false some [160, 256] TREE .stop")
+        self.assertIsNone(spec_connect.any_caller_refusal(mapped[1:], ([1], []), tree_only=True))
+        none = spec_connect.parse_sym("sym C.h noerase")
+        self.assertIn("eraseFnSym", spec_connect.any_caller_refusal(none[1:], ([1], []), tree_only=True))
+        lines = spec_connect.from_block("f", "C.f", 2, 1, "NS", "M", "B", "[160, 256]", "u", False, True)
+        text = "\n".join(lines)
+        self.assertIn("def f_tree_from", text)
+        self.assertIn("kernel_rfl f_erase_from_eq", text)
+        self.assertIn("some 2, some f_tree_from, false, some [160, 256]".replace("some 2", "(2"), text)
+        self.assertNotIn("theorem", text)
+
 
 class LifecycleFrame(unittest.TestCase):
     """The kernel stage's inputs: the opcodes outside the generic creation frame, and the immutable

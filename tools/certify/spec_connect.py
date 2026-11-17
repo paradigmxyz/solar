@@ -190,12 +190,15 @@ def parse_sym(line):
     return name, m.group(1) == "true", None if m.group(2) == "none" else m.group(2), m.group(3)
 
 
-def any_caller_refusal(sym, slots):
-    """Why --any-caller cannot state a function's spec from every caller, or None."""
+def any_caller_refusal(sym, slots, tree_only=False):
+    """Why --any-caller cannot state a function's spec from every caller, or None. With
+    --tree-only only the symbolic-caller tree is written, so only its absence refuses."""
     if sym is None or sym[0] is None:
         return "no function of its selector"
     if sym[0] == "noerase":
         return "outside the generic source stage for every caller (eraseFnSym)"
+    if tree_only:
+        return None
     payable, ws, _ = sym
     if payable:
         return "payable: a call with value runs its tree, which holdsFn_of_tree_from does not cover"
@@ -206,7 +209,7 @@ def any_caller_refusal(sym, slots):
     return None
 
 
-def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings):
+def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings, payable=False, tree_only=False):
     """--any-caller: `fid`'s spec of SolidCore's run sent by every account `a < 2 ^ 160` other than the
     contract, each in its own context (`ctxOfCallFrom a`), at every value below `2 ^ 256`
     (`SolidCore.Spec.holdsFn_of_tree_from`, Verify/Spec/TreeFrom.lean), from the symbolic-caller
@@ -214,6 +217,8 @@ def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings):
     what each theorem proves is checked by the kernel when the module builds."""
     ds = f"{fid}_tree_from, {fid}_spec, {mod}.spec, {bundle}, SolidCore.Spec.ctxAt, hca"
     ds0 = f"{fid}_tree_from, {fid}_spec, SolidCore.Spec.FnSpec.noSucc, {mod}.spec, {bundle}, SolidCore.Spec.ctxAt, hca"
+    payable = "true" if payable else "false"
+    wsl = "none" if ws is None else f"some {ws}"
     caller = "  intro a ha hne\n  have hca : a % 2 ^ 256 = a := Nat.mod_eq_of_lt (by omega)"
     meets0 = f"{caller}\n  tree_meets_fixed [{ds0 if nsi else ds}]"
     out = [
@@ -229,9 +234,11 @@ def from_block(fid, name, n, nsi, ns, mod, bundle, ws, usings):
         f"      (f.params.length, eraseFnSym (envOf c.core) {ns}.fuel f, f.payable, widthsOf f.params f.paramAbiCleanups)",
         "  | .error _ => none",
         "",
-        f"kernel_rfl {fid}_erase_from_eq {fid}_erase_from? (some ({n}, some {fid}_tree_from, false, some {ws})) using {usings}",
+        f"kernel_rfl {fid}_erase_from_eq {fid}_erase_from? (some ({n}, some {fid}_tree_from, {payable}, {wsl})) using {usings}",
         "",
     ]
+    if tree_only:
+        return out
     if nsi:
         out += [
             "set_option maxHeartbeats 4000000 in",
@@ -440,8 +447,6 @@ def main():
     args = ap.parse_args()
     only = {x for x in args.only.split(",") if x}
 
-    if args.any_caller and args.tree_only:
-        sys.exit("spec_connect: --any-caller and --tree-only exclude each other")
     sym = PROBE_SYM.format(ns=args.namespace, bundle=args.bundle) if args.any_caller else ""
 
     probe = PROBE.format(
@@ -521,7 +526,7 @@ def main():
             )
             continue
         if args.any_caller:
-            why = any_caller_refusal(syms.get(name), slots)
+            why = any_caller_refusal(syms.get(name), slots, args.tree_only)
             if why:
                 refused.append(f"{name}: {why}")
                 continue
@@ -622,6 +627,10 @@ def main():
             "",
         ]
         if args.tree_only:
+            if args.any_caller:
+                payable, ws, ftree = syms[name]
+                out += [x.replace("@TREE@", ftree) for x in
+                        from_block(fid, name, n, nsi, ns, mod, args.bundle, ws, usings, payable, True)]
             continue
         out += (
             succeeds_block(fid, n, hyp, proof, lits, nests, meets, mod, args.bundle)
@@ -689,7 +698,7 @@ def main():
     for _, name, fid, *_ in fns:
         print(f"{args.module_name}.{fid}_{'tree' if args.tree_only else 'holds'}")
         if args.any_caller:
-            print(f"{args.module_name}.{fid}_holds_from")
+            print(f"{args.module_name}.{fid}_{'tree_from' if args.tree_only else 'holds_from'}")
 
 
 if __name__ == "__main__":
