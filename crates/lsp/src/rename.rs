@@ -8,7 +8,6 @@ use lsp_types::{Location, Position, Range, Url};
 use solar_interface::{
     Ident, Span, Symbol,
     data_structures::{
-        Never,
         index::{Idx, IndexVec},
         map::{FxHashMap, FxHashSet},
         newtype_index,
@@ -868,7 +867,7 @@ struct OverridePathCollector {
 }
 
 impl<'ast> Visit<'ast> for OverridePathCollector {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn visit_item_function(
         &mut self,

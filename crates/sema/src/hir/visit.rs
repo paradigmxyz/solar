@@ -6,7 +6,7 @@ solar_macros::declare_visitors! {
 pub trait Visit<'hir> {
     /// The value returned when breaking from the traversal.
     ///
-    /// This can be [`Never`](solar_data_structures::Never) to indicate that the traversal
+    /// This can be [`!`](primitive@never) to indicate that the traversal
     /// should never break.
     type BreakValue;
 

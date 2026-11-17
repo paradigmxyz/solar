@@ -9,7 +9,6 @@ use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
-    Never,
     bit_set::GrowableBitSet,
     map::{FxHashMap, FxIndexMap},
     parallel,
@@ -1052,7 +1051,7 @@ impl<'gcx> BreakContinueChecker<'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -1224,7 +1223,6 @@ fn check_error_selector_collisions(gcx: Gcx<'_>) {
 mod tests {
     use super::*;
     use crate::{Compiler, builtins::Builtin, hir::ExprKind};
-    use solar_data_structures::Never;
     use solar_interface::{Session, config::CompileOpts};
     use std::path::PathBuf;
 
@@ -1316,7 +1314,7 @@ contract C {
     }
 
     impl<'hir> Visit<'hir> for CallExprs<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             self.hir
@@ -1336,7 +1334,7 @@ contract C {
     }
 
     impl<'hir> Visit<'hir> for Exprs<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             self.hir

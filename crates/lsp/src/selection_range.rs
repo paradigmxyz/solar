@@ -6,7 +6,7 @@ use crate::{
 };
 use crop::Rope;
 use lsp_types::{Position, Range, SelectionRange};
-use solar_interface::{Span, data_structures::Never, source_map::SourceFile};
+use solar_interface::{Span, source_map::SourceFile};
 use solar_parse::ast::{self, visit::Visit};
 use std::{
     cmp::Reverse,
@@ -225,7 +225,7 @@ impl RangeCollector<'_> {
 }
 
 impl<'ast> Visit<'ast> for RangeCollector<'_> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         self.push(item.span);
