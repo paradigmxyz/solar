@@ -1,10 +1,11 @@
 //@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
-//@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
 
 // A call in tail position and the `return` after it are one tail call, as in LLVM's `TCRETURN`,
 // which keeps the call's location. The pushes and swaps that set up its arguments map to the call
-// `h(x, true)`, like its jump, not to the `return` statement around it.
+// `h(x, true)`, like its jump, not to the `return` statement around it. Only `-Onone` runs this
+// test: at `-Ogas` and `-Osize` the callee is inlined and no tail call remains.
 
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: [invoke=g
