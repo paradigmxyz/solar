@@ -966,6 +966,29 @@ lean_lib «{name}» where
 """.replace("§", "\u0060")
 
 
+def fresh_certified(clone, name, contract):
+    """Make CLONE ready for this run's own Certified/NAME: a base that already holds the directory (an
+    earlier record of the same source, published) has it removed here, so every file of the run is
+    written by the run and none is reused, and the library stanza is appended only when the lakefile
+    lacks it. A stanza for NAME other than the one this driver writes is refused. Returns whether the
+    base held either."""
+    d = clone / "Certified" / name
+    held = d.exists()
+    if held:
+        shutil.rmtree(d)
+    lf = clone / "lakefile.lean"
+    text = lf.read_text()
+    stanza = lakefile_lib(name, contract)
+    if stanza in text:
+        held = True
+    elif re.search(rf"^lean_lib («{re.escape(name)}»|{re.escape(name)})( |$)", text, re.M):
+        raise Failed(f"the base's lakefile declares lean_lib {name} other than as this driver writes it")
+    else:
+        with open(lf, "a") as f:
+            f.write(stanza)
+    return held
+
+
 def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
     """The probe, before the cold run, in a separate clone of the base (LEAN_DIR before the inputs)
     with the build directory of CACHE when given (lake rebuilds what differs), never the run's own.
@@ -982,13 +1005,12 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
         )
         if rc != 0:
             raise Failed(f"cannot copy the probe cache: {err[:200]}")
+    fresh_certified(pl, name, contract)
     d = pl / "Certified" / name
     d.mkdir(parents=True)
     shutil.copytree(work / "probe" / "gen", d / "gen")
     (d / "Source.lean").write_text(source_text)
     (d / "Probe.lean").write_text(probe_lean(name, contract, fns))
-    with open(pl / "lakefile.lean", "a") as f:
-        f.write(lakefile_lib(name, contract))
     env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
     rc, out, err = run(
         [
@@ -1233,14 +1255,13 @@ def run_lifecycle_probe(
         )
         if rc != 0:
             raise Failed(f"cannot copy the probe cache: {err[:200]}")
+    fresh_certified(pl, name, contract)
     d = pl / "Certified" / name
     d.mkdir(parents=True)
     (d / "Source.lean").write_text(source_text)
     (d / "LifeProbe.lean").write_text(
         lifecycle_probe_lean(name, contract, creation, ws)
     )
-    with open(pl / "lakefile.lean", "a") as f:
-        f.write(lakefile_lib(name, contract))
     env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
     rc, out, err = run(
         ["lake", "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"],
@@ -3159,6 +3180,10 @@ def main():
         if caller == "any":
             # Only on the any route: the fixed route's record is the fixed-frame record.
             record["caller"] = caller
+        if fresh_certified(lean_dir, name, contract):
+            # The base already holds this source's record: regenerated here in full, never reused.
+            record["base_held_record"] = True
+            log(f"base holds Certified/{name}: removed in this run's clone and regenerated in full")
         d.mkdir(parents=True)
         shutil.copy(src, d / f"{name}.sol")
         (d / "options").write_text("\n".join(OPTIONS) + "\n")
@@ -3203,8 +3228,6 @@ def main():
             )
             + "\n"
         )
-        with open(lean_dir / "lakefile.lean", "a") as f:
-            f.write(lakefile_lib(name, contract))
         git(lean_dir, "add", "-A", "Certified", "lakefile.lean")
         git(
             lean_dir,
