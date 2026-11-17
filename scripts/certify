@@ -71,6 +71,9 @@
 # refused when CI or GITHUB_ACTIONS is set: CERTIFY_ALLOW_UNPINNED=1 accepts a SOLIDITY_LEAN_DIR at another commit, and
 # CERTIFY_ALLOW_FOREIGN_SOLAR=1 accepts a SOLAR built from other compiler sources.
 set -euo pipefail
+# Bytewise collation for every sort, comm and join here (the toolchain digest and the closure
+# fingerprints among them), whatever the host's locale.
+export LC_ALL=C
 
 root="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
 here="$root/tools/certify"
@@ -119,10 +122,16 @@ resolve_toolchain() {
     local dir tc
     dir="$(cd "$(dirname "$(readlink -f "$(cd "$lean_dir" && lake env which lean)")")/.." && pwd)" ||
         die "cannot find the toolchain"
-    tc="$(cd "$dir" && find . -type f | sort | xargs -d '\n' sha256sum | sha256sum | cut -c1-64)" ||
-        die "cannot digest the toolchain at $dir"
-    [[ "$tc" == "$(tr -d '[:space:]' < "$here/toolchain.sha256")" ]] ||
-        die "the toolchain at $dir is not the one tools/certify/toolchain.sha256 records"
+    # tools/certify/toolchain_digest.sh fails as "cannot digest toolchain" on any listing or hashing
+    # error and names the added, missing and changed files on a mismatch. The computed file list,
+    # the toolchain's listing and the environment it ran in are kept in CERTIFY_RECEIPTS_DIR
+    # (default .lake/certify-toolchain of the checkout).
+    local receipts="${CERTIFY_RECEIPTS_DIR:-$lean_dir/.lake/certify-toolchain}" out
+    mkdir -p "$receipts" || die "cannot create $receipts"
+    env | grep -E '^(LANG|LC_[A-Z]+|LANGUAGE|PATH|HOME|LEAN_[A-Z_]+|ELAN_[A-Z_]+|LAKE_[A-Z_]+)=' | sort > "$receipts/toolchain.env" || true
+    (cd "$dir" && ls -laR --time-style=full-iso .) > "$receipts/toolchain.ls" 2>&1 || true
+    out="$(bash "$here/toolchain_digest.sh" "$dir" "$here/toolchain.sha256" "$receipts/toolchain.computed.files" 2>&1)" ||
+        die "$out"
     [[ -x "$dir/bin/lean" && -x "$dir/bin/leanchecker" ]] || die "the toolchain at $dir has no bin/lean and bin/leanchecker"
     toolchain=$dir
 }
