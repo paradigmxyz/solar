@@ -1,0 +1,23 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module SunkUncheckedPtradd
+
+// Both arms step back a word from the same object, with no bounds check to cover it, and the
+// sum is shared in the join. The shared `ptradd` stays unchecked: memory-object lowering marks
+// every other one as a checked offset, and the heap prefix guard reserves nothing for a wrapped
+// step through that marker.
+// CHECK-LABEL: {{^[ +].*}}fn @sunk{{[( ]}}
+// CHECK: + {{v[0-9]+}} = ptradd arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(unchecked)
+fn @sunk(arg0: ptr<memory>, arg1: i1) -> ptr<memory> {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = ptradd arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(unchecked)
+    jump bb3
+  bb2:
+    v2 = ptradd arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(unchecked)
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    ret v3
+}

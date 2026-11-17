@@ -1252,3 +1252,112 @@ impl fmt::Display for Function {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Module, validate};
+    use solar_data_structures::map::FxHashMap;
+    use solar_interface::{ColorChoice, Session, source_map::FileName};
+
+    // v0 and v1 are a chain of two steps, `arg0 - 64` then `+ 32`; v2 reaches the same address
+    // with one unchecked step; v3 and v4 are an index sum and a copy of v0 through casts.
+    const MODULE: &str = "@module M
+fn @f(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0
+    v1 = add v0, 32
+    v2 = sub arg0, 32
+    v3 = add arg0, arg1
+    v4 = not arg0
+    v5 = phi [bb0: v1]
+    ret v1
+}
+";
+
+    /// Parses `MODULE`, marks the instructions named by their index as checked offsets and runs
+    /// `test` on the function and the result value of each instruction.
+    fn with_function(marked: &[usize], test: impl FnOnce(&mut Function, &[ValueId])) {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter_sequential(|| {
+            let file = sess.source_map().new_source_file(FileName::Custom("m.mir".into()), MODULE);
+            let mut module = Module::parse(&sess, &file.unwrap()).unwrap();
+            validate(&sess.dcx, &module);
+            let id = module.functions.indices().next().unwrap();
+            let func = &mut module.functions[id];
+            let insts = func.instructions().collect::<Vec<_>>();
+            for &index in marked {
+                func.inst_mut(insts[index]).metadata.set_checked_object_offset();
+            }
+            let values = insts.iter().map(|&inst| func.inst_result_value(inst).unwrap());
+            test(func, &values.collect::<Vec<_>>());
+        });
+    }
+
+    fn marked(func: &Function, value: ValueId) -> bool {
+        let Value::Inst(inst) = *func.value(value) else { unreachable!() };
+        func.inst(inst).metadata.checked_object_offset()
+    }
+
+    // `add(sub(p, 64), 32) => sub(p, 32)` over an unchecked inner step must not keep the marker,
+    // but the same fold over a checked step does.
+    #[test]
+    fn fold_keeps_the_marker_only_over_checked_steps() {
+        let fold = |func: &mut Function, inner: ValueId, outer: ValueId| {
+            let Value::Inst(outer) = *func.value(outer) else { unreachable!() };
+            let InstKind::Add(base, _) = func.inst(outer).kind else { unreachable!() };
+            let InstKind::Add(arg0, _) = *func.value_inst_kind(inner).unwrap() else {
+                unreachable!()
+            };
+            assert_eq!(base, inner);
+            let thirty_two = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(32))));
+            func.replace_inst_kind(outer, InstKind::Sub(arg0, thirty_two));
+        };
+        with_function(&[0, 1], |func, values| {
+            fold(func, values[0], values[1]);
+            assert!(marked(func, values[1]));
+        });
+        with_function(&[1], |func, values| {
+            fold(func, values[0], values[1]);
+            assert!(!marked(func, values[1]));
+        });
+    }
+
+    // A constant that replaces a variable offset has no checked step to sum.
+    #[test]
+    fn a_constant_replacing_a_variable_offset_clears_the_marker() {
+        with_function(&[3], |func, values| {
+            let Value::Inst(sum) = *func.value(values[3]) else { unreachable!() };
+            let InstKind::Add(arg0, _) = func.inst(sum).kind else { unreachable!() };
+            let step = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(32))));
+            func.replace_inst_kind(sum, InstKind::Add(arg0, step));
+            assert!(!marked(func, values[3]));
+        });
+    }
+
+    // Replacing an unchecked addition by the outer link of a checked chain clears the whole chain,
+    // since the guard reads the inner link through it.
+    #[test]
+    fn merging_an_unchecked_addition_clears_the_chain() {
+        with_function(&[0, 1], |func, values| {
+            func.replace_uses(&FxHashMap::from_iter([(values[2], values[1])]));
+            assert!(!marked(func, values[0]) && !marked(func, values[1]));
+        });
+    }
+
+    // Any computation but a checked addition, a cast or a phi can hide an unchecked step, as
+    // `not(add(not(p), 32))` does.
+    #[test]
+    fn merging_other_computations_clears_the_marker() {
+        with_function(&[1], |func, values| {
+            func.replace_uses(&FxHashMap::from_iter([(values[4], values[1])]));
+            assert!(!marked(func, values[1]));
+        });
+        for kept in [0, 5] {
+            with_function(&[0, 1], |func, values| {
+                func.replace_uses(&FxHashMap::from_iter([(values[kept], values[1])]));
+                assert!(marked(func, values[1]), "merging v{kept}");
+            });
+        }
+    }
+}
