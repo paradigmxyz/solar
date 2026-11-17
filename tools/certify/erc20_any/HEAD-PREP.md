@@ -97,3 +97,24 @@ Runtime tier only (no deployment, constructor, lifecycle or reentrancy); `Target
 under `ScopeAt`, the separation of the caller's and recipient's balance preimages; callers below
 2^160 other than the contract, callvalue 0; sources bound by manifest pins checked outside the
 kernel; the gas figure bounds when the bytes match the source and is not a no-OOG guarantee.
+
+## Build cap admission
+
+build_cap.sh admits a build step only after its cgroup's limits are confirmed. It checks every
+write and reads memory.max and memory.swap.max back. A missing or unwritable cgroup, a cgroup
+without the memory controller, a failed write, or a readback that differs from the request
+refuses admission: exit 95 and an `admission ... REFUSED` line in gate.txt, before the step
+runs. The kernel stores memory.max in whole pages, so the script asks for the budget rounded
+down to a page. A request that is not page-aligned reads back lower. On m4-metal-large,
+296804322 kB as bytes (303927625728) reads back as 303927623680. Both limits are read again
+after the step, and any change marks the step FAILED (exit 97).
+
+Lean and rustc concurrency is bounded only by LEAN_NUM_THREADS and is sampled once a second, so
+gate lines and receipts say `concurrency=sampled-only`.
+
+neg_cap.sh runs the admission controls without a build: a missing cgroup root, a read-only root,
+a cgroup without the memory controller, and a memory.max that reads back a different value.
+Each must exit 95 without running its command.
+
+Slot 1 ran on build_cap.sh at a35f781e, which wrote the limits without checking or reading them
+back and removed each step's cgroup on exit. Its build phase is therefore "cap unverified".
