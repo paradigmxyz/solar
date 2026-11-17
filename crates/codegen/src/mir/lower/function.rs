@@ -11,9 +11,10 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
         AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail,
         CheckedOp, DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId,
-        ImmutableId, InstKind, InstructionMetadata, LogTopics, MemoryObjectKind, MemoryObjectLayout,
-        MirModuleTarget, MirType, Module, PackedArraySource, PackedPart, PanicCode, PtrLocation,
-        RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
+        ImmutableId, InstKind, InstructionMetadata, LogTopics, MemoryObjectKind,
+        MemoryObjectLayout, MirModuleTarget, MirType, Module, PackedArraySource, PackedPart,
+        PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId,
+        memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::{U256, keccak256};
