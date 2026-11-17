@@ -38,8 +38,7 @@
 //! it only applies where `keep_with_next` allows that boundary to be disturbed.
 //!
 //! A block that declares a call effect, the entry of a function or shared body, is absorbed into
-//! its predecessor only if the stack verifier can still follow its returns. At `-O none` it is
-//! never absorbed, so the function keeps its entry. The successors of the
+//! its predecessor only if the stack verifier can still follow its returns. The successors of the
 //! absorbed code take over the effect, unless the code pushes a block's address and calls out or
 //! consumes the return address, when the block stays apart; a return through a dynamic jump needs
 //! no successor, since the address is in the merged block.
@@ -733,14 +732,6 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
-                break;
-            }
-            // An unoptimized build keeps the entry of a function apart, the instruction coverage
-            // anchors the function to.
-            let entry = &module.blocks[target].metadata;
-            if entry.call_effect.is_some()
-                && entry.optimization.unwrap_or(module.optimization).is_none()
-            {
                 break;
             }
 

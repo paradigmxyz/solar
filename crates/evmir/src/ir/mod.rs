@@ -901,8 +901,7 @@ pub struct Metadata {
     /// after this instruction into a block boundary, so no jump, label, or block-layout decision
     /// can come between the two, and from inserting an instruction there. Lowering sets it where
     /// the gas consumed between two instructions is observable, such as a pre-EIP-150 call's
-    /// `GAS`-relative gas reserve, and on the label push of a `jump` that an unoptimized build
-    /// keeps as an executed instruction, which stays an `Op(JUMP)` terminator after its push.
+    /// `GAS`-relative gas reserve.
     ///
     /// The flag records only that the pair is glued, not what it is glued to, so verification
     /// checks the reserve by shape instead: a glued `GAS` has to reach a glued `SUB` and a glued

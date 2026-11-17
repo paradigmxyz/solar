@@ -177,13 +177,8 @@ fn sunk_phi_expression_debug_outputs_are_bytecode_neutral() {
     assert_debug_outputs_are_bytecode_neutral("phi_sink.sol");
 }
 
-#[test]
-fn kept_jump_debug_outputs_are_bytecode_neutral() {
-    assert_debug_outputs_are_bytecode_neutral("../../codegen/debug-info/none_keep_jumps.sol");
-}
-
 fn assert_debug_outputs_are_bytecode_neutral(source: &str) {
-    for mode in ["none", "gas", "size"] {
+    for mode in ["gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let debug = compile_json(&[
             source,

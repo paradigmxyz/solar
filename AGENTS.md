@@ -91,13 +91,6 @@ dropped or unknown rather than inventing a location or picking an arbitrary
 origin for shared code. Explain deliberate limits with a `NOTE:` comment. Cover
 debug-info changes with bytecode-neutrality tests.
 
-`-Onone` is the debuggable level and the one exception: its codegen keeps one
-instruction of its own for every source item (statements, `break` and
-`continue`, revert sites, calls), even where that costs a block, a jump, or a
-`JUMPDEST`, so `forge coverage` can anchor each item as it does on solc's
-unoptimized legacy output. Whether it does never depends on the requested debug
-outputs. `-Ogas` and `-Osize` keep the rule above unchanged.
-
 Pick locations in this order; the first rule that applies wins.
 
 1. **solc.** For which source span an expression or statement maps to, follow
