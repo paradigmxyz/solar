@@ -58,6 +58,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 import keccak
+import lakefile_inputs
 
 SOLC_VERSION = "0.8.35"
 ENVIRONMENT = "one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message (fixed, not quantified)"
@@ -956,31 +957,24 @@ end Certified.{name}.Probe
 
 
 def lakefile_lib(name, contract):
-    return f"""
--- {name}: the stages of Certified/{name}/{name}.sol's {contract} and their kernel proofs, which
--- solar's scripts/certify writes.
-""" + lean_lib_body(name)
+    """The library stanza the driver appends for Certified/NAME (lakefile_inputs.py, which also
+    holds the rule for that append in the inputs commit). Refuses a NAME outside the driver's name
+    grammar or a CONTRACT that is not a Solidity name."""
+    try:
+        return lakefile_inputs.lakefile_lib(name, contract)
+    except lakefile_inputs.Refused as e:
+        raise Failed(f"lakefile stanza: {e}") from None
 
 
 def lean_lib_body(name):
     """The declaration of lakefile_lib's stanza, without its comment."""
-    return f"""lean_lib «{name}» where
-  srcDir := "Certified"
-  roots := #[§{name}.Proofs]
-  globs := #[.submodules §{name}]
-""".replace("§", "\u0060")
+    try:
+        return lakefile_inputs.lean_lib_body(name)
+    except lakefile_inputs.Refused as e:
+        raise Failed(f"lakefile stanza: {e}") from None
 
 
-def lean_lib_declared(text, name):
-    """Whether the lakefile TEXT declares lean_lib NAME, as `lean_lib «NAME»` or `lean_lib NAME`."""
-    return (
-        re.search(
-            rf"^lean_lib («{re.escape(name)}»|{re.escape(name)})( |$)",
-            text,
-            re.MULTILINE,
-        )
-        is not None
-    )
+lean_lib_declared = lakefile_inputs.lean_lib_declared
 
 
 def declare_lean_lib(lf, name, stanza, own=()):
@@ -2838,12 +2832,14 @@ def inputs_tree(repo, base, files_dir, paths):
     return tree.strip()
 
 
-def commit_inputs(lean_dir, base, name):
+def commit_inputs(lean_dir, base, name, contract):
     """Commit what LEAN_DIR's Certified/ and lakefile.lean hold as one commit on BASE, and return
     the commit and the paths it changes (the run's generated inputs). The commit must pass
     checkout.sh's own inputs check, the one scripts/certify applies to the checkout it runs in, so
     the inputs the record lists are exactly the files that run reads: a changed path outside
-    Certified/NAME/ (such as lakefile.lean) or an ignored file under it is refused here too."""
+    Certified/NAME/ or an ignored file under it is refused here too. lakefile.lean may change only
+    by lakefile_inputs.py's rule (the canonical stanza for NAME appended to the base's bytes), which
+    checkout.sh applies and this re-applies for CONTRACT."""
     git(lean_dir, "add", "-A", "Certified", "lakefile.lean")
     git(
         lean_dir,
@@ -2871,7 +2867,27 @@ def commit_inputs(lean_dir, base, name):
     if rc != 0:
         raise Failed(f"the input commit: {err.strip()[-300:]}")
     changed = git(lean_dir, "diff", "--no-renames", "--name-only", base, inputs)
+    if "lakefile.lean" in changed.splitlines() and (
+        why := lakefile_problem(lean_dir, base, inputs, name, contract)
+    ):
+        raise Failed(f"the input commit: lakefile.lean: {why}")
     return inputs, changed.splitlines()
+
+
+def lakefile_problem(repo, base, head, name, contract=None, head_bytes=None):
+    """Why lakefile.lean of HEAD in REPO (or HEAD_BYTES) is not lakefile_inputs.py's allowed change
+    of BASE's for NAME, or None: the one rule generic.py, checkout.sh, after_run_problem and the
+    executed-tree rebuild apply."""
+    try:
+        old = lakefile_inputs.show(str(repo), base)
+        new = (
+            head_bytes
+            if head_bytes is not None
+            else lakefile_inputs.show(str(repo), head)
+        )
+    except lakefile_inputs.Refused as e:
+        return str(e)
+    return lakefile_inputs.problem(old, new, name, contract)
 
 
 def pinned_packages(repo, rev):
@@ -2924,7 +2940,8 @@ def packages_problem(pk, pin):
 def after_run_problem(lean_dir, name, inputs, rec, pin):
     """Why the run scripts/certify reports in REC did not execute the input commit INPUTS of
     LEAN_DIR with the pinned packages PIN (pinned_packages' set) unedited, or None: only this
-    run's own Certified/NAME/ may differ from the commit after the run."""
+    run's own Certified/NAME/ may differ from the commit after the run, and the commit's and the
+    checkout's lakefile.lean must be lakefile_inputs.py's allowed change of the base's."""
     ran = git(lean_dir, "rev-parse", "HEAD")
     outside = changed_outside(lean_dir, f"Certified/{name}/")
     if ran != inputs or rec.get("solidity_lean") != inputs or outside:
@@ -2932,6 +2949,19 @@ def after_run_problem(lean_dir, name, inputs, rec, pin):
             f"executed tree: scripts/certify ran at {rec.get('solidity_lean')} (checkout {ran}), "
             f"not the input commit {inputs}, or changed files outside Certified/{name}/: {outside[:3]}"
         )
+    base = git(lean_dir, "rev-parse", inputs + "^")
+    try:
+        on_disk = (pathlib.Path(lean_dir) / "lakefile.lean").read_bytes()
+    except OSError as e:
+        return f"executed tree: cannot read lakefile.lean: {e}"
+    for label, head_bytes in (
+        ("the input commit's", None),
+        ("the checkout's", on_disk),
+    ):
+        if why := lakefile_problem(
+            lean_dir, base, inputs, name, rec.get("contract"), head_bytes
+        ):
+            return f"executed tree: {label} lakefile.lean: {why}"
     if (
         why := packages_problem(pathlib.Path(lean_dir) / ".lake" / "packages", pin)
     ) is not None:
@@ -3010,6 +3040,25 @@ def executed_problem(rec, d, repo):
         return "the record names no base and generated inputs for its executed tree"
     if not (repo and pathlib.Path(repo).is_dir()):
         return f"no solidity-lean checkout at {repo!r} to rebuild the executed tree from its base"
+    name = rec.get("name")
+    if not isinstance(name, str):
+        return "the record names no run (name), so its generated inputs are unchecked"
+    if stray := [
+        q
+        for q in paths
+        if not (
+            isinstance(q, str)
+            and (q.startswith(f"Certified/{name}/") or q == "lakefile.lean")
+        )
+    ]:
+        return f"the listed generated inputs hold paths outside Certified/{name}/: {stray[:3]}"
+    if "lakefile.lean" in paths:
+        try:
+            lf = (d / "inputs" / "lakefile.lean").read_bytes()
+        except OSError:
+            return "the listed generated input lakefile.lean is missing from inputs/"
+        if why := lakefile_problem(repo, base, None, name, rec.get("contract"), lf):
+            return f"the listed generated input lakefile.lean: {why}"
     try:
         got = inputs_tree(repo, base, d / "inputs", paths)
         base_tree = git(repo, "rev-parse", base + "^{tree}")
@@ -3581,7 +3630,7 @@ def main():
             )
             + "\n"
         )
-        inputs, changed = commit_inputs(lean_dir, base, name)
+        inputs, changed = commit_inputs(lean_dir, base, name, contract)
         record["solidity_lean_source"] = str(lean_src)
         record["solidity_lean"] = {
             "base": base,

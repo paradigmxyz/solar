@@ -14,16 +14,28 @@
 set -euo pipefail
 die() { echo "certify: error: $*" >&2; exit 1; }
 
+here="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
+
 # Refuses, naming the paths, an inputs commit HEAD on BASE in the checkout DIR that changes a path
 # outside INPUTS_DIR/, or leaves under INPUTS_DIR/ a file git ignores (one the run reads but the
-# commit does not hold). generic.py checks the inputs commit it makes with this same function,
-# through checkout.sh --check-inputs DIR BASE HEAD INPUTS_DIR, so both accept the same files.
+# commit does not hold). The one exception is lakefile.lean, and only as tools/certify/
+# lakefile_inputs.py allows: the base's bytes plus the driver's library stanza for the NAME of
+# INPUTS_DIR (Certified/NAME), which the base does not declare. generic.py checks the inputs commit
+# it makes with this same function, through checkout.sh --check-inputs DIR BASE HEAD INPUTS_DIR, so
+# both accept the same files.
 check_inputs() {
-    local changed outside ignored
+    local changed outside ignored why
     [[ "$4" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*[A-Za-z0-9_]$ && "$4" != *..* ]] ||
         die "CERTIFY_PIN_BASE needs the inputs directory, not '$4'"
     changed="$(git -C "$1" diff --no-renames --name-only "$2" "$3")" || die "cannot diff $2..$3"
     outside="$(awk -v p="$4/" 'index($0, p) != 1' <<<"$changed")"
+    if [[ "$outside" == lakefile.lean ]]; then
+        if why="$(python3 -I "$here/lakefile_inputs.py" check "$1" "$2" "$3" "$4" 2>&1)"; then
+            outside=""
+        else
+            die "the inputs commit $3 touches paths outside $4/: lakefile.lean ($why)"
+        fi
+    fi
     [[ -z "$outside" ]] ||
         die "the inputs commit $3 touches paths outside $4/: $(head -5 <<<"$outside" | tr '\n' ' ')"
     ignored="$(git -C "$1" ls-files --full-name --others --ignored --exclude-standard -- "$4/")" ||

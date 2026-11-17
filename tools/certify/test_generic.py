@@ -1861,10 +1861,12 @@ class NoConstructorRoute(unittest.TestCase):
         events = [{"sig": "E(uint256)", "topic": 0x1234}]
         for m in (old, generic):
             m.out = [
-                m.lowering_lean("n_x", "C", fns, events, "core", "[]"),
-                m.lowering_lean("n_x", "C", fns, events, "core", "[(0, 1)]", sym=True),
-                m.probe_lean("n_x", "C", fns),
-                m.lakefile_lib("n_x", "C"),
+                m.lowering_lean("x_0000abcd", "C", fns, events, "core", "[]"),
+                m.lowering_lean(
+                    "x_0000abcd", "C", fns, events, "core", "[(0, 1)]", sym=True
+                ),
+                m.probe_lean("x_0000abcd", "C", fns),
+                m.lakefile_lib("x_0000abcd", "C"),
             ]
         self.assertEqual(old.out, generic.out)
         if SOLC.exists():
@@ -2035,13 +2037,15 @@ class FreshCertified(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as t:
             c = pathlib.Path(t)
-            (c / "Certified" / "n_1" / "Proofs").mkdir(parents=True)
-            (c / "Certified" / "n_1" / "Final.lean").write_text("stale")
-            (c / "lakefile.lean").write_text("x" + generic.lakefile_lib("n_1", "C"))
-            self.assertTrue(generic.fresh_certified(c, "n_1", "C"))
-            self.assertFalse((c / "Certified" / "n_1").exists())
+            (c / "Certified" / "n_0000abcd" / "Proofs").mkdir(parents=True)
+            (c / "Certified" / "n_0000abcd" / "Final.lean").write_text("stale")
+            (c / "lakefile.lean").write_text(
+                "x" + generic.lakefile_lib("n_0000abcd", "C")
+            )
+            self.assertTrue(generic.fresh_certified(c, "n_0000abcd", "C"))
+            self.assertFalse((c / "Certified" / "n_0000abcd").exists())
             self.assertEqual(
-                (c / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1
+                (c / "lakefile.lean").read_text().count("lean_lib «n_0000abcd»"), 1
             )
 
     def test_new_and_foreign(self):
@@ -2050,14 +2054,16 @@ class FreshCertified(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             c = pathlib.Path(t)
             (c / "lakefile.lean").write_text("x\n")
-            self.assertFalse(generic.fresh_certified(c, "n_1", "C"))
+            self.assertFalse(generic.fresh_certified(c, "n_0000abcd", "C"))
             self.assertEqual(
                 (c / "lakefile.lean").read_text(),
-                "x\n" + generic.lakefile_lib("n_1", "C"),
+                "x\n" + generic.lakefile_lib("n_0000abcd", "C"),
             )
-            (c / "lakefile.lean").write_text("lean_lib «n_1» where\n  roots := #[]\n")
+            (c / "lakefile.lean").write_text(
+                "lean_lib «n_0000abcd» where\n  roots := #[]\n"
+            )
             with self.assertRaises(generic.Failed):
-                generic.fresh_certified(c, "n_1", "C")
+                generic.fresh_certified(c, "n_0000abcd", "C")
 
 
 class FreshCertifiedControls(unittest.TestCase):
@@ -2071,12 +2077,16 @@ class FreshCertifiedControls(unittest.TestCase):
         self.t = tempfile.TemporaryDirectory()
         root = pathlib.Path(self.t.name)
         self.base = root / "base"
-        (self.base / "Certified" / "n_1" / "gen").mkdir(parents=True)
-        (self.base / "Certified" / "n_1" / "gen" / "Stage0.lean").write_text(
+        (self.base / "Certified" / "n_0000abcd" / "gen").mkdir(parents=True)
+        (self.base / "Certified" / "n_0000abcd" / "gen" / "Stage0.lean").write_text(
             "stale export"
         )
-        (self.base / "Certified" / "n_1" / "Final.lean").write_text("stale final")
-        (self.base / "lakefile.lean").write_text("x" + generic.lakefile_lib("n_1", "C"))
+        (self.base / "Certified" / "n_0000abcd" / "Final.lean").write_text(
+            "stale final"
+        )
+        (self.base / "lakefile.lean").write_text(
+            "x" + generic.lakefile_lib("n_0000abcd", "C")
+        )
         g = ["git", "-c", "user.name=t", "-c", "user.email=t@l"]
         subprocess.run(g + ["init", "-q", str(self.base)], check=True)
         subprocess.run(g + ["-C", str(self.base), "add", "-A"], check=True)
@@ -2113,30 +2123,31 @@ class FreshCertifiedControls(unittest.TestCase):
         ).stdout
         self.assertEqual((st, head), ("", self.head))
         self.assertEqual(
-            (self.base / "Certified" / "n_1" / "Final.lean").read_text(), "stale final"
+            (self.base / "Certified" / "n_0000abcd" / "Final.lean").read_text(),
+            "stale final",
         )
 
     def test_stale_and_duplicate(self):
-        self.assertTrue(generic.fresh_certified(self.clone, "n_1", "C"))
+        self.assertTrue(generic.fresh_certified(self.clone, "n_0000abcd", "C"))
         # The stale generated files are gone from the clone, so nothing of the base's record is reused.
-        self.assertFalse((self.clone / "Certified" / "n_1").exists())
+        self.assertFalse((self.clone / "Certified" / "n_0000abcd").exists())
         self.assertEqual(
-            (self.clone / "lakefile.lean").read_text().count("lean_lib «n_1»"), 1
+            (self.clone / "lakefile.lean").read_text().count("lean_lib «n_0000abcd»"), 1
         )
         self.base_unchanged()
 
     def test_foreign_stanza(self):
         (self.clone / "lakefile.lean").write_text(
-            "lean_lib n_1 where\n  roots := #[]\n"
+            "lean_lib n_0000abcd where\n  roots := #[]\n"
         )
         with self.assertRaises(generic.Failed):
-            generic.fresh_certified(self.clone, "n_1", "C")
+            generic.fresh_certified(self.clone, "n_0000abcd", "C")
         self.base_unchanged()
 
     def test_other_names_untouched(self):
         (self.clone / "Certified" / "m_2").mkdir()
         (self.clone / "Certified" / "m_2" / "Final.lean").write_text("other")
-        generic.fresh_certified(self.clone, "n_1", "C")
+        generic.fresh_certified(self.clone, "n_0000abcd", "C")
         self.assertEqual(
             (self.clone / "Certified" / "m_2" / "Final.lean").read_text(), "other"
         )
@@ -2147,7 +2158,7 @@ class LeanLibDeclaredOnce(unittest.TestCase):
     already declares it, in either spelling, keeps one declaration (the driver's own stanza is
     reused, any other is refused) in the probe clones, the run's clone and the lifecycle build."""
 
-    FOREIGN = "x\nlean_lib n_1 where\n  roots := #[]\n"
+    FOREIGN = "x\nlean_lib n_0000abcd where\n  roots := #[]\n"
 
     def setUp(self):
         self.t = tempfile.TemporaryDirectory()
@@ -2160,7 +2171,11 @@ class LeanLibDeclaredOnce(unittest.TestCase):
 
     def count(self, lf):
         return len(
-            re.findall(r"^lean_lib (n_1|«n_1»)( |$)", lf.read_text(), re.MULTILINE)
+            re.findall(
+                r"^lean_lib (n_0000abcd|«n_0000abcd»)( |$)",
+                lf.read_text(),
+                re.MULTILINE,
+            )
         )
 
     def base(self, lakefile):
@@ -2180,33 +2195,33 @@ class LeanLibDeclaredOnce(unittest.TestCase):
             if cmd[0] != "lake":
                 return self.saved(cmd, *a, **kw)
             raise AssertionError(
-                f"lake runs on a lakefile that declares n_1 twice: {cmd}"
+                f"lake runs on a lakefile that declares n_0000abcd twice: {cmd}"
             )
 
         generic.run = fake_run
 
     def test_spellings(self):
         for text in (
-            "lean_lib n_1 where\n",
-            "lean_lib n_1\n",
-            "lean_lib «n_1» where\n",
+            "lean_lib n_0000abcd where\n",
+            "lean_lib n_0000abcd\n",
+            "lean_lib «n_0000abcd» where\n",
         ):
-            self.assertTrue(generic.lean_lib_declared(text, "n_1"), text)
-        for text in ("lean_lib n_10 where\n", "-- lean_lib n_1 where\n"):
-            self.assertFalse(generic.lean_lib_declared(text, "n_1"), text)
+            self.assertTrue(generic.lean_lib_declared(text, "n_0000abcd"), text)
+        for text in ("lean_lib n_0000abcd0 where\n", "-- lean_lib n_0000abcd where\n"):
+            self.assertFalse(generic.lean_lib_declared(text, "n_0000abcd"), text)
 
     def test_run_clone(self):
         lf = self.root / "lakefile.lean"
         lf.write_text(self.FOREIGN)
         with self.assertRaises(generic.Failed):
-            generic.fresh_certified(self.root, "n_1", "C")
+            generic.fresh_certified(self.root, "n_0000abcd", "C")
         self.assertEqual(self.count(lf), 1)
 
     def test_probe_clone(self):
         b = self.base(self.FOREIGN)
         self.lake_unreached()
         with self.assertRaises(generic.Failed):
-            generic.run_probe(b, self.root / "w", "n_1", "C", [], "", None)
+            generic.run_probe(b, self.root / "w", "n_0000abcd", "C", [], "", None)
         self.assertEqual(
             self.count(self.root / "w" / "probe-lean" / "lakefile.lean"), 1
         )
@@ -2216,7 +2231,7 @@ class LeanLibDeclaredOnce(unittest.TestCase):
         self.lake_unreached()
         with self.assertRaises(generic.Failed):
             generic.run_lifecycle_probe(
-                b, self.root / "w", "n_1", "C", "", b"", [], None
+                b, self.root / "w", "n_0000abcd", "C", "", b"", [], None
             )
         self.assertEqual(
             self.count(self.root / "w" / "life-probe" / "lakefile.lean"), 1
@@ -2224,24 +2239,28 @@ class LeanLibDeclaredOnce(unittest.TestCase):
 
     def test_lifecycle_build(self):
         lf = self.root / "lakefile.lean"
-        for foreign in (self.FOREIGN, "lean_lib «n_1» where\n  roots := #[]\n"):
+        for foreign in (self.FOREIGN, "lean_lib «n_0000abcd» where\n  roots := #[]\n"):
             lf.write_text(foreign)
             self.lake_unreached()
             with self.assertRaises(generic.Failed):
-                generic.lifecycle_build(self.root, "n_1", "", "Lifecycle", "", None)
+                generic.lifecycle_build(
+                    self.root, "n_0000abcd", "", "Lifecycle", "", None
+                )
             self.assertEqual(lf.read_text(), foreign)
 
     def test_lifecycle_build_reuses(self):
         lf = self.root / "lakefile.lean"
         generic.run = lambda cmd, *a, **kw: (0, "", "")
         # The run's or the probe's own stanza, already in the base, is kept as it is.
-        lf.write_text("x" + generic.lakefile_lib("n_1", "C"))
-        self.assertTrue(generic.lifecycle_build(self.root, "n_1", "", "L", "", None)[0])
-        self.assertEqual(lf.read_text(), "x" + generic.lakefile_lib("n_1", "C"))
+        lf.write_text("x" + generic.lakefile_lib("n_0000abcd", "C"))
+        self.assertTrue(
+            generic.lifecycle_build(self.root, "n_0000abcd", "", "L", "", None)[0]
+        )
+        self.assertEqual(lf.read_text(), "x" + generic.lakefile_lib("n_0000abcd", "C"))
         # Its own stanza is appended once, however many modules it builds.
         lf.write_text("x\n")
         for mod in ("Lifecycle", "LifecycleAll"):
-            generic.lifecycle_build(self.root, "n_1", "", mod, "", None)
+            generic.lifecycle_build(self.root, "n_0000abcd", "", mod, "", None)
         self.assertEqual(self.count(lf), 1)
 
 
@@ -2659,10 +2678,8 @@ class InputsFilterAgrees(unittest.TestCase):
         self.t = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.t.name)
         (self.root / "solar" / "tools" / "certify").mkdir(parents=True)
-        shutil.copy(
-            HERE / "checkout.sh",
-            self.root / "solar" / "tools" / "certify" / "checkout.sh",
-        )
+        for f in ("checkout.sh", "lakefile_inputs.py"):
+            shutil.copy(HERE / f, self.root / "solar" / "tools" / "certify" / f)
         self.repo = self.root / "sl"
         (self.repo / "Certified" / "m_2").mkdir(parents=True)
         (self.repo / "lakefile.lean").write_text("-- lakefile\n")
@@ -2675,9 +2692,13 @@ class InputsFilterAgrees(unittest.TestCase):
         (self.root / "solar" / "tools" / "certify" / "solidity-lean.rev").write_text(
             self.pin + "\n"
         )
-        (self.repo / "Certified" / "n_1").mkdir()
-        (self.repo / "Certified" / "n_1" / "n_1.sol").write_text("contract C {}\n")
-        (self.repo / "Certified" / "n_1" / "Source.lean").write_text("-- source\n")
+        (self.repo / "Certified" / "n_0000abcd").mkdir()
+        (self.repo / "Certified" / "n_0000abcd" / "n_0000abcd.sol").write_text(
+            "contract C {}\n"
+        )
+        (self.repo / "Certified" / "n_0000abcd" / "Source.lean").write_text(
+            "-- source\n"
+        )
         (self.repo / ".lake").mkdir()
         (self.repo / ".lake" / "x").write_text("build\n")
 
@@ -2704,7 +2725,7 @@ class InputsFilterAgrees(unittest.TestCase):
     def both(self):
         """(generic's inputs or None, checkout.sh's accepted files or None), None for a refusal."""
         try:
-            _, ins = generic.commit_inputs(self.repo, self.pin, "n_1")
+            _, ins = generic.commit_inputs(self.repo, self.pin, "n_0000abcd", "C")
             ins = sorted(ins)
         except generic.Failed:
             ins = None
@@ -2718,14 +2739,14 @@ class InputsFilterAgrees(unittest.TestCase):
             [
                 "bash",
                 str(self.root / "solar" / "tools" / "certify" / "checkout.sh"),
-                "Certified/n_1",
+                "Certified/n_0000abcd",
             ],
             env=env,
             capture_output=True,
             text=True,
             check=False,
         )
-        d = self.repo / "Certified" / "n_1"
+        d = self.repo / "Certified" / "n_0000abcd"
         seen = (
             sorted(
                 str(q.relative_to(self.repo)) for q in d.rglob("*") if not q.is_dir()
@@ -2733,24 +2754,40 @@ class InputsFilterAgrees(unittest.TestCase):
             if r.returncode == 0
             else None
         )
+        # The one path outside Certified/NAME/ both may accept: lakefile_inputs.py's stanza.
+        if seen is not None and "lakefile.lean" in (ins or []):
+            seen = sorted([*seen, "lakefile.lean"])
         return ins, seen
 
     def test_plain(self):
         ins, seen = self.both()
-        self.assertEqual(ins, ["Certified/n_1/Source.lean", "Certified/n_1/n_1.sol"])
+        self.assertEqual(
+            ins,
+            ["Certified/n_0000abcd/Source.lean", "Certified/n_0000abcd/n_0000abcd.sol"],
+        )
         self.assertEqual(ins, seen)
 
     def test_lakefile_stanza(self):
+        """The canonical stanza appended for NAME: both accept it, and only it."""
         with open(self.repo / "lakefile.lean", "a") as f:
-            f.write(generic.lakefile_lib("n_1", "C"))
+            f.write(generic.lakefile_lib("n_0000abcd", "C"))
+        ins, seen = self.both()
+        self.assertIn("lakefile.lean", ins)
+        self.assertEqual(ins, seen)
+
+    def test_lakefile_other_edit(self):
+        with open(self.repo / "lakefile.lean", "a") as f:
+            f.write(generic.lakefile_lib("n_0000abcd", "C") + "-- more\n")
         self.assertEqual(self.both(), (None, None))
 
     def test_ignored_input(self):
-        (self.repo / "Certified" / "n_1" / "Gen.olean").write_text("read by the run\n")
+        (self.repo / "Certified" / "n_0000abcd" / "Gen.olean").write_text(
+            "read by the run\n"
+        )
         self.assertEqual(self.both(), (None, None))
 
     def test_moved_from_another_contract(self):
-        self.g("mv", "Certified/m_2/A.lean", "Certified/n_1/Source2.lean")
+        self.g("mv", "Certified/m_2/A.lean", "Certified/n_0000abcd/Source2.lean")
         self.assertEqual(self.both(), (None, None))
 
 
