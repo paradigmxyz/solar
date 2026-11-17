@@ -1,0 +1,98 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0,
+      "coverage": {
+        "functions": [
+          {
+            "name": "constructor",
+            "contract": "A",
+            "src": "32:33:0",
+            "count": 1,
+            "statements": [
+              {
+                "src": "57:6:0",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "name": "constructor",
+            "contract": "C",
+            "src": "296:35:0",
+            "count": 3,
+            "branches": [
+              {
+                "src": "318:9:0",
+                "paths": [
+                  5,
+                  {
+                    "sub": [
+                      4,
+                      5
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "contracts": [
+          {
+            "name": "B",
+            "branches": [
+              {
+                "src": "84:24:0",
+                "paths": [
+                  7,
+                  {
+                    "sub": [
+                      6,
+                      7
+                    ]
+                  }
+                ]
+              },
+              {
+                "src": "128:27:0",
+                "paths": [
+                  9,
+                  {
+                    "sub": [
+                      8,
+                      9
+                    ]
+                  }
+                ]
+              },
+              {
+                "src": "183:39:0",
+                "paths": [
+                  {
+                    "sub": [
+                      10,
+                      11
+                    ]
+                  },
+                  11
+                ]
+              },
+              {
+                "src": "183:47:0",
+                "paths": [
+                  13,
+                  {
+                    "sub": [
+                      12,
+                      13
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

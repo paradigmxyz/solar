@@ -3,11 +3,12 @@
 use super::{
     data::{
         BranchCoverageOutput, BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput,
-        ContractOutput, CoverageCountOutput, DebugInfoComponent, DebugSettings, EthdebugOutput,
-        EvmOutput, FunctionCoverageOutput, MetadataHash, MetadataSettings, OffsetLength,
-        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceCoverageOutput,
-        SourceOutput, StandardJsonReadCallback, StatementCoverageOutput, optimizer_settings,
-        print_standard_json_stats, strip_json_comments,
+        ContractCoverageOutput, ContractOutput, CoverageCountOutput, DebugInfoComponent,
+        DebugSettings, EthdebugOutput, EvmOutput, FunctionCoverageOutput, MetadataHash,
+        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
+        Settings, SourceCoverageOutput, SourceOutput, StandardJsonReadCallback,
+        StatementCoverageOutput, optimizer_settings, print_standard_json_stats,
+        strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -19,7 +20,7 @@ use rayon::prelude::*;
 use serde_json::json;
 use solar_codegen::{
     ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
-    coverage::{CoverageCount, CoverageMap},
+    coverage::{BranchCoverage, CoverageCount, CoverageMap},
 };
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
@@ -713,8 +714,13 @@ fn source_coverage_output(
         CoverageCount::Counter(counter) => CoverageCountOutput::Counter(*counter),
         CoverageCount::Difference(sub) => CoverageCountOutput::Difference { sub: sub.clone() },
     };
+    let branch = |branch: &BranchCoverage| BranchCoverageOutput {
+        src: src(branch.span),
+        paths: branch.paths.iter().map(count).collect(),
+    };
+    let coverage = coverage.source(id);
     let functions = coverage
-        .source(id)
+        .functions
         .iter()
         .map(|function| {
             let hir_function = gcx.hir.function(function.id);
@@ -733,18 +739,19 @@ fn source_coverage_output(
                         count: count(&statement.count),
                     })
                     .collect(),
-                branches: function
-                    .branches
-                    .iter()
-                    .map(|branch| BranchCoverageOutput {
-                        src: src(branch.span),
-                        paths: branch.paths.iter().map(count).collect(),
-                    })
-                    .collect(),
+                branches: function.branches.iter().map(branch).collect(),
             }
         })
         .collect();
-    SourceCoverageOutput { functions }
+    let contracts = coverage
+        .contracts
+        .iter()
+        .map(|contract| ContractCoverageOutput {
+            name: gcx.hir.contract(contract.id).name.to_string(),
+            branches: contract.branches.iter().map(branch).collect(),
+        })
+        .collect();
+    SourceCoverageOutput { functions, contracts }
 }
 
 fn make_contract_output<'gcx>(

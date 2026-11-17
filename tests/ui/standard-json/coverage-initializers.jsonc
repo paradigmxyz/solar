@@ -1,0 +1,39 @@
+// Decisions in inheritance arguments and state variable initializers run in creation code, so the
+// source lists them by contract outside its functions. The constant's folded ternary has no
+// counters.
+// CHECK: "coverage": {
+// CHECK: "functions": [
+// CHECK: "contracts": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "name": "B",
+// CHECK-NEXT: "branches": [
+// CHECK: "src": "84:24:0",
+// CHECK-NEXT: "paths": [
+// CHECK-NEXT: 7,
+// CHECK: "src": "128:27:0",
+// CHECK: "src": "183:39:0",
+// CHECK: "src": "183:47:0",
+// CHECK-NOT: "src"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {\n    uint256 a;\n    constructor(uint256 x) { a = x; }\n}\ncontract B is A(block.number > 5 ? 1 : 2) {\n    uint256 b = block.timestamp > 9 ? 3 : 4;\n    uint256 immutable c = block.number > 7 || block.timestamp > 2 ? 5 : 6;\n    uint256 constant D = 1 > 0 ? 7 : 8;\n}\ncontract C is A {\n    constructor(bool f) A(f ? 1 : 2) {}\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

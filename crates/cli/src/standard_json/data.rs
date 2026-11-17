@@ -320,6 +320,15 @@ pub(super) struct SourceOutput<'a, 'gcx> {
 #[derive(Debug, Serialize)]
 pub(super) struct SourceCoverageOutput {
     pub(super) functions: Vec<FunctionCoverageOutput>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(super) contracts: Vec<ContractCoverageOutput>,
+}
+
+/// The decisions of a contract outside its functions.
+#[derive(Debug, Serialize)]
+pub(super) struct ContractCoverageOutput {
+    pub(super) name: String,
+    pub(super) branches: Vec<BranchCoverageOutput>,
 }
 
 #[derive(Debug, Serialize)]

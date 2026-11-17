@@ -23,7 +23,9 @@
 //!
 //! Decisions are `if` statements, loop conditions, `?:`, the right operands of `&&` and `||`,
 //! `require` calls, `try` statements, and Yul `switch` statements. Lowering folds a constant
-//! expression without evaluating its parts, so the walk skips constant expressions too.
+//! expression without evaluating its parts, so the walk skips constant expressions too. Decisions
+//! also run outside functions, in state variable initializers and the arguments of inheritance
+//! specifiers and modifier invocations; the map lists the first two per contract.
 //!
 //! Sites are keyed by the address of their HIR node, which lowering reaches through the same
 //! arena references. A counter whose site lowering never reaches stays at zero, as for code that
@@ -81,10 +83,30 @@ pub struct BranchCoverage {
     pub paths: Vec<CoverageCount>,
 }
 
+/// The coverage regions of one source.
+#[derive(Debug, Default)]
+pub struct SourceCoverage {
+    /// The functions, modifiers, and Yul functions defined in the source, in source order.
+    pub functions: Vec<FunctionCoverage>,
+    /// The contracts defined in the source that have decisions outside their functions, in source
+    /// order.
+    pub contracts: Vec<ContractCoverage>,
+}
+
+/// The coverage regions of one contract outside its functions.
+#[derive(Debug)]
+pub struct ContractCoverage {
+    /// The contract.
+    pub id: hir::ContractId,
+    /// The decisions in its state variable initializers and in the base constructor arguments of
+    /// its inheritance specifiers, which run in creation code, in source order.
+    pub branches: Vec<BranchCoverage>,
+}
+
 /// The coverage map of a compilation.
 #[derive(Debug, Default)]
 pub struct CoverageMap {
-    sources: IndexVec<hir::SourceId, Vec<FunctionCoverage>>,
+    sources: IndexVec<hir::SourceId, SourceCoverage>,
     sites: FxHashMap<Site, u32>,
 }
 
@@ -106,7 +128,7 @@ impl CoverageMap {
             gcx,
             map: Self {
                 sources: IndexVec::from_vec(
-                    (0..gcx.hir.source_ids().len()).map(|_| Vec::new()).collect(),
+                    (0..gcx.hir.source_ids().len()).map(|_| SourceCoverage::default()).collect(),
                 ),
                 sites: FxHashMap::default(),
             },
@@ -116,11 +138,16 @@ impl CoverageMap {
         for id in functions {
             walker.function(id);
         }
+        let mut contracts = gcx.hir.contract_ids().collect::<Vec<_>>();
+        contracts.sort_by_key(|&id| gcx.hir.contract(id).span.lo());
+        for id in contracts {
+            walker.contract(id);
+        }
         walker.map
     }
 
-    /// Returns the coverage regions of the functions defined in `source`, in source order.
-    pub fn source(&self, source: hir::SourceId) -> &[FunctionCoverage] {
+    /// Returns the coverage regions of `source`.
+    pub fn source(&self, source: hir::SourceId) -> &SourceCoverage {
         &self.sources[source]
     }
 
@@ -192,12 +219,37 @@ impl<'gcx> Walker<'gcx> {
         let mut branches = std::mem::take(&mut self.branches);
         statements.sort_by_key(|statement| statement.span.lo());
         branches.sort_by_key(|branch| branch.span.lo());
-        self.map.sources[function.source].push(FunctionCoverage {
+        self.map.sources[function.source].functions.push(FunctionCoverage {
             id,
             count,
             statements,
             branches,
         });
+    }
+
+    /// Walks the code of `id` that runs outside its functions: the initializers of its state
+    /// variables, except constants, which lowering folds or inlines at each use, and the base
+    /// constructor arguments of its inheritance specifiers.
+    fn contract(&mut self, id: hir::ContractId) {
+        let contract = self.gcx.hir.contract(id);
+        for base in contract.bases_args {
+            for arg in base.args.exprs() {
+                self.expr(arg);
+            }
+        }
+        for var in contract.variables() {
+            let var = self.gcx.hir.variable(var);
+            if let Some(initializer) = var.initializer
+                && !var.is_constant()
+            {
+                self.expr(initializer);
+            }
+        }
+        let mut branches = std::mem::take(&mut self.branches);
+        if !branches.is_empty() {
+            branches.sort_by_key(|branch| branch.span.lo());
+            self.map.sources[contract.source].contracts.push(ContractCoverage { id, branches });
+        }
     }
 
     fn statement(&mut self, stmt: &'gcx hir::Stmt<'gcx>) {
