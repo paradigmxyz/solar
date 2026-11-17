@@ -4268,8 +4268,9 @@ checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
 
 [[package]]
 name = "smolgen"
-version = "0.1.1"
-source = "git+https://github.com/alloy-rs/smolgen?rev=99abe6c759b5674db76d10ba2ea07fbb7490d57b#99abe6c759b5674db76d10ba2ea07fbb7490d57b"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "918b13a79f76807dba726c1e6d6bc7de0e5352b6f006c3eb44a8d0438061c957"
 
 [[package]]
 name = "snapbox"
