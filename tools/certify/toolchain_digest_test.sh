@@ -67,7 +67,7 @@ if run; then bad "a list that does not hash to the record is accepted"; else ok 
 real="${1:-}"
 if [[ -n "$real" ]]; then
     for loc in en_US.UTF-8 C; do
-        if LANG=$loc LC_ALL= "$tool" "$real" "$here/toolchain.sha256" "$tmp/real.$loc" > "$tmp/out" 2>&1; then
+        if LANG=$loc LC_ALL='' "$tool" "$real" "$here/toolchain.sha256" "$tmp/real.$loc" > "$tmp/out" 2>&1; then
             echo "real toolchain under LANG=$loc: $(sha256sum < "$tmp/real.$loc" | cut -c1-64)"
         else cat "$tmp/out" >&2; bad "the real toolchain is refused under LANG=$loc"; fi
     done

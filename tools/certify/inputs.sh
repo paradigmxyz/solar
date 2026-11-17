@@ -22,6 +22,8 @@ capture() {
         rm -f "$out"
         die "$what fails (exit $status)"
     fi
+    # capture_into is a nameref: this fills the caller's array.
+    # shellcheck disable=SC2034
     mapfile -t capture_into < "$out"
     rm -f "$out"
 }

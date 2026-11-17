@@ -122,7 +122,12 @@ EOF
 
 flip="$(python3 -c 'import sys; h=sys.argv[1]; i=len(h)//2 & ~1; print(h[:i] + format(int(h[i:i+2],16) ^ 1, "02x") + h[i+2:])' "$hex")"
 variant stale-byte "$flip" "pass"
-other="$(ls "$lean_dir/$examples"/*/bytecode.hex | grep -v "/$name/bytecode.hex" | head -n 1 || true)"
+other=""
+for f in "$lean_dir/$examples"/*/bytecode.hex; do
+    [[ -e "$f" && "$f" != */"$name"/bytecode.hex ]] || continue
+    other="$f"
+    break
+done
 if [[ -n "$other" ]]; then
     variant substituted-artifact "$(tr -d '[:space:]' < "$other")" "pass"
 fi

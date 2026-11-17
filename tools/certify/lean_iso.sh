@@ -8,7 +8,6 @@
 #
 #   lean_iso.sh ARGS...    (the toolchain's lean ARGS...)
 set -euo pipefail
-here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 real="${CERTIFY_REAL_LEAN:?}"
 iso="${CERTIFY_ISO_DIR:?}"
 mkdir -p "$iso"
