@@ -43,3 +43,6 @@ it (`gate.json`; a control also needs its record's tier, strict predicate and fu
 trusted 0, plus an independent `--replay` that `case.sh` runs and records in `replay.exit`), and
 `table.py` prints the control gate and the semantic rejections that count. See CASES.md, Rerun
 criteria.
+
+Control-gate tests: `python3 test_table.py` (the gate over the registered controls: a missing,
+ungated or failing control fails it; all three passing passes).

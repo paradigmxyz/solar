@@ -53,5 +53,5 @@ while read -r name src expect; do
     running=$((running + 1))
 done < "$CASES"
 wait
-python3 "$here/table.py" "$OUT" > "$OUT/table.md"
+python3 "$here/table.py" "$OUT" "$CASES" "$here/stages.tsv" > "$OUT/table.md"
 log "RUN-DONE"
