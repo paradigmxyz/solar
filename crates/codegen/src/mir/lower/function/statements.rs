@@ -399,7 +399,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         this.coverage(Site::Arm(Site::expr(then_expr)));
                         lower_branch(this, then_expr)
                     },
-                    |this| lower_branch(this, else_expr),
+                    |this| {
+                        this.coverage(Site::Arm(Site::expr(else_expr)));
+                        lower_branch(this, else_expr)
+                    },
                 )?;
                 Some(())
             }

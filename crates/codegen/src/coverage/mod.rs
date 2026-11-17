@@ -16,6 +16,7 @@
 //! - a code region for each function body, each statement written in the source, each path a
 //!   decision takes, and the right operand of `&&` and `||`, nested;
 //! - a branch region on each leaf condition of a decision, a `switch` case, and a `try` clause;
+//! - a skipped region for code that constant folding removes.
 //!
 //! The false count of a branch is an expression, the count of the parent minus the true count, so
 //! no counter sits on the edge and the code needs no extra jump. A condition that reverts takes
@@ -44,7 +45,12 @@
 //!
 //! Decisions are the conditions of `if`, loops, `?:`, and `require`, and any `&&` and `||` tree.
 //! Lowering folds a constant expression without evaluating its parts, so the walk skips constant
-//! expressions.
+//! expressions, and reports the path that a constant condition removes as skipped. A constant has
+//! no branch: lowering evaluates the one path it takes, and a `&&` or `||` whose left operand is
+//! constant is its right operand, or a constant that skips it.
+//!
+//! A constant whose initializer is no compile-time constant is evaluated each time the code uses
+//! it, so its initializer counts like the initializer of a state variable.
 //!
 //! With `-Zcoverage-mcdc`, a decision of two or more conditions also has three kinds of MC/DC
 //! probe, `COVERAGE; PUSH4 <probe>` with bit 31 of the probe set. Bits 30 and 29 are the operation,
@@ -114,6 +120,8 @@ pub enum RegionKind {
     Code(Count),
     /// The expansion of a modifier into the file at this index, `1`.
     Expansion(Count, u32),
+    /// Code that constant folding removes, `2`.
+    Skipped,
     /// A condition with the counts of its true and false outcomes, `4`.
     Branch(Count, Count),
     /// An MC/DC decision, given by its index in [`Record::decisions`], `5`.
@@ -167,9 +175,13 @@ pub struct Record {
 pub enum RecordOwner {
     /// A function, modifier, or Yul function.
     Function(hir::FunctionId),
-    /// The creation-time code outside the functions of a contract: its state variable initializers
-    /// and the base constructor arguments of its inheritance specifiers.
+    /// The code outside the functions of a contract that runs at creation, its state variable
+    /// initializers and the base constructor arguments of its inheritance specifiers, and the
+    /// initializers of its constants that run where they are used.
     Init(hir::ContractId),
+    /// The initializers of the constants of a source that run where they are used and belong to no
+    /// contract.
+    Constants(hir::SourceId),
 }
 
 /// A [`Record`] in the numbers of the Standard JSON output.
@@ -237,6 +249,7 @@ impl Record {
                             encoder.count(false_count) as i64,
                         ]);
                     }
+                    RegionKind::Skipped => row[0] = 2,
                     RegionKind::Decision(decision) => {
                         row[0] = 5;
                         row.push(i64::from(*decision));

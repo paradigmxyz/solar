@@ -1,0 +1,50 @@
+//@ filecheck:
+// Code that constant folding removes has a skipped region, `[2, file, start, length]`, and no
+// counters: the `then` block of `if (false)`, the `else` operand `2` of `true ? x : 2`, and the
+// right operand and the `then` statement of `false && a`. The right operand `b` of `true || b` is
+// skipped, and the `then` statement runs as often as the statement. A constant has no branch
+// region.
+// CHECK: "name": "A.sol:S.f(bool,bool,uint256)",
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 110,
+// CHECK-NEXT: 30
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 165,
+// CHECK-NEXT: 1
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 189,
+// CHECK-NEXT: 1
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 192,
+// CHECK-NEXT: 7
+// CHECK: {{^ *2,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 220,
+// CHECK-NEXT: 1
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract S {\n    function f(bool a, bool b, uint256 x) external pure returns (uint256 r) {\n        if (false) {\n            r = 1;\n        }\n        r += true ? x : 2;\n        if (false && a) r += 1;\n        if (true || b) r += 2;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

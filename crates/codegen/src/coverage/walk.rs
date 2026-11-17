@@ -16,6 +16,10 @@
 //! the `||` minus that of its left operand, which is the completions of the left operand minus
 //! `R`. The false count of a leaf is its completions minus its true count, so a leaf that reverts
 //! takes neither side.
+//!
+//! A constant left operand removes the operator: `true && b` is `b`, and `false && b` is the
+//! constant `false`, whose right operand is skipped. A constant decision has no branch, since
+//! lowering folds it.
 
 use super::{
     Count, CoverageMap, Decision, Record, RecordOwner, Region, RegionKind, Site, SourceCoverage,
@@ -71,6 +75,23 @@ pub(super) fn walk(gcx: Gcx<'_>) -> CoverageMap {
     for id in contracts {
         walker.init(id);
     }
+    let mut constants = gcx
+        .hir
+        .variable_ids()
+        .filter(|&id| {
+            let var = gcx.hir.variable(id);
+            var.is_constant() && var.contract.is_none() && var.parent.is_none()
+        })
+        .collect::<Vec<_>>();
+    constants.sort_by_key(|&id| {
+        let var = gcx.hir.variable(id);
+        (var.source, var.span.lo())
+    });
+    for group in
+        constants.chunk_by(|&a, &b| gcx.hir.variable(a).source == gcx.hir.variable(b).source)
+    {
+        walker.constants(gcx.hir.variable(group[0]).source, group);
+    }
     for &id in &functions {
         if gcx.hir.function(id).kind.is_modifier() && walker.function_enabled(id) {
             walker.modifier(id);
@@ -98,6 +119,8 @@ struct Rec {
 
 /// The tree of a decision.
 enum Node<'gcx> {
+    /// A constant, which lowering folds.
+    Const(bool),
     /// A leaf condition and the counter after its evaluation.
     Leaf(&'gcx hir::Expr<'gcx>, Count),
     Not(Box<Node<'gcx>>),
@@ -117,6 +140,7 @@ impl Node<'_> {
     /// Returns how often the evaluation of the tree completed.
     fn completed(&self) -> Count {
         match self {
+            Self::Const(_) => Count::Zero,
             Self::Leaf(_, v) => v.clone(),
             Self::Not(node) => node.completed(),
             Self::And(lhs, rhs, op) | Self::Or(lhs, rhs, op) => {
@@ -128,6 +152,7 @@ impl Node<'_> {
     /// Returns the shape of the tree for MC/DC.
     fn cond(&self) -> Cond {
         match self {
+            Self::Const(_) => unreachable!("a constant is no condition"),
             Self::Leaf(expr, _) => Cond::Leaf(Site::key(*expr)),
             Self::Not(node) => Cond::Not(Box::new(node.cond())),
             Self::And(lhs, rhs, _) => Cond::And(Box::new(lhs.cond()), Box::new(rhs.cond())),
@@ -139,11 +164,12 @@ impl Node<'_> {
 /// The MC/DC conditions of a decision, by the key of their leaves.
 struct Mcdc(FxHashMap<usize, mcdc::Condition>);
 
-/// What a decision leaves for its consumer: how often the evaluation of the condition completed,
-/// and how often it held.
-struct Outcome {
-    completed: Count,
-    taken: Count,
+/// What a decision leaves for its consumer.
+enum Outcome {
+    /// Lowering folds the condition to this constant.
+    Folded(bool),
+    /// How often the evaluation of the condition completed, and how often it held.
+    Branch { completed: Count, taken: Count },
 }
 
 struct Walker<'gcx> {
@@ -227,6 +253,10 @@ impl<'gcx> Walker<'gcx> {
     fn region(&mut self, span: Span, kind: RegionKind) {
         let file = self.rec.file;
         self.rec.regions.push(Region { file, span, kind });
+    }
+
+    fn skipped(&mut self, span: Span) {
+        self.region(span, RegionKind::Skipped);
     }
 
     /// Opens a code region unless an enclosing one has the same count.
@@ -384,22 +414,43 @@ impl<'gcx> Walker<'gcx> {
             }
         }
         for var in contract.variables() {
-            let var = self.gcx.hir.variable(var);
-            let Some(initializer) = var.initializer else { continue };
-            if !var.is_state_variable() || var.is_constant() {
-                continue;
-            }
-            if self.has_regions(|this| this.expr(initializer)) {
-                let count = self.counter(Site::Init(Site::key(var)));
-                self.open(var.span, &count);
-                self.expr(initializer);
-                self.close();
-            }
+            self.initializer(var);
         }
         if self.rec.regions.is_empty() {
             self.rec = Rec::default();
         } else {
             self.end(RecordOwner::Init(id), contract.source);
+        }
+    }
+
+    /// Walks the initializers of the constants of `source` that belong to no contract.
+    fn constants(&mut self, source: hir::SourceId, constants: &[hir::VariableId]) {
+        self.begin(source);
+        for &var in constants {
+            self.initializer(var);
+        }
+        if self.rec.regions.is_empty() {
+            self.rec = Rec::default();
+        } else {
+            self.end(RecordOwner::Constants(source), source);
+        }
+    }
+
+    /// Walks the initializer of `id` when it runs: for a state variable at creation, and for a
+    /// constant each time the code uses it, unless lowering folds it to a value.
+    fn initializer(&mut self, id: hir::VariableId) {
+        let var = self.gcx.hir.variable(id);
+        let Some(initializer) = var.initializer else { return };
+        let runs = if var.is_constant() {
+            self.gcx.const_eval().eval_var(id).is_err()
+        } else {
+            var.is_state_variable()
+        };
+        if runs && self.has_regions(|this| this.expr(initializer)) {
+            let count = self.counter(Site::Init(Site::key(var)));
+            self.open(var.span, &count);
+            self.expr(initializer);
+            self.close();
         }
     }
 
@@ -464,10 +515,28 @@ impl<'gcx> Walker<'gcx> {
             StmtKind::If(cond, then_stmt, else_stmt) => {
                 let count = self.stmt_count(stmt, known);
                 self.open(stmt.span, &count);
-                let Outcome { completed, taken } = self.decision(cond, Site::Arm(Site::key(stmt)));
-                self.stmt(then_stmt, Some(taken.clone()));
-                if let Some(else_stmt) = else_stmt {
-                    self.stmt(else_stmt, Some(completed.sub(taken)));
+                match self.decision(cond, Site::Arm(Site::key(stmt))) {
+                    Outcome::Branch { completed, taken } => {
+                        self.stmt(then_stmt, Some(taken.clone()));
+                        if let Some(else_stmt) = else_stmt {
+                            self.stmt(else_stmt, Some(completed.sub(taken)));
+                        }
+                    }
+                    // The condition evaluates nothing, so the path taken starts as the statement
+                    // does.
+                    Outcome::Folded(holds) => {
+                        let (live, dead) = if holds {
+                            (Some(then_stmt), else_stmt)
+                        } else {
+                            (else_stmt, Some(then_stmt))
+                        };
+                        if let Some(live) = live {
+                            self.stmt(live, Some(count));
+                        }
+                        if let Some(dead) = dead {
+                            self.skipped(dead.span);
+                        }
+                    }
                 }
                 self.close();
             }
@@ -552,8 +621,15 @@ impl<'gcx> Walker<'gcx> {
                     && matches!(exit.kind, StmtKind::Break)
                     && (exit.span == span || exit.span == cond.span) =>
             {
-                let Outcome { taken, .. } = self.decision(cond, Site::Arm(Site::key(check)));
-                self.stmt(body, Some(taken));
+                match self.decision(cond, Site::Arm(Site::key(check))) {
+                    Outcome::Branch { taken, .. } => self.stmt(body, Some(taken)),
+                    // The body still runs once for each iteration.
+                    Outcome::Folded(true) => {
+                        let taken = self.counter(Site::Arm(Site::key(check)));
+                        self.stmt(body, Some(taken));
+                    }
+                    Outcome::Folded(false) => self.skipped(body.span),
+                }
             }
             // loop { <body>; if (<cond>) continue else break; }
             (LoopSource::DoWhile, [body, check]) if let StmtKind::If(cond, _, _) = check.kind => {
@@ -571,24 +647,56 @@ impl<'gcx> Walker<'gcx> {
         let _ = Visit::visit_expr(self, expr);
     }
 
-    /// Builds the tree of the decision `expr`.
-    fn tree(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Node<'gcx> {
+    /// Returns the constant a boolean expression folds to.
+    fn constant(&self, expr: &hir::Expr<'_>) -> Option<bool> {
+        self.gcx
+            .type_of_expr(expr.id)
+            .filter(|ty| ty.is_value_type())
+            .and_then(|_| self.gcx.const_eval().eval_expr(expr).ok())
+            .and_then(|value| value.as_bool())
+    }
+
+    /// Builds the tree of the decision `expr`. A constant is a [`Node::Const`] only where `fold`:
+    /// a constant right operand stays a leaf, since lowering still branches before it.
+    fn tree(&mut self, expr: &'gcx hir::Expr<'gcx>, fold: bool) -> Node<'gcx> {
         let expr = expr.peel_parens();
+        if let Some(value) = self.constant(expr) {
+            return if fold { Node::Const(value) } else { self.leaf(expr) };
+        }
         match expr.kind {
             ExprKind::Unary(op, inner)
                 if op.kind == UnOpKind::Not && self.is_logical(inner.peel_parens()) =>
             {
-                Node::Not(Box::new(self.tree(inner)))
+                match self.tree(inner, fold) {
+                    Node::Const(value) => Node::Const(!value),
+                    node => Node::Not(Box::new(node)),
+                }
             }
             ExprKind::Binary(lhs, op, rhs) if op.kind.is_logical() => {
-                let lhs = Box::new(self.tree(lhs));
-                let r = self.counter(Site::Arm(Site::expr(rhs)));
-                let operator = Operator { expr, rhs, r };
-                let rhs = Box::new(self.tree(rhs));
-                if op.kind == BinOpKind::And {
-                    Node::And(lhs, rhs, operator)
-                } else {
-                    Node::Or(lhs, rhs, operator)
+                let is_and = op.kind == BinOpKind::And;
+                match self.tree(lhs, true) {
+                    // `true && rhs` is `rhs`, and `false || rhs` is `rhs`.
+                    Node::Const(value) if value == is_and => self.tree(rhs, fold),
+                    // `false && rhs` and `true || rhs` skip `rhs`.
+                    Node::Const(value) => {
+                        self.skipped(rhs.span);
+                        Node::Const(value)
+                    }
+                    lhs => {
+                        let r = self.counter(Site::Arm(Site::expr(rhs)));
+                        let operator = Operator { expr, rhs, r };
+                        let rhs = match self.tree(rhs, false) {
+                            // A right operand that folds because it skips an operand stays a leaf.
+                            Node::Const(_) => self.leaf(rhs.peel_parens()),
+                            rhs => rhs,
+                        };
+                        let (lhs, rhs) = (Box::new(lhs), Box::new(rhs));
+                        if is_and {
+                            Node::And(lhs, rhs, operator)
+                        } else {
+                            Node::Or(lhs, rhs, operator)
+                        }
+                    }
                 }
             }
             _ => self.leaf(expr),
@@ -611,12 +719,15 @@ impl<'gcx> Walker<'gcx> {
 
     /// Walks the decision `root`, whose consumer counts the paths it takes at `consumer`.
     fn decision(&mut self, root: &'gcx hir::Expr<'gcx>, consumer: Site) -> Outcome {
-        let tree = self.tree(root);
+        let tree = self.tree(root, true);
+        if let Node::Const(value) = tree {
+            return Outcome::Folded(value);
+        }
         let taken = self.counter(consumer);
         let completed = tree.completed();
         let mcdc = self.mcdc(&tree);
         self.branches(&tree, taken.clone(), mcdc.as_ref());
-        Outcome { completed, taken }
+        Outcome::Branch { completed, taken }
     }
 
     /// Gives the decision of `tree` MC/DC probes and a region, when it has two or more conditions
@@ -668,6 +779,7 @@ impl<'gcx> Walker<'gcx> {
     /// Adds the branch regions of the leaves of `node`, which holds `holds` times.
     fn branches(&mut self, node: &Node<'gcx>, holds: Count, mcdc: Option<&Mcdc>) {
         match node {
+            Node::Const(_) => {}
             Node::Leaf(expr, completed) => {
                 let fails = completed.clone().sub(holds.clone());
                 let kind = match mcdc.and_then(|mcdc| mcdc.0.get(&Site::key(*expr))) {
@@ -704,11 +816,23 @@ impl<'gcx> Walker<'gcx> {
         then_expr: &'gcx hir::Expr<'gcx>,
         else_expr: &'gcx hir::Expr<'gcx>,
     ) {
-        let Outcome { completed, taken } = self.decision(cond, Site::Arm(Site::expr(then_expr)));
-        self.region(then_expr.span, RegionKind::Code(taken.clone()));
-        self.region(else_expr.span, RegionKind::Code(completed.sub(taken)));
-        self.expr(then_expr);
-        self.expr(else_expr);
+        match self.decision(cond, Site::Arm(Site::expr(then_expr))) {
+            Outcome::Branch { completed, taken } => {
+                self.region(then_expr.span, RegionKind::Code(taken.clone()));
+                self.region(else_expr.span, RegionKind::Code(completed.sub(taken)));
+                self.expr(then_expr);
+                self.expr(else_expr);
+            }
+            // The path taken counts for itself, as a constant condition has no count to share.
+            Outcome::Folded(holds) => {
+                let (live, dead) =
+                    if holds { (then_expr, else_expr) } else { (else_expr, then_expr) };
+                let count = self.counter(Site::Arm(Site::expr(live)));
+                self.region(live.span, RegionKind::Code(count));
+                self.skipped(dead.span);
+                self.expr(live);
+            }
+        }
     }
 }
 

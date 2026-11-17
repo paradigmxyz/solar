@@ -750,6 +750,7 @@ fn record_name(gcx: Gcx<'_>, source: solar_sema::hir::SourceId, owner: RecordOwn
         RecordOwner::Init(contract) => {
             format!("{path}:{}.<init>", gcx.hir.contract(contract).name)
         }
+        RecordOwner::Constants(_) => format!("{path}:<init>"),
         RecordOwner::Function(id) => {
             let function = gcx.hir.function(id);
             let signature = gcx.mk_abi_signature(

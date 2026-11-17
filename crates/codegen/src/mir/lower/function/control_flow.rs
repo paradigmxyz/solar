@@ -768,7 +768,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 this.coverage(Site::Arm(Site::expr(then_expr)));
                 this.lower_ternary_value(then_expr, ty)
             },
-            |this| this.lower_ternary_value(else_expr, ty),
+            |this| {
+                this.coverage(Site::Arm(Site::expr(else_expr)));
+                this.lower_ternary_value(else_expr, ty)
+            },
         )?;
         match (then_branch.terminated, else_branch.terminated) {
             (true, false) => Some(else_branch.value),
@@ -869,7 +872,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 this.coverage(Site::Arm(Site::expr(then_expr)));
                 this.lower_ternary_components(then_expr, types)
             },
-            |this| this.lower_ternary_components(else_expr, types),
+            |this| {
+                this.coverage(Site::Arm(Site::expr(else_expr)));
+                this.lower_ternary_components(else_expr, types)
+            },
         )?;
         if !then_branch.terminated
             && !else_branch.terminated

@@ -400,7 +400,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 this.coverage(Site::Arm(Site::expr(then_expr)));
                 this.storage_access(then_expr)
             },
-            |this| this.storage_access(else_expr),
+            |this| {
+                this.coverage(Site::Arm(Site::expr(else_expr)));
+                this.storage_access(else_expr)
+            },
         )?;
         let mut incoming = Vec::with_capacity(2);
         if !then_branch.terminated {
