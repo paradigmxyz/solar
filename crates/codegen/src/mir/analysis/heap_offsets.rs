@@ -60,16 +60,39 @@ pub(crate) fn pointer_bases(
     bases
 }
 
-/// Whether `value` subtracts a constant, or adds one that wraps, as a step back.
+/// Whether `value`, or an alternative that it merges or casts, subtracts a constant or adds one
+/// that wraps, as a step back.
 fn is_step_back(func: &Function, value: ValueId) -> bool {
-    let Value::Inst(inst) = func.value(value) else { return false };
-    match func.inst(*inst).kind {
-        InstKind::Sub(_, delta) => func.value_u256(delta).is_some(),
-        InstKind::Add(a, b) => {
-            [a, b].into_iter().any(|word| func.value_u256(word).is_some_and(|word| word.bit(255)))
+    let mut seen = DenseBitSet::new_empty(func.num_values());
+    let mut pending = vec![value];
+    let mut budget = OFFSET_BOUND_STEPS;
+    while let Some(next) = pending.pop() {
+        if !seen.insert(next) {
+            continue;
         }
-        _ => false,
+        budget -= 1;
+        if budget == 0 {
+            return true;
+        }
+        let Value::Inst(inst) = func.value(next) else { continue };
+        match &func.inst(*inst).kind {
+            InstKind::Sub(_, delta) if func.value_u256(*delta).is_some() => return true,
+            InstKind::Add(a, b)
+                if [a, b]
+                    .into_iter()
+                    .any(|word| func.value_u256(*word).is_some_and(|word| word.bit(255))) =>
+            {
+                return true;
+            }
+            InstKind::PtrToInt(base, _) | InstKind::IntToPtr(base) => pending.push(*base),
+            InstKind::Phi(incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
+            InstKind::Select(_, then_value, else_value) => {
+                pending.extend([*then_value, *else_value]);
+            }
+            _ => {}
+        }
     }
+    false
 }
 
 /// Whether `offset` is a word that cannot wrap a pointer around the address space.
@@ -221,4 +244,28 @@ pub(crate) fn is_floor_clamp(
     let Value::Inst(cond) = func.value(cond) else { return false };
     matches!(func.inst(*cond).kind, InstKind::Lt(word, floor)
         if is_floor(floor) && is_floor(then_value) && word == else_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+
+    #[test]
+    fn a_step_back_from_a_merged_step_back_is_not_trusted() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        let base = builder.fmp();
+        let cond = builder.imm(1);
+        let (near, far) = (builder.imm(0x40), builder.imm(0x60));
+        // merged = select(cond, base - 0x40, base - 0x60)
+        // again = merged - 0x60
+        let first = builder.sub(base, near);
+        let second = builder.sub(base, far);
+        let merged = builder.select(cond, first, second);
+        let again = builder.sub(merged, far);
+        assert_eq!(pointer_bases(&function, first, 0x80).len(), 1);
+        assert!(pointer_bases(&function, again, 0x80).is_empty());
+    }
 }

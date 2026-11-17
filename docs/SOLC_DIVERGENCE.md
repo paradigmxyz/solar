@@ -996,7 +996,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   words below it, as far as `0x80` bytes: the compiler keeps room for that step,
   which lands in the reserved low words under `solc`. A longer step lands in an
   earlier heap object, or wraps and runs out of gas under `solc`, and the
-  compiler keeps no room for it, so it can land in a frame.
+  compiler keeps no room for it, so it can land in a frame. A pointer that
+  assembly rounds down with a mask that clears more than a word can fall
+  further back than the compiler keeps room for, which is at most `0x80` bytes.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
