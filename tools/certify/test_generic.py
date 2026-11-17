@@ -421,6 +421,13 @@ class ReplayClaims(unittest.TestCase):
                 closure=11, replayed_count=11
             ),
             "replay.replayed": lambda r: r["replay"]["replayed"].pop(),
+            # Another compiler: the fresh run's binary is not the record's.
+            "solar.binary_sha256": lambda r: r.setdefault("solar", {}).update(
+                binary_sha256="0" * 64
+            ),
+            "solar.binary_commit": lambda r: r.setdefault("solar", {}).update(
+                binary_commit="0" * 40
+            ),
         }
         for field, edit in cases.items():
             with self.subTest(field), tempfile.TemporaryDirectory() as t:
@@ -2220,6 +2227,94 @@ class ChangedPaths(unittest.TestCase):
         (self.d / "x\u00e9y.lean").write_text("x")
         self.assertEqual(self.outside(), ["x\u00e9y.lean"])
         self.assertIn(f"Certified/{NAME}/a b.lean", generic.changed_paths(self.d))
+
+
+class SolarBinary(unittest.TestCase):
+    """The driver's compiler check: a binary whose digest is not the expected one, or whose
+    embedded commit is not one with this checkout's compiler sources, is refused. The binaries are
+    shell scripts that print a version."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.t.name) / "solar"
+        (self.root / "crates").mkdir(parents=True)
+        (self.root / "crates/lib.rs").write_text("// v1\n")
+        (self.root / "Cargo.toml").write_text("[workspace]\n")
+        (self.root / "Cargo.lock").write_text("# lock\n")
+        self.first = self.commit("compiler")
+        (self.root / "README.md").write_text("docs\n")
+        self.head = self.commit("docs")
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def commit(self, msg):
+        g = ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t"]
+        if not (self.root / ".git").exists():
+            subprocess.run([*g, "init", "-q"], check=True)
+        subprocess.run([*g, "add", "-A"], check=True)
+        subprocess.run(
+            [*g, "-c", "commit.gpgsign=false", "commit", "-qm", msg], check=True
+        )
+        return generic.git(self.root, "rev-parse", "HEAD")
+
+    def binary(self, version):
+        b = pathlib.Path(self.t.name) / "bin" / "solar"
+        b.parent.mkdir(exist_ok=True)
+        b.write_text(f"#!/bin/sh\necho '{version}'\n")
+        b.chmod(0o755)
+        return b
+
+    def problem(self, b, want_sha=None, allow_foreign=False):
+        return generic.solar_problem(b, self.root, want_sha, allow_foreign)
+
+    def test_own_commit_passes(self):
+        """The embedded commit may be an earlier one with the same compiler sources."""
+        for c in (self.head[:8], self.first[:8]):
+            with self.subTest(c):
+                b = self.binary(f"solar 0.3.0-dev+commit.{c}")
+                self.assertIsNone(self.problem(b, sha(b)))
+        b = self.binary(f"solar 0.3.0-dev\nCommit SHA: {self.head}")
+        self.assertIsNone(self.problem(b))
+
+    def test_digest_differs(self):
+        b = self.binary(f"solar 0.3.0-dev+commit.{self.head[:8]}")
+        why = self.problem(b, "0" * 64)
+        self.assertIn(f"has digest {sha(b)}, not the expected {'0' * 64}", why)
+        self.assertIn("not the expected", self.problem(b, "0" * 64, True))
+
+    def test_commit_differs(self):
+        unknown = self.binary("solar 0.3.0-dev+commit.deadbeef")
+        (self.root / "crates/lib.rs").write_text("// v2\n")
+        self.commit("compiler v2")
+        older = self.binary(f"solar 0.3.0-dev+commit.{self.first[:8]}")
+        for label, b in (("unknown commit", unknown), ("other sources", older)):
+            with self.subTest(label):
+                why = self.problem(b, sha(b))
+                self.assertIn("whose compiler sources are not this checkout's", why)
+                self.assertIsNone(self.problem(b, sha(b), allow_foreign=True))
+
+    def test_checkout_edited(self):
+        b = self.binary(f"solar 0.3.0-dev+commit.{self.head[:8]}")
+        (self.root / "crates/lib.rs").write_text("// edited\n")
+        self.assertIn(
+            "whose compiler sources are not this checkout's", self.problem(b, sha(b))
+        )
+
+    def test_no_commit(self):
+        for version in ("solar 0.3.0-dev", "solar 0.3.0-dev+commit.xyz"):
+            with self.subTest(version):
+                b = self.binary(version)
+                self.assertIn("cannot read the compiler commit", self.problem(b))
+
+    def test_main_checks_the_expected_digest(self):
+        """main refuses the binary it built before recording it, against the runner's
+        CERTIFY_SOLAR_SHA256 rather than its own digest."""
+        src = pathlib.Path(generic.__file__).read_text()
+        main = src[src.index("\ndef main(") :]
+        call = main.index("solar_problem(")
+        self.assertLess(call, main.index('record["solar"]["binary_sha256"] ='))
+        self.assertIn('os.environ.get("CERTIFY_SOLAR_SHA256")', main[call : call + 200])
 
 
 class AfterRunPackages(unittest.TestCase):

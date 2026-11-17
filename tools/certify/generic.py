@@ -2398,6 +2398,41 @@ def build_solar():
     return ROOT / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
 
 
+COMPILER_SOURCES = ("crates", "Cargo.toml", "Cargo.lock")
+
+
+def solar_commit(version_out):
+    """The commit a solar binary embeds, read from its --version output as scripts/certify reads
+    it (the Commit SHA line, else the +commit. suffix of the version), or None."""
+    if m := re.search(r"(?m)^Commit SHA: ([0-9a-f]{40})$", version_out):
+        return m.group(1)
+    m = re.search(r"\+commit\.([0-9a-f]{8})", version_out)
+    return m.group(1) if m else None
+
+
+def solar_problem(solar, root, want_sha=None, allow_foreign=False):
+    """Why the solar binary SOLAR is not the compiler of the checkout ROOT, or None: its digest is
+    not WANT_SHA (when given), or the commit it embeds is not a commit of ROOT whose compiler
+    sources are ROOT's committed and unedited ones, the rule scripts/certify applies to the binary
+    it builds (waived, as there, by ALLOW_FOREIGN: CERTIFY_ALLOW_FOREIGN_SOLAR=1)."""
+    if want_sha and (got := sha256_file(solar)) != want_sha:
+        return f"{solar} has digest {got}, not the expected {want_sha}"
+    rc, out, _ = run([str(solar), "--version"])
+    commit = solar_commit(out) if rc == 0 else None
+    if commit is None:
+        return f"cannot read the compiler commit from {solar} --version"
+    g = ["git", "-C", str(root)]
+    ok = (
+        run([*g, "diff", "--quiet", "HEAD", "--", *COMPILER_SOURCES])[0] == 0
+        and run([*g, "cat-file", "-e", f"{commit}^{{commit}}"])[0] == 0
+        and run([*g, "diff", "--quiet", commit, "HEAD", "--", *COMPILER_SOURCES])[0]
+        == 0
+    )
+    if not (ok or allow_foreign):
+        return f"{solar} reports commit {commit}, whose compiler sources are not this checkout's committed ones"
+    return None
+
+
 def solar_runtime(solar, src, contract, extra=()):
     rc, out, err = run([str(solar), str(src), *OPTIONS, "--emit=bin-runtime", *extra])
     if rc != 0:
@@ -2566,6 +2601,7 @@ REPLAY_KEYS = [
     ("solidity_lean", "inputs_sha256"),
     ("solar", "commit"),
     ("solar", "binary_sha256"),
+    ("solar", "binary_commit"),
     ("solc", "sha256"),
     ("lean_toolchain", "recorded_digest"),
     ("published_statement",),
@@ -3265,6 +3301,17 @@ def main():
                 )
         log("== generic: build solar")
         solar = build_solar()
+        # The binary must be this checkout's compiler, and the expected one when the runner names
+        # its digest (CERTIFY_SOLAR_SHA256), before it compiles anything the run records.
+        if (
+            why := solar_problem(
+                solar,
+                ROOT,
+                os.environ.get("CERTIFY_SOLAR_SHA256"),
+                os.environ.get("CERTIFY_ALLOW_FOREIGN_SOLAR") == "1",
+            )
+        ) is not None:
+            raise Failed(f"solar: {why}")
         record["solar"]["binary_sha256"] = sha256_file(solar)
         rc, vout, _ = run([str(solar), "--version"])
         record["solar"]["version"] = vout.strip().splitlines()[0] if vout else ""
