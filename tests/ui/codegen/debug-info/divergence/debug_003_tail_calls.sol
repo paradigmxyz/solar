@@ -3,10 +3,10 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 // The dump only makes the tester run FileCheck; it reads the source map.
 
-// DEBUG-003: a call in tail position has no instruction of its own when the code before it jumps
-// to the callee directly, as the `require` does for `_set(x);`, or when the caller jumps past a
-// function that only forwards, as `forward` does past `_forward`. The forwarder has no entry
-// label, and its `return _twice(x);` has no instruction.
+// DEBUG-003: a call in tail position that needs no argument setup has no instruction of its own
+// when the code before it jumps or falls into the callee, as the `require` does for `_set(x);`,
+// or when the caller jumps past a function that only forwards, as `forward` does past
+// `_forward`. The forwarder has no entry label, and its `return _twice(x);` has no instruction.
 
 // Offsets are bytes from `contract C`. An entry that changes the location writes its start, so a
 // location with no instruction never appears.
