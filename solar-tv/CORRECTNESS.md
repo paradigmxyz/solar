@@ -81,6 +81,34 @@ global declarations or phases, deleted external roots and missing call targets
 are unsupported. A changed live result has an independent semantic
 counterexample in `examples/mir/function-dce/`.
 
+Deletion-only SSA changes inside cyclic MIR have a contextual simulation in
+`MIR/Transforms/DeadSSA.lean`. Independent typed source exports retain every
+block, phi group, transfer and ordered effect. A local-ID correspondence must be
+injective and preserve every retained operand and definition. The kernel checks
+the generated action programs against exact erasure of the original program,
+then checks that no retained read refers to an erased definition, including phi
+backedges and terminal observations. Only the existing total scalar domain can
+be classified silent; loads, storage reads, checked arithmetic and allocations
+cannot be erased by this certificate.
+
+The theorem preserves live registers and arbitrary shared state after every
+block. It quantifies all effect and transfer handlers, initial values and
+block-transfer bounds. Failures propagate immediately; cycles require neither
+fixed unrolling nor a termination hypothesis. Equality at one exhausted budget
+does not establish verification. All-budget equality follows from the kernel's
+block simulation. Logical fuel counts blocks, so this is a stuttering theorem,
+not equality of instruction work or physical gas consumption.
+
+Source/schema export, injective local-ID normalization, total-pure classification
+and binding to the action machine remain trusted. This is not direct typed SSA
+interpreter correspondence. Opaque supplied callees must be unchanged and may
+not re-enter the changed function. Code/GAS observers, external messages,
+placement queries, backend records and undefined operands are excluded. SSTORE
+remains a potentially failing effect; scalar pricing and its effect on the
+EIP-2200 sentry are not certified. A corrupt generated program, changed phi
+backedge, live operand, effect or supplied callee is rejected. The broken-store
+and checked-underflow regressions have independent runtime counterexamples.
+
 Complete unused named-type table erasure has a separate resolved-data theorem
 in `MIR/Transforms/TypeDCE.lean`. Each source module is independently parsed and
 validated. All functions are exported, including unreachable bodies, with

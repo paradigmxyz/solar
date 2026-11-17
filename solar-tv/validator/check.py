@@ -813,9 +813,9 @@ def main() -> int:
                     except Unsupported:
                         raise error from None
                     programs = list(result.pair)
-                # An unchanged cyclic call suffix does not need unrolling when
-                # a producer-valid allocation prefix has a contextual proof.
-                # Keep the original rejection if the exact cut is not admitted.
+                # Cycles admit separate contextual allocation-prefix or dead-SSA
+                # simulations without bounded unrolling. Preserve the original
+                # rejection if neither complete certificate is admitted.
                 elif (
                     args.ir == "mir"
                     and args.function
@@ -835,7 +835,19 @@ def main() -> int:
                             args.function,
                         )
                     except Unsupported:
-                        raise error from None
+                        from . import dead_ssa
+
+                        try:
+                            result = dead_ssa.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.function,
+                            )
+                        except Unsupported:
+                            raise error from None
                     programs = list(result.pair)
                 # Scalar windows lack caller/calldata context and dynamic-return
                 # correspondence. Try a universal contextual certificate rather

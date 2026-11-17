@@ -1,4 +1,5 @@
 import SolarTV.MIR.Transforms.DCE
+import SolarTV.MIR.Transforms.DeadSSA
 import SolarTV.MIR.Transforms.FunctionDCE
 import SolarTV.MIR.Transforms.CoalesceAlloc
 import SolarTV.Correspondence
@@ -327,3 +328,7 @@ import SolarTV.MIR.Transforms.TypeDCE
 /-- info: 'SolarTV.MIR.TypeDCE.certificate' does not depend on any axioms -/
 #guard_msgs in
 #print axioms SolarTV.MIR.TypeDCE.certificate
+
+/-- info: 'SolarTV.MIR.DeadSSA.simulation' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.DeadSSA.simulation

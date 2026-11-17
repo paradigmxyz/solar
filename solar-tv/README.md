@@ -1418,6 +1418,39 @@ function-pointer dispatchers, backend-memory records, changed surviving bodies
 or globals, and modules without explicit entry points are unsupported. Each
 module is limited to 1 MiB and 128 functions.
 
+### Removing dead SSA definitions in MIR loops
+
+Function checks can prove deletion-only DCE across cyclic CFGs:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/cyclic-dce/{before,after}.mir --function f
+solar-tv/solar-tv mir solar-tv/examples/mir/cyclic-dce/{before,broken}.mir \
+  --function f --world solar-tv/examples/mir/cyclic-dce/world.json
+```
+
+The first pair is real `dce` output. The kernel checks that only total pure
+scalar definitions disappear, and that none of their results occurs in a
+retained instruction, simultaneous phi group or transfer. A simulation preserves
+live registers and shared state after every block, for every block-transfer
+bound. Loops need no fixed unrolling or termination assumption. Effect handlers
+are arbitrary and may fail immediately. The broken store has matching Lean and
+independent Rust counterexamples.
+
+Reports identify `cyclic-dead-ssa-simulation`, function scope and
+`unpriced-structural`. This is a contextual action-machine certificate, distinct
+from direct typed-interpreter correspondence. The compiler parser/schema export,
+injective local-ID normalization, total-pure classification and action renderer
+remain trusted. Retained callees must be unchanged and cannot re-enter the
+changed function. GAS, code observers, external calls, placement queries and
+backend memory records remain unsupported. Physical scalar gas and its effect
+on SSTORE's gas sentry are outside the claim.
+
+The frozen 24-check sample remains **22 verified, 2 unsupported**. A separate
+selection of all six previously cycle-rejected DCE captures verifies three more
+real pairs: OpenZeppelin's storage-byte helper and two Morpho `extSloads` pairs.
+The other three remove aggregate definitions outside this scalar certificate.
+These extra checks do not change the frozen sample's selection or denominator.
+
 ### Removing unused MIR type declarations
 
 `--prune` also checks complete named-type table erasure when every function,

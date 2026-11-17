@@ -27,6 +27,14 @@ retain identical operations under shared node semantics, without inventing
 values or discarding effects. They do not enable rewrites of an unsupported
 operation or establish physical transfer prices.
 
+Cyclic MIR DCE has a separate contextual action-machine simulation. Only total
+pure scalar definitions with globally unused results can disappear. Every
+retained operation, simultaneous phi group and transfer stays exact, with
+arbitrary shared state and failing handlers. The theorem covers every logical
+block-transfer bound; it does not implement more operations or prove physical
+gas, termination, the parser or the action renderer. Three additional real DCE
+captures verify under this certificate; the frozen sample stays at 22/24.
+
 ## Implemented fragment
 
 All 26 pure EVM word operations are modeled, including zero division, signed

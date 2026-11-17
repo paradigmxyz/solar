@@ -234,6 +234,17 @@ def record(
                         "universally quantified shared per-label PUSH/JUMPI charge context; concrete relocation/price correspondence remains trusted",
                     ]
                 )
+        elif program and program.scope == "dead-ssa":
+            assumptions.extend(
+                [
+                    "deletion-only SSA stuttering simulation; all retained actions, simultaneous phi groups, predecessor identities and transfers preserved",
+                    "erased results are absent from every retained read; only total state-independent scalar definitions can disappear",
+                    "every initial register file and shared state, arbitrary failing effect handlers and every logical block-transfer bound; cycles need no fixed unrolling or termination assumption",
+                    "trusted independent compiler parser/schema export, injective local-ID normalization, total-pure classification and action renderer; supplied callees unchanged and cannot re-enter the changed body",
+                    "contextual action-machine proof, not direct typed-interpreter correspondence; equal finite-budget errors are not the verification criterion",
+                    "unpriced scalar work and block transfers; GAS, code observers, external calls and placement queries excluded; SSTORE failures retained but physical gas and the EIP-2200 sentry's scalar-work costs are not certified",
+                ]
+            )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
@@ -310,7 +321,12 @@ def record(
             program
             and program.scope
             and program.scope
-            not in {"function-pruning", "unused-type-erasure", "allocation-prefix"}
+            not in {
+                "function-pruning",
+                "unused-type-erasure",
+                "allocation-prefix",
+                "dead-ssa",
+            }
         ):
             assumptions.append(
                 "function-local proof with supplied callees; no whole-pass claim"
@@ -332,6 +348,7 @@ def record(
                 "shared-prefix-suffix",
                 "function-pruning",
                 "unused-type-erasure",
+                "dead-ssa",
                 "allocation-prefix",
                 "interior-window",
                 "source-identity",
@@ -376,6 +393,7 @@ def record(
             in {
                 "function-pruning",
                 "unused-type-erasure",
+                "dead-ssa",
                 "allocation-prefix",
                 "source-identity",
                 "stack-layout",
@@ -482,6 +500,20 @@ def record(
         **(
             {"import_correspondence": [side.import_evidence for side in result.pair]}
             if result.pair and any(side.import_evidence for side in result.pair)
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
+                    "proof": "cyclic-dead-ssa-simulation",
+                    "erased_results": program.import_evidence["erased_results"],
+                    "blocks": program.import_evidence["blocks"],
+                },
+            }
+            if program and program.scope == "dead-ssa"
             else {}
         ),
         **(
