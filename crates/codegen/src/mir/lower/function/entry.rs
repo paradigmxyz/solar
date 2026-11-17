@@ -312,8 +312,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(counter) = coverage_map(self.cx.gcx).and_then(|map| map.counter(site))
             && !self.is_terminated()
         {
+            // A function's entry counter belongs to its definition, which may not be the
+            // current source context yet.
+            let previous = match site {
+                Site::Function(id) => {
+                    Some(self.builder.replace_source_span(self.cx.gcx.hir.function(id).span))
+                }
+                _ => None,
+            };
             // coverage counter
             self.builder.coverage(counter);
+            if let Some(previous) = previous {
+                self.builder.replace_source_span(previous);
+            }
         }
     }
 
