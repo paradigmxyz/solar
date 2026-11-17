@@ -179,6 +179,12 @@ impl<'gcx> Walker<'gcx> {
     fn function(&mut self, id: hir::FunctionId) {
         let function = self.gcx.hir.function(id);
         let count = CoverageCount::Counter(self.counter(Site::Function(id)));
+        // Modifier and base constructor arguments run before the body.
+        for modifier in function.modifiers {
+            for arg in modifier.args.exprs() {
+                self.expr(arg);
+            }
+        }
         if let Some(body) = function.body {
             self.stmts(body.stmts);
         }

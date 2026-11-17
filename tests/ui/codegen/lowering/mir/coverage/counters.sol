@@ -115,4 +115,29 @@ contract Counters {
             ok = false;
         }
     }
+
+    // A decision in a modifier argument counts before the modifier runs.
+    // CHECK-LABEL: fn @modified(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage 40
+    // CHECK-NEXT: coverage 41
+    // CHECK-NEXT: jumpi arg0, [[TRUE:bb[0-9]+]],
+    // CHECK: [[TRUE]]:
+    // CHECK-NEXT: coverage 42
+    // CHECK: phi
+    // CHECK: coverage 1
+    function modified(bool b) external pure nonZero(b ? 1 : 2) {}
+
+    // Fusing the packed encoding into the hash keeps both statement counters.
+    // CHECK-LABEL: fn @packed(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage 43
+    // CHECK-NEXT: coverage 44
+    // CHECK-NEXT: keccak256_packed
+    // CHECK-NEXT: coverage 45
+    // CHECK-NEXT: ret
+    function packed(uint256 x) external pure returns (bytes32) {
+        bytes memory p = abi.encodePacked(x);
+        return keccak256(p);
+    }
 }

@@ -162,3 +162,41 @@ fn @clauses(arg0: i160) -> i1 [selector=0xc6e9de8c, pure, abi_params=[address], 
     icall revert_if<empty>, true
     invalid
 }
+
+; function modified(bool b) external pure nonZero(b ? 1 : 2) [selector 0xdb672b0e]
+fn @modified(arg0: i1) [selector=0xdb672b0e, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 40
+    coverage 41
+    jumpi arg0, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    coverage 42
+    jump bb4
+  bb4:                                            ; preds = bb2, bb3
+    v0 = phi [bb2: i8 1], [bb3: i8 2]
+    v1 = zext i8 v0 to i256
+    coverage 1
+    coverage 2
+    v2 = ne v1, 0
+    coverage 3
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    coverage 4
+    jump bb5
+  bb5:                                            ; preds = bb4
+    jump bb1
+  bb1:                                            ; preds = bb5
+    ret
+}
+
+; function packed(uint256 x) external pure returns (bytes32) [selector 0x977eca9c]
+fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    coverage 43
+    coverage 44
+    v0 = keccak256_packed (uint256 arg0)
+    coverage 45
+    ret v0
+}

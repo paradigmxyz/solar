@@ -723,9 +723,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // The fused operation replaces the hash call, whose location solc sets in
                 // `ExpressionCompiler.cpp` L636. The erased bytes declaration contributes no
                 // location; the return keeps its own statement context.
+                let ret = stmts.peek().unwrap();
                 let previous = self.builder.replace_source_span(hash_span);
+                self.coverage(Site::Stmt(Site::key(stmt)));
                 let hash = self.lower_keccak_abi_encode_packed(args)?;
-                self.builder.replace_source_span(stmts.peek().unwrap().span);
+                self.builder.replace_source_span(ret.span);
+                self.coverage(Site::Stmt(Site::key(*ret)));
                 self.builder.ret(vec![hash]);
                 self.builder.replace_source_span(previous);
                 break;
