@@ -1212,9 +1212,7 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
                 // next = add base, step + outer
                 let sum = Value::Immediate(Immediate::I256(step.wrapping_add(outer)));
                 let sum = func.alloc_value(sum);
-                let kind = InstKind::Add(base, sum);
-                func.retain_checked_object_offset(inst, &kind);
-                func.set_inst_kind(inst, kind);
+                func.set_inst_kind(inst, InstKind::Add(base, sum));
                 uses[inner] -= 1;
                 uses[base] += 1;
                 if let Some(count) = sums.get_mut(&inner) {

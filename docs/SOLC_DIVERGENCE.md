@@ -1072,10 +1072,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   with about 40 or more additional recipients do.
   The compiler checks a memory object's element and field offsets against the
   object's bounds and trusts them, so assembly that forges a length can make a
-  checked access wrap below the object, which both compilers allow. The heap
-  prefix guard reserves no room below the heap for the wrapped constant of such
-  an offset, so a forged length can also reach the spill area through a constant
-  index.
+  checked access wrap below the object, which both compilers allow.
 - Coverage: `tests/ui/codegen/run-call/assembly/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_recursive_routes.sol`,

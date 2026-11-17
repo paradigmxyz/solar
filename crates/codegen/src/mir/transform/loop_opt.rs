@@ -1378,9 +1378,7 @@ fn reassociate_invariant_offsets(
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {
             // outer = add t, y
-            let kind = InstKind::Add(t, y);
-            func.retain_checked_object_offset(outer, &kind);
-            func.set_inst_kind(outer, kind);
+            func.set_inst_kind(outer, InstKind::Add(t, y));
             let block = inst_blocks[inner].expect("the inner sum is in a block");
             func.blocks[block].instructions.retain(|&inst| inst != inner);
             rewritten += 1;

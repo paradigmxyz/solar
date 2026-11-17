@@ -996,8 +996,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
     /// adding a negative constant reserves the same prefix as subtracting its magnitude. A step
-    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing, and so does a
-    /// wrapped constant added through a checked object offset, whose bounds check reverts first.
+    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1315,8 +1314,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 memo,
             )
         };
-        let checked = matches!(func.value(value), Value::Inst(inst)
-            if func.inst(*inst).metadata.checked_object_offset());
         let shifted = |base,
                        adjustment: U256,
                        visiting: &mut DenseBitSet<ValueId>,
@@ -1330,11 +1327,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if let Some(forward) = u256_to_u64(adjustment) {
                 return Some(prefix.saturating_sub(forward));
-            }
-            // A checked offset lies within its object, so a wrapped constant is an index whose
-            // bounds check reverts first, not a step back.
-            if checked {
-                return Some(prefix);
             }
             let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
             // NOTE: A step back this far reserves nothing. From a pointer that execution has

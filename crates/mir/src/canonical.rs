@@ -64,9 +64,7 @@ impl Function {
 
     /// Sets the kind of an existing instruction, in canonical operand order, and leaves its
     /// metadata and result type to the caller. This is for a rewrite that manages both itself,
-    /// such as a lowering; an equivalent rewrite uses [`Self::replace_inst_kind`]. A rewrite that
-    /// folds the constant of an addition into another calls
-    /// [`Self::retain_checked_object_offset`] first.
+    /// such as a lowering; an equivalent rewrite uses [`Self::replace_inst_kind`].
     pub fn set_inst_kind(&mut self, inst: InstId, kind: InstKind) {
         self.inst_mut(inst).kind = self.canonical_kind(kind);
     }
@@ -78,19 +76,7 @@ impl Function {
     /// dropped. ABI validation dependencies and allocation obligations survive an equivalent
     /// rewrite. The caller must prove equivalence and preserve the result representation.
     pub fn replace_inst_kind(&mut self, inst: InstId, kind: InstKind) {
-        self.replace_inst_kind_resolving(inst, kind, |value| value);
-    }
-
-    /// Like [`Self::replace_inst_kind`] for a pass that has merged values it has not yet
-    /// replaced in the operands: `resolve` maps each operand to the value that stands for it.
-    pub fn replace_inst_kind_resolving(
-        &mut self,
-        inst: InstId,
-        kind: InstKind,
-        resolve: impl Fn(ValueId) -> ValueId,
-    ) {
         let kind = self.canonical_kind(kind);
-        self.retain_checked_object_offset_resolving(inst, &kind, resolve);
         self.inst_mut(inst).replace_kind(kind);
     }
 

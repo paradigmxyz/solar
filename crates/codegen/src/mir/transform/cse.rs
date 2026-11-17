@@ -592,16 +592,6 @@ impl CommonSubexprEliminator {
             sunk.metadata.merge_debug_locs(
                 candidate.incoming[1..].iter().map(|&(_, other)| &func.inst(other).metadata),
             );
-            // The sunk offset is unchecked if any incoming one is, as memory-object lowering
-            // marks every other `ptradd` as checked.
-            if matches!(sunk.kind, InstKind::PtrAdd(..))
-                && candidate
-                    .incoming
-                    .iter()
-                    .any(|&(_, other)| func.inst(other).metadata.unchecked())
-            {
-                sunk.metadata.set_unchecked(true);
-            }
             let (new_inst, new_value) = func.alloc_value_inst(sunk);
 
             let phi_count = func.block_phi_count(candidate.block_id);

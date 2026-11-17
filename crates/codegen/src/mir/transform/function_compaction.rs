@@ -943,8 +943,6 @@ fn equivalent_functions(
                 || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
                 || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
-                || lhs_inst.metadata.checked_object_offset()
-                    != rhs_inst.metadata.checked_object_offset()
                 || lhs_inst.metadata.deferred_alloc() != rhs_inst.metadata.deferred_alloc()
                 || lhs_inst.metadata.preserves_fmp() != rhs_inst.metadata.preserves_fmp()
                 || lhs_inst.metadata.disjoint() != rhs_inst.metadata.disjoint()
