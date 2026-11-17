@@ -16,11 +16,14 @@ g() { git -C "$repo" -c user.name=t -c user.email=t@localhost "$@"; }
 
 # A solar root whose solidity-lean.rev is the fixture's pin.
 mkdir -p "$tmp/root/tools/certify"
-cp "$here/checkout.sh" "$tmp/root/tools/certify/checkout.sh"
+cp "$here/checkout.sh" "$here/lakefile_inputs.py" "$tmp/root/tools/certify/"
 repo="$tmp/sl"
 mkdir -p "$repo/Certified/foo" "$repo/Certified/bar"
 git init -q "$repo"
-echo base > "$repo/lakefile.lean"; echo a > "$repo/Certified/bar/A.lean"
+# The driver's library stanza for NAME and CONTRACT, as generic.py appends it.
+stanza() { python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import lakefile_inputs as l; sys.stdout.write(l.lakefile_lib(sys.argv[2], sys.argv[3]))' "$here" "$@"; }
+# The base declares one run's library already (dd_0000abcd), as the pin declares flag_4ce5cf9a.
+{ echo base; stanza dd_0000abcd C; } > "$repo/lakefile.lean"; echo a > "$repo/Certified/bar/A.lean"
 g add -A; g commit -q -m base
 pin="$(g rev-parse HEAD)"
 echo "$pin" > "$tmp/root/tools/certify/solidity-lean.rev"
@@ -76,5 +79,34 @@ if co bash "$tmp/root/tools/certify/checkout.sh" Certified/foo; then bad "an unp
 else ok "an unpinned HEAD without CERTIFY_PIN_BASE is refused"; fi
 if co CERTIFY_PIN_BASE="$pin" bash "$tmp/root/tools/certify/checkout.sh"; then bad "CERTIFY_PIN_BASE without an inputs directory is accepted"
 else ok "CERTIFY_PIN_BASE without an inputs directory is refused"; fi
+
+# lakefile.lean in the inputs commit: only the base's bytes plus the canonical stanza for the NAME of
+# Certified/NAME, which the base does not declare (tools/certify/lakefile_inputs.py).
+n=ab_0000abcd
+lake_case() { # LABEL INPUTS_NAME PATTERN|accept, with the lakefile already written
+    mkdir -p "$repo/Certified/$2"; echo x > "$repo/Certified/$2/$2.sol"; g add -A; g commit -q -m "$1"
+    if co CERTIFY_PIN_BASE="$pin" bash "$tmp/root/tools/certify/checkout.sh" "Certified/$2"; then
+        [[ "$3" == accept ]] && ok "$1 is accepted" || bad "$1 is accepted"
+    elif [[ "$3" == accept ]]; then cat "$tmp/out" >&2; bad "$1 is refused"
+    elif grep -q -- "$3" "$tmp/out"; then ok "$1 is refused: $(grep -m1 error "$tmp/out" | cut -c1-170)"
+    else cat "$tmp/out" >&2; bad "$1 is refused without naming it ($3)"; fi
+}
+base_lf() { g reset -q --hard "$pin"; cat "$repo/lakefile.lean"; }
+{ base_lf; stanza $n Flag; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_exact_append" $n accept
+{ base_lf; stanza $n Flag | sed 's/roots := #\[/roots := #[Extra, /'; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_changed_stanza" $n "lakefile.lean (what it appends is not the library stanza"
+{ base_lf | sed 's/^base$/base edited/'; stanza $n Flag; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_edit_elsewhere_plus_stanza" $n "lakefile.lean (it edits the base's lakefile.lean"
+{ base_lf; stanza zz_0000abcd Flag; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_stanza_for_other_name" $n "lakefile.lean (what it appends is not the library stanza for $n"
+{ base_lf; stanza dd_0000abcd C; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_stanza_for_declared_name" dd_0000abcd "already declares lean_lib dd_0000abcd"
+{ base_lf; stanza $n Flag; stanza $n Flag; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_duplicate_stanza" $n "lakefile.lean (what it appends is not the library stanza"
+{ base_lf; printf '\n-- %s: the stages of Certified/%s/%s.sol'"'"'s Fl"ag and their kernel proofs, which\n' $n $n $n; stanza $n Flag | tail -n +3; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_bad_contract_name" $n "lakefile.lean (what it appends is not the library stanza"
+{ base_lf; stanza $n Flag; } > "$tmp/lf"; cp "$tmp/lf" "$repo/lakefile.lean"
+lake_case "lakefile_not_driver_name_dir" Foo_x "lakefile.lean ('Certified/Foo_x' is not Certified/NAME"
 if [[ $fails -ne 0 ]]; then echo "$fails failure(s)" >&2; exit 1; fi
 echo "all checkout pin tests pass"
