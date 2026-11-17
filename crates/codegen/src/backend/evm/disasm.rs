@@ -173,8 +173,10 @@ fn pushed_offset(instruction: &DecodedInstruction<'_>) -> Option<usize> {
     }
 }
 
+/// Returns whether the instruction pushes a value. A coverage probe's counter push never runs.
 fn is_push(instruction: &DecodedInstruction<'_>) -> bool {
-    instruction.opcode == op::PUSH0 || instruction.push_width != 0
+    !instruction.coverage_counter
+        && (instruction.opcode == op::PUSH0 || instruction.push_width != 0)
 }
 
 /// Disassembles EVM bytecode in the format used by solc's Standard JSON output.
@@ -259,6 +261,8 @@ struct DecodedInstruction<'a> {
     push_width: u8,
     data: &'a [u8],
     kind: DecodedOpcode,
+    /// Whether this is the counter push of a `COVERAGE` probe, which the probe skips.
+    coverage_counter: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -275,6 +279,7 @@ fn instructions(
     instrument_coverage: bool,
 ) -> impl Iterator<Item = DecodedInstruction<'_>> {
     let mut offset = 0;
+    let mut after_coverage = false;
     std::iter::from_fn(move || {
         let instruction_offset = offset;
         let &opcode = bytecode.get(offset)?;
@@ -310,7 +315,16 @@ fn instructions(
             .min(bytecode.len());
         let data = &bytecode[offset..end];
         offset = end;
-        Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data, kind })
+        let coverage_counter = after_coverage && push_width != 0;
+        after_coverage = opcode == op::COVERAGE && matches!(kind, DecodedOpcode::Opcode);
+        Some(DecodedInstruction {
+            offset: instruction_offset,
+            opcode,
+            push_width,
+            data,
+            kind,
+            coverage_counter,
+        })
     })
 }
 

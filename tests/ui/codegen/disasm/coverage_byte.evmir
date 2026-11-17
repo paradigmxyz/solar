@@ -12,14 +12,22 @@
   literal_0: hex"c2"
 
 // CHECK-LABEL: ; === coverage_byte (runtime) ===
-// COVERAGE: COVERAGE
+// A probe before a dynamic jump does not hide the pushed target from the disassembly.
+// COVERAGE: PUSH1 [[TARGET:0x[0-9a-f]+]]
+// COVERAGE-NEXT: COVERAGE
 // COVERAGE-NEXT: PUSH1 0x07
+// COVERAGE-NEXT: JUMP ; unknown
+// COVERAGE-NEXT: ; bb0
+// COVERAGE-NEXT: JUMPDEST
 // CHECK: RETURN
 // PLAIN-NEXT: UNKNOWN 0xc2
 // COVERAGE-NEXT: COVERAGE
 bb0:
+  push bb1
   push 7 !meta(keep_with_next)
   coverage
+  jump
+bb1:
   push 1
   push_data literal_0
   push 0
