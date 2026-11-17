@@ -2678,6 +2678,21 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
                 "obligations",
                 f"the solc-AST front end refuses the source: {err.strip()[-300:]}",
             )
+        # The probe cache seeds the clone's .lake, as lifecycle_build's does; lake rebuilds what
+        # differs.
+        if a.probe_cache and not (d / ".lake").exists():
+            rc, _, err = run(
+                [
+                    "cp",
+                    "-a",
+                    str(pathlib.Path(a.probe_cache) / ".lake"),
+                    str(d / ".lake"),
+                ]
+            )
+            if rc != 0:
+                raise lc.Stop(
+                    "obligations", f"cannot copy the probe cache: {err[:200]}"
+                )
         (d / "Certified" / name).mkdir(parents=True, exist_ok=True)
         (d / "Certified" / name / "Source.lean").write_text(source_lean(body))
         declare_lean_lib(
@@ -2702,11 +2717,26 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
         lean_dir=lean_dir,
         lake_env=lambda d: lake_jobs_env(d, dict(os.environ, LEAN_NUM_THREADS="1")),
         log=log,
+        summary=loop_summaries(a.loop_summary or []).get,
     )
     record["loop_heads"] = heads
     record["loop_cuts"] = cuts
     record["loop_cuts_blocked"] = blocked
     return lc.reasons(cuts, blocked)
+
+
+def loop_summaries(specs):
+    """--loop-summary FN=MODULE:CONSTANT, each a GenObl.Summary of FN's body. It is untrusted:
+    the generator checks its shape against the run's imported function, and the obligation
+    modules prove that check by kernel_rfl. Without one, the generator refuses FN."""
+    out = {}
+    for spec in specs:
+        fn, eq, rest = spec.partition("=")
+        mod, colon, const = rest.partition(":")
+        if not (fn and eq and colon and mod and const) or ":" in const:
+            raise Failed(f"--loop-summary {spec!r}: expected FN=MODULE:CONSTANT")
+        out[fn] = (mod, const)
+    return out
 
 
 def clone_base(a, work):
@@ -3394,6 +3424,13 @@ def main():
     )
     ap.add_argument("--no-negatives", action="store_true")
     ap.add_argument(
+        "--loop-summary",
+        action="append",
+        metavar="FN=MODULE:CONSTANT",
+        help="a GenObl.Summary of loop function FN's body for the loop cut hook (checked by the "
+        "generator against the imported function); without one the hook blocks FN",
+    )
+    ap.add_argument(
         "--probe-cache",
         help="a checkout whose .lake the probe clone starts from (lake rebuilds what differs)",
     )
@@ -3500,10 +3537,11 @@ def main():
             )
         except Blocked as b:
             if any(r["feature"] == "loop" for r in b.reasons):
+                # The cut points first, so the record holds them whatever loop_resources decides;
+                # its REJECTED still decides the verdict, and BLOCKED stays the floor otherwise.
+                extra = loop_cuts(record, src, ast, a, work, name, src_sha)
                 loop_resources(record, src, ast, a.contract)
-                raise Blocked(
-                    b.reasons + loop_cuts(record, src, ast, a, work, name, src_sha)
-                ) from b
+                raise Blocked(b.reasons + extra) from b
             raise
         record["contract"] = contract
         record["functions"] = [

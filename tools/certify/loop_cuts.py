@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import sys
 import tempfile
@@ -40,6 +41,8 @@ GEN_FORMAT = "loop obligations 1"
 REFUSED = 2
 # The generator splits the sequents' proofs over at most this many V modules.
 V_FILES = 8
+# A dotted Lean name: the module and constant a body summary names (GenObl.Summary).
+LEAN_NAME = r"[A-Za-z_][A-Za-z0-9_']*(\.[A-Za-z_][A-Za-z0-9_']*)*"
 
 
 class Stop(Exception):
@@ -100,20 +103,23 @@ def abi(ast, contract, fname):
     return int(f["functionSelector"], 16), len(f["parameters"]["parameters"])
 
 
-def gen_driver(name, contract, fname, sel, nargs):
+def gen_driver(name, contract, fname, sel, nargs, summary=None):
     """The module that runs the base's obligation generator for FNAME in the run's clone.
 
     The generator's interface (GEN_MODULE): `run (cfg : Config) : IO UInt32` writes the modules
     `<pre>Data`, `<pre>V0`..`<pre>Vk` and `<pre>Obl` under `cfg.root`. It exits 0 after printing
     one JSON line `{"format": GEN_FORMAT, "modules": [...], "measure": "..."}`, and exits
     REFUSED, with the reason on stderr, when cut.check, brTree or allSeqs is none or no measure
-    is found."""
+    is found, or when no body summary is given or it does not match the imported function.
+
+    SUMMARY is (module, constant): a `GenObl.Summary` of FNAME's body (its `Br` and the
+    storage-field and function shape it was proved for), which the generator needs because the
+    source erasure has no loop case. The generator checks its shape against this run's imported
+    contract and the generated modules prove that by `kernel_rfl`, so a summary for another
+    function or source is refused. With none, the driver passes `summary? := none` and the
+    generator refuses."""
     pre = f"{name}/Loops/{fname}/"
-    imports = [
-        f"{name}.gen.{contract}.Stage0",
-        f"{name}.Loops.{fname}.Cut",
-        f"{name}.Source",
-    ]
+    imports = gen_imports(name, contract, fname, summary)
     checked = (
         "SolidCore.Solidity.TypeCheck.CheckedInput.contract "
         f'Certified.{name}.Src.importedSourceUnit "{contract}"'
@@ -136,9 +142,29 @@ def gen_driver(name, contract, fname, sel, nargs):
         f"      pre := {json.dumps(pre)}",
         f'      ns := "Certified.{name}.Loops.{fname}"',
         '      root := "Certified"',
-        f"      files := {V_FILES} }}",
+        f"      files := {V_FILES}",
+        f"      summary? := {'none' if summary is None else 'some ' + summary[1]} }}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def gen_imports(name, contract, fname, summary=None):
+    """The modules Gen.lean imports besides the generator: the run's Stage0, the cut, the source,
+    and the summary's module when one is given."""
+    imports = [
+        f"{name}.gen.{contract}.Stage0",
+        f"{name}.Loops.{fname}.Cut",
+        f"{name}.Source",
+    ]
+    if summary is not None:
+        mod, const = summary
+        if not (re.fullmatch(LEAN_NAME, mod) and re.fullmatch(LEAN_NAME, const)):
+            raise Stop(
+                "obligations",
+                f"the body summary {summary!r} is not a Lean module and constant",
+            )
+        imports.append(mod)
+    return imports
 
 
 def gen_result(out):
@@ -211,7 +237,17 @@ def cut(run, heads, stage0, fname, sel, nargs, out):
 
 
 def obligations(
-    run, lake_env, lean_dir, name, contract, fname, sel, nargs, cut_file, stage0
+    run,
+    lake_env,
+    lean_dir,
+    name,
+    contract,
+    fname,
+    sel,
+    nargs,
+    cut_file,
+    stage0,
+    summary=None,
 ):
     """Step 3 for FNAME in the prepared clone LEAN_DIR: the obligation files and the measure."""
     for f in (CUT_FILE, GEN_FILE):
@@ -225,7 +261,17 @@ def obligations(
     fd = d / "Loops" / fname
     fd.mkdir(parents=True, exist_ok=True)
     shutil.copy(cut_file, fd / "Cut.lean")
-    (fd / "Gen.lean").write_text(gen_driver(name, contract, fname, sel, nargs))
+    (fd / "Gen.lean").write_text(gen_driver(name, contract, fname, sel, nargs, summary))
+    # lake env lean runs Gen.lean against built imports only, so build them first.
+    deps = [GEN_MODULE, *gen_imports(name, contract, fname, summary)]
+    rc, out, err = run(
+        ["lake", "build", "-KleanMemory=6000", *deps], cwd=lean_dir, env=lake_env
+    )
+    if rc != 0:
+        raise Stop(
+            "obligations",
+            f"lake cannot build the generator's imports: {tail(out + err)}",
+        )
     rc, out, err = run(
         ["lake", "env", "lean", "--run", str(fd / "Gen.lean")],
         cwd=lean_dir,
@@ -268,13 +314,16 @@ def hook(
     lean_dir,
     lake_env,
     log,
+    summary=lambda fname: None,
 ):
     """Steps 1 to 4 for every loop function of SRC. SOLAR and VERIFY return the run's solar and
     solar-verify, STAGES(solar, tmp) exports the run's stages to tmp/gen, LEAN_DIR() returns the
     prepared clone and LAKE_ENV(clone) its build environment; each may raise Stop. Returns
     (loop_heads, loop_cuts, blocked): loop_cuts only for the functions every step completed for,
     blocked for the rest, keyed by function ("*" when no function was reached), each
-    {"step", "why"}."""
+    {"step", "why"}. BODY(fname)
+    gives FNAME's body summary (module, constant) for gen_driver, or None, which the
+    generator refuses."""
     loops = pathlib.Path(work) / "loops"
     loops.mkdir(parents=True, exist_ok=True)
     heads_file = loops / "loop-heads.json"
@@ -322,6 +371,7 @@ def hook(
                 nargs,
                 cut_file,
                 stage0,
+                summary(fname),
             )
             cuts[fname] = {
                 "loop_heads": {"path": heads["path"], "sha256": heads["sha256"]},
