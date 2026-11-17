@@ -85,10 +85,16 @@ Allocation coalescing has a separate conditional prefix certificate in
 `MIR/Transforms/CoalesceAlloc.lean`. Kernel-checked normalization separates the
 ordered data writes from reservation updates. It proves equality of complete
 byte-memory functions, active sizes and final cursors for arbitrary initial
-contents, then applies an arbitrary identical continuation. Supplied callee
+contents, then applies an arbitrary identical continuation. Reachable callee
 bodies and all ordered call arguments must match; recursion back into the
 changed constructor is rejected. Unchanged loops are not unrolled, summarized
 as successful calls or treated as matching model errors.
+
+The claim covers only the selected constructor. Changed bodies outside its
+transitive call closure are recorded and excluded, not certified. Shared
+declarations, function interfaces and numeric table order must agree, and
+function-pointer dispatchers remain unsupported. Named-reference extraction
+and its binding to the call graph remain trusted.
 
 The producer contract explicitly requires an aligned FMP of at least 128,
 matching the word at `0x40`, a nonwrapping total reservation below `2^64`, and
@@ -103,6 +109,20 @@ direct SSA interpreter correspondence or a physical gas/layout theorem. An
 aliasing FMP at 64 is a kernel counterexample when its safety contract is
 removed. The reduced real pass and a wrong initializer with independent replay
 are in `examples/mir/coalesce-allocs/`.
+
+`MIR/Transforms/LowerAllocPrefix.lean` also proves that a first reservation's
+lowered FMP load, constant word addition and FMP store implement the same
+byte-memory update under this producer contract. The active size includes slot
+`0x40`, and the cursor bound makes word addition agree with natural addition.
+The projector recognizes only the uninterrupted initial sequence, including its
+pointer cast and exact SSA operands. Later reservations on the lowered side and
+all intermediate observations are rejected. The generated pair theorem applies
+this bridge before the allocation-prefix theorem; it does not assume the
+lowered operations are an abstract allocation without that kernel step. A
+wrapping cursor is a kernel counterexample outside the contract. The reduced
+real `lower-alloc` pair, wrong FMP-store counterexample with independent replay,
+and malformed-sequence tests are in `examples/mir/allocation-lowering/` and
+`tests/test_allocation_lowering.py`.
 
 Unknown-height block windows also admit a narrower contextual prefix proof.
 An independent Rust export includes every instruction and the terminal. Only a
@@ -377,10 +397,12 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **16 of 24**, with
-8 unsupported and no counterexamples, timeouts or errors. Only Morpho's
-`lower-alloc` constructor changes status. The selected check identities, input
-hashes and compiler-output hashes are identical; compilation results are reused.
+Rechecking those same frozen pairs at 30 seconds now verifies **17 of 24**, with
+7 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+constructor first raised the count to 16; the OpenZeppelin ERC20Mock
+`lower-alloc` constructor then raised it to 17. No other check changes status.
+The selected check identities, input hashes and compiler-output hashes are
+identical; compilation results are reused.
 The compiler fingerprint is
 `8a897a40c88678e68e53f3b08b0e86099d5190f94478681ceda9c68e3ef3ae37`
 and independent replay is
@@ -396,6 +418,14 @@ trusted. This does not establish physical gas or backend-layout correspondence.
 The reduced real pair, changed-slot counterexample with independent replay,
 and constructor-range distinction tests are in `examples/mir/fmp-lowering/`
 and `tests/test_fmp_lowering.py`.
+
+ERC20Mock's constructor uses the conditional allocation-prefix bridge described
+above. Its cyclic storage helpers and ordered call arguments remain identical.
+The same pass also changes `load_storage_bytes`, which is outside the
+constructor's reachable call graph and explicitly excluded from this
+function-local claim. Reports retain the unchanged callee set and list that
+unrelated changed body. Neither loops nor allocation preconditions are silently
+assumed away.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.

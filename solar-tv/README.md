@@ -1336,15 +1336,19 @@ An allocation-coalescing constructor can finish all changed instructions before
 entering an unchanged storage helper. The checker validates that cut rather
 than unrolling the helper's loops. Its byte-memory theorem preserves every
 initialized byte, final allocation cursor and active memory size. Ordered calls
-and their arguments must agree, all supplied bodies must be identical, and the
-continuation cannot call back into the changed constructor. A continuation may
-fail, loop or mutate state; successful termination is never assumed.
+and their arguments must agree. Every reachable callee must be identical, and
+the continuation cannot call back into the changed constructor. A continuation
+may fail, loop or mutate state; successful termination is never assumed.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/coalesce-allocs/{before,after}.mir \
   --function constructor
 solar-tv/solar-tv mir solar-tv/examples/mir/coalesce-allocs/{before,broken}.mir \
   --function constructor --world solar-tv/examples/mir/coalesce-allocs/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/allocation-lowering/{before,after}.mir \
+  --function constructor
+solar-tv/solar-tv mir solar-tv/examples/mir/allocation-lowering/{before,broken}.mir \
+  --function constructor --world solar-tv/examples/mir/allocation-lowering/world.json
 ```
 
 This is explicitly a **conditional prefix certificate**. The allocation
@@ -1354,8 +1358,14 @@ aligned and include that word. The cursor and byte contents remain arbitrary;
 the checker never supplies an initial cursor. Proving every caller establishes
 the contract remains separate work. Only infallible, uninitialized reservations
 and aligned constant word stores inside the current reservation are admitted.
-Intermediate FMP reads, checked/zeroed allocations, changed helpers and changed
-call arguments are rejected.
+`lower-alloc` may replace the first reservation with an uninterrupted
+`mload 64`, pointer cast, constant addition and `mstore 64` sequence. A separate
+kernel lemma in `MIR/Transforms/LowerAllocPrefix.lean` connects that sequence to
+the reservation under the same producer contract, including word nonwrapping
+and active memory. Reports record `lowered_reservations` on each side. Only one
+initial lowered reservation is admitted; intermediate FMP reads, later
+reservations on that side, checked/zeroed allocations, changed helpers and
+changed call arguments are rejected. `heap_floor` is never substituted for FMP.
 
 Reports distinguish `producer-valid-allocation-prefix` from direct interpreter
 proofs and use `unpriced-structural`. The compiler parser/schema export,
@@ -1363,7 +1373,14 @@ SSA-to-byte-memory projection and continuation binding remain trusted. Byte
 writes agree with the shared byte-list memory operation in the active range;
 the kernel also checks FMP read-over-write and disjointness laws. This does not
 certify physical gas, backend placement or full SSA import correspondence. The
-broken initializer has a counterexample checked by Lean and Rust replay.
+broken initializer and wrong lowered FMP store have counterexamples checked by
+Lean and Rust replay.
+
+This is a function-local claim: bodies outside the constructor's transitive
+call graph can change, and reports list them as `unrelated_changed_bodies`.
+They are not certified by this check. Shared declarations, function interfaces
+and table order must still agree; numeric function-pointer dispatchers remain
+unsupported.
 
 ### Reproducible real-contract evaluation
 
