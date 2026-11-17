@@ -82,6 +82,7 @@ before either a proof or a counterexample can be accepted.
 | --- | --- | --- |
 | MIR scalar projection | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
+| MIR fresh heap | A constant initial allocation lowered to a named heap-floor reservation; the complete single-block SSA body is checked. | Direct-state effects under an explicit placement/FMP producer condition; neither caller initialization nor backend placement is inferred. |
 | MIR compositional effects | Acyclic integer/pointer functions, supplied internal callees, explicit opcode/allocation effects and constructor-range requests. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
@@ -1469,6 +1470,39 @@ They are not certified by this check. Shared declarations, function interfaces
 and table order must still agree; numeric function-pointer dispatchers remain
 unsupported.
 
+### Fresh heap-floor reservations
+
+`lower-alloc` may replace an initial FMP read with `heap_floor`. Those are not
+equivalent over arbitrary caller memory: the named placement must agree with
+the live FMP. The checker exposes that producer obligation and proves the
+complete imported SSA body, including every subsequent write and return:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/fresh-heap/{before,after}.mir \
+  --function name.body
+solar-tv/solar-tv mir solar-tv/examples/mir/fresh-heap/{before,broken}.mir \
+  --function name.body --world solar-tv/examples/mir/fresh-heap/world.json
+```
+
+Reports name `producer-valid-fresh-heap-ssa` with `semantic-effects`. The theorem
+quantifies arbitrary live memory, journal, returndata and context satisfying
+the explicit condition: an aligned named floor of at least 128 equals the word
+at `0x40`, that word is active, and the source reservation fits the interpreter's
+64 KiB memory-work domain. No zeroed heap or particular cursor is supplied.
+Every accepted source extent has valid frames; an impossible work-range
+condition cannot establish a vacuous success.
+
+`MIR/Transforms/FreshHeap.lean` proves the reservation's byte-memory update and
+that an explicit entry write establishes the cursor condition. The pair proof
+runs the actual imported typed SSA functions. It does not summarize their
+suffixes, accept equal model errors or assume that later operations succeed.
+The parser/schema export and typed constructor renderer remain trusted.
+Establishing the condition at every caller and connecting placements to the
+backend remain separate obligations; physical gas is not certified. Tests
+include dirty heaps at several cursors, changed suffixes and returns, missing
+and disagreeing bindings, independent counterexample replay and unchanged
+compiler bytecode.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1529,11 +1563,14 @@ a broken-width counterexample are in `examples/mir/width-guard/` and
 its concrete fixture never establishes the positive universal result.
 
 After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
-9 unsupported. Rechecking those frozen pairs now verifies **20 of 24**, with
-4 unsupported, no errors, timeouts or counterexamples. The additional checks
+9 unsupported. Rechecking those frozen pairs now verifies **21 of 24**, with
+3 unsupported, no errors, timeouts or counterexamples. The additional checks
 use FMP lowering, conditional allocation-prefix, exact scalar-island,
-source-graph identity and stack-layout certificates, as documented above. Check
-identities and compiler-output fingerprints are unchanged. This uses a new
+source-graph identity, stack-layout and conditional fresh-heap SSA certificates,
+as documented above. WETH's new `lower-alloc` result explicitly requires the
+named placement/FMP producer condition; it does not establish that condition
+at every caller. Selected check identities and compiler-output fingerprints
+are unchanged. This uses a new
 compiler/capture fingerprint; it is not comparable to the older 17-of-24 selection above.
 See [CORRECTNESS.md](CORRECTNESS.md#remaining-obligations) for the fingerprints.
 

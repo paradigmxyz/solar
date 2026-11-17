@@ -1,0 +1,20 @@
+@module FreshHeap
+fn @entry() [entry] {
+  bb0:
+    tail_call @name
+}
+fn @name() {
+  bb0:
+    v0 = icall @name.body
+    v1 = ptrtoint ptr<memory> v0 to i256
+    returndata v1, 64
+}
+fn @name.body() -> ptr<memory> [may_return_memory] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    v4 = ptrtoint ptr<memory> v0 to i256
+    mstore v4, 13
+    v3 = add v4, 32
+    mstore v3, 0x5772617070656420457468657200000000000000000000000000000000000000
+    ret v0
+}

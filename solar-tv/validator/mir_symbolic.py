@@ -214,7 +214,6 @@ def declaration(name, program):
 
 def check(a, b, timeout, *, replay_command, replay_executable, verbose):
     from .check import PRELUDE, ROOT, build_model, run
-    from .world_check import MIR_UNFOLD
 
     programs = []
     for program in (a, b):
@@ -241,6 +240,17 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
     a, b = programs
     if a.interface != b.interface:
         raise Unsupported("symbolic MIR interfaces or declarations differ")
+    from . import fresh_heap
+
+    try:
+        fresh_heap.extent(a, b)
+    except Unsupported:
+        pass
+    else:
+        # The complete source bodies still need a kernel proof. A named floor
+        # cannot be substituted for arbitrary caller memory without this
+        # explicitly reported producer obligation.
+        return fresh_heap.check(a, b, timeout, replay_executable)
     # Large effectful bodies can spend most of their proof budget
     # unfolding identical storage and memory. Try the exact interaction-trace
     # obligation first; it is explicitly reported as a different certificate.
@@ -269,30 +279,7 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
     args = " ".join(a.inputs)
     # Keep the arbitrary journal and byte contents abstract. Only the finite SSA
     # machine and known scalar operations are normalized before comparing effects.
-    unfold = MIR_UNFOLD
-    for term in (
-        "before",
-        "after",
-        "mirWorldConfig",
-        "MIR.State.equivalent",
-        "MIR.State.observe",
-        "Execution.readWord",
-        "Execution.readBytes",
-        "Execution.wordBytes",
-        "Execution.writeBytes",
-        "Execution.account",
-        "Execution.putAccount",
-        "Execution.warmSlot",
-        "Execution.warmAddress",
-        "Execution.slotsRead",
-        "Execution.slotsWrite",
-        "Execution.normalizedSlots",
-        "Execution.ordered",
-        "Execution.orderedInsert",
-        "MIR.State.function",
-    ):
-        unfold = unfold.replace(term + ", ", "")
-    unfold += ", ↓MIR.State.reduceFunction, ↓MIR.State.reduceEquivalent, BitVec.ofNatLT_eq_ofNat"
+    unfold = step_definitions()
     declarations = (
         PRELUDE
         + "set_option maxRecDepth 16384\nset_option maxHeartbeats 2000000\n"
@@ -473,3 +460,37 @@ def counterexample(a, b, timeout, replay_command, executable, verbose):
         if witness.status == "counterexample":
             return witness
     return None
+
+
+def step_definitions():
+    from .world_check import MIR_UNFOLD
+
+    # Reduce known SSA positions without expanding arbitrary heaps or journals,
+    # or duplicating observations under unresolved execution continuations.
+    unfold = MIR_UNFOLD
+    for term in (
+        "before",
+        "after",
+        "mirWorldConfig",
+        "MIR.State.equivalent",
+        "MIR.State.observe",
+        "Execution.readWord",
+        "Execution.readBytes",
+        "Execution.wordBytes",
+        "Execution.writeBytes",
+        "Execution.account",
+        "Execution.putAccount",
+        "Execution.warmSlot",
+        "Execution.warmAddress",
+        "Execution.slotsRead",
+        "Execution.slotsWrite",
+        "Execution.normalizedSlots",
+        "Execution.ordered",
+        "Execution.orderedInsert",
+        "MIR.State.function",
+    ):
+        unfold = unfold.replace(term + ", ", "")
+    return (
+        unfold
+        + ", ↓MIR.State.reduceFunction, ↓MIR.State.reduceEquivalent, BitVec.ofNatLT_eq_ofNat"
+    )

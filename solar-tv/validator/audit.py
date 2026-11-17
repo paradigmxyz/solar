@@ -156,6 +156,16 @@ def record(
                     "no physical gas, code-image or backend placement claim",
                 ]
             )
+        elif program and program.scope == "fresh-heap-function":
+            assumptions.extend(
+                [
+                    "conditional direct typed SSA proof of the complete function, including all suffix instructions and returns; model errors on either side prevent verification",
+                    "explicit producer obligation: the named supplied heap floor equals the live FMP word; initial aligned byte memory includes bytes 0x40..0x5f; floor is aligned and at least 128; the source reservation extent fits the 64 KiB work domain",
+                    "arbitrary memory contents, journal, live returndata and execution context satisfying that obligation; no sampled cursor, zeroed heap or synthesized placement",
+                    "trusted compiler parser/schema export and typed SSA constructor renderer; no proof that every caller or the backend establishes the placement/FMP obligation",
+                    "semantic effects only; abstract MIR is unpriced; no physical gas or backend layout claim",
+                ]
+            )
         elif program and program.scope == "stack-layout":
             assumptions.extend(
                 [
@@ -456,6 +466,8 @@ def record(
                     "name": program.selector,
                     "proof": "compositional-effect-tree"
                     if program.scope == "effect-tree"
+                    else "producer-valid-fresh-heap-ssa"
+                    if program.scope == "fresh-heap-function"
                     else "universal-caller-state",
                     "work_bounds": [side.symbolic_mir["fuel"] for side in result.pair],
                     "supplied_functions": len(

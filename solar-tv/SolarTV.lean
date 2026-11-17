@@ -43,6 +43,7 @@ import SolarTV.MIR.Effects
 import SolarTV.EVMIR.Effects
 import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
+import SolarTV.MIR.Transforms.FreshHeap
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -305,3 +306,19 @@ import SolarTV.EVMIR.StackGraph
 /-- info: 'SolarTV.EVM.StackGraph.contextual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.StackGraph.contextual
+
+/-- info: 'SolarTV.MIR.FreshHeap.reservation' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.reservation
+
+/-- info: 'SolarTV.MIR.FreshHeap.query' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.query
+
+/-- info: 'SolarTV.MIR.FreshHeap.initialized' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.initialized
+
+/-- info: 'SolarTV.MIR.FreshHeap.inhabited' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.inhabited

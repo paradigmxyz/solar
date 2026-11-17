@@ -238,8 +238,11 @@ the [region examples](README.md#multi-block-evm-ir-regions).
    from complete-entry execution to arbitrary local windows.
 4. Extend the per-import correspondence certificates beyond acyclic EVM regions
    and acyclic typed scalar MIR. Connect explicit placement assumptions to
-   actual backend layout decisions. Direct MIR semantics and independent replay
-   do not by themselves prove those decisions correct.
+   actual backend layout decisions. Fresh-heap direct SSA proofs now preserve
+   complete bodies under a named placement/FMP producer condition, with proved
+   explicit initialization and non-vacuity. Establishing that condition at
+   every caller remains open. Direct MIR semantics and independent replay do
+   not by themselves prove backend decisions correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.
 

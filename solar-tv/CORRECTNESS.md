@@ -124,6 +124,32 @@ real `lower-alloc` pair, wrong FMP-store counterexample with independent replay,
 and malformed-sequence tests are in `examples/mir/allocation-lowering/` and
 `tests/test_allocation_lowering.py`.
 
+Fresh heap-floor reservations have a different, direct-state certificate in
+`MIR/Transforms/FreshHeap.lean`. The named placement binding and its equality to
+the current FMP are explicit producer obligations, not facts inferred for
+arbitrary caller memory. Initial memory is aligned and includes bytes
+`0x40..0x5f`; the aligned floor is at least 128 and the source reservation fits
+the direct interpreter's 64 KiB work domain. These conditions imply a defined,
+nonwrapping infallible reservation. Its complete byte-memory update is
+kernel-proved. An explicit entry FMP write establishes the cursor condition,
+and a non-vacuity theorem constructs valid states for every admitted extent.
+The checker rejects an extent too large to admit any such state.
+
+The generated pair theorem executes both complete independently exported typed
+SSA bodies with arbitrary journal, byte contents, returndata and context under
+that condition. It requires `MIR.State.equivalent`, so either model error or
+exhaustion prevents a proof. There is no suffix projection, implicit placement
+or successful-continuation assumption. The target opcode availability and
+internal-entry mode match the direct importer; other context stays arbitrary.
+Reports distinguish `producer-valid-fresh-heap-ssa` and retain the source
+extent, constructor-renderer boundary and generated-proof fingerprint. Parser,
+schema export and constructor rendering remain trusted. This conditional
+function theorem does not establish that actual callers or backend placement
+satisfy the producer obligation, or price physical gas. Real `lower-alloc`
+output and a changed-store kernel/native witness are in
+`examples/mir/fresh-heap/`; tests also demonstrate the invalidity of replacing
+an arbitrary live FMP with an unrelated floor.
+
 Unknown-height block windows also admit a narrower contextual prefix proof.
 An independent Rust export includes every instruction and the terminal. Only a
 fixed-price scalar/stack prefix may differ, and the complete remaining suffix
@@ -453,14 +479,15 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **20 of 24**, with
-4 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+Rechecking those same frozen pairs at 30 seconds now verifies **21 of 24**, with
+3 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
 constructor first raised the count to 16; the OpenZeppelin ERC20Mock
 `lower-alloc` constructor then raised it to 17, and WETH's `block-cse` window
 raised it to 18. WETH's `block-layout` region then raised it to 19 through the
 separately reported source-graph identity certificate. ERC20Mock's
 `block-layout` region then raised it to 20 through the stack-layout simulation.
-No other check changes status.
+WETH's `lower-alloc` body raises it to 21 under the explicitly reported
+fresh-heap placement/FMP producer condition. No other check changes status.
 The selected check identities, input hashes and compiler-output hashes are
 identical; compilation results are reused.
 The compiler fingerprint is
@@ -509,6 +536,16 @@ transfers. The kernel verifies the node mapping, local bound obligations and
 simulation for every execution bound. Its dynamic return is an explicit
 full-payload exit under a shared logical continuation. This does not resolve
 that target, prove physical return addresses or price the changed jumps.
+
+WETH's `name.body` now verifies through complete direct typed SSA execution,
+including its initialized bytes, final FMP and returned pointer. The supplied
+named heap floor must equal the live FMP, with an aligned, active cursor word
+and a source reservation inside the 64 KiB work domain. The kernel proves the
+reservation, explicit initialization and non-vacuity of admitted source
+extents. A concrete disagreeing floor demonstrates why the condition cannot
+be omitted. Proving that callers and actual backend placements establish this
+condition remains separate work; this is not unrestricted caller-state or
+physical-gas equivalence.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.
