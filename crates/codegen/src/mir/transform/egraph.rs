@@ -909,7 +909,10 @@ impl<'a> Builder<'a> {
                     output = %kind,
                     "mir_egraph"
                 );
-                self.func.replace_inst_kind(home, kind);
+                let merged = &self.merged;
+                self.func.replace_inst_kind_resolving(home, kind, |value| {
+                    resolve_replacement(value, merged)
+                });
                 self.changed += 1;
             }
         }

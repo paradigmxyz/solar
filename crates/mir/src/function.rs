@@ -928,19 +928,36 @@ impl Function {
     /// steps that checked offsets took. A fold through an unchecked addition, as in
     /// `add(sub(p, 64), 32) => sub(p, 32)`, must not let the checked 32 vouch for the unchecked 64.
     pub fn retain_checked_object_offset(&mut self, inst: InstId, new: &InstKind) {
+        self.retain_checked_object_offset_resolving(inst, new, |value| value);
+    }
+
+    /// Like [`Self::retain_checked_object_offset`] for a pass that has merged values it has not
+    /// yet replaced: `resolve` maps each operand to the value that stands for it.
+    pub fn retain_checked_object_offset_resolving(
+        &mut self,
+        inst: InstId,
+        new: &InstKind,
+        resolve: impl Fn(ValueId) -> ValueId,
+    ) {
         if self.inst(inst).metadata.checked_object_offset()
-            && !self.keeps_checked_object_offset(inst, new)
+            && !self.keeps_checked_object_offset(inst, new, resolve)
         {
             self.inst_mut(inst).metadata.clear_checked_object_offset();
         }
     }
 
-    fn keeps_checked_object_offset(&self, inst: InstId, new: &InstKind) -> bool {
+    fn keeps_checked_object_offset(
+        &self,
+        inst: InstId,
+        new: &InstKind,
+        resolve: impl Fn(ValueId) -> ValueId,
+    ) -> bool {
         let Some((_, new_step)) = self.constant_step(new) else { return true };
         // A constant that replaces a variable offset has no checked step to sum.
-        let Some((mut base, mut step)) = self.constant_step(&self.inst(inst).kind) else {
+        let Some((base, mut step)) = self.constant_step(&self.inst(inst).kind) else {
             return false;
         };
+        let mut base = resolve(base);
         // Follow the checked steps below the old base until their sum is the new step. The new
         // base is the value the last of them steps from, or one that value merged into.
         for _ in 0..self.num_values() {
@@ -957,7 +974,7 @@ impl Function {
             else {
                 return false;
             };
-            base = inner;
+            base = resolve(inner);
             step = step.wrapping_add(inner_step);
         }
         false
@@ -1321,6 +1338,26 @@ fn @f(arg0: i256, arg1: i256) -> i256 {
             fold(func, values[0], values[1]);
             assert!(!marked(func, values[1]));
         });
+    }
+
+    // A checked step that a pass has merged into an unchecked one, without yet replacing its
+    // uses, no longer vouches for the fold.
+    #[test]
+    fn fold_reads_merged_values_through_the_resolver() {
+        for merged in [false, true] {
+            with_function(&[0, 1], |func, values| {
+                let Value::Inst(outer) = *func.value(values[1]) else { unreachable!() };
+                let InstKind::Add(arg0, _) = *func.value_inst_kind(values[0]).unwrap() else {
+                    unreachable!()
+                };
+                let thirty_two =
+                    func.alloc_value(Value::Immediate(Immediate::I256(U256::from(32))));
+                func.replace_inst_kind_resolving(outer, InstKind::Sub(arg0, thirty_two), |value| {
+                    if merged && value == values[0] { values[2] } else { value }
+                });
+                assert_eq!(marked(func, values[1]), !merged);
+            });
+        }
     }
 
     // A constant that replaces a variable offset has no checked step to sum.

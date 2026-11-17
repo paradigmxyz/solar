@@ -78,8 +78,19 @@ impl Function {
     /// dropped. ABI validation dependencies and allocation obligations survive an equivalent
     /// rewrite. The caller must prove equivalence and preserve the result representation.
     pub fn replace_inst_kind(&mut self, inst: InstId, kind: InstKind) {
+        self.replace_inst_kind_resolving(inst, kind, |value| value);
+    }
+
+    /// Like [`Self::replace_inst_kind`] for a pass that has merged values it has not yet
+    /// replaced in the operands: `resolve` maps each operand to the value that stands for it.
+    pub fn replace_inst_kind_resolving(
+        &mut self,
+        inst: InstId,
+        kind: InstKind,
+        resolve: impl Fn(ValueId) -> ValueId,
+    ) {
         let kind = self.canonical_kind(kind);
-        self.retain_checked_object_offset(inst, &kind);
+        self.retain_checked_object_offset_resolving(inst, &kind, resolve);
         self.inst_mut(inst).replace_kind(kind);
     }
 
