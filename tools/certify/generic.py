@@ -2838,6 +2838,42 @@ def inputs_tree(repo, base, files_dir, paths):
     return tree.strip()
 
 
+def commit_inputs(lean_dir, base, name):
+    """Commit what LEAN_DIR's Certified/ and lakefile.lean hold as one commit on BASE, and return
+    the commit and the paths it changes (the run's generated inputs). The commit must pass
+    checkout.sh's own inputs check, the one scripts/certify applies to the checkout it runs in, so
+    the inputs the record lists are exactly the files that run reads: a changed path outside
+    Certified/NAME/ (such as lakefile.lean) or an ignored file under it is refused here too."""
+    git(lean_dir, "add", "-A", "Certified", "lakefile.lean")
+    git(
+        lean_dir,
+        "-c",
+        "user.name=solar certify",
+        "-c",
+        "user.email=certify@localhost",
+        "commit",
+        "-q",
+        "-m",
+        f"certify: generated inputs for {name}",
+    )
+    inputs = git(lean_dir, "rev-parse", "HEAD")
+    rc, _, err = run(
+        [
+            "bash",
+            str(HERE / "checkout.sh"),
+            "--check-inputs",
+            str(lean_dir),
+            base,
+            inputs,
+            f"Certified/{name}",
+        ]
+    )
+    if rc != 0:
+        raise Failed(f"the input commit: {err.strip()[-300:]}")
+    changed = git(lean_dir, "diff", "--no-renames", "--name-only", base, inputs)
+    return inputs, changed.splitlines()
+
+
 def pinned_packages(repo, rev):
     """The toolchain and package set a solidity-lean commit pins: its lean-toolchain and each git
     package of its lake-manifest.json by name and revision, and that set's digest."""
@@ -3545,27 +3581,7 @@ def main():
             )
             + "\n"
         )
-        git(lean_dir, "add", "-A", "Certified", "lakefile.lean")
-        git(
-            lean_dir,
-            "-c",
-            "user.name=solar certify",
-            "-c",
-            "user.email=certify@localhost",
-            "commit",
-            "-q",
-            "-m",
-            f"certify: generated inputs for {name}",
-        )
-        inputs = git(lean_dir, "rev-parse", "HEAD")
-        changed = git(lean_dir, "diff", "--name-only", base, inputs).splitlines()
-        stray = [
-            p
-            for p in changed
-            if not (p.startswith(f"Certified/{name}/") or p == "lakefile.lean")
-        ]
-        if stray:
-            raise Failed(f"the input commit touches {stray}")
+        inputs, changed = commit_inputs(lean_dir, base, name)
         record["solidity_lean_source"] = str(lean_src)
         record["solidity_lean"] = {
             "base": base,
@@ -3653,6 +3669,7 @@ def main():
             "SOLAR",
             "CERTIFY_SKIP_BUILD",
             "CERTIFY_ALLOW_FOREIGN_SOLAR",
+            "CERTIFY_EXAMPLES",
         ):
             env.pop(k, None)
         cmd = [
