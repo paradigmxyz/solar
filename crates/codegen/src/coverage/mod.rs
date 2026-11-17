@@ -17,7 +17,9 @@
 //!   decision takes, and the right operand of `&&` and `||`, nested;
 //! - a branch region on each leaf condition of a decision, a `switch` case, and a `try` clause;
 //! - a gap region between two statements, which counts as the statement that follows, where its
-//!   count differs from the enclosing region's;
+//!   count differs from the enclosing region's, and before the body of an `if`, an `else`, a loop,
+//!   or a `do` that starts on a later line than the `)` or keyword before it, which counts as the
+//!   body;
 //! - a skipped region for code that constant folding removes, for each run of whole lines of a body
 //!   that hold only whitespace and comments, and for the closing `}` of a body that stands on a
 //!   line of its own.
@@ -25,11 +27,12 @@
 //! `llvm-cov` gives a line the greatest count of the regions that start on it and of the segment
 //! that wraps into it, which is the enclosing region where nothing else starts. The code between
 //! two statements is that wrapped segment, so a statement that follows one that may revert, such as
-//! a `require`, would show the count of the function. The gap region gives the line it starts on
-//! the count of the statement. A run of lines with no code covers whole lines, from the first byte
-//! of its first line to the newline that ends its last, so it starts and ends on its own lines: no
-//! line of it has a count, and the line before it and the line after it keep the count of the code
-//! on them, which may be no region of its own. The closing `}` of
+//! a `require`, would show the count of the function, and so would the body of an `if` that is
+//! never taken, when it starts on a line of its own. The gap region gives the line it starts on
+//! the count of the statement or the body. A run of lines with no code covers whole lines, from the
+//! first byte of its first line to the newline that ends its last, so it starts and ends on its own
+//! lines: no line of it has a count, and the line before it and the line after it keep the count of
+//! the code on them, which may be no region of its own. The closing `}` of
 //! a body is the same: it would show the entry count of a function that reverted before reaching
 //! it.
 //!

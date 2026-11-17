@@ -28,7 +28,7 @@ use super::{
 };
 use solar_ast::{BinOpKind, UnOpKind};
 use solar_data_structures::{Never, index::IndexVec, map::FxHashMap};
-use solar_interface::Span;
+use solar_interface::{BytePos, Span};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
@@ -278,6 +278,49 @@ impl<'gcx> Walker<'gcx> {
 
     fn skipped(&mut self, span: Span) {
         self.region(span, RegionKind::Skipped);
+    }
+
+    /// Fills the gap from `from` to `to` with `count`, at region index `at`, as Clang's
+    /// `fillGapAreaWithCount` does for a body that follows its condition.
+    ///
+    /// The gap is the wrapped segment of the line on which the body starts, so without it a body
+    /// on a line of its own would show the count of the enclosing region. A gap on one line, or
+    /// with the count of the enclosing region, has no use.
+    fn gap_before_body(&mut self, at: usize, from: Option<BytePos>, to: BytePos, count: &Count) {
+        let Some(from) = from.filter(|&from| from < to) else { return };
+        if self.rec.enclosing.last() == Some(count) {
+            return;
+        }
+        let files = self.gcx.sess.source_map().files();
+        let multiline =
+            files.span_to_snippet(Span::new(from, to)).is_ok_and(|text| text.contains('\n'));
+        drop(files);
+        if multiline {
+            let file = self.rec.file;
+            self.rec.regions.insert(
+                at,
+                Region { file, span: Span::new(from, to), kind: RegionKind::Gap(count.clone()) },
+            );
+        }
+    }
+
+    /// Returns the position after the `)` that follows `from`, past whitespace and comments, if the
+    /// text up to `limit` has one.
+    fn after_paren(&self, from: BytePos, limit: BytePos) -> Option<BytePos> {
+        let files = self.gcx.sess.source_map().files();
+        let text = files.span_to_snippet(Span::new(from, limit)).ok()?;
+        let mut rest = text;
+        loop {
+            rest = rest.trim_start();
+            if let Some(comment) = rest.strip_prefix("//") {
+                rest = comment.split_once('\n').map_or("", |(_, rest)| rest);
+            } else if let Some(comment) = rest.strip_prefix("/*") {
+                rest = comment.split_once("*/")?.1;
+            } else {
+                break;
+            }
+        }
+        rest.starts_with(')').then(|| BytePos(from.0 + (text.len() - rest.len()) as u32 + 1))
     }
 
     /// Opens a code region unless an enclosing one has the same count.
@@ -661,9 +704,17 @@ impl<'gcx> Walker<'gcx> {
                 self.open(stmt.span, &count);
                 match self.decision(cond, Site::Arm(Site::key(stmt))) {
                     Outcome::Branch { completed, taken } => {
+                        // if (<cond>) <gap> <then> <gap> else <else>
+                        let from = self.after_paren(cond.span.hi(), then_stmt.span.lo());
+                        let at = self.rec.regions.len();
+                        self.gap_before_body(at, from, then_stmt.span.lo(), &taken);
                         self.stmt(then_stmt, Some(taken.clone()));
                         if let Some(else_stmt) = else_stmt {
-                            self.stmt(else_stmt, Some(completed.sub(taken)));
+                            let remaining = completed.sub(taken);
+                            let at = self.rec.regions.len();
+                            let from = Some(then_stmt.span.hi());
+                            self.gap_before_body(at, from, else_stmt.span.lo(), &remaining);
+                            self.stmt(else_stmt, Some(remaining));
                         }
                     }
                     // The condition evaluates nothing, so the path taken starts as the statement
@@ -775,13 +826,26 @@ impl<'gcx> Walker<'gcx> {
                     && matches!(exit.kind, StmtKind::Break)
                     && (exit.span == span || exit.span == cond.span) =>
             {
+                // The `)` that ends the header follows the condition or the update of a `for`.
+                let header = match source {
+                    LoopSource::For { update: Some(update) } => {
+                        update.span.hi().max(cond.span.hi())
+                    }
+                    _ => cond.span.hi(),
+                };
+                let from = self.after_paren(header, body.span.lo());
                 match self.decision(cond, Site::Arm(Site::key(check))) {
                     Outcome::Branch { taken, .. } => {
+                        // while (<cond>) <gap> <body>
+                        let at = self.rec.regions.len();
+                        self.gap_before_body(at, from, body.span.lo(), &taken);
                         self.stmt(body, Some(taken));
                     }
                     // The body still runs once for each iteration.
                     Outcome::Folded(true) => {
                         let taken = self.counter(Site::Arm(Site::key(check)));
+                        let at = self.rec.regions.len();
+                        self.gap_before_body(at, from, body.span.lo(), &taken);
                         self.stmt(body, Some(taken));
                     }
                     Outcome::Folded(false) => self.skipped(body.span),
@@ -789,7 +853,18 @@ impl<'gcx> Walker<'gcx> {
             }
             // loop { <body>; if (<cond>) continue else break; }
             (LoopSource::DoWhile, [body, check]) if let StmtKind::If(cond, _, _) = check.kind => {
-                self.stmt(body, None);
+                // do <gap> <body> while (<cond>)
+                let at = self.rec.regions.len();
+                if let Some(count) = self.stmt(body, None) {
+                    let lo = loop_stmt.span.lo();
+                    let files = self.gcx.sess.source_map().files();
+                    let is_do = files
+                        .span_to_snippet(Span::new(lo, BytePos(lo.0 + 2)))
+                        .is_ok_and(|text| text == "do");
+                    drop(files);
+                    let from = is_do.then_some(BytePos(lo.0 + 2));
+                    self.gap_before_body(at, from, body.span.lo(), &count);
+                }
                 let _ = self.decision(cond, Site::Arm(Site::key(check)));
             }
             (_, stmts) => self.stmts(stmts, None),

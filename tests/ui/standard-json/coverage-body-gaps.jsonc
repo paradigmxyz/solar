@@ -1,0 +1,43 @@
+//@ filecheck:
+// A body on a line of its own starts after a gap region, kind 3, from the `)` that ends the header,
+// or from the end of the `then` statement, to the start of the body, with the count of the body, so
+// the line where the body starts has the count of the body and not the count of the enclosing
+// region, as with Clang's `fillGapAreaWithCount`. `h(0)` in the first function never takes the
+// first `if`, so its `return` on line 4 is not counted, and the line of `else v = 4;` is not
+// counted either. The loops have the same gaps before a body on its own line. A body that starts on
+// the line of its header has no gap.
+// CHECK: "name": "A.sol:H.h(uint256)",
+// CHECK: {{^ *90,$}}
+// CHECK-NEXT: 13,
+// CHECK: {{^ *139,$}}
+// CHECK-NEXT: 14,
+// CHECK: "name": "A.sol:H.loops(uint256)",
+// CHECK: {{^ *272,$}}
+// CHECK-NEXT: 13,
+// CHECK: {{^ *329,$}}
+// CHECK-NEXT: 13,
+// CHECK: {{^ *360,$}}
+// CHECK-NEXT: 13,
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract H {\n    function h(uint256 v) public pure returns (uint256) {\n        if (v == 1)\n            return 5;\n        if (v == 0) v = 3;\n        else v = 4;\n        return v;\n    }\n\n    function loops(uint256 n) public pure returns (uint256 r) {\n        while (n > 100)\n            n--;\n        for (uint256 i = 0; i < n; i++)\n            r += i;\n        do\n            r++;\n        while (r < 3);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}
