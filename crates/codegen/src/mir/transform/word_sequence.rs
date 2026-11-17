@@ -6,6 +6,10 @@
 //! never allocates instructions or values in the function. Only the cheapest
 //! legal recipe is materialized, immediately before the original root, whose
 //! value identity and semantic metadata are retained.
+//! Recipe operations take the root's debug location, except an operand of the root that repeats
+//! the operation of the original operand at its position, at another width or over other
+//! immediates, like `(zext a | zext b) == 0` to `(a | b) == 0`: it replaces that operand one for
+//! one and keeps its location.
 //!
 //! Profitability charges target opcode prices, immediate materialization and
 //! operand copies. The old cost includes only removable, single-use producers;
@@ -291,8 +295,9 @@ impl Recipe {
     fn materialize(&self, func: &mut Function, root: InstId) -> Vec<InstId> {
         let mut inserted = Vec::new();
         let mut values = FxHashMap::default();
+        let origins = self.child_origins(func, root);
         let op = self.root.map_values(|value| {
-            self.materialize_value(func, root, value, &mut values, &mut inserted)
+            self.materialize_value(func, root, value, &origins, &mut values, &mut inserted)
         });
         // %temporary = recipe_child(...)
         // %original_result = recipe_root(%temporary, ...)
@@ -311,11 +316,44 @@ impl Recipe {
         inserted
     }
 
+    /// Pairs each recipe child that is an operand of the root with the original instruction at
+    /// the same operand position when both are the same operation over the same operands, up to
+    /// integer casts and immediates: the child then computes what that instruction computed, at
+    /// another width.
+    fn child_origins(&self, func: &Function, root: InstId) -> FxHashMap<ValueId, InstId> {
+        let original = func.inst(root).kind.op();
+        self.root
+            .operands()
+            .into_iter()
+            .zip(original.operands())
+            .filter_map(|(child, operand)| {
+                let Some(Temporary::Operation(op)) = self.temporaries.get(&child) else {
+                    return None;
+                };
+                let Value::Inst(inst) = *func.value(operand) else { return None };
+                self.same_operation(func, op, &func.inst(inst).kind.op()).then_some((child, inst))
+            })
+            .collect()
+    }
+
+    fn same_operation(&self, func: &Function, recipe: &Op, original: &Op) -> bool {
+        std::mem::discriminant(recipe) == std::mem::discriminant(original)
+            && recipe.operands().into_iter().zip(original.operands()).all(|(r, o)| {
+                r == o
+                    || matches!(self.temporaries.get(&r), Some(Temporary::Constant(_)))
+                        && matches!(func.value(o), Value::Immediate(_))
+                    || matches!(func.value_inst_kind(o),
+                        Some(InstKind::Zext(v) | InstKind::Sext(v, ..) | InstKind::Trunc(v, ..))
+                            if *v == r)
+            })
+    }
+
     fn materialize_value(
         &self,
         func: &mut Function,
         root: InstId,
         value: ValueId,
+        origins: &FxHashMap<ValueId, InstId>,
         values: &mut FxHashMap<ValueId, ValueId>,
         inserted: &mut Vec<InstId>,
     ) -> ValueId {
@@ -328,12 +366,17 @@ impl Recipe {
                 .alloc_value(Value::Immediate(Immediate::for_type(Some(self.scalar_ty), *value))),
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {
-                    self.materialize_value(func, root, value, values, inserted)
+                    self.materialize_value(func, root, value, origins, values, inserted)
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
                 let ty = recipe_type(func, &kind, self.scalar_ty);
-                emit_recipe(func, root, kind, ty, self.scalar_ty, inserted)
+                // A child that replaces the original operation at its place keeps that operation's
+                // location, as the `or` that `foldCastedBitwiseLogic` makes from
+                // `or (zext a), (zext b)` keeps the old `or`'s (LLVM's HowToUpdateDebugInfo,
+                // "When to preserve instruction locations"); other children take the root's.
+                let origin = origins.get(&value).copied().unwrap_or(root);
+                emit_recipe(func, origin, kind, ty, self.scalar_ty, inserted)
             }
         };
         values.insert(value, actual);
