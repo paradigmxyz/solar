@@ -1,4 +1,13 @@
-use super::{Gcx, TyKind};
+//! The functions, events, errors and bytecode dependencies a contract reaches from its creation
+//! and its interface.
+//!
+//! What a function body or a constant initializer reaches does not depend on the contract, except
+//! for the overrides its calls dispatch to. [`record`] walks each body and initializer once and
+//! keeps what the walk found, in walk order, as [`CallOp`]s, which [`Gcx`] caches. Each contract
+//! then replays the operations of the bodies it reaches and resolves their dispatch, instead of
+//! walking every body again.
+
+use super::{CallDispatch, Gcx, TyKind};
 use crate::hir::{self, Visit};
 use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxIndexMap};
 use std::{collections::VecDeque, ops::ControlFlow};
@@ -42,7 +51,6 @@ struct CallGraphBuilder<'gcx, 's> {
     /// The constants whose initializers a stopped body walked, which reaches only what they
     /// dispatch to.
     stopped_constants: DenseBitSet<hir::VariableId>,
-    direct_callee: Option<hir::ExprId>,
     /// Whether the traversal enters the body of a function, or the state variable initializers of
     /// a contract, only for the targets their calls dispatch to.
     stop: &'s dyn Fn(hir::ItemId) -> bool,
@@ -77,7 +85,6 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             worklist: VecDeque::new(),
             visited_constants: DenseBitSet::new_empty(gcx.hir.variable_ids().count()),
             stopped_constants: DenseBitSet::new_empty(gcx.hir.variable_ids().count()),
-            direct_callee: None,
             stop,
             current: None,
             stopped: false,
@@ -101,20 +108,20 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         for &base_id in gcx.hir.contract(contract).linearized_bases.iter().rev() {
             let base = gcx.hir.contract(base_id);
             this.stopped = (this.stop)(hir::ItemId::Contract(base_id));
-            for variable in base.variables() {
-                let variable = gcx.hir.variable(variable);
+            for id in base.variables() {
+                let variable = gcx.hir.variable(id);
                 if variable.is_state_variable()
                     && !variable.is_constant()
-                    && let Some(initializer) = variable.initializer
+                    && variable.initializer.is_some()
                 {
-                    let _ = this.visit_expr(initializer);
+                    this.replay(gcx.initializer_call_ops(id));
                 }
             }
             if let Some(constructor) = base.ctor {
                 this.enqueue(constructor);
             }
             for inheritance in base.bases_args {
-                let _ = this.visit_modifier(inheritance);
+                this.replay(&record(gcx, |recorder| recorder.visit_modifier(inheritance)));
             }
             this.stopped = false;
         }
@@ -158,18 +165,18 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         let this = self;
         let contract = gcx.hir.contract(this.contract);
         for modifier in contract.linearized_bases_args.iter().flatten() {
-            let _ = this.visit_modifier(modifier);
+            this.replay(&record(gcx, |recorder| recorder.visit_modifier(modifier)));
         }
         for &base_id in contract.linearized_bases {
             let base = gcx.hir.contract(base_id);
             this.stopped = (this.stop)(hir::ItemId::Contract(base_id));
-            for variable in base.variables() {
-                let variable = gcx.hir.variable(variable);
+            for id in base.variables() {
+                let variable = gcx.hir.variable(id);
                 if variable.is_state_variable()
                     && !variable.is_constant()
-                    && let Some(initializer) = variable.initializer
+                    && variable.initializer.is_some()
                 {
-                    let _ = this.visit_expr(initializer);
+                    this.replay(gcx.initializer_call_ops(id));
                 }
             }
             this.stopped = false;
@@ -188,7 +195,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         while let Some((function, dispatch_only)) = self.worklist.pop_front() {
             self.stopped = dispatch_only || (self.stop)(hir::ItemId::Function(function));
             self.current = Some(function);
-            let _ = self.visit_nested_function(function);
+            self.replay(self.gcx.function_call_ops(function));
             self.current = None;
             self.stopped = false;
         }
@@ -235,15 +242,113 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         self.graph.internal_dispatch_targets.insert(function);
     }
 
-    /// Collects what a call of `callee` reaches, and returns the function it calls directly.
-    fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> Option<hir::FunctionId> {
-        if let Some(function) = self.gcx.internal_call_target(Some(self.contract), callee) {
-            let named = self.gcx.internal_call_target(None, callee).expect("the call names it");
-            self.enqueue_dispatched(named, function);
-            return Some(function);
+    /// Replays what a walk found, in the order it found it, in the context of the contract.
+    fn replay(&mut self, ops: &[CallOp]) {
+        let gcx = self.gcx;
+        for &op in ops {
+            match op {
+                CallOp::Call { named, dispatch, parenthesized } => {
+                    let function = gcx.dispatch_call(self.contract, named, dispatch);
+                    self.enqueue_dispatched(named, function);
+                    if parenthesized {
+                        self.graph.parenthesized_targets.push(function);
+                    }
+                }
+                CallOp::Reference { named, dispatch } => {
+                    let function = gcx.dispatch_call(self.contract, named, dispatch);
+                    self.add_internal_dispatch_target(function);
+                }
+                CallOp::Constant(id) => {
+                    // A stopped body reaches only what a constant's initializer dispatches to, so
+                    // its walk leaves the constant to a full walk by another reader.
+                    let first = if self.stopped {
+                        !self.visited_constants.contains(id) && self.stopped_constants.insert(id)
+                    } else {
+                        self.visited_constants.insert(id)
+                    };
+                    if first {
+                        self.replay(gcx.initializer_call_ops(id));
+                    }
+                }
+                CallOp::Event(event) => {
+                    self.graph.events.insert(event);
+                }
+                CallOp::Error(error) => {
+                    self.graph.errors.insert(error);
+                }
+                CallOp::BytecodeDependency(contract) => {
+                    self.graph.bytecode_dependencies.insert(contract);
+                }
+            }
+        }
+    }
+}
+
+/// What a walk of a function or an initializer reaches, before a contract resolves the overrides
+/// its calls dispatch to.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum CallOp {
+    /// A call, a modifier invocation or a user-defined operator that runs `named` as `dispatch`
+    /// resolves it. `parenthesized` records that the call names its callee in parentheses, which
+    /// solc counts as a dispatch target, when the ASTs are kept.
+    Call { named: hir::FunctionId, dispatch: CallDispatch, parenthesized: bool },
+    /// A function value that is not called directly, which becomes an internal dispatch target.
+    Reference { named: hir::FunctionId, dispatch: CallDispatch },
+    /// A reference to a constant with an initializer, which reaches what the initializer reaches.
+    Constant(hir::VariableId),
+    /// An emitted event.
+    Event(hir::EventId),
+    /// A call of an error.
+    Error(hir::ErrorId),
+    /// A contract whose bytecode the code needs.
+    BytecodeDependency(hir::ContractId),
+}
+
+/// Returns what the walk `f` reaches, in walk order.
+fn record<'gcx>(
+    gcx: Gcx<'gcx>,
+    f: impl FnOnce(&mut Recorder<'gcx>) -> ControlFlow<Never>,
+) -> Vec<CallOp> {
+    let mut recorder = Recorder { gcx, ops: Vec::new(), direct_callee: None };
+    let _ = f(&mut recorder);
+    recorder.ops
+}
+
+/// Returns what the body of `function` reaches.
+pub(super) fn record_function(gcx: Gcx<'_>, function: hir::FunctionId) -> Vec<CallOp> {
+    record(gcx, |recorder| recorder.visit_nested_function(function))
+}
+
+/// Returns what the initializer of the variable `id` reaches.
+pub(super) fn record_initializer(gcx: Gcx<'_>, id: hir::VariableId) -> Vec<CallOp> {
+    let Some(initializer) = gcx.hir.variable(id).initializer else { return Vec::new() };
+    record(gcx, |recorder| recorder.visit_expr(initializer))
+}
+
+/// Walks a function or an initializer and records what it reaches as [`CallOp`]s.
+struct Recorder<'gcx> {
+    gcx: Gcx<'gcx>,
+    ops: Vec<CallOp>,
+    direct_callee: Option<hir::ExprId>,
+}
+
+impl<'gcx> Recorder<'gcx> {
+    /// Records what a call of `callee` reaches, and returns the function it calls directly.
+    fn collect_call(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        callee: &'gcx hir::Expr<'gcx>,
+    ) -> Option<hir::FunctionId> {
+        if let Some(named) = self.gcx.internal_call_target(None, callee) {
+            // Lowering drops the parentheses of a callee, which leaves it starting after its call.
+            let parenthesized =
+                self.gcx.sess.opts.unstable.keep_asts && callee.span.lo() > expr.span.lo();
+            let dispatch = self.gcx.call_dispatch(callee);
+            self.ops.push(CallOp::Call { named, dispatch, parenthesized });
+            return Some(named);
         }
         if let Some(TyKind::Error(_, error)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
-            self.graph.errors.insert(error);
+            self.ops.push(CallOp::Error(error));
         }
         None
     }
@@ -252,26 +357,17 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         if self.direct_callee == Some(expr.id) {
             return;
         }
-        if let Some(function) = self.gcx.internal_call_target(Some(self.contract), expr) {
-            self.add_internal_dispatch_target(function);
+        if let Some(named) = self.gcx.internal_call_target(None, expr) {
+            let dispatch = self.gcx.call_dispatch(expr);
+            self.ops.push(CallOp::Reference { named, dispatch });
         }
     }
 
     fn collect_constant_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
         let Some(id) = self.gcx.resolved_variable(expr) else { return };
         let variable = self.gcx.hir.variable(id);
-        // A stopped body reaches only what a constant's initializer dispatches to, so its walk
-        // leaves the constant to a full walk by another reader.
-        let first = if self.stopped {
-            !self.visited_constants.contains(id) && self.stopped_constants.insert(id)
-        } else {
-            self.visited_constants.insert(id)
-        };
-        if variable.is_constant()
-            && first
-            && let Some(initializer) = variable.initializer
-        {
-            let _ = self.visit_expr(initializer);
+        if variable.is_constant() && variable.initializer.is_some() {
+            self.ops.push(CallOp::Constant(id));
         }
     }
 
@@ -293,12 +389,12 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             _ => None,
         };
         if let Some(hir::Type { kind: hir::TypeKind::Custom(hir::ItemId::Contract(id)), .. }) = ty {
-            self.graph.bytecode_dependencies.insert(*id);
+            self.ops.push(CallOp::BytecodeDependency(*id));
         }
     }
 }
 
-impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
+impl<'gcx> Visit<'gcx> for Recorder<'gcx> {
     type BreakValue = Never;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
@@ -309,20 +405,16 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
         self.collect_bytecode_dependency(expr);
         self.collect_constant_reference(expr);
         self.collect_function_reference(expr);
-        if let Some(function) = self.gcx.user_operator(expr.id) {
-            self.enqueue_dispatched(function, function);
+        if let Some(named) = self.gcx.user_operator(expr.id) {
+            self.ops.push(CallOp::Call {
+                named,
+                dispatch: CallDispatch::Static,
+                parenthesized: false,
+            });
         }
 
         if let Some((callee, args, options)) = expr.as_call() {
-            let target = self.collect_call(callee);
-            let direct = target.is_some();
-            // Lowering drops the parentheses of a callee, which leaves it starting after its call.
-            if self.gcx.sess.opts.unstable.keep_asts
-                && let Some(function) = target
-                && callee.span.lo() > expr.span.lo()
-            {
-                self.graph.parenthesized_targets.push(function);
-            }
+            let direct = self.collect_call(expr, callee).is_some();
             let previous = self.direct_callee;
             if direct {
                 self.direct_callee = Some(callee.id);
@@ -346,7 +438,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
             && let Some(TyKind::Event(_, event)) =
                 self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
         {
-            self.graph.events.insert(event);
+            self.ops.push(CallOp::Event(event));
         }
         self.walk_stmt(stmt)
     }
@@ -355,10 +447,10 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let Some(function) = self.gcx.resolve_modifier_target(self.contract, modifier)
-            && let hir::ItemId::Function(named) = modifier.id
-        {
-            self.enqueue_dispatched(named, function);
+        if let hir::ItemId::Function(named) = modifier.id {
+            let dispatch =
+                if modifier.qualified { CallDispatch::Static } else { CallDispatch::Virtual };
+            self.ops.push(CallOp::Call { named, dispatch, parenthesized: false });
         }
         self.walk_modifier(modifier)
     }

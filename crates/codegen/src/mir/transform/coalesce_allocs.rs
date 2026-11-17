@@ -63,16 +63,18 @@ impl MirPass for CoalesceAllocs {
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
         let target = module.target(gcx);
-        for func in module.functions.iter_mut() {
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
             if !func.blocks.is_empty() && coalesce_function(func, &target) {
                 super::lower_memory_objects::normalize_pointer_operands(func);
+                analyses.invalidate_local_summary(func_id);
                 changed = true;
             }
         }
+        analyses.preserve_local_summaries();
         changed
     }
 }

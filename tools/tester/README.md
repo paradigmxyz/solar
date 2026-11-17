@@ -28,6 +28,44 @@ use `cargo test`, since nextest would read the filters as test names. `cargo t`
 runs every suite and `cargo bless` blesses every UI-mode suite, including
 standard JSON.
 
+## Test layout
+
+Put each UI test in the directory for the layer it checks, in a topic
+subdirectory when one fits. Put a new family of tests in its own subdirectory,
+keep a leaf directory under about 80 tests, and split a giant test source into
+small focused files.
+
+- Frontend: `tests/ui/parser/`, `resolve/`, and `typeck/`, such as
+  `typeck/conversions/` or `parser/using/`.
+- Solidity to MIR lowering, checked with an explicit `-Zdump=mir`:
+  `tests/ui/codegen/lowering/mir/<topic>/`.
+- MIR to EVM IR lowering (stack scheduling, spills, phis, resident words,
+  frames, switches, program data), checked with an explicit `-Zdump=evm-ir*` or
+  `disasm*`, or with `run-call` when the bug is in stack scheduling:
+  `tests/ui/codegen/lowering/evm-ir/<topic>/`.
+- Runtime behavior of a Solidity feature, checked with `run-call` and no
+  explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as `abi-decode`,
+  `storage-arrays`, or `modifiers`. FileCheck on the codegen matrix's `mir`
+  revision does not make a test a lowering test.
+- MIR passes: `tests/ui/codegen/mir/<pass>/`, named after the command-line
+  pass, including every test that runs one pass with `-Zmir-pipeline=<pass>`.
+  `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` go in
+  `tests/ui/codegen/mir/lowering/`.
+- EVM IR passes: `tests/ui/codegen/evm-ir/<pass>/`, named after the
+  `-Zevm-ir-pipeline` pass, including every test that runs one pass with it.
+- Lowered MIR or EVM IR checked against its interpreter with `run-call`:
+  `tests/ui/codegen/mir/interp/` and `tests/ui/codegen/evm-ir/interp/`.
+- Round trips, whole pipelines, and validation: the existing `none/`,
+  `pipeline/`, and `validation/` under `mir/`, and `none/` and `validation/`
+  under `evm-ir/`.
+- Bytecode layout through the disassembly: `tests/ui/codegen/disasm/`. Code
+  size and stack depth limits: `tests/ui/codegen/size-limits/`. Codegen dump,
+  timing, and tuning flags: `tests/ui/codegen/flags/`.
+- Source maps, debugify, origins, and debug info kept or dropped by a pass:
+  `tests/ui/codegen/debug-info/` for Solidity sources, and
+  `debug-info/mir/` and `debug-info/evm-ir/` for IR sources, named
+  `<pass>_<what>`.
+
 ## Runtime directives
 
 UI tests can run one isolated entry-point call per `run-call` or `run-call-fail`

@@ -19,10 +19,10 @@ bb0:                                              ; runtime dispatch entry + fun
   push bb4
   jumpi
   push 128
+  dup 1
   push 7
   push 192
   mstore
-  dup 1
   keccak256
   push 0
   mstore

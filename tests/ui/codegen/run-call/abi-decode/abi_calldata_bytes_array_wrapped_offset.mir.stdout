@@ -39,9 +39,9 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     v28 = calldatasize
     v29 = gt v27, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v29
-    v30 = sub v28, v27
-    v31 = ptrtoint ptr<calldata> v26 to i256
-    v32 = slt v30, v31
+    v30 = ptrtoint ptr<calldata> v26 to i256
+    v31 = add v30, v27
+    v32 = lt v28, v31
     icall revert_if<calldata_tail_too_short>, v32
     v33 = extract_value slice<calldata>, v25, 1
     v34 = add v33, 31

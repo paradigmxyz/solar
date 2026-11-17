@@ -95,7 +95,9 @@ impl MirPass for LowerDispatch {
             );
             return false;
         }
-        let changed = lower_dispatch(module, gcx.sess.opts.revert_strings);
+        let changed = lower_dispatch(module, analyses, gcx.sess.opts.revert_strings);
+        // Only the guarded wrappers change; the entry is appended.
+        analyses.preserve_local_summaries();
         if module.dispatch_entry().is_none() {
             analyses
                 .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
@@ -104,7 +106,11 @@ impl MirPass for LowerDispatch {
     }
 }
 
-fn lower_dispatch(module: &mut Module, revert_strings: RevertStrings) -> bool {
+fn lower_dispatch(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+    revert_strings: RevertStrings,
+) -> bool {
     // An existing entry already makes selector routing explicit.
     if module.dispatch_entry().is_some() {
         return false;
@@ -159,6 +165,7 @@ fn lower_dispatch(module: &mut Module, revert_strings: RevertStrings) -> bool {
             //   => jump success
             func.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(success));
             func.blocks[reject].predecessors.retain(|pred| *pred != BlockId::ENTRY);
+            analyses.invalidate_local_summary(func_id);
         }
     }
 

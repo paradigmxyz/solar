@@ -164,6 +164,27 @@ impl<'a> FunctionBuilder<'a> {
         previous
     }
 
+    /// Returns the source context attached to newly emitted instructions.
+    #[must_use]
+    pub fn debug_context(&self) -> InstructionMetadata {
+        self.current_debug_context.debug_context()
+    }
+
+    /// Records, on the jump that ends `block`, that an assignment stored `value`, which a phi of
+    /// the jump's target takes. `origin` is the [`Self::debug_context`] taken when `value` was
+    /// assigned in `block`. Does nothing when `block` does not end in a jump.
+    pub fn add_edge_assignment(
+        &mut self,
+        block: BlockId,
+        value: ValueId,
+        origin: InstructionMetadata,
+    ) {
+        let block = &mut self.func.blocks[block];
+        if matches!(block.terminator, Some(Terminator::Jump(_))) {
+            block.terminator_metadata.add_edge_assignment(value, origin);
+        }
+    }
+
     /// Inherits source context while replacing an instruction or control transfer.
     pub fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
         self.current_debug_context.preserve_debug_loc(metadata);
@@ -389,9 +410,46 @@ impl<'a> FunctionBuilder<'a> {
         calldata_end: ValueId,
         stride: u64,
     ) -> ValueId {
+        let (data, size) = self.calldata_data(tail, start, data_offset, length, stride);
+        // if data >s calldata_end - length * stride { revert }
+        let limit = self.sub(calldata_end, size);
+        let short = self.sgt(data, limit);
+        self.revert_if(short, tail.stride_reason());
+        data
+    }
+
+    /// Like [`Self::calldata_tail_data`] for a value copied to memory, with an unsigned bound:
+    /// an address with the top bit set is out of range, as in solc's calldata copy.
+    pub fn calldata_copy_data(
+        &mut self,
+        tail: CalldataTail,
+        start: ValueId,
+        data_offset: u64,
+        length: ValueId,
+        calldata_end: ValueId,
+        stride: u64,
+    ) -> ValueId {
+        let (data, size) = self.calldata_data(tail, start, data_offset, length, stride);
+        // if data + length * stride >u calldata_end { revert }
+        let end = self.add(data, size);
+        let short = self.gt(end, calldata_end);
+        self.revert_if(short, tail.stride_reason());
+        data
+    }
+
+    /// Returns the data address and byte size of a calldata value, reverting unless `length`
+    /// fits in 64 bits.
+    fn calldata_data(
+        &mut self,
+        tail: CalldataTail,
+        start: ValueId,
+        data_offset: u64,
+        length: ValueId,
+        stride: u64,
+    ) -> (ValueId, ValueId) {
         // if length > 0xffffffffffffffff { revert }
         // data = start + data_offset
-        // if data >s calldata_end - length * stride { revert }
+        // size = length * stride
         let max_length = self.imm(u64::MAX);
         let too_long = self.gt(length, max_length);
         self.revert_if(too_long, tail.length_reason());
@@ -401,11 +459,7 @@ impl<'a> FunctionBuilder<'a> {
             let stride = self.imm(stride);
             self.mul(length, stride)
         };
-        let data = self.add_offset(start, data_offset);
-        let limit = self.sub(calldata_end, size);
-        let short = self.sgt(data, limit);
-        self.revert_if(short, tail.stride_reason());
-        data
+        (self.add_offset(start, data_offset), size)
     }
 
     /// Terminates the current block by reverting for `reason`.

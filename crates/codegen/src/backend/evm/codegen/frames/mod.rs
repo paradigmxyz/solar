@@ -995,7 +995,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// immediately before an object through any memory read or write. Reserve
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
-    /// adding a negative constant reserves the same prefix as subtracting its magnitude.
+    /// adding a negative constant reserves the same prefix as subtracting its magnitude. A step
+    /// back of [`EvmMemoryLayout::UNREACHABLE_MEMORY`] or more reserves nothing.
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
@@ -1325,10 +1326,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return Some(prefix);
             }
             if let Some(forward) = u256_to_u64(adjustment) {
-                Some(prefix.saturating_sub(forward))
-            } else {
-                Some(prefix.saturating_add(u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?))
+                return Some(prefix.saturating_sub(forward));
             }
+            let back = u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?;
+            // NOTE: A step back this far reserves nothing. From a pointer that execution has
+            // accessed it wraps to the top of memory, as for a constant out-of-bounds index, whose
+            // bounds check reverts first. Assembly can raise the free memory pointer that far
+            // without accessing it, so the spill hazard analysis does not trust such a step.
+            if back >= EvmMemoryLayout::UNREACHABLE_MEMORY {
+                return None;
+            }
+            Some(prefix.saturating_add(back))
         };
         let offset = (|| match func.value(value) {
             Value::Arg(index) => {

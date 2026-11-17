@@ -15,12 +15,12 @@ impl<'gcx> TypeChecker<'gcx> {
         self.results.ast.lvalues.insert(id);
     }
 
-    /// Records a Yul identifier that names a variable, for the AST JSON.
+    /// Records a Yul identifier that names a variable or a library, for the AST JSON.
     pub(super) fn record_yul_reference(
         &mut self,
         span: Span,
         suffix: Option<Symbol>,
-        declaration: hir::VariableId,
+        declaration: hir::ItemId,
     ) {
         self.results.ast.yul_references.push(YulReference { span, suffix, declaration });
     }

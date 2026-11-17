@@ -18,6 +18,13 @@
 //! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
 //! preserve stack lifetimes.
 //!
+//! ## Debuggable `-Onone`
+//! An unoptimized function keeps the block of each `break` and `continue` statement, so that the
+//! statement and the branch path into it keep an instruction of their own. Block merging and empty
+//! block elimination skip a block whose jump has the origin of such a statement, found by the
+//! text of the origin: the `break` that desugars a loop condition takes the origin of the loop and
+//! goes as usual. The backend then emits the jump as a `JUMP` even where it would fall through.
+//!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
@@ -47,7 +54,7 @@ use crate::mir::{
     MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
-    utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
+    utils::{eval, invalidate_unreachable_block, is_loop_jump, replace_terminator, retain_blocks},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -55,6 +62,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use solar_sema::Gcx;
 use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
@@ -67,11 +75,15 @@ impl MirPass for CfgSimplify {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| simplify_function(func))
+        let objective = module.optimization;
+        run_function_pass(module, analyses, |func, _| {
+            let unoptimized = func.attributes.optimization.unwrap_or(objective).is_none();
+            run_to_fixpoint(func, unoptimized.then_some(gcx))
+        })
     }
 }
 
@@ -101,7 +113,7 @@ impl MirPass for BranchSimplify {
 
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
-    run_to_fixpoint(func)
+    run_to_fixpoint(func, None)
 }
 
 /// Function pass that only replaces trivial phis by their unique incoming value.
@@ -149,12 +161,27 @@ impl MirPass for FunctionDce {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let call_graph = CallGraphInfo::new(module);
-        let reachable = call_graph.reachable_from_entries();
-        !reachable.is_empty() && retain_functions(module, reachable) != 0
+        let changed = remove_dead_functions(module, analyses);
+        analyses.preserve_local_summaries();
+        changed
     }
+}
+
+/// Removes the functions no entry reaches, renumbering the cached local memory summaries of the
+/// others. Returns whether any function was removed.
+pub(super) fn remove_dead_functions(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+) -> bool {
+    let call_graph = CallGraphInfo::new(module);
+    let reachable = call_graph.reachable_from_entries();
+    if reachable.is_empty() || retain_functions(module, reachable) == 0 {
+        return false;
+    }
+    analyses.retain_local_summaries(reachable);
+    true
 }
 
 /// Module pass that ends each block at its first call to a function that cannot return.
@@ -219,10 +246,10 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 }
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
-fn run(func: &mut Function) -> bool {
+fn run(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     let mut changed = simplify_degenerate_terminators(func);
-    changed |= merge_blocks(func);
-    changed |= eliminate_empty_blocks(func);
+    changed |= merge_blocks(func, unoptimized);
+    changed |= eliminate_empty_blocks(func, unoptimized);
     changed |= deduplicate_terminal_blocks(func);
     changed |= simplify_trivial_phis(func);
     changed
@@ -525,8 +552,9 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
     Some(if taken { *then_block } else { *else_block })
 }
 
-/// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function) -> bool {
+/// Runs CFG simplification iteratively until no more changes. `unoptimized` is set for a function
+/// compiled at `-Onone`; see the module docs for what it keeps.
+fn run_to_fixpoint(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -538,7 +566,7 @@ fn run_to_fixpoint(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    while run(func) {
+    while run(func, unoptimized) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)
@@ -548,15 +576,24 @@ fn run_to_fixpoint(func: &mut Function) -> bool {
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function) -> bool {
+fn merge_blocks(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
-        while let Some(target) = can_merge(func, block_id) {
+        while let Some(target) =
+            can_merge(func, block_id).filter(|_| !ends_in_kept_jump(func, block_id, unoptimized))
+        {
             do_merge(func, block_id, target);
             merged = true;
         }
     }
     merged
+}
+
+/// Returns whether the block ends in the jump of a `break` or `continue` statement in an
+/// unoptimized function: it is the one instruction coverage can anchor the statement and its
+/// branch path to.
+fn ends_in_kept_jump(func: &Function, block: BlockId, unoptimized: Option<Gcx<'_>>) -> bool {
+    unoptimized.is_some_and(|gcx| is_loop_jump(gcx, &func.blocks[block].terminator_metadata))
 }
 
 /// Checks if block_id can be merged with its successor.
@@ -636,8 +673,9 @@ fn fold_target_phis_for_merge(
     replacements
 }
 
-/// Eliminates empty blocks that only contain an unconditional jump.
-fn eliminate_empty_blocks(func: &mut Function) -> bool {
+/// Eliminates empty blocks that only contain an unconditional jump, except the jump of a `break`
+/// or `continue` statement in an unoptimized function.
+fn eliminate_empty_blocks(func: &mut Function, unoptimized: Option<Gcx<'_>>) -> bool {
     // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
     // changes neither reachability nor dominance among the other blocks, so one snapshot
     // answers every round; the eliminated block is never a forwarder again.
@@ -651,6 +689,7 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
         for block_id in func.blocks.indices() {
             if empty_forwarder_target(func, block_id).is_none()
                 || (func.blocks[block_id].predecessors.is_empty() && cfg().is_reachable(block_id))
+                || ends_in_kept_jump(func, block_id, unoptimized)
             {
                 continue;
             }

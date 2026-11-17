@@ -429,20 +429,35 @@ fn compile(
                         debug_info_contracts,
                     )
                 };
-                let bytecodes = if gcx.sess.is_parallel()
-                    && let Some(contract_metadata) = &contract_metadata
-                    && let Some(metadata_contracts) = requested_metadata_contracts(
-                        gcx,
-                        output_selection,
-                        &bytecode_contracts,
-                        *metadata,
-                    ) {
-                    // Metadata does not depend on bytecode, so compute it while codegen leaves
-                    // workers idle.
+                let parallel = gcx.sess.is_parallel();
+                let precompute_metadata =
+                    contract_metadata.as_ref().filter(|_| parallel).and_then(|contract_metadata| {
+                        let contracts = requested_metadata_contracts(
+                            gcx,
+                            output_selection,
+                            &bytecode_contracts,
+                            *metadata,
+                        )?;
+                        Some((contract_metadata, contracts))
+                    });
+                let precompute_asts = ast_json
+                    .get()
+                    .filter(|_| parallel)
+                    .map(|ast_json| (ast_json, attached_asts(&output)));
+                let bytecodes = if precompute_metadata.is_some() || precompute_asts.is_some() {
+                    // Metadata and ASTs do not depend on bytecode, so write them while codegen
+                    // leaves workers idle.
                     gcx.sess
                         .join(
                             || emit(bytecode_contracts),
-                            || contract_metadata.precompute(&metadata_contracts),
+                            || {
+                                if let Some((contract_metadata, contracts)) = &precompute_metadata {
+                                    contract_metadata.precompute(contracts);
+                                }
+                                if let Some((ast_json, sources)) = &precompute_asts {
+                                    ast_json.write_large(sources);
+                                }
+                            },
                         )
                         .0
                 } else {

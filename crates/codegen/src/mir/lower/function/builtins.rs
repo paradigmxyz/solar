@@ -237,6 +237,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ExprKind::Member(receiver, _) = callee.kind else { return None };
         let capture_returndata = count > 1 || first_is_omitted;
         // ok, data? = low_level_call(...)
+        let previous = self.builder.replace_source_span(expr.span);
         let (success, returndata) = self.lower_address_call_result(
             callee.span,
             receiver,
@@ -245,6 +246,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             call_opts,
             capture_returndata,
         )?;
+        self.builder.replace_source_span(previous);
         // values = [ok] | [ok, data] | [data]
         match (count <= 1 && !first_is_omitted, count, returndata) {
             (true, _, _) => Some(vec![success]),

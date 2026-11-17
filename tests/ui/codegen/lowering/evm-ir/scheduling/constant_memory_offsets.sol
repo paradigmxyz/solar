@@ -4,6 +4,7 @@
 // CHECK-LABEL: @module ConstantMemoryOffsets_runtime
 // CHECK-LABEL: bb0:
 // CHECK: push 128
+// CHECK-NEXT: dup 1
 // CHECK-NEXT: push 7
 // CHECK-NEXT: push 192
 // CHECK-LABEL: bb6{{( \[[a-z, ]+\])?}}:

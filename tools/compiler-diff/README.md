@@ -5,7 +5,7 @@ artifacts. Compilation and comparison keep separate records, so new comparison
 rules do not rerun compilers. The tool reuses the `scripts/sourcify.py` database
 without migration; `uv run scripts/sourcify.py` still works. Run commands from
 the repository root. Agents also follow the
-[repository guidance](../../AGENTS.md#compiler-comparisons).
+[repository guidance](../../AGENTS.md#solc-parity).
 
 ```sh
 export UV_CACHE_DIR=/tmp/solar-sourcify/uv-cache

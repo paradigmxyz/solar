@@ -495,7 +495,7 @@ fn outline_parametric_machine_runs(
     module: &mut Module,
     state: &mut RunState,
 ) -> bool {
-    const MIN_RUN_LENGTH: usize = 12;
+    const MIN_RUN_LENGTH: usize = 11;
     const MAX_RUN_LENGTH: usize = 64;
     const MAX_PARAMETERS: usize = 8;
 

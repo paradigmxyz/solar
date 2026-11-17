@@ -1,7 +1,8 @@
 //! Storage for the cached queries on [`Gcx`](super::Gcx).
 //!
 //! Each key type picks its cache through [`QueryKey`]: dense HIR indices and builtins use a slice
-//! with one slot per key, `()` uses a single slot, and every other key uses a hash map.
+//! with one slot per key, [`hir::ItemId`] uses one such slice per item kind, `()` uses a single
+//! slot, and every other key uses a hash map.
 
 use super::{FxOnceMap, Ty, UsingDirectiveKey};
 use crate::{builtins::Builtin, hir, typeck::override_checker::OverrideProxy};
@@ -91,6 +92,12 @@ macro_rules! dense_keys {
 dense_keys! {
     hir::ContractId => contracts,
     hir::StructId => structs,
+    hir::FunctionId => functions,
+    hir::VariableId => variables,
+    hir::EnumId => enums,
+    hir::UdvtId => udvts,
+    hir::ErrorId => errors,
+    hir::EventId => events,
 }
 
 macro_rules! map_keys {
@@ -102,7 +109,6 @@ macro_rules! map_keys {
 }
 
 map_keys! {
-    hir::ItemId,
     OverrideProxy,
     Span,
     Ty<'_>,
@@ -119,4 +125,56 @@ impl<A: Copy + Eq + Hash, B: Copy + Eq + Hash, C: Copy + Eq + Hash> QueryKey for
 
 impl QueryKey for () {
     type Cache<V: Copy> = OnceLock<V>;
+}
+
+/// Caches values per [`hir::ItemId`], in one [`DenseCache`] per item kind.
+pub(super) struct ItemIdCache<V> {
+    contracts: DenseCache<hir::ContractId, V>,
+    functions: DenseCache<hir::FunctionId, V>,
+    variables: DenseCache<hir::VariableId, V>,
+    structs: DenseCache<hir::StructId, V>,
+    enums: DenseCache<hir::EnumId, V>,
+    udvts: DenseCache<hir::UdvtId, V>,
+    errors: DenseCache<hir::ErrorId, V>,
+    events: DenseCache<hir::EventId, V>,
+}
+
+impl<V> Default for ItemIdCache<V> {
+    fn default() -> Self {
+        Self {
+            contracts: DenseCache::default(),
+            functions: DenseCache::default(),
+            variables: DenseCache::default(),
+            structs: DenseCache::default(),
+            enums: DenseCache::default(),
+            udvts: DenseCache::default(),
+            errors: DenseCache::default(),
+            events: DenseCache::default(),
+        }
+    }
+}
+
+impl<V: Copy> QueryCache<hir::ItemId, V> for ItemIdCache<V> {
+    #[inline]
+    fn get_or_insert(
+        &self,
+        hir: &hir::Hir<'_>,
+        key: hir::ItemId,
+        make_val: impl FnOnce() -> V,
+    ) -> V {
+        match key {
+            hir::ItemId::Contract(id) => self.contracts.get_or_insert(hir, id, make_val),
+            hir::ItemId::Function(id) => self.functions.get_or_insert(hir, id, make_val),
+            hir::ItemId::Variable(id) => self.variables.get_or_insert(hir, id, make_val),
+            hir::ItemId::Struct(id) => self.structs.get_or_insert(hir, id, make_val),
+            hir::ItemId::Enum(id) => self.enums.get_or_insert(hir, id, make_val),
+            hir::ItemId::Udvt(id) => self.udvts.get_or_insert(hir, id, make_val),
+            hir::ItemId::Error(id) => self.errors.get_or_insert(hir, id, make_val),
+            hir::ItemId::Event(id) => self.events.get_or_insert(hir, id, make_val),
+        }
+    }
+}
+
+impl QueryKey for hir::ItemId {
+    type Cache<V: Copy> = ItemIdCache<V>;
 }

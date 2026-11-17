@@ -1,0 +1,22 @@
+; === ROOT/tests/ui/codegen/run-call/libraries/library_address_assembly.sol:L ===
+@module L
+@library
+; function f(uint256 v) external pure returns (uint256) [selector 0xb3de648b]
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret arg0
+}
+
+; === ROOT/tests/ui/codegen/run-call/libraries/library_address_assembly.sol:C ===
+@module C
+; function addr() public pure returns (address a) [selector 0x767800de]
+fn @addr() -> i256 [selector=0x767800de, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    ret 0x1111111111111111111111111111111111111111
+}
+
+; function plusOne() public pure returns (uint256 r) [selector 0x68e5c066]
+fn @plusOne() -> i256 [selector=0x68e5c066, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x1111111111111111111111111111111111111112
+}

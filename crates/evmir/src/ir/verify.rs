@@ -241,12 +241,13 @@ impl<'a> Verifier<'a> {
     ///
     /// The flag forbids both a block boundary and an inserted instruction after the instruction
     /// carrying it, and neither is any use unless the successor is still the instruction the
-    /// sequence needs. The only sequence lowering glues is a pre-EIP-150 call's `GAS`-relative
+    /// sequence needs. Lowering glues two sequences. One is a pre-EIP-150 call's `GAS`-relative
     /// gas reserve, `push <reserve>; gas; sub; <call>`, whose margin pays for the `sub` and the
     /// call setup alone, so the pair is checked by shape: a glued `gas` is followed by a glued
-    /// `sub`, and a glued `sub` by the call opcode itself. Anything else carrying the flag has no
-    /// rule to check it and is rejected, which keeps a new use of the flag from passing
-    /// verification unverified.
+    /// `sub`, and a glued `sub` by the call opcode itself. The other is the label push of a
+    /// block's closing `jump`, which keeps the jump an executed `JUMP` instead of a fallthrough
+    /// edge. Anything else carrying the flag has no rule to check it and is rejected, which keeps
+    /// a new use of the flag from passing verification unverified.
     ///
     /// Coverage instrumentation glues the counter push to its probe, `push <id>; coverage`, so
     /// that the instrumenting EVM reads the id from the stack top. Every `coverage` must follow
@@ -269,6 +270,9 @@ impl<'a> Verifier<'a> {
                 continue;
             }
             let Some(next) = block.instructions.get(index + 1) else {
+                if glued_jump_target(block).is_some() {
+                    continue;
+                }
                 self.error_in_block(
                     block_id,
                     format_args!(
@@ -595,6 +599,7 @@ impl<'a> Verifier<'a> {
             return (Vec::new(), overflow);
         }
         term.kind.visit_targets(|target| targets.push((target, stack)));
+        targets.extend(glued_jump_target(block).map(|target| (target, stack)));
         for &(continuation, effect) in &flows[block_id].returns {
             if let Ok(returned) = self.apply_call_return(reported, block_id, effect, stack) {
                 note_overflow(&mut overflow, "call return", returned);
@@ -1104,10 +1109,20 @@ fn jumps_dynamically(block: &Block) -> bool {
         .enumerate()
         .any(|(at, inst)| inst.opcode == op::JUMPI && branch_target(block, at).is_none());
     dynamic_branch
-        || matches!(
+        || (matches!(
             block.terminator.as_ref().map(|term| &term.kind),
             Some(TerminatorKind::Op(op::JUMP))
-        )
+        ) && glued_jump_target(block).is_none())
+}
+
+/// Returns the block that a closing `jump` enters when its label push is glued to it, which is a
+/// direct edge, as `jump target` is.
+fn glued_jump_target(block: &Block) -> Option<BlockId> {
+    let last = block.instructions.last()?;
+    (last.keeps_with_next()
+        && block.terminator.as_ref().is_some_and(|term| term.kind == TerminatorKind::Op(op::JUMP)))
+    .then(|| last.pushed_block())
+    .flatten()
 }
 
 /// Returns the blocks whose address is pushed other than to branch to it or to return through it
@@ -1123,6 +1138,7 @@ fn unmodeled_pushes(module: &Module, flows: &IndexVec<BlockId, LabelFlow>) -> Ve
                     .get(at + 1)
                     .is_some_and(|next| matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI)))
                 && !flows[block_id].accounted.contains(&at)
+                && !(at + 1 == block.instructions.len() && glued_jump_target(block).is_some())
             {
                 pushes.push(target);
             }
@@ -1153,6 +1169,7 @@ fn successors_after(flow: &LabelFlow, block: &Block, start: usize, out: &mut Vec
     if let Some(term) = &block.terminator {
         term.kind.visit_targets(|target| out.push(target));
     }
+    out.extend(glued_jump_target(block));
     out.extend(flow.returns.iter().map(|&(continuation, _)| continuation));
 }
 

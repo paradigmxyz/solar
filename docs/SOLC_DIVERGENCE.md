@@ -807,6 +807,26 @@ has no reason to guess that the author meant an address.
 
 Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
 
+### TYPECK-027: NatSpec errors are warnings
+
+Status: intentional; parity debt where the checks differ.
+
+Difference: `solc` rejects invalid NatSpec with errors, such as 3881 for a
+`@param` tag that names a parameter the item does not have, 2604 and 5856 for
+`@return` tags, 6546 for a tag the item does not allow, and 4682, 5142 and
+9397 for `@inheritdoc` (TYPECK-026 covers its references). Where `solar` runs
+the same check, it reports a warning with the same code. Not every check
+matches yet: for example, a misplaced `@return` can warn 2604 instead of 6546,
+a bare `@custom` warns 6546 instead of 6564, and a `@param` tag without a
+description, which `solc` rejects with 9942, passes silently. Of the NatSpec
+tag checks, only `@custom:solar-` tags (TYPECK-022) raise errors.
+
+Rationale: a documentation mistake should not fail a build
+([#1281](https://github.com/paradigmxyz/solar/pull/1281)).
+
+Coverage: `tests/ui/natspec/tag_sema.sol` and
+`tests/ui/natspec/tag_returns.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate
@@ -1211,6 +1231,36 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   moving the check to each use cost about a thousand lines of compiler code.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
 
+### CODEGEN-023: A forged nested calldata offset reverts a storage copy or revert reason
+
+- ID: CODEGEN-023
+- Status: intentional
+- Difference: assigning a `bytes` or `string` calldata value to storage, pushing
+  it onto a storage array, or using it as a `require` or `revert` reason
+  reverts with empty data in `solar` when its nested ABI offset is `2**255`.
+  Assigning or pushing a calldata array, or assigning a calldata struct, does
+  the same when a negative nested offset wraps its pointer above calldata, such
+  as `-0xa4` for `a[0]` of a `uint256[][]`. `solc` stores an empty value or
+  reverts with `Error("")`. Both reject the same input when the value is copied
+  to memory.
+- Rationale: only malformed calldata reaches it, and `solar` is the stricter
+  of the two. These consumers share the copy to memory that rejects the
+  address; telling them apart would thread a flag through every consumer for
+  input that no ABI encoder produces.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_nested_high_offset_storage.sol`.
+
+### CODEGEN-024: A wrapping array range runs out of gas instead of panicking
+
+- ID: CODEGEN-024
+- Status: intentional
+- Difference: copying a calldata array to memory when inline assembly gave it
+  a start and a length whose sum wraps past `2**256` runs out of gas in
+  `solar`. `solc` reverts with `Panic(0x41)` at the allocation.
+- Rationale: only assembly builds such a slice, and the call fails either way.
+  Rejecting a wrapping sum would add two instructions to every calldata range
+  check, which also guards ordinary decoding.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_array_wrapping_range.sol`.
+
 ### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
 
 - ID: CODEGEN-025
@@ -1338,3 +1388,4 @@ reported.
 
 Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
 `tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.
+
