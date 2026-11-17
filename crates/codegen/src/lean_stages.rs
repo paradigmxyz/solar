@@ -1751,6 +1751,11 @@ pub fn write_manifest(
     let _ = writeln!(lean, "end {ns}.Manifest");
     write(gcx, &dir.join("Manifest.lean"), lean.as_bytes())?;
 
+    // The thread count is the host's (zero resolves to its cores) and changes no output: the
+    // options leave it out, so that the manifest is the same on every host.
+    let threads = format!("language: {:?}, threads: {:?},", opts.language, opts.threads);
+    let options =
+        format!("{opts:?}").replacen(&threads, &format!("language: {:?},", opts.language), 1);
     let mut json = serde_json::json!({
         "contract": contract,
         "sources": info.sources.iter().map(|(path, bytes)| serde_json::json!({
@@ -1761,7 +1766,7 @@ pub fn write_manifest(
         "arguments": info.arguments,
         "evm_version": evm_version,
         "optimization": optimization,
-        "options": format!("{opts:?}"),
+        "options": options,
         "stages": stages.iter().map(|s| serde_json::json!({
             "file": format!("{}.lean", s.file),
             "definition": s.def(),

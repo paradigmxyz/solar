@@ -2497,8 +2497,12 @@ def solar_problem(solar, root, want_sha=None, allow_foreign=False):
     return None
 
 
-def solar_runtime(solar, src, contract, extra=()):
-    rc, out, err = run([str(solar), str(src), *OPTIONS, "--emit=bin-runtime", *extra])
+def solar_runtime(solar, src, contract, extra=(), cwd=None):
+    if cwd is not None and os.sep in str(solar):
+        solar = os.path.abspath(solar)
+    rc, out, err = run(
+        [str(solar), str(src), *OPTIONS, "--emit=bin-runtime", *extra], cwd=cwd
+    )
     if rc != 0:
         return None, err
     j = json.loads(out)
@@ -2506,6 +2510,16 @@ def solar_runtime(solar, src, contract, extra=()):
         if k.rsplit(":", 1)[1] == contract:
             return v.get("bin-runtime"), err
     return None, f"no contract {contract} in solar's output"
+
+
+def export_stages(solar, src, contract, tmp):
+    """solar's runtime bytecode of the contract and its stages, exported to TMP/gen. The manifest
+    records solar's arguments and the source's path, so solar runs in TMP on a copy of the source,
+    with both paths relative to it: the manifest is then the same wherever TMP and the source sit."""
+    tmp = pathlib.Path(tmp)
+    copy = pathlib.Path(src).name
+    shutil.copy(src, tmp / copy)
+    return solar_runtime(solar, copy, contract, ["-Zemit-lean-stages=gen"], cwd=tmp)
 
 
 def gas_need(solar, src, name, contract, tmp):
@@ -2516,7 +2530,7 @@ def gas_need(solar, src, name, contract, tmp):
     gen = tmp / "gen"
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
-    plain, err = solar_runtime(solar, src, contract, [f"-Zemit-lean-stages={gen}"])
+    plain, err = export_stages(solar, src, contract, tmp)
     if plain is None:
         raise Blocked(
             [

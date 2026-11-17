@@ -427,9 +427,7 @@ def obligation(solar, src, contract, ast, tmp):
         )
     M = loops[0]["M"]
     gen = pathlib.Path(tmp) / "gen"
-    plain, err = generic.solar_runtime(
-        solar, src, contract, [f"-Zemit-lean-stages={gen}"]
-    )
+    plain, err = generic.export_stages(solar, src, contract, tmp)
     if plain is None:
         raise Unsupported(
             "the stage exporter rejects the contract: " + (err or "").strip()[:300]

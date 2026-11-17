@@ -2588,5 +2588,67 @@ class LakeJobsAdmission(unittest.TestCase):
         self.assertIn("cannot read", self.admit(2, None))
 
 
+class ProbeExportPaths(unittest.TestCase):
+    """The probe's stage export (gas_need) records the arguments solar ran with and the source's
+    path (Manifest.arguments, manifest.json): two runs in different work directories, of copies of
+    one source in different directories, write byte-identical manifests."""
+
+    FAKE = """
+import json, pathlib, sys
+args = sys.argv[1:]
+gen = pathlib.Path(next(a for a in args if a.startswith("-Zemit-lean-stages=")).split("=", 1)[1])
+(gen / "C").mkdir(parents=True)
+(gen / "C" / "Manifest.lean").write_text(repr(args) + chr(10))
+(gen / "C" / "manifest.json").write_text(json.dumps({"arguments": args, "sources": [args[0]]}))
+sys.exit(1)
+"""
+
+    def export(self, root, src_dir):
+        solar = root / "solar"
+        solar.write_text(f"#!{sys.executable}" + self.FAKE)
+        solar.chmod(0o755)
+        src = root / src_dir / "c.sol"
+        src.parent.mkdir(parents=True)
+        src.write_text("contract C {}\n")
+        with self.assertRaises(generic.Blocked):
+            generic.gas_need(solar, src, "c_0123abcd", "C", root / "work" / "probe")
+        gen = root / "work" / "probe" / "gen" / "C"
+        return {f: (gen / f).read_bytes() for f in ("Manifest.lean", "manifest.json")}
+
+    def test_manifests_do_not_record_the_work_directory(self):
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            one = self.export(pathlib.Path(a), "x")
+            two = self.export(pathlib.Path(b), "y/z")
+            for f in one:
+                self.assertNotIn(a.encode(), one[f], f)
+            self.assertEqual(one, two)
+
+
+class RegeneratedThreads(unittest.TestCase):
+    """regenerated.sh compares a regenerated manifest with the committed one: the options'
+    thread count, the host's, never makes two exports of one contract differ, whether the
+    committed copy still records one and whatever the hosts' counts were."""
+
+    LINE = '  "options": "CompileOpts { input: [], language: Solidity,%s evm_version: Osaka }",\n'
+
+    def norm(self, text):
+        script = (HERE / "regenerated.sh").read_text()
+        start = script.index("norm() {")
+        body = script[start : script.index("; }", start) + 3]
+        r = subprocess.run(
+            ["bash", "-c", body + "\nnorm"],
+            input=text,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return r.stdout
+
+    def test_thread_count_is_not_compared(self):
+        new = self.norm(self.LINE % "")
+        for committed in (" threads: 24,", " threads: 32,", ""):
+            self.assertEqual(self.norm(self.LINE % committed), new, committed)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
