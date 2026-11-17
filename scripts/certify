@@ -956,41 +956,41 @@ PYEOF
     [[ -z "$unbound" ]] ||
         caveats+=("provenance: final's closure imports modules whose sources are not committed: $(head -5 <<<"$unbound" | tr '\n' ';')")
     # An olean can hold a declaration the kernel never checked (a proof module may add one with the
-    # kernel check switched off), so every module of final's closure, the toolchain's and the
-    # upstream packages' included, is replayed through the kernel by the toolchain's leanchecker in
-    # this run, nothing skipped for an earlier run or trusted for its directory, and accounted for
-    # module by module (tools/certify/replay.py): leanchecker must exit 0 and report replaying each,
-    # their oleans must be unchanged, and any module left over fails the run.
-    # CERTIFY_REPLAY_TRUST_UPSTREAM=1 (local work only) skips the toolchain and the upstream
-    # packages, trusted by their directory (decided again from the toolchain's lib/lean and
-    # CERTIFY_TRUSTED_ROOTS, never from the checker's mark alone); that is a provenance caveat
-    # naming how many, which blocks the strongest status.
-    replay_plan="$lean_dir/.lake/certify-$name.replay-plan"
-    include_trusted=(--include-trusted)
-    [[ "${CERTIFY_REPLAY_TRUST_UPSTREAM:-}" != 1 ]] || include_trusted=()
-    python3 "$here/replay.py" plan "$log" "$replay_plan" --syslib "$toolchain/lib/lean" \
-        --require "$name.Final" --require "$name.Statement" --require "$proof_mod" ${include_trusted[@]+"${include_trusted[@]}"} ||
-        die "cannot account for the closure of $name.Final"
-    capture_nonempty replay_mods "the modules of $name.Final's closure to replay" awk '$1 == "replay" { print $2 }' "$replay_plan"
-    replay_status=0
+    # kernel check switched off), so the kernel replays final's whole constant closure in this run
+    # (tools/certify/replay_closure.lean): every constant final's type and proof reach, through
+    # types and values, inductive blocks, constructors and recursors, Init's, Std's, Lean's and the
+    # upstream packages' included, from an empty environment, nothing skipped for an earlier run or
+    # trusted for its module or directory. It also refuses a closure with an unsafe or partial
+    # constant or an axiom beyond propext, Classical.choice and Quot.sound, and a final whose type
+    # is not exactly the statement. CERTIFY_REPLAY_SHARDS=N (default 1) splits the proofs of the
+    # closure's theorems into N shards run at once, each checking every other constant; the run
+    # holds N lean processes of at most LEAN_MEMORY MB each. tools/certify/replay.py closure
+    # accounts for it: every shard exits 0 on the same closure and their proofs are an exact
+    # disjoint union of its theorems, or the run fails.
+    [[ "${CERTIFY_REPLAY_TRUST_UPSTREAM:-}" != 1 ]] ||
+        die "CERTIFY_REPLAY_TRUST_UPSTREAM is gone: the kernel replays final's whole constant closure in every run"
+    shards="${CERTIFY_REPLAY_SHARDS:-1}"
+    [[ "$shards" =~ ^[1-9][0-9]*$ ]] || die "CERTIFY_REPLAY_SHARDS is not a positive number: $shards"
+    stmt_const="Certified.$name.Final.Statement"
+    replay_prefix="$lean_dir/.lake/certify-$name.closure"
+    rm -f "$replay_prefix".*
     no_planted_bins
-    # In batches, each one leanchecker process, all in this run; the first failing batch stops it.
-    # leanchecker replays a batch's modules in parallel, so CERTIFY_REPLAY_BATCH (default 400)
-    # bounds its memory; it changes nothing that is replayed.
-    batch="${CERTIFY_REPLAY_BATCH:-400}"
-    [[ "$batch" =~ ^[1-9][0-9]*$ ]] || die "CERTIFY_REPLAY_BATCH is not a positive number: $batch"
-    : > "$log.replay"
-    for ((i = 0; i < ${#replay_mods[@]}; i += batch)); do
-        lake env "$toolchain/bin/leanchecker" --verbose "${replay_mods[@]:i:batch}" >> "$log.replay" 2>&1 ||
-            { replay_status=$?; break; }
+    echo "kernel replay of the closure of $final_thm: $shards shard(s), at most $memory MB each"
+    replay_pids=()
+    for ((k = 0; k < shards; k++)); do
+        (
+            st=0
+            lake env "$toolchain/bin/lean" -M "$memory" --run "$here/replay_closure.lean" "$name.Final" "$final_thm" \
+                "$stmt_const" "$replay_prefix.$k-of-$shards" "$k" "$shards" > "$replay_prefix.$k-of-$shards.out" 2>&1 || st=$?
+            echo "$st" > "$replay_prefix.$k-of-$shards.status"
+        ) &
+        replay_pids+=("$!")
     done
-    python3 "$here/replay.py" account "$replay_plan" "$log.replay" "$replay_status" "$replay_receipt" \
-        --checker "$toolchain/bin/leanchecker" --toolchain "$toolchain" ||
+    for p in "${replay_pids[@]}"; do wait "$p" || die "a shard of the kernel replay of $name.Final's closure did not record its status"; done
+    grep -h -E '^(CLOSURE|AXIOMS|SHARD|REPLAYED|replay_closure:)' "$replay_prefix".*-of-"$shards".out || true
+    python3 "$here/replay.py" closure "$replay_prefix" "$shards" "$replay_receipt" --theorem "$final_thm" \
+        --statement "$stmt_const" --toolchain "$toolchain" --checker "$toolchain/bin/lean" --tool "$here/replay_closure.lean" ||
         die "the kernel replay of $name.Final's closure is not accounted for"
-    trusted_n="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["trusted_count"])' "$replay_receipt")" ||
-        die "cannot read the replay receipt $replay_receipt"
-    [[ "$trusted_n" == 0 ]] ||
-        caveats+=("provenance: $trusted_n modules of the published closure trusted by directory, not replayed in this run (CERTIFY_REPLAY_TRUST_UPSTREAM=1)")
     audit "$lean_dir/.lake/certify-final-$name.out" "$name.Final" -- "$final_thm"
     closure_after="$(closure_fp)" || die "cannot fingerprint final's closure"
     [[ "$closure_after" == "$closure_before" ]] || die "final's closure changed while it was checked"
@@ -1108,22 +1108,18 @@ if final:
                                "0x1000, the block and transaction of Target.message")
     provenance = [c for c in open(sys.argv[1] + ".caveats").read().splitlines() if c.startswith("provenance:")]
     statuses["provenance"] = "; ".join(c[len("provenance: "):] for c in provenance) or "clean"
-    # The kernel replay's receipt: every module of the closure replayed in this run or trusted by
-    # directory, none unaccounted for (the run fails before this otherwise).
+    # The kernel replay's receipt: every constant of final's closure replayed in this run (the run
+    # fails before this otherwise).
     try:
         replay = json.load(open(replay_file))
     except (OSError, ValueError):
         replay = None
-    # The strongest status needs the whole closure replayed in this run: none trusted.
     replay_ok = bool(replay) and replay.get("unaccounted") == [] and replay.get("replayed_count", 0) > 0 and (
         replay["closure"] == replay["replayed_count"]) and replay["trusted_count"] == 0
     statuses["replay"] = (
-        f"all {replay['closure']} modules of the published closure replayed by leanchecker in this run; 0 unaccounted"
-        if replay_ok else
-        f"{replay['replayed_count']} of {replay['closure']} modules of the published closure replayed in this run; "
-        f"{replay['trusted_count']} trusted by directory, not replayed "
-        f"({', '.join(f'{k}: {len(v)}' for k, v in replay['trusted'].items()) or 'none'})"
-        if replay else "not accounted for")
+        f"all {replay['closure']} constants of the closure of {replay.get('theorem')} replayed by the kernel in this "
+        f"run (closure sha256 {replay.get('closure_sha256')}, axioms {', '.join(replay.get('axioms') or []) or 'none'}); 0 unaccounted"
+        if replay_ok else "not accounted for")
     statuses["strongest"] = bool(final.get("strongest")) and not provenance and replay_ok and all(
         v.startswith(("proved", "not applicable")) for v in final["statuses"].values())
 else:

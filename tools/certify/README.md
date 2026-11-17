@@ -153,22 +153,24 @@ postcondition, no allowed status, a dropped environment premise, a `sorryAx` pro
 specifications (with no witness, a `sorryAx` witness, or a proof the kernel accepts), and a proof
 module that declares the statement's names, aliases its name or rewrites its command by a macro.
 
-The checker replays through the toolchain's leanchecker, in every run and with nothing skipped for an
-earlier one, every module of the published closure, the toolchain's and the upstream lake packages'
-(Mathlib, Batteries, Aesop, ImportGraph, Qq, Plausible, ProofWidgets, LeanSearchClient) included.
-`CERTIFY_REPLAY_TRUST_UPSTREAM=1` skips those, trusted by their directory under the toolchain and
-.lake/packages; the run then records a provenance caveat with their number, which blocks the strongest
-status. The proof builds in a mount namespace where all of HOME is read-only but the package's
+The kernel replays the published theorem's whole constant closure in every run, with nothing skipped
+for an earlier one ([replay_closure.lean](replay_closure.lean)): every constant its type and proof
+reach, through types and values, inductive blocks, constructors and recursors, the toolchain's and
+the upstream lake packages' (Mathlib, Batteries, Aesop and the rest) included, from an empty
+environment. A closure with an unsafe or partial constant or an axiom beyond `propext`,
+`Classical.choice` and `Quot.sound` fails, and so does a theorem whose type is not exactly the
+statement. `CERTIFY_REPLAY_SHARDS=N` splits the proofs of the closure's theorems into N shards that
+run at once. The proof builds in a mount namespace where all of HOME is read-only but the package's
 .lake, and what later steps read is fingerprinted before and after it; a toolchain or package
 altered before the run is not detected.
 
-Every replay is accounted for module by module ([replay.py](replay.py)): the closure must be exactly
-the modules leanchecker replayed in this run (`leanchecker --verbose` exits 0 and reports replaying
-each, and each olean is unchanged since it was planned), plus, with `CERTIFY_REPLAY_TRUST_UPSTREAM=1`,
-those trusted by directory, which the driver decides again from the toolchain's lib/lean and the
-packages' roots, never from the checker's mark alone. Any module left over fails the run. The receipt
-(the closure's size, each module replayed with its olean's digest, any trusted by directory) is the
-record's `replay` and its status `statuses.replay`; the run prints every module it replayed.
+The replay is accounted for ([replay.py](replay.py) `closure`): every shard exits 0 on the same
+closure and their checked proofs are an exact disjoint union of its theorems, or the run fails. The
+receipt (the closure's count, digest, kinds and constants, its axioms, each shard, and the checker and
+tool with their digests) is the record's `replay` and its status `statuses.replay`.
+[replay_closure_test.sh](replay_closure_test.sh) tests it: a tampered Init lemma, a `sorry` or an
+axiom deep in the closure, an omitted dependency, omitted, overlapping or incomplete shards and a
+theorem whose type is not the statement all fail.
 
 The driver checks every producer's exit status: a list read from a command goes through `capture`
 ([inputs.sh](inputs.sh)), never `mapfile < <(...)` or a pipe into `while read`, both of which
