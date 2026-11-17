@@ -118,16 +118,19 @@ the `Stage0.lean` that `-Zemit-lean-stages` exports. A certificate is only an in
 header matches it; it is never a reason to pass. [test_loop_equiv.py](test_loop_equiv.py) pins its
 reading of the MIR export on a real one (`testdata/loop_equiv/`) and runs without Lean.
 
-generic.py does not call it yet. A loop stays `BLOCKED` before any build (`envelope`), where
-the driver only records the fixed-fuel resource obligation (`loop_resources`). Calling it there
-would need, first, a solar-verify that writes the manifest (`--emit-loop-heads`), which this
-tree's solar-verify does not; second, a solidity-lean pin ([solidity-lean.rev](solidity-lean.rev))
-that has `Verify.LoopSource.Equiv.Cut` and a stage that imports the generated module and runs
-`Cut.check`, which the current pin does not. With both, the hook belongs beside
-`loop_resources`: for each function the manifest lists, write `LoopCut.<function>.lean` into
-the work directory from the run's own `Stage0.lean` (the selector and argument count come from
-the function's ABI), record its path and digest under the record's `loop_cuts`, and leave the run
-`BLOCKED` until the stage that checks it is in the proof.
+generic.py calls it from [loop_cuts.py](loop_cuts.py), beside `loop_resources`, when the
+envelope blocks a source on a loop. For each function solar-verify's manifest
+(`--emit-loop-heads`, then `--check-loop-heads` on the file; z3 from `SOLAR_VERIFY_Z3`) gives a
+loop, it writes `LoopCut.<function>.lean` into the work directory from the run's own
+`Stage0.lean`, with the selector and argument count from solc's AST. In a clone of the base it
+then runs the base's obligation generator (`Verify.LoopSource.Equiv.GenObl`) and builds the
+`Obl` module it writes. The record's `loop_cuts` holds, for each function every step completed
+for, the manifest, the certificate and the obligation modules with their digests, plus the measure.
+`loop_cuts_blocked` names the step each other function stopped at. A base without `Cut.lean` or
+the generator (the current pin has neither) stops there, before any build. The run stays
+`BLOCKED` in every case: the published statement does not apply `loop_equiv` yet, and the
+loop's resources stay open until an iteration-bound premise exists.
+[test_loop_cuts.py](test_loop_cuts.py) pins each way a step can fail and runs without Lean.
 
 ## The published statement
 
