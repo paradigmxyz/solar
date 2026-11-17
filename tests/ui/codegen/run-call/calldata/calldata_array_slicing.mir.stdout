@@ -229,9 +229,9 @@ fn @bytesSlice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
     v11 = calldatasize
     v12 = gt v10, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = sub v11, v10
-    v14 = ptrtoint ptr<calldata> v9 to i256
-    v15 = slt v13, v14
+    v13 = ptrtoint ptr<calldata> v9 to i256
+    v14 = add v13, v10
+    v15 = lt v11, v14
     icall revert_if<calldata_tail_too_short>, v15
     v16 = extract_value slice<calldata>, v8, 1
     v17 = add v16, 31
