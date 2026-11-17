@@ -889,24 +889,24 @@ impl Function {
     }
 
     /// Records that `new` replaces `old`. A checked object offset stays one only while every
-    /// addition merged into it is one, so `new` loses the marker when `old` was an unchecked
-    /// addition, and a pointer offset that no bounds check covers stays unchecked.
+    /// computation merged into it is one, so `new` loses the marker when `old` was anything but a
+    /// checked addition or a cast or phi of a value that was merged separately, and a pointer
+    /// offset that no bounds check covers stays unchecked.
     pub fn merge_checked_object_offset(&mut self, old: ValueId, new: ValueId) {
         let Value::Inst(old) = *self.value(old) else { return };
         let Value::Inst(new) = *self.value(new) else { return };
         match self.inst(old).kind {
-            InstKind::Add(..) | InstKind::Sub(..)
-                if !self.inst(old).metadata.checked_object_offset() =>
-            {
-                self.clear_checked_object_offsets(new);
-            }
-            InstKind::PtrAdd(..)
+            InstKind::PtrAdd(..) => {
                 if self.inst(old).metadata.unchecked()
-                    && matches!(self.inst(new).kind, InstKind::PtrAdd(..)) =>
-            {
-                self.inst_mut(new).metadata.set_unchecked(true);
+                    && matches!(self.inst(new).kind, InstKind::PtrAdd(..))
+                {
+                    self.inst_mut(new).metadata.set_unchecked(true);
+                }
             }
-            _ => {}
+            InstKind::PtrToInt(..) | InstKind::IntToPtr(..) | InstKind::Phi(..) => {}
+            InstKind::Add(..) | InstKind::Sub(..)
+                if self.inst(old).metadata.checked_object_offset() => {}
+            _ => self.clear_checked_object_offsets(new),
         }
     }
 
