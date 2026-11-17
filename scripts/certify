@@ -153,10 +153,44 @@ iso_setup() {
     iso_bin="$(bash "$here/sysroot.sh" "$tcroot" "$lean_dir/.lake/certify-sysroot")" || die "cannot set up the isolated lean"
 }
 
+# prebuild_packages TARGET...: the modules of the lake packages (the manifest's, at its pinned
+# revisions) that the package modules reachable from the TARGETs import, built now, outside the
+# sandbox, which may write only the package's own build directory: a module of a lake package
+# that a sandboxed step needs and the package cache lacks would otherwise fail that step on the
+# read-only mount, and a warm cache would hide it. guarded runs it for every step's own targets
+# (the statement's closure among them, which only final.py's output names), so that no step
+# depends on what an earlier run left in the cache. Each module is built once per run
+# (prebuilt). The packages' modules are not trusted for being built here: every module of the
+# published closure is replayed through the kernel below.
+declare -A prebuilt=()
+prebuilt_log=
+prebuild_packages() {
+    local mods todo=() m plog="$lean_dir/.lake/certify-packages-$name.log"
+    # One log per run: an earlier run's is replaced at the first prebuild.
+    [[ -n "$prebuilt_log" ]] || { : > "$plog" || die "cannot write $plog"; prebuilt_log=$plog; }
+    capture mods "the list of the package modules $* import" python3 "$here/guard_build.py" packages "$lean_dir" "$@"
+    for m in "${mods[@]}"; do [[ -z "$m" || -n "${prebuilt[$m]:-}" ]] || todo+=("$m"); done
+    [[ ${#todo[@]} -gt 0 ]] || return 0
+    # Mathlib's modules come from its build cache, fetched rather than built.
+    if grep -q '"mathlib"' "$lean_dir/lake-manifest.json" 2>/dev/null && [[ ! -d "$lean_dir/.lake/packages/mathlib/.lake/build/lib" ]]; then
+        (cd "$lean_dir" && run lake exe cache get) >&2 || die "cannot fetch Mathlib's build cache"
+    fi
+    printf 'lake packages (%s modules imported): ' "${#todo[@]}"
+    (cd "$lean_dir" && lake "-KleanMemory=$memory" build "${todo[@]/#/+}" >> "$plog" 2>&1) ||
+        { grep -E '^error' -A8 "$plog" | head -40 >&2; die "the lake packages $* import do not build"; }
+    tail -n 1 "$plog"
+    for m in "${todo[@]}"; do prebuilt[$m]=1; done
+}
+
 guarded() {
     local glog=$1 spec=$2 snap="$lean_dir/.lake/certify-guard.snap" allow="$lean_dir/.lake/certify-guard.allow" status=0
     shift 2
     if [[ -n "$spec" ]]; then
+        # The lake package modules the step's TARGETs import (before any --, "=M" as M), built
+        # outside the sandbox first, reported on stderr so that the step's own line stays whole.
+        local t targets=()
+        for t in $spec; do [[ "$t" != -- ]] || break; targets+=("${t#=}"); done
+        prebuild_packages "${targets[@]}" >&2
         # shellcheck disable=SC2086
         python3 "$here/guard_build.py" allow "$lean_dir" "$allow" $spec || die "cannot list the modules of the step"
     else
@@ -528,21 +562,6 @@ fi
 e2e_thms=()
 e2e_kind=""
 
-# prebuild_packages TARGET...: the modules of the lake packages (the manifest's, at its pinned
-# revisions) that the package modules reachable from the TARGETs import, built now, before any
-# module of the run's own statement or proofs is built, and outside the sandbox, which may write
-# only the package's own build directory. The packages' modules are not trusted for being built
-# here: every module of the published closure is replayed through the kernel below.
-prebuild_packages() {
-    local mods
-    capture mods "the list of the package modules $* import" python3 "$here/guard_build.py" packages "$lean_dir" "$@"
-    [[ ${#mods[@]} -gt 0 ]] || return 0
-    printf 'lake packages (%s modules imported): ' "${#mods[@]}"
-    (cd "$lean_dir" && lake "-KleanMemory=$memory" build "${mods[@]/#/+}" > "$lean_dir/.lake/certify-packages-$name.log" 2>&1) ||
-        { grep -E '^error' -A8 "$lean_dir/.lake/certify-packages-$name.log" | head -40 >&2; die "the lake packages $* import do not build"; }
-    tail -n 1 "$lean_dir/.lake/certify-packages-$name.log"
-}
-
 echo "== 6. the spec (solar-verify) and the headline theorems"
 # What the headline and the published statement import from the lake packages, built first.
 pre_targets=()
@@ -556,12 +575,7 @@ if [[ -f "$dir/shape.json" ]]; then
     pre_targets+=("${pre_shape[@]}")
 fi
 [[ $require_spec -eq 0 ]] || pre_targets+=(Verify.VC.Discharge)
-if [[ ${#pre_targets[@]} -gt 0 ]]; then
-    if grep -q '"mathlib"' "$lean_dir/lake-manifest.json" 2>/dev/null && [[ ! -d "$lean_dir/.lake/packages/mathlib/.lake/build/lib" ]]; then
-        (cd "$lean_dir" && run lake exe cache get) || die "cannot fetch Mathlib's build cache"
-    fi
-    prebuild_packages "${pre_targets[@]}"
-fi
+[[ ${#pre_targets[@]} -eq 0 ]] || prebuild_packages "${pre_targets[@]}"
 # solar-verify's verification conditions as Lean: every function whose conditions fall outside
 # the fragment solidity-lean's checks model is refused, recorded as unproved and never passes.
 spec_status="not checked: no solar-verify"
