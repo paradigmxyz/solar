@@ -779,16 +779,35 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Recomputes `value` at its use, under the origins of the instruction that defines it.
+    /// Recomputes `value` at its use. A read without operands takes the origins of the use unless
+    /// they enclose its own, and any other value keeps the origins of the instruction that defines
+    /// it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
+        let consumer = self.asm.debug_origin();
         if self.capture_debug_info
             && let Value::Inst(inst) = func.value(value)
             && let metadata = &func.inst(*inst).metadata
             && metadata.source_spans().next().is_some()
+            && (!is_operandless_read(func, value)
+                || consumer.source_spans().next().is_none()
+                || metadata
+                    .source_spans()
+                    .all(|span| consumer.source_spans().any(|user| user.contains(span))))
         {
-            // Every copy is the same computation, so it keeps the definition's origins, as LLVM's
-            // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
-            let consumer = self.asm.debug_origin();
+            // A recomputed value is the same computation at every use, so it keeps the definition's
+            // origins, as LLVM's `TargetInstrInfo::reMaterialize` clones the original with its
+            // `DebugLoc`.
+            //
+            // A read without operands, such as a calldata parameter or `msg.sender`, is no
+            // computation of its own: it is re-executed at the use like an immediate, which takes
+            // the user's origins. LLVM materializes a per-use constant under the user's location
+            // (`FastISel::flushLocalValueMap` gives a local value the `DebugLoc` of the first
+            // instruction after it, and SelectionDAG materializes constants at the user's
+            // `SDLoc`), and a reload has no location of its own (`loadRegFromStackSlot` builds it
+            // with `DebugLoc()`), so the use's line continues. The definition's location would
+            // send the debugger back to the parameter list or to an earlier statement at every
+            // use. A definition inside the use, such as the `msg.sender` of `msg.sender == owner`,
+            // is the more precise origin of this very read, so it stays.
             self.asm.set_source_spans(metadata.source_spans());
             self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
@@ -868,5 +887,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
         }
+    }
+}
+
+/// Returns whether `value` is a read that takes no operands, possibly cast: a nullary environment
+/// read or a calldata load at a constant offset.
+fn is_operandless_read(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(value) else { return false };
+    match &func.inst(inst).kind {
+        InstKind::Zext(operand) | InstKind::PtrToInt(operand, _) | InstKind::IntToPtr(operand) => {
+            is_operandless_read(func, *operand)
+        }
+        InstKind::Load(offset, PtrLocation::Calldata) => {
+            matches!(func.value(*offset), Value::Immediate(_))
+        }
+        _ => rematerializable_nullary_value(func, value).is_some(),
     }
 }
