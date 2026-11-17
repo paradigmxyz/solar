@@ -178,6 +178,12 @@ fn sunk_phi_expression_debug_outputs_are_bytecode_neutral() {
 }
 
 #[test]
+fn remat_read_origin_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/stackify/remat_read_origin.sol",
+    );
+}
+#[test]
 fn iszero_origin_debug_outputs_are_bytecode_neutral() {
     assert_debug_outputs_are_bytecode_neutral(
         "../../codegen/debug-info/stackify_iszero_origin.sol",

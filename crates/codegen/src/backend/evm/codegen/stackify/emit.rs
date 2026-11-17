@@ -11,6 +11,7 @@ use crate::{
                 select::{InstKindOpcode, rematerializable_nullary_value},
                 values::gas_minus,
             },
+            ir::Metadata,
             op,
         },
     },
@@ -815,16 +816,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Recomputes `value` at its use, under the origins of the instruction that defines it.
+    /// Recomputes `value` at its use. A read without operands takes the origins of the use, and
+    /// any other value keeps the origins of the instruction that defines it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
         if self.capture_debug_info
             && let Value::Inst(inst) = func.value(value)
             && let metadata = &func.inst(*inst).metadata
             && metadata.source_spans().next().is_some()
+            && let consumer = self.asm.debug_origin()
+            && self.keeps_definition_origins(func, value, metadata, &consumer)
         {
-            // Every copy is the same computation, so it keeps the definition's origins, as LLVM's
-            // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
-            let consumer = self.asm.debug_origin();
+            // A recomputed value is the same computation at every use, so it keeps the definition's
+            // origins, as LLVM's `TargetInstrInfo::reMaterialize` clones the original with its
+            // `DebugLoc`.
             self.asm.set_source_spans(metadata.source_spans());
             self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
@@ -833,6 +837,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             self.emit_recomputed(func, value);
         }
+    }
+
+    /// Returns whether `value`, recomputed under the origins `consumer`, keeps the origins of its
+    /// definition.
+    ///
+    /// A read without operands, such as a calldata parameter or `msg.sender`, is re-executed at the
+    /// use like an immediate, so it takes the user's origins, as LLVM gives a per-use materialized
+    /// constant the user's location and a reload none of its own. The definition's origins would
+    /// send the debugger back to the parameter list or to an earlier statement at every use. A
+    /// definition inside the use is the more precise origin of this very read, so it stays. An
+    /// unoptimized build also keeps a definition that is its own item, such as the initializer of a
+    /// local, because the read may be the only instruction coverage can anchor that item to.
+    fn keeps_definition_origins(
+        &self,
+        func: &Function,
+        value: ValueId,
+        definition: &InstructionMetadata,
+        consumer: &Metadata,
+    ) -> bool {
+        let definition_in_use = || {
+            definition
+                .source_spans()
+                .all(|def| consumer.source_spans().any(|user| user.contains(def)))
+        };
+        let use_in_definition = || {
+            consumer
+                .source_spans()
+                .all(|user| definition.source_spans().any(|def| def.contains(user)))
+        };
+        !is_operandless_read(func, value)
+            || !consumer.has_source_spans()
+            || definition_in_use()
+            || self.optimization.is_none() && !use_in_definition()
     }
 
     /// Emits the opcodes that compute `value` under the current origins.
@@ -904,5 +941,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
         }
+    }
+}
+
+/// Returns whether `value` is a read that takes no operands, possibly cast: a nullary environment
+/// read or a calldata load at a constant offset.
+fn is_operandless_read(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(value) else { return false };
+    match &func.inst(inst).kind {
+        InstKind::Zext(operand) | InstKind::PtrToInt(operand, _) | InstKind::IntToPtr(operand) => {
+            is_operandless_read(func, *operand)
+        }
+        InstKind::Load(offset, PtrLocation::Calldata) => {
+            matches!(func.value(*offset), Value::Immediate(_))
+        }
+        _ => rematerializable_nullary_value(func, value).is_some(),
     }
 }
