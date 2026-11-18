@@ -23,8 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **All cores by default.** The default thread count is now the number of
   logical cores (`-j0`) instead of 8. Pass `-j N` to cap it; memory use rises
   with the thread count.
-- **solc-compatible AST JSON.** `--emit=ast` and the Standard JSON `ast` output
-  now match solc's compact AST.
+- **AST JSON.** `--emit=ast` and the Standard JSON `ast` output now emit solc's
+  compact AST JSON format. Node IDs follow Solar's own scheme, and a few fields
+  differ from solc; see TYPECK-025 in
+  [`docs/SOLC_DIVERGENCE.md`](https://github.com/paradigmxyz/solar/blob/main/docs/SOLC_DIVERGENCE.md).
 - **Debug info and coverage.** Source maps and ETHDebug keep the origin of code
   through optimization, so coverage tools see ABI decoding, call sites and
   expressions.
