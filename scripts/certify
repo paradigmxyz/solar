@@ -1191,7 +1191,8 @@ if final:
         f"all {replay['closure']} constants of the closure of {replay.get('theorem')} replayed by the kernel in this "
         f"run (closure sha256 {replay.get('closure_sha256')}, axioms {', '.join(replay.get('axioms') or []) or 'none'}); 0 unaccounted"
         if replay_ok else "not accounted for")
-    statuses["strongest"] = bool(final.get("strongest")) and not provenance and replay_ok and all(
+    # A statement with an open premise (a hypothesis it does not discharge) is never the strongest.
+    statuses["strongest"] = bool(final.get("strongest")) and not final.get("open_premises") and not provenance and replay_ok and all(
         v.startswith(("proved", "not applicable")) for v in final["statuses"].values())
 else:
     replay = None
