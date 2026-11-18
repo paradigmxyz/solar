@@ -1495,7 +1495,8 @@ pass on an empty map.
   returns a struct constructor, such as `make(a, b)` with the body
   `return P(a, b);`, has no entry, and neither has its `return`. The code that
   builds the struct maps to each call, `make(x, 1)` and `make(x, 2)`. `solc`
-  emits the function once and maps its `return` to it.
+  emits the function once and maps its `return` to it. A helper that reads a
+  named return variable or calls itself is not inlined and keeps its entry.
 - Rationale: MIR lowering inlines the function into each call, so the code runs
   at the call and the call is its location.
 - Coverage:

@@ -12,9 +12,9 @@
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
 // `function make`, `return P(a, b);` and `P(a, b)`
-// CHECK-NOT: {{[;"]}}[[#C+77]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+156]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+163]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+77]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+156]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+163]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `function f`

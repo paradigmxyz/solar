@@ -13,11 +13,11 @@
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
 // `_set(x);`
-// CHECK-NOT: {{[;"]}}[[#C+279]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+279]]{{[:;"]}}
 // `function _forward(...)` and `return _twice(x);`
-// CHECK-NOT: {{[;"]}}[[#C+365]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+436]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+443]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+365]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+436]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+443]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `_forward(x)`

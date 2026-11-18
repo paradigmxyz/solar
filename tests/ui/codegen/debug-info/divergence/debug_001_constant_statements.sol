@@ -15,26 +15,26 @@
 // CHECK: "srcmap-runtime":"[[#C:]]:
 // `uint256 r = 5;`, `uint8 a;`, `uint256 b = x;`, `b = r;`, `bytes32 slot = bytes32(SLOT);`,
 // `uint256 big = 2 ** 128;` and `uint256 m = type(uint256).max - 3;`
-// CHECK-NOT: {{[;"]}}[[#C+124]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+147]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+164]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+187]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+202]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+240]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+272]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+124]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+147]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+164]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+187]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+202]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+240]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+272]]{{[:;"]}}
 // `uint256 z = 5;` and `uint256 w = z;` in the arm
-// CHECK-NOT: {{[;"]}}[[#C+440]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+467]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+440]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+467]]{{[:;"]}}
 // `let q := 0x10` with its `0x10`, `let w := x` with its `x`, `q := w` and `y := q`
-// CHECK-NOT: {{[;"]}}[[#C+594]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+603]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+620]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+629]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+643]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+662]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+594]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+603]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+620]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+629]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+643]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+662]]{{[:;"]}}
 // `uint256 z = 2;` and `uint256 w = z;` in the `catch` block
-// CHECK-NOT: {{[;"]}}[[#C+763]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+790]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+763]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+790]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `function declarations`

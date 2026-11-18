@@ -12,9 +12,9 @@
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
 // `continue;`
-// CHECK-NOT: {{[;"]}}[[#C+160]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+160]]{{[:;"]}}
 // `break;`
-// CHECK-NOT: {{[;"]}}[[#C+226]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+226]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `i == 3`

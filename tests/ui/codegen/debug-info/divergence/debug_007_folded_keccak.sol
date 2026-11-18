@@ -12,11 +12,11 @@
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
 // `keccak256(abi.encodePacked("a", "b"))` and `abi.encodePacked("a", "b")`
-// CHECK-NOT: {{[;"]}}[[#C+133]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+143]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+133]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+143]]{{[:;"]}}
 // `keccak256(abi.encode(uint256(1), uint256(2)))` and `abi.encode(uint256(1), uint256(2))`
-// CHECK-NOT: {{[;"]}}[[#C+251]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+261]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+251]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+261]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `return keccak256(abi.encodePacked("a", "b"));`

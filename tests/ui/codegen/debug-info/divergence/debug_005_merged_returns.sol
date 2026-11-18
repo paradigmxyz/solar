@@ -14,10 +14,10 @@
 // The shared block of the merged `return 1;`.
 // CHECK: -1:-1:-1;
 // Both `return 1;` and both `return abi.encodeCall(this.g, (1));`.
-// CHECK-NOT: {{[;"]}}[[#C+107]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+161]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+307]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+387]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+107]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+161]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+307]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+387]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `x == 3`

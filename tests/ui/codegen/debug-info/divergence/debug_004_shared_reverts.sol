@@ -13,10 +13,10 @@
 // The shared block of both reverts.
 // CHECK: -1:-1:-1;
 // `revert E(1);` and its `E(1)`, twice.
-// CHECK-NOT: {{[;"]}}[[#C+116]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+123]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+149]]{{[:;]}}
-// CHECK-NOT: {{[;"]}}[[#C+156]]{{[:;]}}
+// CHECK-NOT: {{[;"]}}[[#C+116]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+123]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+149]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+156]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `x == 1`
