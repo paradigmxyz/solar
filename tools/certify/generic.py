@@ -2453,12 +2453,15 @@ def lifecycle_run(
         life["source_same"] = ok
         if not ok:
             errs = " | ".join(l for l in out.splitlines() if "error" in l)[:300]
+            log_name, tail = build_failure(rec_dir, name, "SourceSame", out)
             raise Blocked(
                 [
                     {
                         "feature": "lifecycle binding",
                         "where": "",
                         "detail": f"this run's source unit is not the expected theorem's ({bind['unit']}): {errs}",
+                        "log": log_name,
+                        "log_tail": tail,
                     }
                 ]
             )
@@ -2526,6 +2529,9 @@ def lifecycle_run(
             )
             if not ok:
                 errs = " | ".join(l for l in out.splitlines() if "error" in l)[:400]
+                life["composed"]["log"], life["composed"]["log_tail"] = build_failure(
+                    rec_dir, name, "Composed", out
+                )
                 finish(
                     "BLOCKED",
                     2,
@@ -2626,6 +2632,15 @@ def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
         ["lake", "build", "-KleanMemory=6000", f"{name}.{mod}"], cwd=lean_dir, env=env
     )
     return rc == 0, out + err
+
+
+def build_failure(rec_dir, name, mod, out, lines=60):
+    """A failed lifecycle build's whole lake output, kept as NAME.MOD.build.log in the record
+    directory, and its last LINES lines: lake prints a failed module's own messages (such as Lean's
+    memory_exception and its exit code) in that module's block, and they need not say "error"."""
+    log_name = f"{name}.{mod}.build.log"
+    (rec_dir / log_name).write_text(out)
+    return log_name, "\n".join(out.splitlines()[-lines:])
 
 
 def frontend(lean_dir, src, src_sha, name, contract, solc):

@@ -175,6 +175,26 @@ class Wiring(unittest.TestCase):
         self.assertLess(body.index("kq = lifecycle_kernel("), body.index('"Composed"'))
         self.assertIn("this run's source unit is not the expected theorem's", body)
         self.assertIn("the composed theorem does not build", body)
+        self.assertEqual(body.count("build_failure("), 2)
+
+    def test_build_failure_keeps_the_whole_log(self):
+        out = "\n".join(
+            [f"✔ [{i}/9] Built M{i}" for i in range(80)]
+            + [
+                "✖ [9/9] Building Contracts.VerifyCounter.Source",
+                "INTERNAL PANIC: lean::memory_exception: excessive memory consumption detected at 'interpreter'",
+                "error: Lean exited with code 134",
+            ]
+        )
+        with tempfile.TemporaryDirectory() as d:
+            log_name, tail = generic.build_failure(
+                pathlib.Path(d), NAME, "SourceSame", out
+            )
+            self.assertEqual(log_name, f"{NAME}.SourceSame.build.log")
+            self.assertEqual((pathlib.Path(d) / log_name).read_text(), out)
+        self.assertEqual(len(tail.splitlines()), 60)
+        self.assertIn("lean::memory_exception", tail)
+        self.assertTrue(tail.endswith("error: Lean exited with code 134"))
 
 
 if __name__ == "__main__":
