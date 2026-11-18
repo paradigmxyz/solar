@@ -22,11 +22,8 @@
     "ReturnNameNoDescription.sol": {
       "id": 1
     },
-    "ReturnText.sol": {
-      "id": 2
-    },
     "StructGetterNoReturnName.sol": {
-      "id": 3
+      "id": 2
     }
   },
   "contracts": {
@@ -78,48 +75,6 @@
         }
       }
     },
-    "ReturnText.sol": {
-      "Seaport": {
-        "devdoc": {
-          "kind": "dev",
-          "methods": {
-            "information()": {
-              "returns": {
-                "version": "         The contract version.",
-                "domainSeparator": "The domain separator.",
-                "conduitController": "conduitController"
-              }
-            },
-            "status()": {
-              "returns": {
-                "status": "  on the next line"
-              }
-            },
-            "count()": {
-              "returns": {
-                "count": "after an empty line"
-              }
-            }
-          },
-          "version": 1
-        }
-      },
-      "Getter": {
-        "devdoc": {
-          "kind": "dev",
-          "methods": {},
-          "stateVariables": {
-            "pair": {
-              "return": "x  the first",
-              "returns": {
-                "x": " the first"
-              }
-            }
-          },
-          "version": 1
-        }
-      }
-    },
     "StructGetterNoReturnName.sol": {
       "IThing": {
         "devdoc": {
@@ -140,7 +95,7 @@
           "methods": {},
           "stateVariables": {
             "value": {
-              "return": "x ",
+              "return": "",
               "returns": {
                 "x": ""
               }

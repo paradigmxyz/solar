@@ -351,6 +351,7 @@ impl<'gcx> Resolver<'gcx> {
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
         let mut sections = LocalTags::empty();
         let mut group_start = 0;
+        let mut skip_next_line = false;
 
         for (i, doc_comment) in docs.iter().enumerate() {
             // solc reads only the last group of doc comments, so a tag that may appear once
@@ -362,7 +363,9 @@ impl<'gcx> Resolver<'gcx> {
                 sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
                 group_start = local_tags.len();
             }
-            for natspec in doc_comment.natspec.iter() {
+            for natspec in
+                doc_comment.natspec.iter().skip(std::mem::take(&mut skip_next_line).into())
+            {
                 let tag_span = natspec.span;
 
                 match &natspec.kind {
@@ -475,8 +478,16 @@ impl<'gcx> Resolver<'gcx> {
 
                         state.return_count += 1;
 
-                        let rets =
-                            returns.get_or_insert_with(|| return_variables(self.gcx, item_id));
+                        let rets = returns.get_or_insert_with(|| match item_id {
+                            hir::ItemId::Function(id) => self.gcx.hir.function(id).returns,
+                            hir::ItemId::Variable(id) => self
+                                .gcx
+                                .hir
+                                .variable(id)
+                                .getter
+                                .map_or(&[], |getter| self.gcx.hir.function(getter).returns),
+                            _ => &[],
+                        });
                         let return_count = rets.len();
 
                         let return_valid = if state.return_count > return_count {
@@ -494,22 +505,22 @@ impl<'gcx> Resolver<'gcx> {
                             true
                         };
 
-                        // solc's scanner skips empty `///` lines.
-                        let next = docs[i + 1..]
-                            .iter()
-                            .zip(&docs[i..])
-                            .take_while(|&(next, prev)| !starts_group(self.gcx, prev, next))
-                            .map(|(next, _)| next)
-                            .find(|next| !next.symbol.as_str().is_empty());
+                        // solc reads the text of a `///` tag that ends its line from the next line.
+                        let index = state.return_count - 1;
+                        let next = docs.get(i + 1).filter(|next| {
+                            rets.get(index)
+                                .is_some_and(|&id| self.gcx.hir.variable(id).name.is_some())
+                                && natspec.content_start == natspec.content_end
+                                && !natspec.symbol.as_str().ends_with([' ', '\t'])
+                                && !starts_group(self.gcx, doc_comment, next)
+                                && next.natspec.first().is_none_or(is_untagged)
+                        });
                         if return_valid
-                            && let Some(item) = self.lower_return_natspec(
-                                *natspec,
-                                next,
-                                rets,
-                                state.return_count - 1,
-                            )
+                            && let Some(item) =
+                                self.lower_return_natspec(*natspec, next, rets, index)
                         {
                             local_tags.push(item);
+                            skip_next_line = next.is_some();
                         }
                     }
                 }
@@ -520,9 +531,8 @@ impl<'gcx> Resolver<'gcx> {
         (local_tags, sections, inheritdoc)
     }
 
-    /// Checks the name an `@return` tag documents for the return value at `index`.
-    ///
-    /// The tag keeps its whole text, name included: documentation outputs cut the name like solc.
+    /// Checks the name an `@return` tag documents, reading the tag's text from the `///` line
+    /// `next` instead when it is given.
     fn lower_return_natspec(
         &self,
         natspec: ast::NatSpecItem,
@@ -535,7 +545,31 @@ impl<'gcx> Resolver<'gcx> {
             return Some(natspec);
         };
 
-        let Some((documented, name_span)) = documented_return_name(&natspec, next) else {
+        // The source position of the start of the symbol that holds the tag's text.
+        let (natspec, symbol_lo) = match next {
+            Some(next) => {
+                let symbol = next.symbol;
+                let content_end = symbol.as_str().len() as u32;
+                // Line comment symbols exclude the leading `///`.
+                (
+                    ast::NatSpecItem { symbol, content_start: 0, content_end, ..natspec },
+                    next.span.lo() + 3,
+                )
+            }
+            None => {
+                // Content offsets are relative to the comment, while `span` covers only the tag
+                // name.
+                let tag = &natspec.symbol.as_str()[..natspec.content_start as usize];
+                (natspec, natspec.span.hi() - tag.trim_ascii_end().len() as u32)
+            }
+        };
+
+        let content = natspec.symbol.as_str();
+        let Some((documented, content_start)) = solar_parse::natspec::first_word(
+            content,
+            natspec.content_start as usize,
+            natspec.content_end as usize,
+        ) else {
             self.gcx.dcx().emit_warn_code(
                 natspec.span,
                 error_code!(5856),
@@ -543,6 +577,10 @@ impl<'gcx> Resolver<'gcx> {
             );
             return None;
         };
+
+        let name_end = content[..content_start].trim_ascii_end().len();
+        let name_lo = symbol_lo + (name_end - documented.len()) as u32;
+        let name_span = Span::new(name_lo, name_lo + documented.len() as u32);
 
         let documented_name = Symbol::intern(documented);
         if documented_name != expected.name {
@@ -571,6 +609,7 @@ impl<'gcx> Resolver<'gcx> {
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
+        item.content_start = content_start as u32;
         Some(item)
     }
 
@@ -1181,70 +1220,6 @@ pub(crate) fn starts_group(
 /// Whether `item` is the whole text of a comment without a tag, which solc reads as a notice.
 pub(crate) fn is_untagged(item: &hir::NatSpecItem) -> bool {
     matches!(item.kind, hir::NatSpecKind::Notice) && item.content_start == 0
-}
-
-/// Strips a block comment line's decoration, as solc's scanner does: the leading whitespace and one
-/// `*`, unless the line starts with `**`.
-pub(crate) fn strip_block_decoration(line: &str) -> &str {
-    let line = line.trim_ascii_start();
-    if line.starts_with("**") { line } else { line.strip_prefix('*').unwrap_or(line) }
-}
-
-/// Whether nothing follows `item`'s tag on its line, not even blanks, so that solc starts the tag's
-/// text on the next line.
-pub(crate) fn ends_bare(item: &hir::NatSpecItem) -> bool {
-    !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t'])
-}
-
-/// Returns the return values of a function or of a state variable's getter.
-pub(crate) fn return_variables(gcx: Gcx<'_>, item: hir::ItemId) -> &[hir::VariableId] {
-    match item {
-        hir::ItemId::Function(id) => gcx.hir.function(id).returns,
-        hir::ItemId::Variable(id) => {
-            gcx.hir.variable(id).getter.map_or(&[], |getter| gcx.hir.function(getter).returns)
-        }
-        _ => &[],
-    }
-}
-
-/// Returns the name an `@return` tag documents and its span: the first word of the tag's text, up
-/// to a space or tab, as solc reads it.
-///
-/// solc's `DocStringParser` starts the text of a tag that ends its line on the next line, without
-/// its leading whitespace, so that line holds the name. After blanks that end the tag's line, the
-/// next line continues the text after a space, so the tag documents no name. `next` is the doc
-/// comment after the tag's in the same group.
-fn documented_return_name<'a>(
-    natspec: &'a ast::NatSpecItem,
-    next: Option<&'a ast::DocComment<'_>>,
-) -> Option<(&'a str, Span)> {
-    let content = natspec.symbol.as_str();
-    let start = natspec.content_start as usize;
-    let rest = &content[start..natspec.content_end as usize];
-    // Content offsets are relative to the comment, while `span` covers only the tag name.
-    let tag_end = content[..start].trim_ascii_end().len();
-    let pos = |text: &str| {
-        natspec.span.hi() + (text.as_ptr().addr() - content.as_ptr().addr() - tag_end) as u32
-    };
-    let (line, lo) = if !rest.is_empty() && !rest.starts_with(['\n', '\r']) {
-        (rest, pos(rest))
-    } else if !ends_bare(natspec) {
-        return None;
-    } else if let Some(line) =
-        rest.split(['\n', '\r']).skip(1).map(strip_block_decoration).find(|line| !line.is_empty())
-    {
-        let line = line.trim_start_matches([' ', '\t']);
-        (line, pos(line))
-    } else {
-        let next = next.filter(|next| next.kind == ast::CommentKind::Line)?;
-        next.natspec.first().filter(|item| is_untagged(item))?;
-        let text = next.symbol.as_str();
-        let line = text.trim_start_matches([' ', '\t']);
-        // Line comment symbols exclude the leading `///`.
-        (line, next.span.lo() + (3 + text.len() - line.len()) as u32)
-    };
-    let name = line.split([' ', '\t', '\n', '\r']).next().filter(|name| !name.is_empty())?;
-    Some((name, Span::new(lo, lo + name.len() as u32)))
 }
 
 /// Whether `item` is a `///` line without a tag. After another tag of its group it continues that

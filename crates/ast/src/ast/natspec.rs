@@ -62,7 +62,10 @@ impl fmt::Display for NatSpecItem {
             NatSpecKind::Notice => write!(f, "@notice {content}"),
             NatSpecKind::Dev => write!(f, "@dev {content}"),
             NatSpecKind::Param { name } => write!(f, "@param {} {content}", name.name),
-            NatSpecKind::Return { .. } => write!(f, "@return {content}"),
+            NatSpecKind::Return { name: Some(name) } => {
+                write!(f, "@return {} {content}", name.name)
+            }
+            NatSpecKind::Return { name: None } => write!(f, "@return {content}"),
             NatSpecKind::Inheritdoc { contract } => {
                 write!(f, "@inheritdoc {} {content}", contract.name)
             }
@@ -99,8 +102,7 @@ pub enum NatSpecKind {
     Param { name: Ident },
     /// `@return <name>`
     ///
-    /// Documents a return variable. The optional `name` field contains the return variable name;
-    /// the content still starts with the documented name, as in solc.
+    /// Documents a return variable. The optional `name` field contains the return variable name.
     Return { name: Option<Ident> },
     /// `@inheritdoc <contract>`
     ///

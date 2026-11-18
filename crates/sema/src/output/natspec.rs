@@ -3,15 +3,12 @@
 use super::DocumentationKind;
 use crate::{
     hir,
-    natspec::{
-        LocalTags, ends_bare, is_untagged, is_untagged_line, return_variables, starts_group,
-        strip_block_decoration,
-    },
+    natspec::{LocalTags, is_untagged, is_untagged_line, starts_group},
     ty::Gcx,
 };
 use serde::Serialize;
 use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
-use solar_interface::{Span, kw};
+use solar_interface::Span;
 
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
@@ -114,7 +111,7 @@ impl<'gcx> Gcx<'gcx> {
             }
 
             let mut documentation_item = dev_doc_item(self, function_id.into());
-            documentation_item.returns = return_docs(self, function_id.into());
+            documentation_item.returns = return_docs(self, function_id.into(), function.returns);
             if !documentation_item.is_empty() {
                 documentation.methods.insert(
                     self.item_signature(function_id.into()).to_string(),
@@ -126,14 +123,17 @@ impl<'gcx> Gcx<'gcx> {
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
             let mut documentation_item = dev_doc_item(self, variable_id.into());
-            // solc writes `return` only for a single `@return` tag, with its whole text.
+            // solc writes `return` only for a single `@return` tag.
             let mut returns = doc_items(self, variable_id.into())
                 .into_iter()
                 .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
             if let (Some(item), None) = (returns.next(), returns.next()) {
                 documentation_item.r#return = Some(item.content);
             }
-            documentation_item.returns = return_docs(self, variable_id.into());
+            if let Some(getter) = variable.getter {
+                documentation_item.returns =
+                    return_docs(self, variable_id.into(), self.hir.function(getter).returns);
+            }
             if !documentation_item.is_empty() {
                 documentation
                     .state_variables
@@ -265,15 +265,11 @@ fn append_doc(target: &mut Option<String>, content: &str) {
     }
 }
 
-/// Returns the `@return` texts by return value, like solc's `Natspec::extractReturnParameterDocs`.
-///
-/// The text of a named return value goes without its first word and one space or tab after it,
-/// unless nothing follows the word. An unnamed one keeps its text and is keyed by position.
-fn return_docs(gcx: Gcx<'_>, item: hir::ItemId) -> FxIndexMap<String, String> {
-    let returns = return_variables(gcx, item);
-    if returns.is_empty() {
-        return FxIndexMap::default();
-    }
+fn return_docs(
+    gcx: Gcx<'_>,
+    item: hir::ItemId,
+    returns: &[hir::VariableId],
+) -> FxIndexMap<String, String> {
     doc_items(gcx, item)
         .into_iter()
         .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
@@ -281,45 +277,9 @@ fn return_docs(gcx: Gcx<'_>, item: hir::ItemId) -> FxIndexMap<String, String> {
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            let content = match (variable.name, item.content.split_once([' ', '\t'])) {
-                (Some(_), Some((_, rest))) => rest.to_string(),
-                _ => item.content,
-            };
-            Some((name, content))
+            Some((name, item.content))
         })
         .collect()
-}
-
-/// Renames the `@return` tags `item_id` inherits from `base`, like solc's `copyMissingTags`.
-///
-/// A tag whose first word is not the name of its return value in `item_id` takes that name, or
-/// none for an unnamed value, in place of the word. When nothing follows the word or the value is
-/// unnamed in `base`, the name goes before the whole text instead.
-fn rename_inherited_returns(
-    gcx: Gcx<'_>,
-    item_id: hir::ItemId,
-    base: hir::ItemId,
-    items: &mut [DocItem],
-) {
-    let (returns, base_returns) = (return_variables(gcx, item_id), return_variables(gcx, base));
-    let items =
-        items.iter_mut().filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
-    for (index, item) in items.enumerate() {
-        let Some(&variable) = returns.get(index) else { continue };
-        let name = gcx.hir.variable(variable).name.map_or(kw::Empty, |name| name.name);
-        let name = name.as_str();
-        let word_end = item.content.find([' ', '\t']);
-        if item.content[..word_end.unwrap_or(item.content.len())] == *name {
-            continue;
-        }
-        let base_unnamed =
-            base_returns.get(index).is_some_and(|&id| gcx.hir.variable(id).name.is_none());
-        let text = match word_end {
-            Some(end) if !base_unnamed => &item.content[end + 1..],
-            _ => &item.content,
-        };
-        item.content = if name.is_empty() { text.to_string() } else { format!("{name} {text}") };
-    }
 }
 
 /// A NatSpec item with its text as solc's documentation output has it.
@@ -356,7 +316,7 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
     let mut items: Vec<DocItem> = Vec::new();
     for &item in &local {
         let untagged = is_untagged(&item);
-        let bare = ends_bare(&item);
+        let bare = !item.symbol.as_str()[..item.content_start as usize].ends_with([' ', '\t']);
         if is_untagged_line(gcx, &item)
             && let Some(previous) = items.last_mut()
         {
@@ -379,7 +339,10 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
                 });
                 continue;
             }
-            let line = strip_block_decoration(line);
+            // Block comment decoration: whitespace, then one `*`.
+            let line = line.trim_ascii_start();
+            let line =
+                if line.starts_with("**") { line } else { line.strip_prefix('*').unwrap_or(line) };
             if line.is_empty() {
                 continue;
             }
@@ -391,12 +354,20 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
         }
         items.push(DocItem { kind: item.kind, content, bare });
     }
+    for item in &mut items {
+        // solc keeps a named return's whole text, its name, when nothing follows the name.
+        if let hir::NatSpecKind::Return { name: Some(name) } = item.kind
+            && item.content.is_empty()
+            && item.bare
+        {
+            item.content = name.to_string();
+        }
+    }
     if let Some((_, target)) = target {
         let local_tags = LocalTags::from_group(gcx, &local);
-        let mut inherited = doc_items(gcx, target);
-        inherited.retain(|item| local_tags.inherits(&item.kind));
-        rename_inherited_returns(gcx, item_id, target, &mut inherited);
-        items.extend(inherited);
+        items.extend(
+            doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
+        );
     }
     items
 }
@@ -416,7 +387,6 @@ fn inherited_doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
     }
     let mut items = doc_items(gcx, base);
     items.retain(|item| !matches!(item.kind, hir::NatSpecKind::Custom { .. }));
-    rename_inherited_returns(gcx, item_id, base, &mut items);
     items
 }
 
