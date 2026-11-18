@@ -992,7 +992,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   call one shared helper, unless a pointer is computed from constants or
   calldata alone, so a memory object that assembly places in that range through
   any other computation can be overwritten by the helper's frame before the
-  copy reads it.
+  copy reads it. Assembly can also step back from the first heap object into the
+  words below it, as far as `0x80` bytes: the compiler keeps room for that step,
+  which lands in the reserved low words under `solc`. A longer step lands in an
+  earlier heap object, or wraps and runs out of gas under `solc`, and the
+  compiler keeps no room for it, so it can land in a frame. A pointer that
+  assembly rounds down with a mask that clears more than a word can fall
+  further back than the compiler keeps room for, which is at most `0x80` bytes.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -1019,12 +1025,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   supplies, or one that a store through a computed address, a copy, or a byte
   store leaves there. A pointer from the heap is proven, also when moved by an
   offset that cannot wrap the address space, or stepped back from by a
-  constant outside a loop. A word that is also read as data, such as one hashed
-  in scratch memory, or loaded and then compared, hashed, encoded, stored, or
-  used as a key, stays in the slot for those reads, and only the pointer reads
-  see the raised value. The raise is `max(word, heap floor)`, where the heap
-  floor is resolved when frames are placed, so a pass that later folds the
-  word, as inlining does for a helper's argument, cannot remove it.
+  constant of at most `0x80` outside a loop. A word that is also read as data,
+  such as one hashed in scratch memory, or loaded and then compared, hashed,
+  encoded, stored, or used as a key, stays in the slot for those reads, and only
+  the pointer reads see the raised value. The raise is `max(word, heap floor)`,
+  where the heap floor is resolved when frames are placed, so a pass that later
+  folds the word, as inlining does for a helper's argument, cannot remove it.
 
   Each entry places its spill slots and frames clear of every fixed memory
   range that the code it runs names, wherever the range lies, when the area,
