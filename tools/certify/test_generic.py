@@ -1790,7 +1790,17 @@ class LifecycleRun(unittest.TestCase):
     stage that disagrees or a creation the kernel refutes, and 0 only when the kernel builds the
     generated lifecycle module."""
 
-    def drive(self, example, args, res, ast=None, bins=None, frame=False, build=None):
+    def drive(
+        self,
+        example,
+        args,
+        res,
+        ast=None,
+        bins=None,
+        frame=False,
+        build=None,
+        record=None,
+    ):
         src = LIFE / f"{example}.sol"
         if bins is None:
             bins = {
@@ -1850,7 +1860,7 @@ class LifecycleRun(unittest.TestCase):
         )
         generic.frontend = lambda *a, **kw: (0, "-- body", "")
         generic.run_lifecycle_probe, generic.log = fake_probe, (lambda *a, **kw: None)
-        record = {}
+        record = {} if record is None else record
         try:
             with tempfile.TemporaryDirectory() as t, self.assertRaises(SystemExit):
                 a = argparse.Namespace(
@@ -1978,6 +1988,26 @@ class LifecycleRun(unittest.TestCase):
         self.assertEqual(rec["lifecycle"]["stages"][-1]["stage"], "kernel")
         self.assertTrue(rec["lifecycle"]["stages"][-1]["ok"])
         self.assertIn("Certified.x.Lifecycle.statement", rec["lifecycle"]["statement"])
+
+    def test_kernel_proves_with_runtime_loops_open(self):
+        """A source with a runtime loop: the lifecycle tier's CERTIFIED names the loops OPEN and
+        that their fixed-fuel resource obligation is not discharged."""
+        opened = [{"feature": "loop", "where": "LoopRuntime.sol:13", "detail": "d"}]
+        seen, _rec = self.drive(
+            "NoArgCtor",
+            None,
+            REAL["NoArgCtor"][1],
+            self.ctor_ast("NoArgCtor", []),
+            frame=True,
+            build=lambda mod, text: (mod == "Lifecycle", ""),
+            record={"lifecycle_open": opened},
+        )
+        self.assertEqual((seen["status"], seen["code"]), ("CERTIFIED", 0))
+        self.assertIn(
+            "; runtime loops OPEN, outside this tier (LoopRuntime.sol:13): their fixed-fuel "
+            "resource obligation is not discharged",
+            seen["line"],
+        )
 
     def test_kernel_refutes(self):
         seen, rec = self.drive(
@@ -2414,6 +2444,71 @@ class LifecycleEnvelope(unittest.TestCase):
                         src.read_text(), ast, contracts, None, None, False, False
                     )
                 self.assertIn("--tier lifecycle", str(e.exception.reasons))
+
+    def test_runtime_loop_is_open_not_rejected(self):
+        """A runtime loop (LoopRuntime: Counter's shape) does not stop the lifecycle tier: it is
+        recorded OPEN, and no fixed-fuel resource obligation is computed or passed. Every other tier
+        still blocks it, and a loop in the constructor still blocks the lifecycle tier."""
+        src = LIFE / "LoopRuntime.sol"
+        ast, contracts = generic.solc_ast(str(SOLC), src)
+        opened = []
+        contract, _fns, _ = generic.envelope(
+            src.read_text(), ast, contracts, None, None, False, True, opened
+        )
+        self.assertEqual(contract, "LoopRuntime")
+        self.assertEqual([o["feature"] for o in opened], ["loop"])
+        self.assertIn("OPEN, not required here", opened[0]["detail"])
+        for lifecycle, out in ((False, []), (True, None)):
+            with self.assertRaises(generic.Blocked) as e:
+                generic.envelope(
+                    src.read_text(), ast, contracts, None, None, False, lifecycle, out
+                )
+            self.assertIn("loop", [r["feature"] for r in e.exception.reasons])
+        ctor = LIFE / "LoopCtor.sol"
+        ast2, contracts2 = generic.solc_ast(str(SOLC), ctor)
+        opened = []
+        with self.assertRaises(generic.Blocked) as e:
+            generic.envelope(
+                ctor.read_text(), ast2, contracts2, None, None, False, True, opened
+            )
+        self.assertEqual([r["feature"] for r in e.exception.reasons], ["loop"])
+        self.assertEqual(opened, [])
+
+    def test_runtime_loop_cli_reaches_lifecycle(self):
+        """The driver on LoopRuntime with --tier lifecycle passes the envelope with the loop OPEN and
+        never computes the fixed-fuel obligation (it stops later, at the absent solidity-lean)."""
+        with tempfile.TemporaryDirectory() as t:
+            p = subprocess.run(
+                [
+                    sys.executable,
+                    str(HERE / "generic.py"),
+                    str(LIFE / "LoopRuntime.sol"),
+                    "none",
+                    "--tier",
+                    "lifecycle",
+                    "--constructor-args",
+                    "8",
+                    "--solidity-lean",
+                    "/nonexistent",
+                    "--work",
+                    t + "/w",
+                    "--record-dir",
+                    t + "/r",
+                    "--solc",
+                    str(SOLC),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            out = p.stdout + p.stderr
+            self.assertNotIn("resource obligation (fixed fuel)", out)
+            self.assertNotIn("out of gas", out)
+            self.assertIn("lifecycle: runtime loops OPEN", out)
+            rec = json.loads((pathlib.Path(t) / "r" / "record.json").read_text())
+            self.assertEqual([o["feature"] for o in rec["lifecycle_open"]], ["loop"])
+            self.assertTrue(rec["resources"].startswith("OPEN: "))
+            self.assertNotEqual(rec["status"], "CERTIFIED")
 
     def test_cli(self):
         with tempfile.TemporaryDirectory() as t:

@@ -292,8 +292,19 @@ def param_of(p, enums):
 
 
 def envelope(
-    text, ast, contracts, contract, invariants, natspec=False, lifecycle=False
+    text,
+    ast,
+    contracts,
+    contract,
+    invariants,
+    natspec=False,
+    lifecycle=False,
+    open_out=None,
 ):
+    """The source envelope. With LIFECYCLE (--tier lifecycle, which states only the creation), a
+    loop outside the constructor is not a block: it is appended to OPEN_OUT and the runtime's
+    obligations for it (the fixed-fuel resource obligation among them) are recorded OPEN, never
+    discharged; a loop in the constructor still blocks."""
     reasons = []
 
     def block(feature, node, detail):
@@ -345,6 +356,12 @@ def envelope(
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
     own = {n["id"] for n in walk(cdef) if "id" in n}
+    in_ctor = {
+        id(m)
+        for f in walk(cdef)
+        if f.get("nodeType") == "FunctionDefinition" and f.get("kind") == "constructor"
+        for m in walk(f)
+    }
     enums = {}
     for n in walk(ast):
         if n.get("nodeType") == "EnumDefinition":
@@ -362,6 +379,17 @@ def envelope(
             block("external call", n, "try/catch makes an external call")
         elif t == "NewExpression":
             block("contract creation", n, "new creates a contract (CREATE)")
+        elif t in ("ForStatement", "WhileStatement", "DoWhileStatement") and (
+            lifecycle and open_out is not None and id(n) not in in_ctor
+        ):
+            open_out.append(
+                {
+                    "feature": "loop",
+                    "where": line_of(text, n),
+                    "detail": "a runtime loop, outside the lifecycle tier's statement: its fixed-fuel "
+                    "resource obligation and loop proofs are OPEN, not required here",
+                }
+            )
         elif t in ("ForStatement", "WhileStatement", "DoWhileStatement"):
             block(
                 "loop",
@@ -2213,10 +2241,17 @@ def lifecycle_run(
         log(
             f"lifecycle all arguments: {'YES' if life['all_args']['ok'] else 'NO'}: {life['all_args']['detail']}"
         )
+        opened = record.get("lifecycle_open") or []
         finish(
             "CERTIFIED",
             0,
-            f"CERTIFIED: lifecycle: {kq['detail']}",
+            f"CERTIFIED: lifecycle: {kq['detail']}"
+            + (
+                f"; runtime loops OPEN, outside this tier ({', '.join(o['where'] for o in opened)}): "
+                "their fixed-fuel resource obligation is not discharged"
+                if opened
+                else ""
+            ),
             tier_reached="lifecycle",
         )
     if kq["verdict"] == "refuted":
@@ -3959,6 +3994,7 @@ def main():
     try:
         log(f"== generic: {src} ({src_sha}) as {name}, requested tier {tier}")
         ast, contracts = solc_ast(a.solc, src)
+        lifecycle_open = []
         try:
             contract, fns, events = envelope(
                 text,
@@ -3968,6 +4004,7 @@ def main():
                 a.invariants,
                 a.spec == "natspec",
                 tier == "lifecycle",
+                lifecycle_open,
             )
         except Blocked as b:
             if any(r["feature"] == "loop" for r in b.reasons):
@@ -3977,6 +4014,15 @@ def main():
                 loop_resources(record, src, ast, a.contract)
                 raise Blocked(b.reasons + extra) from b
             raise
+        if lifecycle_open:
+            record["lifecycle_open"] = lifecycle_open
+            record["resources"] = (
+                "OPEN: the fixed-fuel resource obligation of the runtime loop(s) is not required at "
+                "the lifecycle tier and is not discharged"
+            )
+            log(
+                f"lifecycle: runtime loops OPEN (not this tier's statement): {[o['where'] for o in lifecycle_open]}"
+            )
         record["contract"] = contract
         record["functions"] = [
             {
