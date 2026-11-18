@@ -39,9 +39,9 @@ GEN_MODULE = "Verify.LoopSource.Equiv.GenObl"
 GEN_FILE = GEN_MODULE.replace(".", "/") + ".lean"
 GEN_FORMAT = "loop obligations 1"
 REFUSED = 2
-# The loop cut hook's lake options: -R so the lakefile is elaborated with this -K; its light cap,
-# 6000 MB, as before.
-LAKE = ["lake", "-R", "-KleanMemory=6000"]
+# The loop cut hook's lake options: -R so the lakefile is elaborated with this -K, at the generated
+# library's cap (generic.GEN_LEAN_MEMORY; Counter's Obl fails the kernel at 6000).
+LAKE = ["lake", "-R", "-KleanMemory=12000"]
 # keep(label, output) -> (log name or None, tail): the driver's keeper of failed builds' logs
 # (generic.keep_log), set by hook; None keeps none.
 KEEP = None
