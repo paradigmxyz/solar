@@ -944,7 +944,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// definition that is its own item, such as the initializer of a local, because the read may
     /// be the only instruction coverage can anchor that item to. A read whose definition encloses
     /// the use, such as a parameter that maps to the whole function, takes the use's origins
-    /// whatever its uses, or the function header would be the stop of every use.
+    /// whatever its uses, or the function header would be the stop of every use. So does a
+    /// parameter read of the function being emitted that a single use reaches from code inlined
+    /// into it, which the definition does not enclose.
     ///
     /// The use's origins apply because the read is re-executed as part of evaluating the use. An
     /// implicit function exit, which maps to the closing brace of the body, evaluates no
@@ -973,11 +975,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let at_implicit_exit =
             || consumer.only_source_span().is_some_and(|user| is_closing_brace(func, user));
+        // A parameter read maps to the definition of its function.
+        let is_parameter_read = || definition.source_span() == Some(func.declaration_span);
         !is_operandless_read(func, value)
             || !consumer.has_source_spans()
             || definition_in_use()
             || at_implicit_exit()
-            || (self.optimization.is_none() || single_use) && !use_in_definition()
+            || (self.optimization.is_none() || single_use && !is_parameter_read())
+                && !use_in_definition()
     }
 
     /// Emits the opcodes that compute `value` under the current origins.

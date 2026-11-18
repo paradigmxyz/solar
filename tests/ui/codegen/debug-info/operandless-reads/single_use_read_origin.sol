@@ -26,6 +26,29 @@
 // CHECK-NOT: caller !metadata(span=[[REQUIRE]])
 // CHECK: caller !metadata(span=[[EMIT:[0-9]+..[0-9]+]])
 // CHECK: log2 !metadata(span=[[EMIT]])
+
+// A parameter read takes the origin of its use even when it has a single use, as the definition of
+// a parameter is the whole function. The use is the `emit` in the inlined body of `emitE`, which
+// the definition does not enclose, and the function header would be the stop in the middle of it.
+
+// CHECK-LABEL: invoke=fromLibrary@
+// CHECK: calldatacopy !metadata(
+// CHECK-NEXT: push 64 !metadata(span=[[INLINED:[0-9]+..[0-9]+]])
+// CHECK-NEXT: dup 4 !metadata(span=[[INLINED]])
+// CHECK-NEXT: add !metadata(span=[[INLINED]])
+// CHECK-NEXT: push 4 !metadata(span=[[INLINED]])
+// CHECK-NEXT: calldataload !metadata(span=[[INLINED]])
+
+interface I {
+    event E(uint64 a, bytes b);
+}
+
+library L {
+    function emitE(uint64 a, bytes memory b) internal {
+        emit I.E(a, b);
+    }
+}
+
 contract W {
     mapping(address => uint256) b;
 
@@ -43,5 +66,15 @@ contract W {
         require(b[msg.sender] >= v);
         b[msg.sender] -= v;
         emit E(msg.sender, v);
+    }
+}
+
+contract C is I {
+    function fromLibrary(uint64 a, bytes calldata b) external {
+        L.emitE(a, b);
+    }
+
+    function direct(uint64 a, bytes calldata b) external {
+        emit I.E(a, b);
     }
 }
