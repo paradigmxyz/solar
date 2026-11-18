@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [parse] Limit the depth of expression trees ([#2708](https://github.com/paradigmxyz/solar/issues/2708))
 - [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
 - [sema] Resolve qualified `@inheritdoc` references ([#2507](https://github.com/paradigmxyz/solar/issues/2507))
 - [parse] Don't panic on invalid binary literals ([#2452](https://github.com/paradigmxyz/solar/issues/2452))

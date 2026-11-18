@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [codegen] Map the implicit function exit to the closing brace ([#2706](https://github.com/paradigmxyz/solar/issues/2706))
+- [codegen] Map tail call argument setup to the call ([#2696](https://github.com/paradigmxyz/solar/issues/2696))
 - [codegen] Cap the heap prefix guard at the heap start ([#2694](https://github.com/paradigmxyz/solar/issues/2694))
 - [codegen] Map tail call entry steps to the call ([#2698](https://github.com/paradigmxyz/solar/issues/2698))
 - [codegen] Leave if arm exits without a location ([#2699](https://github.com/paradigmxyz/solar/issues/2699))
