@@ -7,17 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Bug Fixes
+### Language and diagnostics
 
-- [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
 - [sema] Resolve qualified `@inheritdoc` references ([#2507](https://github.com/paradigmxyz/solar/issues/2507))
-- [lsp] Escape formatter workspace roots ([#2275](https://github.com/paradigmxyz/solar/issues/2275))
-
-### Features
-
-- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
 - [sema] Warn on statements with no effect ([#2410](https://github.com/paradigmxyz/solar/issues/2410))
 - [sema] Add solc codes to resolver errors ([#2321](https://github.com/paradigmxyz/solar/issues/2321))
+
+### Output: ABI, AST, NatSpec and metadata
+
+- [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
+- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
+
+### Language server
+
+- [lsp] Escape formatter workspace roots ([#2275](https://github.com/paradigmxyz/solar/issues/2275))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

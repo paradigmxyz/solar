@@ -7,19 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Bug Fixes
+### Debug info and coverage
+
+- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
+
+### Output: ABI, AST, NatSpec and metadata
+
+- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
+
+### Compile time and memory
+
+- Bump inturn to 0.2.1 and default to all cores ([#2354](https://github.com/paradigmxyz/solar/issues/2354))
+
+### CLI and Standard JSON
 
 - [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
 - [config] Read release tag pins from the dependent's Cargo.lock ([#2404](https://github.com/paradigmxyz/solar/issues/2404))
 - [config] Recognize Cargo git checkouts of release tags ([#2328](https://github.com/paradigmxyz/solar/issues/2328))
-
-### Features
-
-- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
-
-### Performance
-
-- Bump inturn to 0.2.1 and default to all cores ([#2354](https://github.com/paradigmxyz/solar/issues/2354))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

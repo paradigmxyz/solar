@@ -7,11 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Bug Fixes
+### Language and diagnostics
+
+- [sema] Accept library names in inline assembly ([#2654](https://github.com/paradigmxyz/solar/issues/2654))
+- [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
+
+### Code generation: gas and size
+
+- [codegen] Replace branchy bit searches with CLZ ([#2652](https://github.com/paradigmxyz/solar/issues/2652))
+- [codegen] Replace bit scans with CLZ ([#2527](https://github.com/paradigmxyz/solar/issues/2527))
+- [mir] Inline straight-line helpers under stack pressure ([#2596](https://github.com/paradigmxyz/solar/issues/2596))
+- [codegen] Stop zeroing the padding of memory bytes ([#2539](https://github.com/paradigmxyz/solar/issues/2539))
+- [codegen] Encode calldata returns in place ([#2575](https://github.com/paradigmxyz/solar/issues/2575))
+- [codegen] Fold DUPs of known constants in peephole ([#2582](https://github.com/paradigmxyz/solar/issues/2582))
+- [codegen] Drop stack upper bounds, warn on stack overflow ([#2572](https://github.com/paradigmxyz/solar/issues/2572))
+- [codegen] Canonicalize width tests, spell them late ([#2224](https://github.com/paradigmxyz/solar/issues/2224))
+- [codegen] Share ABI decoders of repeated dynamic arrays ([#2303](https://github.com/paradigmxyz/solar/issues/2303))
+- [mir] Price the general select's swap in if-convert ([#2314](https://github.com/paradigmxyz/solar/issues/2314))
+
+### Code generation: features and fixes
 
 - [codegen] Cap the heap prefix guard at the heap start ([#2694](https://github.com/paradigmxyz/solar/issues/2694))
 - [codegen] Bound calldata copies to memory by an unsigned address ([#2548](https://github.com/paradigmxyz/solar/issues/2548))
-- [sema] Accept library names in inline assembly ([#2654](https://github.com/paradigmxyz/solar/issues/2654))
 - [codegen] Keep static length of uninitialized calldata arrays ([#2559](https://github.com/paradigmxyz/solar/issues/2559))
 - [codegen] Cast raw function pointer words to their carrier ([#2541](https://github.com/paradigmxyz/solar/issues/2541))
 - [codegen] Keep boolean selects free of narrow arithmetic ([#2562](https://github.com/paradigmxyz/solar/issues/2562))
@@ -23,7 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [codegen] Evaluate constants read by fixed-bytes length ([#2473](https://github.com/paradigmxyz/solar/issues/2473))
 - [codegen] Scope modifier bindings per invocation ([#2427](https://github.com/paradigmxyz/solar/issues/2427))
 - [codegen] Clean every consumer of raw assembly values ([#2368](https://github.com/paradigmxyz/solar/issues/2368))
-- [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
 - [codegen] Keep the heap above reachable absolute local regions ([#2403](https://github.com/paradigmxyz/solar/issues/2403))
 - [codegen] Evaluate the index base before the index ([#2421](https://github.com/paradigmxyz/solar/issues/2421))
 - [codegen] Read signatures and indexed topics after later arguments ([#2406](https://github.com/paradigmxyz/solar/issues/2406))
@@ -37,25 +53,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [codegen] Keep check-elim ranges nonempty ([#2252](https://github.com/paradigmxyz/solar/issues/2252))
 - [codegen] Drop junk to reach words beyond stack reach ([#2251](https://github.com/paradigmxyz/solar/issues/2251))
 
-### Features
+### Debug info and coverage
 
+- [debug] Preserve origins through IR rewrites ([#2497](https://github.com/paradigmxyz/solar/issues/2497))
 - [codegen] Carry label origins from MIR to JUMPDESTs ([#2416](https://github.com/paradigmxyz/solar/issues/2416))
+- [debuginfo] Keep every origin of shared instructions ([#2373](https://github.com/paradigmxyz/solar/issues/2373))
+- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
+
+### Output: ABI, AST, NatSpec and metadata
+
 - [codegen] Add the solar-cold NatSpec tag ([#2237](https://github.com/paradigmxyz/solar/issues/2237))
 
-### Performance
+### Compile time and memory
 
 - [codegen] Stop stack replans that cannot win ([#2658](https://github.com/paradigmxyz/solar/issues/2658))
-- [codegen] Replace branchy bit searches with CLZ ([#2652](https://github.com/paradigmxyz/solar/issues/2652))
-- [codegen] Replace bit scans with CLZ ([#2527](https://github.com/paradigmxyz/solar/issues/2527))
 - [codegen] Resume stack plans after a spill ([#2532](https://github.com/paradigmxyz/solar/issues/2532))
-- [mir] Inline straight-line helpers under stack pressure ([#2596](https://github.com/paradigmxyz/solar/issues/2596))
-- [codegen] Stop zeroing the padding of memory bytes ([#2539](https://github.com/paradigmxyz/solar/issues/2539))
-- [codegen] Encode calldata returns in place ([#2575](https://github.com/paradigmxyz/solar/issues/2575))
-- [codegen] Fold DUPs of known constants in peephole ([#2582](https://github.com/paradigmxyz/solar/issues/2582))
-- [codegen] Drop stack upper bounds, warn on stack overflow ([#2572](https://github.com/paradigmxyz/solar/issues/2572))
-- [codegen] Canonicalize width tests, spell them late ([#2224](https://github.com/paradigmxyz/solar/issues/2224))
-- [codegen] Share ABI decoders of repeated dynamic arrays ([#2303](https://github.com/paradigmxyz/solar/issues/2303))
-- [mir] Price the general select's swap in if-convert ([#2314](https://github.com/paradigmxyz/solar/issues/2314))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

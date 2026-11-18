@@ -7,15 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Bug Fixes
-
-### Features
-
-- [codegen] Carry label origins from MIR to JUMPDESTs ([#2416](https://github.com/paradigmxyz/solar/issues/2416))
-
-### Performance
+### Code generation: gas and size
 
 - [codegen] Drop stack upper bounds, warn on stack overflow ([#2572](https://github.com/paradigmxyz/solar/issues/2572))
+
+### Debug info and coverage
+
+- [codegen] Carry label origins from MIR to JUMPDESTs ([#2416](https://github.com/paradigmxyz/solar/issues/2416))
+- [debuginfo] Keep every origin of shared instructions ([#2373](https://github.com/paradigmxyz/solar/issues/2373))
+- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

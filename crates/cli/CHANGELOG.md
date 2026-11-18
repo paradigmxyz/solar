@@ -7,18 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Bug Fixes
-
-- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
-- [cli] Report I/O errors from standard JSON and LSP ([#2325](https://github.com/paradigmxyz/solar/issues/2325))
-
-### Features
+### Output: ABI, AST, NatSpec and metadata
 
 - Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
 
-### Performance
+### Compile time and memory
 
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
+
+### CLI and Standard JSON
+
+- [cli] Count the full IPFS leaf size ([#2709](https://github.com/paradigmxyz/solar/issues/2709))
+- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
+- [cli] Report I/O errors from standard JSON and LSP ([#2325](https://github.com/paradigmxyz/solar/issues/2325))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

@@ -7,15 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Bug Fixes
+### Language and diagnostics
 
-- [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
-- [sema] List NatSpec items like solc in docs ([#2655](https://github.com/paradigmxyz/solar/issues/2655))
 - [sema] Accept library names in inline assembly ([#2654](https://github.com/paradigmxyz/solar/issues/2654))
-- [sema] Join NatSpec text like solc in docs ([#2653](https://github.com/paradigmxyz/solar/issues/2653))
+- [sema] Warn on deprecated send and transfer ([#2597](https://github.com/paradigmxyz/solar/issues/2597))
 - [sema] Resolve qualified `@inheritdoc` references ([#2507](https://github.com/paradigmxyz/solar/issues/2507))
 - [sema] Require abstract for unimplemented fallback and receive ([#2519](https://github.com/paradigmxyz/solar/issues/2519))
 - [sema] Skip nameless items in member lookup ([#2490](https://github.com/paradigmxyz/solar/issues/2490))
+- [sema] Warn on statements with no effect ([#2410](https://github.com/paradigmxyz/solar/issues/2410))
 - [sema] Evaluate constant receivers of folded paths ([#2480](https://github.com/paradigmxyz/solar/issues/2480))
 - [sema] Reject view and pure fallback functions ([#2451](https://github.com/paradigmxyz/solar/issues/2451))
 - [sema] Reject arithmetic on fixed bytes ([#2446](https://github.com/paradigmxyz/solar/issues/2446))
@@ -23,25 +22,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [sema] Stop stack overflows on recursive structs and inheritance cycles ([#2449](https://github.com/paradigmxyz/solar/issues/2449))
 - [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
 - [sema] Report inherited conflicts at the later declaration ([#2326](https://github.com/paradigmxyz/solar/issues/2326))
-- [sema] Resolve Yul let initializers before the new names ([#2308](https://github.com/paradigmxyz/solar/issues/2308))
-- [sema] Reject duplicate Yul switch cases ([#2309](https://github.com/paradigmxyz/solar/issues/2309))
-
-### Features
-
-- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
-- [sema] Warn on deprecated send and transfer ([#2597](https://github.com/paradigmxyz/solar/issues/2597))
-- [sema] Warn on statements with no effect ([#2410](https://github.com/paradigmxyz/solar/issues/2410))
 - [sema] Add solc codes to resolver errors ([#2321](https://github.com/paradigmxyz/solar/issues/2321))
 - [sema] Add code 6651 to data location errors ([#2319](https://github.com/paradigmxyz/solar/issues/2319))
 - [sema] Add code and suggestion to checksum error ([#2318](https://github.com/paradigmxyz/solar/issues/2318))
+- [sema] Resolve Yul let initializers before the new names ([#2308](https://github.com/paradigmxyz/solar/issues/2308))
+- [sema] Reject duplicate Yul switch cases ([#2309](https://github.com/paradigmxyz/solar/issues/2309))
+
+### Output: ABI, AST, NatSpec and metadata
+
+- [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
+- [sema] List NatSpec items like solc in docs ([#2655](https://github.com/paradigmxyz/solar/issues/2655))
+- [sema] Join NatSpec text like solc in docs ([#2653](https://github.com/paradigmxyz/solar/issues/2653))
+- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
 - [codegen] Add the solar-cold NatSpec tag ([#2237](https://github.com/paradigmxyz/solar/issues/2237))
 
-### Performance
+### Compile time and memory
 
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
 - [sema] Reuse per-item results across contracts ([#2660](https://github.com/paradigmxyz/solar/issues/2660))
 - [sema] Index typeck results by id ([#2656](https://github.com/paradigmxyz/solar/issues/2656))
-- [sema] Walk each body once for the call graph ([#2648](https://github.com/paradigmxyz/solar/issues/2648))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

@@ -59,3 +59,61 @@ commit.
 - [ ] Raise their MSRV if solar's `rust-version` is higher.
 
 These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).
+
+## Changelog format
+
+The root `CHANGELOG.md` is the release note. `crates/solar/CHANGELOG.md` stays a symlink to it, and
+each version appears once in every changelog file. `cargo release` runs `git-cliff` with
+[`cliff.toml`](cliff.toml), which writes the area sections below from conventional-commit types and
+scopes. Edit its output by hand into this order:
+
+1. **Breaking changes and compatibility.** Only when there is something to say; cliff fills it from
+   `!` commits, and you add the rest. List the MSRV, a changed default (and what it costs), code that
+   used to compile and now errors, output that changes for the same input (bytecode, ABI, NatSpec,
+   source maps, flags, Standard JSON), and removed or renamed flags. Say who is affected.
+2. **Highlights.** Written by hand, grouped by the area names below, a few bullets per group with
+   linked PRs and numbers. Cover only what users notice.
+3. **Area sections.** Generated, in this order, one line per user-facing change, newest first:
+   Language and diagnostics; Code generation: gas and size; Code generation: features and fixes;
+   Debug info and coverage; Output: ABI, AST, NatSpec and metadata; Compile time and memory; CLI and
+   Standard JSON; Language server. Features, fixes and performance changes share a section, because
+   the commit scope and subject already say which is which. Write a fix in the section of the
+   behavior it changes: a codegen change that only makes source maps better belongs to Debug info
+   and coverage.
+
+The grouping comes from the commit, so keep the scope honest when you write one: `sema`, `parse`,
+`ast` and `lint` land in Language and diagnostics; `codegen`, `mir`, `evmir`, `ir` and `inline` in
+Code generation (`perf` goes to gas and size); `cli`, `config` and `interface` in CLI and Standard
+JSON; `lsp` in Language server. A `perf` with a frontend scope, or none, goes to Compile time and
+memory. Subjects that mention debug info, origins, source maps, spans or coverage go to Debug info
+and coverage, and subjects that mention NatSpec, the AST, the ABI, metadata or storage layout go to
+Output. A commit that matches nothing lands in Other: move it to its area or delete it. To change a
+rule, edit `commit_parsers` in `cliff.toml`; the numbers in the group names order the sections.
+
+### What to drop
+
+- Dependency bumps, CI, bench, tester, test, refactor, chore, docs about agents or the release
+  process, and merge commits. Cliff already skips these by type and scope.
+- Revert pairs: delete both the change and its revert.
+- Fixes for a bug introduced in the same release, and follow-ups to a change in the same release.
+- Runs of related internal fixes. Collapse them into the one entry that names the user-visible result,
+  such as "Source maps keep the origin of code through rewrites", and keep the PRs that explain it.
+- Compile-time wins that cliff filed under codegen go to Compile time and memory; move them.
+
+### Numbers
+
+Use only measurements that a merged PR body states, with the PR linked next to the number. Quote
+the baseline and the result, name the input (`seaport-1.6`, `prb-math`, a 6,132-file corpus), and
+give the unit and the build level (`-Ogas`, `-Osize`, `-j1`). Report regressions and trade-offs the
+PR states, such as a contract that grows or memory that rises. Do not average across PRs or round up.
+If a PR gives no number, describe the change without one.
+
+### Why this format
+
+solc lists "Language Features", "Compiler Features", "Bugfixes" and "Build System", and prefixes each
+line with a component such as "Code Generator:" or "SMTChecker:". rustc groups by audience (Language,
+Compiler, Libraries, Cargo, Compatibility Notes) and keeps compatibility separate. Go and LLVM go by
+component (compiler, linker, runtime; IR, debug info, backends) after a short list of the main changes.
+We list areas, because a Solidity developer looks for what changes in the bytecode, the diagnostics
+and the build time, and most of our commits share the `codegen` scope, so the scope alone says little.
+The area carries what solc's component prefix and rustc's section names carry.
