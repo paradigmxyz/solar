@@ -1493,11 +1493,12 @@ pass on an empty map.
 - Status: intentional
 - Difference: a pure internal function without modifiers whose only statement
   returns a struct constructor, such as `make(a, b)` with the body
-  `return P(a, b);`, has no entry, and neither has its `return`. The code that
-  builds the struct maps to each call, `make(x, 1)` and `make(x, 2)`. `solc`
-  emits the function once and maps its `return` to it. A helper that reads a
-  named return variable is not inlined and keeps its entry, and so does one
-  that a call inside its own expansion reaches again.
+  `return P(a, b);`, has no entry, and neither has its `return`, when every use
+  is a direct call that lowering expands. The code that builds the struct maps
+  to each call, `make(x, 1)` and `make(x, 2)`. `solc` emits the function once
+  and maps its `return` to it. A use that needs the function itself keeps its
+  entry: a function pointer, a read of a named return variable, or a call that
+  a call inside the expansion reaches again.
 - Rationale: MIR lowering inlines the function into each call, so the code runs
   at the call and the call is its location.
 - Coverage:
