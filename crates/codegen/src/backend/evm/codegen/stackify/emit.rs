@@ -716,8 +716,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// call's location), and the copies that set up a call's arguments carry the call's location,
     /// so the arguments of a tail call map to the call, not to the `return`. The jump keeps the
     /// call too, unless a statement of its own follows the call, see
-    /// [`Self::tail_call_follows_statement`]. Scheduler steps that precede the block's first
-    /// instruction still take the `return` span, see [`Self::set_insertion_origin`].
+    /// [`Self::tail_call_follows_statement`]. The scheduler steps that precede the block's first
+    /// instruction take the call's origin too, see [`Self::set_insertion_origin`].
     fn terminator_origin<'f>(
         func: &'f Function,
         block: BlockId,
