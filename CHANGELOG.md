@@ -128,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Code generation: features and fixes
 
+- [codegen] Follow calldata addresses through calls ([#2564](https://github.com/paradigmxyz/solar/issues/2564))
 - [codegen] Cap the heap prefix guard at the heap start ([#2694](https://github.com/paradigmxyz/solar/issues/2694))
 - [codegen] Bound calldata copies to memory by an unsigned address ([#2548](https://github.com/paradigmxyz/solar/issues/2548))
 - [codegen] Keep static length of uninitialized calldata arrays ([#2559](https://github.com/paradigmxyz/solar/issues/2559))
