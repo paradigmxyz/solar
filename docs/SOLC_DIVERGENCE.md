@@ -1091,7 +1091,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   memory reference, a word loaded from a memory object, and a call result as
   heap pointers, and raises only constants and calldata words stored into the
   free memory pointer slot, also when a call passes or returns them, and an
-  external function's integer parameters count as calldata words. Such a
+  external function's integer and calldata reference parameters count as
+  calldata words. Such a
   block cannot store a low address into an object's field without breaking its
   promise. An unmarked block that writes no memory (no `mstore`, `mstore8`,
   copy, or call, and no assignment to a memory reference) breaks no promise

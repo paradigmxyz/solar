@@ -3,9 +3,10 @@
 //! Each word gets the set of origins it may have: computed from constants alone, from constants
 //! and calldata, or from anything else, such as the heap or a loaded word. The sets follow the
 //! values through the whole module, so a function's parameters hold what its callers pass and a
-//! call's result holds what the callee returns. The integer parameters of an external entry hold
-//! calldata words. A set keeps every origin some execution can give the word, so a parameter that
-//! one caller feeds calldata and another feeds a heap pointer still reports calldata.
+//! call's result holds what the callee returns. The integer and calldata reference parameters of an
+//! external entry hold calldata words. A set keeps every origin some execution can give the word,
+//! so a parameter that one caller feeds calldata and another feeds a heap pointer still reports
+//! calldata.
 //!
 //! The analysis only sees values that move through registers. A word the module stores to memory
 //! and loads again is `Other`, and so is a function's second and later results once lowering moves
@@ -101,7 +102,7 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
     }
     // The parameters of a function nothing in the module calls, or that the outside calls too, hold
     // what the outside passes. For an external entry that is the decoded calldata, so its integer
-    // parameters are calldata words and anything else is unknown.
+    // and calldata reference parameters are calldata words and anything else is unknown.
     let outside = module.root_functions();
     let entries = module.external_entries();
     let mut state = State {
@@ -115,7 +116,12 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
                         if !outside.contains(func_id) && called[func_id] {
                             AddressInputs::NONE
                         } else if entries.contains(func_id)
-                            && matches!(func.arg_ty(index), MirType::Int(_))
+                            && matches!(
+                                func.arg_ty(index),
+                                MirType::Int(_)
+                                    | MirType::Ptr(PtrLocation::Calldata)
+                                    | MirType::Slice(PtrLocation::Calldata)
+                            )
                         {
                             AddressInputs::CALLDATA
                         } else {
@@ -226,7 +232,9 @@ impl State {
                     AddressInputs::OTHER
                 }
                 InstKind::Select(_, lhs, rhs) => inputs[*lhs].union(inputs[*rhs]),
-                InstKind::Zext(inner) | InstKind::IntToPtr(inner) => inputs[*inner],
+                InstKind::Zext(inner)
+                | InstKind::IntToPtr(inner)
+                | InstKind::PtrToInt(inner, _) => inputs[*inner],
                 // A struct holds the union of its fields, so a multi-result call's result keeps
                 // what its callee inserts. An undefined base adds no field.
                 InstKind::InsertValue { aggregate, value, .. } => match func.value(*aggregate) {
