@@ -39,6 +39,9 @@ GEN_MODULE = "Verify.LoopSource.Equiv.GenObl"
 GEN_FILE = GEN_MODULE.replace(".", "/") + ".lean"
 GEN_FORMAT = "loop obligations 1"
 REFUSED = 2
+# The loop cut hook's lake options: -R so the lakefile is elaborated with this -K; its light cap,
+# 6000 MB, as before.
+LAKE = ["lake", "-R", "-KleanMemory=6000"]
 # keep(label, output) -> (log name or None, tail): the driver's keeper of failed builds' logs
 # (generic.keep_log), set by hook; None keeps none.
 KEEP = None
@@ -274,9 +277,7 @@ def obligations(
     (fd / "Gen.lean").write_text(gen_driver(name, contract, fname, sel, nargs, summary))
     # lake env lean runs Gen.lean against built imports only, so build them first.
     deps = [GEN_MODULE, *gen_imports(name, contract, fname, summary)]
-    rc, out, err = run(
-        ["lake", "build", "-KleanMemory=6000", *deps], cwd=lean_dir, env=lake_env
-    )
+    rc, out, err = run([*LAKE, "build", *deps], cwd=lean_dir, env=lake_env)
     if rc != 0:
         raise Stop(
             "obligations",
@@ -284,7 +285,7 @@ def obligations(
             kept(f"{name}.Loops.{fname}.GenImports", out + err),
         )
     rc, out, err = run(
-        ["lake", "env", "lean", "--run", str(fd / "Gen.lean")],
+        [*LAKE, "env", "lean", "--run", str(fd / "Gen.lean")],
         cwd=lean_dir,
         env=lake_env,
     )
@@ -309,7 +310,7 @@ def obligations(
     if missing:
         raise Stop("obligations", f"the generator did not write {', '.join(missing)}")
     rc, out, err = run(
-        ["lake", "build", "-KleanMemory=6000", obl.replace("/", ".")],
+        [*LAKE, "build", obl.replace("/", ".")],
         cwd=lean_dir,
         env=lake_env,
     )

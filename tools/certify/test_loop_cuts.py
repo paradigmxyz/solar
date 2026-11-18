@@ -66,10 +66,10 @@ class Fake:
             if "cut" in self.fail:
                 return 2, "", "loop_equiv: refused"
             return generic.run(cmd)
-        if cmd[:4] == ["lake", "env", "lean", "--run"]:
+        if cmd[:6] == [*lc.LAKE, "env", "lean", "--run"]:
             if "gen" in self.fail:
                 return 2, "", "no measure"
-            name = pathlib.Path(cmd[4]).parent.parent.parent.name
+            name = pathlib.Path(cmd[-1]).parent.parent.parent.name
             pre = f"{name}/Loops/bump/"
             mods = [pre + m for m in ("Data", "V0", "Obl")]
             if "nowrite" not in self.fail:
@@ -81,7 +81,7 @@ class Fake:
                 {"format": lc.GEN_FORMAT, "modules": mods, "measure": "fun s => s.hw 1"}
             )
             return 0, line + "\n", ""
-        if cmd[:2] == ["lake", "build"]:
+        if cmd[:4] == [*lc.LAKE, "build"]:
             return (1, "error: V0", "") if "build" in self.fail else (0, "", "")
         raise AssertionError(f"unexpected command {cmd}")
 
