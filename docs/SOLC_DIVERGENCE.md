@@ -365,8 +365,10 @@ thread, which `-j1` uses, in a release build.
 
 Coverage: `tests/ui/parser/expr_depth_limit.sol`,
 `tests/ui/parser/expr_depth_limit_max.sol`,
-`tests/ui/parser/expr_depth_limit_postfix.sol` and
-`tests/ui/parser/expr_depth_limit_nested.sol`.
+`tests/ui/parser/expr_depth_limit_postfix.sol`,
+`tests/ui/parser/expr_depth_limit_nested.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_member.sol` and
+`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`.
 
 ## AST Validation
 

@@ -1,5 +1,5 @@
 error: expression is too deeply nested
-   ╭▸ ROOT/tests/ui/parser/expr_depth_limit_stmt_with.sol:LL:CC
+   ╭▸ ROOT/tests/ui/parser/expr_depth_limit_stmt_index_binary.sol:LL:CC
    │
 LL │ …     ^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a
    ╰╴                                                                                                        ━

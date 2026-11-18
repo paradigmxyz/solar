@@ -44,7 +44,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         // Nested expressions merge their depth into the outer value when they finish. A `with`
-        // expression is already counted.
+        // expression carries its depth in `expr_depth` already.
         let outer_depth = if with.is_some() { 0 } else { std::mem::take(&mut self.expr_depth) };
         let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(self.token);
