@@ -181,11 +181,20 @@ pub(super) fn lower(
         lowerer.lower_function_body(hir_function.modifiers, body, hir_function.span)?;
     }
     if !lowerer.is_terminated() {
-        // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(declaration_span);
+        // Like a clang epilogue, the implicit exit belongs to the body's closing brace. The
+        // definition's first line would read as re-entering the function.
+        // ret named_returns !metadata(closing brace)
+        lowerer
+            .builder
+            .replace_source_span(hir_function.body.map_or(declaration_span, closing_brace));
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
+}
+
+/// The span of the final `}` of `body`.
+fn closing_brace(body: hir::Block<'_>) -> Span {
+    body.span.with_lo(body.span.hi() - 1)
 }
 
 /// Lowers the synthetic constructor used when state initializers exist without
