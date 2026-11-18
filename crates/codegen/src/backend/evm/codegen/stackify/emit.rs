@@ -425,7 +425,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
-        self.set_insertion_origin(func, block, body);
+        self.set_insertion_origin(func, block, body, &plan.exit);
         let leading = body.iter().take_while(|step| !matches!(step, Step::Begin(_))).count();
         let mut label_spans = label_origin.source_spans();
         let label_span = label_spans.next().filter(|_| label_spans.next().is_none());
@@ -673,13 +673,24 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Attributes the code that precedes the first instruction that `steps` begin to that
-    /// instruction, or else to the block's terminator.
+    /// instruction, else to the call that a tail-call `exit` folds in, else to the block's
+    /// terminator.
     ///
     /// Scheduler code, such as the pops that clean the stack at the start of a block, belongs to no
     /// instruction of its own. It takes the location of the instruction it precedes, as rustc's
     /// `MirPatch::source_info_for_index` gives inserted code the source info of the statement it
     /// goes before, and LLVM puts a spill or copy at `findDebugLoc` of its insertion point.
-    fn set_insertion_origin(&mut self, func: &Function, block: BlockId, steps: &[Step]) {
+    ///
+    /// NOTE: With no instruction before a tail call, the insertion point is the tail call, which
+    /// LLVM lowers to one `TCRETURN` that keeps the call's `DebugLoc` (`X86ISelLowering.cpp`
+    /// `LowerCall`), so the code before it takes the call's origin.
+    fn set_insertion_origin(
+        &mut self,
+        func: &Function,
+        block: BlockId,
+        steps: &[Step],
+        exit: &Exit,
+    ) {
         if !self.capture_debug_info {
             return;
         }
@@ -687,7 +698,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::Begin(inst) => Some(&func.inst(*inst).metadata),
             _ => None,
         });
-        let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
+        let metadata = next.unwrap_or(match *exit {
+            Exit::TailCall { origin: Some(call), .. } => &func.inst(call).metadata,
+            _ => &func.blocks[block].terminator_metadata,
+        });
         self.set_origins(metadata);
     }
 
