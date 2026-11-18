@@ -999,7 +999,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         res
     }
 
-    /// Adds a level to the depth of the expression under construction, and errors when it exceeds
+    /// Adds a level to the depth of the expression under construction, and checks it against
     /// [`PARSER_EXPR_DEPTH_LIMIT`].
     ///
     /// `expr_depth` holds the depth of the expression the current `parse_binary_expr` call has
@@ -1007,6 +1007,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[inline]
     fn bump_expr_depth(&mut self) -> PResult<'sess, ()> {
         self.expr_depth += 1;
+        self.check_expr_depth()
+    }
+
+    /// Errors when the depth of the expression under construction exceeds
+    /// [`PARSER_EXPR_DEPTH_LIMIT`].
+    #[inline]
+    fn check_expr_depth(&mut self) -> PResult<'sess, ()> {
         if self.expr_depth > PARSER_EXPR_DEPTH_LIMIT {
             return Err(self.expr_depth_limit_reached());
         }
