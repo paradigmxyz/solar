@@ -246,8 +246,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Kept out of line so that its buffers take no space in other statements.
     #[inline(never)]
     fn parse_simple_stmt_tuple(&mut self, lo: Span) -> PResult<'sess, StmtKind<'ast>> {
-        // The tuple becomes a `with` expression, which continues the depth of its components.
-        self.expr_depth = 0;
         let mut none_elements = SmallVec::<[_; 8]>::new();
         while self.eat(TokenKind::Comma) {
             none_elements.push(self.prev_token.span.shrink_to_hi());
@@ -377,6 +375,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
     fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
+        // A statement starts a new expression, and the tuple branch of `parse_simple_stmt_tuple`
+        // continues the depth of its components.
+        self.expr_depth = 0;
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
@@ -428,7 +429,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         // The path becomes a chain of expressions that `parse_expr_with` extends, so it counts
         // toward the expression depth. It is checked once it is known to be an expression, since a
         // type path is not one.
-        self.expr_depth = 0;
         // Check elementary types first: `[u]fixedMxN` names are also non-reserved identifiers.
         if self.check_elementary_type() {
             let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
