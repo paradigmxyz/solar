@@ -637,11 +637,48 @@ callee bodies, and applies the Lean proofs to the matched SSA.
   outcome, returndata bytes, memory and return pointer. The typed check
   binds both sides to the same GAS producer and retains the entire shared
   prefix, continuation and called helper. Returndata length plus 63 must
-  fit in a word. Pricing caller instructions and establishing physical
-  budgets after backend lowering remain separate obligations.
+  fit in a word. The separate scheduled-gas certificate below derives the
+  boundary budget for the captured Morpho schedule.
 
-The certificates cover these exact shapes. General loop invariants, dynamic
-placement and physical gas correspondence remain outside the sample.
+The frozen certificates cover these exact shapes. General loop invariants,
+dynamic placement and whole-pipeline physical gas correspondence remain
+outside the sample.
+
+### Exact scheduled CALL gas
+
+The separate `call-budget` check imports the pinned Morpho
+`safeTransferFrom` scheduled runtime. It checks the assembler's concrete
+PUSH widths, JUMPDEST, guard target and fallthrough. Symbolic stack
+projection checks the seven CALL operands and the ordered ABI writes,
+including the selector, both addresses and the amount. The compiler
+disassembly and the projection into priced events are trusted inputs to
+the kernel proof.
+
+Lean proves the price for every starting budget in the admitted domain.
+The state at entry supplies the free-memory pointer, active memory words
+and account warmth. The no-code edge retains gas after the guard. On the
+CALL edge, fixed work including GAS costs 142, the probe costs 100 or
+2,600, and the memory charge is the difference in memory costs between
+entry and the highest touched word. That highest word covers the complete
+CALL input. CALL therefore adds a warm charge of 100 without further
+memory expansion, value charge or stipend. If the budget is insufficient,
+the checked prefix runs out of gas.
+
+If the child enters, the computed parent gas after CALL charges is `a`.
+The child gets `a - a / 64` and the parent retains `a / 64` before unused
+child gas is returned. The theorem also covers an earlier GAS sample under the same
+entry budget. Every earlier sample is at least the computed available
+gas, so it reaches the same cap even if the sampled words differ.
+The frozen MIR-only check still takes its boundary budget as an input.
+The scheduled proof stops at the CALL or no-code transfer and covers
+the scheduled stage before later EVM optimizations.
+
+The witness runs the captured setup in a priced wrapper. Its child
+returns its own GAS word. Inserting a paid `PUSH0; POP` between GAS and
+CALL lowers the forwarded budget by four. Both Lean and the independent
+Rust executor observe 95,578 versus 95,574. Compiling the Morpho input
+with and without the schedule dump yields identical ABI and creation and
+runtime bytecode.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |

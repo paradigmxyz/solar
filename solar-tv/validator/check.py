@@ -255,7 +255,7 @@ def definition(name: str, program: Program) -> str:
     return declaration.replace("__IMPORT__", name)
 
 
-def build_model(timeout: int) -> subprocess.CompletedProcess:
+def build_model(timeout: int, module: str = "SolarTV") -> subprocess.CompletedProcess:
     # Multiple compiler workers can enter on a cold Lake cache. Only the build
     # needs exclusion; independent pair proofs can run in parallel afterward.
     if os.name == "nt":
@@ -266,14 +266,14 @@ def build_model(timeout: int) -> subprocess.CompletedProcess:
         with (cache / "solar-tv.lock").open("a+b") as lock:
             lock.seek(0)
             msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
-            return run(["lake", "build", "SolarTV"], ROOT, timeout)
+            return run(["lake", "build", module], ROOT, timeout)
 
     import fcntl
 
     # Share the dependency's build lock with the existing EVM rule prover.
     with (ROOT.parent / "scripts/evm-rules/lean/lakefile.toml").open("rb") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        return run(["lake", "build", "SolarTV"], ROOT, timeout)
+        return run(["lake", "build", module], ROOT, timeout)
 
 
 def check(
@@ -619,6 +619,10 @@ def check(
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "call-budget":
+        from . import call_budget
+
+        return call_budget.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "summarize":
         return audit.summarize(sys.argv[2:])
     parser = argparse.ArgumentParser(

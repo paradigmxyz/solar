@@ -1461,6 +1461,27 @@ effects with a shared GAS sample and caller budget at the call boundary.
 Reports state those conditions and identify the certificate. See
 [the proof boundaries](CORRECTNESS.md#remaining-obligations).
 
+### Pricing Morpho's scheduled CALL
+
+Run the exact-gas certificate on the pinned Morpho runtime and replay a broken
+schedule independently in Rust.
+
+```sh
+solar-tv/solar-tv call-budget --output target/morpho-call-budget
+```
+
+The command captures the compiler's scheduled EVM IR, checks the resolved
+branch and instruction sequence against its assembly, and proves the price
+from the entry of `safeTransferFrom` through CALL. It includes the cold or warm
+`EXTCODESIZE` guard, memory expansion, the actual GAS observation, and EIP-150
+forwarding. An extra `PUSH0; POP` between GAS and CALL changes the child
+observation from 95,578 to 95,574 gas in the replay harness. The output
+directory contains the Lean proof input, scheduled IR, and replay files.
+
+The certificate starts at the internal function entry with a well-formed stack
+and byte memory. Later EVM passes and the remainder of the caller are outside
+this check. [Proof details](CORRECTNESS.md#exact-scheduled-call-gas)
+
 ### Removing unused MIR type declarations
 
 `--prune` also checks complete named-type table erasure when every function,
