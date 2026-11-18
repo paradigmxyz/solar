@@ -1395,23 +1395,3 @@ reported.
 Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
 `tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.
 
-## Debug Info and Source Maps
-
-### DEBUG-008: A `return` or `leave` after a tail call that falls through
-
-- ID: DEBUG-008
-- Status: intentional
-- Difference: in `f(a); return;` and in Yul `f(a) leave`, where the call is the
-  last thing the function does and does not enclose the `return` or `leave`, the
-  `return` or `leave` has no source-map entry if layout places the callee right
-  after the caller, so the tail call falls through into it. `solc` maps the
-  `return` or `leave` to the jump that leaves the function. When the jump
-  stays, as for the second of two callers of one callee, `solar` maps the jump
-  to the statement.
-- Rationale: a tail call and the `return` after it are one instruction in LLVM,
-  which gives it the call's location, and `solar` does the same for the argument
-  setup. With the jump gone, the statement has no code, and mapping the call's
-  code to it would invent a location it does not execute for. A `return` that
-  encloses the call, as in `return f(a);`, and the implicit return that ends a
-  function map to the call.
-- Coverage: `tests/ui/codegen/debug-info/stackify_tail_call_statement.sol`.
