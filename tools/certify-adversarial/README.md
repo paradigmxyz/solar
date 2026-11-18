@@ -49,3 +49,8 @@ ungated or failing control fails it; all three passing passes).
 
 Run-level tests: `bash test_ns.sh test_run.sh "$PWD"` (fake driver and cargo: controls first, replay
 arguments, stop on a failing control, producer commit check).
+
+Controls across phases: `join_controls.py C1_DIR C1_SHAS C2_DIR C2_SHAS OUT` joins each control's c1
+archive with its c2 replay (both checked against their digest lists; c2 must have replayed the same
+record) and reruns `gate.py`; `run.sh` does this before the table when `JOIN_C1_DIR`, `JOIN_C1_SHAS`,
+`JOIN_C2_DIR` and `JOIN_C2_SHAS` are set (phase c3). Tests: `python3 test_join.py`.

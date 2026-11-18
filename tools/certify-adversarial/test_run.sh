@@ -82,4 +82,30 @@ pr CARGO_HOME=$T/ch | grep -q "external Cargo config $T/ch/config.toml" && ok "p
 rm -rf "$T/ch"
 mkdir -p "$S/target"; env SOLAR_DIR=$S SOLAR_SHA=$BC bash "$H/producer.sh" "$T/p.json" 2>&1 | grep -q 'target exists; the build must start empty' && ok "producer refuses a non-empty target" || bad "target"
 rm -rf "$S/target"
+# c3: negatives only, then the controls joined from stand-in c1 and c2 archives.
+grep -vP '^control-' "$H/cases.tsv" > "$T/c3.tsv"
+J=$T/join; mkdir -p "$J/c1" "$J/c2"
+for n in control-flag control-siblingok control-flagrenamed; do
+  mkdir -p "$J/s1/$n/rec" "$J/s2/$n/rec"
+  printf '{"solar": {"build": {"provenance_version": 2}}, "strict": {"tier": "certified", "holds": true}, "tier_reached": "certified", "replay": {"closure": 3, "replayed_count": 3, "trusted_count": 0, "unaccounted": []}}
+' > "$J/s1/$n/rec/record.json"
+  cp "$J/s1/$n/rec/record.json" "$J/s2/$n/rec/record.json"
+  printf 'START x
+DONE exit=0 expect=0 match=yes class=control stage_ok=no replay=skipped-c1 producer=ok
+' > "$J/s1/$n/status"
+  printf '== x
+CERTIFIED: %s: the requested tier holds (record r)
+' "$n" > "$J/s1/$n/certify.log"
+  echo '{"result": "ok"}' > "$J/s1/$n/producer-check.json"
+  printf 'START x
+DONE exit=0 replay=PASS closure=3
+' > "$J/s2/$n/status"
+  tar -C "$J/s1" -czf "$J/c1/$n.tgz" "$n"; tar -C "$J/s2" -czf "$J/c2/$n.tgz" "$n"
+done
+(cd "$J/c1" && sha256sum *.tgz) > "$J/c1.sha256"; (cd "$J/c2" && sha256sum *.tgz) > "$J/c2.sha256"
+go g CASES=$T/c3.tsv SLOTS=5 JOIN_C1_DIR=$J/c1 JOIN_C1_SHAS=$J/c1.sha256 JOIN_C2_DIR=$J/c2 JOIN_C2_SHAS=$J/c2.sha256
+grep -q 'JOIN exit=0 JOIN PASS' "$T/g/run.log" && ok "c3: controls joined from c1 and c2" || bad "c3 join: $(grep JOIN "$T/g/run.log"; cat "$T/g/join.log" 2>/dev/null)"
+grep -q '^Control gate: PASS' "$T/g/table.md" && grep -q 'Semantic rejections counted: 2 of 13' "$T/g/table.md" && ok "c3: gate PASS over joined controls, 2 counted" || bad "c3 table: $(grep -A1 'Control gate' "$T/g/table.md")"
+go h CASES=$T/c3.tsv SLOTS=5 JOIN_C1_DIR=$J/c1 JOIN_C1_SHAS=$J/c1.sha256 JOIN_C2_DIR=$J/c1 JOIN_C2_SHAS=$J/c1.sha256
+grep -q '^Control gate: FAIL' "$T/h/table.md" && grep -q 'Semantic rejections counted: 0 of 13' "$T/h/table.md" && ok "c3: a c2 without replay=PASS leaves the gate FAIL, nothing counted" || bad "c3 h: $(grep -A1 'Control gate' "$T/h/table.md")"
 echo "fails=$fails"; exit $fails

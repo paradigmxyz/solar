@@ -103,5 +103,14 @@ cg=$(sed -n 's/^0:://p' /proc/self/cgroup | head -1)
     echo "memory.peak $(cat "/sys/fs/cgroup$cg/memory.peak" 2>/dev/null || echo unreadable)"
     echo "memory.events $(tr '\n' ' ' < "/sys/fs/cgroup$cg/memory.events" 2>/dev/null)"
 } > "$OUT/run-scope.txt"
-python3 "$here/table.py" "$OUT" "$CASES" "$here/stages.tsv" > "$OUT/table.md"
+table_cases=$CASES
+# Phase c3: the controls ran in c1 and c2 on other machines; join their archives (checked against
+# their digest lists) into OUT so the gate is over the registered controls, then table every case.
+if [[ -n "${JOIN_C1_DIR:-}" ]]; then
+    python3 "$here/join_controls.py" "$JOIN_C1_DIR" "$JOIN_C1_SHAS" "$JOIN_C2_DIR" "$JOIN_C2_SHAS" "$OUT" \
+        > "$OUT/join.log" 2>&1
+    log "JOIN exit=$? $(tail -1 "$OUT/join.log")"
+    table_cases=$here/cases.tsv
+fi
+python3 "$here/table.py" "$OUT" "$table_cases" "$here/stages.tsv" > "$OUT/table.md"
 log "RUN-DONE"
