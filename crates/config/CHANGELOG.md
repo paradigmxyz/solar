@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
+
+### Bug Fixes
+
+- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
+- [config] Read release tag pins from the dependent's Cargo.lock ([#2404](https://github.com/paradigmxyz/solar/issues/2404))
+- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
+- [config] Recognize Cargo git checkouts of release tags ([#2328](https://github.com/paradigmxyz/solar/issues/2328))
+
+### Features
+
+- Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
+
+### Performance
+
+- Bump inturn to 0.2.1 and default to all cores ([#2354](https://github.com/paradigmxyz/solar/issues/2354))
+
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 
 ### Bug Fixes
