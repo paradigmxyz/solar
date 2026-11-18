@@ -22,7 +22,8 @@
 #   1         generic.py SOURCE natspec --contract Token --base <pin>; the caller route verbatim.
 #             BLOCKED (msg.sender) on mint is a terminal result: the source is never edited
 #   2         generic.py --replay (the driver's fresh cold run of the record): trusted 0, axioms
-#   3         negatives, each of which must be refused (a refusal is a PASS):
+#   3         negatives, each of which must be refused with a named receipt (copied to
+#             OUT_DIR/neg-receipts; a crash, BLOCKED or unnamed refusal is OPEN, never PASS):
 #             wrong-spec (transfer's self-transfer ensures flipped, a full run that must not
 #             reach CERTIFIED), swapped-bytecode (another contract's runtime through final.py and
 #             the kernel) and hsep-slot (the generated MapSlotsSeparated hypothesis moved to
@@ -202,6 +203,11 @@ L=$w/run1/solidity-lean
 shape=$L/Certified/$NAME/shape.json
 [[ -f $shape ]] || finish "FAILED: $shape missing after step 1" 1
 neg_fail=0 neg_open=0 open_cases=""
+R=$out/neg-receipts; mkdir -p "$R"
+# A refusal counts only with a named receipt: an exit status and the line naming the stage that
+# refused (a SpecConnect theorem, final.py's own check, or a kernel error), never a crash, a
+# BLOCKED exit, a resource failure or a setup error. Excerpts matching these are not named.
+INFRA='unknown module|unknown package|object file|does not exist|No such file|Permission denied|failed to (load|read)|excessive memory|deterministic\) timeout|heartbeats|recursion depth|out of memory|Killed|Traceback'
 # wrong-spec: transfer's self-transfer ensures flipped; a full run must not reach CERTIFIED.
 mkdir -p "$w/neg-spec"; WS=$w/neg-spec/verify_token.sol
 sed 's|msg.sender == to ==> balanceOf\[to\] == old(balanceOf\[to\])$|msg.sender == to ==> balanceOf[to] == old(balanceOf[to]) + amount|' "$SRC" > "$WS"
@@ -211,9 +217,19 @@ else
         --solidity-lean "$w/sl" --base "$SL_PIN" --work "$w/run-neg-spec" --record-dir "$out/neg-spec-record" \
         --no-negatives --packages-from "$L" > "$out/neg-spec.txt" 2>&1
     rc=$?; last=$(tail -1 "$out/neg-spec.txt")
+    st=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", ""))' "$out/neg-spec-record/record.json" 2> /dev/null)
+    named=$(grep -m1 'spec_connect: REJECTED: spec:' "$out/neg-spec-record/certify.log" 2> /dev/null)
+    printf 'exit %s\nstatus %s\nverdict %s\nspec_connect %s\n' "$rc" "$st" "$last" "$named" > "$R/wrong-spec.txt"
     if (( rc == 124 || rc == 125 )); then log "NEG wrong-spec: OPEN (exit $rc)"; neg_open=1; open_cases+=" wrong-spec"
     elif (( rc == 0 )); then log "NEG wrong-spec: ACCEPTED = FAIL (${last:0:200})"; neg_fail=1
-    else log "NEG wrong-spec: refused = PASS (exit $rc: ${last:0:200})"; fi
+    elif (( rc == 1 )) && [[ $st == REJECTED && $last == *"REJECTED: spec:"* && -n $named ]]; then
+        # generic.py:3924: SpecConnect elaborated and a named theorem of it does not check.
+        log "NEG wrong-spec: refused = PASS (exit 1, named: ${named:0:300})"
+    elif [[ $last == *"REJECTED: driver:"* ]]; then
+        log "NEG wrong-spec: setup broken = FAIL (exit $rc: ${last:0:200})"; neg_fail=1
+    else
+        log "NEG wrong-spec: no named refusal = OPEN (exit $rc: ${last:0:200})"; neg_open=1; open_cases+=" wrong-spec"
+    fi
 fi
 # swapped-bytecode and hsep-slot through final_neg.sh's own variant machinery (its preamble and
 # variant(), unchanged, then these cases).
@@ -248,13 +264,32 @@ EOF
 HEX=$(tr -d '[:space:]' < "$L/Certified/$NAME/bytecode.hex")
 run_step 3-neg-final env CERTIFY_LEAN_MEMORY="$LEAN_MEMORY" bash "$w/neg_variants.sh" "$L" Certified "$NAME" Token "$HEX" > "$out/neg-final.txt" 2>&1
 rc=$?; sed 's/^/NEG /' "$out/neg-final.txt" | tee -a "$steps"
-# A case without its refusal line is OPEN only when the step hit the time gate (124 or 125),
-# and FAIL otherwise; an acceptance is always FAIL.
+# Receipts: the variants' own outputs (final.py, statement, Final, checker, replay), no oleans.
+nw=$L/.lake/certify-final-neg-$NAME
+[[ -d $nw ]] && (cd "$nw" && find . -path '*/olean' -prune -o -type f \( -name '*.out' -o -name '*.err' -o -name '*.json' \) -print0 |
+    xargs -0 -r cp --parents -t "$R")
+cp "$out/neg-final.txt" "$R/neg-final.txt"
+# An acceptance is FAIL. A nonzero exit other than the time gate is the variants' own setup
+# failing (die) or an acceptance: FAIL. Per case: PASS only with a named refusal (final.py's own
+# message, or a kernel or checker error excerpt that is not an infrastructure failure); a refusal
+# line without one is OPEN; a missing line is OPEN at the time gate, else FAIL.
 grep -q 'ACCEPTED' "$out/neg-final.txt" && neg_fail=1
 (( rc == 0 || rc == 124 || rc == 125 )) || neg_fail=1
 for c in swapped-bytecode hsep-slot; do
-    grep -q "^$c: refused" "$out/neg-final.txt" && continue
-    if (( rc == 124 || rc == 125 )); then neg_open=1; open_cases+=" $c"; else neg_fail=1; fi
+    line=$(grep -m1 "^$c: refused" "$out/neg-final.txt")
+    if [[ -z $line ]]; then
+        if (( rc == 124 || rc == 125 )); then neg_open=1; open_cases+=" $c"; log "NEG $c: OPEN (cut off)"
+        else neg_fail=1; log "NEG $c: no refusal line = FAIL"; fi
+        continue
+    fi
+    ex=$(sed -n 's/^[^(]*(\(.*\))$/\1/p' <<< "$line")
+    echo "$line" > "$R/$c.txt"
+    if [[ -n $ex ]] && { [[ $line == "$c: refused by final.py ("* && $ex == final.py:* ]] ||
+        [[ $line != "$c: refused by final.py ("* && $ex == *error* ]]; } && ! grep -qE "$INFRA" <<< "$ex"; then
+        log "NEG $c: refused = PASS (named: ${ex:0:200})"
+    else
+        neg_open=1; open_cases+=" $c"; log "NEG $c: no named refusal = OPEN (${line:0:200})"
+    fi
 done
 # Precedence FAIL over OPEN over PASS.
 if (( neg_fail )); then negatives=FAIL; elif (( neg_open )); then negatives="OPEN(cut off:$open_cases)"; else negatives=PASS; fi
