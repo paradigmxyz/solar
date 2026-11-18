@@ -1,0 +1,95 @@
+{
+  "schema": "solar-certify-generic/1",
+  "name": "countermut_022d6958",
+  "started": "2026-11-18T00:35:44+00:00",
+  "command": [
+    "/home/hand/h2/r1/tools/certify/certify",
+    "/home/hand/h2/acc/CounterMut.sol",
+    "none",
+    "--contract",
+    "Counter",
+    "--solidity-lean",
+    "/home/hand/h2/sl",
+    "--base",
+    "f1c19a7f217cdcc1a80ddbf87e6146d83273468f",
+    "--work",
+    "/home/hand/h2/acc/wb-b-mutsrc",
+    "--record-dir",
+    "/home/hand/h2/acc/blight-f1c19a7f/rec-b-mutsrc",
+    "--solc",
+    "/home/hand/.cache/solc/solc-0.8.35",
+    "--probe-cache",
+    "/home/hand/h2/cache",
+    "--loop-summary",
+    "bump=Verify.LoopSource.Equiv.Counter.Summary:Verify.LoopSource.Equiv.CounterSummary.summary"
+  ],
+  "requested_tier": "compiled",
+  "source": {
+    "file": "/home/hand/h2/acc/CounterMut.sol",
+    "sha256": "022d695899d77e698bbcba466af6ec0d6b7a9c4cf42efe3fb903a750d60b1e78"
+  },
+  "spec": {
+    "kind": "none",
+    "sha256": null
+  },
+  "invariants": {
+    "file": null,
+    "sha256": null
+  },
+  "options": [
+    "-Ogas",
+    "--evm-version",
+    "osaka"
+  ],
+  "solar": {
+    "commit": "ea124c8915f454e588024b6d8296023a6950da32",
+    "dirty": false
+  },
+  "solc": {
+    "version": "0.8.35",
+    "path": "/home/hand/.cache/solc/solc-0.8.35",
+    "sha256": "fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4"
+  },
+  "lean_toolchain": {
+    "recorded_digest": "953aa1e72283c07686567bb71eeb3fca202baafe2958a7e57987d3b8c4434c25"
+  },
+  "loop_cuts_solar_sha256": "4615823d97ae4758519f95a8e2f8fe945117d8e77b8ec2fa71347463d553f070",
+  "loop_heads": {
+    "path": "/home/hand/h2/acc/wb-b-mutsrc/loops/loop-heads.json",
+    "sha256": "293b3b4b723f38047e1a389ec421c9576ba5e40cf99d5c6fd53d719fe34d102e",
+    "checked": true
+  },
+  "loop_cuts": {},
+  "loop_cuts_blocked": {
+    "bump": {
+      "step": "obligations",
+      "why": "the generator refuses: loop obligations: refused: the summary was proved for another function or body than the imported one"
+    }
+  },
+  "resource_obligation": {
+    "kind": "fixed-fuel",
+    "loop": {
+      "function": "bump",
+      "src": "708:64:0",
+      "M": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+      "limit": "word"
+    },
+    "final_evm_ir": "Evm7",
+    "header": 8,
+    "B": 2,
+    "X": 3,
+    "E": 2,
+    "F": 231584178474632390847141970017375815706539969331281128078915168015826259279875,
+    "M": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+    "bmax": 32,
+    "memory": 12,
+    "per_iteration_gas": 1414400,
+    "exit_gas": 3536012,
+    "G": 163776331017260026807098801196288176867665066311082013777408806820792330562727600012,
+    "verdict": "out-of-gas",
+    "lean": "Verify.Gas.FixedFuel.verdictOf (some 115792089237316195423570985008687907853269984665640564039457584007913129639935) 1414400 3536012"
+  },
+  "rejected_for": "resource: out of gas",
+  "status": "REJECTED",
+  "finished": "2026-11-18T00:43:26+00:00"
+}

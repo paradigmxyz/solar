@@ -1,0 +1,5 @@
+== generic: /home/hand/h2/acc/CounterMut.sol (022d695899d77e698bbcba466af6ec0d6b7a9c4cf42efe3fb903a750d60b1e78) as countermut_022d6958, requested tier compiled
+loop heads: 293b3b4b723f38047e1a389ec421c9576ba5e40cf99d5c6fd53d719fe34d102e; loop functions bump
+loop cut bump: BLOCKED at obligations: the generator refuses: loop obligations: refused: the summary was proved for another function or body than the imported one
+resource obligation (fixed fuel): REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)
+REJECTED: resource: out of gas: the fixed bound 163776331017260026807098801196288176867665066311082013777408806820792330562727600012 is at least 2^64 (115792089237316195423570985008687907853269984665640564039457584007913129639935 iterations, word limit, of at most 2 blocks)

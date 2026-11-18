@@ -1,0 +1,11 @@
+{
+ "lean_base": {"selected": "f1c19a7f217cdcc1a80ddbf87e6146d83273468f", "selected_tree": "acc699ca6f32d324edbaca61072e56be0f3330da", "default_pin": "334d1d924f8f6c29ac827fd81d1cc739721b479a"},
+ "solar": {"r1": "ea124c8915f454e588024b6d8296023a6950da32", "worktree": "/home/hand/h2/r1 (single writer: this runner; the producer built fresh there before the 7dfef816 cases, reused for f1c19a7f)"},
+ "sources": {"CounterFn.sol": "5fc81856e19da3b1ae84d75f5f7eeb3d12cca84358f45e800e5ddcd6f5413ea8", "CounterMut.sol": "022d695899d77e698bbcba466af6ec0d6b7a9c4cf42efe3fb903a750d60b1e78"},
+ "summary": "Verify.LoopSource.Equiv.Counter.Summary:Verify.LoopSource.Equiv.CounterSummary.summary",
+ "z3": "1bfaf5bbe81fd0b7800500ee08eef426aaabe18f8b9c4c4c32adffcd72f86cd5",
+ "solc": "fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4",
+ "producer": {"binary_sha256": "4615823d97ae4758519f95a8e2f8fe945117d8e77b8ec2fa71347463d553f070", "binary_path": "/home/hand/h2/r1/target/debug/solar", "embedded_commit": "ea124c8915f454e588024b6d8296023a6950da32", "driver_commit": "ea124c8915f454e588024b6d8296023a6950da32", "dirty": false, "profile": "debug", "features": "mimalloc,tracing", "build_command": "cargo build --locked --bin solar --bin solar-verify", "built_on": "hosted Hand, fresh target in the r1 worktree", "solar_verify_sha256": "c19754273ada85b28044b8ff627511b69c97e454c75c5397d56a06d61a1e2d91", "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)"},
+ "light": "the Obl build is refused by light-r1.py; these cases stop at the generator",
+ "edge_open": "the published statement does not apply loop_equiv yet; resources OPEN; lifecycle OPEN"
+}
