@@ -1320,6 +1320,8 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     #[semantics(load_storage_array(slot, element, enum_variants))]
     StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
+    /// Copy a memory bytes object into storage. Overflow when rounding its byte
+    /// length to a word boundary is a memory allocation overflow (`Panic(0x41)`).
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]

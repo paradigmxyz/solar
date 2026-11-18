@@ -169,7 +169,7 @@ class MirStorageBytesTests(unittest.TestCase):
         for body, code, world in [
             (
                 f"mstore 128, {maximum}\nv0 = inttoptr i256 128 to ptr<memory>\nstore_storage_bytes 3, v0\nret 0",
-                0x11,
+                0x41,
                 fixture(),
             ),
             ("v0 = load_storage_bytes 3\nret 0", 0x41, fixture({3: maximum})),
@@ -180,18 +180,21 @@ class MirStorageBytesTests(unittest.TestCase):
                 )
                 self.pair(state.module(body), expected, fixture=world)
 
-    def test_lower_builtin_disagrees_on_forged_bytes_length(self):
+    def test_lower_builtin_preserves_memory_extent_panic(self):
         source = state.module(
             f"mstore 128, {2**256 - 1}\n"
             "v0 = inttoptr i256 128 to ptr<memory>\n"
             "store_storage_bytes 3, v0\nret 0"
         )
-        _, record = self.pair(source, lower(source), fixture=fixture(), status=1)
+        after = self.lowered_pair(source)
+        broken = after.replace("mstore 32, 65", "mstore 32, 17")
+        self.assertNotEqual(after, broken)
+        _, record = self.pair(source, broken, fixture=fixture(), status=1)
         witness = record["witness"]
         self.assertEqual(record["evidence"], "kernel-and-rust-replay")
         self.assertEqual(witness["observations"], witness["native_observations"])
         for observation, code in zip(
-            witness["observations"], (0x11, 0x41), strict=True
+            witness["observations"], (0x41, 0x11), strict=True
         ):
             self.assertEqual(observation["outcome"], "revert")
             self.assertEqual(

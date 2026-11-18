@@ -620,23 +620,25 @@ has a proved interpreter embedding.
 
 The two remaining frozen pairs are both from `lower-builtins`:
 
-- OpenZeppelin's `store_storage_bytes` has a concrete counterexample in the
-  current MIR semantics. Put the maximum word in the length header and supply
-  any valid empty storage header. The original builtin reverts with
-  `Panic(0x11)`; the lowered addition reverts with `Panic(0x41)`. Lean and
-  independent Rust replay agree on both payloads. This is malformed memory, so
-  the witness does not establish a discrepancy on a valid Solidity byte array.
-  The reduced regression generates the real lowering for an object at address
-  128. An unrestricted check must account for the mismatch. A proof restricted
-  to valid memory objects would also need a producer obligation and a storage
-  loop invariant.
+- OpenZeppelin's `store_storage_bytes` exposed a model error. The reference
+  interpreters used the arithmetic panic `0x11` when rounding the memory
+  length overflowed. The opcode contract now specifies the memory allocation
+  panic `0x41` already used by the compiler's memory-extent check. The
+  real-lowering regression checks both interpreters on a forged length and
+  rejects a changed panic payload. The Lean header decoder covers all 256-bit
+  headers. The clearing-loop invariant tracks the index independently of the
+  wrapping slot address, and the write-plan theorem matches full and partial
+  words to the reference range. Connecting these proofs to the captured store
+  body still requires SSA and state correspondence for its write loop.
 - Morpho's `safeTransferFrom` samples GAS before encoding the call data, then
   passes that word to CALL. `MIR.LowerAddressCall.memoryObjectArguments` proves
   that, given the same requested gas word, the typed call and the explicit
-  header load prepare the same CALL request and frame. The surrounding caller
-  prefix still needs priced correspondence from GAS sampling to CALL, followed
-  by a proof for the return-buffer lowering. This local lemma does not change
-  the frozen pair's status.
+  header load prepare the same CALL request and frame. The forwarding lemma
+  applies the EIP-150 cap if the post-charge budget is at most the sampled
+  word. The returndata proof matches the rounding, allocation, header write
+  and copy for representable lengths. The captured function still requires a
+  proof that its caller prefix establishes the gas relation and correspondence
+  linking these local lemmas to its SSA.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.

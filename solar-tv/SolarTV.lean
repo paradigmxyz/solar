@@ -48,6 +48,9 @@ import SolarTV.EVMIR.StackGraph
 import SolarTV.MIR.Transforms.FreshHeap
 import SolarTV.MIR.Transforms.TypeDCE
 import SolarTV.MIR.Transforms.LowerAddressCall
+import SolarTV.MIR.Transforms.LowerReturndata
+import SolarTV.MIR.Transforms.LowerStorageHeader
+import SolarTV.MIR.Transforms.StorageWordLoop
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -346,3 +349,27 @@ import SolarTV.MIR.Transforms.LowerAddressCall
 /-- info: 'SolarTV.MIR.LowerAddressCall.memoryObjectArguments' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.LowerAddressCall.memoryObjectArguments
+
+/-- info: 'SolarTV.MIR.LowerAddressCall.forwardSample' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAddressCall.forwardSample
+
+/-- info: 'SolarTV.MIR.LowerReturndata.materialize' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerReturndata.materialize
+
+/-- info: 'SolarTV.MIR.LowerStorageHeader.decode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerStorageHeader.decode
+
+/-- info: 'SolarTV.MIR.StorageWordLoop.clear_corresponds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.StorageWordLoop.clear_corresponds
+
+/-- info: 'SolarTV.MIR.LowerReturndata.memoryObjectCall' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerReturndata.memoryObjectCall
+
+/-- info: 'SolarTV.MIR.StorageWordLoop.fullWordsThenPartial' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.StorageWordLoop.fullWordsThenPartial

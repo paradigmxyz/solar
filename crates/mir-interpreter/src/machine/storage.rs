@@ -6,7 +6,7 @@
 use super::{Outcome, Run, calldata_word, limit, panic_data};
 use alloy_primitives::U256;
 use solar_evmir::op;
-use solar_mir::AllocationSemantics;
+use solar_mir::{AllocationSemantics, PanicCode};
 use std::ops::ControlFlow;
 
 impl Run<'_, '_, '_> {
@@ -93,7 +93,9 @@ impl Run<'_, '_, '_> {
             limit(self.memory.load(object))?
         };
         let Some(rounded) = length.checked_add(U256::from(31)) else {
-            return ControlFlow::Break(Outcome::Revert(panic_data(U256::from(0x11))));
+            return ControlFlow::Break(Outcome::Revert(panic_data(U256::from(
+                PanicCode::MemoryAllocationOverflow as u8,
+            ))));
         };
         let short = length < U256::from(32);
         let count = if short { U256::ZERO } else { rounded / U256::from(32) };

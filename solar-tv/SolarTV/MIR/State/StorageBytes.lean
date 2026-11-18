@@ -30,9 +30,8 @@ def clearStorageWords (cfg : Config) (frame : Frame) (slot first last : Word) : 
   let count := last.toNat - first.toNat
   if count > 2048 then .error "MIR storage work limit of 2048 words" else
   if count > 0 && cfg.environment.isStatic then return .invalid else
-  let mut frame := frame
-  for i in List.range count do
-    frame ← storageWrite cfg frame (base + first + BitVec.ofNat 256 i) 0
+  let frame ← (List.range count).foldlM
+    (fun state i => storageWrite cfg state (base + first + BitVec.ofNat 256 i) 0) frame
   return .returned (none,frame)
 
 def loadStorageBytes (cfg : Config) (frame : Frame) (slot : Word) : Step := do
@@ -79,7 +78,8 @@ def storeStorageBytes (cfg : Config) (frame : Frame) (slot : Word)
       | none => do
         let memory ← expand frame.memory object.toNat 32
         pure ((readWord memory object.toNat).toNat,{frame with memory})
-    if length + 31 ≥ 2^256 then return .reverted (.panic 0x11) else
+    -- The bytes extent, rather than a Solidity arithmetic expression, overflows.
+    if length + 31 ≥ 2^256 then return .reverted (.panic 0x41) else
     let mut frame := frame
     let count := if length < 32 then 0 else (length + 31) / 32
     if oldLong && oldLength > length then

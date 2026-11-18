@@ -1450,9 +1450,10 @@ The frozen 24-check sample remains **22 verified, 2 unsupported**. All six
 previously cycle-rejected DCE pairs in the broader capture set now verify.
 They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and three
 Morpho `extSloads` captures.
-The explicit-world replay of the unsupported OpenZeppelin
-`lower-builtins` pair confirms a panic-code difference for a forged bytes
-header. See [the remaining obligations](CORRECTNESS.md#remaining-obligations).
+The OpenZeppelin `lower-builtins` replay found a mismatch in the reference
+panic code. Both interpreters now follow the memory-extent contract, with a
+regression against the real lowered code. See
+[the remaining obligations](CORRECTNESS.md#remaining-obligations).
 
 ### Removing unused MIR type declarations
 
