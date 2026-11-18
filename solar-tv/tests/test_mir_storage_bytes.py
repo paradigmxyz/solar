@@ -26,27 +26,32 @@ def fixture(slots=None):
     }
 
 
+def lower(source):
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "storage.mir"
+        path.write_text(source)
+        result = subprocess.run(
+            [
+                SOLAR,
+                path,
+                "-Ogas",
+                "-Zmir-pipeline=lower-builtins,lower-slices,lower-memory-objects,lower-mapping-slots",
+                "-Zvalidate-ir=true",
+            ],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+    return result.stdout
+
+
 class MirStorageBytesTests(unittest.TestCase):
     pair = state.MirStateTests.pair
 
     def lowered_pair(self, source, world=None):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "storage.mir"
-            path.write_text(source)
-            result = subprocess.run(
-                [
-                    SOLAR,
-                    path,
-                    "-Ogas",
-                    "-Zmir-pipeline=lower-builtins,lower-slices,lower-memory-objects,lower-mapping-slots",
-                    "-Zvalidate-ir=true",
-                ],
-                text=True,
-                capture_output=True,
-                check=True,
-            )
-        self.pair(source, result.stdout, fixture=world or fixture())
-        return result.stdout
+        after = lower(source)
+        self.pair(source, after, fixture=world or fixture())
+        return after
 
     def test_header_validation_and_panic_selector(self):
         for header, valid in [
@@ -174,3 +179,22 @@ class MirStorageBytesTests(unittest.TestCase):
                     f"mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000\nmstore 4, {code}\nrevert 0, 36"
                 )
                 self.pair(state.module(body), expected, fixture=world)
+
+    def test_lower_builtin_disagrees_on_forged_bytes_length(self):
+        source = state.module(
+            f"mstore 128, {2**256 - 1}\n"
+            "v0 = inttoptr i256 128 to ptr<memory>\n"
+            "store_storage_bytes 3, v0\nret 0"
+        )
+        _, record = self.pair(source, lower(source), fixture=fixture(), status=1)
+        witness = record["witness"]
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(witness["observations"], witness["native_observations"])
+        for observation, code in zip(
+            witness["observations"], (0x11, 0x41), strict=True
+        ):
+            self.assertEqual(observation["outcome"], "revert")
+            self.assertEqual(
+                bytes(observation["data"]),
+                bytes.fromhex("4e487b71") + code.to_bytes(32, "big"),
+            )

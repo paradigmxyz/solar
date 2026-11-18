@@ -616,8 +616,27 @@ presentation table. All 47 functions, including unreachable bodies, are
 independently exported with resolved types. The kernel checks the complete
 typed tables and retained text for equality. This is the structural certificate
 described above, not a claim that every primitive operation or physical layout
-has a proved interpreter embedding. The two remaining frozen cases still need
-storage-loop invariants and a priced GAS/call boundary, respectively.
+has a proved interpreter embedding.
+
+The two remaining frozen pairs are both from `lower-builtins`:
+
+- OpenZeppelin's `store_storage_bytes` has a concrete counterexample in the
+  current MIR semantics. Put the maximum word in the length header and supply
+  any valid empty storage header. The original builtin reverts with
+  `Panic(0x11)`; the lowered addition reverts with `Panic(0x41)`. Lean and
+  independent Rust replay agree on both payloads. This is malformed memory, so
+  the witness does not establish a discrepancy on a valid Solidity byte array.
+  The reduced regression generates the real lowering for an object at address
+  128. An unrestricted check must account for the mismatch. A proof restricted
+  to valid memory objects would also need a producer obligation and a storage
+  loop invariant.
+- Morpho's `safeTransferFrom` samples GAS before encoding the call data, then
+  passes that word to CALL. `MIR.LowerAddressCall.memoryObjectArguments` proves
+  that, given the same requested gas word, the typed call and the explicit
+  header load prepare the same CALL request and frame. The surrounding caller
+  prefix still needs priced correspondence from GAS sampling to CALL, followed
+  by a proof for the return-buffer lowering. This local lemma does not change
+  the frozen pair's status.
 
 These limits remain explicit. They must be removed with semantics, proofs and
 regressions rather than suppressed statuses or stronger unrecorded assumptions.

@@ -47,6 +47,7 @@ import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
 import SolarTV.MIR.Transforms.FreshHeap
 import SolarTV.MIR.Transforms.TypeDCE
+import SolarTV.MIR.Transforms.LowerAddressCall
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -341,3 +342,7 @@ import SolarTV.MIR.Transforms.TypeDCE
 /-- info: 'SolarTV.MIR.DeadSlice.extract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.DeadSlice.extract
+
+/-- info: 'SolarTV.MIR.LowerAddressCall.memoryObjectArguments' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAddressCall.memoryObjectArguments
