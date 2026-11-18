@@ -344,7 +344,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             value,
             &self.heap_pointer_return_functions,
             &self.heap_pointer_args[func_id],
-            u64::MAX,
+            // The heap prefix guard reserves nothing for a longer step back.
+            EvmMemoryLayout::HEAP_START,
             visiting,
             memo,
         )

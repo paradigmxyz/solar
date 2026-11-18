@@ -16,8 +16,9 @@
 //! a direct constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
-//! and one-word literals used once per emitted artifact. Shared void forwarders
-//! that add arguments stay shared to avoid duplicating their setup.
+//! and one-word literals used once per emitted artifact. After memory lowering,
+//! a memory pointer is one word and no longer counts as a reference. Shared void
+//! forwarders that add arguments stay shared to avoid duplicating their setup.
 //!
 //! After memory lowering, frame allocation and multi-word return staging cannot
 //! be introduced again. At this stage the pass also partially clones returning
@@ -34,8 +35,9 @@
 //!
 //! Clones of callees with several blocks, when the callee has phis or the call sits
 //! in a loop, need a stack estimate: backward liveness gives the callee's peak live
-//! words and the caller words surviving the call, and their sum must fit twelve
-//! words, leaving headroom for operand staging. This bounds spills but does not
+//! words and the caller words surviving the call, and their sum must fit
+//! `Target::inline_stack_budget`, twelve words or fourteen under the size objective,
+//! leaving headroom for operand staging. This bounds spills but does not
 //! promise the scheduler emits none. A single-block clone needs no estimate: the
 //! call it replaces holds the same caller words and a return address.
 //!
@@ -153,7 +155,7 @@ impl MirPass for Inline {
         if physical && !tagged_only {
             edited_later = guards::inline_guards(gcx, module);
             if !target.optimization().is_none() && dispatch::inline_dispatch(module) {
-                let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
+                let _ = super::cfg_simplify::remove_dead_functions(module, analyses);
                 edited_later = true;
             }
         }
@@ -253,6 +255,7 @@ struct MirInlineSummary {
     /// its carried words inside the caller's.
     has_loop: bool,
     has_unsupported_terminator: bool,
+    /// Returns a slice, or a memory pointer before memory lowering.
     has_reference_return: bool,
     /// A one-block helper that forwards an argument, slice components, or one internal call.
     /// Such wrappers are safe to inline even when the value is memory-backed.
@@ -290,7 +293,7 @@ impl MirInliner {
         .then(|| ArtifactCallCounts::new(module));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
         let mut consumed_everywhere =
-            all_sites::consumed_everywhere(self, module, &summaries, &call_counts);
+            all_sites::consumed_everywhere(gcx, self, module, &summaries, &call_counts);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         // Inline only into the callers that `call_counts` covers, so the count updates below stay
@@ -389,7 +392,7 @@ impl MirInliner {
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site.block, site.inst_index)
                         .saturating_add(peak)
-                        > Target::INLINE_STACK_BUDGET
+                        > caller_target.inline_stack_budget()
                     {
                         continue;
                     }
@@ -570,11 +573,6 @@ impl MirInliner {
             }
         }
 
-        let has_reference_return = module
-            .function(site.callee)
-            .return_components()
-            .iter()
-            .any(|&ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)));
         let memory_wrapper = is_memory_wrapper(module.function(site.callee));
         let tiny = summary.block_count == 1
             && summary.return_count == 1
@@ -586,7 +584,7 @@ impl MirInliner {
                 } else {
                     4
                 }
-            && (!has_reference_return
+            && (!summary.has_reference_return
                 || summary.is_transparent_forwarder
                 || (single_call && summary.is_small_literal_return))
             && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
@@ -607,7 +605,7 @@ impl MirInliner {
             && summary.block_count == 1
             && summary.instruction_count <= 64
             && !summary.has_icall
-            && !has_reference_return
+            && !summary.has_reference_return
             && !summary.has_control_flow;
         let storage = gas && self.shares_storage_read(module, caller, site);
         let bounded = summary.instruction_count <= 96
@@ -1900,7 +1898,7 @@ impl<'a> InlineCloner<'a> {
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
             // cloned_block: cloned_terminator !metadata(callee block)
             self.caller.blocks[caller_block].terminator = Some(term);
-            let mut metadata = block.terminator_metadata.clone();
+            let mut metadata = block.terminator_metadata.without_operand_facts();
             self.adopt_call_loc(&mut metadata);
             self.caller.blocks[caller_block].terminator_metadata = metadata;
         }

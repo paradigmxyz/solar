@@ -10,10 +10,7 @@ use crate::proto::{self, LocationConverter, PositionIndex};
 use lsp_types::{Location, Position, Url};
 use solar_interface::{
     Span,
-    data_structures::{
-        Never,
-        map::{FxHashMap, FxHashSet},
-    },
+    data_structures::map::{FxHashMap, FxHashSet},
 };
 use solar_sema::{
     Gcx,
@@ -132,7 +129,7 @@ fn collect_type_sources(
     ty: Ty<'_>,
     sources: &mut Vec<Url>,
 ) {
-    let _: ControlFlow<Never> = ty.visit(&mut |ty| {
+    let _: ControlFlow<!> = ty.visit(&mut |ty| {
         let item = match ty.kind {
             TyKind::Contract(id) | TyKind::Super(id) => Some(ItemId::Contract(id)),
             TyKind::Struct(id) => Some(ItemId::Struct(id)),

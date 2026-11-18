@@ -13,8 +13,8 @@ fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f83
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -181,8 +181,8 @@ fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, a
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

@@ -1,0 +1,21 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/scheduling/hoisted_constants.sol:HoistedConstants ===
+@module HoistedConstants
+; function store(uint256 a, uint256 b) public pure returns (uint256 r) [selector 0x6ed28ed0]
+fn @store(arg0: i256, arg1: i256) -> i256 [selector=0x6ed28ed0, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = add v0, arg1
+    mstore v1, 7
+    v2 = mload 20 !metadata(memory=scratch)
+    ret v2
+}
+
+; function clear(uint256 a, uint256 b) public pure returns (uint256 r) [selector 0x41ee903e]
+fn @clear(arg0: i256, arg1: i256) -> i256 [selector=0x41ee903e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = add v0, arg1
+    mstore v1, 0
+    v2 = mload 20 !metadata(memory=scratch)
+    ret v2
+}

@@ -11,12 +11,13 @@ use crate::{
                 select::{InstKindOpcode, rematerializable_nullary_value},
                 values::gas_minus,
             },
+            ir::Metadata,
             op,
         },
     },
     mir::{
-        BlockId, Callee, Function, FunctionId, InstId, InstKind, InstructionMetadata, Module,
-        PtrLocation, StackReturn, Terminator, Value, ValueId,
+        BlockId, Callee, EdgeAssignment, Function, FunctionId, InstId, InstKind,
+        InstructionMetadata, Module, PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -26,6 +27,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -379,11 +381,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (label, steps, target, source) in trampolines {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
-            self.set_terminator_origin(func, source);
+            let terminator_origin = Self::terminator_origin(func, source, None);
+            self.set_terminator_origin(terminator_origin);
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
-            for step in &steps {
-                self.emit_stackified_step(func_id, func, step, cold);
+            let assignments = self.edge_assignments(func, source, target);
+            let records = self.edge_records(func, source, target);
+            let dropped_exit = !records.is_empty()
+                && records.iter().all(|record| record.dropped_exit == Some(true));
+            self.emit_edge_steps(func_id, func, terminator_origin, &steps, assignments, cold);
+            // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
+            // The jump replaces the arm's jump, so it keeps that jump's location, as LLVM's
+            // Preserve rule gives a replacement the location of what it replaces. The jump out of
+            // an `if` arm has none, and the branch's origin would show the condition's line again
+            // after the arm ran.
+            if dropped_exit {
+                self.asm.set_source_span(None);
+                self.asm.set_debug_loc_kind(DebugLocKind::Dropped);
             }
             self.emit_stackified_jump(target, None);
         }
@@ -412,7 +426,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
-        self.set_insertion_origin(func, block, body);
+        let terminator_origin = Self::terminator_origin(func, block, Some(&plan.exit));
+        self.set_insertion_origin(func, block, body, &plan.exit);
         let leading = body.iter().take_while(|step| !matches!(step, Step::Begin(_))).count();
         let mut label_spans = label_origin.source_spans();
         let label_span = label_spans.next().filter(|_| label_spans.next().is_none());
@@ -433,13 +448,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stackified_step(func_id, func, step, cold);
                 self.asm.set_debug_origin(insertion);
             } else {
-                self.emit_stackified_step(func_id, func, step, cold);
+                self.emit_block_step(func_id, func, terminator_origin, step, cold);
             }
         }
-        self.set_terminator_origin(func, block);
-        for step in terminator {
-            self.emit_stackified_step(func_id, func, step, cold);
-        }
+        self.set_terminator_origin(terminator_origin);
+        let assignments = match plan.exit {
+            Exit::Jump(target) => self.edge_assignments(func, block, target),
+            _ => Vec::new(),
+        };
+        self.emit_edge_steps(func_id, func, terminator_origin, terminator, assignments, cold);
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
@@ -465,10 +482,26 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if invert { (else_edge, then_edge) } else { (then_edge, else_edge) };
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
                 let label = edge_label(self, taken);
-                self.emit_conditional_jump(label, invert);
-                for step in fall.trampoline.iter().flatten() {
-                    self.emit_stackified_step(func_id, func, step, cold);
+                if invert {
+                    // NOTE: With the plan's inversion, this `ISZERO` computes the innermost peeled
+                    // `eq`, so it keeps that location, as LLVM keeps the location of a replacement
+                    // for one instruction. Without the plan's inversion no instruction stands in
+                    // for the `eq`, so its origin stays dropped.
+                    if self.capture_debug_info
+                        && let Some(zero_test) = plan.zero_test
+                    {
+                        let terminator_origin = self.asm.debug_origin();
+                        self.set_origins(&func.inst(zero_test).metadata);
+                        self.asm.emit_op(op::ISZERO);
+                        self.asm.set_debug_origin(terminator_origin);
+                    } else {
+                        self.asm.emit_op(op::ISZERO);
+                    }
                 }
+                self.emit_conditional_jump(label, false);
+                let assignments = self.edge_assignments(func, block, fall.target);
+                let steps = fall.trampoline.as_deref().unwrap_or_default();
+                self.emit_edge_steps(func_id, func, terminator_origin, steps, assignments, cold);
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {
@@ -491,15 +524,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
-            Exit::TailCall { callee, origin } => {
-                if self.capture_debug_info
-                    && let Some(origin) = origin
-                {
-                    let metadata = &func.inst(*origin).metadata;
-                    self.set_origins(metadata);
-                }
+            Exit::TailCall { callee, .. } => {
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
+                // A `return` or `leave` that follows the call as its own statement owns the jump
+                // that leaves this function, as the jump of a plain `return` is its own. The push
+                // and the jump are one terminator in EVM IR, so the push takes its origin too.
+                if Self::tail_call_follows_statement(func, block, &plan.exit) {
+                    self.set_terminator_origin(&func.blocks[block].terminator_metadata);
+                }
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -533,6 +566,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits one step of a block's own code, as opposed to a trampoline's, where a
+    /// [`Step::BeginTerminator`] switches to `terminator`.
+    fn emit_block_step(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        terminator: &InstructionMetadata,
+        step: &Step,
+        cold: bool,
+    ) {
+        match step {
+            Step::BeginTerminator => self.set_terminator_origin(terminator),
+            step => self.emit_stackified_step(func_id, func, step, cold),
+        }
+    }
+
     fn emit_stackified_step(
         &mut self,
         func_id: FunctionId,
@@ -542,6 +591,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         match step {
             &Step::Stack(op) => self.asm.emit_stack_op(op),
+            &Step::Dup(n, _) => self.asm.emit_stack_op(StackOp::Dup(n)),
             &Step::Materialize(value) => self.emit_materialized(func, value),
             &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
             &Step::Spill(value) => {
@@ -564,6 +614,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let metadata = &func.inst(inst).metadata;
                     self.set_origins(metadata);
                 }
+            }
+            Step::BeginTerminator => {
+                unreachable!("only a block's own code restarts its terminator")
             }
             Step::Shared { value, origins } => {
                 if self.capture_debug_info {
@@ -623,13 +676,24 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Attributes the code that precedes the first instruction that `steps` begin to that
-    /// instruction, or else to the block's terminator.
+    /// instruction, else to the call that a tail-call `exit` folds in, else to the block's
+    /// terminator.
     ///
     /// Scheduler code, such as the pops that clean the stack at the start of a block, belongs to no
     /// instruction of its own. It takes the location of the instruction it precedes, as rustc's
     /// `MirPatch::source_info_for_index` gives inserted code the source info of the statement it
     /// goes before, and LLVM puts a spill or copy at `findDebugLoc` of its insertion point.
-    fn set_insertion_origin(&mut self, func: &Function, block: BlockId, steps: &[Step]) {
+    ///
+    /// NOTE: With no instruction before a tail call, the insertion point is the tail call, which
+    /// LLVM lowers to one `TCRETURN` that keeps the call's `DebugLoc` (`X86ISelLowering.cpp`
+    /// `LowerCall`), so the code before it takes the call's origin.
+    fn set_insertion_origin(
+        &mut self,
+        func: &Function,
+        block: BlockId,
+        steps: &[Step],
+        exit: &Exit,
+    ) {
         if !self.capture_debug_info {
             return;
         }
@@ -637,16 +701,151 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::Begin(inst) => Some(&func.inst(*inst).metadata),
             _ => None,
         });
-        let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
+        let metadata = next.unwrap_or(match *exit {
+            Exit::TailCall { origin: Some(call), .. } => &func.inst(call).metadata,
+            _ => &func.blocks[block].terminator_metadata,
+        });
         self.set_origins(metadata);
     }
 
-    /// Attributes the code that follows to the block's terminator.
-    fn set_terminator_origin(&mut self, func: &Function, block: BlockId) {
-        if self.capture_debug_info {
-            let metadata = &func.blocks[block].terminator_metadata;
-            self.set_origins(metadata);
+    /// Returns the origin of the terminator of `block`, or of the call that a tail call `exit`
+    /// makes.
+    ///
+    /// NOTE: LLVM folds a call and the return after it into one tail-call instruction that keeps
+    /// the call's `DebugLoc` (`X86ISelLowering.cpp` `LowerCall` builds `X86ISD::TC_RETURN` with the
+    /// call's location), and the copies that set up a call's arguments carry the call's location,
+    /// so the arguments of a tail call map to the call, not to the `return`. The jump keeps the
+    /// call too, unless a statement of its own follows the call, see
+    /// [`Self::tail_call_follows_statement`]. The scheduler steps that precede the block's first
+    /// instruction take the call's origin too, see [`Self::set_insertion_origin`].
+    fn terminator_origin<'f>(
+        func: &'f Function,
+        block: BlockId,
+        exit: Option<&Exit>,
+    ) -> &'f InstructionMetadata {
+        match exit {
+            Some(&Exit::TailCall { origin: Some(call), .. }) => &func.inst(call).metadata,
+            _ => &func.blocks[block].terminator_metadata,
         }
+    }
+
+    /// Attributes the code that follows to `origin`, as [`Self::terminator_origin`] returns it.
+    fn set_terminator_origin(&mut self, origin: &InstructionMetadata) {
+        if self.capture_debug_info {
+            self.set_origins(origin);
+        }
+    }
+
+    /// Returns whether `exit` is a tail call whose `return` or `leave` is a statement that does
+    /// not enclose the call, as in `f(a); return;`, unlike `return f(a);` or the implicit return
+    /// that ends a function.
+    ///
+    /// NOTE: Such a statement would otherwise map to no code, since the tail call takes the call's
+    /// location for everything but the jump, and a tail call that layout falls through into its
+    /// callee has no jump either; the statement then stays without an entry, as a statement that
+    /// emits no code does.
+    fn tail_call_follows_statement(func: &Function, block: BlockId, exit: &Exit) -> bool {
+        let &Exit::TailCall { origin: Some(call), .. } = exit else { return false };
+        let ret = &func.blocks[block].terminator_metadata;
+        let call = &func.inst(call).metadata;
+        ret.source_spans().next().is_some()
+            && !call.source_spans().all(|call| ret.source_spans().any(|ret| ret.contains(call)))
+    }
+
+    /// Emits the code of an edge, giving each push of the value that an assignment of
+    /// `assignments` stored the source context of that assignment.
+    fn emit_edge_steps(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        terminator: &InstructionMetadata,
+        steps: &[Step],
+        mut assignments: Vec<(ValueId, &InstructionMetadata)>,
+        cold: bool,
+    ) {
+        for step in steps {
+            let origin = match *step {
+                Step::Materialize(value) => assignments
+                    .iter()
+                    .position(|&(stored, _)| stored == value)
+                    .map(|index| assignments.remove(index).1),
+                // A copy of a value that several assignments stored serves one of them, and no
+                // record says which.
+                Step::Dup(_, Some(value)) | Step::Reload(value)
+                    if assignments.iter().filter(|&&(stored, _)| stored == value).count() == 1 =>
+                {
+                    assignments
+                        .iter()
+                        .position(|&(stored, _)| stored == value)
+                        .map(|index| assignments.remove(index).1)
+                }
+                _ => None,
+            };
+            if let Some(origin) = origin {
+                let terminator_origin = self.asm.debug_origin();
+                self.set_origins(origin);
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(terminator_origin);
+            } else {
+                self.emit_block_step(func_id, func, terminator, step, cold);
+            }
+        }
+    }
+
+    /// Returns the records on the terminator of `block` that are exact for its edge to `target`.
+    fn edge_records<'f>(
+        &self,
+        func: &'f Function,
+        block: BlockId,
+        target: BlockId,
+    ) -> Vec<&'f EdgeAssignment> {
+        if !self.capture_debug_info {
+            return Vec::new();
+        }
+        let block = &func.blocks[block];
+        let jump = matches!(block.terminator, Some(Terminator::Jump(_)));
+        let single_edge = match &block.terminator {
+            Some(Terminator::Jump(next)) => *next == target,
+            Some(Terminator::Branch { then_block, else_block, .. }) => {
+                (*then_block == target) != (*else_block == target)
+            }
+            _ => false,
+        };
+        if !single_edge {
+            return Vec::new();
+        }
+        (block.terminator_metadata.edge_assignments().iter())
+            .filter(
+                |assignment| {
+                    if jump { assignment.edge.is_none() } else { assignment.edge == Some(target) }
+                },
+            )
+            .collect()
+    }
+
+    /// Returns the assignments, as the value each stored and its source context, whose pushes and
+    /// copies the code of the edge from `block` to `target` may carry.
+    ///
+    /// NOTE: The code of an edge runs exactly when control takes the edge. An assignment that ran
+    /// in `block` runs once per run of `block`, so it matches an edge out of a jump: the push or
+    /// `DUP` of its value runs exactly when the assignment does and may carry its span, as a copy
+    /// carries the location of the instruction it replaces. An edge out of a branch keeps the
+    /// origin of its terminator unless the assignment is exact for that edge, as one that a
+    /// bypassed arm left on it is ([`InstructionMetadata::edge_assignments`]), and the branch has
+    /// no other edge to `target`. A push is matched by its value. A `DUP` or a reload, which
+    /// [`Step::Dup`] and [`Step::Reload`] name by the value they copy, is matched only when one
+    /// assignment stored the value, since the planner does not record which phi a copy serves. A
+    /// word that the edge moves with a `SWAP` or a `POP`, as in `a = b; b = c`, has no copy to
+    /// map.
+    fn edge_assignments<'f>(
+        &self,
+        func: &'f Function,
+        block: BlockId,
+        target: BlockId,
+    ) -> Vec<(ValueId, &'f InstructionMetadata)> {
+        (self.edge_records(func, block, target).into_iter())
+            .map(|assignment| (assignment.value, &assignment.origin))
+            .collect()
     }
 
     /// Attributes the push of a retained constant to `origins`, the combined origin of its readers
@@ -683,16 +882,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Recomputes `value` at its use, under the origins of the instruction that defines it.
+    /// Recomputes `value` at its use. A read without operands takes the origins of the use, and
+    /// any other value keeps the origins of the instruction that defines it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
         if self.capture_debug_info
             && let Value::Inst(inst) = func.value(value)
             && let metadata = &func.inst(*inst).metadata
             && metadata.source_spans().next().is_some()
+            && let consumer = self.asm.debug_origin()
+            && self.keeps_definition_origins(func, value, metadata, &consumer)
         {
-            // Every copy is the same computation, so it keeps the definition's origins, as LLVM's
-            // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
-            let consumer = self.asm.debug_origin();
+            // A recomputed value is the same computation at every use, so it keeps the definition's
+            // origins, as LLVM's `TargetInstrInfo::reMaterialize` clones the original with its
+            // `DebugLoc`.
             self.asm.set_source_spans(metadata.source_spans());
             self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
@@ -701,6 +903,53 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             self.emit_recomputed(func, value);
         }
+    }
+
+    /// Returns whether `value`, recomputed under the origins `consumer`, keeps the origins of its
+    /// definition.
+    ///
+    /// A read without operands, such as a calldata parameter or `msg.sender`, is re-executed at the
+    /// use like an immediate, so it takes the user's origins, as LLVM gives a per-use materialized
+    /// constant the user's location and a reload none of its own. The definition's origins would
+    /// send the debugger back to the parameter list or to an earlier statement at every use. A
+    /// definition inside the use is the more precise origin of this very read, so it stays. An
+    /// unoptimized build also keeps a definition that is its own item, such as the initializer of a
+    /// local, because the read may be the only instruction coverage can anchor that item to.
+    ///
+    /// The use's origins apply because the read is re-executed as part of evaluating the use. An
+    /// implicit function exit, which maps to the closing brace of the body, evaluates no
+    /// expression of its own: it only returns the named return variables. A read recomputed into
+    /// its return encoding carries the value of the statement that read it, and LLVM's
+    /// `TargetInstrInfo::reMaterialize` clone keeps the definition's location there. So at that
+    /// exit every definition keeps its origins, or the statement of the read could be left with no
+    /// instruction.
+    fn keeps_definition_origins(
+        &self,
+        func: &Function,
+        value: ValueId,
+        definition: &InstructionMetadata,
+        consumer: &Metadata,
+    ) -> bool {
+        let definition_in_use = || {
+            definition
+                .source_spans()
+                .all(|def| consumer.source_spans().any(|user| user.contains(def)))
+        };
+        let use_in_definition = || {
+            consumer
+                .source_spans()
+                .all(|user| definition.source_spans().any(|def| def.contains(user)))
+        };
+        let at_implicit_exit = || {
+            consumer.only_source_span().is_some_and(|user| {
+                user.hi() == func.declaration_span.hi() && user.lo() + 1 == user.hi()
+            })
+        };
+        !is_operandless_read(func, value)
+            || !consumer.has_source_spans()
+            || definition_in_use()
+            || at_implicit_exit()
+            || self.optimization.is_none() && !use_in_definition()
     }
 
     /// Emits the opcodes that compute `value` under the current origins.
@@ -772,5 +1021,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
         }
+    }
+}
+
+/// Returns whether `value` is a read that takes no operands, possibly cast: a nullary environment
+/// read or a calldata load at a constant offset.
+fn is_operandless_read(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(value) else { return false };
+    match &func.inst(inst).kind {
+        InstKind::Zext(operand) | InstKind::PtrToInt(operand, _) | InstKind::IntToPtr(operand) => {
+            is_operandless_read(func, *operand)
+        }
+        InstKind::Load(offset, PtrLocation::Calldata) => {
+            matches!(func.value(*offset), Value::Immediate(_))
+        }
+        _ => rematerializable_nullary_value(func, value).is_some(),
     }
 }

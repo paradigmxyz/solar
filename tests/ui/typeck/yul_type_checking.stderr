@@ -172,11 +172,11 @@ error: expression has to be an lvalue
 LL │             helper := 1
    ╰╴            ━━━━━━
 
-error: mismatched types
+error[4977]: expected a library
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(Other)
-   ╰╴                ━━━━━ expected `uint256`, found `type(contract Other)`
+   ╰╴                ━━━━━
 
 error[1990]: only local variables can be assigned to in inline assembly
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC

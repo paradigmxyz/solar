@@ -897,8 +897,10 @@ impl Function {
                 let inst = self.blocks[block].instructions[index];
                 self.rewrite_inst_operands(inst, &mut f);
             }
-            if let Some(term) = &mut self.blocks[block].terminator {
+            let block = &mut self.blocks[block];
+            if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut f);
+                block.terminator_metadata.rewrite_edge_assignments(&mut f);
             }
         }
     }
@@ -959,6 +961,11 @@ impl Function {
     /// A key naming a deleted value is consistent only until values are renumbered, when it could
     /// come to name another value. Readers recompute a dropped key from the slot operand.
     pub fn drop_dangling_storage_aliases(&mut self) {
+        if !self.instructions.iter().any(|inst| {
+            inst.metadata.storage_alias().is_some_and(|alias| alias.symbolic_base().is_some())
+        }) {
+            return;
+        }
         let mut placed = DenseBitSet::new_empty(self.num_insts());
         for inst in self.instructions() {
             placed.insert(inst);

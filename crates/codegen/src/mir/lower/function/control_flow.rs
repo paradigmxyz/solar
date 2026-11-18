@@ -60,16 +60,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lower_then: impl FnMut(&mut Self) -> Option<T>,
         lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        self.lower_branches_labeled(condition, then_first, None, lower_then, lower_else)
+        self.lower_branches_labeled(condition, then_first, None, false, lower_then, lower_else)
     }
 
     /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
     /// at the span the builder has when it places them.
+    ///
+    /// With `dropped_exits`, the jumps that leave the arms and the merge block's label have no
+    /// location, instead of taking `label_span` and the span in force.
     pub(super) fn lower_branches_labeled<T>(
         &mut self,
         condition: ValueId,
         then_first: bool,
         label_span: Option<Span>,
+        dropped_exits: bool,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -91,7 +95,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let then_values = std::mem::take(&mut self.values);
         let then_storage_refs = std::mem::take(&mut self.storage_refs);
         if !then_terminated {
-            self.builder.jump(merge_block);
+            self.with_dropped_loc(dropped_exits, |this| this.builder.jump(merge_block));
         }
 
         self.values = before_values.clone();
@@ -103,12 +107,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let else_values = std::mem::take(&mut self.values);
         let else_storage_refs = std::mem::take(&mut self.storage_refs);
         if !else_terminated {
-            self.builder.jump(merge_block);
+            self.with_dropped_loc(dropped_exits, |this| this.builder.jump(merge_block));
         }
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.place_block(merge_block, label_span);
+        self.with_dropped_loc(dropped_exits, |this| {
+            this.place_block(merge_block, label_span.filter(|_| !dropped_exits))
+        });
         self.values = self.merge_values(
             before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
@@ -144,19 +150,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
-        // solc places the else and end tags under the statement: `LocationSetter(m_context,
-        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
-        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
-        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
-        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
-        // its `if`.
-        let label_span = else_stmt
-            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
-            .map_or(previous, |stmt| stmt.span);
+        // A loop condition desugars to `if (cond) body else break`, and its blocks take the span of
+        // the desugared `break`, which is the loop statement, so stepping a loop still stops on
+        // it. A user `break` is narrower than its `if`.
+        let loop_break = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous));
+        let label_span = loop_break.map_or(previous, |stmt| stmt.span);
+        // A Yul `for` condition is the same, with the span of the condition on its `break`.
+        let desugared_loop = else_stmt.is_some_and(|stmt| {
+            matches!(stmt.kind, StmtKind::Break)
+                && (stmt.span.contains(previous) || stmt.span == condition_span)
+        });
+        // NOTE: A source `if` leaves its arms and starts the code after it without a location:
+        // that code implements no source construct, and mapping it to the `if`, as solc's
+        // `LocationSetter(m_context, _ifStatement)` does, would show the condition line again
+        // after the arm ran. A debugger stops once on the `if`, at the condition.
+        let dropped_exits = !desugared_loop;
         let branches = self.lower_branches_labeled(
             condition,
             true,
             Some(label_span),
+            dropped_exits,
             |this| {
                 this.builder.replace_source_span(previous);
                 this.lower_stmt(then_stmt)
@@ -172,6 +186,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.invalid();
         }
         Some(())
+    }
+
+    /// Runs `f` with its locations dropped when `dropped`.
+    fn with_dropped_loc(&mut self, dropped: bool, f: impl FnOnce(&mut Self)) {
+        let previous = dropped.then(|| self.builder.drop_debug_loc());
+        f(self);
+        if let Some(previous) = previous {
+            self.builder.restore_debug_context(previous);
+        }
     }
 
     /// Switches to `block`, labeling it at `label_span` when it is placed for the first time.
@@ -412,6 +435,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Several return words come back over the input area and may reach past it into free
         // memory, so the defaults are allocated before the call rather than over its output.
         self.materialize_default_bindings();
+        // The call, its arguments, and its return data map to the call expression, as in solc; the
+        // success and catch branches map to the statement.
+        let statement_span = self.builder.replace_source_span(try_expr.span);
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
@@ -470,6 +496,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (success, None, Some(ret_plan))
         };
 
+        self.builder.replace_source_span(statement_span);
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -488,6 +515,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values.insert(binding, value);
         } else if let Some(plan) = ret_plan {
             // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
+            self.builder.replace_source_span(try_expr.span);
             let values = self.finish_external_call(
                 plan,
                 &return_types,
@@ -495,6 +523,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ExternalReturnMode::All,
                 "codegen cannot decode try/catch returndata before Byzantium",
             )?;
+            self.builder.replace_source_span(statement_span);
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
@@ -919,7 +948,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 value
             };
-            let phi = self.merge_value_phi(vec![(preheader, value)]);
+            let phi = self.merge_local_phi(id, vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
@@ -1025,6 +1054,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
+            self.record_edge_assignment(id, state.block, value);
             if self.unchecked_calldata_slices.contains(&value) {
                 self.unchecked_calldata_slices.insert(phi);
             }
@@ -1063,7 +1093,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
                 .collect::<Vec<_>>();
             let value = self
-                .merge_incoming_values(incoming)
+                .merge_incoming_values(id, incoming)
                 .unwrap_or_else(|| header_phis.get(&id).copied().unwrap_or(before_value));
             merged.insert(id, value);
         }
@@ -1132,12 +1162,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
                     (true, false, _, value) | (false, true, value, _) => value,
                     (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                    (false, false, Some(lhs), Some(rhs)) => {
-                        Some(self.merge_value_phi(vec![
-                            (then_branch.block, lhs),
-                            (else_branch.block, rhs),
-                        ]))
-                    }
+                    (false, false, Some(lhs), Some(rhs)) => Some(self.merge_local_phi(
+                        id,
+                        vec![(then_branch.block, lhs), (else_branch.block, rhs)],
+                    )),
                     _ => then_value.or(else_value),
                 };
             if let Some(value) = value {
@@ -1166,19 +1194,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .map(|value| (state.block, value))
                 })
                 .collect::<Vec<_>>();
-            if let Some(value) = self.merge_incoming_values(incoming) {
+            if let Some(value) = self.merge_incoming_values(id, incoming) {
                 before.insert(id, value);
             }
         }
         before
     }
 
-    fn merge_incoming_values(&mut self, incoming: Vec<(BlockId, ValueId)>) -> Option<ValueId> {
+    fn merge_incoming_values(
+        &mut self,
+        id: VariableId,
+        incoming: Vec<(BlockId, ValueId)>,
+    ) -> Option<ValueId> {
         match incoming.as_slice() {
             [] => None,
             [(_, value)] => Some(*value),
             [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => Some(*first),
-            _ => Some(self.merge_value_phi(incoming)),
+            _ => Some(self.merge_local_phi(id, incoming)),
         }
     }
 
@@ -1190,6 +1222,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.unchecked_calldata_slices.insert(value);
         }
         value
+    }
+
+    /// Merges the local `id`, recording the assignments behind the incoming values.
+    fn merge_local_phi(&mut self, id: VariableId, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
+        for &(block, value) in &incoming {
+            self.record_edge_assignment(id, block, value);
+        }
+        self.merge_value_phi(incoming)
+    }
+
+    /// Binds the local `id` to `value` and records the assignment in the current block.
+    pub(super) fn assign_local(&mut self, id: VariableId, value: ValueId) {
+        self.values.insert(id, value);
+        let block = self.builder.current_block();
+        let origin = self.builder.debug_context();
+        if origin.source_span().is_some() {
+            self.assignments.insert((id, block), (value, origin));
+        }
+    }
+
+    /// Records, on the jump that ends `block`, the assignment that stored `value` in the local
+    /// `id`, when `value` is the last one stored in `block`: a phi takes it from there.
+    ///
+    /// NOTE: The scheduler can then give the copy of a phi operand the span of its assignment: the
+    /// assignment runs in the block before the jump, so a copy on the unconditional edge runs
+    /// exactly when it does.
+    pub(super) fn record_edge_assignment(
+        &mut self,
+        id: VariableId,
+        block: BlockId,
+        value: ValueId,
+    ) {
+        if let Some((assigned, origin)) = self.assignments.get(&(id, block))
+            && *assigned == value
+        {
+            self.builder.add_edge_assignment(block, value, origin.clone());
+        }
     }
 
     pub(super) fn merge_storage_ref_states(

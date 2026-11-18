@@ -1,7 +1,8 @@
 //! MIR instructions.
 
 use super::{
-    Function, HirExprId, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId,
+    BlockId, Function, HirExprId, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value,
+    ValueId,
 };
 use crate::{Builtin, Callee};
 use alloy_primitives::U256;
@@ -19,6 +20,8 @@ pub struct InstructionMetadata {
     debug_loc: DebugLoc,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<HirExprId>,
+    /// On the metadata of a jump: the assignments in its block whose values it passes to phis.
+    edge_assignments: Option<Box<EdgeAssignments>>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
     /// Packed optional memory region, effect kind, and boolean flags.
@@ -30,6 +33,7 @@ impl InstructionMetadata {
     pub const EMPTY: Self = Self {
         storage_alias: None,
         hir_expr: None,
+        edge_assignments: None,
         debug_loc: DebugLoc::EMPTY,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
@@ -55,6 +59,83 @@ impl InstructionMetadata {
     /// Sets the HIR expression that produced this instruction.
     pub fn set_hir_expr(&mut self, expr: Option<HirExprId>) {
         self.hir_expr = expr;
+    }
+
+    /// Returns the assignments whose values the edges of this terminator pass to phis.
+    ///
+    /// An assignment with [`EdgeAssignment::edge`] `None` ran in the block of this jump, before
+    /// it, so code that the jump alone runs, such as the copy of a phi operand, runs only after
+    /// it, and once per run of the block. It holds only while the terminator is a jump. One with
+    /// an edge ran exactly when control takes that edge, so the code of the edge runs exactly
+    /// when the assignment does. Merging the terminator with another drops them, as do the other
+    /// ways to copy metadata that keep only the source context.
+    #[must_use]
+    pub fn edge_assignments(&self) -> &[EdgeAssignment] {
+        self.edge_assignments.as_deref().map_or(&[], |assignments| assignments.0.as_slice())
+    }
+
+    /// Records an assignment that stored `value`, which a phi takes on `edge`, the edge to a
+    /// target block, or on the jump that ends the block when `edge` is `None`. `origin` is the
+    /// source context the assignment was lowered under, as [`Self::debug_context`] copies it.
+    pub fn add_edge_assignment(&mut self, value: ValueId, origin: Self, edge: Option<BlockId>) {
+        let assignment = EdgeAssignment { value, origin, edge, dropped_exit: None };
+        let assignments = &mut self.edge_assignments.get_or_insert_default().0;
+        if !assignments.contains(&assignment) {
+            assignments.push(assignment);
+        }
+    }
+
+    /// Records `assignment`, left by a bypassed block whose jump `dropped` says has no location,
+    /// as exact for `edge`. It keeps what an earlier bypass recorded.
+    pub fn add_bypassed_assignment(
+        &mut self,
+        mut assignment: EdgeAssignment,
+        edge: Option<BlockId>,
+        dropped: bool,
+    ) {
+        assignment.edge = edge;
+        assignment.dropped_exit = Some(assignment.dropped_exit.unwrap_or(true) && dropped);
+        let assignments = &mut self.edge_assignments.get_or_insert_default().0;
+        if !assignments.contains(&assignment) {
+            assignments.push(assignment);
+        }
+    }
+
+    /// Drops the assignments of the edges of this terminator.
+    pub fn clear_edge_assignments(&mut self) {
+        self.edge_assignments = None;
+    }
+
+    /// Drops the assignments of the edges whose target `keep` rejects.
+    pub fn retain_edge_targets(&mut self, keep: impl Fn(BlockId) -> bool) {
+        if let Some(assignments) = &mut self.edge_assignments {
+            assignments.0.retain(|assignment| assignment.edge.is_none_or(&keep));
+        }
+    }
+
+    /// Renumbers the targets of the assignments of edges with `remap`, dropping those whose target
+    /// it removes.
+    pub fn remap_edge_targets(&mut self, remap: impl Fn(BlockId) -> Option<BlockId>) {
+        let Some(assignments) = &mut self.edge_assignments else { return };
+        assignments.0.retain_mut(|assignment| match assignment.edge.map(&remap) {
+            Some(None) => false,
+            Some(edge) => {
+                assignment.edge = edge;
+                true
+            }
+            None => true,
+        });
+    }
+
+    /// Renames the values of the edge assignments, as [`crate::Function::rewrite_all_operands`]
+    /// renames the values a jump passes to its target's phis. Other rewrites leave them alone: a
+    /// record of a value that no longer exists matches no push.
+    pub(crate) fn rewrite_edge_assignments(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        for assignment in
+            self.edge_assignments.iter_mut().flat_map(|assignments| &mut assignments.0)
+        {
+            f(&mut assignment.value);
+        }
     }
 
     /// Returns the source span that produced this instruction.
@@ -93,6 +174,7 @@ impl InstructionMetadata {
             display |= other.displays_source_span();
             &other.debug_loc
         }));
+        self.edge_assignments = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -104,6 +186,7 @@ impl InstructionMetadata {
             display |= other.displays_source_span();
             &other.debug_loc
         }));
+        self.edge_assignments = None;
         self.flags.set_display_source_span(display);
     }
 
@@ -188,7 +271,14 @@ impl InstructionMetadata {
     /// depth) are dropped.
     #[must_use]
     pub fn without_operand_facts(&self) -> Self {
-        let Self { storage_alias: _, debug_loc, hir_expr: _, loop_depth: _, flags } = self;
+        let Self {
+            storage_alias: _,
+            debug_loc,
+            hir_expr: _,
+            edge_assignments: _,
+            loop_depth: _,
+            flags,
+        } = self;
         let mut metadata = Self { debug_loc: debug_loc.clone(), flags: *flags, ..Self::EMPTY };
         metadata.flags.set_memory_region(None);
         metadata.flags.set_effect(None);
@@ -290,6 +380,26 @@ impl InstructionMetadata {
         self.flags.set_disjoint(value);
     }
 }
+
+/// An assignment whose value a jump passes to a phi of its target.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EdgeAssignment {
+    /// The target of the edge the assignment is exact for, or `None` when it ran in the block of
+    /// a jump.
+    pub edge: Option<BlockId>,
+    /// The value the assignment stored.
+    pub value: ValueId,
+    /// The source context of the assignment, as [`InstructionMetadata::debug_context`] copies it.
+    pub origin: InstructionMetadata,
+    /// Whether the jump of the edge replaces a jump whose location was dropped, such as the jump
+    /// out of an `if` arm, or one that has a location. `None` until a bypassed block's jump is
+    /// replaced by the edge.
+    pub dropped_exit: Option<bool>,
+}
+
+/// The assignments of a jump, boxed on instructions that have any, so others pay one word.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+struct EdgeAssignments(Vec<EdgeAssignment>);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 struct MetadataFlags(u16);
@@ -1119,5 +1229,47 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::BytePos;
+
+    #[test]
+    fn merging_jumps_drops_the_edge_assignments() {
+        let mut origin = InstructionMetadata::EMPTY;
+        origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        let mut jump = InstructionMetadata::EMPTY;
+        jump.add_edge_assignment(ValueId::from_usize(0), origin, None);
+        assert_eq!(jump.edge_assignments().len(), 1);
+        assert!(jump.debug_context().edge_assignments().is_empty());
+
+        let mut combined = jump.clone();
+        combined.combine_debug_locs([&jump]);
+        assert!(combined.edge_assignments().is_empty());
+        jump.merge_debug_locs([]);
+        assert!(jump.edge_assignments().is_empty());
+    }
+
+    #[test]
+    fn edge_assignment_targets_follow_a_renumbering() {
+        let mut origin = InstructionMetadata::EMPTY;
+        origin.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        let value = ValueId::from_usize(0);
+        let [kept, removed] = [1, 2].map(BlockId::from_usize);
+        let mut branch = InstructionMetadata::EMPTY;
+        branch.add_edge_assignment(value, origin.clone(), Some(kept));
+        branch.add_edge_assignment(value, origin.clone(), Some(removed));
+        branch.add_edge_assignment(value, origin, None);
+
+        let mut dropped = branch.clone();
+        dropped.retain_edge_targets(|block| block == removed);
+        assert_eq!(dropped.edge_assignments().len(), 2);
+
+        branch.remap_edge_targets(|block| (block == kept).then(|| BlockId::from_usize(0)));
+        let edges = branch.edge_assignments().iter().map(|assignment| assignment.edge);
+        assert_eq!(edges.collect::<Vec<_>>(), [Some(BlockId::from_usize(0)), None]);
     }
 }

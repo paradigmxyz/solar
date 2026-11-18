@@ -34,13 +34,13 @@ impl<'gcx> Gcx<'gcx> {
             if is_library && omitted_from_library_abi(f.ty) {
                 continue;
             }
-            items.push(self.function_abi(f.id).into());
+            items.push(self.function_abi_item(f.id).into());
         }
         for event in self.interface_events(id).iter() {
-            items.push(self.event_abi(event).into());
+            items.push(self.event_abi_item(event).into());
         }
         for error in self.interface_errors(id).iter() {
-            items.push(self.error_abi(error).into());
+            items.push(self.error_abi_item(error).into());
         }
 
         // https://github.com/argotorg/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47
@@ -52,7 +52,7 @@ impl<'gcx> Gcx<'gcx> {
         items
     }
 
-    fn function_abi(self, id: hir::FunctionId) -> json::Function {
+    pub(crate) fn function_abi(self, id: hir::FunctionId) -> json::Function {
         let f = self.hir.function(id);
         let in_library = f.contract.is_some_and(|id| self.hir.contract(id).kind.is_library());
         json::Function {
@@ -63,7 +63,7 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    fn event_abi(self, id: hir::EventId) -> json::Event {
+    pub(crate) fn event_abi(self, id: hir::EventId) -> json::Event {
         let e = self.hir.event(id);
         json::Event {
             name: e.name.to_string(),
@@ -72,7 +72,7 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    fn error_abi(self, id: hir::ErrorId) -> json::Error {
+    pub(crate) fn error_abi(self, id: hir::ErrorId) -> json::Error {
         let e = self.hir.error(id);
         json::Error {
             name: e.name.to_string(),

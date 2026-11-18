@@ -1,0 +1,74 @@
+- ; === ROOT/tests/ui/codegen/mir/check-elim/clz_bounds.mir (before check-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/check-elim/clz_bounds.mir (after check-elim) ===
+  @module ClzBounds
+  fn @nonzero(arg0: i256) -> i256 {
+    bb0:
+      v0 = or arg0, 1
+      v1 = clz v0
+      v2 = lt v1, 256
+-     jumpi v2, bb1, bb2
+-   bb2:                                            ; preds = bb0
+-     ret 0
++     jump bb1
+    bb1:                                            ; preds = bb0
+      ret 1
++   bb2:
++     ret 0
+  }
+  
+  fn @any(arg0: i256) -> i256 {
+    bb0:
+      v0 = clz arg0
+      v1 = lt v0, 256
+      jumpi v1, bb1, bb2
+    bb2:                                            ; preds = bb0
+      ret 0
+    bb1:                                            ; preds = bb0
+      ret 1
+  }
+  
+  fn @width(arg0: i256) -> i256 {
+    bb0:
+      v0 = clz arg0
+      v1 = lt v0, 257
+-     jumpi v1, bb1, bb2
+-   bb2:                                            ; preds = bb0
+-     ret 0
++     jump bb1
+    bb1:                                            ; preds = bb0
+      ret 1
++   bb2:
++     ret 0
+  }
+  
+  fn @narrow_word(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffff
+      v1 = clz v0
+      v2 = gt v1, 239
+-     jumpi v2, bb1, bb2
+-   bb2:                                            ; preds = bb0
+-     ret 0
++     jump bb1
+    bb1:                                            ; preds = bb0
+      ret 1
++   bb2:
++     ret 0
+  }
+  
+  fn @index(arg0: i256) -> i256 {
+    bb0:
+      v0 = or arg0, 1
+      v1 = clz v0
+      v2 = sub 255, v1
+      v3 = lt v2, 256
+-     jumpi v3, bb1, bb2
+-   bb2:                                            ; preds = bb0
+-     ret 0
++     jump bb1
+    bb1:                                            ; preds = bb0
+      ret 1
++   bb2:
++     ret 0
+  }
+  

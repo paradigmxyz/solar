@@ -308,6 +308,17 @@ impl Target {
         !self.optimization.is_none() && added_bytes <= allowed
     }
 
+    /// Live words a caller may hold across an inlined body plus the body's own peak:
+    /// [`Self::SIZE_INLINE_STACK_BUDGET`] under the size objective,
+    /// [`Self::INLINE_STACK_BUDGET`] otherwise.
+    pub(crate) const fn inline_stack_budget(&self) -> usize {
+        if self.optimization.is_size() {
+            Self::SIZE_INLINE_STACK_BUDGET
+        } else {
+            Self::INLINE_STACK_BUDGET
+        }
+    }
+
     /// Whether the model prices creation code, which only the gas objective does.
     pub(crate) const fn is_creation(&self) -> bool {
         self.creation
@@ -530,13 +541,14 @@ impl Target {
 
     /// Whether a width test, that a word fits in `bits` bits when `fits` and that it does not
     /// otherwise, is the shift `x >> bits` against zero rather than the comparison with its limit
-    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` reads the word of a test of the other sense
-    /// for free, and a `value` pays for its zero test: an `ISZERO` to turn the word into a fit, or
-    /// [`Self::ne_zero`] to turn it into a boolean. The comparison pays the push of its limit, as
-    /// the compact-push pass leaves it, which grows with `bits`. The shift wins when it is no
-    /// dearer in bytes and gas and cheaper in one; equal prices keep the comparison. A shift that
-    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
-    /// Without shifts only the comparison exists.
+    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` that jumps when the word is nonzero reads it
+    /// for free: one that jumps when the test holds, for a test that the word does not fit, and
+    /// one that jumps when it fails, for a fits test. Any other read pays for its zero test: an
+    /// `ISZERO` to turn the word into a fit, or [`Self::ne_zero`] to turn it into a boolean. The
+    /// comparison pays the push of its limit, as the compact-push pass leaves it, which grows with
+    /// `bits`. The shift wins when it is no dearer in bytes and gas and cheaper in one; equal
+    /// prices keep the comparison. A shift that saves bytes and costs gas is taken as a compact
+    /// recipe is, by [`Self::compacts_immediate`]. Without shifts only the comparison exists.
     pub(crate) fn shifts_bits_test(
         &self,
         bits: u32,
@@ -548,12 +560,13 @@ impl Target {
             return false;
         }
         let zero_tests = match (fits, branch) {
-            (false, true) => Cost::ZERO,
-            (true, _) => self.opcode(op::ISZERO),
+            (_, true) => Cost::ZERO,
+            (true, false) => self.opcode(op::ISZERO),
             (false, false) => self.ne_zero().0,
         };
         let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
-        let compare = if fits {
+        // A branch that jumps when a fits test fails inverts the comparison to `x > 2^bits - 1`.
+        let compare = if fits && !branch {
             self.emitted_push(U256::ONE << bits, in_loop) + self.opcode(op::LT)
         } else {
             self.emitted_push((U256::ONE << bits) - U256::ONE, in_loop) + self.opcode(op::GT)
@@ -808,7 +821,12 @@ impl Target {
 
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
-        let kind = &func.inst(inst).kind;
+        self.kind_estimate(func, &func.inst(inst).kind)
+    }
+
+    /// Estimated code of an operation on values of `func`, whether it is in the function yet or
+    /// not: the operation and the pushes of its immediate operands.
+    pub(crate) fn kind_estimate(&self, func: &Function, kind: &InstKind) -> Cost {
         let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
@@ -1374,6 +1392,11 @@ impl Target {
     /// that drained every carried word, and twelve took 15% off decoding. A single-block clone
     /// never reaches deeper than its call, so the inline loop exempts it.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
+    /// [`Self::INLINE_STACK_BUDGET`] under the size objective: fourteen words, still two short
+    /// of the sixteen a `DUP` or `SWAP` reaches. A size build pays for a call's protocol in
+    /// bytes at every site and for a spill only where it occurs. At fourteen words the project
+    /// corpus's `-Osize` bytecode shrank by 0.02%, and no contract grew by more than 0.5%.
+    pub(crate) const SIZE_INLINE_STACK_BUDGET: usize = 14;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
     /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
     /// leaves the block's own temporaries room.
@@ -1875,6 +1898,12 @@ mod tests {
         // A limit as short as the shift's own push keeps the comparison on equal prices.
         assert!(!gas.shifts_bits_test(8, false, true, false));
         assert!(!gas.shifts_bits_test(1, true, false, false));
+        // A branch that jumps when `x < 2^16` fails reads `x >> 16` for free, a byte shorter than
+        // the inverted `x > 0xffff`; as a value, the shift's `ISZERO` makes it dearer than
+        // `x < 0x10000`. At `2^8` the inverted limit is a `PUSH1` and ties.
+        assert!(gas.shifts_bits_test(16, true, true, false));
+        assert!(!gas.shifts_bits_test(16, true, false, false));
+        assert!(!gas.shifts_bits_test(8, true, true, false));
         // Without shifts only the comparison exists.
         let legacy = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
         assert!(!legacy.shifts_bits_test(64, false, true, false));
@@ -2635,6 +2664,7 @@ mod tests {
         let reach = usize::from(op::DUP16 - op::DUP1) + 1;
         for budget in [
             Target::INLINE_STACK_BUDGET,
+            Target::SIZE_INLINE_STACK_BUDGET,
             Target::DIRECT_REUSE_LIVE_BUDGET,
             Target::LOOP_CARRY_BUDGET,
             Target::SHALLOW_CARRIED_WORDS,

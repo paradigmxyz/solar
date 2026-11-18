@@ -5,7 +5,7 @@ use crate::{
 use alloy_primitives::U256;
 use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
-use solar_data_structures::map::FxIndexMap;
+use solar_data_structures::map::{FxHashMap, FxIndexMap};
 
 /// Storage layout in solc's Standard JSON `storageLayout` and `transientStorageLayout` output
 /// fields.
@@ -105,11 +105,21 @@ struct StorageLayoutBuilder<'gcx> {
     contract_name: String,
     location: DataLocation,
     types: FxIndexMap<String, StorageLayoutType>,
+    /// The number of slots of each struct laid out so far.
+    ///
+    /// Laying out a struct again only finds the types it added to `types` the first time.
+    struct_slots: FxHashMap<hir::StructId, U256>,
 }
 
 impl<'gcx> StorageLayoutBuilder<'gcx> {
     fn new(gcx: Gcx<'gcx>, contract_name: String, location: DataLocation) -> Self {
-        Self { gcx, contract_name, location, types: FxIndexMap::default() }
+        Self {
+            gcx,
+            contract_name,
+            location,
+            types: FxIndexMap::default(),
+            struct_slots: FxHashMap::default(),
+        }
     }
 
     fn build_contract(mut self, contract_id: hir::ContractId) -> StorageLayoutOutput {
@@ -220,17 +230,22 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
 
         let location = ty.loc();
         let ty = ty.peel_refs();
+        let label = self.storage_type_label(ty);
+        // A struct's layout gives its members and its size at once.
+        let mut members = Vec::new();
+        if let TyKind::Struct(struct_id) = ty.kind {
+            let slots;
+            (members, slots) = self.layout_members(self.gcx.hir.strukt(struct_id).fields);
+            self.struct_slots.insert(struct_id, slots);
+        }
         let mut info = StorageLayoutType {
             encoding: StorageEncoding::Inplace,
-            label: self.storage_type_label(ty),
+            label,
             number_of_bytes: self.storage_bytes(ty).to_string(),
+            members,
             ..Default::default()
         };
         match ty.kind {
-            TyKind::Struct(struct_id) => {
-                let (members, _) = self.layout_members(self.gcx.hir.strukt(struct_id).fields);
-                info.members = members;
-            }
             TyKind::Mapping(key_ty, value_ty) => {
                 info.encoding = StorageEncoding::Mapping;
                 info.key = Some(self.generate_type(key_ty));
@@ -249,6 +264,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 info.encoding = StorageEncoding::Bytes;
             }
             TyKind::Elementary(_)
+            | TyKind::Struct(_)
             | TyKind::Contract(_)
             | TyKind::Enum(_)
             | TyKind::Fn(_)
@@ -436,7 +452,14 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 };
                 slots.max(U256::ONE)
             }
-            TyKind::Struct(id) => self.layout_members(self.gcx.hir.strukt(id).fields).1,
+            TyKind::Struct(id) => {
+                if let Some(&slots) = self.struct_slots.get(&id) {
+                    return slots;
+                }
+                let slots = self.layout_members(self.gcx.hir.strukt(id).fields).1;
+                self.struct_slots.insert(id, slots);
+                slots
+            }
             _ => U256::ONE,
         }
     }

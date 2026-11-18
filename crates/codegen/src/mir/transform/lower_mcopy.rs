@@ -119,8 +119,14 @@ impl MirPass for LowerMCopy {
             .collect::<FxHashMap<_, _>>();
 
         for (func_id, sites) in sites.into_iter_enumerated() {
-            lower_function(module.function_mut(func_id), &sites, &helpers);
+            // A function without copy sites stays as it is.
+            if !sites.is_empty() {
+                lower_function(module.function_mut(func_id), &sites, &helpers);
+                analyses.invalidate_local_summary(func_id);
+            }
         }
+        // The helpers are appended, so the other functions keep their ids.
+        analyses.preserve_local_summaries();
         module.assert_runtime_helpers(functions.into_values());
         true
     }
