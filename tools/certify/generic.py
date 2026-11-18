@@ -1146,7 +1146,7 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
     env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
     rc, out, err = run(
         [
-            "lake",
+            *LAKE,
             "build",
             f"{name}.Source",
             f"{name}.gen.{contract}.Stage0",
@@ -1166,7 +1166,7 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
                 :400
             ]
         )
-    rc, out, err = run(["lake", "env", "lean", str(d / "Probe.lean")], cwd=pl, env=env)
+    rc, out, err = run([*LAKE, "env", "lean", str(d / "Probe.lean")], cwd=pl, env=env)
     lines = [l for l in out.splitlines() if l.startswith("PROBE ")]
     res = {}
     for l in lines:
@@ -1398,7 +1398,7 @@ def run_lifecycle_probe(
     )
     env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
     rc, out, err = run(
-        ["lake", "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"],
+        [*LAKE, "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"],
         cwd=pl,
         env=env,
     )
@@ -1411,7 +1411,7 @@ def run_lifecycle_probe(
             ]
         )
     rc, out, err = run(
-        ["lake", "env", "lean", str(d / "LifeProbe.lean")], cwd=pl, env=env
+        [*LAKE, "env", "lean", str(d / "LifeProbe.lean")], cwd=pl, env=env
     )
     res = {}
     for l in out.splitlines():
@@ -2613,7 +2613,7 @@ def lake_jobs_env(lean_dir, env):
         sys.exit("generic: CERTIFY_LAKE_JOBS must be a positive integer")
     if jobs == "1":
         return env
-    rc, out, err = run(["lake", "env", "which", "lean"], cwd=lean_dir, env=env)
+    rc, out, err = run([*LAKE, "env", "which", "lean"], cwd=lean_dir, env=env)
     if rc != 0:
         sys.exit(f"generic: cannot find lean: {err.strip()}")
     tc = pathlib.Path(out.strip()).resolve().parent.parent
@@ -2652,12 +2652,17 @@ def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
         if rc != 0:
             raise Failed(f"cannot copy the probe cache: {err[:200]}")
     env = lake_jobs_env(lean_dir, dict(os.environ, LEAN_NUM_THREADS="1"))
-    rc, out, err = run(
-        ["lake", "build", "-KleanMemory=6000", f"{name}.{mod}"], cwd=lean_dir, env=env
-    )
+    rc, out, err = run([*LAKE, "build", f"{name}.{mod}"], cwd=lean_dir, env=env)
     if rc != 0:
         keep_log(f"{name}.{mod}", out + err)
     return rc == 0, out + err
+
+
+# The lake options every lake call of the driver passes first. The lakefile reads leanMemory with
+# get_config? into weakLeanArgs, which lake applies only when it elaborates the lakefile: -R makes
+# every call elaborate it with this -K, so a configuration cached by an earlier call without it
+# (or with another value) never runs the generated modules with no -M.
+LAKE = ["lake", "-R", "-KleanMemory=6000"]
 
 
 # The record directory failed lake builds keep their whole output in (main sets it); None keeps none.

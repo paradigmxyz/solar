@@ -261,7 +261,11 @@ class BuildLogs(unittest.TestCase):
 
         def fake(cmd, cwd=None, env=None):
             calls.append(cmd)
-            return (1, self.OUT, "") if cmd[:2] == ["lake", "build"] else (0, "", "")
+            return (
+                (1, self.OUT, "")
+                if cmd[:4] == [*generic.LAKE, "build"]
+                else (0, "", "")
+            )
 
         lean = self.d / "lean"
         (lean / "Certified").mkdir(parents=True)
@@ -304,6 +308,65 @@ class BuildLogs(unittest.TestCase):
         src = (HERE / "loop_cuts.py").read_text()
         for label in ("GenImports", "Gen", "Obl"):
             self.assertIn(f'kept(f"{{name}}.Loops.{{fname}}.{label}", out + err)', src)
+
+    def test_lake_argv_pins_memory(self):
+        """Every lake call passes -R -KleanMemory=6000 first, so the lakefile's leanMemory reaches the
+        generated modules whatever configuration an earlier call cached: the lifecycle module builds,
+        the first configure (the probes' builds), lake env, and the loop cut hook's calls."""
+        import loop_cuts
+
+        self.assertEqual(generic.LAKE, ["lake", "-R", "-KleanMemory=6000"])
+        self.assertEqual(loop_cuts.LAKE, generic.LAKE)
+        calls = []
+
+        def fake(cmd, cwd=None, env=None):
+            calls.append(list(cmd))
+            return 0, "", ""
+
+        lean = self.d / "lean"
+        (lean / "Certified").mkdir(parents=True)
+        (lean / "lakefile.lean").write_text("")
+        with (
+            unittest.mock.patch.object(generic, "run", fake),
+            unittest.mock.patch.object(
+                generic, "declare_lean_lib", lambda *a, **k: None
+            ),
+        ):
+            for mod in (
+                "Lifecycle",
+                "LifecycleRefute",
+                "LifecycleAll",
+                "SourceSame",
+                "Composed",
+            ):
+                generic.lifecycle_build(lean, NAME, "-- src", mod, "-- t", None)
+        self.assertEqual(
+            calls,
+            [
+                ["lake", "-R", "-KleanMemory=6000", "build", f"{NAME}.{m}"]
+                for m in (
+                    "Lifecycle",
+                    "LifecycleRefute",
+                    "LifecycleAll",
+                    "SourceSame",
+                    "Composed",
+                )
+            ],
+        )
+        src = (HERE / "generic.py").read_text()
+        # The first configure of each probe clone, and every other call, goes through LAKE.
+        self.assertIn(
+            '[*LAKE, "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"]',
+            src,
+        )
+        self.assertIn(
+            '            *LAKE,\n            "build",\n            f"{name}.Source",',
+            src,
+        )
+        for text in (src, (HERE / "loop_cuts.py").read_text()):
+            lines = [l for l in text.splitlines() if '"lake"' in l]
+            self.assertEqual(len(lines), 1, lines)
+            self.assertIn("LAKE = [", lines[0])
 
     def test_every_lake_failure_site_keeps(self):
         src = (HERE / "generic.py").read_text()
