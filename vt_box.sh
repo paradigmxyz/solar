@@ -128,7 +128,7 @@ ln -sf "$(uv python find 3.14)" "$w/bin/python3"; export PATH=$w/bin:$HOME/.carg
 # rustc 1.100.0 is pinned (the toolchain of the earlier pinned producer); fail closed otherwise.
 RUST_PIN=1.100.0 RUSTC_WANT='rustc 1.100.0 (0ef1bc386'
 command -v rustup > /dev/null || curl -sSfL https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain "$RUST_PIN" --no-modify-path > /dev/null
-rustup toolchain install -q --profile minimal "$RUST_PIN" > /dev/null 2>&1 && rustup default "$RUST_PIN" > /dev/null 2>&1 ||
+rustup toolchain install --profile minimal "$RUST_PIN" > /dev/null 2>&1 && rustup default "$RUST_PIN" > /dev/null 2>&1 ||
     finish "FAILED: rustup toolchain $RUST_PIN" 1
 [[ $(rustc -V) == "$RUSTC_WANT"* ]] || finish "FAILED: rustc -V is '$(rustc -V 2>&1)', not $RUSTC_WANT..." 1
 RUST_DIR=$(rustc --print sysroot)
