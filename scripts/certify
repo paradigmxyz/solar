@@ -1154,12 +1154,29 @@ try:
     final = json.load(open(final_file))
 except (OSError, ValueError):
     final = None
+
+
+def caveat(c):
+    # With the published Expected statement, the missing headline caveat names what does hold.
+    m = re.fullmatch(r"not end to end: solidity-lean states no source or spec theorem for (\S+)", c)
+    if m and final and final.get("shape") == "SolidCore.Verify.Generic.Expected":
+        return (f"not end to end: no solidity-lean headline theorem for {m[1]}; the source and "
+                "specification facts are those of Final.Statement (Expected assumed, OPEN)")
+    return c
 if final:
     statuses = dict(final["statuses"])
-    statuses["assumptions"] = final["assumptions"] or "none beyond the statement's scope"
+    expected = final.get("shape") == "SolidCore.Verify.Generic.Expected"
+    statuses["assumptions"] = final["assumptions"] or (
+        "Expected (Generic.Expected src spec runtimeBytes) is driver-fixed and assumed: OPEN"
+        if expected else "none beyond the statement's scope")
     statuses["excluded"] = final["excluded"]
-    statuses["environment"] = ("fixed, not quantified: one frame, caller 0x2000, the contract at "
-                               "0x1000, the block and transaction of Target.message")
+    statuses["environment"] = (
+        ("caller quantified (every caller below 2^160 other than the contract) for the any-caller "
+         "conjuncts; the contract address, block and transaction fixed; the Expected conjunct uses "
+         "the fixed frame caller 0x2000, contract 0x1000")
+        if any(e.startswith("callers: ") for e in final["excluded"])
+        else ("fixed, not quantified: one frame, caller 0x2000, the contract at 0x1000, the block "
+              "and transaction of Target.message"))
     provenance = [c for c in open(sys.argv[1] + ".caveats").read().splitlines() if c.startswith("provenance:")]
     statuses["provenance"] = "; ".join(c[len("provenance: "):] for c in provenance) or "clean"
     # The kernel replay's receipt: every constant of final's closure replayed in this run (the run
@@ -1230,7 +1247,7 @@ record = {
     "negative_tests": negatives == "1",
     # The published statement proves execution of the exact bytes, so the decoding caveat of the
     # Proofs/ walk does not apply to a contract that has one.
-    "caveats": [c for c in lines(".caveats") if not (final and c.startswith("assembly decoded"))],
+    "caveats": [caveat(c) for c in lines(".caveats") if not (final and c.startswith("assembly decoded"))],
     "backend": {"theorem": final},
 }
 for path in (out, committed):

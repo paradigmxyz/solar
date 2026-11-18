@@ -62,6 +62,38 @@ import lakefile_inputs
 
 SOLC_VERSION = "0.8.35"
 ENVIRONMENT = "one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message (fixed, not quantified)"
+# The record's environment on the caller route "any" (AnyCaller's conjuncts quantify the caller;
+# the Expected conjunct keeps the fixed frame).
+ENVIRONMENT_ANY = (
+    "caller quantified (every caller below 2^160 other than the contract) for the any-caller "
+    "conjuncts; the contract address, block and transaction fixed; the Expected conjunct uses "
+    "the fixed frame caller 0x2000, contract 0x1000"
+)
+# The excluded "calls" entry: the fixed frame, and on the caller route "any" the callers it covers.
+CALLS_FIXED = (
+    "calls: one frame, caller 0x2000, contract at 0x1000, the block and transaction of "
+    "Target.message; no external calls, GAS reads or return data in the code (the loop "
+    "checker's fragment)"
+)
+CALLS_ANY = (
+    "calls: one frame; the equivalence, the non-payable revert and the specification hold from "
+    "every caller below 2^160 other than the contract (ctx.Ok), with the contract address and "
+    "the block and transaction fixed; no external calls, GAS reads or return data in the code "
+    "(the loop checker's fragment)"
+)
+
+
+def callers_any(any_gas):
+    """The excluded "callers" entry on the caller route "any", at the checker's gas bound."""
+    return (
+        "callers: from every caller below 2^160 other than the contract, at the gas bound of the "
+        f"checker with contexts ({any_gas}): the exact bytecode runs as the source, a call with "
+        "a value other than 0 reverts with empty output, no logs and unchanged storage, and every "
+        "result meets the exported specification's allowed statuses and postcondition read in "
+        "that caller's context (partial correctness); the Expected conjunct keeps the fixed frame"
+    )
+
+
 OPTIONS = ["-Ogas", "--evm-version", "osaka"]
 # Lean's per-process memory cap for scripts/certify's builds, pinned to CI's: its own default (3000
 # MB) is too small for a clean build of some base modules, whose kernel then reports excessive
@@ -2330,9 +2362,9 @@ def shape_json(
         "excluded": [
             "deployment: the init code is not covered; the statement is about the runtime bytecode from any storage that holds the slots the constructor writes, as SolidCore's constructor run with no arguments leaves them",
             "source model trusted: SolidCore's checked contract (the solc AST through scripts/solc_ast_to_lean_source.py and the type checker) is the meaning of the source (frontend trust boundary)",
-            "calls: one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message; no external calls, GAS reads or return data in the code (the loop checker's fragment)",
+            CALLS_FIXED,
             "gas: the bound is the loop checker's (22100 per item times the final EVM IR's block fuel, plus memory), coarse; below it the bytecode may fail without effects, which equivalence admits",
-            f"valid calls: {sigs} ABI-encoded with clean argument words, any value below 2^256 (no function is payable: the value reverts on both sides), any storage covering the constructor's slots; other call data is outside the statement",
+            f"valid calls: {sigs} ABI-encoded with clean argument words, any value below 2^256 (no function is payable: the value reverts on both sides), any storage covering the constructor's slots; other call data is outside the statement; payable functions not exercised",
         ],
         "source_ast": {
             "file": f"Certified/{name}/Source.lean",
@@ -2402,11 +2434,9 @@ def shape_json(
             "proof": f"Certified.{name}.AnyCaller.published_any",
             "gas": f"fun _ => {any_gas}",
         }
-        shape["excluded"].append(
-            "callers: the equivalence of the exact bytecode with the source also holds from every caller "
-            "below 2^160 other than the contract, at the gas bound of the checker with contexts; the "
-            "specification, its allowed statuses and the rest of the statement keep the one frame above"
-        )
+        shape["excluded"] = [
+            CALLS_ANY if e == CALLS_FIXED else e for e in shape["excluded"]
+        ] + [callers_any(any_gas)]
     return shape
 
 
@@ -3708,6 +3738,7 @@ def main():
         if caller == "any":
             # Only on the any route: the fixed route's record is the fixed-frame record.
             record["caller"] = caller
+            record["environment"] = ENVIRONMENT_ANY
         if fresh_certified(lean_dir, name, contract):
             # The base already holds this source's record: regenerated here in full, never reused.
             record["base_held_record"] = True
