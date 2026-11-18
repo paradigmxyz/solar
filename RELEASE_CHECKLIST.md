@@ -32,7 +32,35 @@ commit.
   Every version must appear once; git-cliff can prepend older releases again.
   Keep `crates/solar/CHANGELOG.md` a symlink to the root changelog.
 - [ ] Edit the changelog: drop dependency bumps, CI, bench, test, refactor, and
-  chore entries, and add a short `### Highlights
+  chore entries, and add a `### Highlights` list as described in [Highlights](#highlights).
+- [ ] Update the pinned versions in `README.md`'s `### Library usage` and `### Binary usage`.
+- [ ] Push, open the PR, and wait for CI to pass before merging. The name of the
+  PR should be the same as the `cargo-release` commit message.
+
+## Tag and build
+
+- [ ] `git checkout main` and `git pull`.
+- [ ] Verify `dist plan` is correct.
+- [ ] Tag and push the tag: `cargo release tag --execute` and `cargo release push --execute`.
+- [ ] Wait for the release workflow to publish the GitHub release. If it fails,
+  fix the cause on `main`, delete the remote tag, and tag the fix.
+- [ ] Check the GitHub release: the notes render, every artifact from `dist plan`
+  is attached, and a downloaded binary reports `solar <version>+commit...`
+  without `-dev`.
+
+## Publish
+
+- [ ] Publish the crates: `cargo release publish --execute [--no-verify]`
+
+## Downstream
+
+- [ ] In foundry-core and Foundry, set the solar requirements to `=<version>`
+  and point the solar `[patch.crates-io]` entries at `tag = "v<version>"`.
+- [ ] Raise their MSRV if solar's `rust-version` is higher.
+
+These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).
+
+## Highlights
 
 Each release's changelog opens with a `### Highlights` section, above the generated sections. Write
 it by hand, short, and about what users get, not about individual PRs:
