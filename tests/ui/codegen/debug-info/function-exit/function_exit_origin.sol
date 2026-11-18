@@ -12,6 +12,11 @@ contract C {
     uint256 stored;
     uint256 other;
 
+    modifier guard() {
+        other += 1;
+        _;
+    }
+
     // CHECK-LABEL: ; function external_exit(
     // CHECK: sstore !metadata(span=
     // CHECK-NEXT: stop !metadata(span=[[#EXT_END:]]..
@@ -27,6 +32,7 @@ contract C {
         r = a + 1;
     }
 
+    // A second call keeps `internal_exit` from being inlined at `-Ogas`.
     function twice(uint256 a, uint256 b) external {
         internal_exit(a);
         internal_exit(b);
@@ -38,6 +44,14 @@ contract C {
     // CHECK-SAME: [[#RET+13]], exit=return)
     function explicit_return(uint256 a) external pure returns (uint256) {
         return a + 1;
+    }
+
+    // The exit of a function that has modifiers is the closing brace of its own body.
+    // CHECK-LABEL: ; function modified(
+    // CHECK: stop !metadata(span=[[#MOD_END:]]..
+    // CHECK-SAME: [[#MOD_END+1]], exit=return)
+    function modified(uint256 a) external guard {
+        stored = a;
     }
 
     // CHECK-LABEL: ; function internal_exit(

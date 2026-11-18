@@ -1,21 +1,21 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //@ filecheck:
-// Definition spans cover implicit returns. `-O none` removes the jump-only block of the synthetic
-// constructor, so its span is dropped from the creation code.
+// Implicit returns map to the closing brace of the body. `-O none` removes the jump-only block of
+// the synthetic constructor, so its span is dropped from the creation code.
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "mnemonic": "STOP"
-// CHECK: "offset": 39,
-// CHECK-NEXT: "length": 34
+// CHECK: "offset": 72,
+// CHECK-NEXT: "length": 1
 // CHECK: "mnemonic": "RETURN"
-// CHECK: "offset": 74,
-// CHECK-NEXT: "length": 68
+// CHECK: "offset": 141,
+// CHECK-NEXT: "length": 1
 // CHECK: "mnemonic": "JUMP"
-// CHECK: "offset": 345,
-// CHECK-NEXT: "length": 64
+// CHECK: "offset": 408,
+// CHECK-NEXT: "length": 1
 // CHECK: "mnemonic": "JUMP"
-// CHECK: "offset": 280,
-// CHECK-NEXT: "length": 64
-// CHECK: "sourceMap": "{{.*}}39:34{{.*}}74:68{{.*}}345:64{{.*}}280:64
+// CHECK: "offset": 343,
+// CHECK-NEXT: "length": 1
+// CHECK: "sourceMap": "{{.*}}72:1{{.*}}141:1{{.*}}408:1{{.*}}343:1
 {
   "language": "Solidity",
   "sources": {
