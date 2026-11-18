@@ -111,10 +111,10 @@ class Text(unittest.TestCase):
         self.assertNotIn("import Verify.LoopSource.Equiv.CounterCtx", t)
         self.assertIn("def fuel : Nat := Contracts.VerifyCounter.Source.fuel\n", t)
         self.assertIn("def frameFuel : Nat := 4096\n", t)
-        self.assertIn("  Contracts.VerifyCounter.Source.contract?\n", t)
+        self.assertIn("  (Verify.LoopSource.Equiv.CounterCtx.src 8).checked\n", t)
         for line in (
             "theorem fuel_same : fuel = Contracts.VerifyCounter.Source.fuel := rfl\n",
-            "theorem contract_same : contract? = Contracts.VerifyCounter.Source.contract? := rfl\n",
+            "theorem contract_same : contract? = (Verify.LoopSource.Equiv.CounterCtx.src 8).checked := rfl\n",
             "theorem init_same : init = Verify.LoopSource.Equiv.CounterCtor.counterInit := by\n  apply ByteArray.ext; decide +kernel\n",
             "theorem code_same : code = SolidCore.Verify.Generic.runtimeCode SolarTV.Export.Counter.bytecode := by\n  apply ByteArray.ext; decide +kernel\n",
             "theorem ws_same : ws = [8] := rfl\n",
@@ -137,32 +137,171 @@ class Text(unittest.TestCase):
     def test_composed(self):
         t = generic.composed_lean(NAME, binding(BIND))
         L = f"Certified.{NAME}.Lifecycle"
+        S = "(Verify.LoopSource.Equiv.CounterCtx.src 8)"
+        I = "Verify.LoopSource.Equiv.CounterCtor.counterInit"
+        CODE = "(SolidCore.Verify.Generic.runtimeCode SolarTV.Export.Counter.bytecode)"
         self.assertIn(
-            f"import {NAME}.Lifecycle\nimport {NAME}.SourceSame\nimport Verify.LoopSource.Equiv.CounterCtx\n",
+            f"import {NAME}.Lifecycle\nimport {NAME}.SourceSame\n"
+            "import Verify.LoopSource.Equiv.CounterCreated\n",
             t,
         )
         self.assertIn(
             "theorem composed {K : Nat} (hK : K ≤ Verify.LoopSource.Equiv.CounterCtx.Kmax) :\n"
-            "    SolidCore.Verify.Generic.Expected (Verify.LoopSource.Equiv.CounterCtx.src 8) "
-            "(Verify.LoopSource.Equiv.CounterCtx.spec 8 K) SolarTV.Export.Counter.bytecode ∧\n",
+            f"    SolidCore.Verify.Generic.Expected {S} "
+            "(Verify.LoopSource.Equiv.CounterCtx.spec 8 K) SolarTV.Export.Counter.bytecode ∧\n"
+            f"      ∃ c, {S}.checked = .ok c ∧ {S}.CreatedBy c {I} (Verify.Lifecycle.initArgs {I} [8]) ∧\n"
+            f"        Verify.Lifecycle.Statement Contracts.VerifyCounter.Source.fuel c {I} {CODE} [8] {L}.storageLit ∧\n"
+            f"        Verify.Lifecycle.Deploys (Verify.Lifecycle.initArgs {I} [8]) {CODE} {L}.storageLit := by\n"
+            "  obtain ⟨hE, c, hc, hcb, -⟩ := Verify.LoopSource.Equiv.CounterCreated.counter_expected_created "
+            "(n := 8) (Or.inr rfl) hK\n"
+            f"  obtain ⟨c', hc', hl⟩ := {L}.statement\n"
+            f"  rw [{L}.contract_same, hc] at hc'\n"
+            "  cases hc'\n"
+            f"  rw [{L}.fuel_same, {L}.init_same, {L}.code_same, {L}.ws_same] at hl\n"
+            "  exact ⟨hE, c, hc, hcb, hl, hl.deploys⟩\n",
             t,
         )
-        self.assertIn(
-            "Verify.Lifecycle.Statement Contracts.VerifyCounter.Source.fuel c "
-            "Verify.LoopSource.Equiv.CounterCtor.counterInit "
-            f"(SolidCore.Verify.Generic.runtimeCode SolarTV.Export.Counter.bytecode) [8] {L}.storageLit ∧\n",
-            t,
-        )
-        self.assertIn(
-            "  have hE := Verify.LoopSource.Equiv.CounterCtx.counter_expected (n := 8) (Or.inr rfl) hK\n",
-            t,
-        )
-        self.assertIn(
-            f"  rw [{L}.fuel_same, {L}.init_same, {L}.code_same, {L}.ws_same] at hl\n",
-            t,
-        )
-        self.assertIn("  exact ⟨hE.1, c, hc, hl, hE.2 c hc _ hl⟩\n", t)
+        self.assertEqual(t.count("∃ c"), 1)
+        self.assertNotIn("admitCtor", t)
         self.assertIn("depends on axioms: [propext, Classical.choice, Quot.sound]", t)
+
+    def test_lifecycle_contract_is_the_sources_checked(self):
+        t = life(binding(BIND))
+        self.assertIn("  (Verify.LoopSource.Equiv.CounterCtx.src 8).checked\n", t)
+        self.assertIn(
+            "theorem contract_same : contract? = (Verify.LoopSource.Equiv.CounterCtx.src 8).checked := rfl\n",
+            t,
+        )
+        self.assertNotIn("admitCtor", t)
+
+
+class CreatedByControls(unittest.TestCase):
+    """Driver-level negative controls for the CreatedBy conjunct, each with its registered stage
+    and reason. Stages: "constructor parameters" (constructor_words: Blocked, feature constructor
+    parameters), "bind" (lifecycle_binding: Failed, --lifecycle-bind …) and "lifecycle kernel" (the
+    generated module's init_same, code_same, ws_same and contract_same,
+    which Lean checks: a mismatch does not build, verdict outside, its log kept)."""
+
+    TYPES = ("uint256",)
+
+    def blocked(self, text, needle):
+        with self.assertRaises(generic.Blocked) as e:
+            generic.constructor_words(list(self.TYPES), text)
+        (r,) = e.exception.reasons
+        self.assertEqual(r["feature"], "constructor parameters")
+        self.assertIn(needle, r["detail"])
+
+    def test_args(self):
+        self.blocked(None, "takes 1 argument(s)")  # missing
+        self.blocked("8,9", "takes 1 argument(s)")  # extra
+        self.blocked("x", "is not")  # type-invalid
+        self.blocked(str(2**256), "is outside uint256")  # type-invalid range
+        self.assertEqual(generic.constructor_words(list(self.TYPES), "8"), [8])
+
+    def refused(self, b, ws, needle):
+        with self.assertRaises(generic.Failed) as e:
+            binding(b, ws)
+        self.assertIn(needle, str(e.exception))
+        self.assertTrue(
+            str(e.exception).startswith("--lifecycle-bind: "), str(e.exception)
+        )
+
+    def edit(self, **kw):
+        b = copy.deepcopy(BIND)
+        for k, v in kw.items():
+            if v is None:
+                del b[k]
+            else:
+                b[k] = v
+        return b
+
+    def test_changed_args(self):
+        self.refused(BIND, (9,), "is applied to ['8'], not this run's words [9]")
+        self.refused(
+            self.edit(ws=[9]), (8,), "ws [9] are not this run's constructor words [8]"
+        )
+
+    def test_missing_and_extra_binding(self):
+        self.refused(self.edit(source=None), (8,), "keys must be exactly")
+        self.refused(self.edit(other="x"), (8,), "keys must be exactly")
+
+    def test_substituted_contract_refused(self):
+        """A contract? other than the source's checked (the old "contract" key, or a different c)
+        cannot be given: the binding has no such key (stage bind), contract? is the source's checked
+        by definition, and Composed takes c from the theorem and proves the certificate's equal
+        (stage lifecycle kernel: a different witness does not build)."""
+        self.refused(
+            self.edit(contract="Contracts.VerifyCounter.Source.contract?"),
+            (8,),
+            "keys must be exactly",
+        )
+        t = generic.composed_lean(NAME, binding(BIND))
+        self.assertIn(
+            f"  rw [Certified.{NAME}.Lifecycle.contract_same, hc] at hc'\n  cases hc'\n",
+            t,
+        )
+
+    def test_type_invalid_binding(self):
+        for k in ("source",):
+            for bad in ("src (8)", "src 8 x", "src\n8", "src 0x8", "", 8):
+                with self.subTest(k=k, bad=bad):
+                    self.refused(self.edit(**{k: bad}), (8,), f"{k} ")
+
+    def test_mismatched_source(self):
+        self.refused(
+            self.edit(source="Verify.LoopSource.Equiv.CounterCtx.src 5"),
+            (8,),
+            "is applied to ['5']",
+        )
+        self.refused(
+            self.edit(source="Other.src 8"),
+            (8,),
+            "expected.prop is not about the bound source",
+        )
+
+    def test_mismatched_runtime(self):
+        self.refused(
+            self.edit(runtime="Other.bytecode"),
+            (8,),
+            "expected.prop is not about the bound runtime",
+        )
+
+    def test_kernel_gates_creation_runtime_source(self):
+        """An init, runtime or source binding that names other bytes passes the Python checks; the
+        generated modules state each against the run's own, so Lean refuses to build them and the
+        kernel stage records outside with the Lifecycle log."""
+        t = life(binding(BIND))
+        for line in (
+            "theorem init_same : init = Verify.LoopSource.Equiv.CounterCtor.counterInit := by\n",
+            "theorem code_same : code = SolidCore.Verify.Generic.runtimeCode SolarTV.Export.Counter.bytecode := by\n",
+            "theorem ws_same : ws = [8] := rfl\n",
+        ):
+            self.assertIn(line, t)
+        old = generic.BUILD_LOG_DIR
+        with tempfile.TemporaryDirectory() as d:
+            generic.BUILD_LOG_DIR = pathlib.Path(d)
+            try:
+                kq = generic.lifecycle_kernel(
+                    lambda mod, text: (False, "error: init_same: decide failed"),
+                    f"Certified.{NAME}.Lifecycle",
+                    f"{NAME}.Source",
+                    f"Certified.{NAME}.Src.importedSourceUnit",
+                    "Counter",
+                    SIGS,
+                    bytes.fromhex("6080"),
+                    bytes.fromhex("6001"),
+                    bytes.fromhex("6001"),
+                    [8],
+                    [(1, 8)],
+                    [],
+                    bind=binding(BIND),
+                )
+            finally:
+                generic.BUILD_LOG_DIR = old
+        self.assertEqual(
+            (kq["stage"], kq["ok"], kq["verdict"]), ("kernel", False, "outside")
+        )
+        self.assertIn("init_same", kq["log_tail"])
 
 
 class Wiring(unittest.TestCase):

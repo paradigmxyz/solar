@@ -1841,7 +1841,7 @@ def lifecycle_lean(
     fuel_def = bind["fuel"] if bind else "4096"
     fuel_doc = ": the expected theorem's own" if bind else ""
     contract_def = (
-        bind["contract"]
+        f"{paren(bind['source'])}.checked"
         if bind
         else f"TypeCheck.CheckedInput.contract {unit} {lean_str(contract)}"
     )
@@ -1851,7 +1851,7 @@ def lifecycle_lean(
 
 theorem fuel_same : fuel = {bind["fuel"]} := rfl
 
-theorem contract_same : contract? = {bind["contract"]} := rfl
+theorem contract_same : contract? = {paren(bind["source"])}.checked := rfl
 
 theorem init_same : init = {bind["init"]} := by
   apply ByteArray.ext; decide +kernel
@@ -1979,12 +1979,13 @@ end {ns}
 BIND_KEYS = {
     "unit": "the expected theorem's checked source unit (a constant)",
     "unit_module": "its module",
-    "contract": "its contract? constant (TypeCheck.CheckedInput.contract unit name)",
     "fuel": "its fuel constant",
     "init": "its constructor's init code constant (ByteArray)",
     "runtime": "the runtime bytes constant it states Expected for (List Nat)",
     "modules": "the modules holding init and runtime (the lifecycle module imports these only)",
     "ws": "the pinned constructor words it admits for this run",
+    "source": "the expected theorem's Source term (a constant, or one applied to the words in ws, "
+    "such as CounterCtx.src 8)",
     "expected": "{module, binders, prop, term}: the theorem's module, its Expected conjunct, binders and the term "
     "proving PROP ∧ ∀ c, contract? = .ok c → ∀ s, Statement fuel c init (runtimeCode runtime) ws s → "
     "Deploys (initArgs init ws) (runtimeCode runtime) s",
@@ -2015,7 +2016,7 @@ def lifecycle_binding(path, ws):
         raise Failed(f"--lifecycle-bind: cannot read {path}: {e}") from None
     if not isinstance(b, dict) or set(b) != set(BIND_KEYS):
         raise Failed(f"--lifecycle-bind: keys must be exactly {sorted(BIND_KEYS)}")
-    for k in ("unit", "unit_module", "contract", "fuel", "init", "runtime"):
+    for k in ("unit", "unit_module", "fuel", "init", "runtime"):
         if not (isinstance(b[k], str) and re.fullmatch(LEAN_IDENT, b[k])):
             raise Failed(f"--lifecycle-bind: {k} {b[k]!r} is not a Lean name")
     if not (
@@ -2026,6 +2027,21 @@ def lifecycle_binding(path, ws):
         )
     ):
         raise Failed("--lifecycle-bind: modules must be a list of Lean module names")
+    src_term = b.get("source")
+    for k, t in (("source", src_term),):
+        if not isinstance(t, str):
+            raise Failed(f"--lifecycle-bind: {k} must be a Lean term")
+        head, *args = t.split(" ")
+        if not re.fullmatch(LEAN_IDENT, head) or any(
+            not re.fullmatch(r"[0-9]+", x) for x in args
+        ):
+            raise Failed(
+                f"--lifecycle-bind: {k} {t!r} is not a Lean name applied to decimal words"
+            )
+        if args and [int(x) for x in args] != list(ws):
+            raise Failed(
+                f"--lifecycle-bind: {k} {t!r} is applied to {args}, not this run's words {list(ws)}"
+            )
     if b["ws"] != list(ws):
         raise Failed(
             f"--lifecycle-bind: ws {b['ws']} are not this run's constructor words {list(ws)}"
@@ -2045,6 +2061,12 @@ def lifecycle_binding(path, ws):
         raise Failed(
             "--lifecycle-bind: expected.prop must be a SolidCore.Verify.Generic.Expected statement"
         )
+    lead = f"SolidCore.Verify.Generic.Expected {paren(src_term)} "
+    if not e["prop"].startswith(lead):
+        raise Failed(
+            f"--lifecycle-bind: expected.prop is not about the bound source {src_term!r} "
+            f"(it must start {lead!r})"
+        )
     if f" {b['runtime']}" not in e["prop"]:
         raise Failed("--lifecycle-bind: expected.prop is not about the bound runtime")
     for k in ("binders", "prop", "term"):
@@ -2054,6 +2076,10 @@ def lifecycle_binding(path, ws):
                 f"--lifecycle-bind: expected.{k} holds a forbidden token or a newline"
             )
     return b
+
+
+def paren(t):
+    return f"({t})" if " " in t else t
 
 
 def bind_modules(bind):
@@ -2077,40 +2103,50 @@ end Certified.{name}.SourceSame
 
 
 def composed_lean(name, bind):
-    """The composed theorem: the expected theorem's Expected conjunct, and the generated lifecycle
-    certificate at the same (c, fuel), init code, runtime and words, with the deployment it gives."""
+    """The composed theorem: the expected theorem's Expected, and at one witness c of its source's
+    checked contract (the lifecycle's contract? is that source's checked, by definition):
+    Source.CreatedBy c with solar's init code and the creation bytes initArgs init ws, the lifecycle
+    Statement and the deployment of those creation bytes. EXPECTED.term proves Expected ∧ ∃ c,
+    SOURCE.checked = .ok c ∧ SOURCE.CreatedBy c INIT (initArgs INIT WS) ∧ … (the shape of
+    CounterCreated.counter_expected_created); its c is proved to be the certificate's, and the
+    admission is the theorem's, never a second one."""
     life = f"Certified.{name}.Lifecycle"
     e = bind["expected"]
+    src = paren(bind["source"])
     ws = "[" + ", ".join(str(w) for w in bind["ws"]) + "]"
+    init = bind["init"]
+    cre = f"(Verify.Lifecycle.initArgs {init} {ws})"
     code = f"(SolidCore.Verify.Generic.runtimeCode {bind['runtime']})"
     return f"""import {name}.Lifecycle
 import {name}.SourceSame
 import {e["module"]}
+
 -- Generated by solar's tools/certify/generic.py; do not edit.
 
 namespace Certified.{name}.Composed
 
-/-- **The expected theorem with this run's lifecycle certificate**: the theorem's Expected conjunct,
-and at its own (c, fuel), solar's init code with the pinned words deploys the runtime it is about,
-SolidCore's constructor leaving the same storage (the generated certificate), with no lifecycle
-premise. -/
+/-- **The expected theorem with this run's lifecycle certificate**: the theorem's Expected, and at
+the one checked contract c of its source: the source is created by solar's init code with exactly
+the arguments {ws} (§Source.CreatedBy§, the theorem's typed admission), SolidCore's constructor of c
+on {ws} leaves §storageLit§, and those creation bytes deploy the runtime with the same storage. -/
 theorem composed {e["binders"]} :
     {e["prop"]} ∧
-      ∃ c, {bind["contract"]} = .ok c ∧
-        Verify.Lifecycle.Statement {bind["fuel"]} c {bind["init"]} {code} {ws} {life}.storageLit ∧
-        Verify.Lifecycle.Deploys (Verify.Lifecycle.initArgs {bind["init"]} {ws}) {code} {life}.storageLit := by
-  have hE := {e["term"]}
-  obtain ⟨c, hc, hl⟩ := {life}.statement
-  rw [{life}.contract_same] at hc
+      ∃ c, {src}.checked = .ok c ∧ {src}.CreatedBy c {init} {cre} ∧
+        Verify.Lifecycle.Statement {bind["fuel"]} c {init} {code} {ws} {life}.storageLit ∧
+        Verify.Lifecycle.Deploys {cre} {code} {life}.storageLit := by
+  obtain ⟨hE, c, hc, hcb, -⟩ := {e["term"]}
+  obtain ⟨c', hc', hl⟩ := {life}.statement
+  rw [{life}.contract_same, hc] at hc'
+  cases hc'
   rw [{life}.fuel_same, {life}.init_same, {life}.code_same, {life}.ws_same] at hl
-  exact ⟨hE.1, c, hc, hl, hE.2 c hc _ hl⟩
+  exact ⟨hE, c, hc, hcb, hl, hl.deploys⟩
 
 /-- info: 'Certified.{name}.Composed.composed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms composed
 
 end Certified.{name}.Composed
-"""
+""".replace("§", "\u0060")
 
 
 def storage_list(text):
@@ -2547,6 +2583,18 @@ def lifecycle_run(
                 "theorem": f"Certified.{name}.Composed.composed",
                 "lean_sha256": hashlib.sha256(text.encode()).hexdigest(),
                 "built": ok,
+                # One witness c for every conjunct; the admission is the expected theorem's.
+                "conjuncts": [
+                    "Expected",
+                    "checked",
+                    "CreatedBy",
+                    "Statement",
+                    "Deploys",
+                ],
+                "contract": f"{paren(bind['source'])}.checked",
+                "created_by": f"{paren(bind['source'])}.CreatedBy c {bind['init']} "
+                f"(Verify.Lifecycle.initArgs {bind['init']} {bind['ws']})",
+                "ctor_args": bind["ws"],
             }
             log(
                 f"lifecycle composed with the expected theorem: {'YES' if ok else 'NO'}"
