@@ -26,9 +26,9 @@ first. Repeat --compiler NAME='COMMAND ARGS' to replace these defaults with any 
 accept standard JSON on stdin and return standard JSON on stdout, or wrappers
 with that interface. Commands run without a shell. Use absolute paths for wrapper
 arguments. Original compiler settings are preserved except outputSelection, which
-requests ABI and creation/runtime bytecode to force code generation, and the AST
-of every source with --ast. This checks compilation success, not bytecode
-equality or runtime equivalence.
+requests ABI and creation/runtime bytecode to force code generation, the AST
+of every source with --ast, and storage layouts with --storage-layout. This
+checks compilation success, not bytecode equality or runtime equivalence.
 
 The DuckDB database tracks imports and attempts. Successful jobs are skipped;
 cached failures still stop the run unless --continue-on-failure is set. Use
@@ -91,7 +91,7 @@ from unittest.mock import patch
 
 import duckdb
 
-from .artifacts import contract_outputs
+from .artifacts import STORAGE_LAYOUTS, contract_outputs
 from .display import show_attempt
 
 EXPORT = "https://export.sourcify.dev"
@@ -116,8 +116,6 @@ OUTPUTS = {
         ]
     }
 }
-# AST export is expensive in solc, so only runs started with --ast request it.
-AST_OUTPUTS = {"*": {"": ["ast"], **OUTPUTS["*"]}}
 
 
 def json_text(value):
@@ -296,11 +294,16 @@ def require_sources(db):
         )
 
 
-def make_input(db, compilation_id, ast=False):
+def make_input(db, compilation_id, ast=False, storage_layout=False):
     result = db.execute("SELECT * FROM compilations WHERE id = ?", [compilation_id])
     record = dict(zip([column[0] for column in result.description], result.fetchone()))
     settings = json.loads(record["compiler_settings"])
-    settings["outputSelection"] = AST_OUTPUTS if ast else OUTPUTS
+    # AST export is expensive in solc, so only runs started with --ast request it.
+    # Storage layouts are opt-in too, so jobs cached without them stay valid.
+    contract = [*OUTPUTS["*"]["*"], *(STORAGE_LAYOUTS if storage_layout else ())]
+    settings["outputSelection"] = {
+        "*": {**({"": ["ast"]} if ast else {}), "*": contract}
+    }
     sources = db.execute(
         """
         SELECT path, content FROM links LEFT JOIN sources USING (source_hash)
@@ -479,7 +482,9 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
     try:
         while row := reader.fetchone():
             compilation_id = row[0]
-            request, record = make_input(db, compilation_id, args.ast)
+            request, record = make_input(
+                db, compilation_id, args.ast, args.storage_layout
+            )
             request_text = None
             for compiler in compilers:
                 if executable_state(compiler["command"][0]) != compiler["file_state"]:
@@ -707,6 +712,11 @@ def add_compiler_arguments(runner):
         help="Also request the AST of every source, for the ast check",
     )
     runner.add_argument(
+        "--storage-layout",
+        action="store_true",
+        help="Also request storage layouts, for the storage-layout check",
+    )
+    runner.add_argument(
         "--tag",
         default="",
         help="Distinguish wrapper dependencies, environment, or experiments",
@@ -794,6 +804,7 @@ class Tests(unittest.TestCase):
             limit=None,
             tag="",
             ast=False,
+            storage_layout=False,
         )
 
     def fake(self, name, body):
@@ -927,6 +938,11 @@ class Tests(unittest.TestCase):
         ]
         self.assertEqual(selection["*"][""], ["ast"])
         self.assertEqual(selection["*"]["*"], OUTPUTS["*"]["*"])
+        selection = make_input(self.db, "one", ast=True, storage_layout=True)[0][
+            "settings"
+        ]["outputSelection"]
+        self.assertEqual(selection["*"][""], ["ast"])
+        self.assertEqual(selection["*"]["*"], [*OUTPUTS["*"]["*"], *STORAGE_LAYOUTS])
         write_json(self.root / "stdout.txt", {"sources": {"C.sol": {"id": 0}}})
         result = {"error": None, "returncode": 0}
         self.assertIsNone(output_error(self.root, result, ast=True))

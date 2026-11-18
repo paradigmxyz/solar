@@ -38,7 +38,10 @@ compiler-diff --dir /tmp/compiler-repro run
 settings except `outputSelection`, which requests ABI, creation and runtime
 bytecode, method identifiers, userdoc, and devdoc. `run --ast` (also `fuzz`)
 adds the AST of every source (`"": ["ast"]`) for the `ast` check; solc's AST
-export is slow, so it is off by default and part of the job identity. Inputs are content-addressed
+export is slow, so it is off by default and part of the job identity.
+`run --storage-layout` (also `fuzz`) adds `storageLayout` and
+`transientStorageLayout` for the `storage-layout` check; it is off by default
+too, so jobs cached without it keep their identity. Inputs are content-addressed
 with their target, so repeat imports are harmless. Sources stay inline; names
 such as `../C.sol` never become filesystem paths.
 
@@ -94,12 +97,24 @@ that matters.
 | `methods` | Compare signature-to-selector maps. |
 | `userdoc`, `devdoc` | Compare parsed JSON structurally, including names and descriptions. |
 | `ast` | Compare `sources.<name>.ast` node by node after renumbering IDs; see [AST comparisons](#ast-comparisons). Needs `run --ast`. |
+| `storage-layout` | Compare `storageLayout` and `transientStorageLayout` after dropping AST IDs; see below. Needs `run --storage-layout`. |
 
 Both ABI policies expand tuple signatures recursively, keep parameter and
 component order and duplicate entries, and neither guess the meaning of
-user-defined library types nor erase enum/type differences. Bytecode and
-storage layouts need their own semantic rules, so `compare` skips them. ABI
-agreement does not imply runtime equivalence.
+user-defined library types nor erase enum/type differences. Bytecode needs
+its own semantic rules, so `compare` skips it. ABI agreement does not imply
+runtime equivalence.
+
+AST IDs never match between compilers, so `storage-layout` drops `astId` and
+replaces the ID that ends `t_struct(Name)N`, `t_enum(Name)N`,
+`t_contract(Name)N` and `t_userDefinedValueType(Name)N` with `#`, in the keys
+of `types` and in every `type`, `key`, `value` and `base`, including those of
+struct members. If two IDs of one name meet in one layout, such as two structs
+`S` from different scopes, the check reports an error naming the contract
+rather than guessing which is which. `storage` and each struct's `members`
+compare in order; `types` compares as an object, so its key order does not
+matter. Each layout counts as one output for the missing and `unsupported`
+rules below. The check has its own rule version for expectations.
 
 Each check reports `equal`, `different`, `unsupported` (outputs missing on both
 sides), or `error` (failed compilation or malformed output); output missing on
