@@ -135,6 +135,67 @@ class DeadSsaTests(unittest.TestCase):
             witness["witness"]["native_observations"],
         )
 
+    def test_real_dce_erases_unused_slices_in_every_address_space(self):
+        before = self.paths[0].read_text()
+        slices = []
+        for index, location in enumerate(("memory", "calldata", "returndata")):
+            ptr, pair, head, length = range(10 + 4 * index, 14 + 4 * index)
+            slices.extend(
+                [
+                    f"v{ptr} = inttoptr i256 {2**256 - 1} to ptr<{location}>",
+                    f"v{pair} = make_{location}_slice v{ptr}, 32",
+                    f"v{head} = extract_value slice<{location}>, v{pair}, 0",
+                    f"v{length} = extract_value slice<{location}>, v{pair}, 1",
+                ]
+            )
+        before = before.replace("v5 = sub v3, 2", "\n    ".join(slices))
+        source = self.directory / "slices.mir"
+        source.write_text(before)
+        after = subprocess.check_output(
+            [SOLAR, source, "-j1", "-Ogas", "-Zmir-pipeline=dce", "-Zvalidate-ir=true"],
+            text=True,
+            timeout=30,
+        )
+        optimized = self.directory / "optimized.mir"
+        optimized.write_text(after)
+        result, record = self.cli([source, optimized])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "cyclic-dead-ssa-simulation")
+        self.assertEqual(len(record["region"]["erased_results"]), 14)
+
+        # An invalid memory range is harmless until an operation accesses it.
+        # DCE must not accept a pair that also removes the access.
+        reads_memory = before.replace(
+            "icall @sink, v2", "v30 = mload v12\n    icall @sink, v2"
+        )
+        with self.assertRaisesRegex(Unsupported, "trapping or stateful"):
+            self.check(reads_memory, after)
+        with self.assertRaisesRegex(Unsupported, "undefined operand"):
+            self.check(
+                before.replace(
+                    "make_memory_slice v10, 32", "make_memory_slice v10, undef i256"
+                ),
+                after,
+            )
+
+    def test_slice_projection_in_a_retained_store_cannot_be_erased(self):
+        before = self.paths[0].read_text()
+        before = before.replace(
+            "icall @sink, v2",
+            "v10 = inttoptr i256 128 to ptr<memory>\n"
+            "    v11 = make_memory_slice v10, v2\n"
+            "    v12 = extract_value slice<memory>, v11, 1\n"
+            "    icall @sink, v12",
+        )
+        after = self.paths[1].read_text().replace("icall @sink, v2", "icall @sink, v4")
+        with self.assertRaisesRegex(Unsupported, "changed a retained action"):
+            self.check(before, after)
+        _, witness = state.MirStateTests.pair(self, before, after, status=1)
+        self.assertEqual(
+            witness["witness"]["observations"],
+            witness["witness"]["native_observations"],
+        )
+
     def test_phi_backedge_and_kept_operands_remain_exact(self):
         before = self.paths[0].read_text()
         after = self.paths[1].read_text()

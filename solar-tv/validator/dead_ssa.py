@@ -3,8 +3,9 @@
 Independent source exports retain every phi, transfer and effect. An injective
 local-ID correspondence aligns retained definitions; the kernel checks exact
 action erasure and that no retained read can observe an erased result. Only
-schema-pure total word operations/casts may disappear. This is a separate
-unpriced action-machine proof, not direct interpreter or gas correspondence.
+total scalar definitions and typed slice construction/projection may disappear.
+This is an unpriced action-machine proof, not direct interpreter or gas
+correspondence.
 """
 
 import copy
@@ -124,11 +125,41 @@ def erasable(inst, definitions):
     if inst["result"] is None or inst["type"] is None:
         return False
     op = inst["operation"]
-    # Reuse the existing total scalar constructor domain. Checked arithmetic,
-    # memory reads, aggregates and all stateful instructions remain actions.
+    result = inst["type"]
+    if op["kind"] in {"make_slice", "extract_value"}:
+        # These signatures match MIR.DeadSlice.make and MIR.DeadSlice.extract.
+        # The module check rejects explicit undef across the supplied bodies.
+        make = op["kind"] == "make_slice"
+        slice_ty = result if make else op["aggregate_type"]
+        if slice_ty["kind"] != "slice" or slice_ty["location"] not in {
+            "memory",
+            "calldata",
+            "returndata",
+        }:
+            return False
+        fields = list(map(mir_state.value_type, mir_state.leaf_types(slice_ty)))
+        args = [mir_state.value_type(arg["type"]) for arg in op["args"]]
+        if make:
+            return op["location"] == slice_ty["location"] and args == fields
+        index = op["index"]
+        return (
+            args == [mir_state.value_type(slice_ty)]
+            and type(index) is int
+            and 0 <= index < len(fields)
+            and mir_state.value_type(result) == fields[index]
+        )
+
+    # A cast between a word and a pointer reads scalar bits. It never accesses
+    # that address space. Keep the pointer type in the action's identity.
+    def scalar_width(ty):
+        if op["kind"] == "word" and ty["kind"] == "pointer" and ty["bits"] == 256:
+            mir_state.value_type(ty)
+            return 256
+        return mir_effects.scalar_width(ty)
+
     try:
-        bits = mir_effects.scalar_width(inst["type"])
-        args = [("unused", mir_effects.scalar_width(arg["type"])) for arg in op["args"]]
+        bits = scalar_width(result)
+        args = [("unused", scalar_width(arg["type"])) for arg in op["args"]]
         return mir_effects.pure(op, args, bits, definitions) is not None
     except Unsupported:
         return False

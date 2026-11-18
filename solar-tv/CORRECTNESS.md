@@ -87,9 +87,14 @@ block, phi group, transfer and ordered effect. A local-ID correspondence must be
 injective and preserve every retained operand and definition. The kernel checks
 the generated action programs against exact erasure of the original program,
 then checks that no retained read refers to an erased definition, including phi
-backedges and terminal observations. Only the existing total scalar domain can
-be classified silent; loads, storage reads, checked arithmetic and allocations
-cannot be erased by this certificate.
+backedges and terminal observations. Only total scalar operations and typed
+slice construction or projection can be classified as silent. The
+`MIR/Transforms/DeadSlice.lean` lemmas use the direct interpreter to show these
+slice operations only update a local. Construction takes defined pointer and
+length words, and projection checks the field index and type with its address
+space. The checker retains loads, storage reads, checked arithmetic and
+allocations. The live-projection regression also checks that a changed storage
+write yields the same counterexample in Lean and Rust.
 
 The theorem preserves live registers and arbitrary shared state after every
 block. It quantifies all effect and transfer handlers, initial values and

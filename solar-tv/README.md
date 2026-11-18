@@ -1428,9 +1428,10 @@ solar-tv/solar-tv mir solar-tv/examples/mir/cyclic-dce/{before,broken}.mir \
   --function f --world solar-tv/examples/mir/cyclic-dce/world.json
 ```
 
-The first pair is real `dce` output. The kernel checks that only total pure
-scalar definitions disappear, and that none of their results occurs in a
-retained instruction, simultaneous phi group or transfer. A simulation preserves
+The first pair is real `dce` output. The checker admits total scalar operations,
+slice constructors and well-typed slice projections. The kernel checks exact
+erasure and confirms that retained instructions, phi groups and transfers do
+not read any erased result. A simulation preserves
 live registers and shared state after every block, for every block-transfer
 bound. Loops need no fixed unrolling or termination assumption. Effect handlers
 are arbitrary and may fail immediately. The broken store has matching Lean and
@@ -1445,11 +1446,10 @@ changed function. GAS, code observers, external calls, placement queries and
 backend memory records remain unsupported. Physical scalar gas and its effect
 on SSTORE's gas sentry are outside the claim.
 
-The frozen 24-check sample remains **22 verified, 2 unsupported**. A separate
-selection of all six previously cycle-rejected DCE captures verifies three more
-real pairs: OpenZeppelin's storage-byte helper and two Morpho `extSloads` pairs.
-The other three remove aggregate definitions outside this scalar certificate.
-These extra checks do not change the frozen sample's selection or denominator.
+The frozen 24-check sample remains **22 verified, 2 unsupported**. All six
+previously cycle-rejected DCE pairs in the broader capture set now verify.
+They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and three
+Morpho `extSloads` captures.
 
 ### Removing unused MIR type declarations
 

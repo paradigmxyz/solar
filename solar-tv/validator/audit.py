@@ -238,7 +238,8 @@ def record(
             assumptions.extend(
                 [
                     "deletion-only SSA stuttering simulation; all retained actions, simultaneous phi groups, predecessor identities and transfers preserved",
-                    "erased results are absent from every retained read; only total state-independent scalar definitions can disappear",
+                    "erased results are absent from every retained read; only total scalar definitions and typed slice construction/projection can disappear",
+                    "slice construction reads defined pointer and length words without dereferencing; projections preserve the selected field type and address space; explicit undef is excluded",
                     "every initial register file and shared state, arbitrary failing effect handlers and every logical block-transfer bound; cycles need no fixed unrolling or termination assumption",
                     "trusted independent compiler parser/schema export, injective local-ID normalization, total-pure classification and action renderer; supplied callees unchanged and cannot re-enter the changed body",
                     "contextual action-machine proof, not direct typed-interpreter correspondence; equal finite-budget errors are not the verification criterion",
