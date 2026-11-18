@@ -350,18 +350,19 @@ Status: intentional.
 Difference: `solc` accepts expressions of any depth when it only analyzes them,
 so `--abi` accepts a chain of 30000 `^` operators. `solar` rejects an
 expression tree deeper than 2500 levels during parsing with `expression is too
-deeply nested`. A level is an operator in a binary chain, a member access, call
-or index in a postfix chain, a prefix or postfix operator, or a parenthesis,
-and nested expressions add up, so one expression can contain any number of
+deeply nested`. A level is an operand, an operator in a binary chain, a member
+access, call or index in a postfix chain, a prefix or postfix operator, or a
+parenthesis, and nested expressions add up, so one expression can contain any number of
 shallow operands. Code generation in `solc` does not accept such depth either:
 its legacy code generator fails with `Stack too deep` on a chain of 16
-operators, and `--via-ir --optimize` crashes with a segmentation fault on a
+terms, and `--via-ir --optimize` crashes with a segmentation fault on a
 chain of 10000.
 
 Rationale: every pass that walks an expression recurses once per level, and the
 parser builds these chains in a loop, so the recursion limit does not bound
 them. A chain of about 10000 operators overflows the 8 MiB stack of the main
-thread, which `-j1` uses, in a release build.
+thread, which `-j1` uses, in a release build. The limit assumes a stack of at
+least 8 MiB: a thread with 2 MiB overflows on chains near the limit.
 
 Coverage: `tests/ui/parser/expr_depth_limit.sol`,
 `tests/ui/parser/expr_depth_limit_max.sol`,

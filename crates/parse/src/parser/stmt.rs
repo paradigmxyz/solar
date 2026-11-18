@@ -245,6 +245,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Kept out of line so that its buffers take no space in other statements.
     #[inline(never)]
     fn parse_simple_stmt_tuple(&mut self, lo: Span) -> PResult<'sess, StmtKind<'ast>> {
+        // The tuple becomes a `with` expression, which continues the depth of its components.
+        self.expr_depth = 0;
         let mut none_elements = SmallVec::<[_; 8]>::new();
         while self.eat(TokenKind::Comma) {
             none_elements.push(self.prev_token.span.shrink_to_hi());
