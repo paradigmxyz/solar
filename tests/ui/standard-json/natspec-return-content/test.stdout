@@ -94,6 +94,11 @@
               "returns": {
                 "status": "  on the next line"
               }
+            },
+            "count()": {
+              "returns": {
+                "count": "after an empty line"
+              }
             }
           },
           "version": 1

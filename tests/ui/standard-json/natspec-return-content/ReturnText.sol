@@ -15,6 +15,11 @@ interface Seaport {
      *   status   on the next line
      */
     function status() external view returns (uint256 status);
+
+    /// @return
+    ///
+    /// count after an empty line
+    function count() external view returns (uint256 count);
 }
 
 contract Getter {

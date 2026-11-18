@@ -494,9 +494,13 @@ impl<'gcx> Resolver<'gcx> {
                             true
                         };
 
-                        let next = docs
-                            .get(i + 1)
-                            .filter(|next| !starts_group(self.gcx, doc_comment, next));
+                        // solc's scanner skips empty `///` lines.
+                        let next = docs[i + 1..]
+                            .iter()
+                            .zip(&docs[i..])
+                            .take_while(|&(next, prev)| !starts_group(self.gcx, prev, next))
+                            .map(|(next, _)| next)
+                            .find(|next| !next.symbol.as_str().is_empty());
                         if return_valid
                             && let Some(item) = self.lower_return_natspec(
                                 *natspec,

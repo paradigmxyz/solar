@@ -16,6 +16,7 @@
 // CHECK-NEXT: "domainSeparator": "The domain separator.",
 // CHECK-NEXT: "conduitController": "conduitController"
 // CHECK: "status": "  on the next line"
+// CHECK: "count": "after an empty line"
 // CHECK: "pair": {
 // CHECK-NEXT: "return": "x  the first",
 // CHECK-NEXT: "returns": {

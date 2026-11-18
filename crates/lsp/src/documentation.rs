@@ -208,8 +208,11 @@ fn return_doc_at(
 fn item_content(item: &hir::NatSpecItem) -> Option<&str> {
     let content = item.content().trim();
     let content = match item.kind {
-        // A named `@return` tag's text starts with the name.
+        // A named `@return` tag's text starts with the name, which follows the block comment
+        // decoration when the tag ends its line.
         hir::NatSpecKind::Return { name: Some(_) } => content
+            .trim_start_matches('*')
+            .trim_start()
             .split_once(|c: char| c.is_ascii_whitespace())
             .map_or("", |(_, rest)| rest.trim_start()),
         _ => content,

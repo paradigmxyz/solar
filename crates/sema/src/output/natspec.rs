@@ -280,13 +280,12 @@ fn return_docs(gcx: Gcx<'_>, item: hir::ItemId) -> FxIndexMap<String, String> {
         .enumerate()
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
-            Some(match variable.name {
-                Some(name) => match item.content.split_once([' ', '\t']) {
-                    Some((_, rest)) => (name.to_string(), rest.to_string()),
-                    None => (name.to_string(), item.content),
-                },
-                None => (format!("_{index}"), item.content),
-            })
+            let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
+            let content = match (variable.name, item.content.split_once([' ', '\t'])) {
+                (Some(_), Some((_, rest))) => rest.to_string(),
+                _ => item.content,
+            };
+            Some((name, content))
         })
         .collect()
 }
