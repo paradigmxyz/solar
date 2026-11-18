@@ -696,6 +696,43 @@ def literal_assignments(body):
     return out
 
 
+def vacuous_requires(f):
+    """Why F's @custom:requires clauses, taken together, are unsatisfiable, or None: decided only for
+    comparisons of one argument or state variable with decimal literals, over the uint range."""
+    atoms = []
+    for text in natspec_clauses(f, "requires"):
+        a = spec_atoms(text)
+        if a is None:
+            return None
+        atoms += a
+    if not atoms:
+        return None
+    for n in {x for x, _, _ in atoms}:
+        lo, hi, ne = 0, 2**256 - 1, set()
+        for x, op, v in atoms:
+            if x != n:
+                continue
+            if op == "<":
+                hi = min(hi, v - 1)
+            elif op == "<=":
+                hi = min(hi, v)
+            elif op == ">":
+                lo = max(lo, v + 1)
+            elif op == ">=":
+                lo = max(lo, v)
+            elif op == "==":
+                lo, hi = max(lo, v), min(hi, v)
+            else:
+                ne.add(v)
+        if lo > hi or (hi - lo < len(ne) and all(k in ne for k in range(lo, hi + 1))):
+            clauses = " && ".join(natspec_clauses(f, "requires"))
+            return (
+                f"vacuous: {f['name']}: @custom:requires {clauses} admits no value of {n}, so "
+                "the function's statement would hold of no call"
+            )
+    return None
+
+
 def natspec_checks(ast, contract):
     """The decided NatSpec checks of CONTRACT: (the first refutation as a REJECTED reason or None,
     the record's invariant entries). @custom:invariant: the initial state (state variables'
@@ -731,6 +768,8 @@ def natspec_checks(ast, contract):
             or f.get("stateMutability") == "payable"
         ):
             continue
+        if why := vacuous_requires(f):
+            return why, []
         for text in natspec_clauses(f, "succeeds-if") + natspec_clauses(
             f, "succeeds_if"
         ):

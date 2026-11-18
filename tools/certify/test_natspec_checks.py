@@ -17,11 +17,14 @@ import generic
 
 SOLC = pathlib.Path.home() / ".cache" / "solc" / f"solc-{generic.SOLC_VERSION}"
 FIX = HERE / "testdata" / "fixplan"
-# The stages tools/certify-adversarial/stages.tsv registers for these cases.
+# The stages tools/certify-adversarial/stages.tsv (T5's negatives, 752d9b30) registers for these
+# cases, verbatim.
 STAGE = {
     "InitBrokenR2": r"^REJECTED: .*\binvariant\b.*\b(initial|constructor|deploy)",
     "InvBrokenR2": r"^REJECTED: .*\binvariant\b.*\breset\b",
     "FlagSucceedsAlways": r"^REJECTED: spec: \S*\blower_succeeds0 does not check",
+    "VacuousSecondR2a": r"^REJECTED: .*\bvacuous.*\btwo\b|^REJECTED: .*\btwo\b.*\bvacuous",
+    "VacuousSecondR2b": r"^REJECTED: .*\bvacuous.*\btwo\b|^REJECTED: .*\btwo\b.*\bvacuous",
 }
 
 
@@ -123,6 +126,42 @@ class NonpayableSucceeds(unittest.TestCase):
             " function f() external {}\n}\n"
         )
         self.assertIsNone(generic.natspec_checks(ast, "C")[0])
+
+
+class Vacuous(unittest.TestCase):
+    def test_second_refused(self):
+        for case in ("VacuousSecondR2a", "VacuousSecondR2b"):
+            with self.subTest(case):
+                why, _ = checks(case)
+                self.assertIsNotNone(why)
+                self.assertTrue(why.startswith("vacuous: two: @custom:requires "), why)
+                self.assertIn("admits no value of y", why)
+                self.assertRegex(f"REJECTED: {why}", STAGE[case])
+
+    def test_satisfiable_and_undecided_pass(self):
+        for req in ("y < 5 && y > 3", "y != 0", "y == 7", "y < 3 || y > 5", "y < z"):
+            with self.subTest(req):
+                ast = ast_of(
+                    HEAD + "contract C {\n uint256 public x;\n"
+                    f" /// @custom:requires {req}\n /// @custom:succeeds-if msg.value == 0\n"
+                    " function f(uint256 y, uint256 z) external { x = y + z; }\n}\n"
+                )
+                self.assertIsNone(generic.natspec_checks(ast, "C")[0])
+
+    def test_point_excluded(self):
+        ast = ast_of(
+            HEAD + "contract C {\n uint256 public x;\n"
+            " /// @custom:requires y == 4 && y != 4\n function f(uint256 y) external { x = y; }\n}\n"
+        )
+        why = generic.natspec_checks(ast, "C")[0]
+        self.assertTrue(why.startswith("vacuous: f: "), why)
+
+    def test_before_shape(self):
+        src = (HERE / "generic.py").read_text()
+        self.assertLess(
+            src.index("refuted, invs = natspec_checks(ast, contract)"),
+            src.index("def run_shape") if "def run_shape" in src else len(src),
+        )
 
 
 class Fragment(unittest.TestCase):
