@@ -111,6 +111,7 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         let target = module.target(gcx);
+        let reads_msize = crate::mir::analysis::reads_msize(module);
         run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
@@ -170,7 +171,13 @@ impl MirPass for LowerBuiltins {
                     // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
                         InstKind::AbiEncodePacked { parts, hash } => {
-                            super::lower_packed::lower_packed(builder, parts, hash, &target)
+                            super::lower_packed::lower_packed(
+                                builder,
+                                parts,
+                                hash,
+                                &target,
+                                reads_msize,
+                            )
                         }
                         InstKind::ICall {
                             function:

@@ -11,7 +11,10 @@
 //! into the output or the hash buffer, as solc does, so the value has no memory copy and costs no
 //! free-memory growth. Storage is read here, after the arguments ran. Whole words are written, so a
 //! part may write up to 31 bytes past its end: the next part overwrites them, and after the last
-//! part they lie in the padding or above the allocation.
+//! part they lie in the padding or above the allocation. A module that reads `MSIZE` also clears
+//! the word after an encoding that does not end on a word, as solc's final copy does: there the
+//! touched memory, and so `MSIZE`, matches what the clear leaves. Other modules skip the store,
+//! since no other operation observes those bytes.
 //! An array of full words that need no cleanup copies as one block, as the standard encoder
 //! copies it: one `MCOPY` from memory and one `CALLDATACOPY` from calldata. An array of fixed
 //! arrays of words in calldata takes the standard encoder's wrap guard. Words that need cleanup
@@ -104,8 +107,9 @@ pub(super) fn lower_packed(
     parts: Box<[PackedPart]>,
     hash: bool,
     target: &Target,
+    reads_msize: bool,
 ) -> ValueId {
-    let mut encoder = PackedEncoder { builder, target };
+    let mut encoder = PackedEncoder { builder, target, reads_msize };
     if hash && let Some(hash) = encoder.hash_over_length(&parts) {
         return hash;
     }
@@ -120,6 +124,8 @@ pub(super) fn lower_packed(
 struct PackedEncoder<'a, 'b> {
     builder: &'a mut FunctionBuilder<'b>,
     target: &'a Target,
+    /// Whether the module reads `MSIZE`, which observes the word after the encoding.
+    reads_msize: bool,
 }
 
 impl PackedEncoder<'_, '_> {
@@ -290,6 +296,13 @@ impl PackedEncoder<'_, '_> {
             }
             index += 1;
         }
+        if !word_aligned && self.reads_msize {
+            // Clear the word after the encoding, as solc's final copy does, so that `MSIZE` and
+            // the bytes past the encoding's end in its last word match solc's.
+            // mstore(output + 32 + total, 0)
+            let zero = self.builder.imm(0);
+            self.builder.memory_store_word(output, offset, zero);
+        }
         output
     }
 
@@ -459,7 +472,8 @@ impl PackedEncoder<'_, '_> {
             element_words,
             |builder| {
                 // copy_packed_array_each(output, offset, array)
-                PackedEncoder { builder, target }.copy_packed_array_each(output, offset, array);
+                PackedEncoder { builder, target, reads_msize: false }
+                    .copy_packed_array_each(output, offset, array);
             },
         );
     }

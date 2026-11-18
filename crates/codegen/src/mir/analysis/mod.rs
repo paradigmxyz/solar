@@ -23,7 +23,7 @@ mod gas;
 pub(crate) use gas::GasObservations;
 
 mod fresh_heap;
-pub(crate) use fresh_heap::FreshHeap;
+pub(crate) use fresh_heap::{FreshHeap, reads_msize};
 
 mod hotness;
 pub(crate) use hotness::{HotnessAnalysis, aborts};
