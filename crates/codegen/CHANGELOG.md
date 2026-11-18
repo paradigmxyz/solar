@@ -40,7 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [codegen] Attribute stackify glue to the code it serves ([#2518](https://github.com/paradigmxyz/solar/issues/2518))
 - [codegen] Merge the origins of a retained constant's readers ([#2509](https://github.com/paradigmxyz/solar/issues/2509))
 - [codegen] Bail out of the pure struct shortcut on recursion ([#2474](https://github.com/paradigmxyz/solar/issues/2474))
-- [debug] Restore locations dropped by [#2497](https://github.com/paradigmxyz/solar/issues/2497) ([#2517](https://github.com/paradigmxyz/solar/issues/2517))
 - [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
 - [mir] Pick the debug-location rule each rewrite needs ([#2485](https://github.com/paradigmxyz/solar/issues/2485))
 - [codegen] Map the constructor entry jump to the constructor ([#2487](https://github.com/paradigmxyz/solar/issues/2487))

@@ -14,44 +14,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   benchmark uses 8.65% less execution gas and 2.65% fewer runtime bytes
   ([#2314]). Bit searches compile to `CLZ` on Osaka: the same benchmark goes
   from 240,361 to 231,847 gas (-3.54%) ([#2527]) and then to 228,644 (-1.38%)
-  ([#2652]). Repeated dynamic arrays in a struct share one ABI decoder, which
-  cuts the creation code of Seaport's `RequestValidator` by 18.42% ([#2303]).
-  The inliner now inlines straight-line helpers in loops under stack pressure,
-  which saves 2.4% gas in Ekubo's `swapAllowPartialFill` ([#2596]). Returned
-  calldata structs and arrays encode in place, shrinking one example's runtime
-  code from 647 to 471 bytes ([#2575]). Dozens of smaller stack scheduling, ABI,
-  peephole and loop improvements are listed under Performance.
+  ([#2652]), although two contracts grow, by 72 and 5 bytes. Repeated dynamic
+  arrays in a struct share one ABI decoder, which cuts the creation code of
+  Seaport's `RequestValidator` by 18.42% ([#2303]); three other Seaport
+  contracts grow by 8 to 12 bytes. The inliner now inlines straight-line helpers
+  in loops under stack pressure, which saves 2.4% gas in Ekubo's
+  `swapAllowPartialFill` ([#2596]) and grows its core runtime code by 37 bytes
+  at `-Ogas`. Returned calldata structs and arrays encode in place, shrinking
+  one example's runtime code from 647 to 471 bytes ([#2575]); like solc, the
+  encoder now validates narrow calldata words. Dozens of smaller stack
+  scheduling, ABI, peephole and loop improvements are listed under Performance.
 - **Debug info and coverage.** Source maps and ETHDebug keep the origin of code
   through MIR and EVM IR rewrites, so coverage no longer misses ABI decoding,
   call sites and expressions ([#2345]). Shared instructions keep every origin
-  ([#2373]), MIR and EVM IR share one location type ([#2483]), rewrites follow
-  one preserve, merge or drop rule per case ([#2497]), and `JUMPDEST`s carry
-  label origins as in solc ([#2416]). These changes leave bytecode unchanged
-  ([#2345], [#2497]). `cargo tq foundry-coverage` measures `forge coverage`
-  parity with solc across seven compiler configurations ([#2639]).
+  ([#2373]), which makes ETHDebug output larger. MIR and EVM IR share one
+  location type ([#2483]), rewrites follow one preserve, merge or drop rule per
+  case ([#2497]), and `JUMPDEST`s carry label origins as in solc ([#2416]). None
+  of this changes bytecode ([#2345], [#2497]). The local-only `cargo tq
+  foundry-coverage` mode measures `forge coverage` parity with solc across seven
+  compiler configurations ([#2639]).
 - **AST and NatSpec output.** `--emit=ast` and Standard JSON `ast` now emit
   solc's compact AST JSON ([#2344]). Against solc 0.8.38, 39,538,215 of
   39,538,223 fields agree over 6,793 compilations, and all fields agree over
   7,372 parse-only compilations. Analyzing seaport-1.6 and emitting its ASTs
-  takes 85 ms, where solc 0.8.36 takes 4.83 s. Userdoc and devdoc now join,
-  trim, inherit and list NatSpec like solc: against solc 0.8.38 on its test
-  corpus (3,186 compilations), userdoc differences fell from 62 to 5 and devdoc
-  differences from 56 to 3 ([#2653], [#2655]), and four more gaps are closed
-  ([#2692]). The `solar-cold` NatSpec tag marks functions as cold ([#2237]).
+  takes 85 ms at the default thread count (208 ms with `-j1`), where solc 0.8.36
+  takes 4.83 s. Userdoc and devdoc now join, trim, inherit and list NatSpec like
+  solc: against solc 0.8.38 on its test corpus (3,186 compilations), userdoc
+  differences fell from 62 to 5 and devdoc differences from 56 to 3 ([#2653],
+  [#2655]), and four more gaps are closed ([#2692]). The `solar-cold` NatSpec
+  tag marks functions as cold ([#2237]).
 - **Diagnostics.** New warnings flag deprecated `send` and `transfer` ([#2597])
   and statements with no effect ([#2410]). More errors carry solc's codes
   ([#2318], [#2319], [#2321]). The compiler now rejects arithmetic on fixed
   bytes ([#2446]) and `view` or `pure` fallback functions ([#2451]), and no
   longer overflows the stack on recursive structs and inheritance cycles
-  ([#2449]) or panics on invalid binary literals ([#2452]).
-- **Compile time.** The default thread count is the number of logical cores, and
-  `inturn` 0.2.1 uses a lock-free interner: a 6,132-file corpus compiles in
-  9,010 ms instead of 20,258 ms (-56%), with peak memory up from 2,137 to 3,328
-  MB ([#2354]). The stack planner resumes after a spill instead of restarting:
-  seaport goes from 7.49 s to 6.31 s on 5 cores (-15.8%) ([#2532]). Sema reuses
-  per-item results across contracts, which cuts the instructions spent on ABI
-  and storage layout output by 12.2% for seaport and 15.9% for OpenZeppelin
-  ([#2660]).
+  ([#2449]) or panics on invalid binary literals ([#2452]). Code that exceeds
+  the EVM's 1024-word stack limit now compiles with warning 0068 instead of
+  failing ([#2572]).
+- **Compile time.** The default thread count is the number of logical cores
+  instead of at most eight: on a 48-thread machine a 6,132-file corpus compiles
+  in 9,010 ms instead of 20,258 ms (-56%), with peak memory up from 2,137 to
+  3,328 MB and very small inputs slightly slower ([#2354]). The same change
+  moves `inturn` to a lock-free interner. The stack planner resumes after a
+  spill instead of restarting: seaport goes from 7.49 s to 6.31 s on 5 cores
+  (-15.8%) ([#2532]). Sema reuses per-item results across contracts, which cuts
+  the instructions spent on ABI and storage layout output by 12.2% for seaport
+  and 15.9% for OpenZeppelin ([#2660]).
 - **Correctness.** Calldata copies to memory are bounded by an unsigned address
   ([#2548]), and calldata returns that run past the end read as zero, as in solc
   ([#2549]).
@@ -96,7 +104,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [codegen] Attribute stackify glue to the code it serves ([#2518](https://github.com/paradigmxyz/solar/issues/2518))
 - [codegen] Merge the origins of a retained constant's readers ([#2509](https://github.com/paradigmxyz/solar/issues/2509))
 - [codegen] Bail out of the pure struct shortcut on recursion ([#2474](https://github.com/paradigmxyz/solar/issues/2474))
-- [debug] Restore locations dropped by [#2497](https://github.com/paradigmxyz/solar/issues/2497) ([#2517](https://github.com/paradigmxyz/solar/issues/2517))
 - [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
 - [mir] Pick the debug-location rule each rewrite needs ([#2485](https://github.com/paradigmxyz/solar/issues/2485))
 - [codegen] Map the constructor entry jump to the constructor ([#2487](https://github.com/paradigmxyz/solar/issues/2487))
@@ -269,6 +276,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#2532]: https://github.com/paradigmxyz/solar/issues/2532
 [#2548]: https://github.com/paradigmxyz/solar/issues/2548
 [#2549]: https://github.com/paradigmxyz/solar/issues/2549
+[#2572]: https://github.com/paradigmxyz/solar/issues/2572
 [#2575]: https://github.com/paradigmxyz/solar/issues/2575
 [#2596]: https://github.com/paradigmxyz/solar/issues/2596
 [#2597]: https://github.com/paradigmxyz/solar/issues/2597
