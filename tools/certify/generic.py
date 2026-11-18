@@ -701,7 +701,9 @@ def natspec_checks(ast, contract):
     the record's invariant entries). @custom:invariant: the initial state (state variables'
     literal initializers, else 0, then a straight-line literal constructor) must satisfy it, and so
     must the state each straight-line literal function body leaves; an invariant neither refuted
-    nor in the fragment is recorded OPEN (the driver proves no invariant)."""
+    nor in the fragment is recorded OPEN (the driver proves no invariant). @custom:succeeds-if of a
+    nonpayable function: the dispatcher reverts a call with value, so the clause must require
+    msg.value == 0 (a top-level conjunct), or the per-function succeeds obligation is false."""
     cdef = next(
         (
             n
@@ -721,6 +723,27 @@ def natspec_checks(ast, contract):
                 if v and v.get("nodeType") == "Literal" and v.get("kind") == "number"
                 else (0 if v is None else None)
             )
+    for f in cdef.get("nodes", []):
+        if f.get("nodeType") != "FunctionDefinition" or f.get("kind") != "function":
+            continue
+        if (
+            f.get("visibility") not in ("external", "public")
+            or f.get("stateMutability") == "payable"
+        ):
+            continue
+        for text in natspec_clauses(f, "succeeds-if") + natspec_clauses(
+            f, "succeeds_if"
+        ):
+            guards = [p.strip().strip("()").replace(" ", "") for p in text.split("&&")]
+            if "||" not in text and not (
+                {"msg.value==0", "0==msg.value"} & set(guards)
+            ):
+                why = (
+                    f"spec: {f['name']}_succeeds0 does not check: {f['name']} is nonpayable, so a "
+                    f"call with a value other than 0 reverts, but its @custom:succeeds-if {text} "
+                    "does not require msg.value == 0"
+                )
+                return why, []
     invs = []
     for text in natspec_clauses(cdef, "invariant"):
         entry = {"invariant": text, "status": "OPEN: not proved by the driver"}

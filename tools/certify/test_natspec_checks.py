@@ -21,6 +21,7 @@ FIX = HERE / "testdata" / "fixplan"
 STAGE = {
     "InitBrokenR2": r"^REJECTED: .*\binvariant\b.*\b(initial|constructor|deploy)",
     "InvBrokenR2": r"^REJECTED: .*\binvariant\b.*\breset\b",
+    "FlagSucceedsAlways": r"^REJECTED: spec: \S*\blower_succeeds0 does not check",
 }
 
 
@@ -90,6 +91,38 @@ class Invariant(unittest.TestCase):
         i = src.index("refuted, invs = natspec_checks(ast, contract)")
         self.assertLess(i, src.index('record["environment"] = ENVIRONMENT'))
         self.assertIn("raise Failed(refuted)", src[i : i + 300])
+
+
+class NonpayableSucceeds(unittest.TestCase):
+    def test_succeeds_if_without_value_guard_refuted(self):
+        why, _ = checks("FlagSucceedsAlways")
+        self.assertEqual(
+            why,
+            "spec: lower_succeeds0 does not check: lower is nonpayable, so a call with a value other "
+            "than 0 reverts, but its @custom:succeeds-if true does not require msg.value == 0",
+        )
+        self.assertRegex(f"REJECTED: {why}", STAGE["FlagSucceedsAlways"])
+
+    def test_guarded_and_payable_pass(self):
+        for fn in (
+            "/// @custom:succeeds-if msg.value == 0\n function f() external {}",
+            "/// @custom:succeeds-if msg.value == 0 && x < 5\n function f() external {}",
+            "/// @custom:succeeds-if (0 == msg.value)\n function f() external {}",
+            "/// @custom:succeeds-if true\n function f() external payable {}",
+        ):
+            with self.subTest(fn):
+                ast = ast_of(
+                    HEAD + "contract C {\n uint256 public x;\n " + fn + "\n}\n"
+                )
+                self.assertIsNone(generic.natspec_checks(ast, "C")[0])
+
+    def test_disjunction_left_to_the_proofs(self):
+        ast = ast_of(
+            HEAD
+            + "contract C {\n uint256 public x;\n /// @custom:succeeds-if msg.value == 0 || x == 1\n"
+            " function f() external {}\n}\n"
+        )
+        self.assertIsNone(generic.natspec_checks(ast, "C")[0])
 
 
 class Fragment(unittest.TestCase):
