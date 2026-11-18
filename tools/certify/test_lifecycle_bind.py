@@ -313,12 +313,12 @@ class BuildLogs(unittest.TestCase):
         """Every lake call passes -R and -KleanMemory first, so the lakefile's leanMemory reaches the
         generated modules whatever configuration an earlier call cached: the generated library's
         builds (lifecycle modules, the probes' first configure, lake env) at GEN_LEAN_MEMORY 12000,
-        and the loop cut hook's light calls at 6000."""
+        and the loop cut hook's calls at the same cap."""
         import loop_cuts
 
         self.assertEqual(generic.GEN_LEAN_MEMORY, 12000)
         self.assertEqual(generic.LAKE, ["lake", "-R", "-KleanMemory=12000"])
-        self.assertEqual(loop_cuts.LAKE, ["lake", "-R", "-KleanMemory=6000"])
+        self.assertEqual(loop_cuts.LAKE, generic.LAKE)
         calls = []
 
         def fake(cmd, cwd=None, env=None):
