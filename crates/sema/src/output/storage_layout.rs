@@ -248,7 +248,9 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         match ty.kind {
             TyKind::Mapping(key_ty, value_ty) => {
                 info.encoding = StorageEncoding::Mapping;
-                info.key = Some(self.generate_type(key_ty));
+                info.key = Some(
+                    self.generate_type(key_ty.with_loc_if_ref(self.gcx, DataLocation::Memory)),
+                );
                 info.value = Some(
                     self.generate_type(value_ty.with_loc_if_ref(self.gcx, DataLocation::Storage)),
                 );
@@ -291,22 +293,32 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 if matches!(inner.peel_refs().kind, TyKind::Mapping(..)) {
                     key
                 } else {
-                    let pointer = if pointer { "_ptr" } else { "" };
+                    // Like solc's `ReferenceType::isPointer`, only storage references can be
+                    // non-pointers.
+                    let pointer =
+                        if pointer || location != DataLocation::Storage { "_ptr" } else { "" };
                     format!("{key}_{location}{pointer}")
                 }
             }
             TyKind::Elementary(ty) => format!("t_{}", ty.to_string().replace(' ', "_")),
             TyKind::Array(base, length) => {
                 let base = base.with_loc_if_ref_opt(self.gcx, location);
+                let pointer = pointer && location != Some(DataLocation::Storage);
                 format!("t_array({}){length}", self.storage_type_key_with(base, None, pointer))
             }
             TyKind::DynArray(base) => {
                 let base = base.with_loc_if_ref_opt(self.gcx, location);
+                let pointer = pointer && location != Some(DataLocation::Storage);
                 format!("t_array({})dyn", self.storage_type_key_with(base, None, pointer))
             }
             TyKind::Mapping(key, value) => format!(
                 "t_mapping({},{})",
-                self.storage_type_key_with(key, None, false),
+                // solc converts mapping key types to memory.
+                self.storage_type_key_with(
+                    key.with_loc_if_ref(self.gcx, DataLocation::Memory),
+                    None,
+                    false,
+                ),
                 self.storage_type_key_with(
                     value.with_loc_if_ref(self.gcx, DataLocation::Storage),
                     None,

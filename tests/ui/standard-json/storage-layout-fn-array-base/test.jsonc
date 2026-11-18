@@ -1,0 +1,18 @@
+//@ filecheck:
+// Only the storage parameter itself is a pointer; its storage array bases are not.
+// CHECK: "type": "t_function_internal_nonpayable(t_array(t_array(t_uint256)dyn_storage)dyn_storage_ptr)returns()"
+// CHECK: "type": "t_function_internal_nonpayable(t_array(t_struct(S){{[0-9]+}}_storage)dyn_storage_ptr)returns()"
+// CHECK: "type": "t_function_internal_nonpayable(t_array(t_array(t_struct(S){{[0-9]+}}_storage)2_storage)dyn_storage_ptr)returns(t_array(t_array(t_uint256)dyn_storage)dyn_storage_ptr)"
+// CHECK: "type": "t_function_internal_nonpayable(t_array(t_array(t_uint256)dyn_memory_ptr)dyn_memory_ptr)returns()"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "C.sol": {
+        "C": [
+          "storageLayout"
+        ]
+      }
+    }
+  }
+}
