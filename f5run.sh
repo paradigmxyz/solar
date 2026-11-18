@@ -12,9 +12,13 @@
 #              ["resources"] and kind functional, the proof Shapes.Certified.functional of step 1's,
 #              written over step 1's Statement/Final in its work tree and built (lake build N.Final),
 #              #print axioms, record not strongest
+#              GENERATOR evidence only (the emitted text builds and the record is not CERTIFIED); it
+#              is not a loop Final. Step 1's Statement/Final are restored and checked by sha256.
 #   4 counter  the loop cut hook on Counter at base f1c19a7f with its own summary, through the full
-#              Obl build (expected verdict REJECTED from loop_resources; loop_cuts.bump recorded)
-#   5 erc20    only when ~/f5pack/erc20/ is staged (source, contract, args); otherwise OPEN
+#              Obl build (expected verdict REJECTED from loop_resources; loop_cuts.bump recorded);
+#              CARGO_NET_OFFLINE=true and --locked: solar-verify's one crate outside the staged
+#              registry, the git dependency evm2 (9b037449), is staged as cargo-git-evm2.tar.zst
+#   erc20      not in this box: recorded "erc20 OPEN: own box"
 # Every step stops at a 1h50 gate from CREATED_EPOCH (and at TTL-10); a step starts only if its budget
 # fits before the gate. Each step's end is marked in STEPS for copy-off.
 set -u
@@ -38,7 +42,7 @@ for b in git time; do [ -x /usr/bin/$b ] || need="${need:-} $b"; done
 log "apt installed:${need:- none}; $(/usr/bin/git --version); $(dpkg-query -W -f='time ${Version}' time 2>/dev/null)"
 cd $H
 tar --zstd -xf $P/elan.tar.zst && tar --zstd -xf $P/small.tar.zst && tar --zstd -xf $P/cache-src.tar.zst &&
-  tar --zstd -xf $P/src.tar.zst && (mkdir -p $H/h2/cache/.lake && cd $H/h2/cache/.lake && tar --zstd -xf $P/cache-lake-lite.tar.zst) || verdict "ABORTED-staging: unpack failed"
+  tar --zstd -xf $P/src.tar.zst && (cd $H/.cargo && tar --zstd -xf $P/cargo-git-evm2.tar.zst) && (mkdir -p $H/h2/cache/.lake && cd $H/h2/cache/.lake && tar --zstd -xf $P/cache-lake-lite.tar.zst) || verdict "ABORTED-staging: unpack failed"
 cp $P/Flag.sol $H/h2/Flag.sol
 # Mathlib's oleans are not staged: they come from its build cache, fetched here at the pinned revision.
 [ -d $H/h2/cache/.lake/packages/mathlib/.lake/build ] && verdict "ABORTED-staging: Mathlib build outputs were staged"
@@ -254,14 +258,16 @@ s["proof"] = "(" + s["proof"] + ").imp fun _ h => ⟨h.1, SolidCore.Refinement.S
 json.dump(s, open(sys.argv[2], "w"), indent=2)
 PY
   step_scope open 1500 "cd $W && python3 $S/tools/certify/final.py $O/shape-open.json --name $N --contract Flag --hex \$(tr -d '[:space:]' < $D/bytecode.hex) --out $D/Final.lean --statement-out $D/Statement.lean --record $O/open/final-open.json --manifest-json $D/gen/Flag/manifest.json && cp $D/Statement.lean $D/Final.lean $O/open/ && lake build -KleanMemory=6000 $N.Final && printf 'import $N.Final\n#print axioms Certified.$N.Final.final\n' > $O/open/Ax.lean && lake env lean -M 6000 $O/open/Ax.lean > $O/open/axioms.out 2>&1 && python3 -c \"import json,sys; r=json.load(open('$O/open/final-open.json')); assert r['strongest'] is False and r['open_premises']==['resources'] and r['statuses']['closure']=='not closure', r\""
+  echo "open: GENERATOR evidence only: the Resources-premise and manifest-bound Final emitted by final.py builds on Flag through Shapes.Certified.functional and its record is not CERTIFIED; it is not a loop Final" > $O/open/SCOPE.txt
   cp $O/certified-Statement.lean $D/Statement.lean; cp $O/certified-Final.lean $D/Final.lean
+  for f in Statement Final; do
+    a=$(sha256sum < $O/certified-$f.lean | cut -c1-64); b=$(sha256sum < $D/$f.lean | cut -c1-64)
+    echo "restored $f.lean $b (saved $a)" >> $O/open/restore.txt
+    [ "$a" = "$b" ] || { echo "RESTORE MISMATCH $f" >> $O/open/restore.txt; verdict "ABORTED-restore: step 1's $f.lean differs from its saved copy"; }
+  done
 fi
-step_scope counter 2700 "cd $S && env -u CARGO_NET_OFFLINE python3 tools/certify/generic.py $P/Counter.sol none --contract Counter --solidity-lean $H/h2/sl --base f1c19a7f217cdcc1a80ddbf87e6146d83273468f --work $H/h2/counterwork --record-dir $O/counter/record --solc $H/.cache/solc/solc-0.8.35 --packages-from $H/h2/pkgrun --probe-cache $H/h2/cache --loop-summary bump=Verify.LoopSource.Equiv.Counter.Summary:Verify.LoopSource.Equiv.CounterSummary.summary; echo generic-exit \$?; python3 -c \"import json; r=json.load(open('$O/counter/record/record.json')); print(r.get('status'), json.dumps(r.get('loop_cuts'))[:2000], r.get('loop_cuts_blocked'))\"; cp -r $H/h2/counterwork/loops $O/counter/ 2>/dev/null; cp -r $H/h2/counterwork/solidity-lean/Certified/*/Loops $O/counter/ 2>/dev/null; true"
-if [ -f $P/erc20/args ]; then
-  step_scope erc20 1800 "cd $S && python3 tools/certify/generic.py $P/erc20/\$(sed -n 1p $P/erc20/args) natspec --contract \$(sed -n 2p $P/erc20/args) --solidity-lean $H/h2/sl --base 334d1d924f8f6c29ac827fd81d1cc739721b479a --work $H/h2/erc20work --record-dir $O/erc20/record --solc $H/.cache/solc/solc-0.8.35 --packages-from $H/h2/pkgrun --probe-cache $H/h2/cache"
-else
-  mkdir -p $O/erc20; echo "erc20 OPEN: no ERC20 source staged in f5pack/erc20" > $O/erc20/RESULT; echo "step erc20 OPEN (not staged)" >> $O/STEPS
-fi
+step_scope counter 2700 "cd $S && python3 tools/certify/generic.py $P/Counter.sol none --contract Counter --solidity-lean $H/h2/sl --base f1c19a7f217cdcc1a80ddbf87e6146d83273468f --work $H/h2/counterwork --record-dir $O/counter/record --solc $H/.cache/solc/solc-0.8.35 --packages-from $H/h2/pkgrun --probe-cache $H/h2/cache --loop-summary bump=Verify.LoopSource.Equiv.Counter.Summary:Verify.LoopSource.Equiv.CounterSummary.summary; echo generic-exit \$?; python3 -c \"import json; r=json.load(open('$O/counter/record/record.json')); print(r.get('status'), json.dumps(r.get('loop_cuts'))[:2000], r.get('loop_cuts_blocked'))\"; cp -r $H/h2/counterwork/loops $O/counter/ 2>/dev/null; cp -r $H/h2/counterwork/solidity-lean/Certified/*/Loops $O/counter/ 2>/dev/null; true"
+mkdir -p $O/erc20; echo "erc20 OPEN: own box" > $O/erc20/RESULT; echo "step erc20 OPEN (own box)" >> $O/STEPS
 (cd $O && find . -type f ! -name receipts.sha256 ! -name go | LC_ALL=C sort | xargs sha256sum) > $O/receipts.sha256
 echo done > $O/FINISHED
 verdict "FINISHED step1 $(cat $O/EXIT 2>/dev/null)/$(cat $O/POST_EXIT 2>/dev/null); $(grep '^step ' $O/STEPS | tr '\n' ';')"
