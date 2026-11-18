@@ -19,6 +19,8 @@ contract TupleStorageAssignTest {
     }
 
     function test_CallStoresRevertData() public {
+        stored.call(address(source), abi.encodeCall(TupleSource.echo, (1)));
+        assert(stored.ok());
         stored.call(address(source), abi.encodeCall(TupleSource.fail, ()));
         assert(!stored.ok());
         check(abi.encodeWithSelector(TupleSource.Failed.selector, 7));
@@ -43,9 +45,25 @@ contract TupleStorageAssignTest {
         check("");
     }
 
-    function test_CallSkippingSuccess() public {
-        stored.callSkippingSuccess(address(source), abi.encodeCall(TupleSource.fail, ()));
+    function test_CallStoresShortReturnData() public {
+        stored.call(address(source), hex"11223344");
+        assert(stored.ok());
+        check(hex"010203");
+    }
+
+    function test_CallIntoFields() public {
+        stored.callIntoFields(address(source), abi.encodeCall(TupleSource.fail, ()));
         assert(!stored.ok());
+        (uint256 id, bytes memory data) = stored.holder();
+        assert(id == 1);
+        assert(keccak256(data) == keccak256(abi.encodeWithSelector(TupleSource.Failed.selector, 7)));
+        assert(keccak256(stored.byKey(4)) == keccak256(data));
+    }
+
+    function test_CallSkippingSuccess() public {
+        stored.call(address(source), abi.encodeCall(TupleSource.echo, (1)));
+        stored.callSkippingSuccess(address(source), abi.encodeCall(TupleSource.fail, ()));
+        assert(stored.ok());
         check(abi.encodeWithSelector(TupleSource.Failed.selector, 7));
     }
 
@@ -56,6 +74,7 @@ contract TupleStorageAssignTest {
     }
 
     function test_StaticCallRevert() public {
+        stored.staticCall(address(source), abi.encodeCall(TupleSource.echo, (1)));
         stored.staticCall(address(source), abi.encodeCall(TupleSource.fail, ()));
         assert(!stored.ok());
         check(abi.encodeWithSelector(TupleSource.Failed.selector, 7));
@@ -68,6 +87,7 @@ contract TupleStorageAssignTest {
     }
 
     function test_DelegateCallRevert() public {
+        stored.delegateCall(address(source), abi.encodeCall(TupleSource.echo, (1)));
         stored.delegateCall(address(source), abi.encodeCall(TupleSource.fail, ()));
         assert(!stored.ok());
         check(abi.encodeWithSelector(TupleSource.Failed.selector, 7));

@@ -16,6 +16,10 @@ contract TupleSource {
         return (5, hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122");
     }
 
+    fallback(bytes calldata) external returns (bytes memory) {
+        return hex"010203";
+    }
+
     function text() external pure returns (string memory, uint256) {
         return ("a string that is longer than thirty-one bytes", 9);
     }
@@ -23,13 +27,26 @@ contract TupleSource {
 
 /// Assigns call results and other tuples straight to storage targets.
 contract TupleStorageAssign {
+    struct Holder {
+        uint256 id;
+        bytes data;
+    }
+
     bool public ok;
     bytes public result;
     uint256 public number;
     string public message;
+    Holder public holder;
+    mapping(uint256 => bytes) public byKey;
 
     function call(address target, bytes calldata data) external {
         (ok, result) = target.call(data);
+    }
+
+    function callIntoFields(address target, bytes calldata data) external {
+        (holder.id, holder.data) = (1, "");
+        (ok, holder.data) = target.call(data);
+        (, byKey[4]) = target.staticcall(data);
     }
 
     function callSkippingSuccess(address target, bytes calldata data) external {
