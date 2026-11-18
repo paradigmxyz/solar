@@ -135,6 +135,21 @@ def compile_input(solar, source, directory, *, capture=False, timeout=120):
     return digest(stable(contracts)), time.monotonic() - start
 
 
+def final_call_case(case, row):
+    region = row["region"]
+    return (
+        bool(case.get("final_call"))
+        and row["module"] == case["contract"]
+        and row["layer"] == "mir"
+        and row["pass"] == "lower-builtins"
+        and row["target"] == "cancun"
+        and not row["rejection"]
+        and region
+        and region["kind"] == "function"
+        and region["name"] == case["final_call"]
+    )
+
+
 def evaluate_case(case, solar, folder, limit, seed, timeout):
     folder.mkdir()
     source = inputs(case)
@@ -204,11 +219,41 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 ]
                 if region["stack_height"] is not None:
                     command += ["--stack-height", str(region["stack_height"])]
+            exact_call = final_call_case(case, row)
+            if exact_call:
+                bundle = folder / f"check-{index:03}-call"
+                command = [
+                    str(TV / "solar-tv"),
+                    "call-budget",
+                    "--solar",
+                    solar,
+                    "--output",
+                    bundle,
+                    "--timeout",
+                    str(timeout),
+                    "--mir-pair",
+                    *row["paths"],
+                ]
             try:
                 process = run(command, ROOT, timeout * 8)
                 (folder / f"check-{index:03}.log").write_text(
                     process.stdout + process.stderr
                 )
+                if exact_call:
+                    if process.returncode == 0:
+                        artifact = json.loads((bundle / "result.json").read_text())
+                        if artifact["compiler_output_sha256"] != baseline:
+                            raise ValueError(
+                                "final CALL proof used a different compiler output"
+                            )
+                        record = json.loads((bundle / "mir.json").read_text())
+                    else:
+                        record = {
+                            "version": 1,
+                            "status": "unsupported",
+                            "diagnostic": process.stderr,
+                        }
+                    audit.write(target, record)
                 record = json.loads(target.read_text())
                 if record.get("status") not in audit.STATUSES:
                     raise ValueError("checker returned an unknown status")

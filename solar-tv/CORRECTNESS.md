@@ -631,54 +631,54 @@ callee bodies, and applies the Lean proofs to the matched SSA.
   clear helper. Malformed headers return `Panic(0x22)`, and length rounding
   overflow returns `Panic(0x41)`. Static writes fail and scratch effects on
   successful paths remain visible.
-- Morpho's `safeTransferFrom` verifies CALL and its returndata allocation
-  under a shared sampled gas word and a shared caller budget at CALL.
+- Morpho's `safeTransferFrom` verifies CALL and its returndata allocation.
   `MIR.LowerReturndata.memoryObjectCall` preserves the message request, child
   outcome, returndata bytes, memory and return pointer. The typed check
-  binds both sides to the same GAS producer and retains the entire shared
-  prefix, continuation and called helper. Returndata length plus 63 must
-  fit in a word. The separate scheduled-gas certificate below derives the
-  boundary budget for the captured Morpho schedule.
+  binds the GAS producer and retains the entire shared prefix, continuation
+  and called helper. The frozen check uses the exact emitted CALL budget
+  described below. The standalone MIR checker can also check this shape using
+  a supplied budget when the final image is unavailable.
 
 The frozen certificates cover these exact shapes. General loop invariants,
 dynamic placement and whole-pipeline physical gas correspondence remain
 outside the sample.
 
-### Exact scheduled CALL gas
+### Exact emitted CALL gas
 
-The separate `call-budget` check imports the pinned Morpho
-`safeTransferFrom` scheduled runtime. It checks the assembler's concrete
-PUSH widths, JUMPDEST, guard target and fallthrough. Symbolic stack
-projection checks the seven CALL operands and the ordered ABI writes,
-including the selector, both addresses and the amount. The compiler
-disassembly and the projection into priced events are trusted inputs to
-the kernel proof.
+The `call-budget` check captures the actual `lower-builtins` pair, scheduled
+EVM IR and final runtime in one compilation of the pinned Morpho input. The
+final bytecode is decoded from the emitted bytes, with each PUSH width and
+resolved branch destination retained. The selected prefix must match the
+scheduled helper's operands and ordered ABI writes. The byte decoder,
+scheduled function binding and projection into priced events are trusted.
+The kernel checks the imported trace against the independent price law.
 
-Lean proves the price for every starting budget in the admitted domain.
-The state at entry supplies the free-memory pointer, active memory words
-and account warmth. The no-code edge retains gas after the guard. On the
-CALL edge, fixed work including GAS costs 142, the probe costs 100 or
-2,600, and the memory charge is the difference in memory costs between
-entry and the highest touched word. That highest word covers the complete
-CALL input. CALL therefore adds a warm charge of 100 without further
-memory expansion, value charge or stipend. If the budget is insufficient,
-the checked prefix runs out of gas.
+Fixed work through GAS costs 142 in the scheduled IR and 148 in the emitted
+bytecode. The final optimizer forms the selector with a short PUSH and SHL.
+In both forms EXTCODESIZE costs 100 or 2,600, warms the token and selects the
+no-code edge on an empty account. On the CALL edge, dynamic memory expansion
+is the difference between the initial memory price and the price of the
+highest touched word. The final footprint covers the entire 100-byte
+payload. CALL adds a warm charge of 100 with zero value and zero output
+bytes. If the starting gas cannot pay these charges, the prefix runs out of gas.
 
-If the child enters, the computed parent gas after CALL charges is `a`.
-The child gets `a - a / 64` and the parent retains `a / 64` before unused
-child gas is returned. The theorem also covers an earlier GAS sample under the same
-entry budget. Every earlier sample is at least the computed available
-gas, so it reaches the same cap even if the sampled words differ.
-The frozen MIR-only check still takes its boundary budget as an input.
-The scheduled proof stops at the CALL or no-code transfer and covers
-the scheduled stage before later EVM optimizations.
+The MIR proof uses the resulting parent CALL budget at the prepared message
+cut. It checks the warm journal, input extent and 100-byte length word at
+that boundary and proves that MIR pricing yields the exact child and retained
+gas from the emitted trace. The earlier MIR GAS sample is at least the late
+sample, so both reach the same EIP-150 cap. Equal message results feed the
+returndata materialization proof. The check begins at the internal helper
+entry and assumes the corresponding prepared MIR frame. It covers Cancun,
+bounded memory and at most 30 million entry gas. It stops pricing at CALL
+or the no-code transfer.
 
-The witness runs the captured setup in a priced wrapper. Its child
-returns its own GAS word. Inserting a paid `PUSH0; POP` between GAS and
-CALL lowers the forwarded budget by four. Both Lean and the independent
-Rust executor observe 95,578 versus 95,574. Compiling the Morpho input
-with and without the schedule dump yields identical ABI and creation and
-runtime bytecode.
+The independent replay preserves the emitted prefix bytes and PUSH widths.
+A trampoline supplies the helper's entry stack and relocates the no-code
+target within the test image. The child returns its GAS word and calldata.
+Lean and the Rust executor agree on 95,572 versus 95,569 gas for a cold token
+and 98,033 versus 98,029 for a warm token after a paid mutation. The payload
+is identical in each pair. Compiling with and without the capture reproduces
+the same ABI and creation and runtime bytecode.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |

@@ -167,29 +167,29 @@ def run (trace : Trace) (entry : Entry) : Outcome :=
 /-- Reviewed schedule contract. Each MLOAD/MSTORE charges and expands before
 the next one. The literal prices here describe the reference independently of
 the compiler schema used to import the actual opcodes. -/
-def referenceTrace : Trace := ⟨20,2600,100,
+def referenceTrace (selectorExtra : Nat := 0) : Trace := ⟨20,2600,100,
   [⟨6,.fixed 64,32⟩, ⟨18,.fixed 64,32⟩, ⟨9,.heap 0,32⟩,
-   ⟨18,.heap 32,32⟩, ⟨18,.heap 36,32⟩, ⟨15,.heap 68,32⟩, ⟨21,.heap 100,32⟩],
+   ⟨18+selectorExtra,.heap 32,32⟩, ⟨18,.heap 36,32⟩, ⟨15,.heap 68,32⟩, ⟨21,.heap 100,32⟩],
   17,0,100⟩
 
-def beforeCall (entry : Entry) : Nat :=
+def beforeCall (entry : Entry) (selectorExtra : Nat := 0) : Nat :=
   let active := max entry.words ((entry.fmp+163)/32)
-  142 + (if entry.warm then 100 else 2600) +
+  (142+selectorExtra) + (if entry.warm then 100 else 2600) +
     (State.memoryCost active - State.memoryCost entry.words)
 
-def reference (entry : Entry) : Outcome :=
+def reference (entry : Entry) (selectorExtra : Nat := 0) : Outcome :=
   let guard := 20 + (if entry.warm then 100 else 2600)
   if entry.gas < guard then .outOfGas
   else if !entry.hasCode then .noCode (entry.gas-guard)
-  else if entry.gas < beforeCall entry + 100 then .outOfGas
+  else if entry.gas < beforeCall entry selectorExtra + 100 then .outOfGas
   else
-    let sample := entry.gas-beforeCall entry
+    let sample := entry.gas-beforeCall entry selectorExtra
     let available := sample-100
     .call sample available (available-available/64) (available/64)
       (max entry.words ((entry.fmp+163)/32))
 
-private theorem peak_reference (fmp words : Nat) (heap : 128 ≤ fmp) :
-    peak fmp referenceTrace.accesses words = max words ((fmp+163)/32) := by
+private theorem peak_reference (fmp words selectorExtra : Nat) (heap : 128 ≤ fmp) :
+    peak fmp (referenceTrace selectorExtra).accesses words = max words ((fmp+163)/32) := by
   simp only [peak, referenceTrace, List.foldl_cons, List.foldl_nil, active, Address.at]
   simp only [show ¬ (32 : Nat) = 0 by decide, ite_false]
   omega
@@ -201,8 +201,8 @@ theorem forward_cap (sample available : Nat) (h : available ≤ sample) :
   simp [Calls.forwardGas, Fork.atLeast, Fork.ordinal, Nat.min_eq_right cap]
 
 set_option maxRecDepth 4096 in
-theorem exact (entry : Entry) (heap : 128 ≤ entry.fmp) :
-    run referenceTrace entry = reference entry := by
+theorem exact (entry : Entry) (heap : 128 ≤ entry.fmp) (selectorExtra : Nat := 0) :
+    run (referenceTrace selectorExtra) entry = reference entry selectorExtra := by
   let highest := max entry.words ((entry.fmp+163)/32)
   let growth := State.memoryCost highest - State.memoryCost entry.words
   let guard := 20 + (if entry.warm then 100 else 2600)
@@ -210,17 +210,19 @@ theorem exact (entry : Entry) (heap : 128 ≤ entry.fmp) :
     simp only [active, show ¬ (100 : Nat) = 0 by decide, ite_false]
     dsimp only [highest]
     omega
-  have peakEq : peak entry.fmp referenceTrace.accesses entry.words = highest :=
-    peak_reference entry.fmp entry.words heap
+  have peakEq : peak entry.fmp (referenceTrace selectorExtra).accesses entry.words = highest :=
+    peak_reference entry.fmp entry.words selectorExtra heap
   unfold run reference
   simp only [runAccess_price, peakEq]
-  have ledger : bases referenceTrace.accesses = 105 := rfl
+  have ledger : bases (referenceTrace selectorExtra).accesses = 105+selectorExtra := by
+    simp only [bases, referenceTrace, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
+    omega
   rw [ledger]
   change (match charged entry.gas guard with
     | none => Outcome.outOfGas
     | some left =>
       if !entry.hasCode then Outcome.noCode left else
-      match (charged left (105+growth)).map (fun g => (g,highest)) with
+      match (charged left (105+selectorExtra+growth)).map (fun g => (g,highest)) with
       | none => Outcome.outOfGas
       | some (left,words) =>
         match charged left 17 with
@@ -234,11 +236,11 @@ theorem exact (entry : Entry) (heap : 128 ≤ entry.fmp) :
             | some budget => Outcome.call sample available budget.supplied (available-budget.charged) (active words (entry.fmp+32) 100)) =
     if entry.gas < guard then Outcome.outOfGas
     else if !entry.hasCode then Outcome.noCode (entry.gas-guard)
-    else if entry.gas < beforeCall entry + 100 then Outcome.outOfGas
-    else Outcome.call (entry.gas-beforeCall entry) (entry.gas-beforeCall entry-100)
-      (entry.gas-beforeCall entry-100-(entry.gas-beforeCall entry-100)/64)
-      ((entry.gas-beforeCall entry-100)/64) highest
-  have total : beforeCall entry = guard + (105+growth) + 17 := by
+    else if entry.gas < beforeCall entry selectorExtra + 100 then Outcome.outOfGas
+    else Outcome.call (entry.gas-beforeCall entry selectorExtra) (entry.gas-beforeCall entry selectorExtra-100)
+      (entry.gas-beforeCall entry selectorExtra-100-(entry.gas-beforeCall entry selectorExtra-100)/64)
+      ((entry.gas-beforeCall entry selectorExtra-100)/64) highest
+  have total : beforeCall entry selectorExtra = guard + (105+selectorExtra+growth) + 17 := by
     simp only [beforeCall, guard, growth, highest]
     omega
   rw [total]
@@ -246,41 +248,41 @@ theorem exact (entry : Entry) (heap : 128 ≤ entry.fmp) :
   · simp only [charged, entered, ite_true, Nat.not_lt.mpr entered]
     split
     · rfl
-    · by_cases memory : 105+growth ≤ entry.gas-guard
+    · by_cases memory : 105+selectorExtra+growth ≤ entry.gas-guard
       · simp only [memory, ite_true, Option.map_some, inputEq]
-        by_cases setup : 17 ≤ entry.gas-guard-(105+growth)
+        by_cases setup : 17 ≤ entry.gas-guard-(105+selectorExtra+growth)
         · simp only [setup, ite_true, Nat.sub_self, Nat.add_zero, Nat.zero_add]
-          let sample := entry.gas-guard-(105+growth)-17
+          let sample := entry.gas-guard-(105+selectorExtra+growth)-17
           by_cases paid : 100 ≤ sample
-          · have success : ¬ entry.gas < guard+(105+growth)+17+100 := by omega
-            have raw : sample = entry.gas-(guard+(105+growth)+17) := by omega
-            simp only [show 100 ≤ entry.gas-guard-(105+growth)-17 from paid,
+          · have success : ¬ entry.gas < guard+(105+selectorExtra+growth)+17+100 := by omega
+            have raw : sample = entry.gas-(guard+(105+selectorExtra+growth)+17) := by omega
+            simp only [show 100 ≤ entry.gas-guard-(105+selectorExtra+growth)-17 from paid,
               ite_true, success, ← raw]
             rw [forward_cap _ _ (Nat.sub_le ..)]
             dsimp only
             have cap : (sample-100)/64 ≤ sample-100 := Nat.div_le_self ..
             congr 1
             omega
-          · have failed : entry.gas < guard+(105+growth)+17+100 := by omega
-            simp [show ¬100 ≤ entry.gas-guard-(105+growth)-17 from paid, failed]
-        · have failed : entry.gas < guard+(105+growth)+17+100 := by omega
+          · have failed : entry.gas < guard+(105+selectorExtra+growth)+17+100 := by omega
+            simp [show ¬100 ≤ entry.gas-guard-(105+selectorExtra+growth)-17 from paid, failed]
+        · have failed : entry.gas < guard+(105+selectorExtra+growth)+17+100 := by omega
           simp [setup, failed]
-      · have failed : entry.gas < guard+(105+growth)+17+100 := by omega
+      · have failed : entry.gas < guard+(105+selectorExtra+growth)+17+100 := by omega
         simp [memory, failed]
   · simp [charged, entered, Nat.lt_of_not_ge entered]
 
 /-- An earlier GAS instruction can carry a larger word through the encoder.
 The passed word may differ from the scheduled sample, but both requests reach
 the same EIP-150 cap. Elapsed includes the earlier GAS instruction's own fee. -/
-theorem earlierRequest (entry : Entry) (sample available child retained words elapsed : Nat)
-    (reaches : reference entry = .call sample available child retained words)
-    (earlier : elapsed ≤ beforeCall entry) :
+theorem earlierRequest (entry : Entry) (selectorExtra sample available child retained words elapsed : Nat)
+    (reaches : reference entry selectorExtra = .call sample available child retained words)
+    (earlier : elapsed ≤ beforeCall entry selectorExtra) :
     Calls.forwardGas .cancun available (entry.gas-elapsed) false = some ⟨child,child⟩ := by
   by_cases guard : entry.gas < 20 + (if entry.warm then 100 else 2600)
   · simp [reference, guard] at reaches
   by_cases noCode : (!entry.hasCode) = true
   · simp [reference, guard, noCode] at reaches
-  by_cases paid : entry.gas < beforeCall entry + 100
+  by_cases paid : entry.gas < beforeCall entry selectorExtra + 100
   · simp [reference, guard, noCode, paid] at reaches
   simp only [reference, guard, noCode, paid, ite_false] at reaches
   cases reaches

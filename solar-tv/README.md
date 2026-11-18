@@ -1461,26 +1461,27 @@ effects with a shared GAS sample and caller budget at the call boundary.
 Reports state those conditions and identify the certificate. See
 [the proof boundaries](CORRECTNESS.md#remaining-obligations).
 
-### Pricing Morpho's scheduled CALL
-
-Run the exact-gas certificate on the pinned Morpho runtime and replay a broken
-schedule independently in Rust.
+### Pricing Morpho's final CALL
 
 ```sh
 solar-tv/solar-tv call-budget --output target/morpho-call-budget
 ```
 
-The command captures the compiler's scheduled EVM IR, checks the resolved
-branch and instruction sequence against its assembly, and proves the price
-from the entry of `safeTransferFrom` through CALL. It includes the cold or warm
-`EXTCODESIZE` guard, memory expansion, the actual GAS observation, and EIP-150
-forwarding. An extra `PUSH0; POP` between GAS and CALL changes the child
-observation from 95,578 to 95,574 gas in the replay harness. The output
-directory contains the Lean proof input, scheduled IR, and replay files.
+The command captures `safeTransferFrom` MIR and scheduled EVM IR in the same
+compilation that emits the final runtime. It decodes the emitted bytes, binds
+the CALL to the captured helper, and derives its exact budget from helper
+entry. The MIR proof uses this budget directly. The earlier MIR GAS sample
+reaches the same EIP-150 cap even when its word differs from the emitted sample.
 
-The certificate starts at the internal function entry with a well-formed stack
-and byte memory. Later EVM passes and the remainder of the caller are outside
-this check. [Proof details](CORRECTNESS.md#exact-scheduled-call-gas)
+The Rust replay executes the final CALL prefix in a small wrapper. Adding
+`PUSH0` and `POP` between GAS and CALL changes the child's GAS reading from
+95,572 to 95,569 on the cold path and from 98,033 to 98,029 on the warm path.
+Both executions pass the same 100-byte transfer calldata.
+
+Use `--mir-pair BEFORE AFTER` to check an existing capture against the same
+compiler input. The output includes the runtime, both Lean proofs, the
+`mir.json` check, and replay files. The proof covers entry through CALL and
+the matching MIR call/returndata cut. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)
 
 ### Removing unused MIR type declarations
 

@@ -1,4 +1,4 @@
-"""Price the pinned Morpho transferFrom CALL from its scheduled runtime IR."""
+"""Prove Morpho CALL gas from final bytecode and bind it to the captured MIR."""
 
 import argparse
 import json
@@ -7,8 +7,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from . import audit, evaluate, native, regions
+from . import audit, builtin_lowering, evaluate, native, prune, regions
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Unsupported
 
@@ -18,7 +19,8 @@ VERSION = "cancun"
 TOKEN = 0x40000
 ENTRY = ["return", "token", "from", "to", "value"]
 WITNESS_GAS = 100000
-CHILD_SAMPLES = (95578, 95574)
+CHILD_SAMPLES = (95572, 95569)
+WARM_CHILD_SAMPLES = (98033, 98029)
 
 
 def require(condition, reason):
@@ -124,6 +126,67 @@ def extract(scheduled, disassembly):
     return entry, failure, setup, ops
 
 
+def decode_runtime(code, catalog):
+    """Read opcode boundaries and PUSH bytes from the final deployed image."""
+    names = {definition["opcode"]: name for name, definition in catalog.items()}
+    result = {}
+    pc = 0
+    while pc < len(code):
+        opcode = code[pc]
+        width = max(0, opcode - 0x5F) if 0x60 <= opcode <= 0x7F else 0
+        next_pc = pc + 1 + width
+        require(next_pc <= len(code), "truncated final bytecode PUSH")
+        immediate = (
+            int.from_bytes(code[pc + 1 : next_pc], "big")
+            if width or opcode == 0x5F
+            else None
+        )
+        result[pc] = (names.get(opcode, "unknown"), immediate)
+        pc = next_pc
+    return result
+
+
+def extract_final(code, scheduled_setup, catalog):
+    """Match the resolved byte range to the same typed transferFrom setup."""
+    decoded = decode_runtime(code, catalog)
+    expected = list(map(ir_operation, scheduled_setup))
+    selector = expected.index(SELECTOR)
+    expected[selector : selector + 1] = [SELECTOR >> 224, 224, "shl"]
+    points = list(decoded)
+    candidates = []
+    for i, pc in enumerate(points):
+        start = [decoded[p] for p in points[i : i + 6]]
+        if (
+            len(start) != 6
+            or [op for op, _ in start[:4]]
+            != ["jumpdest", "dup2", "extcodesize", "iszero"]
+            or not start[4][0].startswith("push")
+            or start[5] != ("jumpi", None)
+        ):
+            continue
+        end = i + 6 + len(expected)
+        tail = [decoded[p] for p in points[i + 6 : end]]
+        if [op if value is None else value for op, value in tail] == expected:
+            candidates.append((pc, points[end - 1], points[i + 4], start + tail))
+    require(
+        len(candidates) == 1, "cannot bind a unique final-bytecode transferFrom CALL"
+    )
+    entry, call, branch_push, ops = candidates[0]
+    failure = ops[4][1]
+    require(
+        [decoded.get(failure + offset) for offset in (0, 1, 9, 11, 12)]
+        == [
+            ("jumpdest", None),
+            ("push7", int.from_bytes(b"no code", "big")),
+            ("push1", 200),
+            ("shl", None),
+            ("push1", 7),
+        ],
+        "final bytecode does not lead to the no-code exit",
+    )
+    return entry, call, branch_push, failure, ops
+
+
 def add(left, right):
     if isinstance(left, int):
         left, right = right, left
@@ -160,6 +223,13 @@ def project(ops, catalog):
             stack.pop(0)
         elif op == "add":
             stack[:2] = [add(*stack[:2])]
+        elif op == "shl":
+            shift, value = stack[:2]
+            require(
+                isinstance(shift, int) and 0 <= shift < 256 and isinstance(value, int),
+                "expected a constant selector shift",
+            )
+            stack[:2] = [(value << shift) % 2**256]
         elif op in {"mload", "mstore"}:
             require(until_sample is None, "memory effect after GAS is unmodeled")
             address = stack.pop(0)
@@ -219,14 +289,34 @@ def capture(solar, directory, timeout):
     )
     source = evaluate.inputs(case)
     original, _ = evaluate.compile_input(solar, source, directory, timeout=timeout)
-    captured = subprocess.run(
-        [solar, "--standard-json", "-j1", "-Zdump=evm-ir-runtime-scheduled"],
-        input=json.dumps(source),
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=timeout,
-    )
+    with TemporaryDirectory(prefix="solar-tv-morpho-") as temporary:
+        captures = Path(temporary)
+        captured = subprocess.run(
+            [
+                solar,
+                "--standard-json",
+                "-j1",
+                "-Zdump=evm-ir-runtime-scheduled",
+                f"-Zsolar-tv={captures}",
+                "-Zsolar-tv-capture",
+            ],
+            input=json.dumps(source),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+        )
+        selected = [
+            row["paths"]
+            for row in evaluate.captures(captures)
+            if evaluate.final_call_case(case, row)
+        ]
+        require(
+            len(selected) == 1, "missing or ambiguous captured transferFrom MIR pair"
+        )
+        mir_pair = tuple(directory / f"{side}.mir" for side in ("before", "after"))
+        for source_path, destination in zip(selected[0], mir_pair, strict=True):
+            shutil.copyfile(source_path, destination)
     dump, artifact = captured.stdout.rsplit("\n{", 1)
     value = json.loads("{" + artifact)
     require(
@@ -254,10 +344,16 @@ def capture(solar, directory, timeout):
     )
     require(assembled.returncode == 0, "scheduled assembly failed\n" + assembled.stderr)
     (directory / "scheduled.disasm").write_text(assembled.stdout)
-    return scheduled, assembled.stdout, original
+    final = bytes.fromhex(
+        value["contracts"][case["source"]][case["contract"]]["evm"]["deployedBytecode"][
+            "object"
+        ]
+    )
+    (directory / "runtime.bin").write_text(final.hex() + "\n")
+    return scheduled, assembled.stdout, original, final, mir_pair
 
 
-def prove(trace, directory, timeout):
+def prove(scheduled, trace, directory, timeout):
     module = "SolarTV.EVMIR.Transforms.CallBudget"
     model = build_model(timeout, module)
     require(model.returncode == 0, model.stdout + model.stderr)
@@ -266,17 +362,19 @@ def prove(trace, directory, timeout):
         PRELUDE.replace("import SolarTV\n", f"import {module}\n", 1)
         + f"""
 open SolarTV.EVM.CallBudget
+def schedule : Trace := {expression(scheduled)}
+theorem scheduledShape : schedule = referenceTrace := by decide
 def imported : Trace := {expression(trace)}
+theorem finalShape : imported = referenceTrace 6 := by decide
 theorem morphoBudget (entry : Entry) (heap : 128 ≤ entry.fmp) :
-    run imported entry = reference entry := by
-  have shape : imported = referenceTrace := by decide
-  rw [shape]
-  exact exact entry heap
+    run imported entry = reference entry 6 := by
+  rw [finalShape]
+  exact exact entry heap 6
 theorem morphoFrame (cfg : EVM.State.Config) (journal : Execution.Journal)
     (frame : EVM.State.Frame) (token : Execution.Address) (input : List Execution.Byte)
     (fork : cfg.fork = .cancun)
     (heap : 128 ≤ (Entry.ofFrame journal frame token).fmp) :
-    run imported (Entry.ofFrame journal frame token) = reference (Entry.ofFrame journal frame token) ∧
+    run imported (Entry.ofFrame journal frame token) = reference (Entry.ofFrame journal frame token) 6 ∧
     EVM.State.callBoundaryCharge cfg (Execution.warmAddress journal token)
       ⟨.call,token,0,input⟩ 0xf1 0 (Execution.memoryWords frame.memory)
         (Execution.memoryWords frame.memory) = 100 :=
@@ -285,15 +383,20 @@ theorem morphoFrame (cfg : EVM.State.Config) (journal : Execution.Journal)
 theorem morphoForward (entry : Entry) (heap : 128 ≤ entry.fmp)
     (sample available child retained words elapsed : Nat)
     (reaches : run imported entry = .call sample available child retained words)
-    (earlier : elapsed ≤ beforeCall entry) :
+    (earlier : elapsed ≤ beforeCall entry 6) :
     Calls.forwardGas .cancun available (entry.gas-elapsed) false = some ⟨child,child⟩ :=
-  earlierRequest entry sample available child retained words elapsed
+  earlierRequest entry 6 sample available child retained words elapsed
     ((morphoBudget entry heap).symm.trans reaches) earlier
 -- The replay wrapper spends 43 gas and enters with the FMP word active.
 theorem replayBudget :
-    run imported ⟨{WITNESS_GAS - 43},128,3,false,true⟩ = .call 97197 97097 95580 1517 9 ∧
+    run imported ⟨{WITNESS_GAS - 43},128,3,false,true⟩ = .call 97191 97091 95574 1517 9 ∧
     run {{imported with afterSample := 4}} ⟨{WITNESS_GAS - 43},128,3,false,true⟩ =
-      .call 97197 97093 95576 1517 9 := by decide
+      .call 97191 97087 95571 1516 9 := by decide
+theorem warmReplayBudget :
+    run imported ⟨{WITNESS_GAS - 43},128,3,true,true⟩ = .call 99691 99591 98035 1556 9 ∧
+    run {{imported with afterSample := 4}} ⟨{WITNESS_GAS - 43},128,3,true,true⟩ =
+      .call 99691 99587 98031 1556 9 := by decide
+#print axioms warmReplayBudget
 #print axioms replayBudget
 #print axioms morphoForward
 #print axioms morphoBudget
@@ -304,7 +407,13 @@ theorem replayBudget :
         result.returncode == 0,
         "exact scheduled CALL proof failed\n" + result.stdout + result.stderr,
     )
-    for theorem in ("morphoBudget", "morphoFrame", "morphoForward", "replayBudget"):
+    for theorem in (
+        "morphoBudget",
+        "morphoFrame",
+        "morphoForward",
+        "replayBudget",
+        "warmReplayBudget",
+    ):
         axioms = re.search(rf"'{theorem}' depends on axioms: \[(.*?)\]", result.stdout)
         require(
             f"'{theorem}' does not depend on any axioms" in result.stdout
@@ -317,30 +426,43 @@ theorem replayBudget :
         )
 
 
-def witness(setup, directory, solar, replay, timeout):
-    prologue = f"""@module TransferFromBudget
+def replay_image(code, location, *, extra=b""):
+    """Use the emitted bytes with a test trampoline and returndata observer.
+
+    Preserve the conditional PUSH width and relocate its operand to a local
+    revert. On the successful path only the optional mutation changes the
+    prefix. The original scheduled and final images are never written here.
+    """
+    entry, call, branch, _, ops = location
+    trampoline = bytes.fromhex("608060405260016202000162020000620400005f")
+    trampoline += b"\x61" + (len(trampoline) + 4).to_bytes(2, "big") + b"\x56"
+    prefix = bytearray(code[entry:call])
+    continuation = bytes.fromhex("f13d5f5f3e3d5ff3")
+    failure = len(trampoline) + len(prefix) + len(extra) + len(continuation)
+    width = int(ops[4][0][4:])
+    require(
+        width > 0 and failure < 256**width, "replay branch cannot keep its PUSH width"
+    )
+    offset = branch - entry + 1
+    prefix[offset : offset + width] = failure.to_bytes(width, "big")
+    return trampoline + prefix + extra + continuation + bytes.fromhex("5b5f5ffd")
+
+
+def witness(code, location, directory, solar, replay, timeout, *, warm=False):
+    directory.mkdir(exist_ok=True)
+
+    def wrapper(address):
+        return f"""@module TransferFromBudget
 bb0:
-  push 128
-  push 64
-  mstore
-  push 1
-  push 0x20001
-  push 0x20000
-  push {TOKEN}
   push 0
-  jump bb1
-bb90:
-  invalid
-bb1:
-  dup 2
-  extcodesize
-  iszero
-  push bb3
-  jumpi
-  jump bb2
-bb2:
-"""
-    continuation = """
+  push 0
+  push 0
+  push 0
+  push 0
+  push {address}
+  push {WITNESS_GAS}
+  call
+  pop
   returndatasize
   push 0
   push 0
@@ -348,30 +470,37 @@ bb2:
   returndatasize
   push 0
   return
-bb3:
-  push 0
-  push 0
-  revert
 """
-    before = prologue + "\n".join(f"  {op}" for op in setup) + continuation
-    require(
-        before.count("  gas\n  call") == 1,
-        "cannot place the extra charged instructions",
-    )
-    after = before.replace("  gas\n  call", "  gas\n  push 0\n  pop\n  call")
+
     left, right = directory / "before.evmir", directory / "broken.evmir"
-    left.write_text(before)
-    right.write_text(after)
+    left.write_text(wrapper(0x50000))
+    right.write_text(wrapper(0x50001))
     fixture = directory / "world.json"
-    # The child returns its gas sample, so the witness checks forwarding as
-    # well as the caller's exact remaining gas.
     fixture.write_text(
         json.dumps(
             {
                 "version": 1,
-                "gas": WITNESS_GAS,
+                "gas": 2 * WITNESS_GAS,
+                "warm_addresses": [TOKEN] if warm else [],
                 "accounts": [
-                    {"address": TOKEN, "nonce": 1, "code": "0x5a5f5260205ff3"}
+                    {
+                        "address": 0x50000,
+                        "nonce": 1,
+                        "code": "0x" + replay_image(code, location).hex(),
+                    },
+                    {
+                        "address": 0x50001,
+                        "nonce": 1,
+                        "code": "0x"
+                        + replay_image(
+                            code, location, extra=bytes.fromhex("5f50")
+                        ).hex(),
+                    },
+                    {
+                        "address": TOKEN,
+                        "nonce": 1,
+                        "code": "0x5a5f52365f60203760845ff3",
+                    },
                 ],
             }
         )
@@ -413,12 +542,19 @@ bb3:
         "CALL counterexample did not replay independently",
     )
     samples = []
+    payload = (SELECTOR >> 224).to_bytes(4, "big") + b"".join(
+        value.to_bytes(32, "big") for value in (0x20000, 0x20001, 1)
+    )
     for status, data, *_ in observed["observations"]:
-        require(status == "success" and len(data) == 32, "child did not return its GAS")
-        samples.append(int.from_bytes(bytes(data), "big"))
+        require(
+            status == "success" and len(data) == 132 and bytes(data[32:]) == payload,
+            "child did not return its GAS and exact transferFrom calldata",
+        )
+        samples.append(int.from_bytes(bytes(data[:32]), "big"))
     # replayBudget predicts the forwarded budget. GAS itself costs two.
     require(
-        tuple(samples) == CHILD_SAMPLES, "child GAS disagrees with the priced schedule"
+        tuple(samples) == (WARM_CHILD_SAMPLES if warm else CHILD_SAMPLES),
+        "child GAS disagrees with the priced schedule",
     )
     return samples
 
@@ -428,6 +564,13 @@ def main(arguments):
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--solar", default=str(ROOT.parent / "target/debug/solar"))
     parser.add_argument("--replay")
+    parser.add_argument(
+        "--mir-pair",
+        nargs=2,
+        type=Path,
+        metavar=("BEFORE", "AFTER"),
+        help="match an existing MIR pair against the new capture",
+    )
     parser.add_argument("--timeout", type=int, default=60)
     args = parser.parse_args(arguments)
     solar = str(Path(shutil.which(args.solar) or args.solar).resolve())
@@ -436,14 +579,60 @@ def main(arguments):
     try:
         directory.mkdir()
         semantics = audit.semantics()
-        scheduled, disassembly, bytecode = capture(solar, directory, args.timeout)
+        scheduled, disassembly, bytecode, final, mir_pair = capture(
+            solar, directory, args.timeout
+        )
+        if args.mir_pair:
+            require(
+                all(
+                    prune.declarations(candidate.read_text())
+                    == prune.declarations(captured.read_text())
+                    for candidate, captured in zip(args.mir_pair, mir_pair, strict=True)
+                ),
+                "supplied MIR pair differs from the same-compile transferFrom capture",
+            )
+            mir_pair = args.mir_pair
         entry, failure, setup, ops = extract(scheduled, disassembly)
         catalog = {
             row["name"]: row for row in native.catalog(replay, args.timeout)["evmir"]
         }
-        trace = project(ops, catalog)
-        prove(trace, directory, args.timeout)
-        child_samples = witness(setup, directory, solar, replay, args.timeout)
+        location = extract_final(final, setup, catalog)
+        trace = project(location[-1], catalog)
+        prove(project(ops, catalog), trace, directory, args.timeout)
+        child_samples = witness(final, location, directory, solar, replay, args.timeout)
+        warm_samples = witness(
+            final, location, directory / "warm", solar, replay, args.timeout, warm=True
+        )
+        artifact = {
+            "runtime_sha256": evaluate.digest(final),
+            "entry_pc": location[0],
+            "call_pc": location[1],
+        }
+        mir = builtin_lowering.check(
+            mir_pair,
+            solar,
+            replay,
+            VERSION,
+            args.timeout,
+            FUNCTION,
+            final_call={
+                "trace": expression(trace),
+                "artifact": artifact,
+                "proof": directory / "MIRCallBudget.lean",
+            },
+        )
+        audit.write(
+            directory / "mir.json",
+            audit.record(
+                mir,
+                layer="mir",
+                target=VERSION,
+                policy=None,
+                before=mir_pair[0],
+                after=mir_pair[1],
+                model=semantics,
+            ),
+        )
         require(
             semantics == audit.semantics(),
             "validator semantics changed during the proof",
@@ -461,14 +650,19 @@ def main(arguments):
                 "entry": entry,
                 "no_code_exit": failure,
                 "gas_policy": "exact",
-                "scope": "Cancun scheduled function entry to CALL or no-code transfer",
+                "scope": "Cancun final bytecode function entry to CALL or no-code transfer",
+                "runtime_sha256": evaluate.digest(final),
+                "entry_pc": location[0],
+                "call_pc": location[1],
+                "no_code_pc": location[3],
                 "assumptions": [
                     "the same well-formed five-word function-entry stack, initial gas, journal and byte memory",
                     "aligned FMP in the word at 0x40, at least 128, with room for the 160-byte object in the model's 64 KiB domain",
                     "gas fits in an EVM word and memory length is measured in active words",
-                    "trusted compiler disassembly and operand-exact projection of the scheduled, assembled prefix",
+                    "final bytes independently decoded; operand-exact projection and scheduled function binding are trusted",
                 ],
                 "child_gas_samples": child_samples,
+                "warm_child_gas_samples": warm_samples,
             },
         )
     except (

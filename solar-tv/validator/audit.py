@@ -239,9 +239,22 @@ def record(
                 [
                     "selected typed SSA and exact lowering operands, phis and successors checked against the proved expansion",
                     "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
-                    "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim",
                 ]
             )
+            if program.gas == "exact-call-boundary":
+                assumptions.extend(
+                    [
+                        "final emitted bytes and the MIR snapshots come from the same compiler input and capture",
+                        "common helper-entry state and gas; corresponding prepared MIR object and journal at the message cut",
+                        "CALL budget derived from the checked byte prefix; the earlier MIR sample clips to the same child gas",
+                        "Cancun, at most 30 million entry gas, aligned FMP and active memory within 64 KiB",
+                        "the selected CALL and returndata cut; later EVM instructions and whole-pass gas are outside the proof",
+                    ]
+                )
+            else:
+                assumptions.append(
+                    "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim"
+                )
             if program.import_evidence["kind"] == "contextual-call-returndata-lowering":
                 assumptions.extend(
                     [
@@ -249,6 +262,10 @@ def record(
                         "real child execution, gas clipping, failure, return buffer and live memory preserved within the message model",
                         "returned byte length plus 63 fits a word; same typed continuation and supplied callees consume equal results",
                     ]
+                )
+            elif program.gas == "exact-call-boundary":
+                assumptions.append(
+                    "returned byte length plus 63 fits a word; same typed continuation consumes equal message results"
                 )
             else:
                 assumptions.extend(
@@ -414,7 +431,9 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": (
-            "unpriced-structural"
+            "exact-call-boundary"
+            if program and program.gas == "exact-call-boundary"
+            else "unpriced-structural"
             if program
             and program.scope
             in {

@@ -400,14 +400,16 @@ def unchanged_callees(function, bodies, declarations):
     return sorted(seen)
 
 
-def prove(code, timeout):
+def prove(code, timeout, module="SolarTV", proof_path=None):
     from .check import PRELUDE, ROOT, build_model, run
 
-    built = build_model(timeout)
+    built = build_model(timeout, module)
     require(built.returncode == 0, built.stdout + built.stderr)
     with tempfile.TemporaryDirectory(prefix="solar-tv-builtins-") as folder:
-        proof = Path(folder) / "Pair.lean"
-        proof.write_text(PRELUDE + "set_option maxRecDepth 4096\n" + code)
+        proof = proof_path or Path(folder) / "Pair.lean"
+        proof.write_text(
+            PRELUDE.replace("import SolarTV\n", f"import {module}\n", 1) + code
+        )
         result = run(["lake", "env", "lean", proof], ROOT, timeout)
     axioms = re.search(r"'contextual' depends on axioms: \[(.*?)\]", result.stdout)
     require(
@@ -422,7 +424,7 @@ def prove(code, timeout):
     )
 
 
-def check(paths, solar, executable, version, timeout, function):
+def check(paths, solar, executable, version, timeout, function, *, final_call=None):
     texts, models, declarations = load_pair(paths, solar, executable, version, timeout)
     bodies = list(map(functions, models))
     if any(
@@ -431,6 +433,12 @@ def check(paths, solar, executable, version, timeout, function):
     ):
         raise Unsupported("builtin expansion could not select a unique function")
     old, new = (table[function] for table in bodies)
+    module = "SolarTV"
+    if final_call:
+        require(
+            function == "safeTransferFrom" and version == "cancun",
+            "final bytecode certificate applies to Cancun Morpho transferFrom",
+        )
     require(
         declarations[0][function]["text"][0] == declarations[1][function]["text"][0],
         "builtin expansion changed the function interface",
@@ -442,6 +450,7 @@ def check(paths, solar, executable, version, timeout, function):
     ):
         from . import storage_lowering
 
+        require(not final_call, "final bytecode certificate requires a CALL")
         helpers = storage_lowering.check_source(
             old,
             new,
@@ -482,6 +491,14 @@ def check(paths, solar, executable, version, timeout, function):
             "unpriced caller instructions"
         )
         code = CALL_PROOF
+        if final_call:
+            kind = "final-bytecode-call-returndata-lowering"
+            boundary = (
+                "entry gas measured before the final helper JUMPDEST; prices derive the "
+                "parent CALL budget and equal capped requests at the bound MIR message cut"
+            )
+            module = "SolarTV.MIR.Transforms.FinalCallBudget"
+            code = FINAL_CALL_PROOF.replace("{trace}", final_call["trace"])
         for key, value in (("address", address), ("input", input_), ("gas", gas)):
             code = code.replace(f"{{{key}}}", mir_state.operand(value))
 
@@ -506,7 +523,7 @@ def check(paths, solar, executable, version, timeout, function):
                             ),
                             "builtin expansion needs available opcodes independent of the code image",
                         )
-    prove(code, timeout)
+    prove(code, timeout, module, final_call["proof"] if final_call else None)
     pair = tuple(
         Program(
             (function, "builtin-lowering"),
@@ -517,6 +534,7 @@ def check(paths, solar, executable, version, timeout, function):
             replay_ir=text,
             selector=function,
             scope="builtin-lowering",
+            gas="exact-call-boundary" if final_call else None,
             evm_version=version,
             import_evidence={
                 "kind": kind,
@@ -526,6 +544,7 @@ def check(paths, solar, executable, version, timeout, function):
                 "unchanged_callees": callees,
                 "proved_helpers": helpers,
                 "boundary": boundary,
+                **({"final_bytecode": final_call["artifact"]} if final_call else {}),
             },
         )
         for text, model in zip(texts, models, strict=True)
@@ -557,6 +576,62 @@ theorem contextual {Observation : Type} (cfg : Config) (fuel : Nat) (frame : Fra
       (lowered cfg)) :=
   congrArg resume (memoryObjectCall cfg fuel frame {address} {input} {gas} target requested object
     ha hi hg bounded)
+#print axioms contextual
+"""
+
+
+FINAL_CALL_PROOF = """
+open SolarTV.MIR.State EvmRules SolarTV.Execution
+open SolarTV.MIR.LowerReturndata SolarTV.MIR.FinalCallBudget
+open SolarTV.EVM.CallBudget (Entry Trace referenceTrace beforeCall)
+def finalTrace : Trace := {trace}
+theorem finalShape : finalTrace = referenceTrace 6 := by decide
+theorem contextual {Observation : Type} (cfg : Config) (fuel : Nat) (frame : Frame)
+    (entry : Entry) (sample available child retained words elapsed : Nat)
+    (heap : 128 ≤ entry.fmp) (limit : entry.gas ≤ 30000000)
+    (fork : cfg.fork = .cancun)
+    (reaches : EVM.CallBudget.run finalTrace entry = .call sample available child retained words)
+    (earlier : elapsed ≤ beforeCall entry 6)
+    (target : Word) (object : Scalar)
+    (ext : EVM.State.Config) (extFork : ext.fork = .cancun)
+    (externalCfg : cfg.externalConfig = some ext)
+    (ready : Ready entry frame object.word target words)
+    (ha : read frame {address} = .ok target)
+    (hi : readValue frame {input} = .ok (.scalar object))
+    (hg : read frame {gas} = .ok (BitVec.ofNat 256 (entry.gas-elapsed)))
+    (bounded : ∀ opcode args preCall request success postCall work,
+      SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame sample)
+        frame target (BitVec.ofNat 256 (entry.gas-elapsed)) object.word =
+        .ok (opcode,args,preCall,request) →
+      external fuel (withBudget cfg frame sample) preCall opcode args request =
+        .ok (some (.returned (success,postCall),work)) →
+      postCall.returnData.length + 63 < 2^256)
+    (resume : Except String (Option (Outcome (Option Word × Option Word × Frame) × Nat)) →
+      Observation) :
+    (resume (invokeAndCollect (withBudget cfg frame sample) fuel
+      (messageArguments (withBudget cfg frame sample) frame (.address 0xf1 true false true false false)
+        [{address},{input},{gas}]) returnDataBytes) =
+    resume (invokeAndCollect (withBudget cfg frame sample) fuel
+      (SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame sample)
+        frame target (BitVec.ofNat 256 sample) object.word) (lowered (withBudget cfg frame sample)))) ∧
+    priceAtCut cfg frame sample target object.word = .ok (some (child,retained)) := by
+  refine ⟨?_, readyPrice finalTrace finalShape entry heap limit sample available child retained words
+    reaches cfg fork frame ext extFork externalCfg object.word target ready⟩
+  obtain ⟨priced,_,request,_,_,_⟩ :=
+    samples finalTrace finalShape entry heap sample available child retained words elapsed reaches earlier
+  have sampleLimit : sample ≤ 30000000 := by omega
+  have requestLimit : entry.gas-elapsed ≤ 30000000 := by omega
+  have sampleWord : (BitVec.ofNat 256 sample).toNat = sample := by
+    simp [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : sample < 2^256)]
+  have requestWord : (BitVec.ofNat 256 (entry.gas-elapsed)).toNat = entry.gas-elapsed := by
+    simp [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : entry.gas-elapsed < 2^256)]
+  apply congrArg resume
+  rw [memoryObjectCall _ fuel frame {address} {input} {gas} target _ object ha hi hg bounded]
+  apply changeRequest cfg frame fuel target object.word _ _ sample fork
+  · simpa [requestWord] using request
+  · simp [sampleWord]
+  · simpa [requestWord] using requestLimit
+  · simpa [sampleWord] using sampleLimit
 #print axioms contextual
 """
 
