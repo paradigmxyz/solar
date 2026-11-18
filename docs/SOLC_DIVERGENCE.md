@@ -1407,8 +1407,8 @@ arm's first instruction.
 
 These entries compare with `solc`'s legacy output, which `forge coverage`
 anchors on at `-Onone`. Each test checks that the legacy source map has no entry
-at the statement's offset but has entries for nearby code, so the check cannot
-pass on an empty map.
+at the statement's offset, and that the IR dump gives the code around it
+locations, so the check cannot pass on an empty map.
 
 ### DEBUG-001: Statements with a constant, copy or folded value
 
@@ -1512,8 +1512,8 @@ pass on an empty map.
 - Difference: `keccak256(abi.encodePacked("a", "b"))` and
   `keccak256(abi.encode(uint256(1), uint256(2)))` fold at compile time. The hash
   is a `PUSH` in the code that reads it, so the call and its arguments have no
-  entry. `solc` folds only a string literal argument and runs the others, so it
-  maps the call and its arguments. A `keccak256` of a runtime value keeps its
-  entry.
+  entry. `solc` folds only a string or hex literal argument and runs the
+  others, so it maps the call and its arguments. A `keccak256` of a runtime
+  value keeps its entry.
 - Rationale: the call has no code left to map.
 - Coverage: `tests/ui/codegen/debug-info/divergence/debug_007_folded_keccak.sol`.
