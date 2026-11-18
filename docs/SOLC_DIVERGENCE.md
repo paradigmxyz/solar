@@ -368,8 +368,11 @@ Coverage: `tests/ui/parser/expr_depth_limit.sol`,
 `tests/ui/parser/expr_depth_limit_max.sol`,
 `tests/ui/parser/expr_depth_limit_postfix.sol`,
 `tests/ui/parser/expr_depth_limit_nested.sol`,
-`tests/ui/parser/expr_depth_limit_stmt_member.sol` and
-`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`.
+`tests/ui/parser/expr_depth_limit_stmt_member.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_max.sol`,
+`tests/ui/parser/expr_depth_limit_decl_max.sol` and
+`tests/ui/parser/expr_depth_limit_reset.sol`.
 
 ## AST Validation
 

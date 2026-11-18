@@ -142,6 +142,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         with: Option<Box<'ast, Expr<'ast>>>,
         lo: Span,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        let counted = with.is_some();
         let mut expr = if let Some(with) = with {
             Ok(with)
         } else if self.eat_keyword(kw::New) {
@@ -157,7 +158,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else {
             self.parse_primary_expr()
         }?;
-        self.expr_depth += 1;
+        // A `with` expression carries its depth in `expr_depth` already.
+        if !counted {
+            self.expr_depth += 1;
+        }
         loop {
             let kind = if self.eat(TokenKind::Dot) {
                 let dot_span = self.prev_token.span;
