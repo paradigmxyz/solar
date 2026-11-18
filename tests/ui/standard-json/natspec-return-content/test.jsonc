@@ -1,0 +1,39 @@
+//@ filecheck: --strict-whitespace
+// `@return` texts in devdoc match solc 0.8.38: a named return drops its name and one space or
+// tab after it, keeps the name when nothing follows, inherits renamed, and takes its name from
+// the next line when the tag ends its line.
+// CHECK-LABEL: "contracts": {
+// CHECK-LABEL: "ReturnDescAfterNl.sol": {
+// CHECK: "second": "Documentation for the second parameter"
+// CHECK: "d": "The result of the multiplication"
+// CHECK-LABEL: "ReturnNameNoDescription.sol": {
+// CHECK: "A": {
+// CHECK: "a": "a"
+// CHECK: "B": {
+// CHECK: "b": "a"
+// CHECK-LABEL: "ReturnText.sol": {
+// CHECK: "version": "         The contract version.",
+// CHECK-NEXT: "domainSeparator": "The domain separator.",
+// CHECK-NEXT: "conduitController": "conduitController"
+// CHECK: "status": "  on the next line"
+// CHECK: "pair": {
+// CHECK-NEXT: "return": "x  the first",
+// CHECK-NEXT: "returns": {
+// CHECK-NEXT: "x": " the first"
+// CHECK-LABEL: "StructGetterNoReturnName.sol": {
+// CHECK: "IThing": {
+// CHECK: "_0": ""
+// CHECK: "value": {
+// CHECK-NEXT: "return": "x ",
+// CHECK-NEXT: "returns": {
+// CHECK-NEXT: "x": ""
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": ["devdoc"]
+      }
+    }
+  }
+}

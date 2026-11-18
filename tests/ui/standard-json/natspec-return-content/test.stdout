@@ -1,0 +1,149 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "ReturnDescAfterNl.sol",
+        "start": 412,
+        "end": 508
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2018",
+      "message": "function state mutability can be restricted to pure",
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to pure\n   ╭▸ ReturnDescAfterNl.sol:LL:CC\n   │\nLL │ ┏     function mul(uint a, uint second) public returns (uint d) {\nLL │ ┃         return a * 7 + second;\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+    }
+  ],
+  "sources": {
+    "ReturnDescAfterNl.sol": {
+      "id": 0
+    },
+    "ReturnNameNoDescription.sol": {
+      "id": 1
+    },
+    "ReturnText.sol": {
+      "id": 2
+    },
+    "StructGetterNoReturnName.sol": {
+      "id": 3
+    }
+  },
+  "contracts": {
+    "ReturnDescAfterNl.sol": {
+      "test": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "mul(uint256,uint256)": {
+              "details": "Multiplies a number by 7 and adds second parameter",
+              "params": {
+                "a": "Documentation for the first parameter starts here. Since it's a really complicated parameter we need 2 lines",
+                "second": "Documentation for the second parameter"
+              },
+              "returns": {
+                "d": "The result of the multiplication"
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    },
+    "ReturnNameNoDescription.sol": {
+      "A": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "g(int256)": {
+              "returns": {
+                "a": "a"
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "B": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "g(int256)": {
+              "returns": {
+                "b": "a"
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    },
+    "ReturnText.sol": {
+      "Seaport": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "information()": {
+              "returns": {
+                "version": "         The contract version.",
+                "domainSeparator": "The domain separator.",
+                "conduitController": "conduitController"
+              }
+            },
+            "status()": {
+              "returns": {
+                "status": "  on the next line"
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "Getter": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "stateVariables": {
+            "pair": {
+              "return": "x  the first",
+              "returns": {
+                "x": " the first"
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    },
+    "StructGetterNoReturnName.sol": {
+      "IThing": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "value(uint256)": {
+              "returns": {
+                "_0": ""
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "Thing": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "stateVariables": {
+            "value": {
+              "return": "x ",
+              "returns": {
+                "x": ""
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}
