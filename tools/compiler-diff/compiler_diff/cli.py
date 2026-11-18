@@ -164,7 +164,7 @@ def compare_pair(left, right, selected, policy, ast_rules=()):
         return [
             {
                 "comparator": kind,
-                "version": compare.VERSION,
+                "version": compare.COMPARATORS.get(kind, compare.VERSION),
                 "policy": policy,
                 "status": "error",
                 "differences": [],

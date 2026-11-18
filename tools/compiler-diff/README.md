@@ -111,10 +111,12 @@ replaces the ID that ends `t_struct(Name)N`, `t_enum(Name)N`,
 of `types` and in every `type`, `key`, `value` and `base`, including those of
 struct members. If two IDs of one name meet in one layout, such as two structs
 `S` from different scopes, the check reports an error naming the contract
-rather than guessing which is which. `storage` and each struct's `members`
-compare in order; `types` compares as an object, so its key order does not
-matter. Each layout counts as one output for the missing and `unsupported`
-rules below. The check has its own rule version for expectations.
+rather than guessing which is which, and still compares the other contracts.
+`storage` and each struct's `members` compare in order; `types` compares as an
+object, so its key order does not matter. Each layout counts as one output for
+the missing and `unsupported` rules below; solc before 0.8.27 emits no
+`transientStorageLayout`, so use a newer reference. The check has its own rule
+version for expectations.
 
 Each check reports `equal`, `different`, `unsupported` (outputs missing on both
 sides), or `error` (failed compilation or malformed output); output missing on

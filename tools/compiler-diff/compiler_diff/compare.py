@@ -9,8 +9,16 @@ from collections import Counter, defaultdict
 from .artifacts import STORAGE_LAYOUTS, contract_outputs
 
 VERSION = 1
-COMPARATORS = ("abi", "methods", "userdoc", "devdoc", "ast", "storage-layout")
 STORAGE_LAYOUT_VERSION = 1
+# Each comparator's rule version, which expectations must match.
+COMPARATORS = {
+    "abi": VERSION,
+    "methods": VERSION,
+    "userdoc": VERSION,
+    "devdoc": VERSION,
+    "ast": VERSION,
+    "storage-layout": STORAGE_LAYOUT_VERSION,
+}
 # The AST ID that ends a user-defined type's name, as in `t_struct(S)12_storage`.
 STORAGE_TYPE_ID = re.compile(
     r"(t_(?:struct|enum|contract|userDefinedValueType)\([^)]*\))(\d+)"
@@ -231,6 +239,7 @@ def artifact(output, comparator, policy):
     contracts = contract_outputs(output)
     result = {}
     missing = set()
+    errors = {}
     for path, group in contracts.items():
         if not isinstance(group, dict) or not group:
             raise ValueError("malformed contract outputs")
@@ -239,15 +248,19 @@ def artifact(output, comparator, policy):
             if not isinstance(contract, dict):
                 raise ValueError("malformed contract artifact")
             if comparator == "storage-layout":
-                result[path][name] = {}
+                layouts = result[path][name] = {}
                 for key in STORAGE_LAYOUTS:
                     value = contract.get(key)
                     if value is None:
                         missing.add((path, name, key))
-                        result[path][name][key] = {"available": False}
-                    else:
+                        layouts[key] = {"available": False}
+                        continue
+                    # A bad layout fails the check but leaves other contracts compared.
+                    try:
                         value = storage_layout(value, f"{path}:{name} {key}")
-                        result[path][name][key] = {"available": True, "value": value}
+                        layouts[key] = {"available": True, "value": value}
+                    except ValueError as error:
+                        errors[path, name, key] = str(error)
                 continue
             if comparator == "methods":
                 evm = contract.get("evm", {})
@@ -274,7 +287,7 @@ def artifact(output, comparator, policy):
                 if comparator == "methods":
                     value = {key: selector.lower() for key, selector in value.items()}
                 result[path][name] = {"available": True, "value": value}
-    return result, missing
+    return result, missing, errors
 
 
 def ast_children(value, path):
@@ -539,15 +552,27 @@ class AstSummary:
 def compare_outputs(left, right, comparator="abi", policy="interface", rules=()):
     if comparator not in COMPARATORS or policy not in {"exact", "interface"}:
         raise ValueError("unknown comparator or ABI policy")
-    version = STORAGE_LAYOUT_VERSION if comparator == "storage-layout" else VERSION
+    version = COMPARATORS[comparator]
     try:
         if comparator == "ast":
             return {**compare_ast(left, right, rules), "policy": policy}
-        a, missing_a = artifact(left, comparator, policy)
-        b, missing_b = artifact(right, comparator, policy)
+        a, missing_a, errors_a = artifact(left, comparator, policy)
+        b, missing_b, errors_b = artifact(right, comparator, policy)
+        # Only the error reports a layout that failed on either side.
+        for path, name, key in errors_a.keys() | errors_b.keys():
+            for side in (a, b):
+                side.get(path, {}).get(name, {}).pop(key, None)
         diff = differences(a, b, "/contracts")
+        errors = [f"left: {e}" for e in errors_a.values()]
+        errors += [f"right: {e}" for e in errors_b.values()]
         status = (
-            "unsupported" if missing_a & missing_b else "different" if diff else "equal"
+            "error"
+            if errors
+            else "unsupported"
+            if missing_a & missing_b
+            else "different"
+            if diff
+            else "equal"
         )
         return {
             "comparator": comparator,
@@ -555,6 +580,7 @@ def compare_outputs(left, right, comparator="abi", policy="interface", rules=())
             "policy": policy,
             "status": status,
             "differences": diff,
+            **({"error": "\n".join(errors)} if errors else {}),
         }
     except (ValueError, KeyError, TypeError) as error:
         return {
@@ -860,9 +886,17 @@ class Tests(unittest.TestCase):
         left = self.storage_output()
         storage = left["contracts"]["C.sol"]["C"]["storageLayout"]["storage"]
         storage.append({**storage[0], "type": "t_struct(S)7_storage"})
-        result = compare_outputs(left, self.storage_output(), "storage-layout")
+        right = self.storage_output()
+        for output in (left, right):
+            output["contracts"]["D.sol"] = copy.deepcopy(right["contracts"]["C.sol"])
+        right["contracts"]["D.sol"]["C"]["storageLayout"]["storage"].pop()
+        result = compare_outputs(left, right, "storage-layout")
         self.assertEqual(result["status"], "error")
-        self.assertIn("C.sol:C storageLayout: t_struct(S)1 and", result["error"])
+        self.assertIn("left: C.sol:C storageLayout: t_struct(S)1 and", result["error"])
+        self.assertEqual(
+            [d["path"] for d in result["differences"]],
+            ["/contracts/D.sol/C/storageLayout/value/storage/1"],
+        )
 
     def test_storage_layout_missing(self):
         left = self.storage_output()
