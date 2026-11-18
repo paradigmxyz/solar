@@ -71,8 +71,11 @@ it by hand, short, and about what users get, not about individual PRs:
   (`benches/runtime/benchmark.py`, one benchmark per `m4-metal-large` box, five compile repeats,
   solc 0.8.38, Cancun, Solar `--profile bench`) at Solar's default thread count (`-j0`, all cores),
   not `-j8`: compile speed as a geometric mean with the per-project range (via-IR with shared
-  settings, `BENCH_VIA_IR=1 BENCH_RELAX_PRAGMAS=1`, and each project's own settings), and runtime
-  gas, deploy gas and bytecode size over the runtime corpus. Say which main commit you measured.
+  settings, and each project's own settings), and runtime gas, deploy gas and bytecode size over the
+  runtime corpus. Shared settings force `viaIR`, relax every `pragma solidity` and use one EVM
+  version for all compilers; `benchmark.py` on `main` has no switch for that, so use the override
+  of commit `711c741f7` on `dani/tmp-solar-blog` (`BENCH_VIA_IR=1 BENCH_RELAX_PRAGMAS=1`) and check
+  the effective settings and case IDs before aggregating. Say which main commit you measured.
 - Add at most two or three user-facing features or behavior changes, such as a new output or a
   changed default.
 - Use only real measurements. Do not average across runs, round up or quote a number you did not
