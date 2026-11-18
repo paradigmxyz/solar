@@ -50,6 +50,7 @@ import SolarTV.MIR.Transforms.TypeDCE
 import SolarTV.MIR.Transforms.LowerAddressCall
 import SolarTV.MIR.Transforms.LowerReturndata
 import SolarTV.MIR.Transforms.LowerStorageHeader
+import SolarTV.MIR.Transforms.LowerStorageBytes
 import SolarTV.MIR.Transforms.StorageWordLoop
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted

@@ -1446,14 +1446,20 @@ changed function. GAS, code observers, external calls, placement queries and
 backend memory records remain unsupported. Physical scalar gas and its effect
 on SSTORE's gas sentry are outside the claim.
 
-The frozen 24-check sample remains **22 verified, 2 unsupported**. All six
-previously cycle-rejected DCE pairs in the broader capture set now verify.
-They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and three
-Morpho `extSloads` captures.
-The OpenZeppelin `lower-builtins` replay found a mismatch in the reference
-panic code. Both interpreters now follow the memory-extent contract, with a
-regression against the real lowered code. See
-[the remaining obligations](CORRECTNESS.md#remaining-obligations).
+All six previously cycle-rejected DCE pairs in the broader capture set now
+verify. They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and
+three Morpho `extSloads` captures.
+
+### Checking builtin lowering
+
+For the exact storage-byte write and address-call shapes, `--function` checks
+the typed SSA expansion and its required callee bodies before applying the
+Lean state proof. The storage check covers header and extent panics, ordered
+clearing, complete words and dirty partial words within the storage/memory
+model's work limits. The call check preserves the observed CALL and returndata
+effects with a shared GAS sample and caller budget at the call boundary.
+Reports state those conditions and identify the certificate. See
+[the proof boundaries](CORRECTNESS.md#remaining-obligations).
 
 ### Removing unused MIR type declarations
 
@@ -1636,14 +1642,13 @@ a broken-width counterexample are in `examples/mir/width-guard/` and
 its concrete fixture never establishes the positive universal result.
 
 After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
-9 unsupported. Rechecking those frozen pairs now verifies **22 of 24**, with
-2 unsupported, no errors, timeouts or counterexamples. The additional checks
-use FMP lowering, conditional allocation-prefix, exact scalar-island,
-source-graph identity, stack-layout and conditional fresh-heap SSA certificates,
-as documented above. WETH's new `lower-alloc` result explicitly requires the
-named placement/FMP producer condition; it does not establish that condition
-at every caller. Morpho's removal of four unused type definitions now verifies
-by preserving all 47 resolved function graphs and every retained source line.
+9 unsupported. Rechecking those frozen pairs verifies **24 of 24** with
+no unsupported results, errors, timeouts or counterexamples. The final two
+checks cover OpenZeppelin's storage-byte writer and Morpho's CALL and
+returndata lowering. The certificates carry the storage model limits and
+the shared gas-boundary conditions described above. The same sample also
+checks WETH's fresh-heap producer condition and Morpho's resolved function
+graphs after unused type declarations are removed.
 Selected check identities and compiler-output fingerprints are unchanged;
 plain outputs from the updated validation compiler match all three saved
 contract fingerprints. This uses a new

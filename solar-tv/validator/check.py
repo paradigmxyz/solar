@@ -813,32 +813,27 @@ def main() -> int:
                     except Unsupported:
                         raise error from None
                     programs = list(result.pair)
-                # Cycles admit separate contextual allocation-prefix or dead-SSA
-                # simulations without bounded unrolling. Preserve the original
-                # rejection if neither complete certificate is admitted.
                 elif (
                     args.ir == "mir"
                     and args.function
                     and not args.world
                     and not args.gas
-                    and str(error) == "symbolic MIR cycles require an invariant"
+                    and str(error)
+                    in {
+                        "symbolic MIR cycles require an invariant",
+                        "MIR source: GAS requires an isolated opcode window",
+                    }
                 ):
-                    from . import coalesce
+                    from . import builtin_lowering, coalesce, dead_ssa
 
-                    try:
-                        result = coalesce.check(
-                            (args.before, args.after),
-                            solar,
-                            rust_replay,
-                            version,
-                            args.timeout,
-                            args.function,
-                        )
-                    except Unsupported:
-                        from . import dead_ssa
-
+                    validators = (
+                        (coalesce, dead_ssa, builtin_lowering)
+                        if str(error) == "symbolic MIR cycles require an invariant"
+                        else (builtin_lowering,)
+                    )
+                    for validator in validators:
                         try:
-                            result = dead_ssa.check(
+                            result = validator.check(
                                 (args.before, args.after),
                                 solar,
                                 rust_replay,
@@ -847,7 +842,10 @@ def main() -> int:
                                 args.function,
                             )
                         except Unsupported:
-                            raise error from None
+                            continue
+                        break
+                    else:
+                        raise error from None
                     programs = list(result.pair)
                 # Scalar windows lack caller/calldata context and dynamic-return
                 # correspondence. Try a universal contextual certificate rather

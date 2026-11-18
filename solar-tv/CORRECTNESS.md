@@ -534,8 +534,8 @@ After rebasing onto `main`, the new frozen sample has a different selection of
 counterexamples. This is a new compiler/capture fingerprint, not a regression
 comparison with the earlier 17-of-24 sample above.
 
-Rechecking those same frozen pairs at 30 seconds now verifies **22 of 24**, with
-2 unsupported and no counterexamples, timeouts or errors. Morpho's `lower-alloc`
+Rechecking those same frozen pairs at 30 seconds verifies **24 of 24**, with
+no unsupported results, counterexamples, timeouts or errors. Morpho's `lower-alloc`
 constructor first raised the count to 16; the OpenZeppelin ERC20Mock
 `lower-alloc` constructor then raised it to 17, and WETH's `block-cse` window
 raised it to 18. WETH's `block-layout` region then raised it to 19 through the
@@ -543,10 +543,10 @@ separately reported source-graph identity certificate. ERC20Mock's
 `block-layout` region then raised it to 20 through the stack-layout simulation.
 WETH's `lower-alloc` body raises it to 21 under the explicitly reported
 fresh-heap placement/FMP producer condition. Morpho's unused type-table erasure
-raises it to 22 through resolved module-data identity. No other check changes
-status.
-The selected check identities, input hashes and compiler-output hashes are
-identical; compilation results are reused.
+raises it to 22 through resolved module-data identity. The two
+`lower-builtins` certificates described below close the sample.
+The selected check identities and input hashes are identical. Fresh compilation
+of the three inputs reproduces the saved ABI and creation/runtime bytecode.
 The original capture compiler fingerprint is
 `8a897a40c88678e68e53f3b08b0e86099d5190f94478681ceda9c68e3ef3ae37`
 and independent replay is
@@ -618,30 +618,30 @@ typed tables and retained text for equality. This is the structural certificate
 described above, not a claim that every primitive operation or physical layout
 has a proved interpreter embedding.
 
-The two remaining frozen pairs are both from `lower-builtins`:
+The final two frozen pairs are from `lower-builtins`. The validator imports
+the actual typed MIR on both sides, checks the complete expansion and relevant
+callee bodies, and applies the Lean proofs to the matched SSA.
 
-- OpenZeppelin's `store_storage_bytes` exposed a model error. The reference
-  interpreters used the arithmetic panic `0x11` when rounding the memory
-  length overflowed. The opcode contract now specifies the memory allocation
-  panic `0x41` already used by the compiler's memory-extent check. The
-  real-lowering regression checks both interpreters on a forged length and
-  rejects a changed panic payload. The Lean header decoder covers all 256-bit
-  headers. The clearing-loop invariant tracks the index independently of the
-  wrapping slot address, and the write-plan theorem matches full and partial
-  words to the reference range. Connecting these proofs to the captured store
-  body still requires SSA and state correspondence for its write loop.
-- Morpho's `safeTransferFrom` samples GAS before encoding the call data, then
-  passes that word to CALL. `MIR.LowerAddressCall.memoryObjectArguments` proves
-  that, given the same requested gas word, the typed call and the explicit
-  header load prepare the same CALL request and frame. The forwarding lemma
-  applies the EIP-150 cap if the post-charge budget is at most the sampled
-  word. The returndata proof matches the rounding, allocation, header write
-  and copy for representable lengths. The captured function still requires a
-  proof that its caller prefix establishes the gas relation and correspondence
-  linking these local lemmas to its SSA.
+- OpenZeppelin's `store_storage_bytes` verifies the whole write and its
+  introduced clear helper. `MIR.LowerStorageBytes.store` composes header
+  decoding, the checked extent and the two storage loops. The loop checks
+  retain the actual phi inputs, wrapping slots, full-word order and masked
+  tail. The certificate covers arbitrary headers and live object memory in
+  the 64 KiB and 2,048-word work domain, with enough call depth for the
+  clear helper. Malformed headers return `Panic(0x22)`, and length rounding
+  overflow returns `Panic(0x41)`. Static writes fail and scratch effects on
+  successful paths remain visible.
+- Morpho's `safeTransferFrom` verifies CALL and its returndata allocation
+  under a shared sampled gas word and a shared caller budget at CALL.
+  `MIR.LowerReturndata.memoryObjectCall` preserves the message request, child
+  outcome, returndata bytes, memory and return pointer. The typed check
+  binds both sides to the same GAS producer and retains the entire shared
+  prefix, continuation and called helper. Returndata length plus 63 must
+  fit in a word. Pricing caller instructions and establishing physical
+  budgets after backend lowering remain separate obligations.
 
-These limits remain explicit. They must be removed with semantics, proofs and
-regressions rather than suppressed statuses or stronger unrecorded assumptions.
+The certificates cover these exact shapes. General loop invariants, dynamic
+placement and physical gas correspondence remain outside the sample.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |

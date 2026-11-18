@@ -66,6 +66,37 @@ def loadStorageBytes (cfg : Config) (frame : Frame) (slot : Word) : Step := do
         return .returned (some pointer,{frame with memory})
     | _ => .error "MIR allocation result missing"
 
+def storeStoragePayload (cfg : Config) (frame : Frame) (slot object : Word)
+    (literal : Option (List Byte)) (length : Nat) : Step := do
+  if length < 32 then
+    let (word,next) ← match literal with
+      | some bytes => pure (readWord bytes 0,frame)
+      | none => do
+        let address := object + 32
+        let memory ← expand frame.memory address.toNat 32
+        pure (readWord memory address.toNat,{frame with memory})
+    if cfg.environment.isStatic then return .invalid else
+    let mask : Word := if length = 0 then 0 else ~~~(BitVec.ofNat 256 (2^(8*(32-length))-1))
+    let next ← storageWrite cfg next slot ((word &&& mask) ||| BitVec.ofNat 256 (2*length))
+    return .returned (none,next)
+  else
+    if cfg.environment.isStatic then return .invalid else
+    let frame ← storageWrite cfg frame slot (BitVec.ofNat 256 (2*length+1))
+    let (base,frame) ← fixedSlot frame [slot]
+    let count := (length+31)/32
+    if count > 2048 then .error "MIR storage work limit of 2048 words" else
+    let finalFrame ← (List.range count).foldlM (fun state i => do
+      let (word,next) ← match literal with
+        | some bytes => pure (readWord bytes (32*i),state)
+        | none => do
+          let address := object + BitVec.ofNat 256 (32+32*i)
+          let memory ← expand state.memory address.toNat 32
+          pure (readWord memory address.toNat,{state with memory})
+      let keep := min 32 (length - 32*i)
+      let mask : Word := ~~~(BitVec.ofNat 256 (2^(8*(32-keep))-1))
+      storageWrite cfg next (base + BitVec.ofNat 256 i) (word &&& mask)) frame
+    return .returned (none,finalFrame)
+
 /-- Literal bytes have no memory input; object words are read after scratch traffic. -/
 def storeStorageBytes (cfg : Config) (frame : Frame) (slot : Word)
     (object : Word) (literal : Option (List Byte)) : Step := do
@@ -87,33 +118,6 @@ def storeStorageBytes (cfg : Config) (frame : Frame) (slot : Word)
       | .returned (_,next) => frame := next
       | .invalid => return .invalid
       | .reverted data => return .reverted data
-    if length < 32 then
-      let (word,next) ← match literal with
-        | some bytes => pure (readWord bytes 0,frame)
-        | none => do
-          let address := object + 32
-          let memory ← expand frame.memory address.toNat 32
-          pure (readWord memory address.toNat,{frame with memory})
-      if cfg.environment.isStatic then return .invalid else
-      let mask : Word := if length = 0 then 0 else ~~~(BitVec.ofNat 256 (2^(8*(32-length))-1))
-      let next ← storageWrite cfg next slot ((word &&& mask) ||| BitVec.ofNat 256 (2*length))
-      return .returned (none,next)
-    else
-      if cfg.environment.isStatic then return .invalid else
-      frame ← storageWrite cfg frame slot (BitVec.ofNat 256 (2*length+1))
-      let (base,next) ← fixedSlot frame [slot]
-      frame := next
-      if count > 2048 then .error "MIR storage work limit of 2048 words" else
-      for i in List.range count do
-        let (word,next) ← match literal with
-          | some bytes => pure (readWord bytes (32*i),frame)
-          | none => do
-            let address := object + BitVec.ofNat 256 (32+32*i)
-            let memory ← expand frame.memory address.toNat 32
-            pure (readWord memory address.toNat,{frame with memory})
-        let keep := min 32 (length - 32*i)
-        let mask : Word := ~~~(BitVec.ofNat 256 (2^(8*(32-keep))-1))
-        frame ← storageWrite cfg next (base + BitVec.ofNat 256 i) (word &&& mask)
-      return .returned (none,frame)
+    storeStoragePayload cfg frame slot object literal length
 
 end SolarTV.MIR.State

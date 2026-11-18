@@ -234,6 +234,30 @@ def record(
                         "universally quantified shared per-label PUSH/JUMPI charge context; concrete relocation/price correspondence remains trusted",
                     ]
                 )
+        elif program and program.scope == "builtin-lowering":
+            assumptions.extend(
+                [
+                    "selected typed SSA and exact lowering operands, phis and successors checked against the proved expansion",
+                    "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
+                    "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim",
+                ]
+            )
+            if program.import_evidence["kind"] == "contextual-call-returndata-lowering":
+                assumptions.extend(
+                    [
+                        "same GAS producer in an identical prefix; shared sampled gas word and parent CALL budget at the message boundary, with the same child work bound",
+                        "real child execution, gas clipping, failure, return buffer and live memory preserved within the message model",
+                        "returned byte length plus 63 fits a word; same typed continuation and supplied callees consume equal results",
+                    ]
+                )
+            else:
+                assumptions.extend(
+                    [
+                        "arbitrary storage header, defined object pointer and live memory; ordered writes and scratch hashing, wrapping slot addresses and exact panic payloads",
+                        "at most 2048 words per storage loop and 64 KiB active memory; unsupported states outside the model are excluded",
+                        "enough MIR internal call depth for the introduced nonrecursive clear helper; physical SSTORE gas and sentry outside this certificate",
+                    ]
+                )
         elif program and program.scope == "dead-ssa":
             assumptions.extend(
                 [
@@ -327,6 +351,7 @@ def record(
                 "unused-type-erasure",
                 "allocation-prefix",
                 "dead-ssa",
+                "builtin-lowering",
             }
         ):
             assumptions.append(
@@ -350,6 +375,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "dead-ssa",
+                "builtin-lowering",
                 "allocation-prefix",
                 "interior-window",
                 "source-identity",
@@ -395,6 +421,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "dead-ssa",
+                "builtin-lowering",
                 "allocation-prefix",
                 "source-identity",
                 "stack-layout",
@@ -501,6 +528,18 @@ def record(
         **(
             {"import_correspondence": [side.import_evidence for side in result.pair]}
             if result.pair and any(side.import_evidence for side in result.pair)
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
+                    "proof": program.import_evidence["kind"],
+                },
+            }
+            if program and program.scope == "builtin-lowering"
             else {}
         ),
         **(
