@@ -2592,8 +2592,17 @@ def cargo_config_problem(root, cargo_home, host):
         for t in c.get("target", {}):
             if scope != "repo" or t == host or t.startswith("cfg("):
                 return f"{where} sets [target.{t}]", bound
-        if scope != "repo" and "env" in c:
-            return f"{where} sets [env]", bound
+        if scope != "repo":
+            # Dependency overrides swap crate code without changing Cargo.lock (--locked does not
+            # see them); only the checkout's own config, which its tree binds, may hold them.
+            for k, label in (
+                ("env", "[env]"),
+                ("paths", "paths"),
+                ("patch", "[patch]"),
+                ("source", "[source]"),
+            ):
+                if k in c:
+                    return f"{where} sets {label}", bound
         bound.append({"scope": scope, "name": f.name, "sha256": sha256_file(f)})
     return None, bound
 
@@ -2604,6 +2613,15 @@ def build_solar():
     global SOLAR_ARTIFACT
     SOLAR_ARTIFACT = None
     if why := cargo_env_problem(os.environ):
+        raise Failed(f"solar build: {why}")
+    # The configs Cargo would read, checked before it runs (rustc -vV only names the host).
+    rc, vv, err = run(["rustc", "-vV"], cwd=ROOT)
+    host = re.search(r"^host: (\S+)$", vv or "", re.MULTILINE)
+    if rc != 0 or not host:
+        raise Failed(f"solar build: rustc -vV fails: {err.strip()[:200]}")
+    cargo_home = os.environ.get("CARGO_HOME") or str(pathlib.Path.home() / ".cargo")
+    why, _ = cargo_config_problem(ROOT, cargo_home, host.group(1))
+    if why:
         raise Failed(f"solar build: {why}")
     env = dict(os.environ, CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "2"))
     rc, out, err = run(SOLAR_BUILD_CMD, cwd=ROOT, env=env)

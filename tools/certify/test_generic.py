@@ -395,6 +395,67 @@ class SolarBuildConfig(unittest.TestCase):
                     why,
                 )
 
+    def test_external_dependency_overrides_refused(self):
+        """paths, [patch] and [source] outside the checkout swap crate code without changing
+        Cargo.lock: refused by name in a parent's and in CARGO_HOME's config, by build_solar before
+        cargo runs (no cargo call, no artifact)."""
+        cases = {
+            "paths": 'paths = ["/elsewhere/serde"]\n',
+            "[patch]": '[patch.crates-io]\nserde = { path = "/elsewhere/serde" }\n',
+            "[source]": '[source.crates-io]\nreplace-with = "mine"\n[source.mine]\ndirectory = "/v"\n',
+        }
+        for label, text in cases.items():
+            for where in ("cargo_home", "parent"):
+                with (
+                    self.subTest(label=label, where=where),
+                    tempfile.TemporaryDirectory() as t,
+                ):
+                    why, calls = self.external(pathlib.Path(t), where, text)
+                    self.assertIsNotNone(why)
+                    self.assertTrue(why.endswith(f"sets {label}"), why)
+                    self.assertIn(f"({where})", why)
+                    self.assertFalse([c for c in calls if c[:1] == ["cargo"]], calls)
+                    self.assertIsNone(generic.SOLAR_ARTIFACT)
+
+    def external(self, base, where, text):
+        """build_solar for a checkout under BASE with TEXT as a parent's or CARGO_HOME's config:
+        (the refusal or None, the commands it ran)."""
+        root = base / "parent" / "repo"
+        root.mkdir(parents=True)
+        home = base / "home"
+        d = home if where == "cargo_home" else base / "parent" / ".cargo"
+        d.mkdir(parents=True)
+        (d / "config.toml").write_text(text)
+        exe = root / "target/debug/solar"
+        exe.parent.mkdir(parents=True)
+        exe.write_text("built")
+        calls = []
+        generic.SOLAR_ARTIFACT = None
+        with unittest.mock.patch.object(generic, "ROOT", root):
+            try:
+                self.build(root, exe, cargo_home=home, calls=calls)
+            except generic.Failed as e:
+                return str(e), calls
+        return None, calls
+
+    def test_external_baseline_builds_and_binds(self):
+        """A harmless parent and CARGO_HOME config ([net], [term]) builds and is bound."""
+        for where, text in (
+            ("cargo_home", "[net]\noffline = true\n"),
+            ("parent", "[term]\nquiet = true\n"),
+        ):
+            with self.subTest(where), tempfile.TemporaryDirectory() as t:
+                why, calls = self.external(pathlib.Path(t), where, text)
+                self.assertIsNone(why)
+                self.assertTrue([c for c in calls if c[:1] == ["cargo"]])
+                self.assertIsNotNone(generic.SOLAR_ARTIFACT)
+                base = pathlib.Path(t)
+                _, bound = generic.cargo_config_problem(
+                    base / "parent" / "repo", base / "home", self.HOST
+                )
+                self.assertEqual([b["scope"] for b in bound], [where])
+                generic.SOLAR_ARTIFACT = None
+
     def test_config_bound(self):
         """The checkout's own config (its [env] and other targets' tables) and a harmless
         CARGO_HOME config are bound by digest, not refused."""
@@ -412,8 +473,9 @@ class SolarBuildConfig(unittest.TestCase):
             )
             self.assertNotIn(t, json.dumps(bound))
 
-    def build(self, root, executable, fresh=False):
-        """build_solar with cargo replaced by one reporting EXECUTABLE as the solar artifact."""
+    def build(self, root, executable, fresh=False, cargo_home=None, calls=None):
+        """build_solar with rustc -vV answered and cargo replaced by one reporting EXECUTABLE as the
+        solar artifact; CALLS collects every command it was asked to run."""
         line = json.dumps(
             {
                 "reason": "compiler-artifact",
@@ -422,14 +484,21 @@ class SolarBuildConfig(unittest.TestCase):
                 "fresh": fresh,
             }
         )
+        calls = [] if calls is None else calls
+
+        def fake(cmd, *a, **k):
+            calls.append(list(cmd))
+            if cmd[:2] == ["rustc", "-vV"]:
+                return 0, f"rustc 1.100.0\nhost: {self.HOST}\n", ""
+            return 0, line + "\n", ""
+
         env = {
             k: v for k, v in os.environ.items() if not generic.cargo_env_problem({k: v})
         }
         env["CARGO_TARGET_DIR"] = str(root / "target")
+        env["CARGO_HOME"] = str(cargo_home or root / "nohome")
         with (
-            unittest.mock.patch.object(
-                generic, "run", lambda *a, **k: (0, line + "\n", "")
-            ),
+            unittest.mock.patch.object(generic, "run", fake),
             unittest.mock.patch.dict(os.environ, env, clear=True),
         ):
             return generic.build_solar()
