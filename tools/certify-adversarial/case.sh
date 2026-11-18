@@ -81,7 +81,9 @@ if [[ $kind == DONE ]]; then
 fi
 # A control that certified is replayed independently (--replay: a fresh cold run checked against
 # its record), within the same deadline; its exit is part of the control's gate.
-if [[ $cls == control && $kind == DONE && $rc == 0 ]]; then
+if [[ "${PHASE:-}" == c1 ]]; then
+    echo skipped-c1 > "$R/replay.exit"
+elif [[ $cls == control && $kind == DONE && $rc == 0 ]]; then
     left=$((DEADLINE - $(date +%s)))
     if (( left > 60 )); then
         rargs=(tools/certify/certify --replay "$R/rec" --solidity-lean "$LEAN_DIR")

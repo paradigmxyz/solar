@@ -28,6 +28,7 @@ esac
 EOF
 chmod +x "$S/tools/certify/certify"
 printf 'target/\n' > "$S/.gitignore"
+echo lock > "$S/Cargo.lock"
 cp "$H/../certify/generic.py" "$S/tools/certify/generic.py" 2>/dev/null || touch "$S/tools/certify/generic.py"
 git -C "$S" init -q; git -C "$S" add -A; git -C "$S" -c user.email=t@t -c user.name=t commit -qm init
 export BC=$(git -C "$S" rev-parse HEAD)
@@ -46,8 +47,8 @@ export PATH="$T/bin:$PATH" HOME=$T
 fails=0
 ok() { echo "ok $1"; }; bad() { echo "FAIL $1"; fails=$((fails+1)); }
 go() { # go OUTNAME [env...]
-  env SLOTS=3 "${@:2}" OUT=$T/$1 SOLAR_DIR=$S SOLAR_SHA=$BC LEAN_DIR=$T LEAN_SHA=lean PACKAGES_FROM=$T/pk \
-      CASES=$H/cases.tsv BOX_CREATED=$(date -u +%FT%TZ) EST_MIN=1 bash "$H/run.sh" > "$T/$1.out" 2>&1; }
+  env SLOTS=3 CASES=$H/cases.tsv "${@:2}" OUT=$T/$1 SOLAR_DIR=$S SOLAR_SHA=$BC LEAN_DIR=$T LEAN_SHA=lean PACKAGES_FROM=$T/pk \
+      BOX_CREATED=$(date -u +%FT%TZ) EST_MIN=1 bash "$H/run.sh" > "$T/$1.out" 2>&1; }
 go a
 grep -q "ORDER control-flag control-siblingok control-flagrenamed siblingleak" "$T/a/run.log" && ok "controls admitted first" || bad "order: $(grep ORDER "$T/a/run.log")"
 grep -q -- "--packages-from $T/pk" "$T/a/control-flag/replay.command" && grep -q -- "--solidity-lean $T" "$T/a/control-flag/replay.command" && ok "replay gets --solidity-lean and --packages-from" || bad "replay command: $(cat "$T/a/control-flag/replay.command")"
@@ -63,4 +64,9 @@ n=$(grep -l '^NOT-RUN' "$T"/b/*/status | wc -l); k=$(grep -l '^KILLED-STOP' "$T"
 grep -q '^Control gate: FAIL (.*control-siblingok no' "$T/b/table.md" && grep -q 'Semantic rejections counted: 0 of' "$T/b/table.md" && ok "gate FAIL and nothing counted" || bad "gate b: $(grep -A1 'Control gate' "$T/b/table.md")"
 go c FAKE_EMBED=0000000000000000000000000000000000000000
 grep -q 'RUN-ABORT producer failed' "$T/c/run.log" && grep -q 'embeds commit 0000' "$T/c/producer.log" && ok "producer refuses a binary embedding another commit" || bad "producer c: $(tail -2 "$T/c/run.log")"
+grep -P '^control-' "$H/cases.tsv" > "$T/c1.tsv"
+go d PHASE=c1 CASES=$T/c1.tsv
+[[ $(cat "$T/d/control-flag/replay.exit") == skipped-c1 && ! -e "$T/d/control-flag/replay.command" ]] && ok "PHASE=c1: certify only, no replay" || bad "c1 replay: $(cat "$T/d/control-flag/replay.exit" 2>&1)"
+[[ $(ls "$T"/d/outbox/*.tgz | wc -l) == 3 && ! -d "$T/d/siblingleak" ]] && ok "PHASE=c1: 3 control archives shipped, no negatives" || bad "c1 outbox: $(ls "$T"/d/outbox)"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert len(d["cargo_lock_sha256"])==64 and len(d["toolchain_dir_sha256"])==64' "$T/d/producer.json" && ok "producer records Cargo.lock and toolchain dir sha256" || bad "producer fields: $(cat "$T/d/producer.json")"
 echo "fails=$fails"; exit $fails

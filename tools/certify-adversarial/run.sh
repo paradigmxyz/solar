@@ -57,7 +57,7 @@ check_controls() {
 # its own cgroup and refuses otherwise.
 launch() {
     local vars=(HOME PATH OUT SOLAR_DIR SOLAR_SHA LEAN_DIR LEAN_SHA PRODUCER DEADLINE PACKAGES_FROM
-                SHIP_REMOTE SHIP_BRANCH) envs=() v
+                SHIP_REMOTE SHIP_BRANCH PHASE) envs=() v
     for v in "${vars[@]}"; do [[ -z "${!v+x}" ]] || envs+=("$v=${!v}"); done
     if [[ -n "${CASE_MEMORY_MAX:-}" ]]; then
         sudo systemd-run --scope --quiet --unit="t5case-$1-$(date +%s)" -p "MemoryMax=$CASE_MEMORY_MAX" \

@@ -26,6 +26,27 @@ harness=$(git -C "$(dirname "$0")" rev-parse HEAD 2>/dev/null || echo unknown)
 python3 - "$out" "$bin" "$head" "${cmd[*]}" "$harness" <<'EOF'
 import hashlib, json, os, re, subprocess, sys, datetime
 out, binp, head, cmd, harness = sys.argv[1:6]
+sysroot = subprocess.run(["rustc", "--print", "sysroot"], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def tree_sha256(root):
+    """sha256 over "<sha256>  <relative path>" lines of every regular file under ROOT, sorted by path
+    (symlinks as "link -> target")."""
+    lines = []
+    for dp, dns, fns in os.walk(root):
+        dns.sort()
+        for f in sorted(fns):
+            p = os.path.join(dp, f); rel = os.path.relpath(p, root)
+            if os.path.islink(p):
+                lines.append(f"link {os.readlink(p)}  {rel}")
+            elif os.path.isfile(p):
+                h = hashlib.sha256()
+                with open(p, "rb") as fh:
+                    for chunk in iter(lambda: fh.read(1 << 20), b""):
+                        h.update(chunk)
+                lines.append(f"{h.hexdigest()}  {rel}")
+    nl = chr(10)
+    return hashlib.sha256((nl.join(sorted(lines, key=lambda l: l.split("  ", 1)[1])) + nl).encode()).hexdigest()
 ver = subprocess.run([binp, "--version"], capture_output=True, text=True).stdout
 m = re.search(r"Commit SHA: ([0-9a-f]{40})", ver)
 gen = open("tools/certify/generic.py").read()
@@ -48,6 +69,9 @@ rec = {
     "driver_lean_memory": const("LEAN_MEMORY"),
     "stage_cache": None,
     "rustc": subprocess.run(["rustc", "--version"], capture_output=True, text=True).stdout.strip(),
+    "cargo_lock_sha256": hashlib.sha256(open(os.path.join(os.environ["SOLAR_DIR"], "Cargo.lock"), "rb").read()).hexdigest(),
+    "toolchain_dir": sysroot,
+    "toolchain_dir_sha256": tree_sha256(sysroot),
     "recorded": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
 }
 if rec["binary_commit"] != head:
