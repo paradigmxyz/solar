@@ -851,8 +851,14 @@ PYEOF
         sed -n 's/^source: //p' "$log" > "$lean_dir/.lake/certify-$name.json.source"
     fi
     rm -f "$dir/Final.lean" "$dir/Statement.lean"
+    # The expected statement binds the export manifest (sources, arguments, bytecode digest).
+    manifest_args=()
+    if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("statement") == "expected" else 1)' "$dir/shape.json"; then
+        manifest_args=(--manifest-json "$dir/gen/$contract/manifest.json")
+    fi
     final_thm="$(python3 "$here/final.py" "$dir/shape.json" --name "$name" --contract "$contract" \
-        --hex "$plain" --out "$dir/Final.lean" --statement-out "$dir/Statement.lean" --record "$final_record")" ||
+        --hex "$plain" --out "$dir/Final.lean" --statement-out "$dir/Statement.lean" --record "$final_record" \
+        "${manifest_args[@]}")" ||
         die "final.py cannot write the published statement"
     # Its record is where the statuses come from: missing, empty or malformed fails the run.
     check_final_record "$final_record"

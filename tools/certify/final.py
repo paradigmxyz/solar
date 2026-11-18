@@ -69,6 +69,7 @@ solar-verify's export (spec_export) and the non-vacuity witnesses (nonvacuous) i
 """
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -229,6 +230,77 @@ def caller_route(shape):
     return mod, expr(anyc, "proof"), expr(anyc, "gas")
 
 
+def manifest_binding(path, name, contract, hexcode):
+    """The run's export manifest (gen/CONTRACT/manifest.json), checked and turned into the conjunct
+    the expected statement binds: Manifest.sources, Manifest.arguments and Manifest.bytecodeSha256
+    by value, and Manifest.bytecodeHex to the runtime the driver compiled. arguments must be the
+    driver's canonical, relative form: the source at Certified/NAME/NAME.sol, the options, then
+    --emit=bin-runtime and -Zemit-lean-stages=Certified/NAME/gen; an absolute path, a temporary
+    directory or any other argument is refused, so the statement never records where the run sat.
+    Returns (import, conjunct, the record's manifest entry)."""
+    try:
+        m = json.loads(open(path).read())  # noqa: SIM115
+    except (OSError, ValueError) as e:
+        fail(f"--manifest-json: cannot read {path}: {e}")
+    src = f"Certified/{name}/{name}.sol"
+    args, sources = m.get("arguments"), m.get("sources")
+    if not (isinstance(args, list) and all(isinstance(x, str) for x in args)):
+        fail("--manifest-json: arguments must be a list of strings")
+    if (
+        len(args) < 3
+        or args[0] != src
+        or args[-2] != "--emit=bin-runtime"
+        or args[-1] != f"-Zemit-lean-stages=Certified/{name}/gen"
+    ):
+        fail(
+            f"--manifest-json: arguments are not the driver's canonical form "
+            f"[{src}, OPTIONS..., --emit=bin-runtime, -Zemit-lean-stages=Certified/{name}/gen]: {args}"
+        )
+    for x in args[1:-2]:
+        if (
+            x.startswith("/")
+            or ".." in x
+            or "/tmp" in x
+            or not re.fullmatch(r"[A-Za-z0-9=.,:_-]+", x)
+        ):
+            fail(f"--manifest-json: option {x!r} is not a plain compiler option")
+    if not (
+        isinstance(sources, list)
+        and len(sources) == 1
+        and isinstance(sources[0], dict)
+        and sources[0].get("path") == src
+        and re.fullmatch(r"[0-9a-f]{64}", str(sources[0].get("sha256")))
+    ):
+        fail(f"--manifest-json: sources must be the one source {src} with its sha256")
+    if m.get("contract") != contract:
+        fail(
+            f"--manifest-json: the manifest is for {m.get('contract')!r}, not {contract}"
+        )
+    if m.get("bytecode") != hexcode:
+        fail(
+            "--manifest-json: the manifest's bytecode is not the runtime the driver compiled"
+        )
+    digest = hashlib.sha256(bytes.fromhex(hexcode)).hexdigest()
+    if m.get("bytecode_sha256") != digest:
+        fail("--manifest-json: the manifest's bytecode_sha256 is not the runtime's")
+    M = f"_root_.SolarTV.Export.{contract}.Manifest"
+    lean_list = lambda xs: "[" + ", ".join(json.dumps(x) for x in xs) + "]"
+    conj = (
+        f"{M}.sources = [({json.dumps(src)}, {json.dumps(sources[0]['sha256'])})] ∧\n"
+        f"    {M}.arguments = {lean_list(args)} ∧\n"
+        f"    {M}.bytecodeSha256 = {json.dumps(digest)} ∧\n"
+        f"    {M}.bytecodeHex = _root_.Certified.{name}.Final.runtimeHex ∧\n    "
+    )
+    entry = {
+        "module": f"{name}.gen.{contract}.Manifest",
+        "sources": [[src, sources[0]["sha256"]]],
+        "arguments": args,
+        "options": args[1:-2],
+        "bytecode_sha256": digest,
+    }
+    return f"{name}.gen.{contract}.Manifest", conj, entry
+
+
 def expected_mode(
     a,
     shape,
@@ -243,6 +315,7 @@ def expected_mode(
     proof,
     byte_list,
     export,
+    manifest=None,
 ):
     """The driver-fixed statement: solidity-lean's Generic.Expected src spec runtimeBytes (Verify/Generic/
     Expected.lean), the same for every contract, with the binding of the fresh export to the bytes.
@@ -315,6 +388,7 @@ def expected_mode(
         "Verify.ShapeSpecExport",
         f"{a.name}.gen.{a.contract}.Spec",
         f"{a.name}.gen.{a.contract}.Bytecode",
+        *([manifest[0]] if manifest else []),
         *spec_mods,
     ]
     lines = [f"import {m}" for m in dict.fromkeys(imports)]
@@ -361,7 +435,7 @@ def spec : {G}.Spec where
 
 /-- **The published statement.**{any_doc} -/
 def Statement : Prop :=
-  _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧
+  {manifest[1] if manifest else ""}_root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧
     {G}.Expected _root_.{ns}.src _root_.{ns}.spec _root_.{ns}.runtimeBytes{any_stmt}
 
 set_option maxRecDepth 100000 in
@@ -374,10 +448,11 @@ end {ns}
     expected_parts = (
         f"{G}.all_lt_of_eq _root_.{ns}.bound, ⟨⟨_, rfl⟩, ?_, ?_, ?_, ?_⟩, ?_"
     )
+    pins = "rfl, rfl, rfl, rfl, " if manifest else ""
     refine = (
-        f"refine ⟨_root_.{ns}.bound, {expected_parts}⟩"
+        f"refine ⟨{pins}_root_.{ns}.bound, {expected_parts}⟩"
         if route is None
-        else f"refine ⟨_root_.{ns}.bound, ⟨{expected_parts}⟩{any_proof}⟩"
+        else f"refine ⟨{pins}_root_.{ns}.bound, ⟨{expected_parts}⟩{any_proof}⟩"
     )
     alts = " | ".join(["rfl"] * len(witnesses))
     wit = "\n".join(
@@ -427,6 +502,11 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--statement-out", required=True)
     ap.add_argument("--record", help="write the statuses and statement here as JSON")
+    ap.add_argument(
+        "--manifest-json",
+        help="the run's gen/CONTRACT/manifest.json: the expected statement then binds its sources, "
+        "arguments and bytecode digest (manifest_binding)",
+    )
     a = ap.parse_args()
     shape = json.load(open(a.shape))  # noqa: SIM115
     kind = shape.get("kind")
@@ -666,6 +746,13 @@ theorem {ns}.final : _root_.{ns}.Statement :=
     expected = shape.get("statement") == "expected"
     if "statement" in shape and not expected:
         fail("shape.json: statement must be expected when present")
+    manifest = None
+    if a.manifest_json:
+        if not expected:
+            fail("--manifest-json binds the expected statement only")
+        if a.hex != a.hex.lower():
+            fail("--manifest-json: --hex must be lowercase, as solar emits it")
+        manifest = manifest_binding(a.manifest_json, a.name, a.contract, a.hex)
     if expected:
         if (
             kind != "certified"
@@ -690,6 +777,7 @@ theorem {ns}.final : _root_.{ns}.Statement :=
             proof,
             byte_list,
             export,
+            manifest,
         )
     open(a.statement_out, "w").write(stmt_text)  # noqa: SIM115
     open(a.out, "w").write(final_text)  # noqa: SIM115
@@ -724,6 +812,8 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                 ),
                 "allowed_bound_to_export": bound_allowed,
                 "assumptions": env,
+                "manifest": manifest[2] if manifest else None,
+                "proof": proof,
                 "excluded": shape.get("excluded", []),
                 "spec": shape.get("spec"),
                 "statuses": st_rec,
