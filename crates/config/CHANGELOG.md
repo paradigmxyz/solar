@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
 - [config] Read release tag pins from the dependent's Cargo.lock ([#2404](https://github.com/paradigmxyz/solar/issues/2404))
-- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
 - [config] Recognize Cargo git checkouts of release tags ([#2328](https://github.com/paradigmxyz/solar/issues/2328))
 
 ### Features

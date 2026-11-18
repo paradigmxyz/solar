@@ -10,12 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 
 - [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
-- [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
 - [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
-- [interface] Key the source map on file names ([#2422](https://github.com/paradigmxyz/solar/issues/2422))
 - [mir] Keep immutable stores that constructors read ([#2399](https://github.com/paradigmxyz/solar/issues/2399))
 - [interface] Enter the thread pool before setting session globals ([#2407](https://github.com/paradigmxyz/solar/issues/2407))
-- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
 
 ### Features
 
@@ -24,8 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
-- [codegen] Encode constructor args in place after initcode ([#2320](https://github.com/paradigmxyz/solar/issues/2320))
-- [codegen] Encode storage bytes straight from storage ([#2315](https://github.com/paradigmxyz/solar/issues/2315))
 - Bump inturn to 0.2.1 and default to all cores ([#2354](https://github.com/paradigmxyz/solar/issues/2354))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)

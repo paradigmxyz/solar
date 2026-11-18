@@ -9,137 +9,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Highlights
 
-- **Code generation: gas and size.** `if-convert` now prices the swap a general
-  select needs, so PRBMath's `exp2` steps stay branches: the `prb-math`
-  benchmark uses 8.65% less execution gas and 2.65% fewer runtime bytes
-  ([#2314]). Bit searches compile to `CLZ` on Osaka: the same benchmark goes
-  from 240,361 to 231,847 gas (-3.54%) ([#2527]) and then to 228,644 (-1.38%)
-  ([#2652]), although two contracts grow, by 72 and 5 bytes. Repeated dynamic
-  arrays in a struct share one ABI decoder, which cuts the creation code of
-  Seaport's `RequestValidator` by 18.42% ([#2303]); three other Seaport
-  contracts grow by 8 to 12 bytes. The inliner now inlines straight-line helpers
-  in loops under stack pressure, which saves 2.4% gas in Ekubo's
-  `swapAllowPartialFill` ([#2596]) and grows its core runtime code by 37 bytes
-  at `-Ogas`. Returned calldata structs and arrays encode in place, shrinking
-  one example's runtime code from 647 to 471 bytes ([#2575]); like solc, the
-  encoder now validates narrow calldata words. Dozens of smaller stack
-  scheduling, ABI, peephole and loop improvements are listed under Performance.
-- **Debug info and coverage.** Source maps and ETHDebug keep the origin of code
-  through MIR and EVM IR rewrites, so coverage no longer misses ABI decoding,
-  call sites and expressions ([#2345]). Shared instructions keep every origin
-  ([#2373]), which makes ETHDebug output larger. MIR and EVM IR share one
-  location type ([#2483]), rewrites follow one preserve, merge or drop rule per
-  case ([#2497]), and `JUMPDEST`s carry label origins as in solc ([#2416]). None
-  of this changes bytecode ([#2345], [#2497]). The local-only `cargo tq
-  foundry-coverage` mode measures `forge coverage` parity with solc across seven
-  compiler configurations ([#2639]).
-- **AST and NatSpec output.** `--emit=ast` and Standard JSON `ast` now emit
-  solc's compact AST JSON ([#2344]). Against solc 0.8.38, 39,538,215 of
-  39,538,223 fields agree over 6,793 compilations, and all fields agree over
-  7,372 parse-only compilations. Analyzing seaport-1.6 and emitting its ASTs
-  takes 85 ms at the default thread count (208 ms with `-j1`), where solc 0.8.36
-  takes 4.83 s. Userdoc and devdoc now join, trim, inherit and list NatSpec like
-  solc: against solc 0.8.38 on its test corpus (3,186 compilations), userdoc
-  differences fell from 62 to 5 and devdoc differences from 56 to 3 ([#2653],
-  [#2655]), and four more gaps are closed ([#2692]). The `solar-cold` NatSpec
-  tag marks functions as cold ([#2237]).
-- **Diagnostics.** New warnings flag deprecated `send` and `transfer` ([#2597])
-  and statements with no effect ([#2410]). More errors carry solc's codes
-  ([#2318], [#2319], [#2321]). The compiler now rejects arithmetic on fixed
-  bytes ([#2446]) and `view` or `pure` fallback functions ([#2451]), and no
-  longer overflows the stack on recursive structs and inheritance cycles
-  ([#2449]) or panics on invalid binary literals ([#2452]). Code that exceeds
-  the EVM's 1024-word stack limit now compiles with warning 0068 instead of
-  failing ([#2572]).
-- **Compile time.** The default thread count is the number of logical cores
-  instead of at most eight: on a 48-thread machine a 6,132-file corpus compiles
-  in 9,010 ms instead of 20,258 ms (-56%), with peak memory up from 2,137 to
-  3,328 MB and very small inputs slightly slower ([#2354]). The same change
-  moves `inturn` to a lock-free interner. The stack planner resumes after a
-  spill instead of restarting: seaport goes from 7.49 s to 6.31 s on 5 cores
-  (-15.8%) ([#2532]). Sema reuses per-item results across contracts, which cuts
-  the instructions spent on ABI and storage layout output by 12.2% for seaport
-  and 15.9% for OpenZeppelin ([#2660]).
-- **Correctness.** Calldata copies to memory are bounded by an unsigned address
-  ([#2548]), and calldata returns that run past the end read as zero, as in solc
-  ([#2549]).
-- **MSRV.** The minimum supported Rust version is now 1.100 ([#2703]).
+**Code generation: gas and size**
+
+- `if-convert` keeps PRBMath's `exp2` steps as branches, which cuts the `prb-math` benchmark by 8.65% execution gas and 2.65% runtime bytes ([#2314]). Bit searches compile to `CLZ` on Osaka, taking the same benchmark from 240,361 to 231,847 gas (-3.54%) ([#2527]) and then to 228,644 (-1.38%) ([#2652]); two contracts grow, by 72 and 5 bytes.
+- Repeated dynamic arrays in a struct share one ABI decoder: Seaport's `RequestValidator` creation code is 18.42% smaller ([#2303]); three other Seaport contracts grow by 8 to 12 bytes.
+- The inliner inlines straight-line helpers in loops under stack pressure: Ekubo's `swapAllowPartialFill` uses 2.4% less gas, and its core runtime code grows by 37 bytes at `-Ogas` ([#2596]).
+- Returned calldata structs and arrays encode in place, shrinking one example's runtime code from 647 to 471 bytes ([#2575]).
+- Smaller wins add up: padding of memory bytes is no longer zeroed ([#2539]) and `DUP`s of known constants fold ([#2582]), each trimming 0.1 to 0.15% of the runtime corpus's code at `-Ogas`. Width tests are canonicalized, which makes project archives 0.62% smaller at 200 optimizer runs ([#2224]).
+
+**Debug info and coverage**
+
+- Source maps and ETHDebug keep the origin of code through MIR and EVM IR rewrites, so coverage no longer misses ABI decoding, call sites and expressions ([#2345], [#2497]). Shared instructions keep every origin, which makes ETHDebug output larger ([#2373]). `JUMPDEST`s carry label origins as in solc ([#2416]). Bytecode is unchanged.
+- `cargo tq foundry-coverage` measures `forge coverage` parity with solc across seven compiler configurations; it runs locally only ([#2639]).
+
+**AST and NatSpec output**
+
+- `--emit=ast` and Standard JSON `ast` emit solc's compact AST JSON ([#2344]). Against solc 0.8.38, 39,538,215 of 39,538,223 fields agree over 6,793 compilations, and every field agrees over 7,372 parse-only compilations. Analyzing seaport-1.6 and emitting its ASTs takes 85 ms at the default thread count (208 ms with `-j1`); solc 0.8.36 takes 4.83 s.
+- Userdoc and devdoc join, trim, inherit and list NatSpec like solc. On solc's test corpus (3,186 compilations), userdoc differences fell from 62 to 5 and devdoc differences from 56 to 3 ([#2653], [#2655]); four more gaps are closed ([#2692]). The `solar-cold` NatSpec tag marks functions as cold ([#2237]).
+
+**Diagnostics and correctness**
+
+- New warnings flag deprecated `send` and `transfer` ([#2597]) and statements with no effect ([#2410]). More errors carry solc's codes ([#2318], [#2319], [#2321]).
+- The compiler rejects arithmetic on fixed bytes ([#2446]), `view` and `pure` fallback functions ([#2451]), unimplemented fallback and receive functions in non-abstract contracts ([#2519]) and duplicate Yul switch cases ([#2309]).
+- Crashes fixed: stack overflows on recursive structs and inheritance cycles ([#2449]), panics on invalid binary literals ([#2452]) and on division by zero in check elimination at `-Ogas` and `-Osize` ([#2252]), and "stack too deep" failures after calls that return many results ([#2251]).
+- Codegen matches solc on malformed calldata and raw assembly values: copies to memory are bounded by an unsigned address ([#2548]), returns that run past the end read as zero ([#2549]), and bits that inline assembly leaves above a variable's type are cleaned at every consumer, as in solc via-IR ([#2368]).
+
+**Compile time**
+
+- The default thread count is the number of logical cores instead of at most eight. On a 48-thread machine a 6,132-file corpus compiles in 9,010 ms instead of 20,258 ms (-56%); peak memory rises from 2,137 to 3,328 MB and very small inputs get slightly slower ([#2354]).
+- The stack planner resumes after a spill instead of restarting: seaport goes from 7.49 s to 6.31 s on 5 cores (-15.8%) ([#2532]).
+- Sema reuses per-item results across contracts, cutting the instructions spent on ABI and storage layout output by 12.2% for seaport and 15.9% for OpenZeppelin ([#2660]). Indexing type-check results by id saves another 3.9% of those instructions on seaport and 7.1% on solady ([#2656]).
+
+**Breaking and behavior changes**
+
+- The minimum supported Rust version is now 1.100 ([#2703]).
+- Code that exceeds the EVM's 1024-word stack limit compiles with warning 0068 instead of failing ([#2572]).
+- A static calldata struct passed to an external call or an event now reverts on dirty narrow fields, as in solc ([#2575]).
+- The default thread count and memory use change as described under Compile time ([#2354]).
 
 ### Bug Fixes
 
 - [parse] Limit the depth of expression trees ([#2708](https://github.com/paradigmxyz/solar/issues/2708))
-- [codegen] Map the implicit function exit to the closing brace ([#2706](https://github.com/paradigmxyz/solar/issues/2706))
-- [codegen] Map tail call argument setup to the call ([#2696](https://github.com/paradigmxyz/solar/issues/2696))
 - [codegen] Cap the heap prefix guard at the heap start ([#2694](https://github.com/paradigmxyz/solar/issues/2694))
-- [codegen] Map tail call entry steps to the call ([#2698](https://github.com/paradigmxyz/solar/issues/2698))
-- [codegen] Leave if arm exits without a location ([#2699](https://github.com/paradigmxyz/solar/issues/2699))
-- [codegen] Drop the origin of a sunk calldata read ([#2700](https://github.com/paradigmxyz/solar/issues/2700))
-- [codegen] Keep operand origin in word-sequence recipes ([#2702](https://github.com/paradigmxyz/solar/issues/2702))
-- [codegen] Give operandless remat reads the use's origin ([#2691](https://github.com/paradigmxyz/solar/issues/2691))
-- [codegen] Keep eq origin on stackify ISZERO ([#2689](https://github.com/paradigmxyz/solar/issues/2689))
-- [codegen] Map bypassed arm assignments to their edge ([#2668](https://github.com/paradigmxyz/solar/issues/2668))
 - [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
-- [codegen] Map copies that feed a phi to their assignments ([#2681](https://github.com/paradigmxyz/solar/issues/2681))
 - [codegen] Bound calldata copies to memory by an unsigned address ([#2548](https://github.com/paradigmxyz/solar/issues/2548))
-- [codegen] Inline memory pointers like words ([#2670](https://github.com/paradigmxyz/solar/issues/2670))
-- [codegen] Keep the call location of tail jumps ([#2641](https://github.com/paradigmxyz/solar/issues/2641))
-- [codegen] Map phi operand copies to their assignments ([#2642](https://github.com/paradigmxyz/solar/issues/2642))
-- [codegen] Map external calls to the call expression ([#2640](https://github.com/paradigmxyz/solar/issues/2640))
-- [codegen] Prove byte-rounded bit scans whole ([#2662](https://github.com/paradigmxyz/solar/issues/2662))
 - [sema] List NatSpec items like solc in docs ([#2655](https://github.com/paradigmxyz/solar/issues/2655))
 - [sema] Accept library names in inline assembly ([#2654](https://github.com/paradigmxyz/solar/issues/2654))
 - [sema] Join NatSpec text like solc in docs ([#2653](https://github.com/paradigmxyz/solar/issues/2653))
-- [codegen] Ignore unreachable heap prefix steps ([#2650](https://github.com/paradigmxyz/solar/issues/2650))
-- [codegen] Mark call entries and returns once per call ([#2528](https://github.com/paradigmxyz/solar/issues/2528))
 - [sema] Resolve qualified `@inheritdoc` references ([#2507](https://github.com/paradigmxyz/solar/issues/2507))
 - [sema] Require abstract for unimplemented fallback and receive ([#2519](https://github.com/paradigmxyz/solar/issues/2519))
 - [codegen] Keep static length of uninitialized calldata arrays ([#2559](https://github.com/paradigmxyz/solar/issues/2559))
 - [codegen] Cast raw function pointer words to their carrier ([#2541](https://github.com/paradigmxyz/solar/issues/2541))
 - [codegen] Keep boolean selects free of narrow arithmetic ([#2562](https://github.com/paradigmxyz/solar/issues/2562))
-- [inline] Keep semantic metadata on inlined instructions ([#2560](https://github.com/paradigmxyz/solar/issues/2560))
 - [codegen] Publish recursive multi-word call results only where read ([#2444](https://github.com/paradigmxyz/solar/issues/2444))
 - [codegen] Read calldata returns past the end as zero ([#2549](https://github.com/paradigmxyz/solar/issues/2549))
 - [codegen] Keep entry depth and PC across tail merging ([#2558](https://github.com/paradigmxyz/solar/issues/2558))
 - [codegen] Read catch Panic through scratch memory ([#2546](https://github.com/paradigmxyz/solar/issues/2546))
-- [mir] Map routes and merged labels to the code they enter ([#2513](https://github.com/paradigmxyz/solar/issues/2513))
-- [codegen] Keep origins of outlined bodies and tail jumps ([#2514](https://github.com/paradigmxyz/solar/issues/2514))
 - [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
-- [codegen] Attribute stackify glue to the code it serves ([#2518](https://github.com/paradigmxyz/solar/issues/2518))
-- [codegen] Merge the origins of a retained constant's readers ([#2509](https://github.com/paradigmxyz/solar/issues/2509))
 - [codegen] Bail out of the pure struct shortcut on recursion ([#2474](https://github.com/paradigmxyz/solar/issues/2474))
-- [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
-- [mir] Pick the debug-location rule each rewrite needs ([#2485](https://github.com/paradigmxyz/solar/issues/2485))
-- [codegen] Map the constructor entry jump to the constructor ([#2487](https://github.com/paradigmxyz/solar/issues/2487))
-- [debuginfo] Share one DebugLoc between MIR and EVM IR ([#2483](https://github.com/paradigmxyz/solar/issues/2483))
 - [sema] Skip nameless items in member lookup ([#2490](https://github.com/paradigmxyz/solar/issues/2490))
-- [codegen] End a getter's span before the semicolon ([#2484](https://github.com/paradigmxyz/solar/issues/2484))
 - [codegen] Evaluate constants read by fixed-bytes length ([#2473](https://github.com/paradigmxyz/solar/issues/2473))
 - [sema] Evaluate constant receivers of folded paths ([#2480](https://github.com/paradigmxyz/solar/issues/2480))
-- [debug] Preserve origins through IR rewrites ([#2497](https://github.com/paradigmxyz/solar/issues/2497))
-- [codegen] Attribute implicit fallthrough jumps in EVM IR ([#2488](https://github.com/paradigmxyz/solar/issues/2488))
-- [codegen] Map ABI wrapper code to its declaration ([#2462](https://github.com/paradigmxyz/solar/issues/2462))
-- [codegen] Give the dispatcher the contract's origin ([#2461](https://github.com/paradigmxyz/solar/issues/2461))
 - [parse] Don't panic on invalid binary literals ([#2452](https://github.com/paradigmxyz/solar/issues/2452))
 - [sema] Reject view and pure fallback functions ([#2451](https://github.com/paradigmxyz/solar/issues/2451))
 - [codegen] Scope modifier bindings per invocation ([#2427](https://github.com/paradigmxyz/solar/issues/2427))
 - [sema] Reject arithmetic on fixed bytes ([#2446](https://github.com/paradigmxyz/solar/issues/2446))
 - [sema] Skip nameless state variables from old-style fallbacks ([#2447](https://github.com/paradigmxyz/solar/issues/2447))
 - [sema] Stop stack overflows on recursive structs and inheritance cycles ([#2449](https://github.com/paradigmxyz/solar/issues/2449))
-- [codegen] Mark synthesized helpers as compiler generated ([#2457](https://github.com/paradigmxyz/solar/issues/2457))
 - [codegen] Clean every consumer of raw assembly values ([#2368](https://github.com/paradigmxyz/solar/issues/2368))
 - [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
-- [codegen] Keep the location kind of fallthrough jumps ([#2411](https://github.com/paradigmxyz/solar/issues/2411))
-- [codegen] Stop EVM IR rewrites absorbing origins ([#2396](https://github.com/paradigmxyz/solar/issues/2396))
-- [codegen] Map modifier frames like solc ([#2426](https://github.com/paradigmxyz/solar/issues/2426))
-- [mir] Keep a span on if-converted arm code ([#2390](https://github.com/paradigmxyz/solar/issues/2390))
 - [codegen] Keep the heap above reachable absolute local regions ([#2403](https://github.com/paradigmxyz/solar/issues/2403))
-- [codegen] Give block-start stack cleanup the origin it precedes ([#2413](https://github.com/paradigmxyz/solar/issues/2413))
 - [codegen] Evaluate the index base before the index ([#2421](https://github.com/paradigmxyz/solar/issues/2421))
-- [mir] Keep the label origin of cloned blocks ([#2425](https://github.com/paradigmxyz/solar/issues/2425))
-- [interface] Key the source map on file names ([#2422](https://github.com/paradigmxyz/solar/issues/2422))
-- [codegen] Map deployment glue to its contract and constructor ([#2418](https://github.com/paradigmxyz/solar/issues/2418))
-- [debuginfo] Keep every origin of shared instructions ([#2373](https://github.com/paradigmxyz/solar/issues/2373))
-- [codegen] Map the entry free memory start to its contract ([#2417](https://github.com/paradigmxyz/solar/issues/2417))
 - [codegen] Read signatures and indexed topics after later arguments ([#2406](https://github.com/paradigmxyz/solar/issues/2406))
 - [config] Read release tag pins from the dependent's Cargo.lock ([#2404](https://github.com/paradigmxyz/solar/issues/2404))
 - [mir] Keep immutable stores that constructors read ([#2399](https://github.com/paradigmxyz/solar/issues/2399))
@@ -147,42 +87,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [codegen] Bound nested offsets when copying calldata to memory ([#2397](https://github.com/paradigmxyz/solar/issues/2397))
 - [codegen] Compare load-pre kill keys at their own location ([#2402](https://github.com/paradigmxyz/solar/issues/2402))
 - [interface] Enter the thread pool before setting session globals ([#2407](https://github.com/paradigmxyz/solar/issues/2407))
-- [codegen] Drop outlined body origins like MachineOutliner ([#2387](https://github.com/paradigmxyz/solar/issues/2387))
-- [codegen] Keep origins of fallthrough jumps ([#2381](https://github.com/paradigmxyz/solar/issues/2381))
 - [codegen] Encode storage aggregates after the last argument ([#2398](https://github.com/paradigmxyz/solar/issues/2398))
-- [codegen] Copy first removed origin to tail jumps ([#2391](https://github.com/paradigmxyz/solar/issues/2391))
-- [codegen] Give peephole helpers the root's origin ([#2394](https://github.com/paradigmxyz/solar/issues/2394))
-- [mir] Keep origins on noreturn invalid ([#2384](https://github.com/paradigmxyz/solar/issues/2384))
-- [codegen] Map state initializers to their declaration ([#2372](https://github.com/paradigmxyz/solar/issues/2372))
-- [codegen] Keep origins of rebuilt values ([#2383](https://github.com/paradigmxyz/solar/issues/2383))
-- [codegen] Keep origins of sunk phi expressions in cse ([#2369](https://github.com/paradigmxyz/solar/issues/2369))
-- [codegen] Keep origins of rematerialized values ([#2378](https://github.com/paradigmxyz/solar/issues/2378))
-- [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
-- [ir] Report oversized integer literals at the literal ([#2329](https://github.com/paradigmxyz/solar/issues/2329))
 - [cli] Report I/O errors from standard JSON and LSP ([#2325](https://github.com/paradigmxyz/solar/issues/2325))
-- [codegen] Keep low cold tails in the packing ranking ([#2350](https://github.com/paradigmxyz/solar/issues/2350))
 - [config] Recognize Cargo git checkouts of release tags ([#2328](https://github.com/paradigmxyz/solar/issues/2328))
-- [codegen] Let phi results take over fresh input words ([#2301](https://github.com/paradigmxyz/solar/issues/2301))
 - [sema] Report inherited conflicts at the later declaration ([#2326](https://github.com/paradigmxyz/solar/issues/2326))
-- [codegen] Give every pass in the canonical pipelines its own name ([#2295](https://github.com/paradigmxyz/solar/issues/2295))
 - [codegen] Remove dead phi cycles and keep loop-carried results in jump threading ([#2294](https://github.com/paradigmxyz/solar/issues/2294))
 - [codegen] Lower Yul literals as words everywhere ([#2310](https://github.com/paradigmxyz/solar/issues/2310))
 - [sema] Resolve Yul let initializers before the new names ([#2308](https://github.com/paradigmxyz/solar/issues/2308))
 - [lsp] Escape formatter workspace roots ([#2275](https://github.com/paradigmxyz/solar/issues/2275))
 - [sema] Reject duplicate Yul switch cases ([#2309](https://github.com/paradigmxyz/solar/issues/2309))
 - [codegen] Keep check-elim ranges nonempty ([#2252](https://github.com/paradigmxyz/solar/issues/2252))
-- [codegen] Bound the preplacement chain walk ([#2254](https://github.com/paradigmxyz/solar/issues/2254))
 - [codegen] Drop junk to reach words beyond stack reach ([#2251](https://github.com/paradigmxyz/solar/issues/2251))
-
-### Documentation
-
-- Link v0.3 blog post in README ([#2667](https://github.com/paradigmxyz/solar/issues/2667))
-- Record NatSpec errors that only warn ([#2638](https://github.com/paradigmxyz/solar/issues/2638))
-- Record two heap-floor solc divergences ([#2557](https://github.com/paradigmxyz/solar/issues/2557))
-- Record six solc divergences with UI tests ([#2538](https://github.com/paradigmxyz/solar/issues/2538))
-- Stop listing via-IR behavior as solc divergences ([#2419](https://github.com/paradigmxyz/solar/issues/2419))
-- Record Yul string literal forms ([#2307](https://github.com/paradigmxyz/solar/issues/2307))
-- Document sub-1000 codes for solar-only diagnostics ([#2263](https://github.com/paradigmxyz/solar/issues/2263))
 
 ### Features
 
@@ -190,75 +105,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [sema] Warn on deprecated send and transfer ([#2597](https://github.com/paradigmxyz/solar/issues/2597))
 - [sema] Warn on statements with no effect ([#2410](https://github.com/paradigmxyz/solar/issues/2410))
 - [codegen] Carry label origins from MIR to JUMPDESTs ([#2416](https://github.com/paradigmxyz/solar/issues/2416))
-- [mir] Record the origin of each block's label ([#2415](https://github.com/paradigmxyz/solar/issues/2415))
 - [sema] Add solc codes to resolver errors ([#2321](https://github.com/paradigmxyz/solar/issues/2321))
 - [sema] Add code 6651 to data location errors ([#2319](https://github.com/paradigmxyz/solar/issues/2319))
 - [sema] Add code and suggestion to checksum error ([#2318](https://github.com/paradigmxyz/solar/issues/2318))
-- [mir] Canonicalize operand order at construction ([#2245](https://github.com/paradigmxyz/solar/issues/2245))
 - [codegen] Add the solar-cold NatSpec tag ([#2237](https://github.com/paradigmxyz/solar/issues/2237))
 
 ### Performance
 
-- [mir] Hoist memory reads over affine stores in unknown-trip loops ([#2695](https://github.com/paradigmxyz/solar/issues/2695))
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
-- [sema] Cache literal and builtin type descriptions ([#2683](https://github.com/paradigmxyz/solar/issues/2683))
-- [codegen] Read fits tests that fail to cold code as shifts ([#2672](https://github.com/paradigmxyz/solar/issues/2672))
-- [codegen] Hoist pushed words in the stack plan ([#2520](https://github.com/paradigmxyz/solar/issues/2520))
-- [codegen] Cut scan-region work on long blocks ([#2664](https://github.com/paradigmxyz/solar/issues/2664))
-- [codegen] Share bit-scan class proofs by rest ([#2661](https://github.com/paradigmxyz/solar/issues/2661))
 - [sema] Reuse per-item results across contracts ([#2660](https://github.com/paradigmxyz/solar/issues/2660))
 - [codegen] Stop stack replans that cannot win ([#2658](https://github.com/paradigmxyz/solar/issues/2658))
-- [codegen] Reuse local memory summaries ([#2657](https://github.com/paradigmxyz/solar/issues/2657))
 - [codegen] Replace branchy bit searches with CLZ ([#2652](https://github.com/paradigmxyz/solar/issues/2652))
 - [sema] Index typeck results by id ([#2656](https://github.com/paradigmxyz/solar/issues/2656))
-- [codegen] Share bit-scan proofs by shape ([#2651](https://github.com/paradigmxyz/solar/issues/2651))
-- [codegen] Tune -Osize outlining and inlining ([#2649](https://github.com/paradigmxyz/solar/issues/2649))
 - [sema] Walk each body once for the call graph ([#2648](https://github.com/paradigmxyz/solar/issues/2648))
-- [codegen] Move search loop latches up ([#2647](https://github.com/paradigmxyz/solar/issues/2647))
-- [codegen] Share planner facts across restarts ([#2646](https://github.com/paradigmxyz/solar/issues/2646))
-- [codegen] Scope dangling alias cleanup ([#2645](https://github.com/paradigmxyz/solar/issues/2645))
 - [codegen] Replace bit scans with CLZ ([#2527](https://github.com/paradigmxyz/solar/issues/2527))
 - [codegen] Resume stack plans after a spill ([#2532](https://github.com/paradigmxyz/solar/issues/2532))
 - [mir] Inline straight-line helpers under stack pressure ([#2596](https://github.com/paradigmxyz/solar/issues/2596))
 - [codegen] Stop zeroing the padding of memory bytes ([#2539](https://github.com/paradigmxyz/solar/issues/2539))
 - [codegen] Encode calldata returns in place ([#2575](https://github.com/paradigmxyz/solar/issues/2575))
 - [codegen] Fold DUPs of known constants in peephole ([#2582](https://github.com/paradigmxyz/solar/issues/2582))
-- [codegen] Skip the validation loop of word arrays ([#2550](https://github.com/paradigmxyz/solar/issues/2550))
 - [codegen] Drop stack upper bounds, warn on stack overflow ([#2572](https://github.com/paradigmxyz/solar/issues/2572))
-- [codegen] Store values that own their slot as whole words ([#2551](https://github.com/paradigmxyz/solar/issues/2551))
-- [codegen] Drop stack peak guards from EVM IR passes ([#2571](https://github.com/paradigmxyz/solar/issues/2571))
-- [codegen] Stage hash inputs instead of allocating them ([#2511](https://github.com/paradigmxyz/solar/issues/2511))
-- [codegen] Stage calldata hash inputs ([#2504](https://github.com/paradigmxyz/solar/issues/2504))
-- [codegen] Fold literal external call inputs ([#2503](https://github.com/paradigmxyz/solar/issues/2503))
-- [codegen] Price outline pre-screens per external entry ([#2366](https://github.com/paradigmxyz/solar/issues/2366))
-- [codegen] Treat try/catch catch clauses as cold ([#2238](https://github.com/paradigmxyz/solar/issues/2238))
-- [codegen] Break operand-order ties in stackify by lookahead ([#2363](https://github.com/paradigmxyz/solar/issues/2363))
 - [codegen] Canonicalize width tests, spell them late ([#2224](https://github.com/paradigmxyz/solar/issues/2224))
-- [codegen] Price outline transfers per external entry ([#2331](https://github.com/paradigmxyz/solar/issues/2331))
-- [codegen] Encode constructor args in place after initcode ([#2320](https://github.com/paradigmxyz/solar/issues/2320))
-- [codegen] Encode storage bytes straight from storage ([#2315](https://github.com/paradigmxyz/solar/issues/2315))
-- [codegen] Price LICM savings from the opcode model ([#2357](https://github.com/paradigmxyz/solar/issues/2357))
-- [codegen] Decode return data from a headerless buffer ([#2313](https://github.com/paradigmxyz/solar/issues/2313))
-- [codegen] Stage every external call input without a bump ([#2316](https://github.com/paradigmxyz/solar/issues/2316))
-- [codegen] Merge packed writes after gas checks ([#2297](https://github.com/paradigmxyz/solar/issues/2297))
-- [codegen] Copy packed word arrays as one block ([#2346](https://github.com/paradigmxyz/solar/issues/2346))
-- [codegen] Share loop-opt carried words with indvar-simplify ([#2355](https://github.com/paradigmxyz/solar/issues/2355))
 - Bump inturn to 0.2.1 and default to all cores ([#2354](https://github.com/paradigmxyz/solar/issues/2354))
-- [codegen] Test `x > 0` as a bare nonzero test ([#2302](https://github.com/paradigmxyz/solar/issues/2302))
-- [codegen] Improve pack-data run finding and pooling ([#2271](https://github.com/paradigmxyz/solar/issues/2271))
-- [codegen] Keep entries that place no memory out of the low-memory raise ([#2298](https://github.com/paradigmxyz/solar/issues/2298))
-- [codegen] Rebuild loop-carried values in stackify, drop the MIR loop-exit-remat pass ([#2257](https://github.com/paradigmxyz/solar/issues/2257))
-- [codegen] Try both orders of any commutative pair in stackify ([#2330](https://github.com/paradigmxyz/solar/issues/2330))
-- [codegen] Start entry helpers above their own spill area ([#2299](https://github.com/paradigmxyz/solar/issues/2299))
-- [codegen] Let saved bytes repay setup gas of a retained constant ([#2341](https://github.com/paradigmxyz/solar/issues/2341))
-- [codegen] Copy memory structs with MCOPY in ABI encoding ([#2296](https://github.com/paradigmxyz/solar/issues/2296))
 - [codegen] Share ABI decoders of repeated dynamic arrays ([#2303](https://github.com/paradigmxyz/solar/issues/2303))
 - [mir] Price the general select's swap in if-convert ([#2314](https://github.com/paradigmxyz/solar/issues/2314))
-- [codegen] Pack cold jump-ending traces below PUSH1 ([#2264](https://github.com/paradigmxyz/solar/issues/2264))
-- [codegen] Bound entry depth of dynamic entries ([#2223](https://github.com/paradigmxyz/solar/issues/2223))
 
+[#2224]: https://github.com/paradigmxyz/solar/issues/2224
 [#2237]: https://github.com/paradigmxyz/solar/issues/2237
+[#2251]: https://github.com/paradigmxyz/solar/issues/2251
+[#2252]: https://github.com/paradigmxyz/solar/issues/2252
 [#2303]: https://github.com/paradigmxyz/solar/issues/2303
+[#2309]: https://github.com/paradigmxyz/solar/issues/2309
 [#2314]: https://github.com/paradigmxyz/solar/issues/2314
 [#2318]: https://github.com/paradigmxyz/solar/issues/2318
 [#2319]: https://github.com/paradigmxyz/solar/issues/2319
@@ -266,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#2344]: https://github.com/paradigmxyz/solar/issues/2344
 [#2345]: https://github.com/paradigmxyz/solar/issues/2345
 [#2354]: https://github.com/paradigmxyz/solar/issues/2354
+[#2368]: https://github.com/paradigmxyz/solar/issues/2368
 [#2373]: https://github.com/paradigmxyz/solar/issues/2373
 [#2410]: https://github.com/paradigmxyz/solar/issues/2410
 [#2416]: https://github.com/paradigmxyz/solar/issues/2416
@@ -273,20 +151,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#2449]: https://github.com/paradigmxyz/solar/issues/2449
 [#2451]: https://github.com/paradigmxyz/solar/issues/2451
 [#2452]: https://github.com/paradigmxyz/solar/issues/2452
-[#2483]: https://github.com/paradigmxyz/solar/issues/2483
 [#2497]: https://github.com/paradigmxyz/solar/issues/2497
+[#2519]: https://github.com/paradigmxyz/solar/issues/2519
 [#2527]: https://github.com/paradigmxyz/solar/issues/2527
 [#2532]: https://github.com/paradigmxyz/solar/issues/2532
+[#2539]: https://github.com/paradigmxyz/solar/issues/2539
 [#2548]: https://github.com/paradigmxyz/solar/issues/2548
 [#2549]: https://github.com/paradigmxyz/solar/issues/2549
 [#2572]: https://github.com/paradigmxyz/solar/issues/2572
 [#2575]: https://github.com/paradigmxyz/solar/issues/2575
+[#2582]: https://github.com/paradigmxyz/solar/issues/2582
 [#2596]: https://github.com/paradigmxyz/solar/issues/2596
 [#2597]: https://github.com/paradigmxyz/solar/issues/2597
 [#2639]: https://github.com/paradigmxyz/solar/issues/2639
 [#2652]: https://github.com/paradigmxyz/solar/issues/2652
 [#2653]: https://github.com/paradigmxyz/solar/issues/2653
 [#2655]: https://github.com/paradigmxyz/solar/issues/2655
+[#2656]: https://github.com/paradigmxyz/solar/issues/2656
 [#2660]: https://github.com/paradigmxyz/solar/issues/2660
 [#2692]: https://github.com/paradigmxyz/solar/issues/2692
 [#2703]: https://github.com/paradigmxyz/solar/issues/2703

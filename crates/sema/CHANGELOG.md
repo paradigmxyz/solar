@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [sema] Resolve qualified `@inheritdoc` references ([#2507](https://github.com/paradigmxyz/solar/issues/2507))
 - [sema] Require abstract for unimplemented fallback and receive ([#2519](https://github.com/paradigmxyz/solar/issues/2519))
 - [sema] Skip nameless items in member lookup ([#2490](https://github.com/paradigmxyz/solar/issues/2490))
-- [codegen] End a getter's span before the semicolon ([#2484](https://github.com/paradigmxyz/solar/issues/2484))
 - [sema] Evaluate constant receivers of folded paths ([#2480](https://github.com/paradigmxyz/solar/issues/2480))
 - [sema] Reject view and pure fallback functions ([#2451](https://github.com/paradigmxyz/solar/issues/2451))
 - [sema] Reject arithmetic on fixed bytes ([#2446](https://github.com/paradigmxyz/solar/issues/2446))
@@ -40,7 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Performance
 
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
-- [sema] Cache literal and builtin type descriptions ([#2683](https://github.com/paradigmxyz/solar/issues/2683))
 - [sema] Reuse per-item results across contracts ([#2660](https://github.com/paradigmxyz/solar/issues/2660))
 - [sema] Index typeck results by id ([#2656](https://github.com/paradigmxyz/solar/issues/2656))
 - [sema] Walk each body once for the call graph ([#2648](https://github.com/paradigmxyz/solar/issues/2648))
