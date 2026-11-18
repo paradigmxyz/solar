@@ -381,14 +381,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (label, steps, target, source) in trampolines {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
-            self.set_terminator_origin(func, source);
+            let terminator_origin = Self::terminator_origin(func, source, None);
+            self.set_terminator_origin(terminator_origin);
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
             let records = self.edge_records(func, source, target);
             let dropped_exit = !records.is_empty()
                 && records.iter().all(|record| record.dropped_exit == Some(true));
-            self.emit_edge_steps(func_id, func, source, &steps, assignments, cold);
+            self.emit_edge_steps(func_id, func, terminator_origin, &steps, assignments, cold);
             // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
             // The jump replaces the arm's jump, so it keeps that jump's location, as LLVM's
             // Preserve rule gives a replacement the location of what it replaces. The jump out of
@@ -425,6 +426,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
+        let terminator_origin = Self::terminator_origin(func, block, Some(&plan.exit));
         self.set_insertion_origin(func, block, body, &plan.exit);
         let leading = body.iter().take_while(|step| !matches!(step, Step::Begin(_))).count();
         let mut label_spans = label_origin.source_spans();
@@ -446,15 +448,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stackified_step(func_id, func, step, cold);
                 self.asm.set_debug_origin(insertion);
             } else {
-                self.emit_block_step(func_id, func, block, step, cold);
+                self.emit_block_step(func_id, func, terminator_origin, step, cold);
             }
         }
-        self.set_terminator_origin(func, block);
+        self.set_terminator_origin(terminator_origin);
         let assignments = match plan.exit {
             Exit::Jump(target) => self.edge_assignments(func, block, target),
             _ => Vec::new(),
         };
-        self.emit_edge_steps(func_id, func, block, terminator, assignments, cold);
+        self.emit_edge_steps(func_id, func, terminator_origin, terminator, assignments, cold);
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
@@ -499,7 +501,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_conditional_jump(label, false);
                 let assignments = self.edge_assignments(func, block, fall.target);
                 let steps = fall.trampoline.as_deref().unwrap_or_default();
-                self.emit_edge_steps(func_id, func, block, steps, assignments, cold);
+                self.emit_edge_steps(func_id, func, terminator_origin, steps, assignments, cold);
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {
@@ -522,15 +524,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
-            Exit::TailCall { callee, origin } => {
-                if self.capture_debug_info
-                    && let Some(origin) = origin
-                {
-                    let metadata = &func.inst(*origin).metadata;
-                    self.set_origins(metadata);
-                }
+            Exit::TailCall { callee, .. } => {
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
+                // A `return` or `leave` that follows the call as its own statement owns the jump
+                // that leaves this function, as the jump of a plain `return` is its own. The push
+                // and the jump are one terminator in EVM IR, so the push takes its origin too.
+                if Self::tail_call_follows_statement(func, block, &plan.exit) {
+                    self.set_terminator_origin(&func.blocks[block].terminator_metadata);
+                }
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -564,17 +566,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Emits one step of `block`'s own code, as opposed to a trampoline's.
+    /// Emits one step of a block's own code, as opposed to a trampoline's, where a
+    /// [`Step::BeginTerminator`] switches to `terminator`.
     fn emit_block_step(
         &mut self,
         func_id: FunctionId,
         func: &Function,
-        block: BlockId,
+        terminator: &InstructionMetadata,
         step: &Step,
         cold: bool,
     ) {
         match step {
-            Step::BeginTerminator => self.set_terminator_origin(func, block),
+            Step::BeginTerminator => self.set_terminator_origin(terminator),
             step => self.emit_stackified_step(func_id, func, step, cold),
         }
     }
@@ -705,12 +708,48 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.set_origins(metadata);
     }
 
-    /// Attributes the code that follows to the block's terminator.
-    fn set_terminator_origin(&mut self, func: &Function, block: BlockId) {
-        if self.capture_debug_info {
-            let metadata = &func.blocks[block].terminator_metadata;
-            self.set_origins(metadata);
+    /// Returns the origin of the terminator of `block`, or of the call that a tail call `exit`
+    /// makes.
+    ///
+    /// NOTE: LLVM folds a call and the return after it into one tail-call instruction that keeps
+    /// the call's `DebugLoc` (`X86ISelLowering.cpp` `LowerCall` builds `X86ISD::TC_RETURN` with the
+    /// call's location), and the copies that set up a call's arguments carry the call's location,
+    /// so the arguments of a tail call map to the call, not to the `return`. The jump keeps the
+    /// call too, unless a statement of its own follows the call, see
+    /// [`Self::tail_call_follows_statement`]. The scheduler steps that precede the block's first
+    /// instruction take the call's origin too, see [`Self::set_insertion_origin`].
+    fn terminator_origin<'f>(
+        func: &'f Function,
+        block: BlockId,
+        exit: Option<&Exit>,
+    ) -> &'f InstructionMetadata {
+        match exit {
+            Some(&Exit::TailCall { origin: Some(call), .. }) => &func.inst(call).metadata,
+            _ => &func.blocks[block].terminator_metadata,
         }
+    }
+
+    /// Attributes the code that follows to `origin`, as [`Self::terminator_origin`] returns it.
+    fn set_terminator_origin(&mut self, origin: &InstructionMetadata) {
+        if self.capture_debug_info {
+            self.set_origins(origin);
+        }
+    }
+
+    /// Returns whether `exit` is a tail call whose `return` or `leave` is a statement that does
+    /// not enclose the call, as in `f(a); return;`, unlike `return f(a);` or the implicit return
+    /// that ends a function.
+    ///
+    /// NOTE: Such a statement would otherwise map to no code, since the tail call takes the call's
+    /// location for everything but the jump, and a tail call that layout falls through into its
+    /// callee has no jump either; the statement then stays without an entry, as a statement that
+    /// emits no code does.
+    fn tail_call_follows_statement(func: &Function, block: BlockId, exit: &Exit) -> bool {
+        let &Exit::TailCall { origin: Some(call), .. } = exit else { return false };
+        let ret = &func.blocks[block].terminator_metadata;
+        let call = &func.inst(call).metadata;
+        ret.source_spans().next().is_some()
+            && !call.source_spans().all(|call| ret.source_spans().any(|ret| ret.contains(call)))
     }
 
     /// Emits the code of an edge, giving each push of the value that an assignment of
@@ -719,7 +758,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         func_id: FunctionId,
         func: &Function,
-        block: BlockId,
+        terminator: &InstructionMetadata,
         steps: &[Step],
         mut assignments: Vec<(ValueId, &InstructionMetadata)>,
         cold: bool,
@@ -748,7 +787,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stackified_step(func_id, func, step, cold);
                 self.asm.set_debug_origin(terminator_origin);
             } else {
-                self.emit_block_step(func_id, func, block, step, cold);
+                self.emit_block_step(func_id, func, terminator, step, cold);
             }
         }
     }
