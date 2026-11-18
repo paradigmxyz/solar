@@ -1459,10 +1459,12 @@ pass on an empty map.
 - ID: DEBUG-004
 - Status: intentional
 - Difference: identical custom-error reverts in one function, such as two
-  `revert E(1);` or two `require(c, E(7));` with the same error and arguments,
-  share one revert block. The block's location is the merge of its sites, which
-  the legacy source map writes as `-1`. Neither statement has an entry, where
-  `solc` maps the error call of each. ETHDebug lists every site.
+  `revert E(1);` with the same error and arguments, share one revert block. The
+  block's location is the merge of its sites, which the legacy source map
+  writes as `-1`. Neither statement has an entry, where `solc` maps the error
+  call of each. ETHDebug lists every site. Two `require(c, E(7));` share the
+  revert block the same way, but each keeps its entry for the condition and
+  branch.
 - Rationale: the block runs for either site, so no single site is its location.
   Locations merge as LLVM merges those of instructions it combines. Keeping a
   block per site would grow the code.
