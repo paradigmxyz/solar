@@ -181,8 +181,15 @@ pub(super) fn lower(
         lowerer.lower_function_body(hir_function.modifiers, body, hir_function.span)?;
     }
     if !lowerer.is_terminated() {
-        // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(declaration_span);
+        // NOTE: solc maps this exit to the function definition (`ContractCompiler.cpp:619`). A
+        // debugger then stops on the header again after the last statement, so like a clang
+        // epilogue the exit maps to the closing brace of the body.
+        // ret named_returns !metadata(closing brace)
+        lowerer.builder.replace_source_span(
+            hir_function
+                .body
+                .map_or(declaration_span, |body| body.span.with_lo(body.span.hi() - 1)),
+        );
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
