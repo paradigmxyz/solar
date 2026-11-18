@@ -1,0 +1,5 @@
+step1 flag EXIT 0 POST_EXIT 0 2026-11-18T04:16:10Z
+step bind EXIT 0 2026-11-18T04:16:12Z
+step open EXIT 1 2026-11-18T04:16:16Z
+step counter EXIT 0 2026-11-18T04:18:38Z
+step erc20 OPEN (own box)

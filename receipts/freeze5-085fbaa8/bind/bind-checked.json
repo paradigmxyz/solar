@@ -1,0 +1,63 @@
+{
+  "schema": "solar certify bind 1",
+  "name": "flag_4ce5cf9a",
+  "contract": "Flag",
+  "inputs": {
+    "source": {
+      "path": "Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol",
+      "sha256": "4ce5cf9a87520dc956a1e7366d5f646a07739832e44a3d8dec2eb656deb6388d"
+    },
+    "spec": {
+      "kind": "natspec",
+      "sha256": "4ce5cf9a87520dc956a1e7366d5f646a07739832e44a3d8dec2eb656deb6388d"
+    },
+    "options": [
+      "-Ogas",
+      "--evm-version",
+      "osaka"
+    ],
+    "arguments": [
+      "Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol",
+      "-Ogas",
+      "--evm-version",
+      "osaka",
+      "--emit=bin-runtime",
+      "-Zemit-lean-stages=Certified/flag_4ce5cf9a/gen"
+    ]
+  },
+  "producer": {
+    "binary_sha256": "f0d2ec226b87f22ea208ebbfd996d948f4fd6e75f62ce654f1db59c7e1019b71",
+    "embedded_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f",
+    "driver_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f",
+    "dirty": false,
+    "version": "solar 0.3.0-dev+commit.085fbaa8"
+  },
+  "runtime": {
+    "bytecode_sha256": "f689833eb749e7509b4fb038bd8a4e251e77daa10aed088b2b12fa70ab76f69f",
+    "hex_sha256": "c11080ec27031c782c6de3863e8135842fbe51f1ec62f8c597a471ad32a4be7d"
+  },
+  "theorem": {
+    "name": "Certified.flag_4ce5cf9a.Final.final",
+    "statement": "Certified.flag_4ce5cf9a.Final.Statement",
+    "shape": "SolidCore.Verify.Generic.Expected",
+    "caller": "any"
+  },
+  "replay": {
+    "closure": 33897,
+    "replayed": 33897,
+    "trusted": 0,
+    "unaccounted": [],
+    "closure_sha256": "853be570084e0f152a2a2dfc443724879662172e8cf38d5dadd4c2eaeadf12ac",
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "modules": {
+      "flag_4ce5cf9a.gen.Flag.Manifest": 4,
+      "flag_4ce5cf9a.Statement": 1,
+      "proof": 1,
+      "flag_4ce5cf9a.Final": 1
+    }
+  }
+}

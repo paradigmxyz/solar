@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -u
+so=/home/hand/h2/flagrun/open
+cg=$(sed -n 's/^0:://p' /proc/self/cgroup); mm=$(cat /sys/fs/cgroup$cg/memory.max); sm=$(cat /sys/fs/cgroup$cg/memory.swap.max)
+echo "inside scope: cgroup $cg memory.max $mm swap.max $sm" > $so/cgroup.txt
+case "$mm" in max|"") echo 3 > $so/EXIT; exit 3;; esac; [ "$sm" = 0 ] || { echo 3 > $so/EXIT; exit 3; }
+( cd /home/hand/h2/flagwork/solidity-lean && python3 /home/hand/h2/r5isrc/tools/certify/final.py /home/hand/h2/flagrun/shape-open.json --name flag_4ce5cf9a --contract Flag --hex $(tr -d '[:space:]' < /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/bytecode.hex) --out /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean --statement-out /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Statement.lean --record /home/hand/h2/flagrun/open/final-open.json --manifest-json /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/gen/Flag/manifest.json && cp /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Statement.lean /home/hand/h2/flagwork/solidity-lean/Certified/flag_4ce5cf9a/Final.lean /home/hand/h2/flagrun/open/ && lake build -KleanMemory=6000 flag_4ce5cf9a.Final && printf 'import flag_4ce5cf9a.Final\n#print axioms Certified.flag_4ce5cf9a.Final.final\n' > /home/hand/h2/flagrun/open/Ax.lean && lake env lean -M 6000 /home/hand/h2/flagrun/open/Ax.lean > /home/hand/h2/flagrun/open/axioms.out 2>&1 && python3 -c "import json,sys; r=json.load(open('/home/hand/h2/flagrun/open/final-open.json')); assert r['strongest'] is False and r['open_premises']==['resources'] and r['statuses']['closure']=='not closure', r" ) > $so/out.log 2>&1
+rc=$?; echo $rc > $so/EXIT
+cat /sys/fs/cgroup$cg/memory.peak > $so/memory.peak; cat /sys/fs/cgroup$cg/memory.events > $so/memory.events

@@ -1,0 +1,6 @@
+unit f5-1794973914.scope
+cgroup /system.slice/f5-1794973914.scope
+memory.max 47244640256 (read back from /sys/fs/cgroup/system.slice/f5-1794973914.scope/memory.max)
+memory.swap.max 0
+inner_pid 11556
+inner_pid_cgroup /system.slice/f5-1794973914.scope

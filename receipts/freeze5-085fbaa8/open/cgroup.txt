@@ -1,0 +1,1 @@
+inside scope: cgroup /system.slice/f5-open-1794975372.scope memory.max 47244640256 swap.max 0

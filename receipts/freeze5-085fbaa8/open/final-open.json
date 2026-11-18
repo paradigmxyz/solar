@@ -1,0 +1,63 @@
+{
+  "module": "flag_4ce5cf9a.Final",
+  "statement_module": "flag_4ce5cf9a.Statement",
+  "theorem": "Certified.flag_4ce5cf9a.Final.final",
+  "kind": "functional",
+  "shape": "SolidCore.Verify.Generic.Expected",
+  "statement": "_root_.SolarTV.Export.Flag.Manifest.sources = [(\"Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol\", \"4ce5cf9a87520dc956a1e7366d5f646a07739832e44a3d8dec2eb656deb6388d\")] ∧ _root_.SolarTV.Export.Flag.Manifest.arguments = [\"Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol\", \"-Ogas\", \"--evm-version\", \"osaka\", \"--emit=bin-runtime\", \"-Zemit-lean-stages=Certified/flag_4ce5cf9a/gen\"] ∧ _root_.SolarTV.Export.Flag.Manifest.bytecodeSha256 = \"f689833eb749e7509b4fb038bd8a4e251e77daa10aed088b2b12fa70ab76f69f\" ∧ _root_.SolarTV.Export.Flag.Manifest.bytecodeHex = _root_.Certified.flag_4ce5cf9a.Final.runtimeHex ∧ _root_.Certified.flag_4ce5cf9a.Final.code.data.toList.map (·.toNat) = _root_.Certified.flag_4ce5cf9a.Final.runtimeBytes ∧ _root_.SolidCore.Verify.Generic.Expected _root_.Certified.flag_4ce5cf9a.Final.src _root_.Certified.flag_4ce5cf9a.Final.spec _root_.Certified.flag_4ce5cf9a.Final.runtimeBytes ∧ ∀ ctx : _root_.SolidCore.Verify.Generic.Context, ctx.Ok → ∃ c, _root_.Certified.flag_4ce5cf9a.Final.src.checked = .ok c ∧ ∀ call, _root_.Certified.flag_4ce5cf9a.Final.spec.Valid ctx call → ∀ gas, (fun _ => 3845403) call ≤ gas → _root_.SolidCore.Verify.Generic.runAt ctx gas (_root_.SolidCore.Verify.Generic.runtimeCode _root_.Certified.flag_4ce5cf9a.Final.runtimeBytes) call = (_root_.Certified.flag_4ce5cf9a.Final.src.semAt ctx).run c call",
+  "nonvacuous": "Certified.flag_4ce5cf9a.Final.NonVacuous",
+  "vacuity": null,
+  "allowed_vacuity": null,
+  "spec_bound_to_export": "Certified.flag_4ce5cf9a.gen.Flag.Spec.Flag",
+  "allowed_bound_to_export": true,
+  "assumptions": [
+    "Certified.flag_4ce5cf9a.Final.ResourcesOpen (OPEN)"
+  ],
+  "open_premises": [
+    "resources"
+  ],
+  "manifest": {
+    "module": "flag_4ce5cf9a.gen.Flag.Manifest",
+    "sources": [
+      [
+        "Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol",
+        "4ce5cf9a87520dc956a1e7366d5f646a07739832e44a3d8dec2eb656deb6388d"
+      ]
+    ],
+    "arguments": [
+      "Certified/flag_4ce5cf9a/flag_4ce5cf9a.sol",
+      "-Ogas",
+      "--evm-version",
+      "osaka",
+      "--emit=bin-runtime",
+      "-Zemit-lean-stages=Certified/flag_4ce5cf9a/gen"
+    ],
+    "options": [
+      "-Ogas",
+      "--evm-version",
+      "osaka"
+    ],
+    "bytecode_sha256": "f689833eb749e7509b4fb038bd8a4e251e77daa10aed088b2b12fa70ab76f69f"
+  },
+  "proof": "(Certified.flag_4ce5cf9a.Shape.published).imp fun _ h => ⟨h.1, SolidCore.Refinement.Shapes.Certified.functional h.2⟩",
+  "excluded": [
+    "deployment: the init code is not covered; the statement is about the runtime bytecode from any storage that holds the slots the constructor writes, as SolidCore's constructor run with no arguments leaves them",
+    "source model trusted: SolidCore's checked contract (the solc AST through scripts/solc_ast_to_lean_source.py and the type checker) is the meaning of the source (frontend trust boundary)",
+    "calls: one frame; the equivalence, the non-payable revert and the specification hold from every caller below 2^160 other than the contract (ctx.Ok), with the contract address and the block and transaction fixed; no external calls, GAS reads or return data in the code (the loop checker's fragment)",
+    "gas: the bound is the loop checker's (22100 per item times the final EVM IR's block fuel, plus memory), coarse; below it the bytecode may fail without effects, which equivalence admits",
+    "valid calls: lower(), raise(uint256), raised(), value() ABI-encoded with clean argument words, any value below 2^256 (no function is payable: the value reverts on both sides), any storage covering the constructor's slots; other call data is outside the statement; payable functions not exercised",
+    "spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence",
+    "callers: from every caller below 2^160 other than the contract, at the gas bound of the checker with contexts (3845403): the exact bytecode runs as the source, a call with a value other than 0 reverts with empty output, no logs and unchanged storage, and every result meets the exported specification's allowed statuses and postcondition read in that caller's context (partial correctness); the Expected conjunct keeps the fixed frame"
+  ],
+  "spec": "solar-verify's export of the source's NatSpec in this run, read by the published statement (bundlePost, bundleAllowed)",
+  "statuses": {
+    "equivalence": "proved (published statement, Shapes.Equiv): at every gas below 2^256 every result of the exact bytecode on a valid call is the source's, or a failure that changes nothing (out of gas or a revert, whatever its data)",
+    "termination": "proved (published statement, Shapes.Terminates): the source ends on every valid call with an allowed status; the bytecode's ending at a proved gas is not (resources)",
+    "spec": "proved (published statement, Shapes.Meets of Shapes.bundlePost of the specification solar-verify exported in this run, NonVacuous in the statement): the specification of every source result on a valid call, hence of every bytecode result that is not an inert failure",
+    "resources": "Resources OPEN (hypothesis Certified.flag_4ce5cf9a.Final.ResourcesOpen, the statement's one assumption; not discharged in this run)",
+    "vacuity": "proved non-vacuous (NonVacuous in the statement)",
+    "lifecycle": "OPEN",
+    "closure": "not closure"
+  },
+  "strongest": false
+}

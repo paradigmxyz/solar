@@ -1,0 +1,9 @@
+# r5i inputs commit (git cat-file in /home/hand/h2/flagwork/solidity-lean)
+HEAD 0b19a4ae1530d10bb7cd882e6b946583ce2e69ee
+HEAD^{tree} 6cd43ad38de6147423f83e3dd6e64e2872b93709
+tree 6cd43ad38de6147423f83e3dd6e64e2872b93709
+parent 334d1d924f8f6c29ac827fd81d1cc739721b479a
+author solar certify <certify@localhost> 1794973954 +0000
+committer solar certify <certify@localhost> 1794973954 +0000
+
+certify: generated inputs for flag_4ce5cf9a

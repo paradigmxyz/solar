@@ -1,0 +1,18 @@
+2026-11-18T03:50:56Z f5run start; gate 2026-11-18T05:20:43Z; expires 2026-11-18T05:30:43Z; ttl_left_s 5987; nproc 12; mem_kb 48397728
+2026-11-18T03:50:56Z locale: LANG=C.UTF-8 LANGUAGE= LC_CTYPE="C.UTF-8" LC_NUMERIC="C.UTF-8" LC_TIME="C.UTF-8" LC_COLLATE="C.UTF-8" LC_MONETARY="C.UTF-8" LC_MESSAGES="C.UTF-8" LC_PAPER="C.UTF-8" LC_NAME="C.UTF-8" LC_ADDRESS="C.UTF-8" LC_TELEPHONE="C.UTF-8" LC_MEASUREMENT="C.UTF-8" LC_IDENTIFICATION="C.UTF-8" LC_ALL=C.UTF-8 
+2026-11-18T03:50:57Z pack verified: 47b15bb2f11b10fab148a81a521127da24dd33e3134fc7eecd9cb44d9623229f  pack.sha256
+2026-11-18T03:51:00Z apt installed: git time libc6-dev; git version 2.43.0; time 1.9-0.2build1
+2026-11-18T03:51:22Z mathlib: lake exe cache get exit 0; Decompressed 9031 file(s) Already decompressed 9031 file(s) 
+2026-11-18T03:51:22Z preflight ok: 64 commands and files resolved; sha256 aeca82c98a20e917
+2026-11-18T03:51:30Z cold start: stripped 25 EthLib modules; EthLib 1730 EthLib 1705 
+2026-11-18T03:51:30Z python Python 3.14.8; rustc rustc 1.100.0 (0ef1bc386 2026-11-09); git 085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f
+2026-11-18T03:51:54Z producer built on the box in 24 s: 217 crates compiled
+2026-11-18T03:51:54Z producer: /home/hand/h2/r5isrc/target-r5i/debug/solar sha256 f0d2ec226b87f22ea208ebbfd996d948f4fd6e75f62ce654f1db59c7e1019b71 embedded 085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f driver 085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f dirty false profile debug features mimalloc,tracing flags: cargo build --locked --bin solar (dev profile) CARGO_TARGET_DIR=/home/hand/h2/r5isrc/target-r5i VERGEN_BUILD_TIMESTAMP=2026-11-17T16:30:00Z
+2026-11-18T03:51:55Z admission: memory.max 47244640256 swap.max 0 CERTIFY_REPLAY_SHARDS 1 (inner pid 11556) ttl_left_s 5928
+2026-11-18T04:01:55Z minute-10 projection: replay start with 3453 s left
+2026-11-18T04:13:20Z replay start; ttl_left_s 4643
+2026-11-18T04:16:10Z scope ended; EXIT 0 POST_EXIT 0
+2026-11-18T04:16:12Z step bind exit 0 peak 188502016
+2026-11-18T04:16:16Z step open exit 1 peak 446574592
+2026-11-18T04:18:38Z step counter exit 0 peak 22894211072
+2026-11-18T04:18:38Z VERDICT FINISHED step1 0/0; step bind EXIT 0 2026-11-18T04:16:12Z;step open EXIT 1 2026-11-18T04:16:16Z;step counter EXIT 0 2026-11-18T04:18:38Z;step erc20 OPEN (own box);

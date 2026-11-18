@@ -1,0 +1,14 @@
+{
+  "binary_sha256": "f0d2ec226b87f22ea208ebbfd996d948f4fd6e75f62ce654f1db59c7e1019b71",
+  "binary_path": "/home/hand/h2/r5isrc/target-r5i/debug/solar",
+  "embedded_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f",
+  "driver_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f",
+  "dirty": false,
+  "profile": "debug",
+  "features": "mimalloc,tracing",
+  "build_command": "cargo build --locked --bin solar -v",
+  "built_on": "this box",
+  "cargo_target_dir": "/home/hand/h2/r5isrc/target-r5i",
+  "vergen_build_timestamp": "2026-11-17T16:30:00Z",
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)"
+}
