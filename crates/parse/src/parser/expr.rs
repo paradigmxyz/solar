@@ -43,6 +43,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         min_precedence: usize,
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        // Nested expressions merge their depth into the outer value when they finish.
+        let outer_depth = std::mem::take(&mut self.expr_depth);
         let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(self.token);
         while precedence >= min_precedence {
@@ -71,9 +73,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     self.unknown_binop(token, span);
                 };
                 expr = self.alloc(Expr { span, kind });
+                self.bump_expr_depth()?;
             }
             precedence -= 1;
         }
+        self.expr_depth = self.expr_depth.max(outer_depth);
         Ok(expr)
     }
 
@@ -98,6 +102,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             this.parse_lhs_expr(with, lo).map(|expr| {
                 if let Some(unop) = this.token.as_unop(true) {
                     this.bump(); // unop
+                    this.expr_depth += 1;
                     let span = lo.to(this.prev_token.span);
                     this.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
                 } else {
@@ -109,12 +114,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             parse_lhs(self, Some(with))
         } else if self.eat_keyword(kw::Delete) {
             self.parse_prefix_operand().map(|expr| {
+                self.expr_depth += 1;
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Delete(expr) })
             })
         } else if let Some(unop) = self.token.as_unop(false) {
             self.bump(); // unop
             self.parse_prefix_operand().map(|expr| {
+                self.expr_depth += 1;
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
             })
@@ -149,6 +156,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else {
             self.parse_primary_expr()
         }?;
+        self.expr_depth += 1;
         loop {
             let kind = if self.eat(TokenKind::Dot) {
                 let dot_span = self.prev_token.span;
@@ -182,6 +190,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             };
             let span = lo.to(self.prev_token.span);
             expr = self.alloc(Expr { span, kind });
+            self.bump_expr_depth()?;
         }
         Ok(expr)
     }

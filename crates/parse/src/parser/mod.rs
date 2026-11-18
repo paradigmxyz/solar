@@ -23,6 +23,12 @@ mod yul;
 /// Maximum allowed recursive descent depth for selected parser entry points.
 const PARSER_RECURSION_LIMIT: usize = 256;
 
+/// Maximum allowed depth of an expression tree.
+///
+/// The parser builds binary and postfix chains in a loop, so [`PARSER_RECURSION_LIMIT`] does not
+/// bound them, but every pass that walks the tree recurses once per level.
+const PARSER_EXPR_DEPTH_LIMIT: usize = 2500;
+
 /// Solidity and Yul parser.
 ///
 /// # Examples
@@ -72,6 +78,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
+    /// Depth of the expression tree under construction, see [`Parser::bump_expr_depth`].
+    expr_depth: usize,
     /// Callback invoked after a top-level import directive is parsed.
     #[allow(clippy::type_complexity)]
     import_callback:
@@ -174,6 +182,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
+            expr_depth: 0,
             import_callback: None,
         };
         parser.bump();
@@ -988,6 +997,25 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
         self.recursion_depth -= 1;
         res
+    }
+
+    /// Adds a level to the depth of the expression under construction, and errors when it exceeds
+    /// [`PARSER_EXPR_DEPTH_LIMIT`].
+    ///
+    /// `expr_depth` holds the depth of the expression the current `parse_binary_expr` call has
+    /// built so far, including its nested expressions, which merge their depth in when they finish.
+    #[inline]
+    fn bump_expr_depth(&mut self) -> PResult<'sess, ()> {
+        self.expr_depth += 1;
+        if self.expr_depth > PARSER_EXPR_DEPTH_LIMIT {
+            return Err(self.expr_depth_limit_reached());
+        }
+        Ok(())
+    }
+
+    #[cold]
+    fn expr_depth_limit_reached(&mut self) -> PErr<'sess> {
+        self.dcx().err_at(self.token.span, "expression is too deeply nested")
     }
 
     #[cold]

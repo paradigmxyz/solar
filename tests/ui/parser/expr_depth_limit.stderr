@@ -1,0 +1,8 @@
+error: expression is too deeply nested
+   ╭▸ ROOT/tests/ui/parser/expr_depth_limit.sol:LL:CC
+   │
+LL │         a;
+   ╰╴         ━
+
+error: aborting due to 1 previous error
+
