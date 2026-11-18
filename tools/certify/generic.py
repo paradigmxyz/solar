@@ -291,6 +291,60 @@ def param_of(p, enums):
     return None
 
 
+def creation_reach(cdef):
+    """The AST nodes creation can run in CDEF: the constructor (with its modifiers and base
+    constructor invocations), every state variable's initializer, and, through internal calls and
+    modifier invocations, every function and modifier they reach. Returns (the ids of those nodes,
+    whether some call or invocation could not be resolved to a function or modifier of CDEF, in
+    which case nothing counts as runtime-only)."""
+    defs = {
+        n["id"]: n
+        for n in walk(cdef)
+        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
+        and "id" in n
+    }
+    roots = [
+        n
+        for n in walk(cdef)
+        if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "constructor"
+    ]
+    roots += [
+        n["value"]
+        for n in cdef.get("nodes", [])
+        if n.get("nodeType") == "VariableDeclaration"
+        and n.get("stateVariable")
+        and n.get("value")
+    ]
+    unresolved = False
+    seen, todo, reach = set(), list(roots), set()
+    while todo:
+        node = todo.pop()
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        for m in walk(node):
+            reach.add(id(m))
+            t = m.get("nodeType")
+            if t == "ModifierInvocation":
+                ref = (m.get("modifierName") or {}).get("referencedDeclaration")
+                if ref in defs:
+                    todo.append(defs[ref])
+                else:
+                    unresolved = True  # a base constructor or an unknown modifier
+            elif t == "FunctionCall" and m.get("kind") == "functionCall":
+                e = m.get("expression") or {}
+                ref = e.get("referencedDeclaration")
+                if ref in defs:
+                    todo.append(defs[ref])
+                elif isinstance(ref, int) and ref < 0:
+                    pass  # a builtin (require, keccak256, ...)
+                elif " internal" in str(
+                    (e.get("typeDescriptions") or {}).get("typeString", "")
+                ):
+                    unresolved = True  # an internal call not to a known function (a function value)
+    return reach, unresolved
+
+
 def envelope(
     text,
     ast,
@@ -356,12 +410,7 @@ def envelope(
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
     own = {n["id"] for n in walk(cdef) if "id" in n}
-    in_ctor = {
-        id(m)
-        for f in walk(cdef)
-        if f.get("nodeType") == "FunctionDefinition" and f.get("kind") == "constructor"
-        for m in walk(f)
-    }
+    creation, creation_unresolved = creation_reach(cdef)
     enums = {}
     for n in walk(ast):
         if n.get("nodeType") == "EnumDefinition":
@@ -380,7 +429,10 @@ def envelope(
         elif t == "NewExpression":
             block("contract creation", n, "new creates a contract (CREATE)")
         elif t in ("ForStatement", "WhileStatement", "DoWhileStatement") and (
-            lifecycle and open_out is not None and id(n) not in in_ctor
+            lifecycle
+            and open_out is not None
+            and not creation_unresolved
+            and id(n) not in creation
         ):
             open_out.append(
                 {

@@ -2474,6 +2474,56 @@ class LifecycleEnvelope(unittest.TestCase):
         self.assertEqual([r["feature"] for r in e.exception.reasons], ["loop"])
         self.assertEqual(opened, [])
 
+    def test_creation_reachable_loops_block(self):
+        """A loop creation can run is never opened as a runtime loop: in an internal helper the
+        constructor calls, in a modifier on the constructor, in a base constructor, and in a
+        function a state variable's initializer calls. Each is BLOCKED at the lifecycle tier."""
+        for ex, contract in (
+            ("LoopCtorHelper", "LoopCtorHelper"),
+            ("LoopCtorModifier", "LoopCtorModifier"),
+            ("LoopBaseCtor", "LoopBaseCtor"),
+            ("LoopInitializer", "LoopInitializer"),
+        ):
+            with self.subTest(ex):
+                src = LIFE / f"{ex}.sol"
+                ast, contracts = generic.solc_ast(str(SOLC), src)
+                opened = []
+                with self.assertRaises(generic.Blocked) as e:
+                    generic.envelope(
+                        src.read_text(),
+                        ast,
+                        contracts,
+                        contract,
+                        None,
+                        False,
+                        True,
+                        opened,
+                    )
+                self.assertEqual(opened, [], ex)
+                feats = [r["feature"] for r in e.exception.reasons]
+                if ex == "LoopBaseCtor":
+                    self.assertIn("inheritance", feats)
+                else:
+                    self.assertIn("loop", feats)
+
+    def test_creation_reach_unresolved_is_conservative(self):
+        """A base-constructor invocation (or any call creation_reach cannot resolve) marks the
+        closure unresolved, so no loop is treated as runtime-only."""
+        src = LIFE / "LoopBaseCtor.sol"
+        ast, _ = generic.solc_ast(str(SOLC), src)
+        cdef = next(n for n in ast["nodes"] if n.get("name") == "LoopBaseCtor")
+        _, unresolved = generic.creation_reach(cdef)
+        self.assertTrue(unresolved)
+        src = LIFE / "LoopRuntime.sol"
+        ast, _ = generic.solc_ast(str(SOLC), src)
+        cdef = next(n for n in ast["nodes"] if n.get("name") == "LoopRuntime")
+        reach, unresolved = generic.creation_reach(cdef)
+        self.assertFalse(unresolved)
+        loop = next(
+            n for n in generic.walk(cdef) if n.get("nodeType") == "ForStatement"
+        )
+        self.assertNotIn(id(loop), reach)
+
     def test_runtime_loop_cli_reaches_lifecycle(self):
         """The driver on LoopRuntime with --tier lifecycle passes the envelope with the loop OPEN and
         never computes the fixed-fuel obligation (it stops later, at the absent solidity-lean)."""
