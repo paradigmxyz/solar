@@ -329,11 +329,8 @@ fn ipfs_leaf(input: &[u8]) -> IpfsChunk {
     }
     hasher.update([0x18]);
     hasher.update(input_len_bytes);
-    let block_size = 4
-        + protobuf_len_bytes.len()
-        + input_len_bytes.len() * usize::from(!input.is_empty())
-        + input.len()
-        + input_len_bytes.len();
+    // The DAG-PB Data field contains the entire serialized UnixFS message.
+    let block_size = 1 + protobuf_len_bytes.len() + protobuf_len;
     let hash = sha256_multihash_from_hasher(hasher);
     IpfsChunk { hash, size: input.len(), block_size }
 }
@@ -483,6 +480,18 @@ mod tests {
             bs58::encode(ipfs_hash(&[0; 10250])).into_string(),
             "QmVJJBB3gKKBWYC9QTywpH8ZL1bDeTDJ17B63Af5kino9i"
         );
+    }
+
+    #[test]
+    fn ipfs_hash_matches_solc_for_chunked_files() {
+        // Reference CIDs for zero-filled files from solc's test/libsolutil/IpfsHash.cpp.
+        for (len, expected) in [
+            (256 * 1024 - 1, "QmbNDspMkzkMFKyS3eCJGedG7GWRQHSCzJCZLjxP7wyVAx"),
+            (256 * 1024 + 1, "QmbVuw4C4vcmVKqxoWtgDVobvcHrSn51qsmQmyxjk4sB2Q"),
+            (1_310_710, "QmNg7BJo8gEMDK8yGQbHEwPtycesnE6FUULX5iVd5TAL9f"),
+        ] {
+            assert_eq!(bs58::encode(ipfs_hash(&vec![0; len])).into_string(), expected, "{len}");
+        }
     }
 
     #[test]
