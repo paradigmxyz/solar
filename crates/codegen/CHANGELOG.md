@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [codegen] Follow slices and pointer arithmetic ([#2715](https://github.com/paradigmxyz/solar/issues/2715))
 - [codegen] Follow calldata addresses through calls ([#2564](https://github.com/paradigmxyz/solar/issues/2564))
 - [codegen] Leave pointer dispatcher cases unlocated ([#2712](https://github.com/paradigmxyz/solar/issues/2712))
 - [codegen] Keep the call's span on a tail call at the implicit exit ([#2711](https://github.com/paradigmxyz/solar/issues/2711))

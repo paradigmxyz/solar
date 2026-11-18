@@ -32,51 +32,20 @@ commit.
   Every version must appear once; git-cliff can prepend older releases again.
   Keep `crates/solar/CHANGELOG.md` a symlink to the root changelog.
 - [ ] Edit the changelog: drop dependency bumps, CI, bench, test, refactor, and
-  chore entries, and add a short `### Highlights` list with linked PRs.
-- [ ] Update the pinned versions in `README.md`'s `### Library usage` and `### Binary usage`.
-- [ ] Push, open the PR, and wait for CI to pass before merging. The name of the
-  PR should be the same as the `cargo-release` commit message.
-
-## Tag and build
-
-- [ ] `git checkout main` and `git pull`.
-- [ ] Verify `dist plan` is correct.
-- [ ] Tag and push the tag: `cargo release tag --execute` and `cargo release push --execute`.
-- [ ] Wait for the release workflow to publish the GitHub release. If it fails,
-  fix the cause on `main`, delete the remote tag, and tag the fix.
-- [ ] Check the GitHub release: the notes render, every artifact from `dist plan`
-  is attached, and a downloaded binary reports `solar <version>+commit...`
-  without `-dev`.
-
-## Publish
-
-- [ ] Publish the crates: `cargo release publish --execute [--no-verify]`
-
-## Downstream
-
-- [ ] In foundry-core and Foundry, set the solar requirements to `=<version>`
-  and point the solar `[patch.crates-io]` entries at `tag = "v<version>"`.
-- [ ] Raise their MSRV if solar's `rust-version` is higher.
-
-These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).
-
-## Highlights
+  chore entries, and add a short `### Highlights
 
 Each release's changelog opens with a `### Highlights` section, above the generated sections. Write
-it by hand:
+it by hand, short, and about what users get, not about individual PRs:
 
-- Use 5 to 8 bullets, one per theme, most important first. Cover only what users notice most;
-  everything else stays in the generated sections.
-- Lead each bullet with a bold label, and group related PRs in one bullet. Use these labels where they
-  fit: Code generation: gas and size; Debug info and coverage; Output (ABI, AST, NatSpec, metadata);
-  Language and diagnostics; Correctness of generated code; Standard JSON; Language server; Compile
-  time and memory. End with a Compatibility bullet when something breaks, such as a new MSRV, a
-  changed default or code that stopped compiling.
-- Link every PR as `[#N]`, with the `[#N]: https://github.com/paradigmxyz/solar/issues/N`
-  definitions at the end of the version's section.
-- Use only real measurements that a merged PR body states, next to a link to that PR. Give the
-  baseline and the result, the input (`seaport-1.6`, `prb-math`) and the build level (`-Ogas`,
-  `-Osize`, `-j1`), and state the regressions and trade-offs the PR states, such as a contract that
-  grows or memory that rises. Do not average across PRs or round up. Without a number in the PR, write
-  the change without one.
-
+- Use a few one-line bullets, most important first, and no PR lists or per-PR numbers. Link a PR or
+  doc only where it helps the reader.
+- Lead with headline numbers against solc, measured with the benchmark suite behind the blog post
+  (`benches/runtime/benchmark.py`, one benchmark per `m4-metal-large` box, five compile repeats,
+  solc 0.8.38, Cancun, Solar `--profile bench`) at Solar's default thread count (`-j0`, all cores),
+  not `-j8`: compile speed as a geometric mean with the per-project range (via-IR with shared
+  settings, `BENCH_VIA_IR=1 BENCH_RELAX_PRAGMAS=1`, and each project's own settings), and runtime
+  gas, deploy gas and bytecode size over the runtime corpus. Say which main commit you measured.
+- Add at most two or three user-facing features or behavior changes, such as a new output or a
+  changed default.
+- Use only real measurements. Do not average across runs, round up or quote a number you did not
+  measure or read from a merged PR body.

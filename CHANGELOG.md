@@ -9,67 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Highlights
 
-- **Code generation: gas and size.** `if-convert` keeps PRBMath's `exp2` steps
-  as branches, which cuts the `prb-math` benchmark's execution gas by 8.65%
-  ([#2314]), and bit searches compile to `CLZ` on Osaka, which cut it by 3.54%
-  ([#2527]) and 1.38% ([#2652]); one contract grows, by 72 bytes. Repeated
-  dynamic arrays in a struct share one ABI decoder, which makes Seaport's
-  `RequestValidator` creation code 18.42% smaller ([#2303]); three other Seaport
-  contracts grow by 8 to 12 bytes. Inlining straight-line helpers in loops under
-  stack pressure saves 2.4% gas in Ekubo's `swapAllowPartialFill` and adds 37
-  bytes to its core at `-Ogas` ([#2596]).
+- **Compile speed.** At the default thread count, Solar compiles via-IR 100.3×
+  faster than solc (geometric mean over six projects; 80.7× at `-j8`, 16.5× at
+  `-j1`), and 74.8× faster over all eight projects that solc builds with via-IR.
+  With each project's own settings it is 42.1× faster over six projects and
+  31.2× over nine.
+- **Per project, via-IR:** Morpho 143×, Solady 119×, PRBMath 116×, OpenZeppelin
+  105×, forge-std 73×, Tempo Zones 67×, Solmate 54×, Solarray 18×. solc fails to
+  build Seaport and v4-core with via-IR; Solar builds both.
+- **Gas, deploy cost and size.** Against solc over the 16-contract runtime
+  corpus, Solar's code uses 4.64% less runtime gas, 28.38% less deploy gas and
+  is 31.96% smaller.
+- **All cores by default.** The default thread count is now the number of
+  logical cores (`-j0`) instead of 8. Pass `-j N` to cap it; memory use rises
+  with the thread count.
+- **solc-compatible AST JSON.** `--emit=ast` and the Standard JSON `ast` output
+  now match solc's compact AST.
 - **Debug info and coverage.** Source maps and ETHDebug keep the origin of code
-  through MIR and EVM IR rewrites, so coverage no longer misses ABI decoding,
-  call sites and expressions ([#2345], [#2497]). Shared instructions keep every
-  origin, which makes ETHDebug output larger ([#2373]), and `JUMPDEST`s carry
-  label origins as in solc ([#2416]). Dozens of smaller source-map fixes are
-  listed below. Bytecode is unchanged.
-- **Output: AST, NatSpec and metadata.** `--emit=ast` and Standard JSON `ast`
-  emit solc's compact AST JSON ([#2344]). Against solc 0.8.38, 39,538,215 of
-  39,538,223 fields agree over 6,793 compilations, and every field agrees over
-  7,372 parse-only compilations. Analyzing seaport-1.6 and emitting its ASTs
-  takes 85 ms at the default thread count (208 ms with `-j1`); solc 0.8.36 takes
-  4.83 s. Userdoc and devdoc now join, trim, inherit and list NatSpec like solc:
-  on solc's test corpus (3,186 compilations), userdoc differences fell from 62
-  to 5 and devdoc differences from 56 to 3 ([#2653], [#2655]). The IPFS hash in
-  metadata and in chunked Standard JSON source URLs was wrong for inputs over
-  256 KiB and now matches solc ([#2709]).
-- **Language and diagnostics.** New warnings flag deprecated `send` and
-  `transfer` ([#2597]) and statements with no effect ([#2410]), and more errors
-  carry solc's codes ([#2318], [#2319], [#2321]). The compiler now rejects
-  arithmetic on fixed bytes ([#2446]), `view` and `pure` fallback functions
-  ([#2451]), unimplemented `fallback` and `receive` functions in non-abstract
-  contracts ([#2519]) and duplicate Yul `switch` cases ([#2309]). It no longer
-  crashes on a 30,000-term `a ^ a ^ ...` chain (the parser now rejects
-  expressions nested deeper than 2,500 levels, [#2708]), on recursive structs
-  and inheritance cycles ([#2449]), on invalid binary literals ([#2452]), or on
-  a division by zero in check elimination at `-Ogas` and `-Osize` ([#2252]).
-- **Correctness of generated code.** Calldata copies to memory are bounded by an
-  unsigned address ([#2548]), calldata returns that run past the end read as
-  zero ([#2549]), bits that inline assembly leaves above a variable's type are
-  cleaned at every consumer as in solc via-IR ([#2368]), and a far-out-of-range
-  memory array index reverts with `Panic(0x32)` instead of running out of gas
-  ([#2694]). Returned calldata structs and arrays now encode in place, which
-  shrinks one example's runtime code from 647 to 471 bytes and makes a static
-  calldata struct with a dirty narrow field revert in external calls and events,
-  as in solc ([#2575]).
-- **Standard JSON.** `solar --standard-json` now reads imports that the input
-  does not contain from disk, as Foundry expects, within `--allow-paths`, the
-  base path and the include paths ([#2522]). It reports I/O errors instead of
-  failing silently ([#2325]).
-- **Compile time and memory.** The default thread count is the number of logical
-  cores instead of at most eight: on a 48-thread machine a 6,132-file corpus
-  compiles in 9,010 ms instead of 20,258 ms (-56%), and peak memory rises from
-  2,137 to 3,328 MB ([#2354]). The stack planner resumes after a spill, which
-  takes seaport from 7.49 s to 6.31 s on 5 cores (-15.8%) ([#2532]), and sema
-  reuses per-item results, which cuts the instructions spent on ABI and storage
-  layout output by 12.2% for seaport and 15.9% for OpenZeppelin ([#2660]).
-- **Compatibility.** The minimum supported Rust version is now 1.100 ([#2703]).
-  Code that exceeds the EVM's 1024-word stack limit compiles with warning 0068
-  instead of failing; `--allow=0068` silences it ([#2572]).
+  through optimization, so coverage tools see ABI decoding, call sites and
+  expressions.
+
+Speed, gas, deploy and size numbers are from the benchmark suite behind the v0.3
+blog post: AMD EPYC 9254, solc 0.8.38, Cancun, Solar `--profile bench`, main at
+`e3deeab2e`.
 
 ### Bug Fixes
 
+- [codegen] Follow slices and pointer arithmetic ([#2715](https://github.com/paradigmxyz/solar/issues/2715))
 - [sema] Type mapping keys as memory pointers ([#2714](https://github.com/paradigmxyz/solar/issues/2714))
 - [sema] Drop pointer suffix from storage array bases ([#2716](https://github.com/paradigmxyz/solar/issues/2716))
 - [parse] Count expression depth once for paths and keep it on recovery ([#2710](https://github.com/paradigmxyz/solar/issues/2710))
@@ -266,45 +232,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [mir] Price the general select's swap in if-convert ([#2314](https://github.com/paradigmxyz/solar/issues/2314))
 - [codegen] Pack cold jump-ending traces below PUSH1 ([#2264](https://github.com/paradigmxyz/solar/issues/2264))
 - [codegen] Bound entry depth of dynamic entries ([#2223](https://github.com/paradigmxyz/solar/issues/2223))
-
-[#2252]: https://github.com/paradigmxyz/solar/issues/2252
-[#2303]: https://github.com/paradigmxyz/solar/issues/2303
-[#2309]: https://github.com/paradigmxyz/solar/issues/2309
-[#2314]: https://github.com/paradigmxyz/solar/issues/2314
-[#2318]: https://github.com/paradigmxyz/solar/issues/2318
-[#2319]: https://github.com/paradigmxyz/solar/issues/2319
-[#2321]: https://github.com/paradigmxyz/solar/issues/2321
-[#2325]: https://github.com/paradigmxyz/solar/issues/2325
-[#2344]: https://github.com/paradigmxyz/solar/issues/2344
-[#2345]: https://github.com/paradigmxyz/solar/issues/2345
-[#2354]: https://github.com/paradigmxyz/solar/issues/2354
-[#2368]: https://github.com/paradigmxyz/solar/issues/2368
-[#2373]: https://github.com/paradigmxyz/solar/issues/2373
-[#2410]: https://github.com/paradigmxyz/solar/issues/2410
-[#2416]: https://github.com/paradigmxyz/solar/issues/2416
-[#2446]: https://github.com/paradigmxyz/solar/issues/2446
-[#2449]: https://github.com/paradigmxyz/solar/issues/2449
-[#2451]: https://github.com/paradigmxyz/solar/issues/2451
-[#2452]: https://github.com/paradigmxyz/solar/issues/2452
-[#2497]: https://github.com/paradigmxyz/solar/issues/2497
-[#2519]: https://github.com/paradigmxyz/solar/issues/2519
-[#2522]: https://github.com/paradigmxyz/solar/issues/2522
-[#2527]: https://github.com/paradigmxyz/solar/issues/2527
-[#2532]: https://github.com/paradigmxyz/solar/issues/2532
-[#2548]: https://github.com/paradigmxyz/solar/issues/2548
-[#2549]: https://github.com/paradigmxyz/solar/issues/2549
-[#2572]: https://github.com/paradigmxyz/solar/issues/2572
-[#2575]: https://github.com/paradigmxyz/solar/issues/2575
-[#2596]: https://github.com/paradigmxyz/solar/issues/2596
-[#2597]: https://github.com/paradigmxyz/solar/issues/2597
-[#2652]: https://github.com/paradigmxyz/solar/issues/2652
-[#2653]: https://github.com/paradigmxyz/solar/issues/2653
-[#2655]: https://github.com/paradigmxyz/solar/issues/2655
-[#2660]: https://github.com/paradigmxyz/solar/issues/2660
-[#2694]: https://github.com/paradigmxyz/solar/issues/2694
-[#2703]: https://github.com/paradigmxyz/solar/issues/2703
-[#2708]: https://github.com/paradigmxyz/solar/issues/2708
-[#2709]: https://github.com/paradigmxyz/solar/issues/2709
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 
