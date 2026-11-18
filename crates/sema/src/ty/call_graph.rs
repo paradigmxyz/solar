@@ -9,7 +9,7 @@
 
 use super::{CallDispatch, Gcx, TyKind};
 use crate::hir::{self, Visit};
-use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxIndexMap};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxIndexMap};
 use std::{collections::VecDeque, ops::ControlFlow};
 
 pub(super) struct ReferencedItems {
@@ -307,7 +307,7 @@ pub(super) enum CallOp {
 /// Returns what the walk `f` reaches, in walk order.
 fn record<'gcx>(
     gcx: Gcx<'gcx>,
-    f: impl FnOnce(&mut Recorder<'gcx>) -> ControlFlow<Never>,
+    f: impl FnOnce(&mut Recorder<'gcx>) -> ControlFlow<!>,
 ) -> Vec<CallOp> {
     let mut recorder = Recorder { gcx, ops: Vec::new(), direct_callee: None };
     let _ = f(&mut recorder);
@@ -395,7 +395,7 @@ impl<'gcx> Recorder<'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for Recorder<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

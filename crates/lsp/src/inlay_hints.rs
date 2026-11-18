@@ -1,9 +1,6 @@
 use crate::{proto, utils::item_param_source};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, Position, Range, Url};
-use solar_interface::{
-    Symbol,
-    data_structures::{Never, map::FxHashMap},
-};
+use solar_interface::{Symbol, data_structures::map::FxHashMap};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
@@ -245,7 +242,7 @@ impl<'gcx> InlayHintCollector<'_, 'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

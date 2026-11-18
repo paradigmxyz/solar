@@ -6,10 +6,7 @@ use lsp_types::{
     Documentation, Location, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel,
     Position, Range, SignatureHelp, SignatureInformation, Url,
 };
-use solar_interface::{
-    Span,
-    data_structures::{Never, map::FxHashMap},
-};
+use solar_interface::{Span, data_structures::map::FxHashMap};
 use solar_parse::Cursor;
 use solar_sema::{
     Gcx,
@@ -466,7 +463,7 @@ impl<'gcx> CallCollector<'_, 'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

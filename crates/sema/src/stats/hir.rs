@@ -1,6 +1,6 @@
 use super::{EnumVariantSize, Stats};
 use crate::hir::{self, Visit as HirVisit};
-use solar_data_structures::{Never, bit_set::DenseBitSet};
+use solar_data_structures::bit_set::DenseBitSet;
 use std::ops::ControlFlow;
 
 /// HIR stat collector.
@@ -139,7 +139,7 @@ impl<'hir> HirStatCollector<'hir> {
         }
     }
 
-    fn visit_block(&mut self, block: &'hir hir::Block<'hir>) -> ControlFlow<Never> {
+    fn visit_block(&mut self, block: &'hir hir::Block<'hir>) -> ControlFlow<!> {
         self.record("Block", block);
         for stmt in block.stmts {
             self.visit_stmt(stmt)?;
@@ -147,7 +147,7 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn visit_stmt_switch(&mut self, switch: &'hir hir::StmtSwitch<'hir>) -> ControlFlow<Never> {
+    fn visit_stmt_switch(&mut self, switch: &'hir hir::StmtSwitch<'hir>) -> ControlFlow<!> {
         self.record("StmtSwitch", switch);
         self.visit_expr(switch.selector)?;
         for case in switch.cases {
@@ -160,7 +160,7 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn visit_stmt_try(&mut self, try_: &'hir hir::StmtTry<'hir>) -> ControlFlow<Never> {
+    fn visit_stmt_try(&mut self, try_: &'hir hir::StmtTry<'hir>) -> ControlFlow<!> {
         self.record("StmtTry", try_);
         self.visit_expr(&try_.expr)?;
         for clause in try_.clauses {
@@ -173,7 +173,7 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn visit_call_options(&mut self, opts: &'hir hir::CallOptions<'hir>) -> ControlFlow<Never> {
+    fn visit_call_options(&mut self, opts: &'hir hir::CallOptions<'hir>) -> ControlFlow<!> {
         self.record("CallOptions", opts);
         for arg in opts.args {
             self.record("NamedArg", arg);
@@ -182,7 +182,7 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn visit_type_array(&mut self, arr: &'hir hir::TypeArray<'hir>) -> ControlFlow<Never> {
+    fn visit_type_array(&mut self, arr: &'hir hir::TypeArray<'hir>) -> ControlFlow<!> {
         self.record("TypeArray", arr);
         self.visit_ty(&arr.element)?;
         if let Some(size) = arr.size {
@@ -191,7 +191,7 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn visit_type_function(&mut self, func: &'hir hir::TypeFunction<'hir>) -> ControlFlow<Never> {
+    fn visit_type_function(&mut self, func: &'hir hir::TypeFunction<'hir>) -> ControlFlow<!> {
         self.record("TypeFunction", func);
         for &param in func.parameters {
             self.visit_nested_var(param)?;
@@ -202,7 +202,7 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn visit_type_mapping(&mut self, map: &'hir hir::TypeMapping<'hir>) -> ControlFlow<Never> {
+    fn visit_type_mapping(&mut self, map: &'hir hir::TypeMapping<'hir>) -> ControlFlow<!> {
         self.record("TypeMapping", map);
         self.visit_ty(&map.key)?;
         self.visit_ty(&map.value)?;
@@ -237,7 +237,7 @@ macro_rules! record_hir_variants {
 }
 
 impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'hir hir::Hir<'hir> {
         self.hir

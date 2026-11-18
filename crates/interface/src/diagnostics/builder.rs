@@ -6,7 +6,6 @@ use super::{
     Applicability, BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug,
     FatalAbort, Level, MultiSpan, Span, Style, SuggestionStyle,
 };
-use solar_data_structures::Never;
 use std::{
     fmt,
     marker::PhantomData,
@@ -59,7 +58,7 @@ impl EmissionGuarantee for () {
 }
 
 impl EmissionGuarantee for BugAbort {
-    type EmitResult = Never;
+    type EmitResult = !;
 
     fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
@@ -68,7 +67,7 @@ impl EmissionGuarantee for BugAbort {
 }
 
 impl EmissionGuarantee for FatalAbort {
-    type EmitResult = Never;
+    type EmitResult = !;
 
     fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();

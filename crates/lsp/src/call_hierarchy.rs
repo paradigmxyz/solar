@@ -21,7 +21,6 @@ use lsp_types::{
 use solar_interface::{
     Span,
     data_structures::{
-        Never,
         index::IndexVec,
         map::{FxHashMap, FxHashSet},
     },
@@ -497,7 +496,7 @@ struct CallCollector<'a, 'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

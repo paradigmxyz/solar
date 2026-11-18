@@ -345,7 +345,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             &self.heap_pointer_return_functions,
             &self.heap_pointer_args[func_id],
             // The heap prefix guard reserves nothing for a longer step back.
-            EvmMemoryLayout::UNREACHABLE_MEMORY - 1,
+            EvmMemoryLayout::HEAP_START,
             visiting,
             memo,
         )
