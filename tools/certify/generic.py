@@ -2476,11 +2476,15 @@ def changed_outside(d, prefix):
     return [q for q in changed_paths(d) if not q.startswith(prefix)]
 
 
+SOLAR_BUILD_CMD = ["cargo", "build", "--locked", "--bin", "solar"]
+# The version of the build provenance a record carries (solar.build); --replay refuses a record
+# without it rather than filling it in.
+PROVENANCE_VERSION = 1
+
+
 def build_solar():
     env = dict(os.environ, CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "2"))
-    rc, _out, err = run(
-        ["cargo", "build", "--locked", "--bin", "solar"], cwd=ROOT, env=env
-    )
+    rc, _out, err = run(SOLAR_BUILD_CMD, cwd=ROOT, env=env)
     if rc != 0:
         raise Failed(f"cargo cannot build solar: {err.strip()[-400:]}")
     return ROOT / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
@@ -2511,6 +2515,62 @@ def solar_commit(version_out):
         return m.group(1)
     m = re.search(r"\+commit\.([0-9a-f]{8})", version_out)
     return m.group(1) if m else None
+
+
+def build_provenance(root, solar, version_out):
+    """The solar build's inputs as this run observed them by running git, rustc and the binary, never
+    from labels a caller passes: the checkout's commit and tree (refused unless its compiler sources
+    are its commit's), the state of its submodules (refused when one is modified or conflicted), the
+    Cargo.lock digest, rustc -vV and its host triple, the profile and features the binary reports,
+    the effective RUSTFLAGS / CARGO_ENCODED_RUSTFLAGS / CARGO_BUILD_RUSTFLAGS, and the exact build
+    command. The binary itself (SOLAR) must be the build's output path."""
+    root = pathlib.Path(root)
+    want = root / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
+    if pathlib.Path(solar).resolve() != want.resolve():
+        raise Failed(f"solar: the executable {solar} is not the build's output {want}")
+    g = ["git", "-C", str(root)]
+    if (
+        run([*g, "diff", "--quiet", "HEAD", "--", *COMPILER_SOURCES])[0] != 0
+        or run([*g, "diff", "--quiet", "--cached", "HEAD", "--", *COMPILER_SOURCES])[0]
+        != 0
+    ):
+        raise Failed(
+            "solar: the compiler sources are not the checkout's commit (dirty checkout)"
+        )
+    rc, sub, err = run([*g, "submodule", "status", "--recursive"])
+    if rc != 0:
+        raise Failed(
+            f"solar: cannot read the checkout's submodules: {err.strip()[:200]}"
+        )
+    bad = [l for l in sub.splitlines() if l[:1] in ("+", "U")]
+    if bad:
+        raise Failed(
+            f"solar: a submodule is not its recorded commit: {bad[0].strip()[:120]}"
+        )
+    rc, vv, err = run(["rustc", "-vV"], cwd=root)
+    host = re.search(r"^host: (\S+)$", vv or "", re.MULTILINE)
+    if rc != 0 or not host:
+        raise Failed(f"solar: rustc -vV fails: {err.strip()[:200]}")
+    prof = re.search(r"^Build Profile: (\S+)", version_out or "", re.MULTILINE)
+    feat = re.search(r"^Build Features: (.*)$", version_out or "", re.MULTILINE)
+    if not prof or not feat:
+        raise Failed("solar: the binary does not report its build profile and features")
+    return {
+        "provenance_version": PROVENANCE_VERSION,
+        "commit": git(root, "rev-parse", "HEAD"),
+        "tree": git(root, "rev-parse", "HEAD^{tree}"),
+        "submodules": sorted(l.strip() for l in sub.splitlines() if l.strip()),
+        "cargo_lock_sha256": sha256_file(root / "Cargo.lock"),
+        "rustc_vv": vv.strip(),
+        "target": host.group(1),
+        "profile": prof.group(1),
+        "features": feat.group(1).strip(),
+        "rustflags": {
+            k: os.environ.get(k)
+            for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS")
+        },
+        "command": SOLAR_BUILD_CMD,
+    }
 
 
 def solar_problem(solar, root, want_sha=None, allow_foreign=False):
@@ -2846,8 +2906,21 @@ REPLAY_KEYS = [
     ("solidity_lean", "base"),
     ("solidity_lean", "inputs_sha256"),
     ("solar", "commit"),
-    ("solar", "binary_sha256"),
     ("solar", "binary_commit"),
+    # The build's inputs as each run observed them (build_provenance). The binary's own digest is
+    # recorded and bound within each run (producer_problem) but not compared across runs: a debug
+    # build is not byte-reproducible, and identical checked outputs are compared instead.
+    ("solar", "build", "provenance_version"),
+    ("solar", "build", "commit"),
+    ("solar", "build", "tree"),
+    ("solar", "build", "submodules"),
+    ("solar", "build", "cargo_lock_sha256"),
+    ("solar", "build", "rustc_vv"),
+    ("solar", "build", "target"),
+    ("solar", "build", "profile"),
+    ("solar", "build", "features"),
+    ("solar", "build", "rustflags"),
+    ("solar", "build", "command"),
     ("solc", "sha256"),
     ("lean_toolchain", "recorded_digest"),
     ("published_statement",),
@@ -3342,9 +3415,57 @@ def claims_problem(rec, d):
     return None
 
 
+def producer_problem(rec, d, which):
+    # WHICH is "recorded run" or "fresh run".
+    """Why the record's solar is not the one its run built and ran, or None: the build provenance is
+    present in this version, the binary embeds the commit it was built from, and the executable
+    scripts/certify digested (certify-record.json solar_sha256, a hashed run file) is the one the
+    record names."""
+    s = rec.get("solar") or {}
+    b = s.get("build")
+    if not isinstance(b, dict) or b.get("provenance_version") != PROVENANCE_VERSION:
+        return (
+            f"versioned-unsupported: the {which} has no solar build provenance version "
+            f"{PROVENANCE_VERSION} (solar.build); nothing is filled in"
+        )
+    for k in (
+        "commit",
+        "tree",
+        "submodules",
+        "cargo_lock_sha256",
+        "rustc_vv",
+        "target",
+        "profile",
+        "features",
+        "rustflags",
+        "command",
+    ):
+        if k not in b:
+            return f"the {which}'s solar.build has no {k}"
+    if not re.fullmatch(r"[0-9a-f]{64}", str(s.get("binary_sha256"))):
+        return f"the {which} has no solar.binary_sha256"
+    if s.get("dirty") is not False:
+        return f"the {which}'s solar checkout is dirty"
+    if not (s.get("binary_commit") == b["commit"] == s.get("commit")):
+        return (
+            f"stale producer: the {which}'s solar embeds {s.get('binary_commit')}, "
+            f"not the commit it was built from ({b['commit']})"
+        )
+    try:
+        cr = json.loads((d / "certify-record.json").read_text())
+    except OSError, ValueError:
+        return f"the {which} has no readable certify-record.json to bind its executable"
+    if cr.get("solar_sha256") != s["binary_sha256"]:
+        return (
+            f"substituted executable: the {which}'s scripts/certify ran solar "
+            f"{cr.get('solar_sha256')}, not the built {s['binary_sha256']}"
+        )
+    return None
+
+
 def replay_main(a):
     """--replay DIR: refuse a finished run's directory unless its files are the record's and a
-    fresh, cold run from its source reproduces every pin of the record."""
+    fresh, cold run from the same pinned source/build inputs gives identical checked outputs."""
 
     def out(code, line):
         print(line, flush=True)
@@ -3383,6 +3504,8 @@ def replay_main(a):
     if (why := inputs_problem(rec, files)) is not None:
         out(1, f"REJECTED: replay: {why}")
     if (why := claims_problem(rec, d)) is not None:
+        out(1, f"REJECTED: replay: {why}")
+    if (why := producer_problem(rec, d, "recorded run")) is not None:
         out(1, f"REJECTED: replay: {why}")
     repo = a.solidity_lean or rec.get("solidity_lean_source", "")
     if (why := executed_problem(rec, d, repo)) is not None:
@@ -3426,12 +3549,18 @@ def replay_main(a):
         new = json.loads((fresh_dir / "record.json").read_text())
     except OSError, ValueError:
         out(1, f"REJECTED: replay: the fresh run wrote no record (exit {p.returncode})")
+    if (
+        p.returncode == 0
+        and (why := producer_problem(new, fresh_dir, "fresh run")) is not None
+    ):
+        out(1, f"REJECTED: replay: {why}")
     for path in REPLAY_KEYS:
         if dig(rec, path) != dig(new, path):
+            shown = [str(dig(r, path))[:120].replace("\n", "\\n") for r in (rec, new)]
             out(
                 1,
                 f"REJECTED: replay: {'.'.join(path)} differs between the record and the fresh run "
-                f"(record {str(dig(rec, path))[:120]}, fresh {str(dig(new, path))[:120]})",
+                f"(record {shown[0]}, fresh {shown[1]})",
             )
     for path in FRESH_KEYS:
         if (
@@ -3456,7 +3585,7 @@ def replay_main(a):
     last = new.get("status", "")
     out(
         p.returncode,
-        f"{last}: replay of {d}: every pin reproduced by a fresh cold run ({fresh_dir / 'record.json'})"
+        f"{last}: replay of {d}: a fresh cold run from the same pinned source/build inputs gave identical checked outputs ({fresh_dir / 'record.json'})"
         if p.returncode == 0
         else f"REJECTED: replay: the fresh run's verdict is {last} (exit {p.returncode})",
     )
@@ -3667,6 +3796,7 @@ def main():
         # The commit the binary embeds (its build's), recorded apart from the driver's checkout.
         m = re.search(r"Commit SHA: ([0-9a-f]{40})", vout or "")
         record["solar"]["binary_commit"] = m.group(1) if m else None
+        record["solar"]["build"] = build_provenance(ROOT, solar, vout)
         if tier == "lifecycle":
             lifecycle_run(
                 a,

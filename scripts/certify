@@ -1082,12 +1082,12 @@ python3 - "$record" "$dir/record.json" "$lean_dir/.lake/certify-headline-$name.o
     "$source" "$plain" "$version" "$head" "$final" "$mir_status" "$assembly_status" "$spec_status" \
     "$negatives" "$e2e_kind" "$lean_dir/.lake/certify-vacuous-$name" \
     "$lean_dir/.lake/certify-audit-$name.out" "$executes" "$lean_dir/.lake/certify-$name.json.binding" \
-    "$final_record" "$replay_receipt" <<'EOF'
+    "$final_record" "$replay_receipt" "$solar_sha" <<'EOF'
 import json, re, sys
 
 (out, committed, audit_out, contract, name, source, bytecode, solar, lean, final, mir, assembly,
  spec, negatives, e2e_kind, vacuous_file, proofs_audit, executes, binding_file,
- final_file, replay_file) = sys.argv[1:]
+ final_file, replay_file, solar_sha) = sys.argv[1:]
 lines = lambda suffix: [l for l in open(out + suffix).read().splitlines() if l]
 e2e = lines(".headline")
 text = open(audit_out).read() if e2e else ""
@@ -1220,6 +1220,8 @@ record = {
     "source": source,
     "bytecode": bytecode,
     "solar": solar,
+    # The digest of the solar executable this script ran (replay binds it to the driver's record).
+    "solar_sha256": solar_sha,
     "solidity_lean": lean,
     "mir_to_evmir": mir,
     "assembly": assembly,

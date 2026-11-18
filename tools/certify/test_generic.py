@@ -261,6 +261,7 @@ def claims_record():
     )
     cr["caveats"] = []
     cr["end_to_end_statement"] = {}
+    cr["solar_sha256"] = BIN
     ok, need_c, comps = generic.strict(cr, "certified")
     rec = {
         "name": NAME,
@@ -270,9 +271,44 @@ def claims_record():
         "strict": {"tier": "certified", "holds": ok, "components": need_c},
         "tier_reached": generic.reached_tier(comps),
         "published_statement": cr["end_to_end_statement"],
+        "solar": solar_rec(),
         **{k: json.loads(json.dumps(cr[k])) for k in generic.CLAIM_KEYS},
     }
     return cr, rec
+
+
+BIN = "e" * 64
+SOLAR_COMMIT = "5" * 40
+
+
+def solar_rec():
+    """A record's solar entry with build provenance version 1, as build_provenance writes it."""
+    return {
+        "commit": SOLAR_COMMIT,
+        "dirty": False,
+        "binary_sha256": BIN,
+        "binary_commit": SOLAR_COMMIT,
+        "version": "solar 0.3.0",
+        "build": {
+            "provenance_version": 1,
+            "commit": SOLAR_COMMIT,
+            "tree": "6" * 40,
+            "submodules": [
+                "-1835d247de183f23e7b0e2bc4a50732af525b77c testdata/solidity"
+            ],
+            "cargo_lock_sha256": "7" * 64,
+            "rustc_vv": "rustc 1.100.0 (abc 2026-01-01)\nbinary: rustc\ncommit-hash: abc\nhost: x86_64-unknown-linux-gnu",
+            "target": "x86_64-unknown-linux-gnu",
+            "profile": "debug",
+            "features": "mimalloc,tracing",
+            "rustflags": {
+                "RUSTFLAGS": None,
+                "CARGO_ENCODED_RUSTFLAGS": None,
+                "CARGO_BUILD_RUSTFLAGS": None,
+            },
+            "command": ["cargo", "build", "--locked", "--bin", "solar"],
+        },
+    }
 
 
 class ReplayClaims(unittest.TestCase):
@@ -325,10 +361,16 @@ class ReplayClaims(unittest.TestCase):
         (d / "record.json").write_text(json.dumps(rec))
         return d
 
-    def replay(self, d, fresh_edit=None, packages_from=True):
+    def replay(self, d, fresh_edit=None, packages_from=True, fresh_cr_edit=None):
         """replay_main in this process, its fresh run replaced by one that writes the record's own
-        claims back (edited by fresh_edit): the checks run, no Lean does."""
+        claims back (edited by fresh_edit) and its certify-record.json (edited by fresh_cr_edit):
+        the checks run, no Lean does."""
         orig = json.loads((d / "record.json").read_text())
+        orig_cr = (
+            json.loads((d / "certify-record.json").read_text())
+            if (d / "certify-record.json").exists()
+            else {}
+        )
 
         def fake_run(cmd, *args, **kw):
             if "--record-dir" not in cmd:
@@ -340,6 +382,10 @@ class ReplayClaims(unittest.TestCase):
             out = pathlib.Path(cmd[cmd.index("--record-dir") + 1])
             out.mkdir(parents=True)
             (out / "record.json").write_text(json.dumps(fresh))
+            fcr = json.loads(json.dumps(orig_cr))
+            if fresh_cr_edit:
+                fresh_cr_edit(fcr)
+            (out / "certify-record.json").write_text(json.dumps(fcr))
             return subprocess.CompletedProcess(cmd, 0)
 
         a = argparse.Namespace(
@@ -364,6 +410,149 @@ class ReplayClaims(unittest.TestCase):
             code, line = self.replay(self.make(pathlib.Path(t)))
             self.assertEqual(code, 0, line)
             self.assertTrue(line.startswith("CERTIFIED: replay of "), line)
+            self.assertIn(
+                ": a fresh cold run from the same pinned source/build inputs gave identical checked outputs (",
+                line,
+            )
+            self.assertNotIn("every pin", line)
+
+    def test_build_provenance_binds_the_build_output(self):
+        """build_provenance refuses an executable that is not the build's output (an unbound path)
+        and a binary that does not report its profile and features; it reads the rest by running."""
+        with self.assertRaises(generic.Failed) as e:
+            generic.build_provenance(
+                generic.ROOT, "/usr/bin/true", "Build Profile: debug\nBuild Features: x"
+            )
+        self.assertIn("is not the build's output", str(e.exception))
+        out = (
+            generic.ROOT
+            / os.environ.get("CARGO_TARGET_DIR", "target")
+            / "debug"
+            / "solar"
+        )
+        if (
+            generic.run(
+                [
+                    "git",
+                    "-C",
+                    str(generic.ROOT),
+                    "diff",
+                    "--quiet",
+                    "HEAD",
+                    "--",
+                    *generic.COMPILER_SOURCES,
+                ]
+            )[0]
+            == 0
+        ):
+            with self.assertRaises(generic.Failed) as e:
+                generic.build_provenance(generic.ROOT, out, "Commit SHA: x")
+            self.assertIn("profile and features", str(e.exception))
+            b = generic.build_provenance(
+                generic.ROOT, out, "Build Profile: debug\nBuild Features: default"
+            )
+            self.assertEqual(b["provenance_version"], 1)
+            self.assertEqual(
+                b["command"], ["cargo", "build", "--locked", "--bin", "solar"]
+            )
+            self.assertRegex(b["rustc_vv"], r"(?m)^host: ")
+            self.assertEqual(
+                b["cargo_lock_sha256"], generic.sha256_file(generic.ROOT / "Cargo.lock")
+            )
+
+    # Replay pins (build provenance instead of cross-build binary identity). Each line is snapshot
+    # in testdata/replay_pin.snapshot, which REPLAY_PIN_SNAPSHOT=1 rewrites.
+    def pin_case(self, edit=None, fresh_edit=None, fresh_cr_edit=None):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(
+                self.make(pathlib.Path(t), edit),
+                fresh_edit,
+                fresh_cr_edit=fresh_cr_edit,
+            )
+        return code, re.sub(r"(?<=[ (])/[^ ()]*", "<path>", line)
+
+    def test_replay_pins(self):
+        def fresh_bin(r):
+            r["solar"]["binary_sha256"] = "f" * 64
+
+        def build(k, v):
+            def e(r):
+                r["solar"]["build"][k] = v
+
+            return e
+
+        def both(*es):
+            def e(r):
+                for x in es:
+                    x(r)
+
+            return e
+
+        def unversioned(r):
+            del r["solar"]["build"]
+
+        cases = {
+            "only the binary digest differs": (
+                0,
+                None,
+                fresh_bin,
+                lambda c: c.update(solar_sha256="f" * 64),
+            ),
+            "bytecode differs": (
+                1,
+                None,
+                both(fresh_bin, lambda r: r.update(bytecode_sha256="9" * 64)),
+                lambda c: c.update(solar_sha256="f" * 64),
+            ),
+            "Cargo.lock differs": (1, None, build("cargo_lock_sha256", "8" * 64), None),
+            "toolchain differs": (
+                1,
+                None,
+                build("rustc_vv", "rustc 1.101.0\nhost: x86_64-unknown-linux-gnu"),
+                None,
+            ),
+            "flags differ": (
+                1,
+                None,
+                build(
+                    "rustflags",
+                    {
+                        "RUSTFLAGS": "-Copt-level=3",
+                        "CARGO_ENCODED_RUSTFLAGS": None,
+                        "CARGO_BUILD_RUSTFLAGS": None,
+                    },
+                ),
+                None,
+            ),
+            "source tree differs": (1, None, build("tree", "0" * 40), None),
+            "stale producer": (
+                1,
+                lambda r: r["solar"].update(binary_commit="4" * 40),
+                None,
+                None,
+            ),
+            "substituted executable (record)": (
+                1,
+                lambda r: r["solar"].update(binary_sha256="d" * 64),
+                None,
+                None,
+            ),
+            "substituted executable (fresh)": (1, None, fresh_bin, None),
+            "old record without provenance": (1, unversioned, None, None),
+            "fresh record without provenance": (1, None, unversioned, None),
+            "dirty checkout": (1, lambda r: r["solar"].update(dirty=True), None, None),
+        }
+        got = {}
+        for label, (want, edit, fe, fce) in cases.items():
+            with self.subTest(label):
+                code, line = self.pin_case(edit, fe, fce)
+                got[label] = f"{code} {line}"
+                self.assertEqual(code, want, line)
+        snap = HERE / "testdata" / "replay_pin.snapshot"
+        text = "".join(f"{k}: {v}\n" for k, v in got.items())
+        if os.environ.get("REPLAY_PIN_SNAPSHOT") == "1":
+            snap.write_text(text)
+        self.assertEqual(text, snap.read_text())
 
     def test_tampered_record_rejected(self):
         def drop_module(r):
@@ -423,12 +612,14 @@ class ReplayClaims(unittest.TestCase):
                 closure=11, replayed_count=11
             ),
             "replay.replayed": lambda r: r["replay"]["replayed"].pop(),
-            # Another compiler: the fresh run's binary is not the record's.
-            "solar.binary_sha256": lambda r: r.setdefault("solar", {}).update(
-                binary_sha256="0" * 64
-            ),
-            "solar.binary_commit": lambda r: r.setdefault("solar", {}).update(
+            # Another compiler: the fresh run's solar built from another commit. (Its binary digest
+            # alone is not compared across runs: test_replay_pins.)
+            "stale producer": lambda r: r.setdefault("solar", {}).update(
                 binary_commit="0" * 40
+            ),
+            "solar.commit": lambda r: (
+                r["solar"].update(commit="0" * 40, binary_commit="0" * 40),
+                r["solar"]["build"].update(commit="0" * 40),
             ),
         }
         for field, edit in cases.items():
