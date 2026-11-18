@@ -1159,8 +1159,9 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
         env=env,
     )
     if rc != 0:
+        ln, _ = keep_log(f"{name}.Probe", out + err)
         raise Failed(
-            "the probe's build fails: "
+            f"the probe's build fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if l.startswith("error"))[
                 :400
             ]
@@ -1172,8 +1173,9 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
         what, _, verdict = l[len("PROBE ") :].partition(": ")
         res[what] = verdict
     if rc != 0 or "typecheck" not in res:
+        ln, _ = keep_log(f"{name}.Probe.run", out + err)
         raise Failed(
-            "the probe fails: "
+            f"the probe fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if "error" in l)[:400]
         )
     reasons = []
@@ -1401,8 +1403,9 @@ def run_lifecycle_probe(
         env=env,
     )
     if rc != 0:
+        ln, _ = keep_log(f"{name}.LifeProbe", out + err)
         raise Failed(
-            "lifecycle: the probe's build fails: "
+            f"lifecycle: the probe's build fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if l.startswith("error"))[
                 :400
             ]
@@ -1416,8 +1419,9 @@ def run_lifecycle_probe(
             what, _, verdict = l[len("PROBE ") :].partition(": ")
             res[what] = verdict
     if rc != 0 or "typecheck" not in res:
+        ln, _ = keep_log(f"{name}.LifeProbe.run", out + err)
         raise Failed(
-            "lifecycle: the probe fails: "
+            f"lifecycle: the probe fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if "error" in l)[:400]
         )
     shutil.rmtree(pl, ignore_errors=True)
@@ -2237,6 +2241,7 @@ def lifecycle_all(
         rec["detail"] = (
             f"the symbolic creation frame does not prove every creation: {errs}"
         )
+        rec["log"], rec["log_tail"] = keep_log(f"{name}.LifecycleAll", out)
     return rec
 
 
@@ -2303,7 +2308,18 @@ def lifecycle_kernel(
         storage,
         refute=True,
     )
-    rok, _ = build("LifecycleRefute", rtext)
+    rok, rout = build("LifecycleRefute", rtext)
+    lname = ns.split(".")[1]
+    logs = {
+        "logs": {
+            "Lifecycle": keep_log(f"{lname}.Lifecycle", out)[0],
+            "LifecycleRefute": None
+            if rok
+            else keep_log(f"{lname}.LifecycleRefute", rout)[0],
+        },
+        "log_tail": "\n".join(out.splitlines()[-60:]),
+        "refute_log_tail": None if rok else "\n".join(rout.splitlines()[-60:]),
+    }
     if rok:
         return {
             "stage": "kernel",
@@ -2311,6 +2327,7 @@ def lifecycle_kernel(
             "verdict": "refuted",
             "lean": rtext,
             "detail": "the kernel proves the creation does not deploy this code and storage (not_deploys_of_refutes)",
+            **logs,
         }
     errs = " | ".join(l for l in out.splitlines() if "error" in l)[:400]
     return {
@@ -2318,6 +2335,7 @@ def lifecycle_kernel(
         "ok": False,
         "verdict": "outside",
         "detail": f"the kernel proves neither the deployment nor its refutation (a revert path, or a frame outside the shape): {errs}",
+        **logs,
     }
 
 
@@ -2482,7 +2500,13 @@ def lifecycle_run(
         outside,
         bind,
     )
-    stages.append({k: kq[k] for k in ("stage", "ok", "detail")})
+    stages.append(
+        {
+            k: kq[k]
+            for k in ("stage", "ok", "detail", "logs", "log_tail", "refute_log_tail")
+            if k in kq
+        }
+    )
     log(f"lifecycle kernel: {'YES' if kq['ok'] else 'NO'}: {kq['detail']}")
     if "lean" in kq:
         f = rec_dir / f"{name}.{'Lifecycle' if kq['ok'] else 'LifecycleRefute'}.lean"
@@ -2631,7 +2655,24 @@ def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
     rc, out, err = run(
         ["lake", "build", "-KleanMemory=6000", f"{name}.{mod}"], cwd=lean_dir, env=env
     )
+    if rc != 0:
+        keep_log(f"{name}.{mod}", out + err)
     return rc == 0, out + err
+
+
+# The record directory failed lake builds keep their whole output in (main sets it); None keeps none.
+BUILD_LOG_DIR = None
+
+
+def keep_log(label, out, lines=60):
+    """A failed lake build's (or lake-run probe's) whole output, kept as LABEL.build.log in
+    BUILD_LOG_DIR, and its last LINES lines: (the log's name or None, the tail)."""
+    tail = "\n".join((out or "").splitlines()[-lines:])
+    if BUILD_LOG_DIR is None:
+        return None, tail
+    log_name = f"{label}.build.log"
+    (pathlib.Path(BUILD_LOG_DIR) / log_name).write_text(out or "")
+    return log_name, tail
 
 
 def build_failure(rec_dir, name, mod, out, lines=60):
@@ -3357,6 +3398,7 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
         lake_env=lambda d: lake_jobs_env(d, dict(os.environ, LEAN_NUM_THREADS="1")),
         log=log,
         summary=loop_summaries(a.loop_summary or []).get,
+        keep=keep_log,
     )
     record["loop_heads"] = heads
     record["loop_cuts"] = cuts
@@ -4232,6 +4274,8 @@ def main():
     src = pathlib.Path(a.source).resolve()
     rec_dir = pathlib.Path(a.record_dir).resolve()
     rec_dir.mkdir(parents=True, exist_ok=True)
+    global BUILD_LOG_DIR
+    BUILD_LOG_DIR = rec_dir
     work = pathlib.Path(a.work).resolve()
     if a.spec not in ("natspec", "none"):
         raise SystemExit("certify: SPEC must be natspec or none")

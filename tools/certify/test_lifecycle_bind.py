@@ -12,6 +12,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -195,6 +196,127 @@ class Wiring(unittest.TestCase):
         self.assertEqual(len(tail.splitlines()), 60)
         self.assertIn("lean::memory_exception", tail)
         self.assertTrue(tail.endswith("error: Lean exited with code 134"))
+
+
+class BuildLogs(unittest.TestCase):
+    """Every failed lake build the driver runs keeps its whole log in the record directory."""
+
+    OUT = "\n".join(
+        [f"✔ [{i}/9] Built M{i}" for i in range(80)]
+        + [
+            "✖ [9/9] Building counter_f1c87a33.Lifecycle",
+            "INTERNAL PANIC: lean::memory_exception: excessive memory consumption detected at 'interpreter'",
+            "error: Lean exited with code 134",
+        ]
+    )
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.d = pathlib.Path(self.t.name)
+        self.old = generic.BUILD_LOG_DIR
+        generic.BUILD_LOG_DIR = self.d
+
+    def tearDown(self):
+        generic.BUILD_LOG_DIR = self.old
+        self.t.cleanup()
+
+    def test_failing_kernel_module_keeps_its_log(self):
+        """The kernel's Lifecycle and LifecycleRefute builds both fail (Lean exit 134): the stage is
+        outside, and both full logs are kept with the Lifecycle tail in the result."""
+
+        def build(mod, text):
+            generic.keep_log(f"{NAME}.{mod}", self.OUT)  # lifecycle_build's own keep
+            return False, self.OUT
+
+        kq = generic.lifecycle_kernel(
+            build,
+            f"Certified.{NAME}.Lifecycle",
+            f"{NAME}.Source",
+            f"Certified.{NAME}.Src.importedSourceUnit",
+            "Counter",
+            SIGS,
+            bytes.fromhex("6080"),
+            bytes.fromhex("6001"),
+            bytes.fromhex("6001"),
+            [8],
+            [(1, 8)],
+            [],
+        )
+        self.assertEqual(kq["verdict"], "outside")
+        self.assertEqual(
+            kq["logs"],
+            {
+                "Lifecycle": f"{NAME}.Lifecycle.build.log",
+                "LifecycleRefute": f"{NAME}.LifecycleRefute.build.log",
+            },
+        )
+        for f in kq["logs"].values():
+            self.assertEqual((self.d / f).read_text(), self.OUT)
+        self.assertEqual(len(kq["log_tail"].splitlines()), 60)
+        self.assertTrue(kq["log_tail"].endswith("error: Lean exited with code 134"))
+        self.assertIn("lean::memory_exception", kq["refute_log_tail"])
+
+    def test_lifecycle_build_keeps_every_failed_module(self):
+        calls = []
+
+        def fake(cmd, cwd=None, env=None):
+            calls.append(cmd)
+            return (1, self.OUT, "") if cmd[:2] == ["lake", "build"] else (0, "", "")
+
+        lean = self.d / "lean"
+        (lean / "Certified").mkdir(parents=True)
+        (lean / "lakefile.lean").write_text("")
+        with (
+            unittest.mock.patch.object(generic, "run", fake),
+            unittest.mock.patch.object(
+                generic, "declare_lean_lib", lambda *a, **k: None
+            ),
+        ):
+            ok, _out = generic.lifecycle_build(
+                lean, NAME, "-- src", "LifecycleAll", "-- t", None
+            )
+        self.assertFalse(ok)
+        self.assertEqual(
+            (self.d / f"{NAME}.LifecycleAll.build.log").read_text(), self.OUT
+        )
+
+    def test_no_dir_keeps_nothing(self):
+        generic.BUILD_LOG_DIR = None
+        name, tail = generic.keep_log("x", self.OUT)
+        self.assertIsNone(name)
+        self.assertEqual(len(tail.splitlines()), 60)
+
+    def test_loop_cuts_failures_keep_their_logs(self):
+        import loop_cuts
+
+        self.assertIs("keep=keep_log," in (HERE / "generic.py").read_text(), True)
+        loop_cuts.KEEP = generic.keep_log
+        try:
+            self.assertEqual(
+                loop_cuts.kept(f"{NAME}.Loops.bump.Obl", self.OUT),
+                f"{NAME}.Loops.bump.Obl.build.log",
+            )
+        finally:
+            loop_cuts.KEEP = None
+        self.assertEqual(
+            (self.d / f"{NAME}.Loops.bump.Obl.build.log").read_text(), self.OUT
+        )
+        src = (HERE / "loop_cuts.py").read_text()
+        for label in ("GenImports", "Gen", "Obl"):
+            self.assertIn(f'kept(f"{{name}}.Loops.{{fname}}.{label}", out + err)', src)
+
+    def test_every_lake_failure_site_keeps(self):
+        src = (HERE / "generic.py").read_text()
+        for label in (
+            "Probe",
+            "Probe.run",
+            "LifeProbe",
+            "LifeProbe.run",
+            "LifecycleAll",
+        ):
+            self.assertIn(f'keep_log(f"{{name}}.{label}"', src)
+        self.assertIn('keep_log(f"{name}.{mod}", out + err)', src)
+        self.assertIn("BUILD_LOG_DIR = rec_dir", src)
 
 
 if __name__ == "__main__":
