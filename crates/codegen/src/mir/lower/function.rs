@@ -1376,7 +1376,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
-                let previous_span = builder.replace_source_span(gcx.hir.function(function_id).span);
                 let call_arguments = arguments
                     .iter()
                     .copied()
@@ -1447,7 +1446,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     };
                     builder.ret([result]);
                 }
-                builder.replace_source_span(previous_span);
                 builder.switch_to_block(next_block);
             }
 
