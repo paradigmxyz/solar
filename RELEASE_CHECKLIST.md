@@ -67,17 +67,19 @@ each version appears once in every changelog file. `cargo release` runs `git-cli
 [`cliff.toml`](cliff.toml), which writes the area sections below from conventional-commit types and
 scopes. Edit its output by hand into this order:
 
-1. **Breaking changes and compatibility.** Only when there is something to say; cliff fills it from
-   `!` commits, and you add the rest. List the MSRV, a changed default (and what it costs), code that
-   used to compile and now errors, output that changes for the same input (bytecode, ABI, NatSpec,
-   source maps, flags, Standard JSON), and removed or renamed flags. Say who is affected.
-2. **Highlights.** Written by hand, grouped by the area names below, a few bullets per group with
-   linked PRs and numbers. Cover only what users notice.
+1. **Breaking changes and compatibility.** Only when there is something to say. Cliff lists `!`
+   commits here, and also in their area, so delete the duplicate; it drops a `!` commit whose type
+   or scope it skips, such as a `chore!` MSRV bump, so add those and the rest by hand. List the
+   MSRV, a changed default (and what it costs), code that used to compile and now errors, output
+   that changes for the same input (bytecode, ABI, NatSpec, source maps, flags, Standard JSON), and
+   removed or renamed flags. Say who is affected.
+2. **Highlights.** Written by hand: 5 to 8 bullets, each led by a short bold label (an area name
+   where one fits), with linked PRs and numbers. Cover only what users notice most; everything else stays in the area sections.
 3. **Area sections.** Generated, in this order, one line per user-facing change, newest first:
    Language and diagnostics; Code generation: gas and size; Code generation: features and fixes;
    Debug info and coverage; Output: ABI, AST, NatSpec and metadata; Compile time and memory; CLI and
-   Standard JSON; Language server. Features, fixes and performance changes share a section, because
-   the commit scope and subject already say which is which. Write a fix in the section of the
+   Standard JSON; Language server. Features and fixes share a section, and the two code generation
+   sections split by `perf` against the rest, so the subject already says which kind a line is. Write a fix in the section of the
    behavior it changes: a codegen change that only makes source maps better belongs to Debug info
    and coverage.
 
@@ -85,9 +87,10 @@ The grouping comes from the commit, so keep the scope honest when you write one:
 `ast` and `lint` land in Language and diagnostics; `codegen`, `mir`, `evmir`, `ir` and `inline` in
 Code generation (`perf` goes to gas and size); `cli`, `config` and `interface` in CLI and Standard
 JSON; `lsp` in Language server. A `perf` with a frontend scope, or none, goes to Compile time and
-memory. Subjects that mention debug info, origins, source maps, spans or coverage go to Debug info
-and coverage, and subjects that mention NatSpec, the AST, the ABI, metadata or storage layout go to
-Output. A commit that matches nothing lands in Other: move it to its area or delete it. To change a
+memory. The `lsp` scope wins over the subject rules. For `feat` and `fix` commits, the `debug` and
+`debuginfo` scopes, and subjects that mention debug info, origins, source maps, spans, coverage,
+attributing or a location, go to Debug info and coverage; subjects that mention NatSpec, the AST, the
+ABI, metadata hashes, storage layout, userdoc or devdoc go to Output. A commit that matches nothing lands in Other: move it to its area or delete it. To change a
 rule, edit `commit_parsers` in `cliff.toml`; the numbers in the group names order the sections.
 
 ### What to drop

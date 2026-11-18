@@ -26,7 +26,7 @@ body = """\
 {% endif %}\
 {% set breaking = commits | filter(attribute="breaking", value=true) %}\
 {% if breaking | length > 0 %}
-    ### Breaking changes
+    ### Breaking changes and compatibility
     {% for commit in breaking %}
         - {% if commit.scope %}[{{ commit.scope }}] {% endif %}{{ commit.message | upper_first | split(pat="\\n") | first }}\
     {% endfor %}
@@ -56,9 +56,10 @@ commit_parsers = [
     { message = "^(chore|ci|test|refactor|style|revert|docs?)\\b", skip = true },
 
     # Areas, first match wins. Keep the numeric comments: they order the sections.
-    { message = "(?i)^(feat|fix)(\\(.*\\))?!?: .*(debug|origin|source ?map|\\bspans?\\b|coverage|\\bmaps?\\b)", group = "<!-- 40 -->Debug info and coverage" },
-    { message = "(?i)^(feat|fix)(\\(.*\\))?!?: .*(natspec|\\bast\\b|\\babi\\b|metadata|storage layout|userdoc|devdoc)", group = "<!-- 50 -->Output: ABI, AST, NatSpec and metadata" },
     { field = "scope", pattern = "^lsp$", group = "<!-- 80 -->Language server" },
+    { field = "scope", pattern = "^(debug|debuginfo)$", group = "<!-- 40 -->Debug info and coverage" },
+    { message = "(?i)^(feat|fix)(\\(.*\\))?!?: .*(debug|origin|source ?map|\\bspans?\\b|coverage|\\bmaps?\\b|attribute|a location|call location|location kind)", group = "<!-- 40 -->Debug info and coverage" },
+    { message = "(?i)^(feat|fix)(\\(.*\\))?!?: .*(natspec|\\bast\\b|\\babi\\b|metadata (hash|json)|(bytecode|cbor|ipfs) metadata|storage layout|userdoc|devdoc)", group = "<!-- 50 -->Output: ABI, AST, NatSpec and metadata" },
     { message = "^perf(\\((sema|cli|parse|interface|config|ast|lint)\\))?!?:", group = "<!-- 60 -->Compile time and memory" },
     { message = "^perf", group = "<!-- 30 -->Code generation: gas and size" },
     { field = "scope", pattern = "^(cli|config|interface)$", group = "<!-- 70 -->CLI and Standard JSON" },

@@ -23,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
 - [sema] Report inherited conflicts at the later declaration ([#2326](https://github.com/paradigmxyz/solar/issues/2326))
 - [sema] Add solc codes to resolver errors ([#2321](https://github.com/paradigmxyz/solar/issues/2321))
-- [sema] Add code 6651 to data location errors ([#2319](https://github.com/paradigmxyz/solar/issues/2319))
 - [sema] Add code and suggestion to checksum error ([#2318](https://github.com/paradigmxyz/solar/issues/2318))
 - [sema] Resolve Yul let initializers before the new names ([#2308](https://github.com/paradigmxyz/solar/issues/2308))
 - [sema] Reject duplicate Yul switch cases ([#2309](https://github.com/paradigmxyz/solar/issues/2309))
