@@ -688,13 +688,14 @@ PUSH1 -1:-1:-1
 REVERT -1:-1:-1
 "#]]
         );
-        // The source-only assignments in `_state` have no instructions. Its return still
-        // identifies successful completion of the helper, independently of those locations.
+        // The source-only assignments in `_state` have no instructions. Its return, which maps to
+        // the closing brace of the body, still identifies successful completion of the helper,
+        // independently of those locations.
         let start = source.find("function _state()").unwrap();
         let end = start + source[start..].find("\n    }").unwrap() + "\n    }".len();
         assert!(instructions.iter().enumerate().any(|(index, inst)| {
             inst["operation"]["mnemonic"] == "JUMP"
-                && entries[index] == [start as i64, (end - start) as i64, id as i64]
+                && entries[index] == [end as i64 - 1, 1, id as i64]
         }));
     }
 }

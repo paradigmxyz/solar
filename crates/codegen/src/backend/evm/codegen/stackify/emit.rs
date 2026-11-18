@@ -876,6 +876,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// definition inside the use is the more precise origin of this very read, so it stays. An
     /// unoptimized build also keeps a definition that is its own item, such as the initializer of a
     /// local, because the read may be the only instruction coverage can anchor that item to.
+    ///
+    /// The use's origins apply because the read is re-executed as part of evaluating the use. An
+    /// implicit function exit, which maps to the closing brace of the body, evaluates no
+    /// expression of its own: it only returns the named return variables. A read recomputed into
+    /// its return encoding carries the value of the statement that read it, and LLVM's
+    /// `TargetInstrInfo::reMaterialize` clone keeps the definition's location there. So at that
+    /// exit every definition keeps its origins, or the statement of the read could be left with no
+    /// instruction.
     fn keeps_definition_origins(
         &self,
         func: &Function,
@@ -893,9 +901,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .source_spans()
                 .all(|user| definition.source_spans().any(|def| def.contains(user)))
         };
+        let at_implicit_exit = || {
+            consumer.only_source_span().is_some_and(|user| {
+                user.hi() == func.declaration_span.hi() && user.lo() + 1 == user.hi()
+            })
+        };
         !is_operandless_read(func, value)
             || !consumer.has_source_spans()
             || definition_in_use()
+            || at_implicit_exit()
             || self.optimization.is_none() && !use_in_definition()
     }
 
