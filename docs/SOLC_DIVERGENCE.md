@@ -1496,7 +1496,8 @@ pass on an empty map.
   `return P(a, b);`, has no entry, and neither has its `return`. The code that
   builds the struct maps to each call, `make(x, 1)` and `make(x, 2)`. `solc`
   emits the function once and maps its `return` to it. A helper that reads a
-  named return variable or calls itself is not inlined and keeps its entry.
+  named return variable is not inlined and keeps its entry, and so does one
+  that a call inside its own expansion reaches again.
 - Rationale: MIR lowering inlines the function into each call, so the code runs
   at the call and the call is its location.
 - Coverage:

@@ -13,11 +13,13 @@
 // CHECK: "srcmap-runtime":"[[#C:]]:
 // The shared block of the merged `return 1;`.
 // CHECK: -1:-1:-1;
-// Both `return 1;` and both `return abi.encodeCall(this.g, (1));`.
+// Both `return 1;`, both `return abi.encodeCall(this.g, (1));` and the `abi.encodeCall` in each.
 // CHECK-NOT: {{[;"]}}[[#C+107]]{{[:;"]}}
 // CHECK-NOT: {{[;"]}}[[#C+161]]{{[:;"]}}
 // CHECK-NOT: {{[;"]}}[[#C+307]]{{[:;"]}}
 // CHECK-NOT: {{[;"]}}[[#C+387]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+314]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+394]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `x == 3`
