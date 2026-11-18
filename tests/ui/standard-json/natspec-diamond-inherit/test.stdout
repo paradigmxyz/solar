@@ -1,0 +1,32 @@
+{
+  "sources": {
+    "Diamond.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "Diamond.sol": {
+      "Diamond": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f()": {
+              "notice": "From I."
+            },
+            "g()": {
+              "notice": "From G."
+            }
+          },
+          "version": 1
+        }
+      },
+      "Distinct": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        }
+      }
+    }
+  }
+}

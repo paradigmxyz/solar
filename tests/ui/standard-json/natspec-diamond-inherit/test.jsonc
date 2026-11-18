@@ -1,0 +1,26 @@
+//@ filecheck:
+// An undocumented override inherits the docs of a base it reaches through a diamond, but not
+// when it overrides two distinct bases.
+// CHECK-LABEL: "Diamond": {
+// CHECK-NEXT: "userdoc": {
+// CHECK-NEXT: "kind": "user",
+// CHECK-NEXT: "methods": {
+// CHECK-NEXT: "f()": {
+// CHECK-NEXT: "notice": "From I."
+// CHECK: "g()": {
+// CHECK-NEXT: "notice": "From G."
+// CHECK-LABEL: "Distinct": {
+// CHECK-NEXT: "userdoc": {
+// CHECK-NEXT: "kind": "user",
+// CHECK-NEXT: "methods": {},
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "Diamond.sol": {
+        "Diamond": ["userdoc"],
+        "Distinct": ["userdoc"]
+      }
+    }
+  }
+}
