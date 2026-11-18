@@ -184,6 +184,45 @@ class ManifestBinding(unittest.TestCase):
             self.assertNotEqual(final_py(self.d, shape, manifest()).returncode, 0)
 
 
+class ManifestWithOpenResources(unittest.TestCase):
+    """A loop function's statement with the Resources premise and the manifest binding together:
+    the Statement binds Manifest.* and carries ResourcesOpen, and the record is not CERTIFIED."""
+
+    def test_both(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t)
+            shape = expected_shape(kind="functional", open_premises=["resources"])
+            p = final_py(d, shape, manifest())
+            self.assertEqual(p.returncode, 0, p.stderr)
+            st = (d / "Statement.lean").read_text()
+            f = (d / "Final.lean").read_text()
+            self.assertIn(f"import {NAME}.gen.{C}.Manifest\n", st)
+            self.assertIn(f"  {M}.sources = [", st)
+            self.assertIn(f"    {M}.arguments = ", st)
+            self.assertIn(f'    {M}.bytecodeSha256 = "{DIGEST}" ∧\n', st)
+            self.assertIn("def ResourcesOpen : Prop :=\n", st)
+            self.assertIn(f"  assumptions := [_root_.{NS}.ResourcesOpen]\n", st)
+            self.assertIn(f"refine ⟨rfl, rfl, rfl, rfl, _root_.{NS}.bound, ", f)
+            self.assertIn(
+                f"    have hr := hA _root_.{NS}.ResourcesOpen (List.mem_singleton_self _) c hc\n",
+                f,
+            )
+            self.assertNotIn("certifiedAt_default", f)
+            rec = json.loads((d / "final.json").read_text())
+            self.assertIs(rec["strongest"], False)
+            self.assertEqual(rec["open_premises"], ["resources"])
+            self.assertEqual(rec["manifest"]["arguments"], ARGS)
+            self.assertTrue(
+                rec["statuses"]["resources"].startswith("Resources OPEN (hypothesis")
+            )
+            self.assertEqual(rec["statuses"]["closure"], "not closure")
+            certify = (HERE.parents[1] / "scripts" / "certify").read_text()
+            self.assertIn(
+                'and not final.get("open_premises") and not provenance', certify
+            )
+            self.assertIn("manifest_args=(--manifest-json", certify)
+
+
 def run_fixture(root):
     d = root / "Certified" / NAME
     (d / "gen" / C).mkdir(parents=True)

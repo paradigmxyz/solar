@@ -64,7 +64,14 @@ shape.json keys (Lean terms without tactics or commands):
             the first lowered MIR under an oracle; the statement then has no checked contract
   proof_module, proof  the module and the term of type `∀ env…, ∃ c, contract = .ok c ∧ Shape`
   excluded  what the statement does not cover, recorded verbatim
-The strongest status is reported only for kind "certified" with the specification from
+  open_premises  (statement expected only) the obligations the statement takes as named, undischarged
+            hypotheses instead of proving: ["resources"] (a loop route's run, before resources are
+            proved). The hypothesis is driver-fixed text, Certified.NAME.Final.ResourcesOpen: the
+            Expected statement's ResourcesAt in the default context for the declared valid calls
+            and gas bound, put in spec.assumptions, so Expected holds only under it. The kind is
+            then "functional" and the proof module supplies Shapes.Functional. Never the strongest
+            status: the record says "Resources OPEN (hypothesis)" and "not closure".
+The strongest status is never reported with open_premises. Otherwise it is reported only for kind "certified" with the specification from
 solar-verify's export (spec_export) and the non-vacuity witnesses (nonvacuous) in the statement.
 """
 
@@ -316,6 +323,7 @@ def expected_mode(
     byte_list,
     export,
     manifest=None,
+    open_res=False,
 ):
     """The driver-fixed statement: solidity-lean's Generic.Expected src spec runtimeBytes (Verify/Generic/
     Expected.lean), the same for every contract, with the binding of the fresh export to the bytes.
@@ -323,7 +331,12 @@ def expected_mode(
     allowed statuses, postcondition and gas bound (spec, all in the default context), the entries
     (one per external function, each its own selector's calls) and the coverage witnesses. The proof
     module still supplies a Shapes.Certified term; Final.lean carries it into Expected through
-    Generic.certifiedAt_default, and proves the coverage from the non-vacuity witnesses."""
+    Generic.certifiedAt_default, and proves the coverage from the non-vacuity witnesses.
+
+    With OPEN_RES (open_premises ["resources"]) the proof module supplies Shapes.Functional
+    instead, the statement's spec.assumptions is [ResourcesOpen] (Expected's ResourcesAt in the
+    default context, written here, never by the shape), and Final.lean takes the resources from
+    that assumption: Expected then holds only under it."""
     if env:
         fail(
             "shape.json: statement expected with assumptions (env) is not supported yet"
@@ -382,6 +395,17 @@ def expected_mode(
       refine ⟨c, hc, fun call hv gas hg => ?_⟩
       rw [{G}.runtimeCode_eq _root_.{ns}.bound]
       exact h call hv gas hg"""
+    res_def = (
+        "/-- **OPEN: the resources hypothesis.** Not proved in this run: the statement holds only\n"
+        "under it (it is the specification's one assumption). From the gas bound on, below 2^64, the\n"
+        "exact bytes run in the default context give the source's observable on every valid call. -/\n"
+        "def ResourcesOpen : Prop :=\n"
+        f"  ∀ c, _root_.{ns}.src.checked = .ok c →\n"
+        f"    {G}.ResourcesAt (_root_.{ns}.src.semAt {G}.Context.default) c {G}.Context.default\n"
+        f"      ({G}.runtimeCode _root_.{ns}.runtimeBytes) ({valid}) ({expr(shape, 'gas')})\n\n"
+        if open_res
+        else ""
+    )
     imports = [
         "Verify.Generic.Expected",
         "Verify.ShapeBundle",
@@ -422,7 +446,7 @@ def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩
 /-- The source: solc's AST of the source unit, the contract and SolidCore's fuel. -/
 def src : {G}.Source := ⟨{unit}, {json.dumps(sname)}, {expr(shape, "fuel")}⟩
 
-/-- The specification: the default context; one entry per external function; the valid calls,
+{res_def}/-- The specification: the default context; one entry per external function; the valid calls,
 allowed statuses and postcondition solar-verify exported in this run; the gas bound. -/
 def spec : {G}.Spec where
   Contexts ctx := ctx = {G}.Context.default
@@ -431,7 +455,7 @@ def spec : {G}.Spec where
   Allowed _ := {allowed}
   Post _ := {post}
   gas _ := {expr(shape, "gas")}
-  assumptions := []
+  assumptions := {"[_root_." + ns + ".ResourcesOpen]" if open_res else "[]"}
 
 /-- **The published statement.**{any_doc} -/
 def Statement : Prop :=
@@ -462,6 +486,39 @@ end {ns}
         f"(_root_.SolidCore.Refinement.Shapes.covers_zeros _) (by decide)⟩"
         for s, n in witnesses
     )
+    last = (
+        f"""  · rintro - _ rfl
+    obtain ⟨c, hc, h⟩ := ({proof})
+    refine ⟨c, hc, ?_⟩
+    rw [{G}.runtimeCode_eq _root_.{ns}.bound]
+    exact {G}.certifiedAt_default h
+"""
+        if not open_res
+        else f"""  · rintro hA _ rfl
+    obtain ⟨c, hc, h⟩ := ({proof})
+    refine ⟨c, hc, ?_⟩
+    have hr := hA _root_.{ns}.ResourcesOpen (List.mem_singleton_self _) c hc
+    rw [{G}.runtimeCode_eq _root_.{ns}.bound] at hr ⊢
+    exact
+      {{ translation :=
+          {{ inhabited := h.inhabited
+            equiv := by
+              intro gas hg call hcall obs hrun
+              rw [{G}.runAt_default] at hrun
+              exact h.equiv gas hg call hcall obs hrun
+            terminates := fun call hcall => by
+              obtain ⟨obs, hs, -⟩ := h.terminates call hcall
+              exact ⟨obs, hs, trivial⟩
+            resources := hr }}
+        spec :=
+          {{ allowed := fun call hcall obs hs => by
+              obtain ⟨obs', hs', ha⟩ := h.terminates call hcall
+              rw [hs] at hs'
+              cases hs'
+              exact ha
+            meets := h.meets }} }}
+"""
+    )
     final_text = f"""import {a.name}.Statement
 import {proof_mod}
 {any_import}
@@ -482,12 +539,7 @@ theorem {ns}.final : _root_.{ns}.Statement := by
     exact ⟨_, call, obs, rfl, hv, hn⟩
   · obtain ⟨-, ⟨call, obs, hv, hs, hn⟩⟩ := ({nonvac})
     exact ⟨_, call, obs, rfl, hv, hs, hn⟩
-  · rintro - _ rfl
-    obtain ⟨c, hc, h⟩ := ({proof})
-    refine ⟨c, hc, ?_⟩
-    rw [{G}.runtimeCode_eq _root_.{ns}.bound]
-    exact {G}.certifiedAt_default h
-
+{last}
 #print axioms {ns}.final
 """.replace("§", "\u0060")
     return stmt_text, final_text
@@ -753,9 +805,19 @@ theorem {ns}.final : _root_.{ns}.Statement :=
         if a.hex != a.hex.lower():
             fail("--manifest-json: --hex must be lowercase, as solar emits it")
         manifest = manifest_binding(a.manifest_json, a.name, a.contract, a.hex)
+    open_premises = shape.get("open_premises", [])
+    if open_premises != [] and open_premises != ["resources"]:
+        fail('shape.json: open_premises must be ["resources"] when present')
+    open_res = open_premises == ["resources"]
+    if open_res and not expected:
+        fail("shape.json: open_premises is for statement expected only")
+    if open_res and kind != "functional":
+        fail(
+            "shape.json: open_premises resources needs kind functional (the proof states no resources)"
+        )
     if expected:
         if (
-            kind != "certified"
+            kind != ("functional" if open_res else "certified")
             or not bound_spec
             or not bound_allowed
             or "contract" not in shape
@@ -778,6 +840,7 @@ theorem {ns}.final : _root_.{ns}.Statement :=
             byte_list,
             export,
             manifest,
+            open_res,
         )
     open(a.statement_out, "w").write(stmt_text)  # noqa: SIM115
     open(a.out, "w").write(final_text)  # noqa: SIM115
@@ -786,8 +849,17 @@ theorem {ns}.final : _root_.{ns}.Statement :=
         .split("set_option maxRecDepth 100000 in\ntheorem bound")[0]
         .split()
     )
-    strongest = kind == "certified" and bound_spec and vacuity is None
+    strongest = (
+        kind == "certified" and bound_spec and vacuity is None and not open_premises
+    )
     st_rec = statuses(kind, shape.get("spec"), bound_spec, vacuity)
+    if open_res:
+        st_rec["resources"] = (
+            f"Resources OPEN (hypothesis {ns}.ResourcesOpen, the statement's one assumption; "
+            "not discharged in this run)"
+        )
+        st_rec["lifecycle"] = "OPEN"
+        st_rec["closure"] = "not closure"
     if allowed_vac is not None:
         st_rec["termination"] += (
             f" (the allowed statuses reject nothing: {allowed_vac})"
@@ -811,7 +883,9 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                     f"{export_ns}.{a.contract}" if bound_spec else None
                 ),
                 "allowed_bound_to_export": bound_allowed,
-                "assumptions": env,
+                "assumptions": env
+                + ([f"{ns}.ResourcesOpen (OPEN)"] if open_res else []),
+                "open_premises": open_premises,
                 "manifest": manifest[2] if manifest else None,
                 "proof": proof,
                 "excluded": shape.get("excluded", []),
