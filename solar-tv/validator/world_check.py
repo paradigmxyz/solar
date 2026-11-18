@@ -86,9 +86,20 @@ def check(
         for name, width in zip(a.inputs, widths, strict=True)
     )
 
+    # Free memory and the memory size are unobservable without MSIZE, so a pair in which
+    # neither side reads it compares memory below the free memory pointer only.
+    reads_msize = any(
+        re.search(r"\bmsize\b", text)
+        for program in (a, b)
+        for text in (program.body, program.canonical_ir, program.replay_ir)
+    )
+    mir_relation = (
+        "MIR.State.equivalent" if reads_msize else "MIR.State.equivalentBelowFree"
+    )
+
     def relation(left, right):
         if direct_mir:
-            return f"MIR.State.equivalent ({left}) ({right})"
+            return f"{mir_relation} ({left}) ({right})"
         return f"EVM.State.equivalent tvWorldConfig tvWorldConfig .{policy} ({left}) ({right})"
 
     def describe(term):
@@ -127,7 +138,10 @@ def check(
             "before",
             "after",
             "MIR.State.equivalent",
+            "MIR.State.equivalentBelowFree",
             "MIR.State.observe",
+            "MIR.State.observeBelowFree",
+            "MIR.State.belowFree",
             "Execution.readWord",
             "Execution.readBytes",
             "Execution.wordBytes",
@@ -139,7 +153,7 @@ def check(
         # Splitting a guard can expose a continuation, so normalize again there.
         # Normalize completed word observations if the existing solvers cannot
         # close equality, including operand order after closed memory reads.
-        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm])\n"
+        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.equivalentBelowFree, MIR.State.observe, MIR.State.observeBelowFree, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.equivalentBelowFree, MIR.State.observe, MIR.State.observeBelowFree, MIR.State.belowFree, BitVec.add_comm])\n"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"

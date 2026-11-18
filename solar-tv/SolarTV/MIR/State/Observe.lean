@@ -51,6 +51,28 @@ instance (a b : Run) : Decidable (equivalent a b) := by
   unfold equivalent
   split <;> infer_instance
 
+/-- Live memory without the free region: the bytes below the free memory pointer, and always
+below `0x60` so the pointer itself counts, with trailing zero bytes dropped because memory not
+yet touched reads as zero. Solidity guarantees nothing about memory at or above the free memory
+pointer, and only `MSIZE` observes how far memory reaches, so code that never reads `MSIZE` may
+leave that region, and the memory size, as it likes. -/
+def belowFree (memory : List Byte) : List Byte :=
+  ((memory.take (max (readWord memory 64).toNat 0x60)).reverse.dropWhile (· == 0)).reverse
+
+/-- `observe` with the memory of a normal return cut to `belowFree`. -/
+def observeBelowFree (result : Result) : Observation :=
+  let o := observe result
+  {o with memory := o.memory.map belowFree}
+
+/-- `equivalent` for a pair in which neither side reads `MSIZE`: free memory and the memory size
+are not observed. Everything else, including every byte below the free memory pointer, is. -/
+def equivalentBelowFree (before after : Run) : Prop :=
+  match before,after with | .ok a,.ok b => observeBelowFree a = observeBelowFree b | _,_ => False
+
+instance (a b : Run) : Decidable (equivalentBelowFree a b) := by
+  unfold equivalentBelowFree
+  split <;> infer_instance
+
 private def wordJson (v : Word) : Lean.Json := .str (toString v.toNat)
 private def bytesJson (bytes : List Byte) : Lean.Json :=
   .arr (bytes.map (fun b => Lean.toJson b.toNat)).toArray
