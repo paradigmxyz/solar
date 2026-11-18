@@ -46,3 +46,6 @@ criteria.
 
 Control-gate tests: `python3 test_table.py` (the gate over the registered controls: a missing,
 ungated or failing control fails it; all three passing passes).
+
+Run-level tests: `bash test_ns.sh test_run.sh "$PWD"` (fake driver and cargo: controls first, replay
+arguments, stop on a failing control, producer commit check).

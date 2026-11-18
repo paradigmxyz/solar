@@ -57,8 +57,9 @@ for _ in $(seq 1 20); do [[ -s "$R/session" ]] && break; sleep 0.5; done
 sid=$(cat "$R/session" 2>/dev/null)
 kind=DONE
 while kill -0 "$pid" 2>/dev/null; do
-    if (( $(date +%s) >= DEADLINE )); then
+    if (( $(date +%s) >= DEADLINE )) || [[ -e "$OUT/STOP" ]]; then
         kind=KILLED-DEADLINE
+        [[ -e "$OUT/STOP" ]] && kind=KILLED-STOP
         [[ -n "$sid" ]] && pkill -TERM -s "$sid" 2>/dev/null
         for _ in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
         [[ -n "$sid" ]] && pkill -KILL -s "$sid" 2>/dev/null
@@ -68,7 +69,7 @@ while kill -0 "$pid" 2>/dev/null; do
     sleep 5
 done
 wait "$pid"; rc=$?
-if [[ $kind == KILLED-DEADLINE ]] && pgrep -f -- "$R/" > /dev/null; then kind=KILLED-DEADLINE-LEFTOVER; fi
+if [[ $kind == KILLED-* ]] && pgrep -f -- "$R/" > /dev/null; then kind=$kind-LEFTOVER; fi
 python3 "$here/producer_check.py" "$PRODUCER" "$R" > "$R/producer-check.json"
 pc=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["result"])' "$R/producer-check.json" 2>/dev/null || echo unreadable)
 # match: the actual exit is one of the expected ones (EXPECT may list several, as 1|3). A killed
@@ -83,8 +84,10 @@ fi
 if [[ $cls == control && $kind == DONE && $rc == 0 ]]; then
     left=$((DEADLINE - $(date +%s)))
     if (( left > 60 )); then
-        (cd "$SOLAR_DIR" && exec setsid -w timeout -k 30 "$left" tools/certify/certify --replay "$R/rec") \
-            > "$R/replay.log" 2>&1
+        rargs=(tools/certify/certify --replay "$R/rec" --solidity-lean "$LEAN_DIR")
+        [[ -z "${PACKAGES_FROM:-}" ]] || rargs+=(--packages-from "$PACKAGES_FROM")
+        printf '%q ' "${rargs[@]}" > "$R/replay.command"; echo >> "$R/replay.command"
+        (cd "$SOLAR_DIR" && exec setsid -w timeout -k 30 "$left" "${rargs[@]}") > "$R/replay.log" 2>&1
         echo $? > "$R/replay.exit"
     else
         echo no-time > "$R/replay.exit"

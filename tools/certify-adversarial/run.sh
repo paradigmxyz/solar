@@ -35,10 +35,53 @@ if ! bash "$here/producer.sh" "$PRODUCER" > "$OUT/producer.log" 2>&1; then
     log "RUN-ABORT producer failed (see producer.log)"; exit 1
 fi
 log "PRODUCER $(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["binary_sha256"], d["binary_path"])' "$PRODUCER")"
+class_of() { awk -F'\t' -v n="$1" '$1 == n {print $2}' "$here/stages.tsv"; }
+# A control that ended without passing its stage (or was killed or refused) stops the run: no
+# more cases are admitted and running ones end with KILLED-STOP, no verdict.
+check_controls() {
+    local n last
+    for n in $(grep -v '^#' "$CASES" | awk '{print $1}'); do
+        [[ $(class_of "$n") == control && -f "$OUT/$n/status" ]] || continue
+        last=$(tail -1 "$OUT/$n/status")
+        case "$last" in
+            START*) ;;
+            DONE*stage_ok=yes*) ;;
+            *) if [[ ! -e "$OUT/STOP" ]]; then
+                   echo "$(date -u +%FT%TZ) control $n: $last" > "$OUT/STOP"
+                   log "STOP control $n failed: $(cut -c1-160 <<< "$last")"
+               fi ;;
+        esac
+    done
+}
+# One systemd scope per case, MemoryMax CASE_MEMORY_MAX and no swap; case.sh reads both back from
+# its own cgroup and refuses otherwise.
+launch() {
+    local vars=(HOME PATH OUT SOLAR_DIR SOLAR_SHA LEAN_DIR LEAN_SHA PRODUCER DEADLINE PACKAGES_FROM
+                SHIP_REMOTE SHIP_BRANCH) envs=() v
+    for v in "${vars[@]}"; do [[ -z "${!v+x}" ]] || envs+=("$v=${!v}"); done
+    if [[ -n "${CASE_MEMORY_MAX:-}" ]]; then
+        sudo systemd-run --scope --quiet --unit="t5case-$1-$(date +%s)" -p "MemoryMax=$CASE_MEMORY_MAX" \
+            -p MemorySwapMax=0 --uid="$(id -u)" --gid="$(id -g)" -- env -i "${envs[@]}" \
+            bash "$here/case.sh" "$@"
+    else
+        bash "$here/case.sh" "$@"
+    fi
+}
+ordered=$( { grep -v '^#' "$CASES" | while read -r n rest; do [[ -n "$n" && $(class_of "$n") == control ]] && echo "$n $rest"; done
+             grep -v '^#' "$CASES" | while read -r n rest; do [[ -n "$n" && $(class_of "$n") != control ]] && echo "$n $rest"; done; } )
+log "ORDER $(awk '{print $1}' <<< "$ordered" | tr '\n' ' ')"
 running=0
 while read -r name src expect; do
     [[ -z "${name:-}" || "$name" == \#* ]] && continue
-    while (( running >= SLOTS )); do wait -n; running=$((running - 1)); done
+    while (( running >= SLOTS )); do wait -n; running=$((running - 1)); check_controls; done
+    check_controls
+    if [[ -e "$OUT/STOP" ]]; then
+        mkdir -p "$OUT/$name"
+        echo "NOT-RUN $(date -u +%FT%TZ) (a control failed: $(cat "$OUT/STOP"))" > "$OUT/$name/status"
+        bash "$here/ship.sh" "$name"
+        log "NOT-RUN $name"
+        continue
+    fi
     now=$(date +%s)
     [[ "$src" == /* ]] || src="$here/$src"
     if (( now >= admit_until || now + est > DEADLINE )); then
@@ -49,9 +92,16 @@ while read -r name src expect; do
         continue
     fi
     log "ADMIT $name"
-    bash "$here/case.sh" "$name" "$src" "$expect" &
+    launch "$name" "$src" "$expect" &
     running=$((running + 1))
-done < "$CASES"
-wait
+done <<< "$ordered"
+while (( running > 0 )); do wait -n; running=$((running - 1)); check_controls; done
+cg=$(sed -n 's/^0:://p' /proc/self/cgroup | head -1)
+{
+    echo "cgroup $cg"
+    echo "memory.max $(cat "/sys/fs/cgroup$cg/memory.max" 2>/dev/null || echo unreadable)"
+    echo "memory.peak $(cat "/sys/fs/cgroup$cg/memory.peak" 2>/dev/null || echo unreadable)"
+    echo "memory.events $(tr '\n' ' ' < "/sys/fs/cgroup$cg/memory.events" 2>/dev/null)"
+} > "$OUT/run-scope.txt"
 python3 "$here/table.py" "$OUT" "$CASES" "$here/stages.tsv" > "$OUT/table.md"
 log "RUN-DONE"

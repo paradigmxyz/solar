@@ -9,7 +9,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 : "${OUT:?}" "${SOLAR_DIR:?}"
 [[ "$want" =~ ^[1-9][0-9]*$ ]] || { echo "go: MEMORY_MAX_BYTES must be a byte count" >&2; exit 2; }
 vars=(HOME PATH OUT SOLAR_DIR SOLAR_SHA LEAN_DIR LEAN_SHA BOX_CREATED CASES PACKAGES_FROM SLOTS ADMIT_MIN
-      END_MIN EST_MIN CARGO_BUILD_JOBS SHIP_BRANCH)
+      END_MIN EST_MIN CARGO_BUILD_JOBS SHIP_BRANCH CASE_MEMORY_MAX)
 envs=()
 for v in "${vars[@]}"; do [[ -z "${!v+x}" ]] || envs+=("$v=${!v}"); done
 exec sudo systemd-run --scope --quiet --unit="t5neg-$(date +%s)" -p "MemoryMax=$want" -p MemorySwapMax=0 \
