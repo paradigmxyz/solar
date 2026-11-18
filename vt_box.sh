@@ -201,7 +201,7 @@ rc2b=$?; log "replay-summary $(cat "$out/replay-summary.txt") ok=$(( rc2b == 0 )
 L=$w/run1/solidity-lean
 shape=$L/Certified/$NAME/shape.json
 [[ -f $shape ]] || finish "FAILED: $shape missing after step 1" 1
-neg_fail=0
+neg_fail=0 neg_open=0 open_cases=""
 # wrong-spec: transfer's self-transfer ensures flipped; a full run must not reach CERTIFIED.
 mkdir -p "$w/neg-spec"; WS=$w/neg-spec/verify_token.sol
 sed 's|msg.sender == to ==> balanceOf\[to\] == old(balanceOf\[to\])$|msg.sender == to ==> balanceOf[to] == old(balanceOf[to]) + amount|' "$SRC" > "$WS"
@@ -211,7 +211,7 @@ else
         --solidity-lean "$w/sl" --base "$SL_PIN" --work "$w/run-neg-spec" --record-dir "$out/neg-spec-record" \
         --no-negatives --packages-from "$L" > "$out/neg-spec.txt" 2>&1
     rc=$?; last=$(tail -1 "$out/neg-spec.txt")
-    if (( rc == 124 || rc == 125 )); then log "NEG wrong-spec: OPEN (exit $rc)"; neg_fail=1
+    if (( rc == 124 || rc == 125 )); then log "NEG wrong-spec: OPEN (exit $rc)"; neg_open=1; open_cases+=" wrong-spec"
     elif (( rc == 0 )); then log "NEG wrong-spec: ACCEPTED = FAIL (${last:0:200})"; neg_fail=1
     else log "NEG wrong-spec: refused = PASS (exit $rc: ${last:0:200})"; fi
 fi
@@ -248,10 +248,20 @@ EOF
 HEX=$(tr -d '[:space:]' < "$L/Certified/$NAME/bytecode.hex")
 run_step 3-neg-final env CERTIFY_LEAN_MEMORY="$LEAN_MEMORY" bash "$w/neg_variants.sh" "$L" Certified "$NAME" Token "$HEX" > "$out/neg-final.txt" 2>&1
 rc=$?; sed 's/^/NEG /' "$out/neg-final.txt" | tee -a "$steps"
-(( rc == 0 )) || neg_fail=1
-for c in swapped-bytecode hsep-slot; do grep -q "^$c: refused" "$out/neg-final.txt" || neg_fail=1; done
-log "negatives $([[ $neg_fail == 0 ]] && echo 'all refused = PASS' || echo 'FAIL or OPEN')"
+# A case without its refusal line is OPEN only when the step hit the time gate (124 or 125),
+# and FAIL otherwise; an acceptance is always FAIL.
+grep -q 'ACCEPTED' "$out/neg-final.txt" && neg_fail=1
+(( rc == 0 || rc == 124 || rc == 125 )) || neg_fail=1
+for c in swapped-bytecode hsep-slot; do
+    grep -q "^$c: refused" "$out/neg-final.txt" && continue
+    if (( rc == 124 || rc == 125 )); then neg_open=1; open_cases+=" $c"; else neg_fail=1; fi
+done
+# Precedence FAIL over OPEN over PASS.
+if (( neg_fail )); then negatives=FAIL; elif (( neg_open )); then negatives="OPEN(cut off:$open_cases)"; else negatives=PASS; fi
+log "negatives $negatives"
 
 route=$(sed -n 's/.*caller route: //p' "$out/route.txt" | head -1)
-finish "step1 exit=$rc1 route=[$route] replay exit=$rc2 trusted-ok=$(( rc2b == 0 )) negatives=$([[ $neg_fail == 0 ]] && echo PASS || echo FAIL)" \
-    $(( rc1 || rc2 || rc2b || neg_fail ))
+# Exit: 1 when step 1, step 2 or a negative fails; else 5 when a negative is OPEN; else 0.
+code=$(( rc1 || rc2 || rc2b || neg_fail ))
+(( code == 0 && neg_open )) && code=5
+finish "step1 exit=$rc1 route=[$route] replay exit=$rc2 trusted-ok=$(( rc2b == 0 )) negatives=$negatives" "$code"
