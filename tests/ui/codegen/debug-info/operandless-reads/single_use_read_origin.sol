@@ -74,6 +74,7 @@ contract C is I {
         L.emitE(a, b);
     }
 
+    // Shares the encoding of the `emit` in `emitE`, so the code of `fromLibrary` is the shared one.
     function direct(uint64 a, bytes calldata b) external {
         emit I.E(a, b);
     }

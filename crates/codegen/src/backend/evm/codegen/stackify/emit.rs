@@ -199,18 +199,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut plan: FunctionPlan,
     ) {
         let func = &module.functions[func_id];
-        self.use_counts.clear();
-        if self.capture_debug_info {
-            self.use_counts.resize(func.num_values(), 0);
-            for block in &func.blocks {
-                for &inst in &block.instructions {
-                    func.inst(inst).kind.visit_operands(|operand| self.use_counts[operand] += 1);
-                }
-                if let Some(term) = &block.terminator {
-                    term.visit_operands(|operand| self.use_counts[operand] += 1);
-                }
-            }
-        }
         // NOTE: The records name instructions of the function the dump prints, so they come from
         // `func` even when the plan is for a rebuilt copy. Rebuilding adds and removes only pure
         // instructions, so the buffer loads, and the values bound to the extra results, are the
@@ -254,7 +242,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // The plan may be for a copy that rebuilds values at their uses.
         let rebuilt = plan.rebuilt.take();
+        let original_values = func.num_values();
         let func = rebuilt.as_deref().unwrap_or(func);
+        self.use_counts.clear();
+        if self.capture_debug_info {
+            self.use_counts.resize(func.num_values(), 0);
+            for block in &func.blocks {
+                for &inst in &block.instructions {
+                    func.inst(inst).kind.visit_operands(|operand| self.use_counts[operand] += 1);
+                }
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|operand| self.use_counts[operand] += 1);
+                }
+            }
+            // A copy that rebuilding made stands for one of several uses of its original, so it
+            // has no count.
+            self.use_counts.truncate(original_values);
+        }
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));
@@ -905,7 +909,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Recomputes `value`, an operand of a value that is emitted once when `within_single_use`.
     fn emit_materialized_in(&mut self, func: &Function, value: ValueId, within_single_use: bool) {
-        // A copy that rebuilding made has no count, and is one of several uses of its original.
         let single_use = within_single_use && self.use_counts.get(value) == Some(&1);
         if self.capture_debug_info
             && let Value::Inst(inst) = func.value(value)
@@ -942,11 +945,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// statement of the read would be left with no instruction. A definition inside the use is the
     /// more precise origin of this very read, so it stays. An unoptimized build also keeps a
     /// definition that is its own item, such as the initializer of a local, because the read may
-    /// be the only instruction coverage can anchor that item to. A read whose definition encloses
-    /// the use, such as a parameter that maps to the whole function, takes the use's origins
-    /// whatever its uses, or the function header would be the stop of every use. So does a
-    /// parameter read of the function being emitted that a single use reaches from code inlined
-    /// into it, which the definition does not enclose.
+    /// be the only instruction coverage can anchor that item to. A parameter read, whose definition
+    /// is the whole function, takes the use's origins whatever its uses, or the function header
+    /// would be the stop of every use, including a single use in code inlined into the function.
     ///
     /// The use's origins apply because the read is re-executed as part of evaluating the use. An
     /// implicit function exit, which maps to the closing brace of the body, evaluates no
@@ -975,13 +976,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let at_implicit_exit =
             || consumer.only_source_span().is_some_and(|user| is_closing_brace(func, user));
-        // A parameter read maps to the definition of its function.
-        let is_parameter_read = || definition.source_span() == Some(func.declaration_span);
         !is_operandless_read(func, value)
             || !consumer.has_source_spans()
             || definition_in_use()
             || at_implicit_exit()
-            || (self.optimization.is_none() || single_use && !is_parameter_read())
+            || (self.optimization.is_none()
+                // A parameter read maps to the definition of its function.
+                || single_use && definition.source_span() != Some(func.declaration_span))
                 && !use_in_definition()
     }
 
