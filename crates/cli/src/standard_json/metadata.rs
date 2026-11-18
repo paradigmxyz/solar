@@ -329,11 +329,8 @@ fn ipfs_leaf(input: &[u8]) -> IpfsChunk {
     }
     hasher.update([0x18]);
     hasher.update(input_len_bytes);
-    let block_size = 4
-        + protobuf_len_bytes.len()
-        + input_len_bytes.len() * usize::from(!input.is_empty())
-        + input.len()
-        + input_len_bytes.len();
+    // The tag, length and body of the DAG-PB `Data` field.
+    let block_size = 1 + protobuf_len_bytes.len() + protobuf_len;
     let hash = sha256_multihash_from_hasher(hasher);
     IpfsChunk { hash, size: input.len(), block_size }
 }
@@ -483,6 +480,98 @@ mod tests {
             bs58::encode(ipfs_hash(&[0; 10250])).into_string(),
             "QmVJJBB3gKKBWYC9QTywpH8ZL1bDeTDJ17B63Af5kino9i"
         );
+    }
+
+    fn ipfs_base58(input: &[u8]) -> String {
+        bs58::encode(ipfs_hash(input)).into_string()
+    }
+
+    fn bzzr1_hex(input: &[u8]) -> String {
+        alloy_primitives::hex::encode(bzzr1_hash(input))
+    }
+
+    fn sequence(len: usize) -> Vec<u8> {
+        (0..len).map(|i| (i % 255) as u8).collect()
+    }
+
+    // ported-from: test/libsolutil/IpfsHash.cpp
+    #[test]
+    fn ipfs_hash_matches_solc_small() {
+        for (input, expected) in [
+            (&b""[..], "QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH"),
+            (b"x", "QmULKig5Fxrs2sC4qt9nNduucXfb92AFYQ6Hi3YRqDmrYC"),
+            (b"Solidity\n", "QmSsm9M7PQRBnyiz1smizk8hZw3URfk8fSeHzeTo3oZidS"),
+            (&[0; 200], "QmSXR1N23uWzsANi8wpxMPw5dmmhqBVUAb4hUrHVLpNaMr"),
+            (&[0; 10250], "QmVJJBB3gKKBWYC9QTywpH8ZL1bDeTDJ17B63Af5kino9i"),
+            (&[0; 100000], "QmYgKa25YqEGpQmmZtPPFMNK3kpqqneHk6nMSEUYryEX1C"),
+            (&[0; 121071], "QmdMdRshQmqvyc92N82r7AKYdUF5FRh4DJo6GtrmEk3wgj"),
+        ] {
+            assert_eq!(ipfs_base58(input), expected, "{}", input.len());
+        }
+    }
+
+    // ported-from: test/libsolutil/IpfsHash.cpp
+    #[test]
+    fn ipfs_hash_matches_solc_zero_filled() {
+        for (len, expected) in [
+            // `test_medium`.
+            (131071, "QmSxYSToKHsPqqRdRnsM9gmr3EYS6dakhVaHgbFdgYQWi6"),
+            // `test_largest_unchunked`.
+            (256 * 1024 - 1, "QmbNDspMkzkMFKyS3eCJGedG7GWRQHSCzJCZLjxP7wyVAx"),
+            // `test_smallest_chunked`.
+            (256 * 1024 + 1, "QmbVuw4C4vcmVKqxoWtgDVobvcHrSn51qsmQmyxjk4sB2Q"),
+            // `test_large`.
+            (1310710, "QmNg7BJo8gEMDK8yGQbHEwPtycesnE6FUULX5iVd5TAL9f"),
+            // `test_largest_one_level`.
+            (256 * 1024 * 174, "QmY4HSz1oVGdUzb8poVYPLsoqBZjH6LZrtgnme9wWn2Qko"),
+            // `test_smallest_multi_level`.
+            (256 * 1024 * 174 + 1, "QmehMASWcBsX7VcEQqs6rpR5AHoBfKyBVEgmkJHjpPg8jq"),
+            // `test_multi_level_tree`.
+            (46661632, "QmaTb1sT9hrSXJLmf8bxJ9NuwndiHuMLsgNLgkS2eXu3Xj"),
+        ] {
+            assert_eq!(ipfs_base58(&vec![0; len]), expected, "{len}");
+        }
+    }
+
+    // ported-from: test/libsolutil/SwarmHash.cpp
+    #[test]
+    fn bzzr1_hash_matches_solc_zeros() {
+        // `bzz_hash_short`.
+        for (len, expected) in [
+            (0, "0000000000000000000000000000000000000000000000000000000000000000"),
+            (1, "fe60ba40b87599ddfb9e8947c1c872a4a1a5b56f7d1b80f0a646005b38db52a5"),
+            (31, "36fe2d14c5fe9ed380dc67afd9da6c5824bffcb01ac7972219c3cc3b1c8cd6b1"),
+            (64, "24090f674316c306ea2a98bdd08f042d6f776d0ae1c23b27fca52750a9c7d4e5"),
+            (65, "6ab1eaa91095215e30cacf47131d06ce5e9fc01611e406409705e190ee4440c6"),
+            (4096, "09ae927d0f3aaa37324df178928d3826820f3dd3388ce4aaebfc3af410bde23a"),
+            // `bzz_hash_large`.
+            (4097, "c082943c4cb8a97c67947f290f5421cf4c61d021eb303c8df77de6fe208df516"),
+            (4096 * 128, "392edbfc185187265cb5d50c2507965f2bb99ce8c255a24d3eb14257e40f2e33"),
+            (4096 * 128 * 2, "f89af84ac550cdaa79639d5f6a1591ff1c9b3cb5d1fc55651ca63d4f80375447"),
+            (4096 * 129, "8ab36734a15aef65221b024e47ee9a6bb727d8101eec42db364eef42285beb1d"),
+            (4096 * 130, "21eafb87f2a2a7e51d96212296f8e970103add0527f2fc61fae99f244847a42d"),
+        ] {
+            assert_eq!(bzzr1_hex(&vec![0; len]), expected, "{len}");
+        }
+        assert_eq!(
+            bzzr1_hex(b"hello world"),
+            "92672a471f4419b255d7cb0cf313474a6f5856fb347c5ece85fb706d644b630f"
+        );
+    }
+
+    // ported-from: test/libsolutil/SwarmHash.cpp
+    #[test]
+    fn bzzr1_hash_matches_solc_nonzero() {
+        for (len, expected) in [
+            (65, "541552bae05e9a63a6cb561f69edf36ffe073e441667dbf7a0e9a3864bb744ea"),
+            (4096, "c10090961e7682a10890c334d759a28426647141213abda93b096b892824d2ef"),
+            (4096 * 128 + 31, "e5c76afa931e33ac94bce2e754b1bb6407d07f738f67856783d93934ca8fc576"),
+            (4096 * 128 + 33, "c2489aebad937b19384b61c7bd4ba494f9b14a710b2bcccce792856fb8fcfb3d"),
+            (4096 * 129, "b7e298f61b1bf23e21d8f45bf545eb1d6c0c4eaaca7d2c2690fb86038404a6d6"),
+            (4096 * 130, "59de730bf6c67a941f3b2ffa2f920acfaa1713695ad5deea12b4a121e5f23fa1"),
+        ] {
+            assert_eq!(bzzr1_hex(&sequence(len)), expected, "{len}");
+        }
     }
 
     #[test]

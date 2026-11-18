@@ -28,6 +28,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_evmir::debug::DebugLocKind;
+use solar_interface::Span;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -738,7 +739,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns whether `exit` is a tail call whose `return` or `leave` is a statement that does
     /// not enclose the call, as in `f(a); return;`, unlike `return f(a);` or the implicit return
-    /// that ends a function.
+    /// that ends a function, which maps to the closing brace and so is no statement either.
     ///
     /// NOTE: Such a statement would otherwise map to no code, since the tail call takes the call's
     /// location for everything but the jump, and a tail call that layout falls through into its
@@ -749,6 +750,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let ret = &func.blocks[block].terminator_metadata;
         let call = &func.inst(call).metadata;
         ret.source_spans().next().is_some()
+            && !ret.source_spans().all(|ret| is_closing_brace(func, ret))
             && !call.source_spans().all(|call| ret.source_spans().any(|ret| ret.contains(call)))
     }
 
@@ -940,11 +942,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .source_spans()
                 .all(|user| definition.source_spans().any(|def| def.contains(user)))
         };
-        let at_implicit_exit = || {
-            consumer.only_source_span().is_some_and(|user| {
-                user.hi() == func.declaration_span.hi() && user.lo() + 1 == user.hi()
-            })
-        };
+        let at_implicit_exit =
+            || consumer.only_source_span().is_some_and(|user| is_closing_brace(func, user));
         !is_operandless_read(func, value)
             || !consumer.has_source_spans()
             || definition_in_use()
@@ -1022,6 +1021,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
         }
     }
+}
+
+/// Returns whether `span` is the closing brace of `func`, where an implicit exit maps.
+fn is_closing_brace(func: &Function, span: Span) -> bool {
+    span.hi() == func.declaration_span.hi() && span.lo() + 1 == span.hi()
 }
 
 /// Returns whether `value` is a read that takes no operands, possibly cast: a nullary environment
