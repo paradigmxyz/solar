@@ -4,7 +4,9 @@
 the run ended (KIND, from case.sh, is DONE) and the line matches STAGE (re.search). A control also needs, from
 its record's typed fields: tier_reached equal to the requested tier, the strict predicate holding,
 replay closure fully replayed with trusted_count 0 and nothing unaccounted, and the independent
-replay (replay.exit, written by case.sh) exiting 0."""
+replay (replay.exit, written by case.sh) exiting 0. Every case needs producer-check.json "ok" and
+build provenance version 2, except that a failclosed case may instead have "not_built" (a refusal
+before any build, from the producer's clean commit) with no build provenance."""
 import json, pathlib, re, sys
 
 d, cls, stage, kind = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
@@ -19,7 +21,21 @@ try:
 except Exception:
     pv = None
 g["provenance_version"] = pv
-ok = ok and pv == 2
+# The producer check (producer-check.json, written by case.sh before this). Semantic and control
+# cases need "ok" and build provenance version 2. A failclosed case refused before any build has no
+# binary or build block: producer_check.py reports "not_built" only when the record's solar.commit
+# is the producer's and clean, and that stands in for both checks for class failclosed alone.
+try:
+    pr = json.loads((d / "producer-check.json").read_text()).get("result")
+except Exception:
+    pr = None
+g["producer"] = pr
+if cls == "failclosed" and pr == "not_built":
+    g["provenance_rule"] = "not_built: refused before the build; solar.commit is the producer's"
+    ok = ok and pv is None
+else:
+    g["provenance_rule"] = "ok and provenance_version 2"
+    ok = ok and pv == 2 and pr == "ok"
 if cls == "control":
     try:
         rec = json.loads((d / "rec" / "record.json").read_text())
