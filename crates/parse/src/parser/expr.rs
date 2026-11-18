@@ -38,14 +38,26 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a binary expression.
+    #[inline]
     fn parse_binary_expr(
         &mut self,
         min_precedence: usize,
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        // Nested expressions merge their depth into the outer value when they finish. A `with`
-        // expression carries its depth in `expr_depth` already.
+        // Nested expressions merge their depth into the outer value when they finish, also when
+        // they fail and the caller recovers. A `with` expression carries its depth in `expr_depth`
+        // already.
         let outer_depth = if with.is_some() { 0 } else { std::mem::take(&mut self.expr_depth) };
+        let res = self.parse_binary_expr_inner(min_precedence, with);
+        self.expr_depth = self.expr_depth.max(outer_depth);
+        res
+    }
+
+    fn parse_binary_expr_inner(
+        &mut self,
+        min_precedence: usize,
+        with: Option<Box<'ast, Expr<'ast>>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(self.token);
         while precedence >= min_precedence {
@@ -78,7 +90,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
             precedence -= 1;
         }
-        self.expr_depth = self.expr_depth.max(outer_depth);
         Ok(expr)
     }
 
