@@ -226,7 +226,8 @@ impl State {
                 | InstKind::Shl(lhs, rhs)
                 | InstKind::Shr(lhs, rhs)
                 | InstKind::And(lhs, rhs)
-                | InstKind::Or(lhs, rhs) => inputs[*lhs].combine(inputs[*rhs]),
+                | InstKind::Or(lhs, rhs)
+                | InstKind::PtrAdd(lhs, rhs) => inputs[*lhs].combine(inputs[*rhs]),
                 // A floor clamp lies at or above the heap floor whatever its word.
                 InstKind::Select(cond, lhs, rhs) if is_floor_clamp(func, *cond, *lhs, *rhs) => {
                     AddressInputs::OTHER
@@ -235,13 +236,14 @@ impl State {
                 InstKind::Zext(inner)
                 | InstKind::IntToPtr(inner)
                 | InstKind::PtrToInt(inner, _) => inputs[*inner],
-                // A struct holds the union of its fields, so a multi-result call's result keeps
-                // what its callee inserts. An undefined base adds no field.
+                // A struct or slice holds the union of its fields, so a multi-result call's result
+                // keeps what its callee inserts. An undefined base adds no field.
                 InstKind::InsertValue { aggregate, value, .. } => match func.value(*aggregate) {
                     Value::Undef(_) => inputs[*value],
                     _ => inputs[*aggregate].union(inputs[*value]),
                 },
                 InstKind::ExtractValue { aggregate, .. } => inputs[*aggregate],
+                InstKind::MakeSlice { ptr, len, .. } => inputs[*ptr].union(inputs[*len]),
                 InstKind::Phi(incoming) => incoming
                     .iter()
                     .fold(AddressInputs::NONE, |origins, &(_, value)| origins.union(inputs[value])),
