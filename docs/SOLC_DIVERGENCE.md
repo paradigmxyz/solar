@@ -1422,7 +1422,9 @@ pass on an empty map.
   `let q := 0x10`, `let w := x` and `q := w`. `solc` maps a `PUSH` or `DUP` to
   each statement or its value. An `if` arm or `catch` block that holds only such
   statements has no instruction either. A write to storage or memory keeps its
-  `SSTORE` or `MSTORE`.
+  `SSTORE` or `MSTORE`, and a local assignment whose value feeds a phi at a
+  join, such as `r = 6;` in `if (c) { r = 5; } else { r = 6; }`, can keep a
+  `PUSH` mapped to the assignment.
 - Rationale: the value sits in the `PUSH` or `DUP` of the code that reads it,
   or in a stack rename, so nothing executes for the statement.
 - Coverage:
