@@ -614,6 +614,158 @@ def envelope(
     return contract, fns, events
 
 
+# Decided NatSpec checks (natspec_checks): a small fragment of spec clauses the driver can evaluate
+# exactly, so a clause it refutes is REJECTED by name before any proof. A clause outside the
+# fragment is left to the proofs (or recorded OPEN), never accepted on the driver's word.
+SPEC_ATOM = re.compile(
+    r"^\(?\s*([A-Za-z_]\w*|\d+)\s*(<=|>=|==|!=|<|>)\s*([A-Za-z_]\w*|\d+)\s*\)?$"
+)
+SPEC_FLIP = {"<": ">", ">": "<", "<=": ">=", ">=": "<=", "==": "==", "!=": "!="}
+
+
+def spec_atoms(clause):
+    """The conjuncts of CLAUSE as (name, op, value) with the name on the left, or None when CLAUSE
+    is not a conjunction (&&) of comparisons between one name and a decimal literal."""
+    if "||" in clause or "!" in clause.replace("!=", ""):
+        return None
+    out = []
+    for part in clause.split("&&"):
+        m = SPEC_ATOM.match(part.strip())
+        if not m:
+            return None
+        a, op, b = m.groups()
+        if a.isdigit() and not b.isdigit():
+            a, op, b = b, SPEC_FLIP[op], a
+        if a.isdigit() or not b.isdigit():
+            return None
+        out.append((a, op, int(b)))
+    return out
+
+
+def spec_holds(atoms, env):
+    """Whether every atom holds in ENV (a name to value map), or None when an atom's name is not in ENV."""
+    ops = {
+        "<": int.__lt__,
+        ">": int.__gt__,
+        "<=": int.__le__,
+        ">=": int.__ge__,
+        "==": int.__eq__,
+        "!=": int.__ne__,
+    }
+    for n, op, v in atoms:
+        if n not in env:
+            return None
+        if not ops[op](env[n], v):
+            return False
+    return True
+
+
+def natspec_clauses(node, tag):
+    doc = node.get("documentation") or {}
+    doc = doc.get("text", "") if isinstance(doc, dict) else str(doc)
+    return [
+        l.split(f"@custom:{tag}", 1)[1].strip()
+        for l in doc.splitlines()
+        if f"@custom:{tag}" in l
+    ]
+
+
+def literal_assignments(body):
+    """The state assignments of BODY when it is straight-line NAME = DECIMAL statements only (an
+    empty body included), as a map, else None."""
+    out = {}
+    for st in (body or {}).get("statements", []):
+        e = (
+            st.get("expression")
+            if st.get("nodeType") == "ExpressionStatement"
+            else None
+        )
+        if not (e and e.get("nodeType") == "Assignment" and e.get("operator") == "="):
+            return None
+        lhs, rhs = e.get("leftHandSide", {}), e.get("rightHandSide", {})
+        if (
+            lhs.get("nodeType") != "Identifier"
+            or rhs.get("nodeType") != "Literal"
+            or rhs.get("kind") != "number"
+        ):
+            return None
+        try:
+            out[lhs["name"]] = int(rhs["value"], 0)
+        except KeyError, ValueError:
+            return None
+    return out
+
+
+def natspec_checks(ast, contract):
+    """The decided NatSpec checks of CONTRACT: (the first refutation as a REJECTED reason or None,
+    the record's invariant entries). @custom:invariant: the initial state (state variables'
+    literal initializers, else 0, then a straight-line literal constructor) must satisfy it, and so
+    must the state each straight-line literal function body leaves; an invariant neither refuted
+    nor in the fragment is recorded OPEN (the driver proves no invariant)."""
+    cdef = next(
+        (
+            n
+            for n in ast.get("nodes", [])
+            if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+        ),
+        None,
+    )
+    if cdef is None:
+        return None, []
+    svars = {}
+    for n in cdef.get("nodes", []):
+        if n.get("nodeType") == "VariableDeclaration" and n.get("stateVariable"):
+            v = n.get("value")
+            svars[n["name"]] = (
+                int(v["value"], 0)
+                if v and v.get("nodeType") == "Literal" and v.get("kind") == "number"
+                else (0 if v is None else None)
+            )
+    invs = []
+    for text in natspec_clauses(cdef, "invariant"):
+        entry = {"invariant": text, "status": "OPEN: not proved by the driver"}
+        atoms = spec_atoms(text)
+        if atoms is not None:
+            init = {k: v for k, v in svars.items() if v is not None}
+            ctor = next(
+                (
+                    f
+                    for f in cdef.get("nodes", [])
+                    if f.get("nodeType") == "FunctionDefinition"
+                    and f.get("kind") == "constructor"
+                ),
+                None,
+            )
+            sets = literal_assignments(ctor.get("body")) if ctor else {}
+            if sets is not None and len(init) == len(svars):
+                init.update(sets)
+                if spec_holds(atoms, init) is False:
+                    shown = ", ".join(f"{k} = {init[k]}" for k, _, _ in atoms)
+                    return (
+                        f"invariant: {text} fails in the initial state (the constructor leaves {shown})",
+                        invs,
+                    )
+            for f in cdef.get("nodes", []):
+                if (
+                    f.get("nodeType") != "FunctionDefinition"
+                    or f.get("kind") != "function"
+                ):
+                    continue
+                if f.get("visibility") not in ("external", "public") or f.get(
+                    "stateMutability"
+                ) in ("view", "pure"):
+                    continue
+                sets = literal_assignments(f.get("body"))
+                if sets and spec_holds(atoms, sets) is False:
+                    shown = ", ".join(f"{k} = {v}" for k, v in sets.items())
+                    return (
+                        f"invariant: {text} is not preserved by {f['name']} (it sets {shown})",
+                        invs,
+                    )
+        invs.append(entry)
+    return None, invs
+
+
 def recursion_cycles(cdef, variables):
     """The contract's recursion: each strongly connected component of its internal call graph that
     has a cycle (functions or modifiers that can reach themselves), as (names, first call site), and
@@ -4437,6 +4589,12 @@ def main():
             log(
                 f"lifecycle: runtime loops OPEN (not this tier's statement): {[o['where'] for o in lifecycle_open]}"
             )
+        if a.spec == "natspec":
+            refuted, invs = natspec_checks(ast, contract)
+            if invs:
+                record["invariants"] = invs
+            if refuted:
+                raise Failed(refuted)
         record["contract"] = contract
         record["functions"] = [
             {
