@@ -1448,9 +1448,9 @@ locations, so the check cannot pass on an empty map.
 - Difference: a call statement at the end of a function has no instruction of
   its own when the call needs no argument setup and the code before it jumps or
   falls straight into the callee, as with `_set(x);` after `require(x != 0);`.
-  Setup the call does need keeps an entry. A function that only forwards, such
-  as `_forward` with the body `return _twice(x);`, has no entry label and no
-  jump, and callers jump past it to the callee. `solc` emits the call's jump,
+  Setup the call does need keeps an entry. A function that forwards its
+  arguments unchanged, such as `_forward` with the body `return _twice(x);`, has
+  no entry label and no jump, and callers jump past it to the callee. `solc` emits the call's jump,
   and the forwarder's entry and jump.
 - Rationale: the jump to the callee and the jump from the forwarder do the work
   of the call, so the call has no code of its own.
