@@ -1481,8 +1481,6 @@ pass on an empty map.
   `return true;`, two `return 1;` or two `return abi.encodeCall(...);` with the
   same arguments. The legacy source map writes the merged location as `-1`.
   None of the merged returns has an entry, where `solc` maps each separately.
-  A `return` that no other block matches keeps its entry, unless it is a tail
-  call (DEBUG-003).
 - Rationale: MIR `cfg-simplify` merges identical terminal blocks, as for
   DEBUG-004.
 - Coverage:
