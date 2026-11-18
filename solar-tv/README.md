@@ -1470,13 +1470,18 @@ solar-tv/solar-tv call-budget --output target/morpho-call-budget
 The command captures `safeTransferFrom` MIR and scheduled EVM IR in the same
 compilation that emits the final runtime. It decodes the emitted bytes, binds
 the CALL to the captured helper, and derives its exact budget from helper
-entry. The MIR proof uses this budget directly. The earlier MIR GAS sample
-reaches the same EIP-150 cap even when its word differs from the emitted sample.
+entry. The proof runs the captured MIR prefix from the same entry and checks
+the full memory, journal, target, calldata and prior returndata at CALL.
+The earlier MIR GAS sample reaches the same EIP-150 cap even when its word
+differs from the emitted sample.
 
 The Rust replay executes the final CALL prefix in a small wrapper. Adding
 `PUSH0` and `POP` between GAS and CALL changes the child's GAS reading from
 95,572 to 95,569 on the cold path and from 98,033 to 98,029 on the warm path.
-Both executions pass the same 100-byte transfer calldata.
+Both executions pass the same 100-byte transfer calldata. A separate replay
+starts with dirty memory and observes the whole active memory at CALL. It
+detects a mutant that advances the free memory pointer by 128 bytes instead
+of 160, while the payload and padding are byte-identical.
 
 Use `--mir-pair BEFORE AFTER` to check an existing capture against the same
 compiler input. The output includes the runtime, both Lean proofs, the

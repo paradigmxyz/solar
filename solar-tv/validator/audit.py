@@ -245,9 +245,11 @@ def record(
                 assumptions.extend(
                     [
                         "final emitted bytes and the MIR snapshots come from the same compiler input and capture",
-                        "common helper-entry state and gas; corresponding prepared MIR object and journal at the message cut",
+                        "shared helper-entry environment, stack arguments, byte memory, journal and returndata; the token's code is available to the MIR model",
+                        "the typed MIR prefix and final-bytecode effects produce equal memory, target, input, journal and returndata at CALL",
                         "CALL budget derived from the checked byte prefix; the earlier MIR sample clips to the same child gas",
-                        "Cancun, at most 30 million entry gas, aligned FMP and active memory within 64 KiB",
+                        "Cancun, at most 30 million entry gas and word-aligned active memory within 64 KiB; the FMP slot is live and the object fits",
+                        "the entry stack has room for the decoded prefix's peak temporary depth",
                         "the selected CALL and returndata cut; later EVM instructions and whole-pass gas are outside the proof",
                     ]
                 )

@@ -2,8 +2,8 @@ import SolarTV.MIR.Transforms.LowerReturndata
 import SolarTV.EVMIR.Transforms.CallBudget
 
 /-! Relate a priced final-bytecode CALL to the captured MIR cut. The incoming
-gas is that of the internal helper, and the shared MIR state is at the message
-cut after the guard and encoder. The priced prefix establishes the budget
+gas is that of the internal helper. TransferFromFrame relates the shared
+entry state to the message cut after the guard and encoder. The priced prefix establishes the budget
 used on both MIR sides. Its earlier GAS observation may differ in value
 from the bytecode GAS, but neither request can fall below the EIP-150 cap. -/
 
@@ -149,7 +149,7 @@ structure Ready (entry : Entry) (frame : Frame) (object target : Word) (words : 
   limit : frame.memory.length ≤ 65536
   lengthWord : readWord frame.memory object.toNat = 100
 
-private theorem expandCovered (memory : List Byte) (offset size : Nat)
+theorem expandCovered (memory : List Byte) (offset size : Nat)
     (aligned : memory.length % 32 = 0) (covered : offset+size ≤ memory.length)
     (bounded : memory.length ≤ 65536) :
     expand memory offset size = .ok memory := by

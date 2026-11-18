@@ -205,6 +205,8 @@ def project(ops, catalog):
             guard += catalog[opcode]["forks"][VERSION]["base_gas"]
     probe = catalog["extcodesize"]["forks"][VERSION]
     stack = ENTRY.copy()
+    # The checked guard temporarily pushes the token and its branch target.
+    peak_depth = len(stack) + 2
     accesses, effects = [], []
     pending, until_sample = 0, None
     for op, immediate in ops[6:]:
@@ -252,31 +254,38 @@ def project(ops, catalog):
             )
         else:
             raise Unsupported(f"unmodeled CALL setup instruction {op}")
+        peak_depth = max(peak_depth, len(stack))
     require(until_sample is not None, "missing scheduled GAS observation")
-    require(
-        effects
-        == [
-            ("load", 64),
-            ("store", 64, ("heap", 160)),
-            ("store", ("heap", 0), 100),
-            ("store", ("heap", 32), SELECTOR),
-            ("store", ("heap", 36), "from"),
-            ("store", ("heap", 68), "to"),
-            ("store", ("heap", 100), "value"),
-        ],
-        "scheduled memory writes do not encode transferFrom",
-    )
     # Cancun's warm access fees are also checked in CallBudget.warmCall.
-    return guard, probe["base_gas"], 100, accesses, until_sample, pending, 100
+    trace = guard, probe["base_gas"], 100, accesses, until_sample, pending, 100
+    return trace, effects, peak_depth - len(ENTRY)
+
+
+def location_expression(address):
+    return f".fixed {address}" if isinstance(address, int) else f".heap {address[1]}"
+
+
+def memory_expression(effects):
+    def storage(value):
+        if isinstance(value, int):
+            return f".literal {value}"
+        if isinstance(value, tuple):
+            return f".heap {value[1]}"
+        return {"from": ".sender", "to": ".receiver", "value": ".amount"}[value]
+
+    def access(op, address, *args):
+        if op == "load":
+            return ".loadFmp"
+        return f".store ({location_expression(address)}) ({storage(args[0])})"
+
+    return "[" + ", ".join(access(*effect) for effect in effects) + "]"
 
 
 def expression(trace):
     guard, cold, warm, accesses, sample, tail, call = trace
     rows = []
     for price, address, size in accesses:
-        location = (
-            f".fixed {address}" if isinstance(address, int) else f".heap {address[1]}"
-        )
+        location = location_expression(address)
         rows.append(f"⟨{price}, {location}, {size}⟩")
     return f"⟨{guard}, {cold}, {warm}, [{', '.join(rows)}], {sample}, {tail}, {call}⟩"
 
@@ -426,7 +435,7 @@ theorem warmReplayBudget :
         )
 
 
-def replay_image(code, location, *, extra=b""):
+def replay_image(code, location, *, extra=b"", initialize=None, continuation=None):
     """Use the emitted bytes with a test trampoline and returndata observer.
 
     Preserve the conditional PUSH width and relocate its operand to a local
@@ -434,10 +443,13 @@ def replay_image(code, location, *, extra=b""):
     prefix. The original scheduled and final images are never written here.
     """
     entry, call, branch, _, ops = location
-    trampoline = bytes.fromhex("608060405260016202000162020000620400005f")
+    if initialize is None:
+        initialize = bytes.fromhex("6080604052")
+    if continuation is None:
+        continuation = bytes.fromhex("f13d5f5f3e3d5ff3")
+    trampoline = initialize + bytes.fromhex("60016202000162020000620400005f")
     trampoline += b"\x61" + (len(trampoline) + 4).to_bytes(2, "big") + b"\x56"
     prefix = bytearray(code[entry:call])
-    continuation = bytes.fromhex("f13d5f5f3e3d5ff3")
     failure = len(trampoline) + len(prefix) + len(extra) + len(continuation)
     width = int(ops[4][0][4:])
     require(
@@ -448,7 +460,7 @@ def replay_image(code, location, *, extra=b""):
     return trampoline + prefix + extra + continuation + bytes.fromhex("5b5f5ffd")
 
 
-def witness(code, location, directory, solar, replay, timeout, *, warm=False):
+def replay_pair(images, directory, solar, replay, timeout, *, warm=False, gas=False):
     directory.mkdir(exist_ok=True)
 
     def wrapper(address):
@@ -486,15 +498,12 @@ bb0:
                     {
                         "address": 0x50000,
                         "nonce": 1,
-                        "code": "0x" + replay_image(code, location).hex(),
+                        "code": "0x" + images[0].hex(),
                     },
                     {
                         "address": 0x50001,
                         "nonce": 1,
-                        "code": "0x"
-                        + replay_image(
-                            code, location, extra=bytes.fromhex("5f50")
-                        ).hex(),
+                        "code": "0x" + images[1].hex(),
                     },
                     {
                         "address": TOKEN,
@@ -514,8 +523,7 @@ bb0:
             right.resolve(),
             "--world",
             fixture.resolve(),
-            "--gas",
-            "exact",
+            *(["--gas", "exact"] if gas else []),
             "--evm-version",
             VERSION,
             "--solar",
@@ -532,7 +540,9 @@ bb0:
     )
     require(
         result.returncode == 1,
-        "missing independent CALL counterexample\n" + result.stdout + result.stderr,
+        "missing independent CALL replay counterexample\n"
+        + result.stdout
+        + result.stderr,
     )
     record = json.loads(report.read_text())
     observed = record["witness"]
@@ -540,6 +550,22 @@ bb0:
         record["evidence"] == "kernel-and-rust-replay"
         and observed["observations"] == observed["native_observations"],
         "CALL counterexample did not replay independently",
+    )
+    return observed
+
+
+def witness(code, location, directory, solar, replay, timeout, *, warm=False):
+    observed = replay_pair(
+        [
+            replay_image(code, location),
+            replay_image(code, location, extra=bytes.fromhex("5f50")),
+        ],
+        directory,
+        solar,
+        replay,
+        timeout,
+        warm=warm,
+        gas=True,
     )
     samples = []
     payload = (SELECTOR >> 224).to_bytes(4, "big") + b"".join(
@@ -557,6 +583,55 @@ bb0:
         "child GAS disagrees with the priced schedule",
     )
     return samples
+
+
+def frame_witness(code, location, directory, solar, replay, timeout):
+    """Observe the full active memory at CALL, including padding and caller bytes."""
+    # Set FMP to 192, dirty the tail of its future object, and keep a live
+    # caller sentinel beyond it. The prefix does not have to grow memory here.
+    initialize = bytes.fromhex(
+        "60c0604052"  # mstore(64, 192)
+        "60775f52"  # mstore(0, 0x77)
+        "5f1961012c52"  # mstore(300, ~0)
+        "609961016052"  # mstore(352, 0x99)
+    )
+    continuation = bytes.fromhex("595ff3")  # return(0, msize())
+
+    def image(runtime):
+        return replay_image(
+            runtime, location, initialize=initialize, continuation=continuation
+        )
+
+    start, end = location[:2]
+    prefix = code[start:end]
+    require(prefix.count(b"\x60\xa0") == 1, "cannot locate the FMP bump for replay")
+    immediate = start + prefix.index(b"\x60\xa0") + 1
+    broken = bytearray(code)
+    broken[immediate] = 128
+    witness = replay_pair(
+        [image(code), image(broken)], directory, solar, replay, timeout
+    )
+
+    expected = bytearray(384)
+    expected[31] = 0x77
+    expected[95] = 0x60
+    expected[94] = 1  # FMP is 192 + 160 = 352.
+    expected[223] = 100
+    expected[224:324] = (SELECTOR >> 224).to_bytes(4, "big") + b"".join(
+        value.to_bytes(32, "big") for value in (0x20000, 0x20001, 1)
+    )
+    expected[324:332] = bytes([0xFF] * 8)
+    expected[383] = 0x99
+    reject = expected.copy()
+    reject[95] = 0x40  # Mutant bumped by 128 instead of 160.
+    for (status, data, *_), memory in zip(
+        witness["observations"], [expected, reject], strict=True
+    ):
+        require(
+            status == "success" and bytes(data) == memory,
+            "independent replay disagrees with the prepared helper memory",
+        )
+    return {"memory_bytes": len(expected), "fmp": 352, "broken_fmp": 320}
 
 
 def main(arguments):
@@ -597,16 +672,21 @@ def main(arguments):
             row["name"]: row for row in native.catalog(replay, args.timeout)["evmir"]
         }
         location = extract_final(final, setup, catalog)
-        trace = project(location[-1], catalog)
-        prove(project(ops, catalog), trace, directory, args.timeout)
+        trace, effects, extra_stack = project(location[-1], catalog)
+        scheduled_trace, _, _ = project(ops, catalog)
+        prove(scheduled_trace, trace, directory, args.timeout)
         child_samples = witness(final, location, directory, solar, replay, args.timeout)
         warm_samples = witness(
             final, location, directory / "warm", solar, replay, args.timeout, warm=True
+        )
+        frame = frame_witness(
+            final, location, directory / "frame", solar, replay, args.timeout
         )
         artifact = {
             "runtime_sha256": evaluate.digest(final),
             "entry_pc": location[0],
             "call_pc": location[1],
+            "additional_stack_slots": extra_stack,
         }
         mir = builtin_lowering.check(
             mir_pair,
@@ -617,6 +697,7 @@ def main(arguments):
             FUNCTION,
             final_call={
                 "trace": expression(trace),
+                "memory": memory_expression(effects),
                 "artifact": artifact,
                 "proof": directory / "MIRCallBudget.lean",
             },
@@ -655,14 +736,17 @@ def main(arguments):
                 "entry_pc": location[0],
                 "call_pc": location[1],
                 "no_code_pc": location[3],
+                "additional_stack_slots": extra_stack,
                 "assumptions": [
-                    "the same well-formed five-word function-entry stack, initial gas, journal and byte memory",
-                    "aligned FMP in the word at 0x40, at least 128, with room for the 160-byte object in the model's 64 KiB domain",
-                    "gas fits in an EVM word and memory length is measured in active words",
+                    "shared helper-entry arguments, environment, initial gas, journal, byte memory and returndata",
+                    "the entry stack has room for the decoded prefix's peak temporary depth",
+                    "a live FMP slot at 0x40, heap at least 128, and room for the 160-byte object in word-aligned memory within 64 KiB",
+                    "Cancun, at most 30 million entry gas, and the token's code is available to the MIR model",
                     "final bytes independently decoded; operand-exact projection and scheduled function binding are trusted",
                 ],
                 "child_gas_samples": child_samples,
                 "warm_child_gas_samples": warm_samples,
+                "frame_replay": frame,
             },
         )
     except (
@@ -674,8 +758,12 @@ def main(arguments):
     ) as error:
         print(f"inconclusive: {error}", file=sys.stderr)
         return 2
-    print(f"verified Morpho {FUNCTION} exact CALL budget")
+    print(f"verified Morpho {FUNCTION} entry frame and exact CALL budget")
     print(
         f"counterexample: child GAS {child_samples[0]} -> {child_samples[1]} (Rust replay matched)"
+    )
+    print(
+        f"counterexample: prepared FMP {frame['fmp']} -> {frame['broken_fmp']} "
+        "(full memory replay matched)"
     )
     return 0

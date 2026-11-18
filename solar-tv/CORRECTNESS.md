@@ -662,23 +662,33 @@ highest touched word. The final footprint covers the entire 100-byte
 payload. CALL adds a warm charge of 100 with zero value and zero output
 bytes. If the starting gas cannot pay these charges, the prefix runs out of gas.
 
-The MIR proof uses the resulting parent CALL budget at the prepared message
-cut. It checks the warm journal, input extent and 100-byte length word at
-that boundary and proves that MIR pricing yields the exact child and retained
-gas from the emitted trace. The earlier MIR GAS sample is at least the late
-sample, so both reach the same EIP-150 cap. Equal message results feed the
-returndata materialization proof. The check begins at the internal helper
-entry and assumes the corresponding prepared MIR frame. It covers Cancun,
-bounded memory and at most 30 million entry gas. It stops pricing at CALL
-or the no-code transfer.
+The kernel checks that the normalized guard and encoder instructions imported
+from MIR are exactly those executed by `runMirPrefix`. The shared helper-entry
+state fixes the typed arguments, environment, journal, active byte memory and
+returndata. The guard warms the target on both sides. The scalar MIR encoder and
+the projected bytecode stores write the same words in the same order, including
+the overlapping selector and first argument. The resulting full memories agree,
+including untouched bytes outside the object. This derives the warm journal,
+memory extent, and 100-byte length word needed to price the call.
+
+The earlier MIR GAS sample reaches the same EIP-150 cap as the emitted sample.
+Equal child and retained gas feed the MIR call and returndata materialization
+proof. The memory proof applies when the final prefix reaches CALL in Cancun.
+It requires a live FMP slot, a heap starting at 128 or higher, word-aligned active
+memory and room for the 160-byte object within 64 KiB. Entry gas is at most 30
+million, the stack has room for the seven temporary words in the decoded
+prefix, and the token code must be available in the MIR world. The pricing model
+also covers out-of-gas and the transfer to the no-code edge.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code
 target within the test image. The child returns its GAS word and calldata.
 Lean and the Rust executor agree on 95,572 versus 95,569 gas for a cold token
 and 98,033 versus 98,029 for a warm token after a paid mutation. The payload
-is identical in each pair. Compiling with and without the capture reproduces
-the same ABI and creation and runtime bytecode.
+is identical in each pair. A separate wrapper reads the entire active memory at
+CALL on a dirty entry and detects a shortened FMP bump. Both replays preserve
+the emitted prefix on the successful side. Compiling with and without the
+capture reproduces the same ABI and creation and runtime bytecode.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |

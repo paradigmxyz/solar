@@ -31,9 +31,35 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(report["status"], "verified")
             self.assertEqual(report["gas_policy"], "exact")
             self.assertEqual(report["function"], "safeTransferFrom")
+            self.assertEqual(report["additional_stack_slots"], 7)
             self.assertEqual(report["child_gas_samples"], [95572, 95569])
             self.assertEqual(report["warm_child_gas_samples"], [98033, 98029])
-            self.assertTrue((output / "MIRCallBudget.lean").is_file())
+            proof = output / "MIRCallBudget.lean"
+            self.assertTrue(proof.is_file())
+            self.assertEqual(
+                report["frame_replay"],
+                {"memory_bytes": 384, "fmp": 352, "broken_fmp": 320},
+            )
+            frame_report = json.loads(
+                (output / "frame" / "counterexample.json").read_text()
+            )
+            self.assertEqual(frame_report["evidence"], "kernel-and-rust-replay")
+            self.assertEqual(
+                frame_report["witness"]["observations"],
+                frame_report["witness"]["native_observations"],
+            )
+            frames = [
+                bytes(side[1]) for side in frame_report["witness"]["observations"]
+            ]
+            self.assertEqual(
+                [int.from_bytes(memory[64:96], "big") for memory in frames],
+                [352, 320],
+            )
+            self.assertEqual(
+                frames[0][:64] + frames[0][96:], frames[1][:64] + frames[1][96:]
+            )
+            self.assertEqual(frames[0][324:332], b"\xff" * 8)
+            self.assertEqual((frames[0][31], frames[0][-1]), (0x77, 0x99))
             runtime = bytes.fromhex((output / "runtime.bin").read_text())
             self.assertEqual(
                 report["runtime_sha256"], hashlib.sha256(runtime).hexdigest()
@@ -69,6 +95,36 @@ class CallBudgetTests(unittest.TestCase):
                 word.to_bytes(32, "big") for word in (0x20000, 0x20001, 1)
             )
             self.assertEqual(payloads, [payload, payload])
+            self.assertEqual(frames[0][224:324], payload)
+
+            # The theorem checks the write tape and imported typed prefix against
+            # the reference even when someone edits the generated certificate.
+            lines = proof.read_text().splitlines()
+            writes = next(
+                i for i, line in enumerate(lines) if line.startswith("def finalWrites ")
+            )
+            setup = next(
+                i
+                for i, line in enumerate(lines)
+                if line.startswith("def importedSetup ")
+            )
+            lines[writes] = lines[writes].replace(".heap 160", ".heap 128")
+            lines[setup] = lines[setup].replace(
+                str(call_budget.SELECTOR), str(call_budget.SELECTOR + 1)
+            )
+            broken_proof = Path(work) / "BrokenFrame.lean"
+            broken_proof.write_text("\n".join(lines) + "\n")
+            rejected_proof = subprocess.run(
+                ["lake", "env", "lean", broken_proof],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertNotEqual(rejected_proof.returncode, 0)
+            self.assertIn("finalWrites = stores", rejected_proof.stdout)
+            self.assertIn("importedSetup = setup", rejected_proof.stdout)
 
             schedule = (output / "scheduled.evmir").read_text()
             disasm = (output / "scheduled.disasm").read_text()
