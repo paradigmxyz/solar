@@ -254,7 +254,11 @@ if [ "$(cat $O/EXIT 2>/dev/null)" = 0 ]; then
 import json, sys
 s = json.load(open(sys.argv[1]))
 s["kind"] = "functional"; s["open_premises"] = ["resources"]
-s["proof"] = "(" + s["proof"] + ").imp fun _ h => ⟨h.1, SolidCore.Refinement.Shapes.Certified.functional h.2⟩"
+# The published proof's binders: env [] gives ∃ c, contract? = .ok c ∧ Shapes.Certified …, so the
+# functional proof keeps them and maps the Certified conjunct (no anonymous constructor, whose type
+# Lean cannot infer here). A shape with env binders is refused rather than guessed.
+assert s.get("env", []) == [], "shape-open: env binders are not supported"
+s["proof"] = "(" + s["proof"] + ").imp fun _ => And.imp_right SolidCore.Refinement.Shapes.Certified.functional"
 json.dump(s, open(sys.argv[2], "w"), indent=2)
 PY
   step_scope open 1500 "cd $W && python3 $S/tools/certify/final.py $O/shape-open.json --name $N --contract Flag --hex \$(tr -d '[:space:]' < $D/bytecode.hex) --out $D/Final.lean --statement-out $D/Statement.lean --record $O/open/final-open.json --manifest-json $D/gen/Flag/manifest.json && cp $D/Statement.lean $D/Final.lean $O/open/ && lake build -KleanMemory=6000 $N.Final && printf 'import $N.Final\n#print axioms Certified.$N.Final.final\n' > $O/open/Ax.lean && lake env lean -M 6000 $O/open/Ax.lean > $O/open/axioms.out 2>&1 && python3 -c \"import json,sys; r=json.load(open('$O/open/final-open.json')); assert r['strongest'] is False and r['open_premises']==['resources'] and r['statuses']['closure']=='not closure', r\""
