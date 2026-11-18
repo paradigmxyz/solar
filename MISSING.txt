@@ -1,0 +1,7 @@
+Not copied off before access to the machine ended at its expiry (2026-11-18T03:01:09Z); the machine was then
+deleted, so these are lost:
+- outbox/control-flag.tgz, outbox/control-siblingok.tgz, outbox/control-flagrenamed.tgz and their .sha256
+  (the three control cases' directories: certify.log, record.json, replay.log, gate.json, scope.txt).
+  Their status lines, certify.log sha256s and replay exits are in run-meta.tgz (run.log, table.md).
+- the on-machine .sha256 for flag-specwrong, invbroken-r2, siblingfns-r2, vacuoussecond-r2a, vacuoussecond-r2b
+  (their archives are here; the digests below are taken on copy, not on the machine).
