@@ -362,14 +362,22 @@ Rationale: every pass that walks an expression recurses once per level, and the
 parser builds these chains in a loop, so the recursion limit does not bound
 them. A chain of about 10000 operators overflows the 8 MiB stack of the main
 thread, which `-j1` uses, in a release build. The limit assumes a stack of at
-least 8 MiB: a thread with 2 MiB overflows on chains near the limit.
+least 8 MiB: a thread with 2 MiB overflows on chains near the limit, and the
+wasm build, whose stack is 1 MiB, on chains of about 1200 levels. The limit is
+approximate: wrappers such as parentheses and prefix operators add levels
+without a check, bounded by the recursion limit, so a tree can exceed it by a
+few hundred levels.
 
 Coverage: `tests/ui/parser/expr_depth_limit.sol`,
 `tests/ui/parser/expr_depth_limit_max.sol`,
 `tests/ui/parser/expr_depth_limit_postfix.sol`,
 `tests/ui/parser/expr_depth_limit_nested.sol`,
-`tests/ui/parser/expr_depth_limit_stmt_member.sol` and
-`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`.
+`tests/ui/parser/expr_depth_limit_stmt_member.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_max.sol`,
+`tests/ui/parser/expr_depth_limit_decl_max.sol`,
+`tests/ui/parser/expr_depth_limit_reset.sol` and
+`tests/ui/parser/expr_depth_limit_recover.sol`.
 
 ## AST Validation
 
