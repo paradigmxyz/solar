@@ -1481,7 +1481,8 @@ pass on an empty map.
   `return true;`, two `return 1;` or two `return abi.encodeCall(...);` with the
   same arguments. The legacy source map writes the merged location as `-1`.
   None of the merged returns has an entry, where `solc` maps each separately.
-  A `return` that no other block matches keeps its entry.
+  A `return` that no other block matches keeps its entry, unless it is a tail
+  call (DEBUG-003).
 - Rationale: MIR `cfg-simplify` merges identical terminal blocks, as for
   DEBUG-004.
 - Coverage:
@@ -1497,9 +1498,10 @@ pass on an empty map.
   is a direct call that lowering expands. The code that builds the struct maps
   to each call, `make(x, 1)` and `make(x, 2)`, except that an expression in a
   field, such as `a ^ b` in `P(a ^ b, b)`, keeps its own location in the
-  helper. `solc` emits the function once and maps its `return` to it. A use that needs the function itself keeps its
-  entry: a function pointer, a read of a named return variable, or a call that
-  a call inside the expansion reaches again.
+  helper. `solc` emits the function once and maps its `return` to it. A use that
+  needs the function itself keeps its entry: a call through a function pointer
+  that targets it, a read of a named return variable, or a call that a call
+  inside the expansion reaches again.
 - Rationale: MIR lowering inlines the function into each call, so the code runs
   at the call and the call is its location.
 - Coverage:
