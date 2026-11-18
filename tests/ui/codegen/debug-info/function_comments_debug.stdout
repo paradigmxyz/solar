@@ -1,4 +1,4 @@
-{"contracts":{"ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol:C":{"srcmap-runtime":"230:115:0:-:0;;;;;;;;;;;;247:96;;;;;;;;;331:5;;;;;;;324:13;;;;;-1:-1:-1;;;;;331:5:0;;;;;;;;"}},"sourceList":["ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol:C":{"srcmap-runtime":"230:115:0:-:0;;;;;;;;;;;;247:96;;;;;;;331:5;;;;;;;;;324:13;;;;;-1:-1:-1;;;;;331:5:0;;;;;;;;"}},"sourceList":["ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
 ; === ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol:C (runtime) ===
 @module C_runtime
 bb0:                                              ; runtime dispatch entry + function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
@@ -21,8 +21,8 @@ bb0:                                              ; runtime dispatch entry + fun
   jumpi !metadata(span=247..343)
   push 4 !metadata(span=247..343)
   calldataload !metadata(span=247..343)
-  push 36 !metadata(span=247..343)
-  calldataload !metadata(span=247..343)
+  push 36 !metadata(span=331..336)
+  calldataload !metadata(span=331..336)
   dup 2 !metadata(span=331..336)
   add !metadata(span=331..336)
   swap 1 !metadata(span=331..336)

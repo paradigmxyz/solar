@@ -24,7 +24,6 @@ use crate::{
     typeck::{Unit, par_visit_items},
 };
 use solar_ast::DataLocation;
-use solar_data_structures::Never;
 use solar_interface::error_code;
 use std::ops::ControlFlow;
 
@@ -103,7 +102,7 @@ struct AssemblyConstants<'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for AssemblyConstants<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

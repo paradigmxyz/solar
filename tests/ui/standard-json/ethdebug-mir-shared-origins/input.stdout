@@ -522,15 +522,30 @@
                     ]
                   },
                   "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 116,
+                            "length": 5
+                          }
+                        }
                       },
-                      "range": {
-                        "offset": 18,
-                        "length": 133
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 139,
+                            "length": 5
+                          }
+                        }
                       }
-                    }
+                    ]
                   }
                 },
                 {
@@ -539,15 +554,30 @@
                     "mnemonic": "CALLDATALOAD"
                   },
                   "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 116,
+                            "length": 5
+                          }
+                        }
                       },
-                      "range": {
-                        "offset": 18,
-                        "length": 133
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 139,
+                            "length": 5
+                          }
+                        }
                       }
-                    }
+                    ]
                   }
                 },
                 {
@@ -861,7 +891,7 @@
                 }
               ]
             },
-            "sourceMap": "0:153:0:-:0;;;;;;;;;;;;18:133;;;;;;;;;;;;;-1:-1:-1;18:133:0;;-1:-1:-1;18:133:0;-1:-1:-1;;;;;;;"
+            "sourceMap": "0:153:0:-:0;;;;;;;;;;;;18:133;;;;;;;;;;;;;-1:-1:-1;;;;18:133:0;-1:-1:-1;;;;;;;"
           }
         }
       }

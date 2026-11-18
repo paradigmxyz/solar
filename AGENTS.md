@@ -304,7 +304,7 @@ directives or at the top. To update the tracked solc version, follow
   `crates/interface/src/symbol.rs`.
 - Allocate AST nodes in the arena; write in place where possible, else use the
   helpers in `crates/data-structures/src/bump_ext.rs`.
-- In visitors, use `type BreakValue = Never` when the visitor never breaks, and
+- In visitors, use `type BreakValue = !` when the visitor never breaks, and
   call `walk_*` from every overridden `visit_*` to continue traversal.
 
 ### IR construction and rewrites

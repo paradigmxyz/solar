@@ -295,6 +295,7 @@ impl BlockPlan {
         Some(Self {
             steps: remap_steps(&self.steps, map)?,
             terminator_start: self.terminator_start,
+            zero_test: self.zero_test,
             exit: match &self.exit {
                 Exit::Branch { then_edge, else_edge } => Exit::Branch {
                     then_edge: remap_edge(then_edge, map)?,

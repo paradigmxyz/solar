@@ -2,10 +2,7 @@
 
 use super::{function, storage::StorageLayout};
 use solar_config::OptimizationMode;
-use solar_data_structures::{
-    Never,
-    map::{FxHashMap, FxHashSet, FxIndexSet},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx, InlineTag,
@@ -324,7 +321,7 @@ fn shared_string_literals(
     }
 
     impl<'hir> Visit<'hir> for Counter<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             &self.gcx.hir

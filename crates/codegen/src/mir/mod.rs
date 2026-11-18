@@ -461,7 +461,7 @@ mod block_labels {
 bb0: function f(uint256 x) public pure returns (uint256 r) {
 bb1: if (x > 1) { r = 1; } else { r = 2; }
 bb2: if (x > 1) { r = 1; } else { r = 2; }
-bb3: if (x > 1) { r = 1; } else { r = 2; }
+bb3: -
 bb4: while (r < 10) { r += x; }
 bb5: while (r < 10) { r += x; }
 bb6: while (r < 10) { r += x; }
@@ -475,7 +475,7 @@ bb13: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
 bb14: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
 bb15: if (i == 3) { break; }
 bb16: if (i == 3) { break; }
-bb17: if (i == 3) { break; }
+bb17: -
 bb18: do { r += 1; } while (r < 20);
 bb19: do { r += 1; } while (r < 20);
 bb20: do { r += 1; } while (r < 20);

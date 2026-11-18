@@ -300,6 +300,8 @@ struct BlockPlan {
     /// Index of the first step planned for the terminator.
     terminator_start: usize,
     exit: Exit,
+    /// The `eq x, 0` that a branch on `x` computes when it inverts the condition with `ISZERO`.
+    zero_test: Option<InstId>,
 }
 
 /// A word that can leave the stack for memory.

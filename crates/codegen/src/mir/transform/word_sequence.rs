@@ -7,6 +7,10 @@
 //! legal recipe is materialized, immediately before the original root, whose
 //! value identity and semantic metadata are retained.
 //!
+//! A recipe operand that redoes the original operand's operation, as in `(zext a | zext b) == 0`
+//! to `(a | b) == 0`, keeps that operand's debug location. Every other recipe operation takes the
+//! root's.
+//!
 //! Profitability charges target opcode prices, immediate materialization and
 //! operand copies. The old cost includes only removable, single-use producers;
 //! shared producers and ABI validation instructions earn no deletion credit.
@@ -291,8 +295,9 @@ impl Recipe {
     fn materialize(&self, func: &mut Function, root: InstId) -> Vec<InstId> {
         let mut inserted = Vec::new();
         let mut values = FxHashMap::default();
+        let origins = self.child_origins(func, root);
         let op = self.root.map_values(|value| {
-            self.materialize_value(func, root, value, &mut values, &mut inserted)
+            self.materialize_value(func, root, value, &origins, &mut values, &mut inserted)
         });
         // %temporary = recipe_child(...)
         // %original_result = recipe_root(%temporary, ...)
@@ -311,11 +316,43 @@ impl Recipe {
         inserted
     }
 
+    /// Pairs each recipe child that is an operand of the root with the original instruction at
+    /// the same operand position when both are the same operation over the same operands, up to
+    /// integer casts: the child then computes what that instruction computed, at another width.
+    fn child_origins(&self, func: &Function, root: InstId) -> FxHashMap<ValueId, InstId> {
+        let original = func.inst(root).kind.op();
+        self.root
+            .operands()
+            .into_iter()
+            .zip(original.operands())
+            .filter_map(|(child, operand)| {
+                let Some(Temporary::Operation(op)) = self.temporaries.get(&child) else {
+                    return None;
+                };
+                let Value::Inst(inst) = *func.value(operand) else { return None };
+                Self::same_operation(func, op, &func.inst(inst).kind.op()).then_some((child, inst))
+            })
+            .collect()
+    }
+
+    /// Whether `recipe` applies the operation of `original` to the same operands, or to the
+    /// sources of integer casts of them.
+    fn same_operation(func: &Function, recipe: &Op, original: &Op) -> bool {
+        std::mem::discriminant(recipe) == std::mem::discriminant(original)
+            && recipe.operands().into_iter().zip(original.operands()).all(|(r, o)| {
+                r == o
+                    || matches!(func.value_inst_kind(o),
+                        Some(InstKind::Zext(v) | InstKind::Sext(v, ..) | InstKind::Trunc(v, ..))
+                            if *v == r)
+            })
+    }
+
     fn materialize_value(
         &self,
         func: &mut Function,
         root: InstId,
         value: ValueId,
+        origins: &FxHashMap<ValueId, InstId>,
         values: &mut FxHashMap<ValueId, ValueId>,
         inserted: &mut Vec<InstId>,
     ) -> ValueId {
@@ -328,12 +365,16 @@ impl Recipe {
                 .alloc_value(Value::Immediate(Immediate::for_type(Some(self.scalar_ty), *value))),
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {
-                    self.materialize_value(func, root, value, values, inserted)
+                    self.materialize_value(func, root, value, origins, values, inserted)
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
                 let ty = recipe_type(func, &kind, self.scalar_ty);
-                emit_recipe(func, root, kind, ty, self.scalar_ty, inserted)
+                // Keeps the replaced operation's location, as `foldCastedBitwiseLogic` does for
+                // `or (zext a), (zext b)` (LLVM HowToUpdateDebugInfo, "When to preserve
+                // instruction locations").
+                let origin = origins.get(&value).copied().unwrap_or(root);
+                emit_recipe(func, origin, kind, ty, self.scalar_ty, inserted)
             }
         };
         values.insert(value, actual);
@@ -344,13 +385,13 @@ impl Recipe {
 /// Emits a recipe with explicit scalar conversions, returning its detached instruction list.
 fn emit_recipe(
     func: &mut Function,
-    root: InstId,
+    origin: InstId,
     kind: InstKind,
     ty: MirType,
     scalar_ty: MirType,
     inserted: &mut Vec<InstId>,
 ) -> ValueId {
-    let metadata = func.inst(root).metadata.debug_context();
+    let metadata = func.inst(origin).metadata.debug_context();
     let block = crate::mir::BlockId::ENTRY;
     let start = func.blocks[block].instructions.len();
     // operands = zext i1 boolean_operands to i256

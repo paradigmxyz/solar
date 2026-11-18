@@ -2577,7 +2577,6 @@ fn log_cache_query_result(result: &dyn fmt::Debug, hit: bool) {
 mod call_arg_tests {
     use super::*;
     use crate::{Compiler, hir::Visit};
-    use solar_data_structures::Never;
     use solar_interface::{Session, config::CompileOpts};
     use std::{collections::BTreeMap, ops::ControlFlow, path::PathBuf};
 
@@ -2587,7 +2586,7 @@ mod call_arg_tests {
     }
 
     impl<'hir> Visit<'hir> for CallCollector<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             self.hir
