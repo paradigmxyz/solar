@@ -7,31 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Language and diagnostics
+### Bug Fixes
 
+- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
+- [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
 - [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
-
-### Code generation: features and fixes
-
+- [interface] Key the source map on file names ([#2422](https://github.com/paradigmxyz/solar/issues/2422))
 - [mir] Keep immutable stores that constructors read ([#2399](https://github.com/paradigmxyz/solar/issues/2399))
-
-### Debug info and coverage
-
+- [interface] Enter the thread pool before setting session globals ([#2407](https://github.com/paradigmxyz/solar/issues/2407))
 - [codegen] Preserve source maps and coverage ([#2345](https://github.com/paradigmxyz/solar/issues/2345))
 
-### Output: ABI, AST, NatSpec and metadata
+### Features
 
 - Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
 - [codegen] Add the solar-cold NatSpec tag ([#2237](https://github.com/paradigmxyz/solar/issues/2237))
 
-### Compile time and memory
+### Performance
 
+- [codegen] Encode constructor args in place after initcode ([#2320](https://github.com/paradigmxyz/solar/issues/2320))
+- [codegen] Encode storage bytes straight from storage ([#2315](https://github.com/paradigmxyz/solar/issues/2315))
 - Bump inturn to 0.2.1 and default to all cores ([#2354](https://github.com/paradigmxyz/solar/issues/2354))
-
-### CLI and Standard JSON
-
-- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
-- [interface] Enter the thread pool before setting session globals ([#2407](https://github.com/paradigmxyz/solar/issues/2407))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

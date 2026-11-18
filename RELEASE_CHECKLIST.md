@@ -60,63 +60,23 @@ commit.
 
 These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).
 
-## Changelog format
+## Highlights
 
-The root `CHANGELOG.md` is the release note. `crates/solar/CHANGELOG.md` stays a symlink to it, and
-each version appears once in every changelog file. `cargo release` runs `git-cliff` with
-[`cliff.toml`](cliff.toml), which writes the area sections below from conventional-commit types and
-scopes. Edit its output by hand into this order:
+Each release's changelog opens with a `### Highlights` section, above the generated sections. Write
+it by hand:
 
-1. **Breaking changes and compatibility.** Only when there is something to say. Cliff lists `!`
-   commits here, and also in their area, so delete the duplicate; it drops a `!` commit whose type
-   or scope it skips, such as a `chore!` MSRV bump, so add those and the rest by hand. List the
-   MSRV, a changed default (and what it costs), code that used to compile and now errors, output
-   that changes for the same input (bytecode, ABI, NatSpec, source maps, flags, Standard JSON), and
-   removed or renamed flags. Say who is affected.
-2. **Highlights.** Written by hand: 5 to 8 bullets, each led by a short bold label (an area name
-   where one fits), with linked PRs and numbers. Cover only what users notice most; everything else stays in the area sections.
-3. **Area sections.** Generated, in this order, one line per user-facing change, newest first:
-   Language and diagnostics; Code generation: gas and size; Code generation: features and fixes;
-   Debug info and coverage; Output: ABI, AST, NatSpec and metadata; Compile time and memory; CLI and
-   Standard JSON; Language server. Features and fixes share a section, and the two code generation
-   sections split by `perf` against the rest, so the subject already says which kind a line is. Write a fix in the section of the
-   behavior it changes: a codegen change that only makes source maps better belongs to Debug info
-   and coverage.
+- Use 5 to 8 bullets, one per theme, most important first. Cover only what users notice most;
+  everything else stays in the generated sections.
+- Lead each bullet with a bold label, and group related PRs in one bullet. Use these labels where they
+  fit: Code generation: gas and size; Debug info and coverage; Output (ABI, AST, NatSpec, metadata);
+  Language and diagnostics; Correctness of generated code; Standard JSON; Language server; Compile
+  time and memory. End with a Compatibility bullet when something breaks, such as a new MSRV, a
+  changed default or code that stopped compiling.
+- Link every PR as `[#N]`, with the `[#N]: https://github.com/paradigmxyz/solar/issues/N`
+  definitions at the end of the version's section.
+- Use only real measurements that a merged PR body states, next to a link to that PR. Give the
+  baseline and the result, the input (`seaport-1.6`, `prb-math`) and the build level (`-Ogas`,
+  `-Osize`, `-j1`), and state the regressions and trade-offs the PR states, such as a contract that
+  grows or memory that rises. Do not average across PRs or round up. Without a number in the PR, write
+  the change without one.
 
-The grouping comes from the commit, so keep the scope honest when you write one: `sema`, `parse`,
-`ast` and `lint` land in Language and diagnostics; `codegen`, `mir`, `evmir`, `ir` and `inline` in
-Code generation (`perf` goes to gas and size); `cli`, `config` and `interface` in CLI and Standard
-JSON; `lsp` in Language server. A `perf` with a frontend scope, or none, goes to Compile time and
-memory. The `lsp` scope wins over the subject rules. For `feat` and `fix` commits, the `debug` and
-`debuginfo` scopes, and subjects that mention debug info, origins, source maps, spans, coverage,
-attributing or a location, go to Debug info and coverage; subjects that mention NatSpec, the AST, the
-ABI, metadata hashes, storage layout, userdoc or devdoc go to Output. A commit that matches nothing lands in Other: move it to its area or delete it. To change a
-rule, edit `commit_parsers` in `cliff.toml`; the numbers in the group names order the sections.
-
-### What to drop
-
-- Dependency bumps, CI, bench, tester, test, refactor, chore, docs about agents or the release
-  process, and merge commits. Cliff already skips these by type and scope.
-- Revert pairs: delete both the change and its revert.
-- Fixes for a bug introduced in the same release, and follow-ups to a change in the same release.
-- Runs of related internal fixes. Collapse them into the one entry that names the user-visible result,
-  such as "Source maps keep the origin of code through rewrites", and keep the PRs that explain it.
-- Compile-time wins that cliff filed under codegen go to Compile time and memory; move them.
-
-### Numbers
-
-Use only measurements that a merged PR body states, with the PR linked next to the number. Quote
-the baseline and the result, name the input (`seaport-1.6`, `prb-math`, a 6,132-file corpus), and
-give the unit and the build level (`-Ogas`, `-Osize`, `-j1`). Report regressions and trade-offs the
-PR states, such as a contract that grows or memory that rises. Do not average across PRs or round up.
-If a PR gives no number, describe the change without one.
-
-### Why this format
-
-solc lists "Language Features", "Compiler Features", "Bugfixes" and "Build System", and prefixes each
-line with a component such as "Code Generator:" or "SMTChecker:". rustc groups by audience (Language,
-Compiler, Libraries, Cargo, Compatibility Notes) and keeps compatibility separate. Go and LLVM go by
-component (compiler, linker, runtime; IR, debug info, backends) after a short list of the main changes.
-We list areas, because a Solidity developer looks for what changes in the bytecode, the diagnostics
-and the build time, and most of our commits share the `codegen` scope, so the scope alone says little.
-The area carries what solc's component prefix and rustc's section names carry.

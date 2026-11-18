@@ -7,19 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1](https://github.com/paradigmxyz/solar/releases/tag/v0.3.1)
 
-### Output: ABI, AST, NatSpec and metadata
+### Bug Fixes
+
+- [cli] Count the full IPFS leaf size ([#2709](https://github.com/paradigmxyz/solar/issues/2709))
+- [codegen] Mark call entries and returns once per call ([#2528](https://github.com/paradigmxyz/solar/issues/2528))
+- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
+- [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
+- [cli] Report I/O errors from standard JSON and LSP ([#2325](https://github.com/paradigmxyz/solar/issues/2325))
+
+### Features
 
 - Emit solc-compatible AST JSON and compare it with solc ([#2344](https://github.com/paradigmxyz/solar/issues/2344))
 
-### Compile time and memory
+### Performance
 
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
-
-### CLI and Standard JSON
-
-- [cli] Count the full IPFS leaf size ([#2709](https://github.com/paradigmxyz/solar/issues/2709))
-- [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
-- [cli] Report I/O errors from standard JSON and LSP ([#2325](https://github.com/paradigmxyz/solar/issues/2325))
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 

@@ -24,15 +24,8 @@ body = """\
 {% else %}\
     ## Unreleased
 {% endif %}\
-{% set breaking = commits | filter(attribute="breaking", value=true) %}\
-{% if breaking | length > 0 %}
-    ### Breaking changes and compatibility
-    {% for commit in breaking %}
-        - {% if commit.scope %}[{{ commit.scope }}] {% endif %}{{ commit.message | upper_first | split(pat="\\n") | first }}\
-    {% endfor %}
-{% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
-    ### {{ group | striptags | trim | upper_first }}
+    ### {{ group | title }}
     {% for commit in commits %}
         - {% if commit.scope %}[{{ commit.scope }}] {% endif %}{{ commit.message | upper_first | split(pat="\\n") | first }}\
     {% endfor %}
@@ -50,23 +43,17 @@ commit_preprocessors = [
     { pattern = '#(\d+)', replace = "[#$1](https://github.com/paradigmxyz/solar/issues/$1)" },
 ]
 commit_parsers = [
-    # Drop what users never see: tooling scopes, and non-user-facing types.
-    { field = "scope", pattern = "^(bench|tester|compiler-diff|debugify|solsymdiff|fuzz|deps|ci|test|tests)$", skip = true },
-    { message = "^Merge", skip = true },
-    { message = "^(chore|ci|test|refactor|style|revert|docs?)\\b", skip = true },
+    { message = "^[Ff]eat", group = "Features" },
+    { message = "^[Ff]ix", group = "Bug Fixes" },
+    { message = "^[Dd]oc", group = "Documentation" },
+    { message = ".*\\b([Dd]eps|[Dd]ependencies|[Bb]ump)\\b", group = "Dependencies" },
+    { message = "^[Pp]erf", group = "Performance" },
+    { message = "^[Rr]efactor", group = "Refactor" },
+    { message = ".*\\b([Ss]tyle|[Ff]mt|[Ff]ormat)\\b", group = "Styling" },
+    { message = "^[Tt]est", group = "Testing" },
+    { message = "^[Cc]hore", group = "Miscellaneous Tasks" },
 
-    # Areas, first match wins. Keep the numeric comments: they order the sections.
-    { field = "scope", pattern = "^lsp$", group = "<!-- 80 -->Language server" },
-    { field = "scope", pattern = "^(debug|debuginfo)$", group = "<!-- 40 -->Debug info and coverage" },
-    { message = "(?i)^(feat|fix)(\\(.*\\))?!?: .*(debug|origin|source ?map|\\bspans?\\b|coverage|\\bmaps?\\b|attribute|a location|call location|location kind)", group = "<!-- 40 -->Debug info and coverage" },
-    { message = "(?i)^(feat|fix)(\\(.*\\))?!?: .*(natspec|\\bast\\b|\\babi\\b|metadata (hash|json)|(bytecode|cbor|ipfs) metadata|storage layout|userdoc|devdoc)", group = "<!-- 50 -->Output: ABI, AST, NatSpec and metadata" },
-    { message = "^perf(\\((sema|cli|parse|interface|config|ast|lint)\\))?!?:", group = "<!-- 60 -->Compile time and memory" },
-    { message = "^perf", group = "<!-- 30 -->Code generation: gas and size" },
-    { field = "scope", pattern = "^(cli|config|interface)$", group = "<!-- 70 -->CLI and Standard JSON" },
-    { field = "scope", pattern = "^(sema|parse|ast|lint|lexer)$", group = "<!-- 20 -->Language and diagnostics" },
-    { field = "scope", pattern = "^(codegen|mir|evmir|ir|inline)$", group = "<!-- 35 -->Code generation: features and fixes" },
-
-    { message = ".*", group = "<!-- 90 -->Other" },
+    { message = ".*", group = "Other" },
 ]
 protect_breaking_commits = false
 filter_commits = false
