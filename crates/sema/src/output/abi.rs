@@ -30,7 +30,11 @@ impl<'gcx> Gcx<'gcx> {
             items.push(json::Receive { state_mutability }.into());
         }
         let is_library = c.kind.is_library();
-        for f in self.interface_functions(id) {
+        // solc collects functions in a map keyed by selector, so the stable sort below lists
+        // overloads in ascending selector order.
+        let mut functions = self.interface_functions(id).functions.to_vec();
+        functions.sort_unstable_by_key(|f| f.selector);
+        for f in functions {
             if is_library && omitted_from_library_abi(f.ty) {
                 continue;
             }
