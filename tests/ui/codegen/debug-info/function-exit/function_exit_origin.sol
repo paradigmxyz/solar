@@ -18,9 +18,10 @@ contract C {
     }
 
     // CHECK-LABEL: ; function external_exit(
-    // CHECK: sstore !metadata(span=
-    // CHECK-NEXT: stop !metadata(span=[[#EXT_END:]]..
-    // CHECK-SAME: [[#EXT_END+1]], exit=return)
+    // The brace is the closing one, six bytes after the end of the statement, not the opening one.
+    // CHECK: sstore !metadata(span={{[0-9]+}}..[[#STMT_END:]])
+    // CHECK-NEXT: stop !metadata(span=[[#STMT_END+6]]..
+    // CHECK-SAME: [[#STMT_END+7]], exit=return)
     function external_exit(uint256 a) external {
         stored = a;
     }

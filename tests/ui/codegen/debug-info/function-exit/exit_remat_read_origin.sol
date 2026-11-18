@@ -19,4 +19,14 @@ contract C {
     function block_number() external view returns (uint256 blockNumber) {
         blockNumber = block.number;
     }
+
+    // A parameter read at the exit keeps the origin of its definition, the parameter list of the
+    // function, like any other definition.
+    // CHECK-LABEL: invoke=parameter@[[#FN_LO:]]..[[#FN_HI:]]
+    // CHECK: calldataload !metadata(span=[[#FN_LO]]..[[#FN_HI]])
+    // CHECK: return !metadata(span=[[#END:]]..
+    // CHECK-SAME: [[#END+1]], exit=return)
+    function parameter(uint256 x) external pure returns (uint256 y) {
+        y = x;
+    }
 }
