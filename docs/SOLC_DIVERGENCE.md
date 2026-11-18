@@ -362,7 +362,8 @@ Rationale: every pass that walks an expression recurses once per level, and the
 parser builds these chains in a loop, so the recursion limit does not bound
 them. A chain of about 10000 operators overflows the 8 MiB stack of the main
 thread, which `-j1` uses, in a release build. The limit assumes a stack of at
-least 8 MiB: a thread with 2 MiB overflows on chains near the limit. The limit is
+least 8 MiB: a thread with 2 MiB overflows on chains near the limit, and the
+wasm build, whose stack is 1 MiB, on chains of about 1200 levels. The limit is
 approximate: wrappers such as parentheses and prefix operators add levels
 without a check, bounded by the recursion limit, so a tree can exceed it by a
 few hundred levels.
