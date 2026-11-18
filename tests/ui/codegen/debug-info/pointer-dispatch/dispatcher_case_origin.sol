@@ -4,8 +4,9 @@
 
 // The case of an internal function-pointer dispatcher that jumps to its target is compiler
 // generated: the target has not been entered yet, so it has no source location of its own. Only
-// the target's body entry carries the target's declaration, as LLVM gives a generated thunk no line
-// of its own. A function reached through several pointer shapes would otherwise get one stub per
+// the target's body entry carries the target's declaration. Solc maps generated code to its
+// `#utility.yul` source (`CompilerContext.h` L178), and LLVM gives a generated thunk no line of its
+// own. A function reached through several pointer shapes would otherwise get one stub per
 // shape mapped exactly like its real entry, and a coverage anchor could pick a stub that calls
 // through another shape never run.
 contract C {
@@ -37,11 +38,11 @@ contract C {
 // CHECK-NEXT: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
 // CHECK: ; internal_dispatcher_p_uint256_r_uint256 (synthesized)
 // CHECK-NOT: span=[[TARGET]]
-// CHECK: [[CASE1:bb[0-9]+]]:
+// CHECK: bb{{[0-9]+}}:
 // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
 // CHECK-NOT: span=[[TARGET]]
 // CHECK: ; internal_dispatcher_asm_p_bytes32_r_bytes32 (synthesized)
 // CHECK-NOT: span=[[TARGET]]
-// CHECK: [[CASE2:bb[0-9]+]]:
+// CHECK: bb{{[0-9]+}}:
 // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
 // CHECK-NOT: span=[[TARGET]]
