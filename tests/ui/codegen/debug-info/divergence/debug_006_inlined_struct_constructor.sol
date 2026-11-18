@@ -1,26 +1,28 @@
-//@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
+//@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
-// The dump only makes the tester run FileCheck; it reads the source map.
+// The dump makes the tester run FileCheck and shows the locations of the code around the checks.
 
 // DEBUG-006: a pure internal function whose only statement returns a struct constructor is
 // lowered into each call. The function has no code of its own, and the code that builds the struct
 // maps to the call, so neither `make` nor its `return` has an entry.
 
 // Offsets are bytes from `contract C`. An entry that changes the location writes its start, so a
-// location with no instruction never appears.
+// location with no instruction never appears anywhere in the map.
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
-// `function f`
-// CHECK: {{[;"]}}[[#C+183]]{{[:;]}}
-// `make(x, 1)`
-// CHECK: {{[;"]}}[[#C+260]]{{[:;]}}
-// `make(x, 2)`
-// CHECK: {{[;"]}}[[#C+293]]{{[:;]}}
 // `function make`, `return P(a, b);` and `P(a, b)`
 // CHECK-NOT: {{[;"]}}[[#C+77]]{{[:;]}}
 // CHECK-NOT: {{[;"]}}[[#C+156]]{{[:;]}}
 // CHECK-NOT: {{[;"]}}[[#C+163]]{{[:;]}}
+// CHECK: "sourceList"
+// The IR below shows the neighbouring code has locations.
+// `function f`
+// CHECK: {{[=\[ ]}}[[#C+183]]..
+// `make(x, 1)`
+// CHECK: {{[=\[ ]}}[[#C+260]]..
+// `make(x, 2)`
+// CHECK: {{[=\[ ]}}[[#C+293]]..
 
 contract C {
     struct P {

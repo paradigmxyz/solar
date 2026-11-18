@@ -1,26 +1,28 @@
-//@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
+//@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
-// The dump only makes the tester run FileCheck; it reads the source map.
+// The dump makes the tester run FileCheck and shows the locations of the code around the checks.
 
 // DEBUG-002: a `break` or `continue` has no instruction of its own. The branch of the `if` that
 // guards it jumps to the loop exit or to the loop's increment, so no jump is left for the
 // statement.
 
 // Offsets are bytes from `contract C`. An entry that changes the location writes its start, so a
-// location with no instruction never appears.
+// location with no instruction never appears anywhere in the map.
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
-// `i == 3`
-// CHECK: {{[;"]}}[[#C+134]]{{[:;]}}
 // `continue;`
 // CHECK-NOT: {{[;"]}}[[#C+160]]{{[:;]}}
-// `i == 7`
-// CHECK: {{[;"]}}[[#C+200]]{{[:;]}}
 // `break;`
 // CHECK-NOT: {{[;"]}}[[#C+226]]{{[:;]}}
+// CHECK: "sourceList"
+// The IR below shows the neighbouring code has locations.
+// `i == 3`
+// CHECK: {{[=\[ ]}}[[#C+134]]..
+// `i == 7`
+// CHECK: {{[=\[ ]}}[[#C+200]]..
 // `sum += i`
-// CHECK: {{[;"]}}[[#C+259]]{{[:;]}}
+// CHECK: {{[=\[ ]}}[[#C+259]]..
 
 contract C {
     function loop(uint256 n) external pure returns (uint256 sum) {

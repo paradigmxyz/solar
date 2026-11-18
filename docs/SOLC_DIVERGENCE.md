@@ -1489,11 +1489,11 @@ pass on an empty map.
 
 - ID: DEBUG-006
 - Status: intentional
-- Difference: a pure internal function whose only statement returns a struct
-  constructor, such as `make(a, b)` with the body `return P(a, b);`, has no
-  entry, and neither has its `return`. The code that builds the struct maps to
-  each call, `make(x, 1)` and `make(x, 2)`. `solc` emits the function once and
-  maps its `return` to it.
+- Difference: a pure internal function without modifiers whose only statement
+  returns a struct constructor, such as `make(a, b)` with the body
+  `return P(a, b);`, has no entry, and neither has its `return`. The code that
+  builds the struct maps to each call, `make(x, 1)` and `make(x, 2)`. `solc`
+  emits the function once and maps its `return` to it.
 - Rationale: MIR lowering inlines the function into each call, so the code runs
   at the call and the call is its location.
 - Coverage:

@@ -1,7 +1,7 @@
-//@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=disasm-runtime
+//@ compile-flags: -Onone --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
-// The dump only makes the tester run FileCheck; it reads the source map.
+// The dump makes the tester run FileCheck and shows the locations of the code around the checks.
 
 // DEBUG-003: a call in tail position that needs no argument setup has no instruction of its own
 // when the code before it jumps or falls into the callee, as the `require` does for `_set(x);`,
@@ -9,23 +9,25 @@
 // `_forward`. The forwarder has no entry label, and its `return _twice(x);` has no instruction.
 
 // Offsets are bytes from `contract C`. An entry that changes the location writes its start, so a
-// location with no instruction never appears.
+// location with no instruction never appears anywhere in the map.
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
-// `require(x != 0);`
-// CHECK: {{[;"]}}[[#C+254]]{{[:;]}}
 // `_set(x);`
 // CHECK-NOT: {{[;"]}}[[#C+279]]{{[:;]}}
-// `total = x;`
-// CHECK: {{[;"]}}[[#C+343]]{{[:;]}}
-// `_forward(x)`
-// CHECK: {{[;"]}}[[#C+185]]{{[:;]}}
 // `function _forward(...)` and `return _twice(x);`
 // CHECK-NOT: {{[;"]}}[[#C+365]]{{[:;]}}
 // CHECK-NOT: {{[;"]}}[[#C+436]]{{[:;]}}
 // CHECK-NOT: {{[;"]}}[[#C+443]]{{[:;]}}
+// CHECK: "sourceList"
+// The IR below shows the neighbouring code has locations.
+// `_forward(x)`
+// CHECK: {{[=\[ ]}}[[#C+185]]..
+// `require(x != 0);`
+// CHECK: {{[=\[ ]}}[[#C+254]]..
+// `total = x;`
+// CHECK: {{[=\[ ]}}[[#C+343]]..
 // `x * 2`
-// CHECK: {{[;"]}}[[#C+541]]{{[:;]}}
+// CHECK: {{[=\[ ]}}[[#C+541]]..
 contract C {
     uint256 public total;
 
