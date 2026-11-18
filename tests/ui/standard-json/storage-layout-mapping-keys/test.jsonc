@@ -1,0 +1,24 @@
+//@ filecheck:
+// CHECK: "type": "t_mapping(t_string_memory_ptr,t_address)"
+// CHECK: "type": "t_mapping(t_bytes_memory_ptr,t_uint256)"
+// CHECK: "type": "t_mapping(t_string_memory_ptr,t_mapping(t_bytes_memory_ptr,t_uint256))"
+// CHECK: "type": "t_array(t_mapping(t_string_memory_ptr,t_uint256))dyn_storage"
+// CHECK: "type": "t_mapping(t_bytes32,t_uint256)"
+// CHECK: "key": "t_string_memory_ptr"
+// CHECK: "t_string_memory_ptr": {
+// CHECK: "key": "t_bytes_memory_ptr"
+// CHECK: "t_bytes_memory_ptr": {
+// CHECK: "value": "t_mapping(t_bytes_memory_ptr,t_uint256)"
+// CHECK: "type": "t_mapping(t_string_memory_ptr,t_uint256)"
+// CHECK: "base": "t_mapping(t_string_memory_ptr,t_uint256)"
+// CHECK: "key": "t_bytes32"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "keys.sol": {
+        "MappingKeys": ["storageLayout"]
+      }
+    }
+  }
+}

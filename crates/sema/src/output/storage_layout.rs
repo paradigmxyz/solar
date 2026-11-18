@@ -248,7 +248,9 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         match ty.kind {
             TyKind::Mapping(key_ty, value_ty) => {
                 info.encoding = StorageEncoding::Mapping;
-                info.key = Some(self.generate_type(key_ty));
+                info.key = Some(
+                    self.generate_type(key_ty.with_loc_if_ref(self.gcx, DataLocation::Memory)),
+                );
                 info.value = Some(
                     self.generate_type(value_ty.with_loc_if_ref(self.gcx, DataLocation::Storage)),
                 );
@@ -291,7 +293,10 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 if matches!(inner.peel_refs().kind, TyKind::Mapping(..)) {
                     key
                 } else {
-                    let pointer = if pointer { "_ptr" } else { "" };
+                    // Like solc's `ReferenceType::isPointer`, only storage references can be
+                    // non-pointers.
+                    let pointer =
+                        if pointer || location != DataLocation::Storage { "_ptr" } else { "" };
                     format!("{key}_{location}{pointer}")
                 }
             }
@@ -308,7 +313,12 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
             TyKind::Mapping(key, value) => format!(
                 "t_mapping({},{})",
-                self.storage_type_key_with(key, None, false),
+                // solc converts mapping key types to memory.
+                self.storage_type_key_with(
+                    key.with_loc_if_ref(self.gcx, DataLocation::Memory),
+                    None,
+                    false,
+                ),
                 self.storage_type_key_with(
                     value.with_loc_if_ref(self.gcx, DataLocation::Storage),
                     None,
