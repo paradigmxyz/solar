@@ -94,6 +94,13 @@ finish() {
 log "start t0=$t0 memory_max_want=$mem uid=$(id -u) solar=$SOLAR_PIN solidity-lean=$SL_PIN"
 cg=$(sed -n 's/^0:://p' /proc/self/cgroup)
 
+# System packages the clones and the producer build need, recorded in tools.txt.
+{ sudo -n DEBIAN_FRONTEND=noninteractive apt-get update -q &&
+  sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y -q git build-essential libc6-dev; } > "$out/apt.log" 2>&1 ||
+    finish "FAILED: apt-get install git build-essential libc6-dev" 1
+{ echo "== apt"; dpkg-query -W -f='${Package} ${Version} ${Architecture}\n' git build-essential libc6-dev gcc binutils; } > "$out/tools.txt" 2>&1
+hash -r
+
 # Sources.
 git clone -q https://github.com/paradigmxyz/solar.git "$w/solar" && git -C "$w/solar" checkout -q "$SOLAR_PIN" ||
     finish "FAILED: cannot check out solar $SOLAR_PIN" 1
@@ -118,10 +125,17 @@ export PATH=$HOME/.local/bin:$PATH
 command -v uv > /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh > /dev/null 2>&1
 uv python install -q 3.14 || finish "FAILED: python 3.14" 1
 ln -sf "$(uv python find 3.14)" "$w/bin/python3"; export PATH=$w/bin:$HOME/.cargo/bin:$HOME/.elan/bin:$PATH
-command -v cargo > /dev/null || curl -sSfL https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none --no-modify-path > /dev/null
+# rustc 1.100.0 is pinned (the toolchain of the earlier pinned producer); fail closed otherwise.
+RUST_PIN=1.100.0 RUSTC_WANT='rustc 1.100.0 (0ef1bc386'
+command -v rustup > /dev/null || curl -sSfL https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain "$RUST_PIN" --no-modify-path > /dev/null
+rustup toolchain install -q --profile minimal "$RUST_PIN" > /dev/null 2>&1 && rustup default "$RUST_PIN" > /dev/null 2>&1 ||
+    finish "FAILED: rustup toolchain $RUST_PIN" 1
+[[ $(rustc -V) == "$RUSTC_WANT"* ]] || finish "FAILED: rustc -V is '$(rustc -V 2>&1)', not $RUSTC_WANT..." 1
+RUST_DIR=$(rustc --print sysroot)
+RUST_DIR_SHA=$(cd "$RUST_DIR" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
 command -v lake > /dev/null || curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none --no-modify-path > /dev/null
 export LEAN_MEMORY=${LEAN_MEMORY:-6000}
-{ python3 -VV; cargo -V; (cd "$w/solar" && rustc -vV); } > "$out/tools.txt" 2>&1
+{ python3 -VV; cargo -V; (cd "$w/solar" && rustc -vV); echo "toolchain_dir $RUST_DIR sha256 $RUST_DIR_SHA"; } >> "$out/tools.txt" 2>&1
 
 # Producer: the driver's build (cargo build --locked --bin solar, debug, at the pin), fetched once
 # and then built offline.
@@ -141,7 +155,9 @@ cat > "$out/producer.json" <<EOF
  "driver_commit": "$(git rev-parse HEAD)", "dirty": $(git status --porcelain | wc -l),
  "command": "cargo build --locked --bin solar", "profile": "dev", "RUSTFLAGS": "unset",
  "CARGO_BUILD_JOBS": "${CARGO_BUILD_JOBS:-4}", "CARGO_NET_OFFLINE": "true",
- "cargo_lock_sha256": "$(sha256sum < Cargo.lock | cut -c1-64)", "rustc": "$(rustc -V)"}
+ "cargo_lock_sha256": "$(sha256sum < Cargo.lock | cut -c1-64)", "rustc": "$(rustc -V)",
+ "rustc_host": "$(rustc -vV | sed -n 's/^host: //p')", "toolchain_dir": "$RUST_DIR",
+ "toolchain_dir_sha256": "$RUST_DIR_SHA"}
 EOF
 log "producer $(tr -d '\n' < "$out/producer.json")"
 CERTIFY_SOLAR_SHA256=$(sha256sum < "$B" | cut -c1-64); export CERTIFY_SOLAR_SHA256
