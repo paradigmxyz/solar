@@ -13,9 +13,10 @@
 // CHECK-NEXT: push 1 !metadata(span=[[G:[0-9]+..[0-9]+]])
 // CHECK-NEXT: swap 2 !metadata(span=[[G]])
 // CHECK-NEXT: swap 1 !metadata(span=[[G]])
-// CHECK-NEXT: jump bb{{[0-9]+}} !metadata(span=1665..1672, exit=return)
+// CHECK-NEXT: jump bb{{[0-9]+}} !metadata(span=1751..1758, exit=return)
 
-// The implicit return that ends a function encloses the call, so the jump maps to the call.
+// The implicit return that ends a function maps to the closing brace, which is no statement of its
+// own, so the jump keeps the call, as the tail-call instruction of LLVM does.
 // CHECK: [invoke=i
 // CHECK-NEXT: push 2 !metadata(span=[[I:[0-9]+..[0-9]+]])
 // CHECK-NEXT: swap 2 !metadata(span=[[I]])
@@ -26,7 +27,7 @@
 // CHECK-NEXT: push 1 !metadata(span=[[Z:[0-9]+..[0-9]+]])
 // CHECK-NEXT: swap 2 !metadata(span=[[Z]])
 // CHECK-NEXT: swap 1 !metadata(span=[[Z]])
-// CHECK-NEXT: jump bb{{[0-9]+}} !metadata(span=1947..1952, exit=return)
+// CHECK-NEXT: jump bb{{[0-9]+}} !metadata(span=2033..2038, exit=return)
 contract C {
     uint256 public s;
 
