@@ -8,14 +8,14 @@
 # propext, Classical.choice and Quot.sound with trusted 0. Each case's directory ships to
 # $OUT/outbox as it ends. Needs OUT, SOLAR_DIR, SOLAR_SHA, LEAN_DIR, PACKAGES_FROM, ARCHIVE_DIR,
 # ARCHIVES, BOX_CREATED; optional ADMIT_MIN (90), END_MIN (105), CASE_MEMORY_MAX, REPLAY_PASS_LINE
-# (the driver's replay success wording; default the post-fix driver's "same pinned source/build
-# inputs and identical checked outputs", to be confirmed against the integrated head).
+# (the driver's replay success wording; default the driver's "a fresh cold run from the same
+# pinned source/build inputs gave identical checked outputs").
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 : "${OUT:?}" "${SOLAR_DIR:?}" "${SOLAR_SHA:?}" "${LEAN_DIR:?}" "${PACKAGES_FROM:?}" "${ARCHIVE_DIR:?}" "${ARCHIVES:?}" "${BOX_CREATED:?}"
 unset SOLAR CERTIFY_SKIP_BUILD SOLAR_VERIFY CERTIFY_REPLAY_TRUST_UPSTREAM CERTIFY_ALLOW_FOREIGN_SOLAR CERTIFY_ALLOW_UNPINNED CERTIFY_PIN_BASE
 mkdir -p "$OUT/outbox"
-export REPLAY_PASS_LINE=${REPLAY_PASS_LINE:-same pinned source/build inputs and identical checked outputs}
+export REPLAY_PASS_LINE=${REPLAY_PASS_LINE:-a fresh cold run from the same pinned source/build inputs gave identical checked outputs}
 log() { echo "$(date -u +%FT%TZ) $*" | tee -a "$OUT/run.log"; }
 created=$(date -u -d "$BOX_CREATED" +%s)
 admit_until=$((created + ${ADMIT_MIN:-90} * 60))

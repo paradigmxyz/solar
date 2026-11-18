@@ -34,7 +34,10 @@ if rc != "0": why.append(f"exit {rc}")
 if not want or want not in line: why.append("no reproduced line")
 r = {}
 if fresh:
-    r = (json.load(open(fresh)).get("replay") or {})
+    fr = json.load(open(fresh))
+    r = fr.get("replay") or {}
+    pv = ((fr.get("solar") or {}).get("build") or {}).get("provenance_version")
+    if pv != 2: why.append(f"provenance_version {pv!r}")
 else:
     why.append("no fresh record")
 ax = sorted(r.get("axioms") or [])

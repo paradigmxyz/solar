@@ -10,8 +10,9 @@ cat > "$S/tools/certify/certify" <<'EOF'
 d=$2; n=$(basename "$(dirname "$d")")
 ax=FAKE_AX_${n//-/_}; rc=FAKE_RC_${n//-/_}
 mkdir -p "$d.replay-1"
-printf '{"replay": {"closure": 5, "replayed_count": 5, "trusted_count": 0, "axioms": %s}}\n' "${!ax:-[\"propext\", \"Classical.choice\", \"Quot.sound\"]}" > "$d.replay-1/record.json"
-if [[ "${!rc:-0}" == 0 ]]; then echo "CERTIFIED: replay of $d: same pinned source/build inputs and identical checked outputs ($d.replay-1/record.json)"; else echo "REJECTED: replay: solar.binary_sha256 differs"; fi
+pv=FAKE_PV_${n//-/_}
+printf '{"solar": {"build": {"provenance_version": %s}}, "replay": {"closure": 5, "replayed_count": 5, "trusted_count": 0, "axioms": %s}}\n' "${!pv:-2}" "${!ax:-[\"propext\", \"Classical.choice\", \"Quot.sound\"]}" > "$d.replay-1/record.json"
+if [[ "${!rc:-0}" == 0 ]]; then echo "CERTIFIED: replay of $d: a fresh cold run from the same pinned source/build inputs gave identical checked outputs ($d.replay-1/record.json)"; else echo "REJECTED: replay: solar.binary_sha256 differs"; fi
 exit "${!rc:-0}"
 EOF
 chmod +x "$S/tools/certify/certify"
@@ -35,6 +36,11 @@ grep -q '^control-flag DONE exit=0 replay=FAIL(axioms' "$T/c/table.txt" && ok "a
 awk 'NR==1{c=substr($1,1,1); $1=(c=="0"?"1":"0") substr($1,2)} {print $1"  "$2}' "$T/archives.sha256" > "$T/bad.sha256"
 ARCH=$T/bad.sha256 go d
 grep -q 'REFUSED-ARCHIVES' "$T/d/run.log" && [[ ! -d "$T/d/control-flag" ]] && ok "archive digest mismatch refuses before any replay" || bad "d: $(tail -2 "$T/d/run.log")"
-REPLAY_PASS_LINE="every pin reproduced by a fresh cold run" go e
-[[ $(grep -c 'replay=FAIL(no reproduced line)' "$T/e/table.txt") == 3 ]] && ok "the old driver wording does not pass" || bad "e: $(cat "$T/e/table.txt")"
+go f FAKE_PV_control_flagrenamed=1
+grep -q '^control-flagrenamed DONE exit=0 replay=FAIL(provenance_version 1)' "$T/f/table.txt" && ok "a fresh record below provenance 2 FAILs" || bad "f: $(cat "$T/f/table.txt")"
+for old in "every pin reproduced by a fresh cold run" "same pinned source/build inputs and identical checked outputs"; do
+  REPLAY_PASS_LINE=$old go e
+  [[ $(grep -c 'replay=FAIL(no reproduced line)' "$T/e/table.txt") == 3 ]] && ok "wording '$old' does not pass" || bad "e: $(cat "$T/e/table.txt")"
+  rm -rf "$T/e"
+done
 echo "fails=$fails"; exit $fails

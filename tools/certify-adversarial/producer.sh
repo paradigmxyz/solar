@@ -14,7 +14,36 @@ for v in SOLAR CERTIFY_SKIP_BUILD SOLAR_VERIFY CERTIFY_REPLAY_TRUST_UPSTREAM CER
     CERTIFY_ALLOW_UNPINNED CERTIFY_PIN_BASE; do
     if [[ -n "${!v:-}" ]]; then echo "producer: $v is set; refusing" >&2; exit 2; fi
 done
+# The build's configuration must be the one the driver supports (generic.py cargo_env_problem and
+# cargo_config_problem): no rustc override, wrapper or flags, no other target or profile, and no
+# Cargo config outside the checkout's own. Refused here before anything builds.
+for v in RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER RUSTFLAGS CARGO_ENCODED_RUSTFLAGS RUSTC_BOOTSTRAP \
+    RUSTC_FORCE_INCREMENTAL CARGO_BUILD_TARGET; do
+    if [[ -n "${!v+x}" ]]; then echo "producer: $v is set; refusing" >&2; exit 2; fi
+done
+while IFS='=' read -r k _; do
+    case "$k" in
+        CARGO_BUILD_JOBS|CARGO_INCREMENTAL|CARGO_HOME|CARGO_NET_OFFLINE|CARGO_TERM_*) ;;
+        CARGO_BUILD_*|CARGO_TARGET_*|CARGO_PROFILE_*|CARGO_UNSTABLE_*|CARGO_ENCODED_*|__CARGO_*)
+            echo "producer: $k is set; refusing" >&2; exit 2 ;;
+    esac
+done < <(env)
+d=$(cd "$SOLAR_DIR/.." && pwd)
+while :; do
+    for f in "$d/.cargo/config" "$d/.cargo/config.toml"; do
+        [[ -e "$f" ]] && { echo "producer: external Cargo config $f; refusing" >&2; exit 2; }
+    done
+    [[ "$d" == / ]] && break
+    d=$(dirname "$d")
+done
+for f in "${CARGO_HOME:-$HOME/.cargo}/config" "${CARGO_HOME:-$HOME/.cargo}/config.toml"; do
+    [[ -e "$f" ]] && { echo "producer: external Cargo config $f; refusing" >&2; exit 2; }
+done
 cd "$SOLAR_DIR"
+# A clean build: no target directory before it.
+[[ ! -e target ]] || { echo "producer: $SOLAR_DIR/target exists; the build must start empty" >&2; exit 2; }
+grep -qx 'PROVENANCE_VERSION = 2' tools/certify/generic.py \
+    || { echo "producer: the driver is not at build provenance version 2" >&2; exit 2; }
 head=$(git rev-parse HEAD)
 [[ "$head" == "$SOLAR_SHA" ]] || { echo "producer: checkout is at $head, not $SOLAR_SHA" >&2; exit 2; }
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo "producer: checkout has edits" >&2; exit 2; }

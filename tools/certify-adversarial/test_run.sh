@@ -16,20 +16,20 @@ sha=$(sha256sum "$HOME/solar-bin" | cut -c1-64)
 case "$(basename "$src")" in
   FlagControl.sol|SiblingOk.sol|FlagRenamed.sol)
     if [[ "$(basename "$src")" == "${FAIL_CASE:-none}" ]]; then
-        printf '{"solar": {"binary_sha256": "%s", "binary_commit": "%s"}, "strict": {"tier": "certified", "holds": false}, "tier_reached": "functional"}\n' "$sha" "$BC" > "$rd/record.json"
+        printf '{"solar": {"binary_sha256": "%s", "binary_commit": "%s", "build": {"provenance_version": 2}}, "strict": {"tier": "certified", "holds": false}, "tier_reached": "functional"}\n' "$sha" "$BC" > "$rd/record.json"
         echo "REJECTED: strict tier: reached functional"; exit 2
     fi
-    printf '{"solar": {"binary_sha256": "%s", "binary_commit": "%s"}, "strict": {"tier": "certified", "holds": true}, "tier_reached": "certified", "replay": {"closure": 3, "replayed_count": 3, "trusted_count": 0, "unaccounted": []}}\n' "$sha" "$BC" > "$rd/record.json"
+    printf '{"solar": {"binary_sha256": "%s", "binary_commit": "%s", "build": {"provenance_version": 2}}, "strict": {"tier": "certified", "holds": true}, "tier_reached": "certified", "replay": {"closure": 3, "replayed_count": 3, "trusted_count": 0, "unaccounted": []}}\n' "$sha" "$BC" > "$rd/record.json"
     echo "CERTIFIED: x: the requested tier holds (record r)"; exit 0 ;;
   *) sleep "${NEG_SLEEP:-1}"
-     printf '{"solar": {"binary_sha256": "%s", "binary_commit": "%s"}}\n' "$sha" "$BC" > "$rd/record.json"
+     printf '{"solar": {"binary_sha256": "%s", "binary_commit": "%s", "build": {"provenance_version": 2}}}\n' "$sha" "$BC" > "$rd/record.json"
      echo "REJECTED: spec: raise_meets0 does not check: x"; exit 1 ;;
 esac
 EOF
 chmod +x "$S/tools/certify/certify"
 printf 'target/\n' > "$S/.gitignore"
 echo lock > "$S/Cargo.lock"
-cp "$H/../certify/generic.py" "$S/tools/certify/generic.py" 2>/dev/null || touch "$S/tools/certify/generic.py"
+echo 'PROVENANCE_VERSION = 2' > "$S/tools/certify/generic.py"
 git -C "$S" init -q; git -C "$S" add -A; git -C "$S" -c user.email=t@t -c user.name=t commit -qm init
 export BC=$(git -C "$S" rev-parse HEAD)
 cat > "$T/bin/cargo" <<EOF
@@ -47,6 +47,7 @@ export PATH="$T/bin:$PATH" HOME=$T
 fails=0
 ok() { echo "ok $1"; }; bad() { echo "FAIL $1"; fails=$((fails+1)); }
 go() { # go OUTNAME [env...]
+  rm -rf "$S/target"
   env SLOTS=3 CASES=$H/cases.tsv "${@:2}" OUT=$T/$1 SOLAR_DIR=$S SOLAR_SHA=$BC LEAN_DIR=$T LEAN_SHA=lean PACKAGES_FROM=$T/pk \
       BOX_CREATED=$(date -u +%FT%TZ) EST_MIN=1 bash "$H/run.sh" > "$T/$1.out" 2>&1; }
 go a
@@ -69,4 +70,16 @@ go d PHASE=c1 CASES=$T/c1.tsv
 [[ $(cat "$T/d/control-flag/replay.exit") == skipped-c1 && ! -e "$T/d/control-flag/replay.command" ]] && ok "PHASE=c1: certify only, no replay" || bad "c1 replay: $(cat "$T/d/control-flag/replay.exit" 2>&1)"
 [[ $(ls "$T"/d/outbox/*.tgz | wc -l) == 3 && ! -d "$T/d/siblingleak" ]] && ok "PHASE=c1: 3 control archives shipped, no negatives" || bad "c1 outbox: $(ls "$T"/d/outbox)"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert len(d["cargo_lock_sha256"])==64 and len(d["toolchain_dir_sha256"])==64' "$T/d/producer.json" && ok "producer records Cargo.lock and toolchain dir sha256" || bad "producer fields: $(cat "$T/d/producer.json")"
+pr() { rm -rf "$S/target"; env "$@" SOLAR_DIR=$S SOLAR_SHA=$BC bash "$H/producer.sh" "$T/p.json" 2>&1; }
+pr RUSTFLAGS=-Copt-level=3 | grep -q 'RUSTFLAGS is set; refusing' && ok "producer refuses RUSTFLAGS" || bad "RUSTFLAGS"
+pr CARGO_BUILD_TARGET=x86_64-unknown-linux-musl | grep -q 'CARGO_BUILD_TARGET is set; refusing' && ok "producer refuses CARGO_BUILD_TARGET" || bad "CARGO_BUILD_TARGET"
+pr RUSTC_WRAPPER=sccache | grep -q 'RUSTC_WRAPPER is set; refusing' && ok "producer refuses RUSTC_WRAPPER" || bad "RUSTC_WRAPPER"
+pr CARGO_PROFILE_DEV_OPT_LEVEL=3 | grep -q 'CARGO_PROFILE_DEV_OPT_LEVEL is set; refusing' && ok "producer refuses a profile override" || bad "profile"
+mkdir -p "$T/.cargo"; printf '[patch.crates-io]\n' > "$T/.cargo/config.toml"
+pr | grep -q "external Cargo config $T/.cargo/config.toml" && ok "producer refuses a parent Cargo config" || bad "parent config"
+rm -rf "$T/.cargo"; mkdir -p "$T/ch"; printf '[env]\n' > "$T/ch/config.toml"
+pr CARGO_HOME=$T/ch | grep -q "external Cargo config $T/ch/config.toml" && ok "producer refuses a CARGO_HOME config" || bad "cargo_home config"
+rm -rf "$T/ch"
+mkdir -p "$S/target"; env SOLAR_DIR=$S SOLAR_SHA=$BC bash "$H/producer.sh" "$T/p.json" 2>&1 | grep -q 'target exists; the build must start empty' && ok "producer refuses a non-empty target" || bad "target"
+rm -rf "$S/target"
 echo "fails=$fails"; exit $fails

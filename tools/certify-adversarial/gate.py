@@ -14,6 +14,12 @@ verdict = lines[-1] if lines else ""
 g = {"class": cls, "stage": stage, "kind": kind, "verdict": verdict[:2000],
      "verdict_matches": bool(re.search(stage, verdict))}
 ok = kind == "DONE" and g["verdict_matches"]
+try:
+    pv = ((json.loads((d / "rec" / "record.json").read_text()).get("solar") or {}).get("build") or {}).get("provenance_version")
+except Exception:
+    pv = None
+g["provenance_version"] = pv
+ok = ok and pv == 2
 if cls == "control":
     try:
         rec = json.loads((d / "rec" / "record.json").read_text())
