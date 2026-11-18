@@ -1,0 +1,8 @@
+error: expression is too deeply nested
+   ╭▸ ROOT/tests/ui/parser/expr_depth_limit_stmt_with.sol:LL:CC
+   │
+LL │ …     ^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a^a
+   ╰╴                                                                                                        ━
+
+error: aborting due to 1 previous error
+

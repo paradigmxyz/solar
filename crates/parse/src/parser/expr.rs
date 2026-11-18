@@ -43,8 +43,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         min_precedence: usize,
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        // Nested expressions merge their depth into the outer value when they finish.
-        let outer_depth = std::mem::take(&mut self.expr_depth);
+        // Nested expressions merge their depth into the outer value when they finish. A `with`
+        // expression is already counted.
+        let outer_depth = if with.is_some() { 0 } else { std::mem::take(&mut self.expr_depth) };
         let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(self.token);
         while precedence >= min_precedence {
