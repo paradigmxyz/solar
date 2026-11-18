@@ -1414,15 +1414,15 @@ pass on an empty map.
 
 - ID: DEBUG-001
 - Status: intentional
-- Difference: a statement whose value is a constant, a copy or a folded
-  constant expression has no instruction. Examples are `uint256 r = 5;`,
-  `uint8 a;`, `uint256 b = x;`, `b = r;`, `bytes32 slot = bytes32(SLOT);` for a
-  constant `SLOT`, `uint256 big = 2 ** 128;`,
-  `uint256 m = type(uint256).max - 3;`, and in Yul `let q := 0x10`,
-  `let w := x` and `q := w`. `solc` maps a `PUSH` or `DUP` to each statement or
-  its value. An
-  `if` arm or `catch` block that holds only such statements has no instruction
-  either.
+- Difference: a statement that declares or assigns a local variable, and whose
+  value is a constant, a copy or a folded constant expression, has no
+  instruction. Examples are `uint256 r = 5;`, `uint8 a;`, `uint256 b = x;`,
+  `b = r;`, `bytes32 slot = bytes32(SLOT);` for a constant `SLOT`,
+  `uint256 big = 2 ** 128;`, `uint256 m = type(uint256).max - 3;`, and in Yul
+  `let q := 0x10`, `let w := x` and `q := w`. `solc` maps a `PUSH` or `DUP` to
+  each statement or its value. An `if` arm or `catch` block that holds only such
+  statements has no instruction either. A write to storage or memory keeps its
+  `SSTORE` or `MSTORE`.
 - Rationale: the value sits in the `PUSH` or `DUP` of the code that reads it,
   or in a stack rename, so nothing executes for the statement.
 - Coverage:
