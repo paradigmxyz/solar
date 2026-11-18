@@ -1417,7 +1417,7 @@ pass on an empty map.
 - Difference: a statement that declares or assigns a local variable, and whose
   value is a constant, a copy or a folded constant expression, has no
   instruction. Examples are `uint256 r = 5;`, `uint8 a;`, `uint256 b = x;`,
-  `b = r;`, `bytes32 slot = bytes32(SLOT);` for a constant `SLOT`,
+  `r = b;`, `bytes32 slot = bytes32(SLOT);` for a constant `SLOT`,
   `uint256 big = 2 ** 128;`, `uint256 m = type(uint256).max - 3;`, and in Yul
   `let q := 0x10`, `let w := x` and `q := w`. `solc` maps a `PUSH` or `DUP` to
   each statement or its value. An `if` arm or `catch` block that holds only such
@@ -1495,8 +1495,9 @@ pass on an empty map.
   returns a struct constructor, such as `make(a, b)` with the body
   `return P(a, b);`, has no entry, and neither has its `return`, when every use
   is a direct call that lowering expands. The code that builds the struct maps
-  to each call, `make(x, 1)` and `make(x, 2)`. `solc` emits the function once
-  and maps its `return` to it. A use that needs the function itself keeps its
+  to each call, `make(x, 1)` and `make(x, 2)`, except that an expression in a
+  field, such as `a ^ b` in `P(a ^ b, b)`, keeps its own location in the
+  helper. `solc` emits the function once and maps its `return` to it. A use that needs the function itself keeps its
   entry: a function pointer, a read of a named return variable, or a call that
   a call inside the expansion reaches again.
 - Rationale: MIR lowering inlines the function into each call, so the code runs

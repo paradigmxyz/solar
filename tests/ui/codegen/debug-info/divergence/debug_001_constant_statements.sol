@@ -13,7 +13,7 @@
 // location with no instruction never appears anywhere in the map.
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
-// `uint256 r = 5;`, `uint8 a;`, `uint256 b = x;`, `b = r;`, `bytes32 slot = bytes32(SLOT);`,
+// `uint256 r = 5;`, `uint8 a;`, `uint256 b = x;`, `r = b;`, `bytes32 slot = bytes32(SLOT);`,
 // `uint256 big = 2 ** 128;` and `uint256 m = type(uint256).max - 3;`
 // CHECK-NOT: {{[;"]}}[[#C+124]]{{[:;"]}}
 // CHECK-NOT: {{[;"]}}[[#C+147]]{{[:;"]}}
@@ -39,7 +39,7 @@
 // The IR below shows the neighbouring code has locations.
 // `function declarations`
 // CHECK: {{[=\[ ]}}[[#C+49]]..
-// `return b + big + m + uint256(slot) + a;`
+// `return r ^ big ^ m ^ uint256(slot) ^ a;`
 // CHECK: {{[=\[ ]}}[[#C+315]]..
 // `x == 1`
 // CHECK: {{[=\[ ]}}[[#C+418]]..
@@ -60,11 +60,11 @@ contract C {
         uint256 r = 5;
         uint8 a;
         uint256 b = x;
-        b = r;
+        r = b;
         bytes32 slot = bytes32(SLOT);
         uint256 big = 2 ** 128;
         uint256 m = type(uint256).max - 3;
-        return b + big + m + uint256(slot) + a;
+        return r ^ big ^ m ^ uint256(slot) ^ a;
     }
 
     function arm(uint256 x) external pure {
