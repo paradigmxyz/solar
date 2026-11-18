@@ -11,12 +11,19 @@
 // location with no instruction never appears anywhere in the map.
 
 // CHECK: "srcmap-runtime":"[[#C:]]:
-// `keccak256(abi.encodePacked("a", "b"))` and `abi.encodePacked("a", "b")`
+// `keccak256(abi.encodePacked("a", "b"))`, `abi.encodePacked("a", "b")` and its `"a"` and `"b"`
 // CHECK-NOT: {{[;"]}}[[#C+133]]{{[:;"]}}
 // CHECK-NOT: {{[;"]}}[[#C+143]]{{[:;"]}}
-// `keccak256(abi.encode(uint256(1), uint256(2)))` and `abi.encode(uint256(1), uint256(2))`
+// CHECK-NOT: {{[;"]}}[[#C+160]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+165]]{{[:;"]}}
+// `keccak256(abi.encode(uint256(1), uint256(2)))`, `abi.encode(...)` and its `uint256(1)`, `1`,
+// `uint256(2)` and `2`
 // CHECK-NOT: {{[;"]}}[[#C+251]]{{[:;"]}}
 // CHECK-NOT: {{[;"]}}[[#C+261]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+272]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+280]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+284]]{{[:;"]}}
+// CHECK-NOT: {{[;"]}}[[#C+292]]{{[:;"]}}
 // CHECK: "sourceList"
 // The IR below shows the neighbouring code has locations.
 // `return keccak256(abi.encodePacked("a", "b"));`
