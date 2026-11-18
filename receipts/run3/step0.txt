@@ -1,0 +1,3 @@
+source envelope: inside Token ['balanceOf(address)', 'burn(uint256)', 'mint(address,uint256)', 'owner()', 'totalSupply()', 'transfer(address,uint256)']
+bytecode envelope: runtime bytes 409 refused opcodes none
+step 0-envelope exit=0 elapsed_s=67 2026-11-18T04:43:12Z

@@ -1,0 +1,24 @@
+== generic: /home/ubuntu/vt-out/work/sl/Certified/verify_token/verify_token.sol (273bfc34729a2a7e3301fc37589096b7efb80480b17636e8ba09b295e537b4a6) as verify_token_273bfc34, requested tier certified
+envelope (source): inside; functions balanceOf(address), burn(uint256), mint(address,uint256), owner(), totalSupply(), transfer(address,uint256)
+== generic: build solar
+envelope (bytecode): no call, creation, gas or return-data opcode
+gas bound (the loop checker's, from this export): 15116412
+== generic: probe SolidCore's evaluation and the generic check (separate clone)
+PROBE typecheck: ok
+PROBE core: <14550 chars>
+PROBE constructor: returns
+PROBE storage: [(2, 4096)]
+PROBE fn balanceOf(address): source tree undefined (erasure)
+PROBE fn burn(uint256): agree
+PROBE fn mint(address,uint256): agree
+PROBE fn owner(): agree
+PROBE fn totalSupply(): agree
+PROBE fn transfer(address,uint256): agree
+PROBE sym fn balanceOf(address): source tree undefined (erasure)
+PROBE sym fn burn(uint256): agree
+PROBE sym fn mint(address,uint256): agree
+PROBE sym fn owner(): agree
+PROBE sym fn totalSupply(): agree
+PROBE sym fn transfer(address,uint256): agree
+BLOCKED: generic source check (1x, first balanceOf(address): balanceOf(address): source tree undefined (erasure))
+step 1-generic exit=3 elapsed_s=1023 2026-11-18T04:59:08Z

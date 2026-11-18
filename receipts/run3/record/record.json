@@ -1,0 +1,126 @@
+{
+  "schema": "solar-certify-generic/1",
+  "name": "verify_token_273bfc34",
+  "started": "2026-11-18T04:43:12+00:00",
+  "command": [
+    "/home/ubuntu/vt-out/work/solar/tools/certify/certify",
+    "/home/ubuntu/vt-out/work/sl/Certified/verify_token/verify_token.sol",
+    "natspec",
+    "--contract",
+    "Token",
+    "--solidity-lean",
+    "/home/ubuntu/vt-out/work/sl",
+    "--base",
+    "334d1d924f8f6c29ac827fd81d1cc739721b479a",
+    "--work",
+    "/home/ubuntu/vt-out/work/run1",
+    "--record-dir",
+    "/home/ubuntu/vt-out/record"
+  ],
+  "requested_tier": "certified",
+  "source": {
+    "file": "/home/ubuntu/vt-out/work/sl/Certified/verify_token/verify_token.sol",
+    "sha256": "273bfc34729a2a7e3301fc37589096b7efb80480b17636e8ba09b295e537b4a6"
+  },
+  "spec": {
+    "kind": "natspec",
+    "sha256": "273bfc34729a2a7e3301fc37589096b7efb80480b17636e8ba09b295e537b4a6"
+  },
+  "invariants": {
+    "file": null,
+    "sha256": null
+  },
+  "options": [
+    "-Ogas",
+    "--evm-version",
+    "osaka"
+  ],
+  "solar": {
+    "commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f",
+    "dirty": false,
+    "binary_sha256": "d09722d408836650c35d059419af6642d21420b49f84bf36475ea5675442a66e",
+    "version": "solar 0.3.0-dev+commit.085fbaa8",
+    "binary_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f"
+  },
+  "solc": {
+    "version": "0.8.35",
+    "path": "/home/ubuntu/.cache/solc/solc-0.8.35",
+    "sha256": "fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4"
+  },
+  "lean_toolchain": {
+    "recorded_digest": "953aa1e72283c07686567bb71eeb3fca202baafe2958a7e57987d3b8c4434c25"
+  },
+  "contract": "Token",
+  "functions": [
+    {
+      "signature": "balanceOf(address)",
+      "selector": "0x70a08231",
+      "params": [
+        ".uint 160"
+      ]
+    },
+    {
+      "signature": "burn(uint256)",
+      "selector": "0x42966c68",
+      "params": [
+        ".uint 256"
+      ]
+    },
+    {
+      "signature": "mint(address,uint256)",
+      "selector": "0x40c10f19",
+      "params": [
+        ".uint 160",
+        ".uint 256"
+      ]
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "params": []
+    },
+    {
+      "signature": "totalSupply()",
+      "selector": "0x18160ddd",
+      "params": []
+    },
+    {
+      "signature": "transfer(address,uint256)",
+      "selector": "0xa9059cbb",
+      "params": [
+        ".uint 160",
+        ".uint 256"
+      ]
+    }
+  ],
+  "environment": "one frame, caller 0x2000, contract at 0x1000, the block and transaction of Target.message (fixed, not quantified)",
+  "bytecode_sha256": "99614157d1ef4e164aae1451a0f604766bc1765b53e8f7bc5da8b6c75c55bb61",
+  "gas_bound": 15116412,
+  "probe": [
+    "PROBE typecheck: ok",
+    "PROBE core: <14550 chars>",
+    "PROBE constructor: returns",
+    "PROBE storage: [(2, 4096)]",
+    "PROBE fn balanceOf(address): source tree undefined (erasure)",
+    "PROBE fn burn(uint256): agree",
+    "PROBE fn mint(address,uint256): agree",
+    "PROBE fn owner(): agree",
+    "PROBE fn totalSupply(): agree",
+    "PROBE fn transfer(address,uint256): agree",
+    "PROBE sym fn balanceOf(address): source tree undefined (erasure)",
+    "PROBE sym fn burn(uint256): agree",
+    "PROBE sym fn mint(address,uint256): agree",
+    "PROBE sym fn owner(): agree",
+    "PROBE sym fn totalSupply(): agree",
+    "PROBE sym fn transfer(address,uint256): agree"
+  ],
+  "blocked": [
+    {
+      "feature": "generic source check",
+      "where": "balanceOf(address)",
+      "detail": "balanceOf(address): source tree undefined (erasure)"
+    }
+  ],
+  "status": "BLOCKED",
+  "finished": "2026-11-18T04:59:08+00:00"
+}

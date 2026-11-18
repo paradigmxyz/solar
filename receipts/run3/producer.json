@@ -1,0 +1,7 @@
+{"path": "/home/ubuntu/vt-out/work/solar/target/debug/solar", "sha256": "d09722d408836650c35d059419af6642d21420b49f84bf36475ea5675442a66e", "embedded_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f",
+ "driver_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f", "dirty": 0,
+ "command": "cargo build --locked --bin solar", "profile": "dev", "RUSTFLAGS": "unset",
+ "CARGO_BUILD_JOBS": "4", "CARGO_NET_OFFLINE": "true",
+ "cargo_lock_sha256": "039e193eec0426e525995eb21c5c46f9210419ceb04fdac47279088929f7c330", "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+ "rustc_host": "x86_64-unknown-linux-gnu", "toolchain_dir": "/home/ubuntu/.rustup/toolchains/1.100.0-x86_64-unknown-linux-gnu",
+ "toolchain_dir_sha256": "60dfdef381ebc5f05ef569d080bad12895e62960e54b3d81514a21acec243f6c"}

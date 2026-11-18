@@ -1,0 +1,12 @@
+cgroup /system.slice/vt-box-20261118T044205Z.scope
+memory.max 137438953472
+memory.peak 15301935104
+memory.swap.max 0
+== memory.events
+low 0
+high 0
+max 0
+oom 0
+oom_kill 0
+oom_group_kill 0
+sock_throttled 0

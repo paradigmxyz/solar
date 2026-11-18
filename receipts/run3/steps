@@ -1,0 +1,14 @@
+start t0=1794976925 memory_max_want=137438953472 uid=1000 solar=085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f solidity-lean=334d1d924f8f6c29ac827fd81d1cc739721b479a 2026-11-18T04:42:05Z
+admitted cgroup=/system.slice/vt-box-20261118T044205Z.scope memory.max=137438953472 swap.max=0 2026-11-18T04:42:19Z
+step fetch exit=0 elapsed_s=29 2026-11-18T04:42:34Z
+step producer exit=0 elapsed_s=67 2026-11-18T04:43:12Z
+producer {"path": "/home/ubuntu/vt-out/work/solar/target/debug/solar", "sha256": "d09722d408836650c35d059419af6642d21420b49f84bf36475ea5675442a66e", "embedded_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f", "driver_commit": "085fbaa853a32f1a9a4cab77cb8d892fd2eb6e2f", "dirty": 0, "command": "cargo build --locked --bin solar", "profile": "dev", "RUSTFLAGS": "unset", "CARGO_BUILD_JOBS": "4", "CARGO_NET_OFFLINE": "true", "cargo_lock_sha256": "039e193eec0426e525995eb21c5c46f9210419ceb04fdac47279088929f7c330", "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)", "rustc_host": "x86_64-unknown-linux-gnu", "toolchain_dir": "/home/ubuntu/.rustup/toolchains/1.100.0-x86_64-unknown-linux-gnu", "toolchain_dir_sha256": "60dfdef381ebc5f05ef569d080bad12895e62960e54b3d81514a21acec243f6c"} 2026-11-18T04:43:12Z
+step 0-envelope exit=0 elapsed_s=67 2026-11-18T04:43:12Z
+step 1-generic exit=3 elapsed_s=1023 2026-11-18T04:59:08Z
+verdict: PROBE sym fn transfer(address,uint256): agree
+verdict: BLOCKED: generic source check (1x, first balanceOf(address): balanceOf(address): source tree undefined (erasure))
+verdict: step 1-generic exit=3 elapsed_s=1023 2026-11-18T04:59:08Z
+memory cgroup /system.slice/vt-box-20261118T044205Z.scope memory.max 137438953472 memory.peak 15301935104 memory.swap.max 0 == memory.events low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 sock_throttled 0  2026-11-18T04:59:08Z
+ASSUMPTION OPEN: hsep (SolidCore.Spec.MapSlotsSeparated on the balanceOf slot, keccak256 separation) is a hypothesis of the statement, not discharged 2026-11-18T04:59:08Z
+EXCLUDED: deployment (the init code; the statement is about the runtime from storage holding the constructor's slots) 2026-11-18T04:59:08Z
+TERMINAL step 1 exit 3 (see step1.txt) elapsed_s=1023 2026-11-18T04:59:08Z
