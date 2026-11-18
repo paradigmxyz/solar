@@ -62,13 +62,13 @@ theorem changeRequest (cfg : Config) (frame : Frame) (fuel : Nat)
     (target object a b : Word) (budget : Nat) (fork : cfg.fork = .cancun)
     (ha : budget ≤ a.toNat) (hb : budget ≤ b.toNat)
     (aLimit : a.toNat ≤ 30000000) (bLimit : b.toNat ≤ 30000000) :
-    invokeAndCollect (withBudget cfg frame budget) fuel
+    invoke (withBudget cfg frame budget) fuel
       (LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame budget) frame target a object)
-      (lowered (withBudget cfg frame budget)) =
-    invokeAndCollect (withBudget cfg frame budget) fuel
+      =
+    invoke (withBudget cfg frame budget) fuel
       (LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame budget) frame target b object)
-      (lowered (withBudget cfg frame budget)) := by
-  simp only [invokeAndCollect, LowerAddressCall.loweredMemoryObjectArgs,
+      := by
+  simp only [invoke, LowerAddressCall.loweredMemoryObjectArgs,
     memoryOperation, value, Bind.bind, Except.bind, Pure.pure, Except.pure]
   cases expand frame.memory object.toNat 32 with
   | error _ => rfl
@@ -178,19 +178,15 @@ def priceAtCut (cfg : Config) (frame : Frame) (sample : Nat) (target object : Wo
   let (_,resolution,_) := EVM.State.executionCode cfg.fork prepared.world destination
   callBudget (withBudget cfg frame sample) prepared ext memory message opcode resolution gas
 
-/-- The concrete object footprint proves that neither the header load nor the
-message's input/output accesses increase memory. The helper's EXTCODESIZE
-has already warmed this same address. These are state relations at the cut,
-so the only gas input is the proved budget at helper entry. -/
-theorem readyPrice (trace : Trace) (shape : trace = referenceTrace 6)
-    (entry : Entry) (heap : 128 ≤ entry.fmp) (limit : entry.gas ≤ 30000000)
+/-- The input header and the complete payload fit in the already active memory. -/
+theorem callRanges (trace : Trace) (shape : trace = referenceTrace 6)
+    (entry : Entry) (heap : 128 ≤ entry.fmp)
     (sample available child retained words : Nat)
     (reaches : EVM.CallBudget.run trace entry = .call sample available child retained words)
-    (cfg : Config) (fork : cfg.fork = .cancun) (frame : Frame)
-    (ext : EVM.State.Config) (extFork : ext.fork = .cancun)
-    (externalCfg : cfg.externalConfig = some ext)
-    (object target : Word) (ready : Ready entry frame object target words) :
-    priceAtCut cfg frame sample target object = .ok (some (child,retained)) := by
+    (frame : Frame) (object target : Word) (ready : Ready entry frame object target words) :
+    expand frame.memory object.toNat 32 = .ok frame.memory ∧
+    expand frame.memory (object+32).toNat 100 = .ok frame.memory ∧
+    expand frame.memory 0 0 = .ok frame.memory := by
   obtain ⟨_,_,_,_,_,highest⟩ :=
     samples trace shape entry heap sample available child retained words 0 reaches (Nat.zero_le _)
   have aligned : frame.memory.length % 32 = 0 := by rw [ready.extent]; simp
@@ -208,6 +204,23 @@ theorem readyPrice (trace : Trace) (shape : trace = referenceTrace 6)
   have payload := expandCovered frame.memory (object+32).toNat 100 aligned
     (by rw [dataPointer]; omega) ready.limit
   have noOutput := expandCovered frame.memory 0 0 aligned (by simp) ready.limit
+  exact ⟨header,payload,noOutput⟩
+
+/-- The concrete object footprint proves that neither the header load nor the
+message's input/output accesses increase memory. The helper's EXTCODESIZE
+has already warmed this same address. These are state relations at the cut,
+so the only gas input is the proved budget at helper entry. -/
+theorem readyPrice (trace : Trace) (shape : trace = referenceTrace 6)
+    (entry : Entry) (heap : 128 ≤ entry.fmp) (limit : entry.gas ≤ 30000000)
+    (sample available child retained words : Nat)
+    (reaches : EVM.CallBudget.run trace entry = .call sample available child retained words)
+    (cfg : Config) (fork : cfg.fork = .cancun) (frame : Frame)
+    (ext : EVM.State.Config) (extFork : ext.fork = .cancun)
+    (externalCfg : cfg.externalConfig = some ext)
+    (object target : Word) (ready : Ready entry frame object target words) :
+    priceAtCut cfg frame sample target object = .ok (some (child,retained)) := by
+  obtain ⟨header,payload,noOutput⟩ :=
+    callRanges trace shape entry heap sample available child retained words reaches frame object target ready
   simp only [priceAtCut, externalCfg, required, LowerAddressCall.loweredMemoryObjectArgs,
     memoryOperation, header, ready.lengthWord,
     value, Bind.bind, Except.bind, Pure.pure, Except.pure, List.getElem?_cons_succ,

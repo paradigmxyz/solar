@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import call_budget, native
+from validator import call_budget, call_tail, native
 from validator.common import Unsupported
 
 
@@ -32,6 +32,42 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(report["gas_policy"], "exact")
             self.assertEqual(report["function"], "safeTransferFrom")
             self.assertEqual(report["additional_stack_slots"], 7)
+            self.assertEqual(
+                report["tail_fixed_gas"],
+                {
+                    "child-failed": 137,
+                    "empty": 109,
+                    "short": 145,
+                    "malformed": 173,
+                    "false": 261,
+                    "true": 218,
+                },
+            )
+            self.assertEqual(report["returndatacopy_word_gas"], 3)
+            self.assertEqual(
+                report["continuation_replays"],
+                ["success-revert", "empty-malformed", "short-false"],
+            )
+            for case in report["continuation_replays"]:
+                continuation = json.loads(
+                    (output / "continuation" / case / "counterexample.json").read_text()
+                )
+                self.assertEqual(continuation["evidence"], "kernel-and-rust-replay")
+                self.assertEqual(
+                    continuation["witness"]["observations"],
+                    continuation["witness"]["native_observations"],
+                )
+            success, reverted = json.loads(
+                (output / "continuation/success-revert/counterexample.json").read_text()
+            )["witness"]["observations"]
+            self.assertEqual(bytes(success[1][352:384]), (1).to_bytes(32, "big"))
+            self.assertEqual(bytes(reverted[1][32:36]), bytes.fromhex("08c379a0"))
+            self.assertIn(b"transferFrom reverted", bytes(reverted[1]))
+            storage = [
+                next(a[4] for a in side[4] if int(a[0]) == call_budget.TOKEN)
+                for side in (success, reverted)
+            ]
+            self.assertEqual(storage, [[["0", "42"]], []])
             self.assertEqual(report["child_gas_samples"], [95572, 95569])
             self.assertEqual(report["warm_child_gas_samples"], [98033, 98029])
             proof = output / "MIRCallBudget.lean"
@@ -72,7 +108,7 @@ class CallBudgetTests(unittest.TestCase):
 
             mir = json.loads((output / "mir.json").read_text())
             self.assertEqual(mir["status"], "verified")
-            self.assertEqual(mir["gas_policy"], "exact-call-boundary")
+            self.assertEqual(mir["gas_policy"], "exact-call-continuation")
             self.assertEqual(
                 mir["region"]["proof"], "final-bytecode-call-returndata-lowering"
             )
@@ -97,8 +133,8 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(payloads, [payload, payload])
             self.assertEqual(frames[0][224:324], payload)
 
-            # The theorem checks the write tape and imported typed prefix against
-            # the reference even when someone edits the generated certificate.
+            # The kernel rejects changes to the imported writes, typed prefix
+            # and continuation ledger in the generated certificate.
             lines = proof.read_text().splitlines()
             writes = next(
                 i for i, line in enumerate(lines) if line.startswith("def finalWrites ")
@@ -108,6 +144,10 @@ class CallBudgetTests(unittest.TestCase):
                 for i, line in enumerate(lines)
                 if line.startswith("def importedSetup ")
             )
+            prices = next(
+                i for i, line in enumerate(lines) if line.startswith("def tailPrices ")
+            )
+            lines[prices] = lines[prices].replace("137", "136")
             lines[writes] = lines[writes].replace(".heap 160", ".heap 128")
             lines[setup] = lines[setup].replace(
                 str(call_budget.SELECTOR), str(call_budget.SELECTOR + 1)
@@ -125,6 +165,7 @@ class CallBudgetTests(unittest.TestCase):
             self.assertNotEqual(rejected_proof.returncode, 0)
             self.assertIn("finalWrites = stores", rejected_proof.stdout)
             self.assertIn("importedSetup = setup", rejected_proof.stdout)
+            self.assertIn("tailPrices = referencePrices", rejected_proof.stdout)
 
             schedule = (output / "scheduled.evmir").read_text()
             disasm = (output / "scheduled.disasm").read_text()
@@ -153,6 +194,21 @@ class CallBudgetTests(unittest.TestCase):
                 Unsupported, "cannot bind a unique final-bytecode"
             ):
                 call_budget.extract_final(prefix, setup, catalog)
+
+            # The return-copy certificate also binds the physical allocation.
+            wrong_size = bytearray(runtime)
+            immediate = report["call_pc"] + 3
+            self.assertEqual(wrong_size[immediate], 63)
+            wrong_size[immediate] = 31
+            _, _, _, resume_stack = call_budget.project(location[-1], catalog)
+            with self.assertRaisesRegex(Unsupported, "different return-buffer effect"):
+                call_tail.extract(
+                    call_budget.decode_runtime(wrong_size, catalog),
+                    report["call_pc"] + 1,
+                    resume_stack,
+                    catalog,
+                    "cancun",
+                )
 
             # The native witness keeps the original physically decoded prefix,
             # allowing only its local no-code relocation and the paid mutation.

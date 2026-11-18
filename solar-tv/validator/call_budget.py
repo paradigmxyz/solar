@@ -1,4 +1,4 @@
-"""Prove Morpho CALL gas from final bytecode and bind it to the captured MIR."""
+"""Validate Morpho's emitted CALL and returndata continuation against MIR."""
 
 import argparse
 import json
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from . import audit, builtin_lowering, evaluate, native, prune, regions
+from . import audit, builtin_lowering, call_tail, evaluate, native, prune, regions
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Unsupported
 
@@ -258,7 +258,7 @@ def project(ops, catalog):
     require(until_sample is not None, "missing scheduled GAS observation")
     # Cancun's warm access fees are also checked in CallBudget.warmCall.
     trace = guard, probe["base_gas"], 100, accesses, until_sample, pending, 100
-    return trace, effects, peak_depth - len(ENTRY)
+    return trace, effects, peak_depth, stack[7:]
 
 
 def location_expression(address):
@@ -460,10 +460,44 @@ def replay_image(code, location, *, extra=b"", initialize=None, continuation=Non
     return trampoline + prefix + extra + continuation + bytes.fromhex("5b5f5ffd")
 
 
-def replay_pair(images, directory, solar, replay, timeout, *, warm=False, gas=False):
+def replay_pair(
+    images,
+    directory,
+    solar,
+    replay,
+    timeout,
+    *,
+    warm=False,
+    gas=False,
+    token_code="5a5f52365f60203760845ff3",
+    preserve_status=False,
+):
     directory.mkdir(exist_ok=True)
 
     def wrapper(address):
+        if preserve_status:
+            observe = """  push 0
+  mstore
+  returndatasize
+  push 0
+  push 32
+  returndatacopy
+  returndatasize
+  push 32
+  add
+  push 0
+  return
+"""
+        else:
+            observe = """  pop
+  returndatasize
+  push 0
+  push 0
+  returndatacopy
+  returndatasize
+  push 0
+  return
+"""
         return f"""@module TransferFromBudget
 bb0:
   push 0
@@ -474,15 +508,7 @@ bb0:
   push {address}
   push {WITNESS_GAS}
   call
-  pop
-  returndatasize
-  push 0
-  push 0
-  returndatacopy
-  returndatasize
-  push 0
-  return
-"""
+{observe}"""
 
     left, right = directory / "before.evmir", directory / "broken.evmir"
     left.write_text(wrapper(0x50000))
@@ -508,7 +534,7 @@ bb0:
                     {
                         "address": TOKEN,
                         "nonce": 1,
-                        "code": "0x5a5f52365f60203760845ff3",
+                        "code": "0x" + token_code,
                     },
                 ],
             }
@@ -634,6 +660,107 @@ def frame_witness(code, location, directory, solar, replay, timeout):
     return {"memory_bytes": len(expected), "fmp": 352, "broken_fmp": 320}
 
 
+def tail_witness(
+    code,
+    decoded,
+    location,
+    tail,
+    resume_stack,
+    catalog,
+    directory,
+    solar,
+    replay,
+    timeout,
+):
+    image, call = call_tail.replay_image(code, decoded, location, tail)
+    relocated = call_tail.extract(
+        decode_runtime(image, catalog), call + 1, resume_stack, catalog, VERSION
+    )
+    require(
+        relocated.prices == tail.prices,
+        "replay relocation changed the continuation price",
+    )
+
+    def variants(left, right):
+        # The token selects an outcome using the caller address of each run.
+        header = bytes.fromhex("33620500011461")
+        target = len(header) + 3 + len(left)
+        return (
+            header + target.to_bytes(2, "big") + b"\x57" + left + b"\x5b" + right
+        ).hex()
+
+    def reason(text):
+        return (
+            bytes.fromhex("08c379a0")
+            + word(32)
+            + word(len(text))
+            + text.ljust(32, b"\0")
+        )
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    def memory(flag):
+        start = 288
+        length = 32 if flag else 0
+        # The original 100-byte input object is followed by the copied result.
+        expected = bytearray(start + 32 + length)
+        expected[64:96] = word(len(expected))
+        expected[128:160] = word(100)
+        expected[160:260] = (SELECTOR >> 224).to_bytes(4, "big") + b"".join(
+            map(word, (0x20000, 0x20001, 1))
+        )
+        expected[start : start + 32] = word(length)
+        if flag:
+            expected[-32:] = word(1)
+        return bytes(expected)
+
+    cases = (
+        (
+            "success-revert",
+            bytes.fromhex("602a5f5560015f5260205ff3"),
+            bytes.fromhex("602a5f5563deadbeef5f526004601cfd"),
+            ((1, memory(True), 42), (0, reason(call_tail.FAILED), 0)),
+        ),
+        (
+            "empty-malformed",
+            bytes.fromhex("00"),
+            bytes.fromhex("60025f5260205ff3"),
+            ((1, memory(False), 0), (0, b"", 0)),
+        ),
+        (
+            "short-false",
+            bytes.fromhex("60015f526001601ff3"),
+            bytes.fromhex("602a5f5560205ff3"),
+            ((0, b"", 0), (0, reason(call_tail.FALSE), 0)),
+        ),
+    )
+    directory.mkdir(exist_ok=True)
+    for name, left, right, expected in cases:
+        observed = replay_pair(
+            [image, image],
+            directory / name,
+            solar,
+            replay,
+            timeout,
+            token_code=variants(left, right),
+            preserve_status=True,
+            gas=True,
+        )
+        for side, (flag, data, slot) in zip(
+            observed["observations"], expected, strict=True
+        ):
+            status, result, _, _, accounts, _ = side
+            (token,) = (account for account in accounts if int(account[0]) == TOKEN)
+            require(
+                status == "success"
+                and bytes(result) == word(flag) + data
+                and token[4] == ([["0", str(slot)]] if slot else []),
+                f"{name} replay disagrees on helper status, returndata or storage",
+            )
+    return [case[0] for case in cases]
+
+
 def main(arguments):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
@@ -672,8 +799,13 @@ def main(arguments):
             row["name"]: row for row in native.catalog(replay, args.timeout)["evmir"]
         }
         location = extract_final(final, setup, catalog)
-        trace, effects, extra_stack = project(location[-1], catalog)
-        scheduled_trace, _, _ = project(ops, catalog)
+        trace, effects, prefix_depth, resume_stack = project(location[-1], catalog)
+        scheduled_trace, _, _, _ = project(ops, catalog)
+        decoded = decode_runtime(final, catalog)
+        tail = call_tail.extract(
+            decoded, location[1] + 1, resume_stack, catalog, VERSION
+        )
+        extra_stack = max(prefix_depth, tail.peak_depth) - len(ENTRY)
         prove(scheduled_trace, trace, directory, args.timeout)
         child_samples = witness(final, location, directory, solar, replay, args.timeout)
         warm_samples = witness(
@@ -682,11 +814,24 @@ def main(arguments):
         frame = frame_witness(
             final, location, directory / "frame", solar, replay, args.timeout
         )
+        tail_replays = tail_witness(
+            final,
+            decoded,
+            location,
+            tail,
+            resume_stack,
+            catalog,
+            directory / "continuation",
+            solar,
+            replay,
+            args.timeout,
+        )
         artifact = {
             "runtime_sha256": evaluate.digest(final),
             "entry_pc": location[0],
             "call_pc": location[1],
             "additional_stack_slots": extra_stack,
+            "continuation_pc": location[1] + 1,
         }
         mir = builtin_lowering.check(
             mir_pair,
@@ -698,6 +843,9 @@ def main(arguments):
             final_call={
                 "trace": expression(trace),
                 "memory": memory_expression(effects),
+                "tail_prices": "⟨"
+                + ", ".join(map(str, [*tail.prices, tail.copy_gas]))
+                + "⟩",
                 "artifact": artifact,
                 "proof": directory / "MIRCallBudget.lean",
             },
@@ -731,7 +879,9 @@ def main(arguments):
                 "entry": entry,
                 "no_code_exit": failure,
                 "gas_policy": "exact",
-                "scope": "Cancun final bytecode function entry to CALL or no-code transfer",
+                "scope": "Cancun transferFrom entry through CALL, returndata, and helper exit",
+                "tail_fixed_gas": dict(zip(call_tail.ROUTES, tail.prices, strict=True)),
+                "returndatacopy_word_gas": tail.copy_gas,
                 "runtime_sha256": evaluate.digest(final),
                 "entry_pc": location[0],
                 "call_pc": location[1],
@@ -747,6 +897,7 @@ def main(arguments):
                 "child_gas_samples": child_samples,
                 "warm_child_gas_samples": warm_samples,
                 "frame_replay": frame,
+                "continuation_replays": tail_replays,
             },
         )
     except (
@@ -758,10 +909,11 @@ def main(arguments):
     ) as error:
         print(f"inconclusive: {error}", file=sys.stderr)
         return 2
-    print(f"verified Morpho {FUNCTION} entry frame and exact CALL budget")
+    print(f"verified Morpho {FUNCTION} through CALL and helper exit")
     print(
         f"counterexample: child GAS {child_samples[0]} -> {child_samples[1]} (Rust replay matched)"
     )
+    print(f"continuation replay: {', '.join(tail_replays)} (Lean and Rust matched)")
     print(
         f"counterexample: prepared FMP {frame['fmp']} -> {frame['broken_fmp']} "
         "(full memory replay matched)"

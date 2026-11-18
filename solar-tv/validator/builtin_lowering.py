@@ -11,7 +11,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, dead_ssa, mir_state, native, prune, type_prune
+from . import audit, call_tail, dead_ssa, mir_state, native, prune, type_prune
 from .common import Program, Unsupported
 
 
@@ -191,7 +191,103 @@ def transfer_prefix(body, cut, address, obj, requested):
     return entry["instructions"], head["instructions"][:-2]
 
 
-def call_site(before, after, *, from_entry=False):
+def transfer_continuation(body, cut, call, collect, error):
+    """Bind the semantic suffix to the direct MIR decoder and terminal actions."""
+    blocks = body["blocks"]
+    success, fail = branch(blocks[cut]["terminator"], local(call))
+    head = blocks[success]
+    require(
+        not head["phis"] and len(head["instructions"]) == 2,
+        "unexpected returndata test",
+    )
+    load, compare = head["instructions"]
+    length = expect(load, opcode("mload", local(collect)), word())
+    empty = expect(compare, opcode("eq", length, constant(0)), word(1))
+    join, decode = branch(head["terminator"], empty)
+    decoder = blocks[decode]
+    require(
+        not decoder["phis"]
+        and len(decoder["instructions"]) == 1
+        and decoder["terminator"] == {"kind": "jump", "target": join},
+        "unexpected returndata decode path",
+    )
+    value = expect(
+        decoder["instructions"][0],
+        operation(
+            "abi_decode",
+            [local(collect)],
+            calldata=False,
+            rule={"bits": 0, "function": False, "kind": "boolean"},
+        ),
+        word(1),
+    )
+    result = blocks[join]
+    require(
+        not result["instructions"] and len(result["phis"]) == 1,
+        "unexpected returndata result",
+    )
+    phi = result["phis"][0]
+    require(
+        phi["type"] == word(1)
+        and sorted(phi["incoming"])
+        == sorted([[success, constant(1, word(1))], [decode, value]]),
+        "different returndata join",
+    )
+    ok, false = branch(result["terminator"], local(phi))
+    require(
+        blocks[ok]
+        == {"phis": [], "instructions": [], "terminator": operation("return")},
+        "transferFrom success path is not a return",
+    )
+    for index, reason in ((fail, call_tail.FAILED), (false, call_tail.FALSE)):
+        require(
+            blocks[index]
+            == {
+                "phis": [],
+                "instructions": [
+                    instruction(
+                        operation(
+                            "call",
+                            [
+                                constant(len(reason)),
+                                constant(
+                                    int.from_bytes(reason.ljust(32, b"\0"), "big")
+                                ),
+                            ],
+                            function=error["id"],
+                        )
+                    )
+                ],
+                "terminator": {"kind": "invalid"},
+            },
+            "transferFrom error path differs from the checked continuation",
+        )
+    expected = [
+        instruction(opcode("mstore", constant(32), constant(32))),
+        instruction(
+            opcode("mstore", constant(64), {"kind": "arg", "index": 0, "type": word()})
+        ),
+        instruction(
+            opcode("mstore", constant(96), {"kind": "arg", "index": 1, "type": word()})
+        ),
+        instruction(opcode("mstore", constant(0), constant(0x08C379A0))),
+    ]
+    require(
+        error["params"] == [word(), word()]
+        and not error["returns"]
+        and error["blocks"]
+        == [
+            {
+                "phis": [],
+                "instructions": expected,
+                "terminator": operation("revert", [constant(28), constant(100)]),
+            }
+        ],
+        "transferFrom revert_error implementation changed",
+    )
+
+
+def call_site(before, after, *, error=None):
     """Contract CALL and returndata materialization to the semantic pair."""
     before = normalize({**before, "blocks": body_blocks(before)})
     after = normalize({**after, "blocks": body_blocks(after)})
@@ -367,9 +463,10 @@ def call_site(before, after, *, from_entry=False):
         "CALL expansion changes the SSA context",
     )
     obj = call["operation"]["args"][1]
-    prefix = (
-        transfer_prefix(before, index, address, obj, requested) if from_entry else None
-    )
+    prefix = None
+    if error is not None:
+        prefix = transfer_prefix(before, index, address, obj, requested)
+        transfer_continuation(before, index, call, collect, error)
     return address, obj, requested, prefix
 
 
@@ -509,7 +606,9 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         require(version != "amsterdam", "Amsterdam MIR message gas is not modeled")
         callees = unchanged_callees(function, bodies, declarations)
         helpers = []
-        address, input_, gas, prefix = call_site(old, new, from_entry=bool(final_call))
+        address, input_, gas, prefix = call_site(
+            old, new, error=bodies[0]["revert_error"] if final_call else None
+        )
         samples = [
             inst
             for name in (function, *callees)
@@ -528,14 +627,15 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         if final_call:
             kind = "final-bytecode-call-returndata-lowering"
             boundary = (
-                "shared state at helper entry; typed MIR and decoded final bytes "
-                "produce the same CALL memory, target, warm journal and returndata; "
-                "final-bytecode prices derive the common message budget"
+                "shared state at helper entry; one child execution with the bytecode "
+                "CALL budget; typed MIR and physical continuation agree on the copied "
+                "returndata, accepted frame, reverted bytes and remaining gas"
             )
-            module = "SolarTV.MIR.Transforms.TransferFromFrame"
+            module = "SolarTV.MIR.Transforms.TransferFromReturn"
             code = (
                 FINAL_CALL_PROOF.replace("{trace}", final_call["trace"])
                 .replace("{memory}", final_call["memory"])
+                .replace("{tail_prices}", final_call["tail_prices"])
                 .replace(
                     "{extra_stack}",
                     str(final_call["artifact"]["additional_stack_slots"]),
@@ -582,7 +682,7 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
             replay_ir=text,
             selector=function,
             scope="builtin-lowering",
-            gas="exact-call-boundary" if final_call else None,
+            gas="exact-call-continuation" if final_call else None,
             evm_version=version,
             import_evidence={
                 "kind": kind,
@@ -631,6 +731,7 @@ theorem contextual {Observation : Type} (cfg : Config) (fuel : Nat) (frame : Fra
 FINAL_CALL_PROOF = """
 open SolarTV.MIR.State EvmRules SolarTV.Execution
 open SolarTV.MIR.LowerReturndata SolarTV.MIR.FinalCallBudget SolarTV.MIR.TransferFromFrame
+open SolarTV.MIR.TransferFromReturn
 open SolarTV.EVM.CallBudget (Entry Trace referenceTrace beforeCall)
 def finalTrace : Trace := {trace}
 theorem finalShape : finalTrace = referenceTrace 6 := by decide
@@ -640,59 +741,16 @@ def importedGuard : List Instruction := {guard}
 def importedSetup : List Instruction := {setup}
 theorem guardShape : importedGuard = guard := rfl
 theorem setupShape : importedSetup = setup := rfl
+def tailPrices : TailPrices := {tail_prices}
+theorem tailShape : tailPrices = referencePrices := by decide
 
-private theorem contextualAtCut {Observation : Type} (cfg : Config) (fuel : Nat) (frame : Frame)
-    (entry : Entry) (sample available child retained words elapsed : Nat)
-    (heap : 128 ≤ entry.fmp) (limit : entry.gas ≤ 30000000)
-    (fork : cfg.fork = .cancun)
-    (reaches : EVM.CallBudget.run finalTrace entry = .call sample available child retained words)
-    (earlier : elapsed ≤ beforeCall entry 6)
-    (target : Word) (object : Scalar)
-    (ext : EVM.State.Config) (extFork : ext.fork = .cancun)
-    (externalCfg : cfg.externalConfig = some ext)
-    (ready : Ready entry frame object.word target words)
-    (ha : read frame {address} = .ok target)
-    (hi : readValue frame {input} = .ok (.scalar object))
-    (hg : read frame {gas} = .ok (BitVec.ofNat 256 (entry.gas-elapsed)))
-    (bounded : ∀ opcode args preCall request success postCall work,
-      SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame sample)
-        frame target (BitVec.ofNat 256 (entry.gas-elapsed)) object.word =
-        .ok (opcode,args,preCall,request) →
-      external fuel (withBudget cfg frame sample) preCall opcode args request =
-        .ok (some (.returned (success,postCall),work)) →
-      postCall.returnData.length + 63 < 2^256)
-    (resume : Except String (Option (Outcome (Option Word × Option Word × Frame) × Nat)) →
-      Observation) :
-    (resume (invokeAndCollect (withBudget cfg frame sample) fuel
-      (messageArguments (withBudget cfg frame sample) frame (.address 0xf1 true false true false false)
-        [{address},{input},{gas}]) returnDataBytes) =
-    resume (invokeAndCollect (withBudget cfg frame sample) fuel
-      (SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame sample)
-        frame target (BitVec.ofNat 256 sample) object.word) (lowered (withBudget cfg frame sample)))) ∧
-    priceAtCut cfg frame sample target object.word = .ok (some (child,retained)) := by
-  refine ⟨?_, readyPrice finalTrace finalShape entry heap limit sample available child retained words
-    reaches cfg fork frame ext extFork externalCfg object.word target ready⟩
-  obtain ⟨priced,_,request,_,_,_⟩ :=
-    samples finalTrace finalShape entry heap sample available child retained words elapsed reaches earlier
-  have sampleLimit : sample ≤ 30000000 := by omega
-  have requestLimit : entry.gas-elapsed ≤ 30000000 := by omega
-  have sampleWord : (BitVec.ofNat 256 sample).toNat = sample := by
-    simp [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : sample < 2^256)]
-  have requestWord : (BitVec.ofNat 256 (entry.gas-elapsed)).toNat = entry.gas-elapsed := by
-    simp [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : entry.gas-elapsed < 2^256)]
-  apply congrArg resume
-  rw [memoryObjectCall _ fuel frame {address} {input} {gas} target _ object ha hi hg bounded]
-  apply changeRequest cfg frame fuel target object.word _ _ sample fork
-  · simpa [requestWord] using request
-  · simp [sampleWord]
-  · simpa [requestWord] using requestLimit
-  · simpa [sampleWord] using sampleLimit
-theorem contextual {Observation : Type} (cfg : Config) (fuel : Nat)
+theorem contextual (cfg : Config) (fuel : Nat)
     (evm : EVM.State.Frame) (world : Journal) (args : Inputs)
     (sample available child retained words elapsed : Nat)
     (stack : ∃ ret rest, evm.stack = ret :: widenBits args.token :: widenBits args.sender ::
       widenBits args.receiver :: args.amount :: rest)
     (_stackRoom : evm.stack.length + {extra_stack} ≤ 1024)
+    (_returnDest : evm.stack.head?.any (EVM.State.validJump evm.code) = true)
     (probe : cfg.available.contains 0x3b = true) (gasOp : cfg.available.contains 0x5a = true)
     (environment : cfg.environment = evm.environment)
     (known : args.token ≠ evm.environment.address)
@@ -707,40 +765,87 @@ theorem contextual {Observation : Type} (cfg : Config) (fuel : Nat)
     (earlier : elapsed ≤ beforeCall (Entry.ofFrame world evm args.token) 6)
     (ext : EVM.State.Config) (extFork : ext.fork = .cancun)
     (externalCfg : cfg.externalConfig = some ext)
-    (bounded : ∀ frame opcode callArgs preCall request success postCall work,
-      runMirPrefix importedGuard importedSetup cfg evm world args elapsed = .ok (some frame) →
-      SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame sample)
-        frame (widenBits args.token) (BitVec.ofNat 256 (evm.gas-elapsed)) (readWord evm.memory 64) =
-        .ok (opcode,callArgs,preCall,request) →
-      external fuel (withBudget cfg frame sample) preCall opcode callArgs request =
-        .ok (some (.returned (success,postCall),work)) →
-      postCall.returnData.length + 63 < 2^256)
-    (resume : Except String (Option (Outcome (Option Word × Option Word × Frame) × Nat)) →
-      Observation) :
+    (bounded : ∀ cut outcome, runBytes finalWrites evm world = .ok (some cut) →
+      byteCall ext fuel evm.environment cut child = .ok outcome →
+      (readWord evm.memory 64+160).toNat + outcome.data.length + 63 ≤ 2^64-1) :
     ∃ frame,
       runMirPrefix importedGuard importedSetup cfg evm world args elapsed = .ok (some frame) ∧
-      runBytes finalWrites evm world = .ok (some ⟨frame.memory,frame.world,frame.returnData,
-        args.token,readBytes frame.memory (readWord evm.memory 64+32).toNat 100⟩) ∧
-      (resume (invokeAndCollect (withBudget cfg frame sample) fuel
-        (messageArguments (withBudget cfg frame sample) frame (.address 0xf1 true false true false false)
-          [{address},{input},{gas}]) returnDataBytes) =
-      resume (invokeAndCollect (withBudget cfg frame sample) fuel
-        (SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs (withBudget cfg frame sample)
-          frame (widenBits args.token) (BitVec.ofNat 256 sample) (readWord evm.memory 64))
-          (lowered (withBudget cfg frame sample)))) ∧
-      priceAtCut cfg frame sample (widenBits args.token) (readWord evm.memory 64) =
-        .ok (some (child,retained)) := by
-  rw [guardShape,setupShape] at bounded ⊢
-  obtain ⟨frame,mir,bytes,⟨ready⟩,ha,hi,hg⟩ := fromEntry cfg evm world args finalTrace finalShape
+      let p := readWord evm.memory 64
+      let priced := withBudget cfg frame sample
+      let semantic := messageArguments priced frame (.address 0xf1 true false true false false)
+        [{address},{input},{gas}]
+      let raw := SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs priced frame
+        (widenBits args.token) (BitVec.ofNat 256 sample) p
+      let final := executeCut ext fuel evm.environment (runBytes finalWrites evm world)
+        referencePrices (p+160) child retained
+      resumeMir cfg tailPrices frame.memory (invokeAndCollect priced fuel semantic returnDataBytes) = final ∧
+      resumeMir cfg tailPrices frame.memory (invokeAndCollect priced fuel raw (lowered priced)) = final := by
+  rw [guardShape,setupShape]
+  obtain ⟨frame,mir,bytes,⟨ready⟩,ha,hi,hg,cursor⟩ := fromEntry cfg evm world args finalTrace finalShape
     finalWrites finalWritesShape sample available child retained words elapsed stack probe gasOp
     (environment.symm ▸ known) codeBound aligned boundedMemory live heap valid reaches
-  refine ⟨frame,mir,bytes,?_⟩
-  exact contextualAtCut cfg fuel frame (Entry.ofFrame world evm args.token)
-    sample available child retained words elapsed heap limit fork reaches earlier
-    (widenBits args.token) (Scalar.ofWord 256 (readWord evm.memory 64))
-    ext extFork externalCfg ready ha hi hg
-    (fun opcode callArgs preCall request success postCall work =>
-      bounded frame opcode callArgs preCall request success postCall work mir) resume
+  refine ⟨frame,mir,?_⟩
+  dsimp only
+  let p := readWord evm.memory 64
+  let priced := withBudget cfg frame sample
+  let raw := SolarTV.MIR.LowerAddressCall.loweredMemoryObjectArgs priced frame
+    (widenBits args.token) (BitVec.ofNat 256 sample) p
+  let cut : Cut := ⟨frame.memory, frame.world, frame.returnData, args.token,
+    readBytes frame.memory (p+32).toNat 100⟩
+  have present : runBytes finalWrites evm world = .ok (some cut) := bytes
+  have castTarget : (widenBits args.token).setWidth 160 = args.token :=
+    wordBits_widenBits 160 _ (by decide)
+  have cost := childMatches finalTrace finalShape (Entry.ofFrame world evm args.token)
+    heap limit sample available child retained words reaches cfg fork frame ext extFork externalCfg fuel
+    p (widenBits args.token) ready
+  rw [castTarget] at cost
+  have used : invoke priced fuel raw = (do
+      let outcome ← byteCall ext fuel cfg.environment cut child
+      return some (.returned (some outcome.value,postCall frame retained outcome),outcome.work)) := cost
+  have range : ∀ outcome, byteCall ext fuel cfg.environment cut child = .ok outcome →
+      (p+160).toNat + outcome.data.length + 63 ≤ 2^64-1 := by
+    rw [environment]
+    exact fun outcome h => bounded cut outcome present h
+  obtain ⟨sampled,_,request,_,_,highest⟩ :=
+    samples finalTrace finalShape (Entry.ofFrame world evm args.token)
+      heap sample available child retained words elapsed reaches earlier
+  change sample = evm.gas - beforeCall (Entry.ofFrame world evm args.token) 6 at sampled
+  change sample ≤ evm.gas-elapsed at request
+  have sampleWord : (BitVec.ofNat 256 sample).toNat = sample := by
+    rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt]; omega
+  have requestWord : (BitVec.ofNat 256 (evm.gas-elapsed)).toNat = evm.gas-elapsed := by
+    rw [BitVec.toNat_ofNat,Nat.mod_eq_of_lt]; omega
+  have alignedCut : frame.memory.length % 32 = 0 := by rw [ready.extent]; simp
+  have liveCut : 96 ≤ frame.memory.length := by
+    rw [ready.extent,highest]
+    omega
+  rw [tailShape,present,← environment]
+  have resumed := resumeMatched cfg ext fuel referencePrices frame (p+160)
+    cut child retained (invoke priced fuel raw) rfl used alignedCut ready.limit liveCut cursor range
+  have semanticEq :
+      invoke priced fuel (messageArguments priced frame (.address 0xf1 true false true false false)
+        [{address},{input},{gas}]) = invoke priced fuel raw := by
+    rw [SolarTV.MIR.LowerAddressCall.memoryObjectArguments _ frame {address} {input} {gas}
+      (widenBits args.token) _ (Scalar.ofWord 256 p) ha hi hg]
+    exact changeRequest cfg frame fuel (widenBits args.token) p _ _ sample fork
+      (by simpa only [requestWord] using request) (by rw [sampleWord]; exact Nat.le_refl _)
+      (by rw [requestWord]; omega) (by rw [sampleWord]; omega)
+  change
+    (resumeMir cfg referencePrices frame.memory (collectMessage returnDataBytes (invoke priced fuel
+      (messageArguments priced frame (.address 0xf1 true false true false false)
+        [{address},{input},{gas}]))) = _) ∧
+    (resumeMir cfg referencePrices frame.memory (collectMessage (lowered priced) (invoke priced fuel raw)) = _)
+  rw [semanticEq]
+  refine ⟨resumed,?_⟩
+  rw [← resumed,used]
+  cases executed : byteCall ext fuel cfg.environment cut child with
+  | error _ => rfl
+  | ok outcome =>
+    have fits := range outcome executed
+    simp only [collectMessage, Bind.bind, Except.bind, Pure.pure, Except.pure]
+    rw [materialize priced (postCall frame retained outcome) (by
+      change outcome.data.length + 63 < 2^256
+      omega)]
 #print axioms contextual
 """
 

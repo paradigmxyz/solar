@@ -1461,32 +1461,28 @@ effects with a shared GAS sample and caller budget at the call boundary.
 Reports state those conditions and identify the certificate. See
 [the proof boundaries](CORRECTNESS.md#remaining-obligations).
 
-### Pricing Morpho's final CALL
+### Validating Morpho's final CALL and returndata
 
 ```sh
 solar-tv/solar-tv call-budget --output target/morpho-call-budget
 ```
 
-The command captures `safeTransferFrom` MIR and scheduled EVM IR in the same
-compilation that emits the final runtime. It decodes the emitted bytes, binds
-the CALL to the captured helper, and derives its exact budget from helper
-entry. The proof runs the captured MIR prefix from the same entry and checks
-the full memory, journal, target, calldata and prior returndata at CALL.
-The earlier MIR GAS sample reaches the same EIP-150 cap even when its word
-differs from the emitted sample.
+The command captures the `safeTransferFrom` MIR pair and scheduled EVM IR in
+the compilation that emits the runtime. The proof derives the prepared frame
+and exact CALL budget from helper entry, runs the child with that budget, then
+matches the final continuation to both MIR versions. It covers empty and true
+returns, false returns, short or noncanonical ABI data, and child reverts.
 
-The Rust replay executes the final CALL prefix in a small wrapper. Adding
-`PUSH0` and `POP` between GAS and CALL changes the child's GAS reading from
-95,572 to 95,569 on the cold path and from 98,033 to 98,029 on the warm path.
-Both executions pass the same 100-byte transfer calldata. A separate replay
-starts with dirty memory and observes the whole active memory at CALL. It
-detects a mutant that advances the free memory pointer by 128 bytes instead
-of 160, while the payload and padding are byte-identical.
+The replay runs the emitted CALL and continuation with only local jump
+destinations relocated. It checks copied memory, revert bytes and the journal.
+In the success/revert pair the token writes a slot before responding. The
+successful call keeps the write and the revert rolls it back. Other pairs
+check empty, malformed, short and false results. The existing gas and dirty
+memory replays are also saved.
 
-Use `--mir-pair BEFORE AFTER` to check an existing capture against the same
-compiler input. The output includes the runtime, both Lean proofs, the
-`mir.json` check, and replay files. The proof covers entry through CALL and
-the matching MIR call/returndata cut. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)
+Use `--mir-pair BEFORE AFTER` to verify an existing capture. The output
+includes the runtime, the Lean certificates, `mir.json` and the independent
+replays under `continuation/`. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)
 
 ### Removing unused MIR type declarations
 

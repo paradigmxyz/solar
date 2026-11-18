@@ -672,13 +672,28 @@ including untouched bytes outside the object. This derives the warm journal,
 memory extent, and 100-byte length word needed to price the call.
 
 The earlier MIR GAS sample reaches the same EIP-150 cap as the emitted sample.
-Equal child and retained gas feed the MIR call and returndata materialization
-proof. The memory proof applies when the final prefix reaches CALL in Cancun.
-It requires a live FMP slot, a heap starting at 128 or higher, word-aligned active
-memory and room for the 160-byte object within 64 KiB. Entry gas is at most 30
-million, the stack has room for the seven temporary words in the decoded
-prefix, and the token code must be available in the MIR world. The pricing model
-also covers out-of-gas and the transfer to the no-code edge.
+Both sides execute the same child code with that gas, environment, input
+and journal. SUCCESS commits the child journal. REVERT restores the checkpoint
+and preserves the returned bytes and unused gas. Exceptional halts clear the
+buffer. The retained caller gas and unused child gas form the continuation's
+budget.
+
+The final continuation starts with the real CALL result on the decoded stack.
+Its stack projection checks both operands of each resolved branch, the FMP
+bump, the length store and the exact-length copy. The proof matches that
+collector to the semantic and lowered MIR, including dirty padding, and
+matches the physical signed length and boolean tests to the direct MIR
+decoder. The common error handler produces the exact owning-frame revert
+bytes. The cost ledger charges the selected path, copy words and memory
+expansion. These are physical charges applied to the matched observation
+because MIR instructions carry no opcode gas.
+
+The certificate uses Cancun, a valid internal return address, seven extra
+stack slots, a live FMP slot and word-aligned byte memory within the 64 KiB
+model. It admits up to 30 million entry gas and requires known child code and
+bounded returndata allocation. The successful path ends at the dynamic jump
+back to the caller. The prefix price model still checks no-code transfer and
+insufficient gas before CALL.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code
@@ -688,7 +703,11 @@ and 98,033 versus 98,029 for a warm token after a paid mutation. The payload
 is identical in each pair. A separate wrapper reads the entire active memory at
 CALL on a dirty entry and detects a shortened FMP bump. Both replays preserve
 the emitted prefix on the successful side. Compiling with and without the
-capture reproduces the same ABI and creation and runtime bytecode.
+capture reproduces the same ABI and creation and runtime bytecode. The
+continuation replay executes relocated emitted instructions and checks all six
+paths with Lean and the Rust executor. A child that writes storage and then
+reverts leaves the checkpoint unchanged. A successful child that returns false
+also loses its write when the enclosing helper reverts.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |

@@ -94,9 +94,9 @@ private theorem written (memory : List Byte) (p : Word) (sender receiver amount 
       storeWord m3 (p.toNat+68) receiver = .ok m4 ∧
       storeWord m4 (p.toNat+100) amount = .ok m5 ∧
       m5.length = 32 * max (memoryWords memory) ((p.toNat+163)/32) ∧
-      m5.length ≤ 65536 ∧ readWord m5 p.toNat = 100 := by
-  obtain ⟨m0,h0,l0,_,_,_⟩ := writeFits memory 64 (p+160) aligned bounded (by decide)
-  obtain ⟨m1,h1,l1,in1,r1,_⟩ := writeFits m0 p.toNat 100
+      m5.length ≤ 65536 ∧ readWord m5 p.toNat = 100 ∧ readWord m5 64 = p+160 := by
+  obtain ⟨m0,h0,l0,_,r0,_⟩ := writeFits memory 64 (p+160) aligned bounded (by decide)
+  obtain ⟨m1,h1,l1,in1,r1,keep1⟩ := writeFits m0 p.toNat 100
     (by omega) (by omega) (by omega)
   obtain ⟨m2,h2,l2,_,_,r2⟩ := writeFits m1 (p.toNat+32) selector
     (by omega) (by omega) (by omega)
@@ -106,11 +106,14 @@ private theorem written (memory : List Byte) (p : Word) (sender receiver amount 
     (by omega) (by omega) (by omega)
   obtain ⟨m5,h5,l5,_,_,r5⟩ := writeFits m4 (p.toNat+100) amount
     (by omega) (by omega) (by omega)
-  refine ⟨m0,m1,m2,m3,m4,m5,h0,h1,h2,h3,h4,h5,?_,by omega,?_⟩
+  refine ⟨m0,m1,m2,m3,m4,m5,h0,h1,h2,h3,h4,h5,?_,by omega,?_,?_⟩
   · unfold memoryWords
     omega
   · rw [r5 _ (by omega) (by omega), r4 _ (by omega) (by omega),
       r3 _ (by omega) (by omega), r2 _ (by omega) (by omega), r1]
+  · rw [r5 _ (by omega) (by omega), r4 _ (by omega) (by omega),
+      r3 _ (by omega) (by omega), r2 _ (by omega) (by omega),
+      keep1 _ (by omega) (by omega), r0]
 
 private theorem writeAbiWord (memory : List Byte) (start value : Word)
     (rest : List (Word × Bool)) :
@@ -134,15 +137,15 @@ theorem encode (frame : Frame) (sender receiver amount : Word)
         .ok (.scalar (Scalar.ofWord 256 p),{frame with memory}) ∧
       runMemory sender receiver amount stores frame.memory 0 = .ok memory ∧
       memory.length = 32 * max (memoryWords frame.memory) ((p.toNat+163)/32) ∧
-      memory.length ≤ 65536 ∧ readWord memory p.toNat = 100 := by
+      memory.length ≤ 65536 ∧ readWord memory p.toNat = 100 ∧ readWord memory 64 = p+160 := by
   dsimp only
   let p := readWord frame.memory 64
   change 128 ≤ p.toNat at heap
   change p.toNat + 160 ≤ 65536 at valid
   have hdr := FinalCallBudget.expandCovered frame.memory 64 32 aligned live bounded
-  obtain ⟨m0,m1,m2,m3,m4,m5,h0,h1,h2,h3,h4,h5,length,limit,word⟩ :=
+  obtain ⟨m0,m1,m2,m3,m4,m5,h0,h1,h2,h3,h4,h5,length,limit,word,cursor⟩ :=
     written frame.memory p sender receiver amount aligned bounded live valid heap
-  refine ⟨m5,?_,?_,length,limit,word⟩
+  refine ⟨m5,?_,?_,length,limit,word,cursor⟩
   · have bump := noWrap p 160 (by change p.toNat+160 < 2^256; omega)
     have addr32 := noWrap p 32 (by change p.toNat+32 < 2^256; omega)
     have addr36 := noWrap (p+32) 4 (by rw [addr32]; change p.toNat+32+4 < 2^256; omega)
@@ -434,7 +437,8 @@ theorem fromEntry (cfg : Config) (evm : EVM.State.Frame) (world : Journal) (args
         object.word (widenBits args.token) words) ∧
       MIR.State.read frame targetOperand = .ok (widenBits args.token) ∧
       readValue frame objectOperand = .ok (.scalar object) ∧
-      MIR.State.read frame gasOperand = .ok (BitVec.ofNat 256 (evm.gas-elapsed)) := by
+      MIR.State.read frame gasOperand = .ok (BitVec.ofNat 256 (evm.gas-elapsed)) ∧
+      readWord frame.memory 64 = p+160 := by
   let entry := Entry.ofFrame world evm args.token
   have priced := (EVM.CallBudget.exact entry heap 6).symm.trans (shape ▸ reaches)
   have nonempty : (account world args.token).code.isEmpty = false := by
@@ -450,7 +454,7 @@ theorem fromEntry (cfg : Config) (evm : EVM.State.Frame) (world : Journal) (args
   obtain ⟨_,_,_,_,_,highest⟩ := FinalCallBudget.samples trace shape entry heap
     sample available child retained words 0 reaches (Nat.zero_le _)
   let mid := staged evm world args elapsed
-  obtain ⟨memory,encoding,byteMemory,extent,limit,lengthWord⟩ :=
+  obtain ⟨memory,encoding,byteMemory,extent,limit,lengthWord,cursor⟩ :=
     encode mid (widenBits args.sender) (widenBits args.receiver) args.amount aligned bounded live heap valid
   dsimp only
   let p := readWord evm.memory 64
@@ -460,7 +464,7 @@ theorem fromEntry (cfg : Config) (evm : EVM.State.Frame) (world : Journal) (args
     wordBits_widenBits 160 _ (by decide)
   obtain ⟨guarded,condition⟩ := guardResult cfg evm world args probe known
   obtain ⟨ret,rest,stack⟩ := entryStack
-  refine ⟨frame,?_,?_,?_,rfl,rfl,rfl⟩
+  refine ⟨frame,?_,?_,?_,rfl,rfl,rfl,cursor⟩
   · simp only [runMir,runMirPrefix,guarded,condition,Bind.bind,Except.bind,code,ite_false,
       show (1 : Word) ≠ 0 by decide,setupResult cfg evm world args elapsed gasOp memory p encoding,
       Pure.pure,Except.pure]

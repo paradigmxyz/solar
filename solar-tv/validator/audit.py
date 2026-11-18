@@ -241,7 +241,7 @@ def record(
                     "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
                 ]
             )
-            if program.gas == "exact-call-boundary":
+            if program.gas == "exact-call-continuation":
                 assumptions.extend(
                     [
                         "final emitted bytes and the MIR snapshots come from the same compiler input and capture",
@@ -249,8 +249,9 @@ def record(
                         "the typed MIR prefix and final-bytecode effects produce equal memory, target, input, journal and returndata at CALL",
                         "CALL budget derived from the checked byte prefix; the earlier MIR sample clips to the same child gas",
                         "Cancun, at most 30 million entry gas and word-aligned active memory within 64 KiB; the FMP slot is live and the object fits",
-                        "the entry stack has room for the decoded prefix's peak temporary depth",
-                        "the selected CALL and returndata cut; later EVM instructions and whole-pass gas are outside the proof",
+                        "the entry stack has a valid return destination and room for the decoded helper's peak temporary depth",
+                        "the resolved helper continuation uses decoded opcode prices and memory expansion; MIR has no physical instruction gas",
+                        "execution ends at the internal return or owning-frame revert; the caller's continuation is outside the proof",
                     ]
                 )
             else:
@@ -265,9 +266,9 @@ def record(
                         "returned byte length plus 63 fits a word; same typed continuation and supplied callees consume equal results",
                     ]
                 )
-            elif program.gas == "exact-call-boundary":
+            elif program.gas == "exact-call-continuation":
                 assumptions.append(
-                    "returned byte length plus 63 fits a word; same typed continuation consumes equal message results"
+                    "bounded returndata materialization; same child effects, copied memory, canonical boolean check and helper exit"
                 )
             else:
                 assumptions.extend(
@@ -433,8 +434,8 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": (
-            "exact-call-boundary"
-            if program and program.gas == "exact-call-boundary"
+            "exact-call-continuation"
+            if program and program.gas == "exact-call-continuation"
             else "unpriced-structural"
             if program
             and program.scope

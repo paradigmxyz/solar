@@ -42,7 +42,16 @@ theorem roundedSize (n : Nat) (bound : n + 63 < 2^256) :
   have sizeEq : (n+31)/32*32+32 = (n+63)/32*32 := by omega
   rw [sizeEq]
 
-private theorem readWhole (bytes : List Byte) : readBytes bytes 0 bytes.length = bytes := by
+theorem roundedMask (n : Nat) (bound : n + 63 < 2^256) :
+    ((BitVec.ofNat 256 n + 63) &&& ~~~(31 : Word)) = BitVec.ofNat 256 ((n+63)/32*32) := by
+  have mask : (~~~(31 : Word)).toNat = 2^256 - 32 := by decide
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_and, BitVec.toNat_add, mask, BitVec.toNat_ofNat]
+  rw [Nat.mod_eq_of_lt (by omega : n < 2^256)]
+  change ((n+63)%2^256) &&& (2^256-32) = ((n+63)/32*32)%2^256
+  rw [Nat.mod_eq_of_lt bound, roundDown _ bound, Nat.mod_eq_of_lt (by omega)]
+
+theorem readWhole (bytes : List Byte) : readBytes bytes 0 bytes.length = bytes := by
   apply List.ext_getElem
   · simp [readBytes]
   · intro i hi hj
@@ -112,15 +121,18 @@ theorem materialize (cfg : Config) (frame : Frame) (bound : frame.returnData.len
                   (pointer+32).toNat frame.returnData.length <;>
                   simp_all [BitVec.toNat_add]
 
+abbrev Collected := Except String (Option (Outcome (Option Word × Option Word × Frame) × Nat))
+
+def invoke (cfg : Config) (fuel : Nat)
+    (prepared : Except String (Nat × List Word × Frame × Option Word)) : MessageStep := do
+  let (opcode,args,frame,gas) ← prepared
+  external fuel cfg frame opcode args gas
+
 /-- Keep the real outcome of the child and its work. Materialization runs only
 when the message returns to its caller. A failed child that returns data still
 has a success word and reaches this continuation. -/
-def invokeAndCollect (cfg : Config) (fuel : Nat)
-    (prepared : Except String (Nat × List Word × Frame × Option Word))
-    (collect : Frame → Step) :
-    Except String (Option (Outcome (Option Word × Option Word × Frame) × Nat)) := do
-  let (opcode,args,frame,gas) ← prepared
-  let some (result,work) ← external fuel cfg frame opcode args gas | return none
+def collectMessage (collect : Frame → Step) (message : MessageStep) : Collected := do
+  let some (result,work) ← message | return none
   match result with
   | .returned (success,frame) =>
     match ← collect frame with
@@ -129,6 +141,11 @@ def invokeAndCollect (cfg : Config) (fuel : Nat)
     | .invalid => return some (.invalid,work)
   | .reverted data => return some (.reverted data,work)
   | .invalid => return some (.invalid,work)
+
+def invokeAndCollect (cfg : Config) (fuel : Nat)
+    (prepared : Except String (Nat × List Word × Frame × Option Word))
+    (collect : Frame → Step) : Collected :=
+  collectMessage collect (invoke cfg fuel prepared)
 
 theorem memoryObjectCall (cfg : Config) (fuel : Nat) (frame : Frame)
     (address input gas : Operand) (target requested : Word) (object : Scalar)
@@ -148,7 +165,7 @@ theorem memoryObjectCall (cfg : Config) (fuel : Nat) (frame : Frame)
       (LowerAddressCall.loweredMemoryObjectArgs cfg frame target requested object.word)
       (lowered cfg) := by
   rw [LowerAddressCall.memoryObjectArguments cfg frame address input gas target requested object ha hi hg]
-  unfold invokeAndCollect
+  unfold invokeAndCollect invoke collectMessage
   cases prepare : LowerAddressCall.loweredMemoryObjectArgs cfg frame target requested object.word with
   | error _ => rfl
   | ok request =>
