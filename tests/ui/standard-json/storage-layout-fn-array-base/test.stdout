@@ -1,0 +1,71 @@
+{
+  "sources": {
+    "C.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "C.sol": {
+      "C": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 1,
+              "contract": "C.sol:C",
+              "label": "f1",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_function_internal_nonpayable(t_array(t_array(t_uint256)dyn_storage)dyn_storage_ptr)returns()"
+            },
+            {
+              "astId": 2,
+              "contract": "C.sol:C",
+              "label": "f2",
+              "offset": 8,
+              "slot": "0",
+              "type": "t_function_internal_nonpayable(t_array(t_struct(S)11_storage)dyn_storage_ptr)returns()"
+            },
+            {
+              "astId": 3,
+              "contract": "C.sol:C",
+              "label": "f3",
+              "offset": 16,
+              "slot": "0",
+              "type": "t_function_internal_nonpayable(t_array(t_array(t_struct(S)11_storage)2_storage)dyn_storage_ptr)returns(t_array(t_array(t_uint256)dyn_storage)dyn_storage_ptr)"
+            },
+            {
+              "astId": 4,
+              "contract": "C.sol:C",
+              "label": "f4",
+              "offset": 24,
+              "slot": "0",
+              "type": "t_function_internal_nonpayable(t_array(t_array(t_uint256)dyn_memory_ptr)dyn_memory_ptr)returns()"
+            }
+          ],
+          "types": {
+            "t_function_internal_nonpayable(t_array(t_array(t_uint256)dyn_storage)dyn_storage_ptr)returns()": {
+              "encoding": "inplace",
+              "label": "function (uint256[][])",
+              "numberOfBytes": "8"
+            },
+            "t_function_internal_nonpayable(t_array(t_struct(S)11_storage)dyn_storage_ptr)returns()": {
+              "encoding": "inplace",
+              "label": "function (struct C.S[])",
+              "numberOfBytes": "8"
+            },
+            "t_function_internal_nonpayable(t_array(t_array(t_struct(S)11_storage)2_storage)dyn_storage_ptr)returns(t_array(t_array(t_uint256)dyn_storage)dyn_storage_ptr)": {
+              "encoding": "inplace",
+              "label": "function (struct C.S[2][]) returns (uint256[][])",
+              "numberOfBytes": "8"
+            },
+            "t_function_internal_nonpayable(t_array(t_array(t_uint256)dyn_memory_ptr)dyn_memory_ptr)returns()": {
+              "encoding": "inplace",
+              "label": "function (uint256[][])",
+              "numberOfBytes": "8"
+            }
+          }
+        }
+      }
+    }
+  }
+}

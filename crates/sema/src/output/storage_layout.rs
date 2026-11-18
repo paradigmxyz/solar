@@ -298,10 +298,12 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             TyKind::Elementary(ty) => format!("t_{}", ty.to_string().replace(' ', "_")),
             TyKind::Array(base, length) => {
                 let base = base.with_loc_if_ref_opt(self.gcx, location);
+                let pointer = pointer && location != Some(DataLocation::Storage);
                 format!("t_array({}){length}", self.storage_type_key_with(base, None, pointer))
             }
             TyKind::DynArray(base) => {
                 let base = base.with_loc_if_ref_opt(self.gcx, location);
+                let pointer = pointer && location != Some(DataLocation::Storage);
                 format!("t_array({})dyn", self.storage_type_key_with(base, None, pointer))
             }
             TyKind::Mapping(key, value) => format!(
