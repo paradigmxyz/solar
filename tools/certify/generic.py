@@ -2476,18 +2476,183 @@ def changed_outside(d, prefix):
     return [q for q in changed_paths(d) if not q.startswith(prefix)]
 
 
-SOLAR_BUILD_CMD = ["cargo", "build", "--locked", "--bin", "solar"]
+SOLAR_BUILD_CMD = [
+    "cargo",
+    "build",
+    "--locked",
+    "--bin",
+    "solar",
+    "--message-format=json-render-diagnostics",
+]
 # The version of the build provenance a record carries (solar.build); --replay refuses a record
-# without it rather than filling it in.
-PROVENANCE_VERSION = 1
+# without it, or with another version, rather than filling it in.
+PROVENANCE_VERSION = 2
+# The one supported build configuration: the dev profile for the host, no --target, no wrapper, no
+# flags beyond the checkout's own. Environment that would change any of that is refused; these are
+# the Cargo and rustc variables the build may see and records (none changes the compiled code).
+CARGO_ENV_ALLOWED = (
+    "CARGO_BUILD_JOBS",
+    "CARGO_INCREMENTAL",
+    "CARGO_TARGET_DIR",
+    "CARGO_HOME",
+    "CARGO_NET_OFFLINE",
+    "CARGO_TERM_COLOR",
+    "CARGO_TERM_PROGRESS_WHEN",
+    "CARGO_TERM_VERBOSE",
+    "CARGO_TERM_QUIET",
+    "CARGO_REGISTRIES_CRATES_IO_PROTOCOL",
+    "CARGO_HTTP_TIMEOUT",
+    "CARGO_NET_RETRY",
+)
+CARGO_ENV_REFUSED = (
+    "RUSTC",
+    "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER",
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "RUSTC_BOOTSTRAP",
+    "RUSTC_FORCE_INCREMENTAL",
+)
+# Config keys that change what Cargo builds or how; refused in any config the build reads, except
+# the checkout's own .cargo/config.toml, which its tree binds and which may set [env] and tables for
+# targets other than the host.
+CARGO_CONFIG_REFUSED_BUILD = (
+    "target",
+    "rustflags",
+    "rustc",
+    "rustc-wrapper",
+    "rustc-workspace-wrapper",
+    "target-dir",
+    "rustdocflags",
+)
+# The artifact the run's own build produced (build_solar): path, sha256, mtime_ns, fresh.
+SOLAR_ARTIFACT = None
+
+
+def cargo_env_problem(env):
+    """Why ENV is not the supported build configuration's, or None: a wrapper, an overriding rustc,
+    flags, another target, a profile override or an unstable switch."""
+    for k in sorted(env):
+        if k in CARGO_ENV_REFUSED:
+            return f"{k} is set: the build supports no rustc override, wrapper or extra flags"
+        if (
+            k.startswith(
+                (
+                    "CARGO_BUILD_",
+                    "CARGO_TARGET_",
+                    "CARGO_PROFILE_",
+                    "CARGO_UNSTABLE_",
+                    "CARGO_ENCODED_",
+                    "__CARGO_",
+                )
+            )
+            and k not in CARGO_ENV_ALLOWED
+        ):
+            return f"{k} is set: the build supports only the dev profile for the host, unwrapped"
+    return None
+
+
+def cargo_configs(root, cargo_home):
+    """Every Cargo config file a build in ROOT reads: ROOT's and each parent's .cargo/config and
+    .cargo/config.toml, then CARGO_HOME's, with the scope each binds as (repo, parent, cargo_home)."""
+    root = pathlib.Path(root).resolve()
+    out = []
+    for i, d in enumerate([root, *root.parents]):
+        for n in ("config", "config.toml"):
+            f = d / ".cargo" / n
+            if f.is_file():
+                out.append(("repo" if i == 0 else "parent", f))
+    for n in ("config", "config.toml"):
+        f = pathlib.Path(cargo_home) / n
+        if f.is_file() and all(f.resolve() != g.resolve() for _, g in out):
+            out.append(("cargo_home", f))
+    return out
+
+
+def cargo_config_problem(root, cargo_home, host):
+    """Why a Cargo config the build reads changes the supported configuration, or None, with the
+    configs bound as inputs [{scope, name, sha256}]. Refused anywhere: [build] target, rustflags,
+    rustc, wrappers, target-dir; any [profile.*]; [unstable]; a [target] table for the host or a
+    cfg(...) one. Outside the checkout's own config also [env] and any [target] table."""
+    import tomllib
+
+    bound = []
+    for scope, f in cargo_configs(root, cargo_home):
+        try:
+            c = tomllib.loads(f.read_text())
+        except (OSError, ValueError) as e:
+            return f"Cargo config {f} cannot be read: {e}", bound
+        where = f"Cargo config {f} ({scope})"
+        for k in CARGO_CONFIG_REFUSED_BUILD:
+            if k in c.get("build", {}):
+                return f"{where} sets build.{k}", bound
+        for k in ("profile", "unstable"):
+            if k in c:
+                return f"{where} sets [{k}]", bound
+        for t in c.get("target", {}):
+            if scope != "repo" or t == host or t.startswith("cfg("):
+                return f"{where} sets [target.{t}]", bound
+        if scope != "repo" and "env" in c:
+            return f"{where} sets [env]", bound
+        bound.append({"scope": scope, "name": f.name, "sha256": sha256_file(f)})
+    return None, bound
 
 
 def build_solar():
+    """This checkout's solar, built in the one supported configuration, and the artifact Cargo
+    reports producing (SOLAR_ARTIFACT): refused unless it is the expected path, before it runs."""
+    global SOLAR_ARTIFACT
+    SOLAR_ARTIFACT = None
+    if why := cargo_env_problem(os.environ):
+        raise Failed(f"solar build: {why}")
     env = dict(os.environ, CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "2"))
-    rc, _out, err = run(SOLAR_BUILD_CMD, cwd=ROOT, env=env)
+    rc, out, err = run(SOLAR_BUILD_CMD, cwd=ROOT, env=env)
     if rc != 0:
         raise Failed(f"cargo cannot build solar: {err.strip()[-400:]}")
-    return ROOT / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
+    want = ROOT / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
+    exes = []
+    for line in (out or "").splitlines():
+        try:
+            m = json.loads(line)
+        except ValueError:
+            continue
+        t = m.get("target") or {}
+        if (
+            m.get("reason") == "compiler-artifact"
+            and t.get("name") == "solar"
+            and "bin" in t.get("kind", [])
+        ):
+            exes.append(m)
+    if len(exes) != 1 or not exes[0].get("executable"):
+        raise Failed(
+            f"solar build: cargo reported {len(exes)} solar executables, not one"
+        )
+    exe = pathlib.Path(exes[0]["executable"])
+    if exe.resolve() != want.resolve():
+        raise Failed(
+            f"solar build: cargo built {exe}, not the expected output {want} (another target or profile)"
+        )
+    st = exe.stat()
+    SOLAR_ARTIFACT = {
+        "path": str(exe),
+        "sha256": sha256_file(exe),
+        "mtime_ns": st.st_mtime_ns,
+        "fresh": bool(exes[0].get("fresh")),
+    }
+    return want
+
+
+def artifact_problem(solar):
+    """Why SOLAR is not the artifact this run's build produced, unchanged since, or None."""
+    a = SOLAR_ARTIFACT
+    if a is None:
+        return "the executable is not one this run's build produced"
+    p = pathlib.Path(solar)
+    if p.resolve() != pathlib.Path(a["path"]).resolve():
+        return f"the executable {solar} is not the build's artifact {a['path']}"
+    if p.stat().st_mtime_ns != a["mtime_ns"] or sha256_file(p) != a["sha256"]:
+        return f"the build's artifact {a['path']} changed after the build"
+    return None
 
 
 def build_solar_verify():
@@ -2518,20 +2683,33 @@ def solar_commit(version_out):
 
 
 def build_provenance(root, solar, version_out):
-    """The solar build's inputs as this run observed them by running git, rustc and the binary, never
-    from labels a caller passes: the checkout's commit and tree (refused unless its compiler sources
-    are its commit's), the state of its submodules (refused when one is modified or conflicted), the
-    Cargo.lock digest, rustc -vV and its host triple, the profile and features the binary reports,
-    the effective RUSTFLAGS / CARGO_ENCODED_RUSTFLAGS / CARGO_BUILD_RUSTFLAGS, and the exact build
-    command. The binary itself (SOLAR) must be the build's output path."""
+    """The solar build's inputs as this run observed them by running git, rustc, Cargo and the
+    binary, never from labels a caller passes: the checkout's commit and tree (refused unless its
+    compiler sources and .cargo are its commit's), its submodules (refused when one is modified or
+    conflicted), the Cargo.lock digest, rustc -vV, the target (the host: no --target is passed and
+    every way to choose another is refused), the profile and features the binary reports, the Cargo
+    environment and configs the build read, the exact build command, and the artifact Cargo reported
+    (which SOLAR must be, unchanged)."""
     root = pathlib.Path(root)
-    want = root / os.environ.get("CARGO_TARGET_DIR", "target") / "debug" / "solar"
-    if pathlib.Path(solar).resolve() != want.resolve():
-        raise Failed(f"solar: the executable {solar} is not the build's output {want}")
+    if why := artifact_problem(solar):
+        raise Failed(f"solar: {why}")
+    if why := cargo_env_problem(os.environ):
+        raise Failed(f"solar build: {why}")
     g = ["git", "-C", str(root)]
     if (
-        run([*g, "diff", "--quiet", "HEAD", "--", *COMPILER_SOURCES])[0] != 0
-        or run([*g, "diff", "--quiet", "--cached", "HEAD", "--", *COMPILER_SOURCES])[0]
+        run([*g, "diff", "--quiet", "HEAD", "--", *COMPILER_SOURCES, ".cargo"])[0] != 0
+        or run(
+            [
+                *g,
+                "diff",
+                "--quiet",
+                "--cached",
+                "HEAD",
+                "--",
+                *COMPILER_SOURCES,
+                ".cargo",
+            ]
+        )[0]
         != 0
     ):
         raise Failed(
@@ -2551,10 +2729,18 @@ def build_provenance(root, solar, version_out):
     host = re.search(r"^host: (\S+)$", vv or "", re.MULTILINE)
     if rc != 0 or not host:
         raise Failed(f"solar: rustc -vV fails: {err.strip()[:200]}")
+    cargo_home = os.environ.get("CARGO_HOME") or str(pathlib.Path.home() / ".cargo")
+    why, configs = cargo_config_problem(root, cargo_home, host.group(1))
+    if why:
+        raise Failed(f"solar build: {why}")
     prof = re.search(r"^Build Profile: (\S+)", version_out or "", re.MULTILINE)
     feat = re.search(r"^Build Features: (.*)$", version_out or "", re.MULTILINE)
     if not prof or not feat:
         raise Failed("solar: the binary does not report its build profile and features")
+    if prof.group(1) != "debug":
+        raise Failed(
+            f"solar: the binary reports profile {prof.group(1)}, not the supported debug"
+        )
     return {
         "provenance_version": PROVENANCE_VERSION,
         "commit": git(root, "rev-parse", "HEAD"),
@@ -2562,7 +2748,10 @@ def build_provenance(root, solar, version_out):
         "submodules": sorted(l.strip() for l in sub.splitlines() if l.strip()),
         "cargo_lock_sha256": sha256_file(root / "Cargo.lock"),
         "rustc_vv": vv.strip(),
+        # The host triple, which is the build's target: no --target is passed and CARGO_BUILD_TARGET,
+        # build.target and [target.<host>] are refused above.
         "target": host.group(1),
+        "target_source": "host (no --target; CARGO_BUILD_TARGET and build.target refused)",
         "profile": prof.group(1),
         "features": feat.group(1).strip(),
         "rustflags": {
@@ -2570,6 +2759,13 @@ def build_provenance(root, solar, version_out):
             for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS")
         },
         "command": SOLAR_BUILD_CMD,
+        "cargo_env": {
+            k: os.environ.get(k)
+            for k in CARGO_ENV_ALLOWED
+            if k not in ("CARGO_TARGET_DIR", "CARGO_HOME", "CARGO_BUILD_JOBS")
+        },
+        "cargo_config": configs,
+        "artifact": {k: SOLAR_ARTIFACT[k] for k in ("sha256", "fresh")},
     }
 
 
@@ -2921,6 +3117,9 @@ REPLAY_KEYS = [
     ("solar", "build", "features"),
     ("solar", "build", "rustflags"),
     ("solar", "build", "command"),
+    ("solar", "build", "target_source"),
+    ("solar", "build", "cargo_env"),
+    ("solar", "build", "cargo_config"),
     ("solc", "sha256"),
     ("lean_toolchain", "recorded_digest"),
     ("published_statement",),
@@ -3439,11 +3638,20 @@ def producer_problem(rec, d, which):
         "features",
         "rustflags",
         "command",
+        "target_source",
+        "cargo_env",
+        "cargo_config",
+        "artifact",
     ):
         if k not in b:
             return f"the {which}'s solar.build has no {k}"
     if not re.fullmatch(r"[0-9a-f]{64}", str(s.get("binary_sha256"))):
         return f"the {which} has no solar.binary_sha256"
+    if b["artifact"].get("sha256") != s["binary_sha256"]:
+        return (
+            f"substituted executable: the {which}'s build produced {b['artifact'].get('sha256')}, "
+            f"not the recorded {s['binary_sha256']}"
+        )
     if s.get("dirty") is not False:
         return f"the {which}'s solar checkout is dirty"
     if not (s.get("binary_commit") == b["commit"] == s.get("commit")):
@@ -3789,6 +3997,8 @@ def main():
                 os.environ.get("CERTIFY_ALLOW_FOREIGN_SOLAR") == "1",
             )
         ) is not None:
+            raise Failed(f"solar: {why}")
+        if why := artifact_problem(solar):
             raise Failed(f"solar: {why}")
         record["solar"]["binary_sha256"] = sha256_file(solar)
         rc, vout, _ = run([str(solar), "--version"])

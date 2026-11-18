@@ -282,7 +282,7 @@ SOLAR_COMMIT = "5" * 40
 
 
 def solar_rec():
-    """A record's solar entry with build provenance version 1, as build_provenance writes it."""
+    """A record's solar entry with build provenance version 2, as build_provenance writes it."""
     return {
         "commit": SOLAR_COMMIT,
         "dirty": False,
@@ -290,7 +290,7 @@ def solar_rec():
         "binary_commit": SOLAR_COMMIT,
         "version": "solar 0.3.0",
         "build": {
-            "provenance_version": 1,
+            "provenance_version": 2,
             "commit": SOLAR_COMMIT,
             "tree": "6" * 40,
             "submodules": [
@@ -306,9 +306,164 @@ def solar_rec():
                 "CARGO_ENCODED_RUSTFLAGS": None,
                 "CARGO_BUILD_RUSTFLAGS": None,
             },
-            "command": ["cargo", "build", "--locked", "--bin", "solar"],
+            "command": generic.SOLAR_BUILD_CMD,
+            "target_source": "host (no --target; CARGO_BUILD_TARGET and build.target refused)",
+            "cargo_env": {"CARGO_INCREMENTAL": None},
+            "cargo_config": [
+                {"scope": "repo", "name": "config.toml", "sha256": "3" * 64}
+            ],
+            "artifact": {"sha256": BIN, "fresh": False},
         },
     }
+
+
+class SolarBuildConfig(unittest.TestCase):
+    """The one supported solar build configuration (build_solar, cargo_env_problem,
+    cargo_config_problem, artifact_problem): each way Cargo could build something else is refused
+    by name, and only the artifact Cargo reports, unchanged, is run."""
+
+    HOST = "x86_64-unknown-linux-gnu"
+
+    def config(self, root, text, where="home"):
+        d = (root / "home") if where == "home" else (root / "repo" / ".cargo")
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "config.toml").write_text(text)
+
+    def problem(self, root):
+        (root / "repo").mkdir(exist_ok=True)
+        return generic.cargo_config_problem(root / "repo", root / "home", self.HOST)
+
+    def test_env_refused(self):
+        for k, v in [
+            ("CARGO_BUILD_TARGET", "aarch64-unknown-linux-gnu"),
+            ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS", "-Copt-level=3"),
+            ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER", "cc"),
+            ("CARGO_PROFILE_DEV_OPT_LEVEL", "3"),
+            ("RUSTC_WRAPPER", "sccache"),
+            ("RUSTC_WORKSPACE_WRAPPER", "w"),
+            ("RUSTC", "/opt/rustc"),
+            ("RUSTFLAGS", "-Cdebuginfo=0"),
+            ("CARGO_ENCODED_RUSTFLAGS", "-Cx"),
+            ("CARGO_BUILD_RUSTFLAGS", "-Cx"),
+            ("CARGO_UNSTABLE_BUILD_STD", "true"),
+        ]:
+            with self.subTest(k):
+                why = generic.cargo_env_problem({"PATH": "/bin", k: v})
+                self.assertIsNotNone(why)
+                self.assertTrue(why.startswith(f"{k} is set"), why)
+        self.assertIsNone(
+            generic.cargo_env_problem(
+                {
+                    "CARGO_BUILD_JOBS": "2",
+                    "CARGO_TARGET_DIR": "t",
+                    "CARGO_HOME": "h",
+                    "CARGO_NET_OFFLINE": "true",
+                }
+            )
+        )
+
+    def test_config_refused(self):
+        cases = {
+            "build.target": ('[build]\ntarget = "aarch64-unknown-linux-gnu"\n', "home"),
+            "build.rustflags": ('[build]\nrustflags = ["-Cx"]\n', "home"),
+            "build.rustc-wrapper": ('[build]\nrustc-wrapper = "sccache"\n', "home"),
+            "build.target-dir": ('[build]\ntarget-dir = "elsewhere"\n', "repo"),
+            "[target.x86_64-unknown-linux-gnu]": (
+                '[target.x86_64-unknown-linux-gnu]\nrustflags = ["-Cx"]\n',
+                "repo",
+            ),
+            "[target.cfg(unix)]": (
+                "[target.'cfg(unix)']\nrustflags = [\"-Cx\"]\n",
+                "repo",
+            ),
+            "[target.aarch64-unknown-linux-gnu]": (
+                '[target.aarch64-unknown-linux-gnu]\nlinker = "x"\n',
+                "home",
+            ),
+            "[profile]": ("[profile.dev]\nopt-level = 3\n", "home"),
+            "[env]": ('[env]\nX = "1"\n', "home"),
+            "[unstable]": ('[unstable]\nbuild-std = ["std"]\n', "repo"),
+        }
+        for label, (text, where) in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as t:
+                root = pathlib.Path(t)
+                self.config(root, text, where)
+                why, _ = self.problem(root)
+                self.assertIsNotNone(why, label)
+                self.assertIn(
+                    label.split("(")[0] if label.startswith("[target.cfg") else label,
+                    why,
+                )
+
+    def test_config_bound(self):
+        """The checkout's own config (its [env] and other targets' tables) and a harmless
+        CARGO_HOME config are bound by digest, not refused."""
+        with tempfile.TemporaryDirectory() as t:
+            root = pathlib.Path(t)
+            self.config(
+                root, (generic.ROOT / ".cargo" / "config.toml").read_text(), "repo"
+            )
+            self.config(root, "[net]\noffline = true\n", "home")
+            why, bound = self.problem(root)
+            self.assertIsNone(why)
+            self.assertEqual([b["scope"] for b in bound], ["repo", "cargo_home"])
+            self.assertTrue(
+                all(re.fullmatch(r"[0-9a-f]{64}", b["sha256"]) for b in bound)
+            )
+            self.assertNotIn(t, json.dumps(bound))
+
+    def build(self, root, executable, fresh=False):
+        """build_solar with cargo replaced by one reporting EXECUTABLE as the solar artifact."""
+        line = json.dumps(
+            {
+                "reason": "compiler-artifact",
+                "target": {"name": "solar", "kind": ["bin"]},
+                "executable": str(executable),
+                "fresh": fresh,
+            }
+        )
+        env = {
+            k: v for k, v in os.environ.items() if not generic.cargo_env_problem({k: v})
+        }
+        env["CARGO_TARGET_DIR"] = str(root / "target")
+        with (
+            unittest.mock.patch.object(
+                generic, "run", lambda *a, **k: (0, line + "\n", "")
+            ),
+            unittest.mock.patch.dict(os.environ, env, clear=True),
+        ):
+            return generic.build_solar()
+
+    def test_stale_host_output_trap(self):
+        """An old target/debug/solar while Cargo built elsewhere: refused before anything runs."""
+        with tempfile.TemporaryDirectory() as t:
+            root = pathlib.Path(t)
+            (root / "target/debug").mkdir(parents=True)
+            (root / "target/debug/solar").write_text("stale")
+            elsewhere = root / "target/aarch64-unknown-linux-gnu/debug/solar"
+            elsewhere.parent.mkdir(parents=True)
+            elsewhere.write_text("fresh")
+            with self.assertRaises(generic.Failed) as e:
+                self.build(root, elsewhere)
+            self.assertIn("not the expected output", str(e.exception))
+            self.assertIsNone(generic.SOLAR_ARTIFACT)
+
+    def test_artifact_bound_and_changed(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = pathlib.Path(t)
+            exe = root / "target/debug/solar"
+            exe.parent.mkdir(parents=True)
+            exe.write_text("built")
+            got = self.build(root, exe)
+            self.assertEqual(got.resolve(), exe.resolve())
+            self.assertEqual(generic.SOLAR_ARTIFACT["sha256"], generic.sha256_file(exe))
+            self.assertIsNone(generic.artifact_problem(exe))
+            exe.write_text("swapped")
+            self.assertIn("changed after the build", generic.artifact_problem(exe))
+            self.assertIn(
+                "is not the build's artifact", generic.artifact_problem(root / "other")
+            )
+            generic.SOLAR_ARTIFACT = None
 
 
 class ReplayClaims(unittest.TestCase):
@@ -417,50 +572,22 @@ class ReplayClaims(unittest.TestCase):
             self.assertNotIn("every pin", line)
 
     def test_build_provenance_binds_the_build_output(self):
-        """build_provenance refuses an executable that is not the build's output (an unbound path)
-        and a binary that does not report its profile and features; it reads the rest by running."""
-        with self.assertRaises(generic.Failed) as e:
-            generic.build_provenance(
-                generic.ROOT, "/usr/bin/true", "Build Profile: debug\nBuild Features: x"
-            )
-        self.assertIn("is not the build's output", str(e.exception))
-        out = (
-            generic.ROOT
-            / os.environ.get("CARGO_TARGET_DIR", "target")
-            / "debug"
-            / "solar"
-        )
-        if (
-            generic.run(
-                [
-                    "git",
-                    "-C",
-                    str(generic.ROOT),
-                    "diff",
-                    "--quiet",
-                    "HEAD",
-                    "--",
-                    *generic.COMPILER_SOURCES,
-                ]
-            )[0]
-            == 0
-        ):
+        """build_provenance refuses an executable that is not this run's build artifact, and reads
+        the rest by running git, rustc and Cargo."""
+        old = generic.SOLAR_ARTIFACT
+        try:
+            generic.SOLAR_ARTIFACT = None
             with self.assertRaises(generic.Failed) as e:
-                generic.build_provenance(generic.ROOT, out, "Commit SHA: x")
-            self.assertIn("profile and features", str(e.exception))
-            b = generic.build_provenance(
-                generic.ROOT, out, "Build Profile: debug\nBuild Features: default"
-            )
-            self.assertEqual(b["provenance_version"], 1)
-            self.assertEqual(
-                b["command"], ["cargo", "build", "--locked", "--bin", "solar"]
-            )
-            self.assertRegex(b["rustc_vv"], r"(?m)^host: ")
-            self.assertEqual(
-                b["cargo_lock_sha256"], generic.sha256_file(generic.ROOT / "Cargo.lock")
-            )
+                generic.build_provenance(
+                    generic.ROOT,
+                    "/usr/bin/true",
+                    "Build Profile: debug\nBuild Features: x",
+                )
+            self.assertIn("not one this run's build produced", str(e.exception))
+        finally:
+            generic.SOLAR_ARTIFACT = old
 
-    # Replay pins (build provenance instead of cross-build binary identity). Each line is snapshot
+    # Replay pins    # Replay pins (build provenance instead of cross-build binary identity). Each line is snapshot
     # in testdata/replay_pin.snapshot, which REPLAY_PIN_SNAPSHOT=1 rewrites.
     def pin_case(self, edit=None, fresh_edit=None, fresh_cr_edit=None):
         with tempfile.TemporaryDirectory() as t:
@@ -474,6 +601,7 @@ class ReplayClaims(unittest.TestCase):
     def test_replay_pins(self):
         def fresh_bin(r):
             r["solar"]["binary_sha256"] = "f" * 64
+            r["solar"]["build"]["artifact"]["sha256"] = "f" * 64
 
         def build(k, v):
             def e(r):
@@ -541,6 +669,39 @@ class ReplayClaims(unittest.TestCase):
             "old record without provenance": (1, unversioned, None, None),
             "fresh record without provenance": (1, None, unversioned, None),
             "dirty checkout": (1, lambda r: r["solar"].update(dirty=True), None, None),
+            "artifact is not the recorded binary": (
+                1,
+                lambda r: r["solar"]["build"]["artifact"].update(sha256="c" * 64),
+                None,
+                None,
+            ),
+            "Cargo config differs": (
+                1,
+                None,
+                build(
+                    "cargo_config",
+                    [
+                        {
+                            "scope": "cargo_home",
+                            "name": "config.toml",
+                            "sha256": "2" * 64,
+                        }
+                    ],
+                ),
+                None,
+            ),
+            "Cargo environment differs": (
+                1,
+                None,
+                build("cargo_env", {"CARGO_INCREMENTAL": "1"}),
+                None,
+            ),
+            "old provenance version 1": (
+                1,
+                lambda r: r["solar"]["build"].update(provenance_version=1),
+                None,
+                None,
+            ),
         }
         got = {}
         for label, (want, edit, fe, fce) in cases.items():
