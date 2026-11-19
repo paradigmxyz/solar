@@ -45,7 +45,7 @@ class CallBudgetTests(unittest.TestCase):
                 fixture["warm_addresses"] = [caller_replay.TOKEN]
                 fixture["accounts"][0]["storage"]["0xbeef"] = str(10 + offset)
                 if name == "supply":
-                    fixture["gas"] = 35000
+                    fixture["gas"] = 36420
                     fixture["warm_addresses"] = []
                     fixture["accounts"][1]["code"] = "0x5a5f5560015f5260205ff3"
                 if name in failures:
@@ -183,7 +183,7 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertEqual(words, report["caller_replays"][name]["abi_words"])
                 self.assertEqual(snapshot["gas"], entry[name]["gas"])
                 if name == "supply":
-                    self.assertEqual(snapshot["gas"], 1343)
+                    self.assertEqual(snapshot["gas"], 2763)
                 self.assertEqual(
                     len(snapshot["budgets"]),
                     2 if name in {"liquidate", "flashLoan"} else 0,
@@ -234,14 +234,18 @@ class CallBudgetTests(unittest.TestCase):
 import EntrySupplyProofafterLink
 {entry_proof.HEADER}
 open EntrySupply
-theorem supply_pre_sample :
-    byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [] ∧ byteTailCut.budgets = [] :=
-  before_pre_sample (by decide +kernel)
-example : preSampleExhausted mirCfg afterFunctions physicalCut afterCut = true :=
+theorem supply_unpaid_call : byteTailCut.unpaidCall = some ({report["call_pc"]}, 0) :=
   by decide +kernel
-#print axioms supply_pre_sample
+example : (unpaidHelperCall mirCfg beforeFunctions physicalCut beforeCut).map Prod.snd = some 0 :=
+  before_unpaid_call.trans (congrArg (Option.map Prod.snd) supply_unpaid_call)
+example : (unpaidHelperCall mirCfg afterFunctions physicalCut afterCut).map Prod.snd = some 0 :=
+  after_unpaid_call.trans (congrArg (Option.map Prod.snd) supply_unpaid_call)
+example :
+    byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [2] ∧ byteTailCut.budgets = [] :=
+  by decide +kernel
+#print axioms supply_unpaid_call
 """
-            proved = entry_proof.lean(kernel, "SupplyPreSample", pricing, 60)
+            proved = entry_proof.lean(kernel, "SupplyUnpaidCall", pricing, 60)
             self.assertEqual(proved.returncode, 0, proved.stdout + proved.stderr)
             entry_proof.check_axioms(proved.stdout.splitlines(), 1)
             self.assertEqual(
@@ -394,65 +398,130 @@ def throughHelper : EVM.State.Run := do
             funded = state | {"gas": 300000}
             sample = caller_entry.replay(funded, sample_pc, executable, 30)
             minimum = funded["gas"] - sample["gas"] + gas_fee
-            near = [state | {"gas": amount} for amount in (minimum - 1, minimum)]
+            call_pc = report["call_pc"]
+            call_fee = 100
+            charge = caller_entry.replay(funded, call_pc, executable, 30)
+            call_minimum = funded["gas"] - charge["gas"] + call_fee
+            amounts = [35000, minimum - 1, minimum, call_minimum - 1, call_minimum]
+            near = [state | {"gas": amount} for amount in amounts]
             self.assertEqual(
                 [
                     caller_entry.replay(case, sample_pc, executable, 30)["gas"]
-                    for case in near
+                    for case in near[1:3]
                 ],
                 [gas_fee - 1, gas_fee],
             )
+            self.assertEqual(
+                [
+                    caller_entry.replay(case, call_pc, executable, 30)["gas"]
+                    for case in near[-2:]
+                ],
+                [call_fee - 1, call_fee],
+            )
+            with self.assertRaisesRegex(Unsupported, "bytecode probe was not reached"):
+                caller_entry.replay(near[-2], call_pc + 1, executable, 30)
+            resumed = caller_entry.replay(near[-1], call_pc + 1, executable, 30)
+            self.assertEqual((resumed["stack"][0], resumed["gas"]), ("0", 0))
             exits = [caller_entry.replay(case, None, executable, 30) for case in near]
             self.assertTrue(
                 all(exit_[:4] == ["out-of-gas", [], 0, 0] for exit_ in exits)
             )
-            source = caller_entry.replay_source(
-                state,
-                runtime,
-                report["entry_pc"],
-                callers.Site(**report["callers"][0]),
-                list(map(builtin_lowering.functions, models)),
-                SOLAR,
-                executable,
-                30,
-            )
-            reentry.write_text(
-                source.split("#eval")[0]
-                + f"""
+            gas_check = f"""
 def checkGas (gas : Nat) : Except String Lean.Json := do
   let cut ← runBytes {report["entry_pc"]} 2048 tvWorldConfig {{initial with frame.gas := gas}}
   let terminal ← runByteExit tvWorldConfig 1024 cut
   let entered ← before cut
-  let predicted := preSampleExhausted mirCfg beforeFunctions cut entered
-  let readExit (result : EVM.State.Run) :=
-    EVM.State.describe tvWorldConfig .exact (result.map (finishByte checkpoint))
-  let physical := readExit (.ok terminal.result)
-  let mir := if predicted then readExit (runMirExit mirCfg beforeFunctions 1024 cut terminal entered) else ""
-  return Lean.toJson (terminal.samples, predicted, physical, mir)
+  let unpaid := unpaidHelperCall mirCfg beforeFunctions cut entered
+  let physical := EVM.State.describe tvWorldConfig .exact (.ok (finishByte checkpoint terminal.result))
+  let mir := EVM.State.describe tvWorldConfig .effects
+    ((runMirExit mirCfg beforeFunctions 1024 cut terminal entered).map (finishByte checkpoint))
+  return Lean.Json.arr #[Lean.toJson terminal.samples, Lean.toJson terminal.budgets,
+    Lean.toJson terminal.unpaidCall, Lean.toJson (unpaid.map Prod.snd), Lean.toJson physical, Lean.toJson mir]
 
-#eval for gas in [{minimum - 1}, {minimum}] do
+def printGas (gas : Nat) : IO Unit :=
   match checkGas gas with
   | .ok result => IO.println result.compress
   | .error reason => throw (IO.userError reason)
+
 """
-            )
-            result = subprocess.run(
-                ["lake", "env", "lean", "-j1", reentry],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            for index, line in enumerate(result.stdout.splitlines()):
-                samples, (predicted, (physical, mir)) = json.loads(line)
-                self.assertEqual(samples, [] if index == 0 else [gas_fee])
-                self.assertEqual(predicted, index == 0)
+            site = callers.Site(**report["callers"][0])
+            tables = list(map(builtin_lowering.functions, models))
+
+            def check_gas(fixture, amounts):
+                source = caller_entry.replay_source(
+                    fixture,
+                    runtime,
+                    report["entry_pc"],
+                    site,
+                    tables,
+                    SOLAR,
+                    executable,
+                    30,
+                )
+                reentry.write_text(
+                    source.split("#eval")[0]
+                    + gas_check
+                    + f"#eval for gas in {amounts} do printGas gas\n"
+                )
+                result = subprocess.run(
+                    ["lake", "env", "lean", "-j1", reentry],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                return list(map(json.loads, result.stdout.splitlines()))
+
+            checks = check_gas(state, amounts)
+            expected_samples = [
+                [],
+                [],
+                [gas_fee],
+                [gas_fee + call_fee - 1],
+                [gas_fee + call_fee],
+            ]
+            self.assertEqual(len(checks), len(amounts))
+            for index, (samples, paid, unpaid, predicted, physical, mir) in enumerate(
+                checks
+            ):
+                self.assertEqual(samples, expected_samples[index])
+                self.assertEqual(paid, [call_fee] if index == len(amounts) - 1 else [])
+                self.assertEqual(predicted, {2: 0, 3: call_fee - 1}.get(index))
+                self.assertEqual(
+                    unpaid, [call_pc, predicted] if predicted is not None else None
+                )
                 self.assertEqual(json.loads(physical), exits[index])
-                if index == 0:
+                if index != len(amounts) - 1:
                     self.assertEqual(json.loads(mir), exits[index])
-            self.assertEqual(len(result.stdout.splitlines()), 2)
+
+            # A paid CALL can exhaust its child's gas and leave its parent
+            # enough gas to revert normally. MSTORE tries to expand memory at
+            # an offset whose expansion charge exceeds the entire root budget.
+            child = state | {
+                "gas": 132000,
+                "accounts": [
+                    account | {"code": list(bytes.fromhex("5f63ffffffff52"))}
+                    if int(account["address"]) == caller_replay.TOKEN
+                    else account
+                    for account in state["accounts"]
+                ],
+            }
+            child_exit = caller_entry.replay(child, None, executable, 30)
+            self.assertEqual(child_exit[0], "revert")
+            self.assertIn(b"transferFrom reverted", bytes(child_exit[1]))
+            after_child = caller_entry.replay(child, call_pc + 1, executable, 30)
+            self.assertEqual(after_child["stack"][0], "0")
+            self.assertGreater(after_child["gas"], 0)
+            [(samples, paid, unpaid, predicted, physical, mir)] = check_gas(
+                child, [child["gas"]]
+            )
+            self.assertEqual(paid, [samples[0] - gas_fee])
+            self.assertIsNone(unpaid)
+            self.assertIsNone(predicted)
+            self.assertEqual(json.loads(physical), child_exit)
+            self.assertEqual(json.loads(mir), child_exit[:2] + [0, 0] + child_exit[4:])
 
             self.assertEqual(runtime[report["entry_pc"]], 0x5B)
             self.assertEqual(

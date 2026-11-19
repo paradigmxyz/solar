@@ -1510,6 +1510,13 @@ prefix failure rolls back the invocation without a GAS sample. The kernel
 checks the failure and empty gas ledger against the emitted instruction
 trace, and Rust independently replays the complete ABI call.
 
+At 36,420 root gas, Supply executes GAS and then reaches CALL with zero
+parent gas. The checked schedule supplies that pre-charge budget to the MIR
+CALL, which exhausts the parent frame. The certificate identifies the failing
+CALL in the emitted runtime. Independent replay checks one gas below the
+CALL fee and at the fee, when the paid CALL returns a child failure to its
+parent.
+
 Use `--caller-worlds DIR` to supply concrete calldata, accounts, gas and
 child code. Copy the `*.world.json` files saved under `entry/` and edit the
 five inputs. Each file must keep its caller's selector and reach the checked
