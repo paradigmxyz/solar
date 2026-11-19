@@ -503,27 +503,27 @@ impl<'gcx> Resolver<'gcx> {
                             true
                         };
 
-                        // The index of the next untagged `///` line of the group from `from`.
-                        // solc skips empty lines, and a lone `@` adds no text.
-                        let untagged_line = |from: usize| {
+                        // The index of the next untagged `///` line of the group from `from`. solc
+                        // skips empty lines, and a lone `@` continues a tag with no text.
+                        let untagged_line = |from: usize, skip_lone_at: bool| {
                             (from..docs.len())
                                 .take_while(|&j| !starts_group(self.gcx, &docs[j - 1], &docs[j]))
                                 .find(|&j| {
                                     let text = docs[j].symbol.as_str();
-                                    !text.is_empty() && text.trim() != "@"
+                                    !text.is_empty() && !(skip_lone_at && text.trim() == "@")
                                 })
                                 .filter(|&j| docs[j].natspec.first().is_none_or(is_untagged))
                         };
                         // solc reads the text of a `///` tag that ends its line from the next line.
                         let index = state.return_count - 1;
-                        let next = untagged_line(i + 1).filter(|_| {
+                        let next = untagged_line(i + 1, false).filter(|_| {
                             rets.get(index)
                                 .is_some_and(|&id| self.gcx.hir.variable(id).name.is_some())
                                 && natspec.content_start == natspec.content_end
                                 && !natspec.symbol.as_str().ends_with([' ', '\t'])
                         });
                         // Whether a later line continues the tag's text.
-                        let continued = untagged_line(next.unwrap_or(i) + 1).is_some();
+                        let continued = untagged_line(next.unwrap_or(i) + 1, true).is_some();
                         if return_valid
                             && let Some(item) = self.lower_return_natspec(
                                 *natspec,

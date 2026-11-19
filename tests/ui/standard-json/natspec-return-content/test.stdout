@@ -2,6 +2,20 @@
   "errors": [
     {
       "sourceLocation": {
+        "file": "LoneAtFirst.sol",
+        "start": 161,
+        "end": 167
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "5856",
+      "message": "tag `@return` references non-existent return parameter '@'",
+      "formattedMessage": "warning[5856]: tag `@return` references non-existent return parameter '@'\n   ╭▸ LoneAtFirst.sol:LL:CC\n   │\nLL │     /// @return\n   ╰╴         ━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
         "file": "ReturnDescAfterNl.sol",
         "start": 412,
         "end": 508
@@ -16,20 +30,32 @@
     }
   ],
   "sources": {
-    "NameOnly.sol": {
+    "LoneAtFirst.sol": {
       "id": 0
     },
-    "ReturnDescAfterNl.sol": {
+    "NameOnly.sol": {
       "id": 1
     },
-    "ReturnNameNoDescription.sol": {
+    "ReturnDescAfterNl.sol": {
       "id": 2
     },
-    "StructGetterNoReturnName.sol": {
+    "ReturnNameNoDescription.sol": {
       "id": 3
+    },
+    "StructGetterNoReturnName.sol": {
+      "id": 4
     }
   },
   "contracts": {
+    "LoneAtFirst.sol": {
+      "LoneAtFirst": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      }
+    },
     "NameOnly.sol": {
       "NameOnly": {
         "devdoc": {

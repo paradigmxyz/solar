@@ -3,6 +3,9 @@
 // documents an empty text, and a tag that ends its `///` line takes its text from the next line.
 // solc writes `x ` for the getter's `return`, where we leave out the name, as for any tag text,
 // and keeps the blanks of `blankLine`'s second line, where we trim them.
+// CHECK: "errorCode": "5856",
+// CHECK-NEXT: "message": "tag `@return` references non-existent return parameter '@'",
+// CHECK-NOT: "errorCode": "5856"
 // CHECK-LABEL: "contracts": {
 // CHECK-LABEL: "NameOnly.sol": {
 // CHECK: "block()": {
