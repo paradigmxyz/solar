@@ -114,21 +114,22 @@ those of struct members.
 Same-named types from different scopes, such as `Tick.Info` and
 `Position.Info`, stay apart, and a label that differs between compilers shows as
 a difference. An ID with no `types` entry, such as a struct used only in a
-function type, becomes `t_struct(Name)#`. IDs of a contract's layouts that
-still share a name, such as two file-level structs `S` from different files or
-two structs `Info` used only in function types, get `#1`, `#2`, ... in the
-order they first appear in the storage entries and, depth first, in the types
-those use, so one layout normalizes the same whatever its IDs. Swapping two
-such types shows as a difference only when their `types` entries differ, which
-two same-named enums or contracts never do. An ID that no storage entry reaches
-keeps its plain name; if another ID has it too, the check reports an error
-naming the contract, and still compares the other contracts; so does a
+function type, becomes `t_struct(Name)#`. IDs of one layout that still share a
+name, such as two file-level structs `S` from different files or two structs
+`Info` used only in function types, get `#1`, `#2`, ... in the order they first
+appear in the storage entries and, depth first, in the types those use, so one
+layout normalizes the same whatever its IDs. Swapping two such types shows as a
+difference only when their `types` entries differ, which two same-named enums or
+contracts, or value types of one size, never do. An ID that no storage entry
+reaches keeps its plain name; if another ID has it too, the check reports an
+error naming the contract, and still compares the other contracts; so does a
 malformed layout.
 `storage` and each struct's `members` compare in order; `types` compares as an
 object, so its key order does not matter. Each layout counts as one output for
 the missing and `unsupported` rules below; solc before 0.8.27 emits no
-`transientStorageLayout`, so in an output where no contract has one, each counts
-as empty. The check has its own rule version for expectations.
+`transientStorageLayout`, so when no contract of the reference has one and the
+candidate has some, the reference's count as empty. The check has its own rule
+version for expectations.
 
 Each check reports `equal`, `different`, `unsupported` (outputs missing on both
 sides), or `error` (failed compilation or malformed output); output missing on
