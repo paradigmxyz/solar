@@ -607,7 +607,10 @@ def compare_outputs(left, right, comparator="abi", policy="interface", rules=())
         # Only the error reports a contract that failed on either side.
         for path, name in errors_a.keys() | errors_b.keys():
             for side in (a, b):
-                side.get(path, {}).pop(name, None)
+                if (group := side.get(path)) is not None:
+                    group.pop(name, None)
+                    if not group:
+                        del side[path]
         diff = differences(a, b, "/contracts")
         errors = [f"left: {e}" for e in errors_a.values()]
         errors += [f"right: {e}" for e in errors_b.values()]
@@ -1002,6 +1005,12 @@ class Tests(unittest.TestCase):
             " t_struct(S){struct C.S}",
             result["error"],
         )
+        self.assertEqual(
+            [d["path"] for d in result["differences"]],
+            ["/contracts/D.sol/C/storageLayout/value/storage/1"],
+        )
+        del right["contracts"]["C.sol"]
+        result = compare_outputs(left, right, "storage-layout")
         self.assertEqual(
             [d["path"] for d in result["differences"]],
             ["/contracts/D.sol/C/storageLayout/value/storage/1"],
