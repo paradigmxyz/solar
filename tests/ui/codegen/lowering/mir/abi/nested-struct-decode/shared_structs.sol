@@ -11,13 +11,20 @@
 // the number of structs, and the text names each repeated struct once.
 // NONE: abi_decode [tuple<$0 = tuple<$1 = {{.*}}<$29 = tuple<array<_, uint256>>, $29>, $28>{{.*}}, $0>], arg0
 
-// The decoder of each struct calls the decoder of the struct inside it twice.
+// The decoder of each struct calls the decoder of the struct inside it twice, for memory and for
+// calldata.
 // CHECK-LABEL: fn @shared()
 // CHECK: icall @decode_memory_type.[[S29:[0-9]+]],
 // CHECK: icall @decode_memory_type.[[S29]],
+// CHECK-LABEL: fn @sharedCalldata()
+// CHECK: icall @decode_calldata_slice_type.[[C29:[0-9]+]],
+// CHECK: icall @decode_calldata_slice_type.[[C29]],
 // CHECK: fn @decode_memory_type.[[S29]](
 // CHECK: icall @decode_memory_type.[[S28:[0-9]+]],
 // CHECK: icall @decode_memory_type.[[S28]],
+// CHECK: fn @decode_calldata_slice_type.[[C29]](
+// CHECK: icall @decode_calldata_slice_type.[[C28:[0-9]+]],
+// CHECK: icall @decode_calldata_slice_type.[[C28]],
 
 contract C {
     struct S0 { uint256[] a; }
@@ -52,6 +59,10 @@ contract C {
     struct S29 { S28 a; S28 b; }
     struct S30 { S29 a; S29 b; }
     function shared(bytes memory data) public pure {
+        abi.decode(data, (S30));
+    }
+
+    function sharedCalldata(bytes calldata data) external pure {
         abi.decode(data, (S30));
     }
 }
