@@ -1062,6 +1062,7 @@ symbols! {
         decode,
         decode_aggregate,
         decode_calldata_slice,
+        decode_calldata_slice_type,
         decode_calldata_type,
         decode_memory_type,
         decode_static,

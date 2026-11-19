@@ -669,9 +669,8 @@ impl LowerAbiCx {
                 let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
-                // A calldata slice decodes in place at each site, without the shared memory
-                // decoders, but shares the decoders of nested types repeated within or across
-                // sites.
+                // A calldata slice decodes in place at every site, without a whole-decode helper,
+                // so each site counts toward sharing its dynamic tuples and arrays.
                 if func.value_slice_location(*data) == Some(PtrLocation::Calldata) {
                     for ty in &layout.types {
                         count_nested_types(ty, 1, &mut calldata_type_counts);
@@ -2817,7 +2816,7 @@ fn synthesize_decode_type_helpers(
     counts: FxHashMap<AbiParamType, (usize, usize)>,
     calldata: bool,
 ) -> FxHashMap<AbiParamType, FunctionId> {
-    let name = if calldata { sym::decode_calldata_type } else { sym::decode_memory_type };
+    let name = if calldata { sym::decode_calldata_slice_type } else { sym::decode_memory_type };
     let mut helpers = FxHashMap::default();
     for ty in repeated_types(counts) {
         let mut function = Function::new(Ident::with_dummy_span(name));
