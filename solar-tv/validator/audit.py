@@ -255,6 +255,10 @@ def record(
                         "execution through ABI RETURN, STOP, or owning-frame rollback; caller work before entering the helper is outside the universal proof",
                     ]
                 )
+                if program.import_evidence.get("final_bytecode", {}).get("abi_entry"):
+                    assumptions.append(
+                        "the separate ABI entry certificates establish stack and caller return live-ins for the five pinned fixture executions"
+                    )
             else:
                 assumptions.append(
                     "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim"

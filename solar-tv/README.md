@@ -1489,6 +1489,15 @@ from all five real ABI selectors and executes the unchanged runtime against
 success, token revert and false-return fixtures. It checks return words,
 storage and log rollback.
 
+Add `--check-caller-entry` to replay the five ABI prefixes in the pinned
+Cancun worlds. Lean executes the original runtime from PC 0 and both typed
+MIR snapshots from the same decoded calldata. It compares accounts, logs and
+returndata. The Rust inspector independently checks the physical execution
+path, stack, memory, returndata and gas at the helper PC. The kernel then
+checks the helper arguments, return address and saved ABI words from those
+snapshots. The prefix reachability result is replay evidence. The saved
+files under `entry/` include the executable replays and live-in proofs.
+
 Use `--mir-pair BEFORE AFTER` to verify an existing capture. The output
 includes the runtime, the Lean certificates, `mir.json` and the independent
 replays under `continuation/` and `callers/`. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)

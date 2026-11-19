@@ -54,6 +54,9 @@ pub(super) struct Input {
     warm_slots: Vec<(String, String)>,
     #[serde(default)]
     gas_policy: Option<String>,
+    /// Observe the first root instruction at this PC in the fixture runtime.
+    #[serde(default)]
+    probe_pc: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -134,12 +137,17 @@ fn code(request: &Request, input: &Input, text: &str) -> Result<Vec<u8>, String>
 struct Snapshot {
     gas: u64,
     refund: i64,
+    cut: Option<Value>,
+    samples: Vec<u64>,
+    budgets: Vec<u64>,
+    pcs: Vec<usize>,
 }
 
 struct Observer {
     stack: Vec<U256>,
     gas: u64,
     is_static: bool,
+    probe_pc: Option<usize>,
     snapshot: Rc<RefCell<Snapshot>>,
 }
 
@@ -150,6 +158,39 @@ impl Inspector<BaseEvmTypes> for Observer {
             interp.set_static(self.is_static);
             for value in self.stack.iter().rev() {
                 interp.stack_mut().push(*value).expect("checked root stack height");
+            }
+        }
+    }
+
+    fn step(&mut self, interp: &mut Interpreter<'_, '_, BaseEvmTypes>) {
+        if let Some(pc) = self.probe_pc
+            && interp.message().depth == 0
+        {
+            let mut snapshot = self.snapshot.borrow_mut();
+            if snapshot.cut.is_some() {
+                return;
+            }
+            let gas = interp.gas().remaining();
+            if interp.pc() == pc && snapshot.pcs.len() < 2048 {
+                let stack = interp.stack();
+                snapshot.cut = Some(json!({
+                    "pc": pc,
+                    "gas": gas,
+                    "refund": interp.gas().refunded(),
+                    "stack": stack.as_slice().iter().rev().map(U256::to_string).collect::<Vec<_>>(),
+                    "memory": interp.memory().as_slice(),
+                    "returndata": interp.return_data().as_ref(),
+                    "samples": snapshot.samples,
+                    "budgets": snapshot.budgets,
+                    "pcs": snapshot.pcs,
+                }));
+            } else if snapshot.pcs.len() < 2048 {
+                snapshot.pcs.push(interp.pc());
+                match interp.opcode() {
+                    0x5a => snapshot.samples.push(gas),
+                    0xf1 | 0xf2 | 0xf4 | 0xfa => snapshot.budgets.push(gas),
+                    _ => {}
+                }
             }
         }
     }
@@ -180,6 +221,9 @@ pub(super) fn spec(text: &str) -> Result<SpecId, String> {
 
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
     if request.kind == "mir" {
+        if input.probe_pc.is_some() {
+            return Err("bytecode probe requires EVM execution".into());
+        }
         return mir::replay(request, input);
     }
     if input.mir_layout.is_some() {
@@ -211,7 +255,19 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     let execute = |text: &str| -> Result<String, String> {
         let root = address(request, &input.address)?;
         let caller = address(request, &input.caller)?;
-        let code = code(request, input, text)?;
+        let code = if let Some(pc) = input.probe_pc {
+            let runtime = input
+                .accounts
+                .iter()
+                .find(|account| account.address == input.address)
+                .ok_or("bytecode probe requires a root account")?;
+            if pc >= runtime.code.len() {
+                return Err("bytecode probe PC is outside the root runtime".into());
+            }
+            runtime.code.clone()
+        } else {
+            code(request, input, text)?
+        };
         let block = context::block(request, input)?;
         let environment = context::transaction(request, input)?;
         let database = database(request, input, Some(&code))?;
@@ -259,11 +315,12 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         for (addr, slot) in &input.warm_slots {
             evm.state_mut().prewarm_storage_slot(&address(request, addr)?, word(request, slot)?);
         }
-        let snapshot = Rc::new(RefCell::new(Snapshot { gas: budget, refund: 0 }));
+        let snapshot = Rc::new(RefCell::new(Snapshot { gas: budget, ..Default::default() }));
         evm.set_inspector(Observer {
             stack: stack.clone(),
             gas: budget,
             is_static: input.is_static,
+            probe_pc: input.probe_pc,
             snapshot: snapshot.clone(),
         });
         let tx = Recovered::new_unchecked(
@@ -277,6 +334,13 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let outcome =
             evm.transact(&tx).map(evm2::ExecutedTx::commit).map_err(|error| error.to_string())?;
         let snapshot = snapshot.borrow();
+        if input.probe_pc.is_some() {
+            return snapshot
+                .cut
+                .as_ref()
+                .map(Value::to_string)
+                .ok_or_else(|| format!("bytecode probe was not reached ({:?})", outcome.stop));
+        }
         let stop = match outcome.stop {
             stop if stop.is_success() => "success",
             InstrStop::Revert => "revert",

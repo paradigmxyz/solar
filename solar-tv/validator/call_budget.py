@@ -787,6 +787,11 @@ def main(arguments):
         metavar=("BEFORE", "AFTER"),
         help="match an existing MIR pair against the new capture",
     )
+    parser.add_argument(
+        "--check-caller-entry",
+        action="store_true",
+        help="also replay the five pinned ABI entry paths and check the live-ins",
+    )
     parser.add_argument("--timeout", type=int, default=60)
     args = parser.parse_args(arguments)
     solar = str(Path(shutil.which(args.solar) or args.solar).resolve())
@@ -868,6 +873,9 @@ def main(arguments):
                 + "⟩",
                 "artifact": artifact,
                 "proof": directory / "MIRCallBudget.lean",
+                "caller_entry": (
+                    (final, directory / "entry") if args.check_caller_entry else None
+                ),
             },
         )
         audit.write(
@@ -902,6 +910,11 @@ def main(arguments):
                 "scope": "Cancun transferFrom entry through the five owning caller exits",
                 "callers": artifact["callers"],
                 "caller_replays": caller_receipts,
+                **(
+                    {"abi_entry": artifact["abi_entry"]}
+                    if args.check_caller_entry
+                    else {}
+                ),
                 "tail_fixed_gas": dict(zip(call_tail.ROUTES, tail.prices, strict=True)),
                 "returndatacopy_word_gas": tail.copy_gas,
                 "runtime_sha256": evaluate.digest(final),
@@ -932,6 +945,8 @@ def main(arguments):
         print(f"inconclusive: {error}", file=sys.stderr)
         return 2
     print(f"verified Morpho {FUNCTION} through CALL and five caller exits")
+    if args.check_caller_entry:
+        print("replayed five pinned ABI entry paths and proved their snapshot live-ins")
     print(
         f"counterexample: child GAS {child_samples[0]} -> {child_samples[1]} (Rust replay matched)"
     )

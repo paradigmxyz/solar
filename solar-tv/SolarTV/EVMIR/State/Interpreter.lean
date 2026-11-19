@@ -232,52 +232,54 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
             next {world with logs := world.logs ++ [log]} frame rest
       else .error s!"unmodeled world opcode {opcode}"
 
+/-- Resolve a step using the same child evaluator at every message boundary. -/
+def advance (cfg : Config) (execute : ChildExecutor) (signal : Step) :
+    Except String (Result ⊕ (Nat × Journal × Frame)) := do
+  match signal with
+  | .done result => return .inl result
+  | .next world frame => return .inr (0,world,frame)
+  | .call message outOffset outSize requested code world frame =>
+    let checkpoint := warmAddress world message.destination
+    if frame.environment.depth ≥ 1024 ||
+        ((message.kind == .call || message.kind == .callcode) &&
+          (account world frame.environment.address).balance.ult message.value) then
+      -- A rejected value-bearing call returns its unspent stipend too.
+      return .inr (0,checkpoint,{frame with
+        stack := 0 :: frame.stack
+        returnData := []
+        gas := frame.gas + if Calls.hasValue message then 2300 else 0})
+    else
+      match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
+      | none => return .inl ⟨.outOfGas,[],checkpoint,0,0⟩
+      | some budget =>
+        let child ← executeCall execute cfg checkpoint frame.environment message code budget.supplied
+        return .inr (child.work,child.world,{frame with
+          stack := child.value :: frame.stack
+          memory := writeBytes frame.memory outOffset (child.data.take outSize)
+          returnData := child.data
+          gas := frame.gas - budget.charged + child.gas})
+  | .create salt value initcode world frame =>
+    let creator := account world frame.environment.address
+    if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then
+      return .inr (0,world,{frame with stack := 0 :: frame.stack, returnData := []})
+    else
+      let forwarded := if cfg.fork.atLeast .tangerineWhistle then frame.gas - frame.gas / 64 else frame.gas
+      let child ← executeCreation execute cfg world frame.environment salt value initcode forwarded
+      return .inr (child.work,child.world,{frame with
+        stack := child.value :: frame.stack
+        returnData := child.data
+        gas := frame.gas - forwarded + child.gas})
+
 /-- Work fuel bounds the evaluator, not the EVM. Exhaustion is unsupported. -/
-def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
+def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run := do
   match fuel with
   | 0 => .error "world instruction/depth evaluation limit"
-  | fuel + 1 => do
-    let result ← match ← instruction cfg world frame with
-      | .done result => pure result
-      | .next world frame => run fuel cfg world frame
-      | .call message outOffset outSize requested code world frame =>
-        let checkpoint := warmAddress world message.destination
-        if frame.environment.depth ≥ 1024 ||
-            ((message.kind == .call || message.kind == .callcode) &&
-              (account world frame.environment.address).balance.ult message.value) then
-          -- A rejected value-bearing call returns its unspent stipend too.
-          run fuel cfg checkpoint {frame with
-            stack := 0 :: frame.stack
-            returnData := []
-            gas := frame.gas + if Calls.hasValue message then 2300 else 0}
-        else
-          match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
-          | none => exhausted checkpoint
-          | some budget =>
-            let child ← executeCall (run fuel cfg) cfg checkpoint frame.environment message code budget.supplied
-            let committed := child.world
-            let data := child.data
-            let returned := child.gas
-            let copied := data.take outSize
-            let resumed ← run (fuel - child.work) cfg committed {frame with
-              stack := child.value :: frame.stack
-              memory := writeBytes frame.memory outOffset copied
-              returnData := data
-              gas := frame.gas - budget.charged + returned}
-            pure {resumed with work := resumed.work + child.work}
-      | .create salt value initcode world frame =>
-        let creator := account world frame.environment.address
-        if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then
-          run fuel cfg world {frame with stack := 0 :: frame.stack, returnData := []}
-        else
-          let forwarded := if cfg.fork.atLeast .tangerineWhistle then frame.gas - frame.gas / 64 else frame.gas
-          let child ← executeCreation (run fuel cfg) cfg world frame.environment salt value initcode forwarded
-          let resumed ← run (fuel - child.work) cfg child.world {frame with
-            stack := child.value :: frame.stack
-            returnData := child.data
-            gas := frame.gas - forwarded + child.gas}
-          pure {resumed with work := resumed.work + child.work}
-    return {result with work := result.work + 1}
+  | fuel + 1 =>
+    match ← advance cfg (run fuel cfg) (← instruction cfg world frame) with
+    | .inl result => return {result with work := result.work + 1}
+    | .inr (spent,world,frame) =>
+      let result ← run (fuel - spent) cfg world frame
+      return {result with work := result.work + spent + 1}
 termination_by fuel
 decreasing_by all_goals omega
 
@@ -287,12 +289,12 @@ theorem run_next (fuel : Nat) {cfg world frame nextWorld nextFrame}
     run (fuel + 1) cfg world frame = (do
       let result ← run fuel cfg nextWorld nextFrame
       return {result with work := result.work + 1}) := by
-  simp only [run, h, Except.bind, Bind.bind, Except.pure, Pure.pure]
+  simp only [run, h, advance, Except.bind, Bind.bind, Except.pure, Pure.pure, Nat.sub_zero, Nat.add_zero]
 
 theorem run_done (fuel : Nat) {cfg world frame result}
     (h : instruction cfg world frame = .ok (.done result)) :
     run (fuel + 1) cfg world frame = .ok {result with work := result.work + 1} := by
-  simp only [run, h, Except.bind, Bind.bind, Except.pure, Pure.pure]
+  simp only [run, h, advance, Except.bind, Bind.bind, Except.pure, Pure.pure]
 
 theorem run_error (fuel : Nat) {cfg world frame reason}
     (h : instruction cfg world frame = .error reason) :

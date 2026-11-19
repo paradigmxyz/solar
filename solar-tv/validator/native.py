@@ -11,7 +11,13 @@ from .common import Inconclusive, Program, ReplayTimeout, Unsupported
 
 
 def replay(
-    a: Program, b: Program, values: list[int], *, executable: str, timeout: int
+    a: Program,
+    b: Program,
+    values: list[int],
+    *,
+    executable: str,
+    timeout: int,
+    probe_pc: int | None = None,
 ) -> dict:
     binary = shutil.which(executable)
     if binary is None:
@@ -40,6 +46,8 @@ def replay(
         from .world import replay_input
 
         request["world"] = replay_input(a.world)
+        if probe_pc is not None:
+            request["world"]["probe_pc"] = probe_pc
     try:
         result = subprocess.run(
             [binary],

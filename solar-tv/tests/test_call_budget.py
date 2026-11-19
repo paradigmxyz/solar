@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import call_budget, call_tail, callers, native
+from validator import call_budget, call_tail, caller_entry, callers, native, world
 from validator.common import Unsupported
 
 
@@ -20,10 +20,18 @@ class CallBudgetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             output = Path(work) / "call-budget"
             result = subprocess.run(
-                [CLI, "call-budget", "--solar", SOLAR, "--output", output],
+                [
+                    CLI,
+                    "call-budget",
+                    "--solar",
+                    SOLAR,
+                    "--output",
+                    output,
+                    "--check-caller-entry",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=180,
+                timeout=420,
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -69,6 +77,55 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertEqual(observations[2][-1], [])
                 self.assertIn(b"transferFrom reverted", bytes(observations[1][1]))
                 self.assertIn(b"transferFrom returned false", bytes(observations[2][1]))
+            entry_report = report["abi_entry"]
+            self.assertEqual(entry_report["reachability"], "lean-and-rust-replay")
+            self.assertEqual(entry_report["snapshot_live_ins"], "lean-kernel")
+            entry = entry_report["paths"]
+            self.assertEqual(set(entry), set(report["caller_replays"]))
+            for site in report["callers"]:
+                name = site["name"]
+                proof = output / f"entry/{name}.lean"
+                self.assertTrue(proof.is_file())
+                snapshot = json.loads((output / f"entry/{name}.json").read_text())[
+                    "bytecode"
+                ]
+                self.assertEqual(snapshot["pc"], report["entry_pc"])
+                self.assertEqual(
+                    snapshot["stack"][:5],
+                    [
+                        str(site["return_pc"]),
+                        "262144",
+                        "65536",
+                        "327680",
+                        "7",
+                    ],
+                )
+                words = [
+                    int(snapshot["stack"][5 + index]) for index in site["live_words"]
+                ]
+                self.assertEqual(words, report["caller_replays"][name]["abi_words"])
+                self.assertEqual(snapshot["gas"], entry[name]["gas"])
+                self.assertEqual(
+                    len(snapshot["budgets"]),
+                    2 if name in {"liquidate", "flashLoan"} else 0,
+                )
+            wrong_live_in = Path(work) / "WrongLiveIn.lean"
+            supply_proof = (output / "entry/supply.lean").read_text()
+            wrong_live_in.write_text(
+                supply_proof.replace(
+                    "def other : Word := 7000000", "def other : Word := 7000001"
+                )
+            )
+            rejected = subprocess.run(
+                ["lake", "env", "lean", "-j1", wrong_live_in],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertNotEqual(rejected.returncode, 0, rejected.stdout)
+            self.assertIn("decide", rejected.stdout)
             self.assertEqual(
                 report["tail_fixed_gas"],
                 {
@@ -137,6 +194,20 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(
                 report["runtime_sha256"], hashlib.sha256(runtime).hexdigest()
             )
+
+            # Dispatch with a different selector must never certify a reached cut.
+            state = world.read(output / "entry/supply.world.json", SOLAR, "exact")
+            next(
+                account
+                for account in state["accounts"]
+                if account["address"] == state["address"]
+            )["code"] = list(runtime)
+            state["calldata"][:4] = [255] * 4
+            with self.assertRaisesRegex(Unsupported, "bytecode probe was not reached"):
+                caller_entry.replay(
+                    state, report["entry_pc"], native.default(SOLAR), 30
+                )
+
             self.assertEqual(runtime[report["entry_pc"]], 0x5B)
             self.assertEqual(
                 runtime[report["call_pc"] - 1 : report["call_pc"] + 1],

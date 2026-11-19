@@ -763,6 +763,27 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
                             "builtin expansion needs available opcodes independent of the code image",
                         )
     prove(code, timeout, module, final_call["proof"] if final_call else None)
+    if final_call and final_call.get("caller_entry"):
+        from . import caller_entry
+
+        runtime, directory = final_call["caller_entry"]
+        artifact = final_call["artifact"]
+        artifact["abi_entry"] = {
+            "scope": "pinned Cancun worlds from ABI dispatch to the helper cut",
+            "reachability": "lean-and-rust-replay",
+            "snapshot_live_ins": "lean-kernel",
+            "paths": caller_entry.check(
+                runtime,
+                artifact["entry_pc"],
+                final_call["callers"],
+                bodies,
+                directory,
+                solar,
+                executable,
+                timeout,
+            ),
+        }
+
     pair = tuple(
         Program(
             (function, "builtin-lowering"),

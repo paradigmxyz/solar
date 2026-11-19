@@ -710,6 +710,16 @@ journal with the exact revert bytes. Out-of-gas also rolls back. The theorem
 starts at helper entry with related caller live-in values and the owning
 checkpoint. The work before that cut is exercised by independent replay.
 
+With `--check-caller-entry`, Lean replays each pinned Cancun ABI entry from
+PC 0 and both captured MIR caller bodies on the same input. MIR consumes
+physical GAS samples and message-boundary budgets from the bytecode run.
+The replay compares accounts, logs and returndata. A Rust EVM inspector
+independently matches the physical execution path and frame at the helper
+PC. The kernel checks the stack and ABI-word premises on the resulting
+snapshots. The prefix itself is evaluated by replay. Full kernel reachability,
+private-memory correspondence and arbitrary-world prefix equivalence remain
+open.
+
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code
 target within the test image. The child returns its GAS word and calldata.
