@@ -204,9 +204,9 @@ def abi_entries(abi, policy):
 def storage_layouts(layouts, where):
     """Drop AST IDs from a contract's storage layouts, keyed by output name.
 
-    `t_struct(Info)3` becomes `t_struct(struct Tick.Info)`, the label of the
-    `types` entry that the ID heads, so same-named types from different scopes
-    stay apart. An ID with no entry keeps its bare name, `t_struct(Info)#`. Two
+    `t_struct(Info)3` becomes `t_struct(Info){struct Tick.Info}`, with the label
+    of the `types` entry that the ID heads, so same-named types from different
+    scopes stay apart. An ID with no entry keeps its bare name, `t_struct(Info)#`. Two
     IDs that end up with one name are an error.
     """
     names = {}
@@ -219,7 +219,7 @@ def storage_layouts(layouts, where):
                 and isinstance(entry, dict)
                 and isinstance(entry.get("label"), str)
             ):
-                names[match[0]] = f"{match[1]}({entry['label']})"
+                names[match[0]] = f"{match[1]}{match[2]}{{{entry['label']}}}"
     result = {
         key: storage_layout(layout, f"{where} {key}", names)
         for key, layout in layouts.items()
@@ -911,8 +911,8 @@ class Tests(unittest.TestCase):
             {
                 "path": path + "/storage/0/type",
                 "kind": "value",
-                "left": "t_mapping(t_string_memory_ptr,t_struct(struct C.S)_storage)",
-                "right": "t_mapping(t_string,t_struct(struct C.S)_storage)",
+                "left": "t_mapping(t_string_memory_ptr,t_struct(S){struct C.S}_storage)",
+                "right": "t_mapping(t_string,t_struct(S){struct C.S}_storage)",
             },
             result["differences"],
         )
@@ -963,13 +963,16 @@ class Tests(unittest.TestCase):
         result = compare_outputs(output(3, 11), output(40, 12), "storage-layout")
         self.assertEqual(result["status"], "unsupported")
         self.assertEqual(result["differences"], [])
+        renamed = json.dumps(output(40, 12)).replace("(Info)40", "(Other)40")
+        result = compare_outputs(output(3, 11), json.loads(renamed), "storage-layout")
+        self.assertNotEqual(result["differences"], [])
         result = compare_outputs(output(3, 11), output(40, 12, True), "storage-layout")
         self.assertIn(
             {
                 "path": "/contracts/P.sol/P/storageLayout/value/storage/0/type",
                 "kind": "value",
-                "left": "t_struct(struct Tick.Info)_storage",
-                "right": "t_struct(struct Position.Info)_storage",
+                "left": "t_struct(Info){struct Tick.Info}_storage",
+                "right": "t_struct(Info){struct Position.Info}_storage",
             },
             result["differences"],
         )
@@ -992,7 +995,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn(
             "left: C.sol:C storageLayout: t_struct(S)1_storage and"
-            " t_struct(S)7_storage both become t_struct(struct C.S)_storage",
+            " t_struct(S)7_storage both become t_struct(S){struct C.S}_storage",
             result["error"],
         )
         self.assertEqual(
@@ -1006,11 +1009,11 @@ class Tests(unittest.TestCase):
 
         def hash_key(c):
             types = c["storageLayout"]["types"]
-            types["t_struct(struct C.S)_storage"] = types["t_struct(S)1_storage"]
+            types["t_struct(S){struct C.S}_storage"] = types["t_struct(S)1_storage"]
 
         for edit, message in [
             (transient, "C.sol:C: t_enum(E)4 and t_enum(E)99 both become t_enum(E)#"),
-            (hash_key, "both become t_struct(struct C.S)_storage"),
+            (hash_key, "both become t_struct(S){struct C.S}_storage"),
             (lambda c: c["storageLayout"]["storage"].append(None), "malformed"),
             (lambda c: c["storageLayout"]["types"].update(x=None), "malformed"),
             (lambda c: c["storageLayout"]["storage"][0].update(type=1), "malformed"),

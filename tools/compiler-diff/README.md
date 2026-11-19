@@ -105,11 +105,12 @@ user-defined library types nor erase enum/type differences. Bytecode needs
 its own semantic rules, so `compare` skips it. ABI agreement does not imply
 runtime equivalence.
 
-AST IDs never match between compilers, so `storage-layout` drops `astId` and
-renames `t_struct(Name)N`, `t_enum(Name)N`, `t_contract(Name)N` and
-`t_userDefinedValueType(Name)N` after the label of the `types` entry the ID
-heads, such as `t_struct(struct Tick.Info)`, in the keys of `types` and in
-every `type`, `key`, `value` and `base`, including those of struct members.
+AST IDs never match between compilers, so `storage-layout` drops `astId` and,
+in `t_struct(Name)N`, `t_enum(Name)N`, `t_contract(Name)N` and
+`t_userDefinedValueType(Name)N`, replaces the ID with the label of the `types`
+entry the ID heads, such as `t_struct(Info){struct Tick.Info}`. It does so in
+the keys of `types` and in every `type`, `key`, `value` and `base`, including
+those of struct members.
 Same-named types from different scopes, such as `Tick.Info` and
 `Position.Info`, stay apart, and a label that differs between compilers shows as
 a difference. An ID with no `types` entry, such as a struct used only in a
