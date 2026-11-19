@@ -318,6 +318,15 @@ def artifact(output, comparator, policy):
     result = {}
     missing = set()
     errors = {}
+    # Solc before 0.8.27 emits no transient layouts, so an output without any
+    # counts them as empty.
+    transient = any(
+        isinstance(contract, dict)
+        and contract.get("transientStorageLayout") is not None
+        for group in contracts.values()
+        if isinstance(group, dict)
+        for contract in group.values()
+    )
     for path, group in contracts.items():
         if not isinstance(group, dict) or not group:
             raise ValueError("malformed contract outputs")
@@ -329,24 +338,24 @@ def artifact(output, comparator, policy):
                 layouts = result[path][name] = {}
                 present = {}
                 for key in STORAGE_LAYOUTS:
-                    if contract.get(key) is None:
+                    value = contract.get(key)
+                    if (
+                        value is None
+                        and key == "transientStorageLayout"
+                        and not transient
+                    ):
+                        value = {"storage": [], "types": None}
+                    if value is None:
                         missing.add((path, name, key))
                         layouts[key] = {"available": False}
                     else:
-                        present[key] = contract[key]
+                        present[key] = value
                 # A bad contract fails the check but leaves other contracts compared.
                 try:
                     for key, value in storage_layouts(
                         present, f"{path}:{name}"
                     ).items():
-                        # Solc before 0.8.27 emits no transient layout, which
-                        # matches an empty one.
-                        layouts[key] = (
-                            {"available": False}
-                            if key == "transientStorageLayout"
-                            and value == {"storage": [], "types": None}
-                            else {"available": True, "value": value}
-                        )
+                        layouts[key] = {"available": True, "value": value}
                 except ValueError as error:
                     errors[path, name] = str(error)
                 continue
@@ -1012,7 +1021,7 @@ class Tests(unittest.TestCase):
             return {"contracts": {"P.sol": {"P": contract}}}
 
         result = compare_outputs(output(3, 11), output(40, 12), "storage-layout")
-        self.assertEqual(result["status"], "unsupported")
+        self.assertEqual(result["status"], "equal")
         self.assertEqual(result["differences"], [])
         renamed = json.dumps(output(40, 12)).replace("(Info)40", "(Other)40")
         result = compare_outputs(output(3, 11), json.loads(renamed), "storage-layout")
@@ -1163,7 +1172,8 @@ class Tests(unittest.TestCase):
 
     def test_storage_layout_missing(self):
         left = self.storage_output()
-        right = self.storage_output()
+        left["contracts"]["D.sol"] = copy.deepcopy(left["contracts"]["C.sol"])
+        right = copy.deepcopy(left)
         del right["contracts"]["C.sol"]["C"]["transientStorageLayout"]
         result = compare_outputs(left, right, "storage-layout")
         self.assertEqual(result["status"], "different")
@@ -1176,25 +1186,20 @@ class Tests(unittest.TestCase):
         )
         result = compare_outputs(right, right, "storage-layout")
         self.assertEqual(result["status"], "unsupported")
-        # Solc before 0.8.27 emits no transient layout.
-        left["contracts"]["C.sol"]["C"]["transientStorageLayout"] = {
-            "storage": [],
-            "types": None,
-        }
-        self.assertEqual(
-            compare_outputs(left, right, "storage-layout")["status"], "equal"
-        )
-        self.assertEqual(
-            compare_outputs(right, left, "storage-layout")["status"], "equal"
-        )
-        # Solc always emits `storageLayout`.
-        left["contracts"]["C.sol"]["C"]["storageLayout"] = {
-            "storage": [],
-            "types": None,
-        }
-        del right["contracts"]["C.sol"]["C"]["storageLayout"]
+        empty = {"storage": [], "types": None}
+        left["contracts"]["C.sol"]["C"]["transientStorageLayout"] = empty
         result = compare_outputs(left, right, "storage-layout")
         self.assertEqual(result["status"], "different")
+        # Solc before 0.8.27 emits no transient layouts at all.
+        del right["contracts"]["D.sol"]["C"]["transientStorageLayout"]
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(
+            {d["path"].split("/value/")[0] for d in result["differences"]},
+            {"/contracts/D.sol/C/transientStorageLayout"},
+        )
+        left["contracts"]["D.sol"]["C"]["transientStorageLayout"] = empty
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "equal")
 
     def ast_output(self, renumber=False):
         names = [

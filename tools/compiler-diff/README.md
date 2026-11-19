@@ -126,9 +126,9 @@ naming the contract, and still compares the other contracts; so does a
 malformed layout.
 `storage` and each struct's `members` compare in order; `types` compares as an
 object, so its key order does not matter. Each layout counts as one output for
-the missing and `unsupported` rules below, except that an empty
-`transientStorageLayout` matches a missing one, since solc before 0.8.27 emits
-none. The check has its own rule version for expectations.
+the missing and `unsupported` rules below; solc before 0.8.27 emits no
+`transientStorageLayout`, so in an output where no contract has one, each counts
+as empty. The check has its own rule version for expectations.
 
 Each check reports `equal`, `different`, `unsupported` (outputs missing on both
 sides), or `error` (failed compilation or malformed output); output missing on
