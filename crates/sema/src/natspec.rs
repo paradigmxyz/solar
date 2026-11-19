@@ -503,12 +503,15 @@ impl<'gcx> Resolver<'gcx> {
                             true
                         };
 
-                        // The index of the next untagged `///` line of the group from `from`;
-                        // solc skips empty lines.
+                        // The index of the next untagged `///` line of the group from `from`.
+                        // solc skips empty lines, and a lone `@` adds no text.
                         let untagged_line = |from: usize| {
                             (from..docs.len())
                                 .take_while(|&j| !starts_group(self.gcx, &docs[j - 1], &docs[j]))
-                                .find(|&j| !docs[j].symbol.as_str().is_empty())
+                                .find(|&j| {
+                                    let text = docs[j].symbol.as_str();
+                                    !text.is_empty() && text.trim() != "@"
+                                })
                                 .filter(|&j| docs[j].natspec.first().is_none_or(is_untagged))
                         };
                         // solc reads the text of a `///` tag that ends its line from the next line.
@@ -519,9 +522,8 @@ impl<'gcx> Resolver<'gcx> {
                                 && natspec.content_start == natspec.content_end
                                 && !natspec.symbol.as_str().ends_with([' ', '\t'])
                         });
-                        // Whether a later line continues the tag's text; a lone `@` adds none.
-                        let continued = untagged_line(next.unwrap_or(i) + 1)
-                            .is_some_and(|j| docs[j].symbol.as_str().trim() != "@");
+                        // Whether a later line continues the tag's text.
+                        let continued = untagged_line(next.unwrap_or(i) + 1).is_some();
                         if return_valid
                             && let Some(item) = self.lower_return_natspec(
                                 *natspec,

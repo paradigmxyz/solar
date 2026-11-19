@@ -14,6 +14,11 @@ contract NameOnly {
     /// @
     function loneAt() public returns (uint256 c) {}
 
+    /// @return e
+    /// @
+    /// after a lone at sign
+    function loneAtThenText() public returns (uint256 e) {}
+
     /// @return
     ///
     /// d after an empty line

@@ -11,6 +11,8 @@
 // CHECK: "b": ""
 // CHECK: "loneAt()": {
 // CHECK: "c": "c"
+// CHECK: "loneAtThenText()": {
+// CHECK: "e": "after a lone at sign"
 // CHECK: "emptyLine()": {
 // CHECK: "d": "after an empty line"
 // CHECK-LABEL: "ReturnDescAfterNl.sol": {

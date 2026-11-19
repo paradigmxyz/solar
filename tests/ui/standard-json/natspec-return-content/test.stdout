@@ -50,6 +50,11 @@
                 "c": "c"
               }
             },
+            "loneAtThenText()": {
+              "returns": {
+                "e": "after a lone at sign"
+              }
+            },
             "emptyLine()": {
               "returns": {
                 "d": "after an empty line"
