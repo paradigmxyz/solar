@@ -644,10 +644,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // NOTE: The code after the call of a wrapper to its extracted body is the epilogue
                 // of the wrapper, which maps to the closing brace, as clang places the epilogue
                 // (`CodeGenFunction::FinishFunction(EndLoc)`), so the return tag does too and the
-                // header is not a stop of the return. The call itself and the other calls of the
-                // wrapper, such as the argument decoders, keep the declaration.
+                // header is not a stop of the return, and neither are the scheduler steps that
+                // follow the tag before the next instruction begins. The call itself and the other
+                // calls of the wrapper, such as the argument decoders, keep the declaration.
                 if self.capture_debug_info && func.inst(inst).metadata.returns_to_exit() {
                     self.asm.set_label_origins(return_label, [func.exit_span], 0);
+                    self.asm.set_source_spans([func.exit_span]);
                 }
             }
             &Step::Publish { callee, arity, params, .. } => {
