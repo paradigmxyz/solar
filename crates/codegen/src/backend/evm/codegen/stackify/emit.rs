@@ -242,7 +242,47 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // The plan may be for a copy that rebuilds values at their uses.
         let rebuilt = plan.rebuilt.take();
+        let original_values = func.num_values();
         let func = rebuilt.as_deref().unwrap_or(func);
+        self.use_counts.clear();
+        if self.capture_debug_info {
+            self.use_counts.resize(func.num_values(), 0);
+            let mut definitions = FxHashMap::<ValueId, BlockId>::default();
+            for (block, data) in func.blocks.iter_enumerated() {
+                for &inst in &data.instructions {
+                    if let Some(result) = func.inst_result_value(inst) {
+                        definitions.insert(result, block);
+                    }
+                }
+            }
+            // A use in another block than the definition counts twice: the read moves into that
+            // block, where LLVM drops the location of the moved code (`dropLocation`), so the
+            // read takes the origin of its use like a copy. So does a phi input, which an edge
+            // copies when the edge is taken and not where the phi sits.
+            let mut count = |operand: ValueId, block: Option<BlockId>| {
+                let local = block
+                    .is_some_and(|block| definitions.get(&operand).is_none_or(|&def| def == block));
+                self.use_counts[operand] += if local { 1 } else { 2 };
+            };
+            for (block, data) in func.blocks.iter_enumerated() {
+                for &inst in &data.instructions {
+                    match &func.inst(inst).kind {
+                        InstKind::Phi(incoming) => {
+                            for &(_, operand) in incoming {
+                                count(operand, None);
+                            }
+                        }
+                        kind => kind.visit_operands(|operand| count(operand, Some(block))),
+                    }
+                }
+                if let Some(term) = &data.terminator {
+                    term.visit_operands(|operand| count(operand, Some(block)));
+                }
+            }
+            // A copy that rebuilding made stands for one of several uses of its original, so it
+            // has no count.
+            self.use_counts.truncate(original_values);
+        }
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));
@@ -899,15 +939,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Recomputes `value` at its use. A read without operands takes the origins of the use, and
-    /// any other value keeps the origins of the instruction that defines it.
+    /// Recomputes `value` at its use. A read without operands that has several uses takes the
+    /// origins of the use, and any other value keeps the origins of the instruction that defines
+    /// it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
+        self.emit_materialized_in(func, value, true);
+    }
+
+    /// Recomputes `value`, an operand of a value that is emitted once when `within_single_use`.
+    fn emit_materialized_in(&mut self, func: &Function, value: ValueId, within_single_use: bool) {
+        let single_use = within_single_use && self.use_counts.get(value) == Some(&1);
         if self.capture_debug_info
             && let Value::Inst(inst) = func.value(value)
             && let metadata = &func.inst(*inst).metadata
             && metadata.source_spans().next().is_some()
             && let consumer = self.asm.debug_origin()
-            && self.keeps_definition_origins(func, value, metadata, &consumer)
+            && self.keeps_definition_origins(func, value, metadata, &consumer, single_use)
         {
             // A recomputed value is the same computation at every use, so it keeps the definition's
             // origins, as LLVM's `TargetInstrInfo::reMaterialize` clones the original with its
@@ -915,23 +962,33 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_source_spans(metadata.source_spans());
             self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
-            self.emit_recomputed(func, value);
+            self.emit_recomputed(func, value, single_use);
             self.asm.set_debug_origin(consumer);
         } else {
-            self.emit_recomputed(func, value);
+            self.emit_recomputed(func, value, single_use);
         }
     }
 
     /// Returns whether `value`, recomputed under the origins `consumer`, keeps the origins of its
-    /// definition.
+    /// definition. `single_use` tells that the value is emitted once, because it and every value
+    /// that recomputes it have a single use.
     ///
-    /// A read without operands, such as a calldata parameter or `msg.sender`, is re-executed at the
-    /// use like an immediate, so it takes the user's origins, as LLVM gives a per-use materialized
-    /// constant the user's location and a reload none of its own. The definition's origins would
-    /// send the debugger back to the parameter list or to an earlier statement at every use. A
-    /// definition inside the use is the more precise origin of this very read, so it stays. An
-    /// unoptimized build also keeps a definition that is its own item, such as the initializer of a
-    /// local, because the read may be the only instruction coverage can anchor that item to.
+    /// A read without operands, such as a calldata parameter or `msg.sender`, with several uses is
+    /// re-executed at each use like an immediate, so it takes the user's origins, as LLVM gives a
+    /// per-use materialized constant the user's location and a reload none of its own. The
+    /// definition's origins would send the debugger back to the parameter list or to an earlier
+    /// statement at every use. A read with a single use in its own block is not such a copy: it
+    /// runs once and only moves within its block, and LLVM keeps the `DebugLoc` of an instruction
+    /// that moves within its block (`HowToUpdateDebugInfo`, "Preserve"). Its use can be code the
+    /// optimizer moved into the statement, such as the body of an inlined callee that reads the
+    /// argument, and the statement of the read would be left with no instruction. A use in another
+    /// block, such as the body of a loop, counts as a second use: LLVM drops the location of code
+    /// that moves to another block. A definition inside the use is the
+    /// more precise origin of this very read, so it stays. An unoptimized build also keeps a
+    /// definition that is its own item, such as the initializer of a local, because the read may
+    /// be the only instruction coverage can anchor that item to. A parameter read, whose definition
+    /// is the whole function, takes the use's origins whatever its uses, or the function header
+    /// would be the stop of every use, including a single use in code inlined into the function.
     ///
     /// The use's origins apply because the read is re-executed as part of evaluating the use. An
     /// implicit function exit, which maps to the closing brace of the body, evaluates no
@@ -946,6 +1003,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: ValueId,
         definition: &InstructionMetadata,
         consumer: &Metadata,
+        single_use: bool,
     ) -> bool {
         let definition_in_use = || {
             definition
@@ -959,15 +1017,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let at_implicit_exit =
             || consumer.only_source_span().is_some_and(|user| is_closing_brace(func, user));
+        // A parameter read maps to the definition of its function. The dispatcher's entry holds the
+        // routes it inlined and has no span to tell their parameters by, so any read of it passes
+        // for one.
+        let is_parameter_read = || {
+            func.declaration_span.is_dummy()
+                || definition.source_span() == Some(func.declaration_span)
+        };
         !is_operandless_read(func, value)
             || !consumer.has_source_spans()
             || definition_in_use()
             || at_implicit_exit()
-            || self.optimization.is_none() && !use_in_definition()
+            || (self.optimization.is_none() || single_use && !is_parameter_read())
+                && !use_in_definition()
     }
 
     /// Emits the opcodes that compute `value` under the current origins.
-    fn emit_recomputed(&mut self, func: &Function, value: ValueId) {
+    fn emit_recomputed(&mut self, func: &Function, value: ValueId, single_use: bool) {
         match func.value(value) {
             Value::Immediate(imm) => self.asm.emit_push(imm.as_u256().unwrap_or_default()),
             Value::Undef(_) => self.asm.emit_push(U256::ZERO),
@@ -979,10 +1045,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 InstKind::Zext(operand)
                 | InstKind::PtrToInt(operand, _)
-                | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
+                | InstKind::IntToPtr(operand) => {
+                    self.emit_materialized_in(func, *operand, single_use)
+                }
                 InstKind::Load(offset, PtrLocation::Calldata) => {
                     // <offset>; calldataload
-                    self.emit_materialized(func, *offset);
+                    self.emit_materialized_in(func, *offset, single_use);
                     self.asm.emit_op(op::CALLDATALOAD);
                 }
                 kind => {
@@ -993,7 +1061,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // A recomputed value: its operands in push order, then its opcode.
                     let opcode = kind.evm_opcode().expect("recomputed value has an opcode");
                     for &operand in kind.operands().iter().rev() {
-                        self.emit_materialized(func, operand);
+                        self.emit_materialized_in(func, operand, single_use);
                     }
                     self.asm.emit_op(opcode);
                 }
