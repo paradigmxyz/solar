@@ -895,15 +895,41 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
         let mut items = SmallVec::new();
+        // A `///` comment that ends with a bare tag, whose text is the next `///` line.
+        let mut bare_tag_line = None;
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
+                let span = self.token.span;
+                let text_line = bare_tag_line.take().is_some_and(|prev: Span| {
+                    kind == ast::CommentKind::Line
+                        && self
+                            .sess
+                            .source_map()
+                            .span_to_snippet(prev.shrink_to_hi().with_hi(span.lo()))
+                            .is_ok_and(|gap| {
+                                matches!(gap.trim_matches([' ', '\t']), "\n" | "\r\n" | "\r")
+                            })
+                });
+                let ends_with_bare_tag = parse_natspec(
+                    span,
+                    symbol,
+                    kind,
+                    text_line,
+                    self.in_yul,
+                    self.dcx(),
+                    &mut items,
+                );
+                if ends_with_bare_tag {
+                    bare_tag_line = Some(span);
+                }
                 let natspec = if items.is_empty() {
                     BoxSlice::default()
                 } else {
                     self.alloc_drain(&mut items)
                 };
-                self.docs.push(DocComment { kind, span: self.token.span, symbol, natspec });
+                self.docs.push(DocComment { kind, span, symbol, natspec });
+            } else {
+                bare_tag_line = None;
             }
             // Don't set `prev_token` on purpose.
             self.token = self.next_token();
@@ -1242,21 +1268,34 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 // - Follows Solc's Yul behavior: silently ignores unknown tags in Yul context https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151
 
 /// Parses NatSpec items from a single doc comment and appends them to `items`.
+///
+/// As in solc, the first non-blank line after a bare tag, one that ends its line, is the tag's
+/// text when its first '@' is in the middle of the line. `text_line` says that this `///` comment
+/// follows a bare tag, and the result says whether the next one does.
+// NOTE: solc also reads a line that starts with a tag as the bare tag's text. We do not, since our
+// own `solar-` tags are bare and follow each other.
 fn parse_natspec(
     comment_span: Span,
     comment_symbol: Symbol,
     comment_kind: ast::CommentKind,
+    text_line: bool,
     in_yul: bool,
     dcx: &DiagCtxt,
     items: &mut SmallVec<[ast::NatSpecItem; 6]>,
-) {
+) -> bool {
     let content = comment_symbol.as_str();
     let bytes = content.as_bytes();
+    let at_line_start = |line_start: usize, at: usize| {
+        bytes[line_start..at].iter().all(|&b| {
+            b.is_ascii_whitespace() || (b == b'*' && comment_kind == ast::CommentKind::Block)
+        })
+    };
 
     // Early-exit if no tag is found.
-    if memchr::memchr(b'@', bytes).is_none() {
+    if memchr::memchr(b'@', bytes).is_none_or(|at| text_line && !at_line_start(0, at)) {
+        // A blank line passes the text of a bare tag on to the next one.
         if content.trim().is_empty() {
-            return;
+            return text_line;
         }
 
         // Create a synthetic @notice tag for the entire comment
@@ -1267,7 +1306,7 @@ fn parse_natspec(
             content_start: 0,
             content_end: content.len() as u32,
         });
-        return;
+        return false;
     }
 
     // Line comments: '///', Block comments: '/**'.
@@ -1305,14 +1344,24 @@ fn parse_natspec(
 
     // Iterate over each line and look for tags. As in solc, a line ends at LF, CR LF or a lone CR,
     // and its first '@' starts a tag wherever it is, dropping the text before it.
-    let mut prev_line_end = 0;
+    let (mut prev_line_end, mut bare_tag) = (0, false);
     for line_end in memchr::memchr2_iter(b'\n', b'\r', bytes).chain(std::iter::once(bytes.len())) {
-        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end]) {
+        let text_line = bare_tag
+            && !bytes[line_start..line_end].iter().all(|&b| b.is_ascii_whitespace() || b == b'*');
+        if text_line {
+            bare_tag = false;
+        }
+        let tag_at = memchr::memchr(b'@', &bytes[line_start..line_end])
+            .map(|offset| (offset, at_line_start(line_start, line_start + offset)));
+        if let Some((tag_offset, at_line_start)) = tag_at
+            && (at_line_start || !text_line)
+        {
             let tag_start = line_start + tag_offset + 1;
 
             // The tag name must immediately follow the '@': `@ param` is
             // plain text continuing the previous tag, matching solc.
             let (tag, rest_start) = crate::natspec::split_once_ws(content, tag_start, line_end);
+            bare_tag = tag_start + tag.len() == line_end;
             if tag.is_empty() {
                 prev_line_end = line_end;
                 line_start = line_end + 1;
@@ -1354,11 +1403,6 @@ fn parse_natspec(
                 }
                 "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
-                    let at_line_start =
-                        bytes[line_start..line_start + tag_offset].iter().all(|&b| {
-                            b.is_ascii_whitespace()
-                                || (b == b'*' && comment_kind == ast::CommentKind::Block)
-                        });
                     if let Some(custom_tag) = tag.strip_prefix("custom:")
                         && (at_line_start || !custom_tag.starts_with("solar-"))
                     {
@@ -1388,6 +1432,7 @@ fn parse_natspec(
         line_start = line_end + 1;
     }
     flush_item(items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
+    bare_tag && comment_kind == ast::CommentKind::Line
 }
 
 #[cfg(test)]
@@ -1596,8 +1641,10 @@ import * as B from "b.sol";
 /**
  * note @solidity foo
  * x @bar memory-safe-assembly
- * do not add @custom:solar-trusted
+ * do not add @custom:solar-trusted here
  * see @custom:x y
+ * @dev
+ * see @solidity memory-safe-assembly
  */
 "#;
 
@@ -1613,9 +1660,10 @@ import * as B from "b.sol";
             let docs = parser.parse_doc_comments();
             assert_eq!(docs.len(), 1);
 
-            // An invalid or `solar-` tag in the middle of a line ends the previous tag.
+            // An invalid or `solar-` tag in the middle of a line ends the previous tag, and the
+            // line after a bare tag is its text.
             let (sym, items) = (docs[0].symbol, &docs[0].natspec);
-            assert_eq!(items.len(), 2);
+            assert_eq!(items.len(), 3);
             check_natspec_item(
                 sm,
                 sym,
@@ -1626,6 +1674,15 @@ import * as B from "b.sol";
                 Some("foo"),
             );
             check_natspec_item(sm, sym, &items[1], "custom:x", "custom", Some("x"), Some("y"));
+            check_natspec_item(
+                sm,
+                sym,
+                &items[2],
+                "dev",
+                "dev",
+                None,
+                Some("* see @solidity memory-safe-assembly"),
+            );
         });
     }
 

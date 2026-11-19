@@ -58,6 +58,32 @@
           "details": "Mail",
           "version": 1
         }
+      },
+      "G": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "details": "mail user@example.com",
+          "version": 1
+        }
+      },
+      "J": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "details": "see @custom:y z",
+          "version": 1
+        }
       }
     }
   }
