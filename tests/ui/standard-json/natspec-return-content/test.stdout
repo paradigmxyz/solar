@@ -16,17 +16,40 @@
     }
   ],
   "sources": {
-    "ReturnDescAfterNl.sol": {
+    "NameOnly.sol": {
       "id": 0
     },
-    "ReturnNameNoDescription.sol": {
+    "ReturnDescAfterNl.sol": {
       "id": 1
     },
-    "StructGetterNoReturnName.sol": {
+    "ReturnNameNoDescription.sol": {
       "id": 2
+    },
+    "StructGetterNoReturnName.sol": {
+      "id": 3
     }
   },
   "contracts": {
+    "NameOnly.sol": {
+      "NameOnly": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "block()": {
+              "returns": {
+                "a": "a"
+              }
+            },
+            "blankLine()": {
+              "returns": {
+                "b": ""
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    },
     "ReturnDescAfterNl.sol": {
       "test": {
         "devdoc": {

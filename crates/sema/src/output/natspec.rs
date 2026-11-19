@@ -354,15 +354,6 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
         }
         items.push(DocItem { kind: item.kind, content, bare });
     }
-    for item in &mut items {
-        // solc keeps a named return's whole text, its name, when nothing follows the name.
-        if let hir::NatSpecKind::Return { name: Some(name) } = item.kind
-            && item.content.is_empty()
-            && item.bare
-        {
-            item.content = name.to_string();
-        }
-    }
     if let Some((_, target)) = target {
         let local_tags = LocalTags::from_group(gcx, &local);
         items.extend(

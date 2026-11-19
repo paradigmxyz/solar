@@ -515,9 +515,19 @@ impl<'gcx> Resolver<'gcx> {
                                 && !starts_group(self.gcx, doc_comment, next)
                                 && next.natspec.first().is_none_or(is_untagged)
                         });
+                        // Whether a later `///` line continues the tag's text; solc skips empty
+                        // lines.
+                        let after = i + 1 + usize::from(next.is_some());
+                        let continued = docs[after..]
+                            .iter()
+                            .zip(&docs[after - 1..])
+                            .take_while(|&(next, prev)| !starts_group(self.gcx, prev, next))
+                            .map(|(next, _)| next)
+                            .find(|next| !next.symbol.as_str().is_empty())
+                            .is_some_and(|next| next.natspec.first().is_none_or(is_untagged));
                         if return_valid
                             && let Some(item) =
-                                self.lower_return_natspec(*natspec, next, rets, index)
+                                self.lower_return_natspec(*natspec, next, continued, rets, index)
                         {
                             local_tags.push(item);
                             skip_next_line = next.is_some();
@@ -532,11 +542,12 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     /// Checks the name an `@return` tag documents, reading the tag's text from the `///` line
-    /// `next` instead when it is given.
+    /// `next` instead when it is given. `continued` is whether later lines continue the text.
     fn lower_return_natspec(
         &self,
         natspec: ast::NatSpecItem,
         next: Option<&ast::DocComment<'_>>,
+        continued: bool,
         rets: &[hir::VariableId],
         index: usize,
     ) -> Option<hir::NatSpecItem> {
@@ -609,7 +620,12 @@ impl<'gcx> Resolver<'gcx> {
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
-        item.content_start = content_start as u32;
+        // solc keeps a named return's whole text, its name, when no space or tab follows the name.
+        let name_only = !continued
+            && content_start == natspec.content_end as usize
+            && !content[name_end..].starts_with([' ', '\t']);
+        item.content_start =
+            if name_only { name_end - documented.len() } else { content_start } as u32;
         Some(item)
     }
 

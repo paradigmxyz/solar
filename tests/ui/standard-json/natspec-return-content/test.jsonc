@@ -1,8 +1,14 @@
 //@ filecheck:
 // devdoc keeps `@return` tags like solc 0.8.38: a name with no text documents itself, a bare tag
 // documents an empty text, and a tag that ends its `///` line takes its text from the next line.
-// solc writes `x ` for the getter's `return`, where we leave out the name, as for any tag text.
+// solc writes `x ` for the getter's `return`, where we leave out the name, as for any tag text,
+// and keeps the blanks of `blankLine`'s second line, where we trim them.
 // CHECK-LABEL: "contracts": {
+// CHECK-LABEL: "NameOnly.sol": {
+// CHECK: "block()": {
+// CHECK: "a": "a"
+// CHECK: "blankLine()": {
+// CHECK: "b": ""
 // CHECK-LABEL: "ReturnDescAfterNl.sol": {
 // CHECK: "second": "Documentation for the second parameter"
 // CHECK: "returns": {
