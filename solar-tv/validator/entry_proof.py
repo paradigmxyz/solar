@@ -432,7 +432,7 @@ def byteTailWith (hash : List Execution.Byte → Word) := chunkedByteExitStep tv
     for label in ("before", "after"):
         source += f"""
 def {label}Body : CallerBody := ⟨{label}Functions,{label}Entry,{label}Helper,{label}Returned⟩
-def {label}TailStart := mirExitStart {label}Cut byteTailCut
+def {label}TailStart := mirExitStart mirCfg {label}Functions physicalCut {label}Cut byteTailCut
 def {label}TailWith (hash : List Execution.Byte → Word) :=
   mirExitStep mirCfg {label}Functions (physicalCut.budgets ++ byteTailCut.budgets) hash
 """
@@ -527,6 +527,11 @@ theorem {label}_exit :
 
 theorem {label}_effects :
     EVM.State.observe tvWorldConfig .effects (finishByte checkpoint {label}TailCut) = result :=
+  by decide +kernel
+
+theorem {label}_pre_sample :
+    preSampleExhausted mirCfg {label}Functions physicalCut {label}Cut = true →
+      byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [] ∧ byteTailCut.budgets = [] :=
   by decide +kernel
 
 theorem {label}_from_abi :

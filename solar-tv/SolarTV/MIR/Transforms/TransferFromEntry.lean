@@ -38,7 +38,9 @@ private def byteTransition (fuel : Nat) (cfg : EVM.State.Config)
   let budgets := match signal with
     | .call .. => frame.gas :: budgets
     | _ => budgets
-  let samples := if readByte frame.pc == some 0x5a then frame.gas :: samples else samples
+  let samples := match signal with
+    | .next .. => if readByte frame.pc == some 0x5a then frame.gas :: samples else samples
+    | _ => samples
   match ← EVM.State.advance cfg (EVM.State.run fuel cfg) signal with
   | .inl result => return .inl ⟨result,samples.reverse,budgets.reverse⟩
   | .inr (_,nextWorld,nextFrame) =>
@@ -132,6 +134,7 @@ def instAt (functions : Functions) (cursor : Cursor) : Option Instruction := do
 structure MirCursor where
   machine : Machine
   samples : List Nat
+  preSampleExhausted : Bool
 
 private def mirTransition (fuel : Nat) (cfg : MIR.State.Config) (functions : Functions)
     (state : MirCursor) (site : Option Instruction) (hash : List Byte → Word) :
@@ -148,7 +151,7 @@ prices child messages, and its intervening SSA instructions remain unpriced. -/
 def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.State.Config)
     (functions : Functions) (state : MirCursor) (hash : List Byte → Word := Keccak.hash) :
     Except String (MirCut ⊕ MirCursor) := do
-  let ⟨machine,samples⟩ := state
+  let ⟨machine,samples,_⟩ := state
   let site := instAt functions machine.cursor
   if let some ⟨_,_,_,.call callee,callOperands⟩ := site then
     if callee = helper then
@@ -158,7 +161,7 @@ def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.Sta
   let (result,samples) ← mirTransition fuel cfg functions state site hash
   match result with
   | .finished _ => .error "MIR terminated before the helper"
-  | .next _ next => return .inr ⟨next,samples⟩
+  | .next _ next => return .inr ⟨next,samples,false⟩
 
 /-- Prompts for a digest certificate. The step still computes any hash absent
 from this list, including hashes in nested messages. -/
@@ -264,7 +267,7 @@ def mirStart (cfg : MIR.State.Config) (functions : Functions) (entry : Nat)
     Except String MirCursor := do
   let frame ← decode selector caller cfg journal
   let initial ← start functions entry frame.arguments frame
-  return ⟨⟨{function := entry},[],initial⟩,priced.samples⟩
+  return ⟨⟨{function := entry},[],initial⟩,priced.samples,false⟩
 
 def mirTrace (cfg : MIR.State.Config) (functions : Functions) (helper : Nat)
     (returned : List Operand) (priced : ByteCut) (hash : List Byte → Word := Keccak.hash) :
@@ -284,8 +287,37 @@ def finishByte (checkpoint : Journal) (result : EVM.State.Result) : EVM.State.Re
 def runByteExit (cfg : EVM.State.Config) (fuel : Nat) (cut : ByteCut) : Except String ByteExit :=
   Trace.run (byteExitStep cfg cut.frame.code) fuel (byteExitStart cut)
 
-def mirExitStart (cut : MirCut) (priced : ByteExit) : Except String MirCursor :=
-  .ok ⟨⟨cut.cursor,[],cut.frame⟩,cut.samples ++ priced.samples⟩
+/-- Price the checked transferFrom prefix at the helper boundary. Its physical
+schedule stages the input before GAS, while the typed SSA samples gas before
+encoding. The charge uses the incoming gas and active memory from the physical
+frame and the helper's own MIR arguments, journal and free memory pointer. -/
+def preSampleExhausted (cfg : MIR.State.Config) (functions : Functions)
+    (physical : ByteCut) (cut : MirCut) : Bool := Id.run do
+  let some ⟨_,_,_,.call callee,_⟩ := instAt functions cut.cursor | return false
+  let some (_,helper) := functions.find? (·.1 == callee) | return false
+  let some entry := helper.blocks[0]? | return false
+  let [⟨some a,.word 256,none,.word,[⟨.argument 0,.word 160⟩]⟩,
+       ⟨some b,.word 256,some 0x3b,.context (.environment 0x3b),[⟨.local x,.word 256⟩]⟩,
+       ⟨some c,.word 1,none,.notEqual,[⟨.local y,.word 256⟩,⟨.constant zero,.word 256⟩]⟩] :=
+    entry.instructions | return false
+  let .branch ⟨.local condition,.word 1⟩ yes _ := entry.terminator | return false
+  let some ⟨_,_,some 0x5a,.context .gasSample,[]⟩ :=
+    (helper.blocks[yes]?.bind (·.instructions.head?)) | return false
+  let token :: _ := cut.args | return false
+  let address := token.setWidth 160
+  let fmp := (readWord cut.frame.memory 64).toNat
+  if cfg.fork != .cancun || address == cfg.environment.address ||
+      a != x || b != y || c != condition || zero.word != 0 ||
+      fmp < 128 || fmp + 160 > 65536 then return false
+  let world := cut.frame.world
+  let priced : EVM.CallBudget.Entry := ⟨physical.frame.gas,fmp,memoryWords physical.frame.memory,
+    world.warmAddresses.contains address, !(account world address).code.isEmpty⟩
+  return physical.frame.gas < EVM.CallBudget.sampleCharge priced 6
+
+def mirExitStart (cfg : MIR.State.Config) (functions : Functions) (physical : ByteCut)
+    (cut : MirCut) (priced : ByteExit) : Except String MirCursor :=
+  .ok ⟨⟨cut.cursor,[],cut.frame⟩,cut.samples ++ priced.samples,
+    preSampleExhausted cfg functions physical cut⟩
 
 /-- Resume the actual caller and helper SSA. Gas is priced at message
 boundaries from the emitted execution. The returned gas field is unused
@@ -293,10 +325,12 @@ by the effects projection because scalar MIR is unpriced. -/
 def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (budgets : List Nat)
     (hash : List Byte → Word := Keccak.hash) : Trace.Step (Except String MirCursor) EVM.State.Result :=
   Trace.checkedStart fun fuel state => do
+    if state.preSampleExhausted then
+      return .inl ⟨.outOfGas,[],state.machine.frame.world,0,0⟩
     let site := instAt functions state.machine.cursor
     let (result,samples) ← mirTransition fuel {cfg with messageGas := some budgets} functions state site hash
     match result with
-    | .next _ next => return .inr ⟨next,samples⟩
+    | .next _ next => return .inr ⟨next,samples,false⟩
     | .finished result =>
       if !samples.isEmpty || result.messageGas.length != budgets.length then
         .error "emitted call ledger does not match MIR execution" else
@@ -311,7 +345,7 @@ def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (budgets : List
 def runMirExit (cfg : MIR.State.Config) (functions : Functions) (fuel : Nat)
     (physical : ByteCut) (priced : ByteExit) (cut : MirCut) : EVM.State.Run :=
   Trace.run (mirExitStep cfg functions (physical.budgets ++ priced.budgets)) fuel
-    (mirExitStart cut priced)
+    (mirExitStart cfg functions physical cut priced)
 
 structure CallerBody where
   functions : Functions

@@ -44,6 +44,10 @@ class CallBudgetTests(unittest.TestCase):
                 fixture["gas"] = 330000 + offset * 1000
                 fixture["warm_addresses"] = [caller_replay.TOKEN]
                 fixture["accounts"][0]["storage"]["0xbeef"] = str(10 + offset)
+                if name == "supply":
+                    fixture["gas"] = 35000
+                    fixture["warm_addresses"] = []
+                    fixture["accounts"][1]["code"] = "0x5a5f5560015f5260205ff3"
                 if name in failures:
                     fixture["accounts"][1]["code"] = "0x" + failures[name][0]
                 if name == "flashLoan":
@@ -136,11 +140,15 @@ class CallBudgetTests(unittest.TestCase):
                     (output / f"entry/{name}-exit.json").read_text()
                 )
                 self.assertEqual(end["gas"], observation[2])
-                self.assertEqual(
-                    end["status"], "revert" if name in failures else "success"
-                )
-                if name in failures:
+                if name == "supply":
+                    self.assertEqual(end["status"], "out-of-gas")
+                    self.assertEqual(observation[:4], ["out-of-gas", [], 0, 0])
+                elif name in failures:
+                    self.assertEqual(end["status"], "revert")
                     self.assertIn(failures[name][1], bytes(observation[1]))
+                else:
+                    self.assertEqual(end["status"], "success")
+                if name == "supply" or name in failures:
                     accounts = {int(account[0]): account for account in observation[4]}
                     self.assertEqual(accounts[caller_replay.TOKEN][4], [])
                     self.assertEqual(observation[5], [])
@@ -174,6 +182,8 @@ class CallBudgetTests(unittest.TestCase):
                 ]
                 self.assertEqual(words, report["caller_replays"][name]["abi_words"])
                 self.assertEqual(snapshot["gas"], entry[name]["gas"])
+                if name == "supply":
+                    self.assertEqual(snapshot["gas"], 1343)
                 self.assertEqual(
                     len(snapshot["budgets"]),
                     2 if name in {"liquidate", "flashLoan"} else 0,
@@ -220,6 +230,20 @@ class CallBudgetTests(unittest.TestCase):
             rejected = entry_proof.lean(kernel, "WrongExitGas", wrong_gas, 60)
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("decide", rejected.stdout)
+            pricing = f"""import EntrySupplyProofbeforeLink
+import EntrySupplyProofafterLink
+{entry_proof.HEADER}
+open EntrySupply
+theorem supply_pre_sample :
+    byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [] ∧ byteTailCut.budgets = [] :=
+  before_pre_sample (by decide +kernel)
+example : preSampleExhausted mirCfg afterFunctions physicalCut afterCut = true :=
+  by decide +kernel
+#print axioms supply_pre_sample
+"""
+            proved = entry_proof.lean(kernel, "SupplyPreSample", pricing, 60)
+            self.assertEqual(proved.returncode, 0, proved.stdout + proved.stderr)
+            entry_proof.check_axioms(proved.stdout.splitlines(), 1)
             self.assertEqual(
                 report["tail_fixed_gas"],
                 {
@@ -309,6 +333,7 @@ class CallBudgetTests(unittest.TestCase):
             accounts = {
                 int(account["address"]): account for account in state["accounts"]
             }
+            state["gas"] = 330000
             accounts[caller_replay.MORPHO]["code"] = list(runtime)
             accounts[caller_replay.TOKEN]["code"] = list(
                 bytes.fromhex("5f5f5f5f620500005afa5060015f5260205ff3")
@@ -339,7 +364,8 @@ def throughHelper : EVM.State.Run := do
   let cut ← priced
   let physical ← runByteExit tvWorldConfig 1024 cut
   let entered ← before cut
-  runMirExit mirCfg beforeFunctions 1024 cut physical entered
+  let result ← runMirExit mirCfg beforeFunctions 1024 cut physical entered
+  return finishByte checkpoint result
 #eval IO.println (EVM.State.describe tvWorldConfig .effects throughHelper)
 """
             )
@@ -356,21 +382,30 @@ def throughHelper : EVM.State.Run := do
                 result.stdout.strip(), "unsupported: MIR root runtime code is unknown"
             )
 
-            low_gas = Path(work) / "low-gas.world.json"
-            fixture = caller_entry.default_fixture("supply", SOLAR, 30)
-            fixture["gas"] = 35000
-            fixture["accounts"][1]["code"] = "0x5a5f5560015f5260205ff3"
-            low_gas.write_text(json.dumps(fixture))
-            state = world.read(low_gas, SOLAR, "exact")
+            state = world.read(output / "entry/supply.world.json", SOLAR, "exact")
             next(
                 account
                 for account in state["accounts"]
                 if account["address"] == state["address"]
             )["code"] = list(runtime)
-            cut = caller_entry.replay(state, report["entry_pc"], executable, 30)
-            self.assertEqual(cut["gas"], 1343)
-            exit_ = caller_entry.replay(state, None, executable, 30)
-            self.assertEqual(exit_[:4], ["out-of-gas", [], 0, 0])
+            # Find the minimum root gas for GAS from the independent PC probe.
+            sample_pc = report["call_pc"] - 1
+            gas_fee = 2
+            funded = state | {"gas": 300000}
+            sample = caller_entry.replay(funded, sample_pc, executable, 30)
+            minimum = funded["gas"] - sample["gas"] + gas_fee
+            near = [state | {"gas": amount} for amount in (minimum - 1, minimum)]
+            self.assertEqual(
+                [
+                    caller_entry.replay(case, sample_pc, executable, 30)["gas"]
+                    for case in near
+                ],
+                [gas_fee - 1, gas_fee],
+            )
+            exits = [caller_entry.replay(case, None, executable, 30) for case in near]
+            self.assertTrue(
+                all(exit_[:4] == ["out-of-gas", [], 0, 0] for exit_ in exits)
+            )
             source = caller_entry.replay_source(
                 state,
                 runtime,
@@ -381,9 +416,25 @@ def throughHelper : EVM.State.Run := do
                 executable,
                 30,
             )
-            through_helper = reentry.read_text().split("def throughHelper", 1)[1]
             reentry.write_text(
-                source.split("#eval")[0] + "def throughHelper" + through_helper
+                source.split("#eval")[0]
+                + f"""
+def checkGas (gas : Nat) : Except String Lean.Json := do
+  let cut ← runBytes {report["entry_pc"]} 2048 tvWorldConfig {{initial with frame.gas := gas}}
+  let terminal ← runByteExit tvWorldConfig 1024 cut
+  let entered ← before cut
+  let predicted := preSampleExhausted mirCfg beforeFunctions cut entered
+  let readExit (result : EVM.State.Run) :=
+    EVM.State.describe tvWorldConfig .exact (result.map (finishByte checkpoint))
+  let physical := readExit (.ok terminal.result)
+  let mir := if predicted then readExit (runMirExit mirCfg beforeFunctions 1024 cut terminal entered) else ""
+  return Lean.toJson (terminal.samples, predicted, physical, mir)
+
+#eval for gas in [{minimum - 1}, {minimum}] do
+  match checkGas gas with
+  | .ok result => IO.println result.compress
+  | .error reason => throw (IO.userError reason)
+"""
             )
             result = subprocess.run(
                 ["lake", "env", "lean", "-j1", reentry],
@@ -394,9 +445,14 @@ def throughHelper : EVM.State.Run := do
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertEqual(
-                result.stdout.strip(), "unsupported: missing physical GAS sample"
-            )
+            for index, line in enumerate(result.stdout.splitlines()):
+                samples, (predicted, (physical, mir)) = json.loads(line)
+                self.assertEqual(samples, [] if index == 0 else [gas_fee])
+                self.assertEqual(predicted, index == 0)
+                self.assertEqual(json.loads(physical), exits[index])
+                if index == 0:
+                    self.assertEqual(json.loads(mir), exits[index])
+            self.assertEqual(len(result.stdout.splitlines()), 2)
 
             self.assertEqual(runtime[report["entry_pc"]], 0x5B)
             self.assertEqual(
@@ -648,7 +704,7 @@ theorem decodedVariant :
       let frame ← entryFrame caller checkpoint variant.market
         ((parameterWidths caller).zip variant.parameters) (4 + variant.offset + 32) variant.payload.length
       let started ← MIR.State.start beforeFunctions beforeEntry frame.arguments frame
-      return ⟨⟨{{function := beforeEntry}},[],started⟩,mirGas.samples⟩) :=
+      return ⟨⟨{{function := beforeEntry}},[],started⟩,mirGas.samples,false⟩) :=
   start_encoding caller changedCfg checkpoint variant beforeFunctions beforeEntry mirGas
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
     (by decide +kernel) (by decide +kernel)

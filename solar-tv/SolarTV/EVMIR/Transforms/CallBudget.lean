@@ -177,6 +177,12 @@ def beforeCall (entry : Entry) (selectorExtra : Nat := 0) : Nat :=
   (142+selectorExtra) + (if entry.warm then 100 else 2600) +
     (State.memoryCost active - State.memoryCost entry.words)
 
+/-- Gas needed to finish the guard or, for a token with code, execute GAS.
+The no-code error handler has its own gas and never executes GAS. -/
+def sampleCharge (entry : Entry) (selectorExtra : Nat := 0) : Nat :=
+  if entry.hasCode then beforeCall entry selectorExtra
+  else (referenceTrace selectorExtra).guardBase + probe (referenceTrace selectorExtra) entry.warm
+
 def reference (entry : Entry) (selectorExtra : Nat := 0) : Outcome :=
   let guard := 20 + (if entry.warm then 100 else 2600)
   if entry.gas < guard then .outOfGas

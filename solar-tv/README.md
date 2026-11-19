@@ -1503,6 +1503,13 @@ and logs. MIR uses the gas samples and message budgets from the checked
 bytecode execution. The exact physical gas and refund are separately checked
 against the Rust replay.
 
+The Supply regression reaches the helper with 1,343 gas and exhausts its
+budget in the cold code-size guard. MIR prices the helper prefix from the
+incoming gas, active memory, free memory pointer and account warmth. A
+prefix failure rolls back the invocation without a GAS sample. The kernel
+checks the failure and empty gas ledger against the emitted instruction
+trace, and Rust independently replays the complete ABI call.
+
 Use `--caller-worlds DIR` to supply concrete calldata, accounts, gas and
 child code. Copy the `*.world.json` files saved under `entry/` and edit the
 five inputs. Each file must keep its caller's selector and reach the checked

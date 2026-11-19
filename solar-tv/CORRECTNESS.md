@@ -727,7 +727,13 @@ its own reached memory and journal, so the proof carries the actual writes
 from the prefix into the suffix. On success it compares the ABI publication,
 committed accounts and logs. On revert it compares the payload and rollback
 to the owning checkpoint. The bytecode result provides both the prefix and
-suffix GAS samples and call budgets for the MIR executions.
+suffix GAS samples and call budgets for the MIR executions. At the helper
+cut, the checked Cancun schedule also prices the code-size guard and
+argument setup through GAS. MIR uses its own token, warmth, code presence
+and FMP together with the physical entry gas and active memory. The empty
+token-code path prices only the guard at this boundary. The kernel checks
+that a predicted exhaustion stops the actual emitted trace with an empty
+sample and call ledger. The complete ABI proof checks rollback on both IRs.
 
 `MorphoAbiSuite.lean` assembles separate certificates for the five callers.
 Each certificate composes short transitions over complete states. The
@@ -737,9 +743,10 @@ independently checks the physical frame at the helper PC and the complete
 ABI exit, including exact gas and refund. `--caller-worlds` changes the
 concrete inputs used to derive the certificates. An all-input prefix
 simulation, general private-memory correspondence and physical MIR
-instruction pricing remain open. For example, the low-gas Supply regression
-reaches the helper with 1,343 gas. The emitted runtime exhausts that gas
-before the helper's GAS sample, so the MIR side has no sample to consume.
+instruction pricing remain open. The low-gas Supply fixture reaches the
+helper with 1,343 gas and exhausts it at the cold code-size check. The
+independent Rust replay and all three sides of its kernel certificate
+agree on out-of-gas and rollback.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code
