@@ -1319,8 +1319,15 @@ fn parse_natspec(
                 continue;
             }
 
-            let mut tag_content_start = rest_start;
-            let tag_kind = match tag {
+            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
+
+            // Calculate span: from the char after '@' to end of tag name.
+            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
+            let tag_hi = tag_lo + tag.len() as u32;
+            span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
+            content_start = rest_start;
+
+            kind = Some(match tag {
                 "title" => ast::NatSpecKind::Title,
                 "author" => ast::NatSpecKind::Author,
                 "notice" => ast::NatSpecKind::Notice,
@@ -1335,7 +1342,7 @@ fn parse_natspec(
                     } else {
                         crate::natspec::split_once_ws(content, rest_start, line_end)
                     };
-                    tag_content_start = content_start_pos;
+                    content_start = content_start_pos;
                     let name_lo = comment_span.lo() + PREFIX_BYTES + name_start as u32;
                     let name_span = Span::new(name_lo, name_lo + name.len() as u32);
                     let ident = Ident::new(Symbol::intern(name), name_span);
@@ -1361,39 +1368,20 @@ fn parse_natspec(
                         let ident = Ident::new(Symbol::intern(tag), comment_span);
                         ast::NatSpecKind::Internal { tag: ident }
                     } else {
-                        // NOTE: We cannot tell yet whether solc reads this comment, so an invalid
-                        // tag in the middle of a line, often an email address in a comment that
-                        // solc ignores, stays text. So does a `solar-` tag, which changes how we
-                        // compile, so that a mention in prose does not apply it. At the start of
-                        // a line an invalid tag ends the previous tag and warns, but not in Yul.
-                        if at_line_start {
-                            if !in_yul {
-                                invalid_tag(dcx, tag, comment_span);
-                            }
-                            flush_item(
-                                items,
-                                &mut kind,
-                                &mut span,
-                                comment_symbol,
-                                content_start,
-                                prev_line_end,
-                            );
+                        // NOTE: We cannot tell yet whether solc reads this comment, so we only warn
+                        // about an invalid tag that starts the line. One in the middle of a line,
+                        // often an email address in a comment that solc ignores, still ends the
+                        // previous tag as in solc. So does a `solar-` tag there, which changes how
+                        // we compile, so that a mention in prose does not apply it.
+                        if at_line_start && !in_yul {
+                            invalid_tag(dcx, tag, comment_span);
                         }
                         line_start = line_end + 1;
                         prev_line_end = line_end;
                         continue;
                     }
                 }
-            };
-
-            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
-
-            // Calculate span: from the char after '@' to end of tag name.
-            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
-            let tag_hi = tag_lo + tag.len() as u32;
-            span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
-            content_start = tag_content_start;
-            kind = Some(tag_kind);
+            });
         }
 
         prev_line_end = line_end;
@@ -1599,6 +1587,45 @@ import * as B from "b.sol";
             check(8, "src", "internal", Some("src"), Some("0:123:456"));
 
             assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n * and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */");
+        });
+    }
+
+    #[test]
+    fn parse_natspec_mid_line_tags() {
+        let src = r#"
+/**
+ * note @solidity foo
+ * x @bar memory-safe-assembly
+ * do not add @custom:solar-trusted
+ * see @custom:x y
+ */
+"#;
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                    .expect("failed to create parser");
+
+            let sm = sess.source_map();
+            let docs = parser.parse_doc_comments();
+            assert_eq!(docs.len(), 1);
+
+            // An invalid or `solar-` tag in the middle of a line ends the previous tag.
+            let (sym, items) = (docs[0].symbol, &docs[0].natspec);
+            assert_eq!(items.len(), 2);
+            check_natspec_item(
+                sm,
+                sym,
+                &items[0],
+                "solidity",
+                "internal",
+                Some("solidity"),
+                Some("foo"),
+            );
+            check_natspec_item(sm, sym, &items[1], "custom:x", "custom", Some("x"), Some("y"));
         });
     }
 

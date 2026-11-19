@@ -23,8 +23,8 @@ contract C {
  */
 contract D {}
 
-// solc rejects the invalid tag `@example.com` here. We only warn about invalid tags that start a
-// line, so this one stays text.
+// solc rejects the invalid tag `@example.com` here, which ends the `@dev` text. We only warn about
+// invalid tags that start a line, but this one still ends the text.
 /**
  * @dev Mail
  *   admin@example.com for help.

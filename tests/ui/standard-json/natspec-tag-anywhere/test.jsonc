@@ -1,7 +1,7 @@
 //@ filecheck:
 // NatSpec tags start at the first `@` of a line like in solc 0.8.38, after a non-breaking space,
-// after other text, or inside a block comment's code example. Later `@`s on the line, lines
-// without `@`, and an invalid tag in the middle of a line stay text.
+// after other text, or inside a block comment's code example. Later `@`s on the line and lines
+// without `@` stay text, and an invalid tag in the middle of a line ends the previous tag.
 // CHECK-LABEL: "C": {
 // CHECK: "i()": {
 // CHECK-NEXT: "notice": "mail user@example.com"
@@ -15,7 +15,7 @@
 // CHECK: "details": "Example:",
 // CHECK-NEXT: "custom:x": "y   continued",
 // CHECK-LABEL: "F": {
-// CHECK: "details": "Mail   admin@example.com for help.",
+// CHECK: "details": "Mail",
 {
   "language": "Solidity",
   "settings": {

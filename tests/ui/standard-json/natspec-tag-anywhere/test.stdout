@@ -55,7 +55,7 @@
         "devdoc": {
           "kind": "dev",
           "methods": {},
-          "details": "Mail   admin@example.com for help.",
+          "details": "Mail",
           "version": 1
         }
       }
