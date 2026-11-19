@@ -83,6 +83,7 @@ contract InvalidCustom {}
 contract EmailAddress {
     function f() public {
         /// mail user@example.com
+        /// * @todo a `*` only decorates block comments
         uint256 x;
     }
 }

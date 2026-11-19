@@ -5,6 +5,7 @@
 // frames of their own.
 
 library Raw {
+    /// A `solar-` tag must start its line: do not add @custom:solar-trusted here.
     function word(bytes memory b) internal pure returns (uint256 w) {
         assembly { w := mload(add(b, 32)) } //~ ERROR: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
     }

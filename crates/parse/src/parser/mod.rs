@@ -897,7 +897,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut items = SmallVec::new();
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                parse_natspec(self.token.span, symbol, self.in_yul, self.dcx(), &mut items);
+                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
                 let natspec = if items.is_empty() {
                     BoxSlice::default()
                 } else {
@@ -1245,6 +1245,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 fn parse_natspec(
     comment_span: Span,
     comment_symbol: Symbol,
+    comment_kind: ast::CommentKind,
     in_yul: bool,
     dcx: &DiagCtxt,
     items: &mut SmallVec<[ast::NatSpecItem; 6]>,
@@ -1346,7 +1347,14 @@ fn parse_natspec(
                 }
                 "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
-                    if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                    let at_line_start =
+                        bytes[line_start..line_start + tag_offset].iter().all(|&b| {
+                            b.is_ascii_whitespace()
+                                || (b == b'*' && comment_kind == ast::CommentKind::Block)
+                        });
+                    if let Some(custom_tag) = tag.strip_prefix("custom:")
+                        && (at_line_start || !custom_tag.starts_with("solar-"))
+                    {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
                         ast::NatSpecKind::Custom { name: ident }
                     } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
@@ -1355,12 +1363,10 @@ fn parse_natspec(
                     } else {
                         // NOTE: We cannot tell yet whether solc reads this comment, so an invalid
                         // tag in the middle of a line, often an email address in a comment that
-                        // solc ignores, stays text. At the start of a line it ends the previous
-                        // tag and warns, but not in Yul.
-                        if bytes[line_start..line_start + tag_offset]
-                            .iter()
-                            .all(|&b| b.is_ascii_whitespace() || b == b'*')
-                        {
+                        // solc ignores, stays text. So does a `solar-` tag, which changes how we
+                        // compile, so that a mention in prose does not apply it. At the start of
+                        // a line an invalid tag ends the previous tag and warns, but not in Yul.
+                        if at_line_start {
                             if !in_yul {
                                 invalid_tag(dcx, tag, comment_span);
                             }
