@@ -22,3 +22,11 @@ contract C {
  *   continued
  */
 contract D {}
+
+// solc rejects the invalid tag `@example.com` here. We only warn about invalid tags that start a
+// line, so this one stays text.
+/**
+ * @dev Mail
+ *   admin@example.com for help.
+ */
+contract F {}

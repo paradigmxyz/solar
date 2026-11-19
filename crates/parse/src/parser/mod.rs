@@ -1318,15 +1318,8 @@ fn parse_natspec(
                 continue;
             }
 
-            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
-
-            // Calculate span: from the char after '@' to end of tag name.
-            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
-            let tag_hi = tag_lo + tag.len() as u32;
-            span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
-            content_start = rest_start;
-
-            kind = Some(match tag {
+            let mut tag_content_start = rest_start;
+            let tag_kind = match tag {
                 "title" => ast::NatSpecKind::Title,
                 "author" => ast::NatSpecKind::Author,
                 "notice" => ast::NatSpecKind::Notice,
@@ -1341,7 +1334,7 @@ fn parse_natspec(
                     } else {
                         crate::natspec::split_once_ws(content, rest_start, line_end)
                     };
-                    content_start = content_start_pos;
+                    tag_content_start = content_start_pos;
                     let name_lo = comment_span.lo() + PREFIX_BYTES + name_start as u32;
                     let name_span = Span::new(name_lo, name_lo + name.len() as u32);
                     let ident = Ident::new(Symbol::intern(name), name_span);
@@ -1360,23 +1353,41 @@ fn parse_natspec(
                         let ident = Ident::new(Symbol::intern(tag), comment_span);
                         ast::NatSpecKind::Internal { tag: ident }
                     } else {
-                        // Emit error for invalid solidity tags, but ignore in Yul.
-                        // NOTE: We cannot tell yet whether solc reads this comment, so we only
-                        // warn when the '@' starts the line; an '@' in the middle of a line is
-                        // often an email address in a comment that solc ignores.
-                        if !in_yul
-                            && bytes[line_start..line_start + tag_offset]
-                                .iter()
-                                .all(|&b| b.is_ascii_whitespace() || b == b'*')
+                        // NOTE: We cannot tell yet whether solc reads this comment, so an invalid
+                        // tag in the middle of a line, often an email address in a comment that
+                        // solc ignores, stays text. At the start of a line it ends the previous
+                        // tag and warns, but not in Yul.
+                        if bytes[line_start..line_start + tag_offset]
+                            .iter()
+                            .all(|&b| b.is_ascii_whitespace() || b == b'*')
                         {
-                            invalid_tag(dcx, tag, comment_span);
+                            if !in_yul {
+                                invalid_tag(dcx, tag, comment_span);
+                            }
+                            flush_item(
+                                items,
+                                &mut kind,
+                                &mut span,
+                                comment_symbol,
+                                content_start,
+                                prev_line_end,
+                            );
                         }
                         line_start = line_end + 1;
                         prev_line_end = line_end;
                         continue;
                     }
                 }
-            });
+            };
+
+            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
+
+            // Calculate span: from the char after '@' to end of tag name.
+            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
+            let tag_hi = tag_lo + tag.len() as u32;
+            span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
+            content_start = tag_content_start;
+            kind = Some(tag_kind);
         }
 
         prev_line_end = line_end;

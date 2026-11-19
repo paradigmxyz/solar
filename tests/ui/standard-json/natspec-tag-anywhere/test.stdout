@@ -45,6 +45,19 @@
           "custom:x": "y   continued",
           "version": 1
         }
+      },
+      "F": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "details": "Mail   admin@example.com for help.",
+          "version": 1
+        }
       }
     }
   }
