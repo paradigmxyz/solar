@@ -23,6 +23,10 @@ COMPARATORS = {
 STORAGE_TYPE_ID = re.compile(
     r"(t_(?:struct|enum|contract|userDefinedValueType))(\([^)]*\))(\d+)"
 )
+# A user-defined type without an AST ID, which compilers never emit.
+STORAGE_TYPE_WITHOUT_ID = re.compile(
+    r"t_(?:struct|enum|contract|userDefinedValueType)\([^)]*\)(?!\d)"
+)
 STORAGE_TYPE_FIELDS = {"type", "key", "value", "base"}
 AST_RULE_VERSION = 1
 AST_SAMPLES = 20
@@ -244,6 +248,11 @@ def storage_layout(layout, where, names):
     def strip(match):
         return names.setdefault(match[0], f"{match[1]}{match[2]}#")
 
+    def rename_type(type_id):
+        if not isinstance(type_id, str) or STORAGE_TYPE_WITHOUT_ID.search(type_id):
+            raise malformed
+        return STORAGE_TYPE_ID.sub(strip, type_id)
+
     def rename(key, value):
         if isinstance(value, list):
             # Only `storage` and `members` hold lists, of variables.
@@ -255,20 +264,12 @@ def storage_layout(layout, where, names):
         if isinstance(value, dict) and key == "types":
             if not all(isinstance(v, dict) for v in value.values()):
                 raise malformed
-            types = {}
-            origins = {}
-            for k, v in value.items():
-                new = STORAGE_TYPE_ID.sub(strip, k)
-                if (other := origins.setdefault(new, k)) != k:
-                    raise ValueError(f"{where}: {other} and {k} both become {new}")
-                types[new] = rename(k, v)
-            return types
+            # Distinct keys stay distinct: `storage_layouts` rejects two IDs with one name.
+            return {rename_type(k): rename(k, v) for k, v in value.items()}
         if isinstance(value, dict):
             return {k: rename(k, v) for k, v in value.items() if k != "astId"}
         if key in STORAGE_TYPE_FIELDS:
-            if not isinstance(value, str):
-                raise malformed
-            return STORAGE_TYPE_ID.sub(strip, value)
+            return rename_type(value)
         return value
 
     return rename(None, layout)
@@ -994,8 +995,8 @@ class Tests(unittest.TestCase):
         result = compare_outputs(left, right, "storage-layout")
         self.assertEqual(result["status"], "error")
         self.assertIn(
-            "left: C.sol:C storageLayout: t_struct(S)1_storage and"
-            " t_struct(S)7_storage both become t_struct(S){struct C.S}_storage",
+            "left: C.sol:C: t_struct(S)1 and t_struct(S)7 both become"
+            " t_struct(S){struct C.S}",
             result["error"],
         )
         self.assertEqual(
@@ -1011,9 +1012,13 @@ class Tests(unittest.TestCase):
             types = c["storageLayout"]["types"]
             types["t_struct(S){struct C.S}_storage"] = types["t_struct(S)1_storage"]
 
+        def normalized_row(c):
+            c["storageLayout"]["storage"][0]["type"] = "t_struct(S){struct C.S}_storage"
+
         for edit, message in [
             (transient, "C.sol:C: t_enum(E)4 and t_enum(E)99 both become t_enum(E)#"),
-            (hash_key, "both become t_struct(S){struct C.S}_storage"),
+            (hash_key, "malformed"),
+            (normalized_row, "malformed"),
             (lambda c: c["storageLayout"]["storage"].append(None), "malformed"),
             (lambda c: c["storageLayout"]["types"].update(x=None), "malformed"),
             (lambda c: c["storageLayout"]["storage"][0].update(type=1), "malformed"),
@@ -1021,9 +1026,11 @@ class Tests(unittest.TestCase):
             with self.subTest(message):
                 output = self.storage_output()
                 edit(output["contracts"]["C.sol"]["C"])
-                result = compare_outputs(output, output, "storage-layout")
+                result = compare_outputs(
+                    self.storage_output(), output, "storage-layout"
+                )
                 self.assertEqual(result["status"], "error")
-                self.assertIn(message, result["error"])
+                self.assertIn("right: " + message, result["error"])
 
     def test_storage_layout_missing(self):
         left = self.storage_output()
