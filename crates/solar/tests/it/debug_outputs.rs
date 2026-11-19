@@ -191,6 +191,20 @@ fn iszero_origin_debug_outputs_are_bytecode_neutral() {
 }
 
 #[test]
+fn if_exit_fall_edge_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/if-exit/if_exit_fall_edge.sol",
+    );
+}
+
+#[test]
+fn if_exit_materialized_jump_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/if-exit/if_exit_materialized_jump.sol",
+    );
+}
+
+#[test]
 fn place_reads_origin_debug_outputs_are_bytecode_neutral() {
     assert_debug_outputs_are_bytecode_neutral(
         "../../codegen/debug-info/place-reads/sunk_read_origin.sol",
