@@ -1511,11 +1511,12 @@ checks the failure and empty gas ledger against the emitted instruction
 trace, and Rust independently replays the complete ABI call.
 
 At 36,420 root gas, Supply executes GAS and then reaches CALL with zero
-parent gas. The checked schedule supplies that pre-charge budget to the MIR
-CALL, which exhausts the parent frame. The certificate identifies the failing
-CALL in the emitted runtime. Independent replay checks one gas below the
-CALL fee and at the fee, when the paid CALL returns a child failure to its
-parent.
+parent gas. The checked schedule supplies that pre-charge budget to MIR,
+which exhausts the parent frame at CALL. At 36,520 gas the parent pays for
+CALL, receives child failure with zero gas left and exhausts the budget in
+the continuation. The kernel checks both the derived paid CALL budget and
+the final residual gas. Independent replay covers the CALL and ABI return
+fee boundaries, including successful publication with exactly enough gas.
 
 Use `--caller-worlds DIR` to supply concrete calldata, accounts, gas and
 child code. Copy the `*.world.json` files saved under `entry/` and edit the

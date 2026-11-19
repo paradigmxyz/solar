@@ -183,7 +183,7 @@ theorem start_encoding (caller : Caller) (cfg : MIR.State.Config) (journal : Jou
       let frame ← entryFrame caller journal data.market ((parameterWidths caller).zip data.parameters)
         (4 + data.offset + 32) data.payload.length
       let started ← MIR.State.start functions entry frame.arguments frame
-      return ⟨⟨{function := entry},[],started⟩,priced.samples,false⟩) := by
+      return ⟨⟨{function := entry},[],started⟩,priced.samples,false,none⟩) := by
   unfold mirStart
   rw [decode_encoding caller cfg journal data input tag market arity canonical payloadFits]
 

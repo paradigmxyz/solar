@@ -141,6 +141,7 @@ structure MirCursor where
   machine : Machine
   samples : List Nat
   preSampleExhausted : Bool
+  exitGas : Option Nat
 
 private def mirTransition (fuel : Nat) (cfg : MIR.State.Config) (functions : Functions)
     (state : MirCursor) (site : Option Instruction) (hash : List Byte → Word) :
@@ -157,7 +158,7 @@ prices child messages, and its intervening SSA instructions remain unpriced. -/
 def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.State.Config)
     (functions : Functions) (state : MirCursor) (hash : List Byte → Word := Keccak.hash) :
     Except String (MirCut ⊕ MirCursor) := do
-  let ⟨machine,samples,_⟩ := state
+  let ⟨machine,samples,_,_⟩ := state
   let site := instAt functions machine.cursor
   if let some ⟨_,_,_,.call callee,callOperands⟩ := site then
     if callee = helper then
@@ -167,7 +168,7 @@ def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.Sta
   let (result,samples) ← mirTransition fuel cfg functions state site hash
   match result with
   | .finished _ => .error "MIR terminated before the helper"
-  | .next _ next => return .inr ⟨next,samples,false⟩
+  | .next _ next => return .inr ⟨next,samples,false,none⟩
 
 /-- Prompts for a digest certificate. The step still computes any hash absent
 from this list, including hashes in nested messages. -/
@@ -273,7 +274,7 @@ def mirStart (cfg : MIR.State.Config) (functions : Functions) (entry : Nat)
     Except String MirCursor := do
   let frame ← decode selector caller cfg journal
   let initial ← start functions entry frame.arguments frame
-  return ⟨⟨{function := entry},[],initial⟩,priced.samples,false⟩
+  return ⟨⟨{function := entry},[],initial⟩,priced.samples,false,none⟩
 
 def mirTrace (cfg : MIR.State.Config) (functions : Functions) (helper : Nat)
     (returned : List Operand) (priced : ByteCut) (hash : List Byte → Word := Keccak.hash) :
@@ -325,39 +326,74 @@ def preSampleExhausted (cfg : MIR.State.Config) (functions : Functions)
   (helperPricing cfg functions physical cut).any fun (_,entry) =>
     entry.gas < EVM.CallBudget.sampleCharge entry 6
 
-/-- The helper and its pre-charge parent budget, derived independently of
+structure HelperCallPrice where
+  callee : Nat
+  gas : Nat
+  paid : Bool
+
+/-- Derive the parent budget from the checked schedule, independently of
 the physical tail's recorded termination and message ledger. -/
-def unpaidHelperCall (cfg : MIR.State.Config) (functions : Functions)
-    (physical : ByteCut) (cut : MirCut) : Option (Nat × Nat) := do
+def helperCallPrice (cfg : MIR.State.Config) (functions : Functions)
+    (physical : ByteCut) (cut : MirCut) : Option HelperCallPrice := do
   let (callee,entry) ← helperPricing cfg functions physical cut
-  return (callee, ← EVM.CallBudget.unpaidCallBudget entry 6)
+  match EVM.CallBudget.reference entry 6 with
+  | .call sample .. => return ⟨callee,sample,true⟩
+  | .outOfGas => return ⟨callee, ← EVM.CallBudget.unpaidCallBudget entry 6,false⟩
+  | .noCode _ => none
+
+def unpaidHelperBudget (price : Option HelperCallPrice) : Option Nat :=
+  (price.filter (!·.paid)).map (·.gas)
+
+def paidHelperBudget (price : Option HelperCallPrice) : Option Nat :=
+  (price.filter (·.paid)).map (·.gas)
 
 def mirExitStart (cfg : MIR.State.Config) (functions : Functions) (physical : ByteCut)
     (cut : MirCut) (priced : ByteExit) : Except String MirCursor :=
   .ok ⟨⟨cut.cursor,[],cut.frame⟩,cut.samples ++ priced.samples,
-    preSampleExhausted cfg functions physical cut⟩
+    preSampleExhausted cfg functions physical cut,none⟩
 
-/-- Resume the actual caller and helper SSA. Paid messages use the emitted
-ledger. Only the helper's CALL receives the independently priced unpaid
-budget. Its own MIR execution must fail before launching a child. -/
-def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (budgets : List Nat)
-    (unpaid : Option (Nat × Nat))
+private def priceContinuation (caller : Caller) (inst : Instruction) (parent : Frame) :
+    Except String (Option Nat) := do
+  let id ← required inst.result "missing helper CALL result"
+  let flag ← read parent ⟨.local id,inst.ty⟩
+  let gas ← required parent.messageGas.getLast? "missing returned gas for helper CALL"
+  let cursor := readWord parent.memory 64
+  let child : EVM.State.MessageOutcome := ⟨flag,parent.returnData,parent.world,gas,0⟩
+  let exit ← TransferFromReturn.executeTail TransferFromReturn.referencePrices parent.memory
+    cursor 0 child
+  gasAfter caller exit
+
+/-- The checked helper CALL uses its derived budget. After a paid call the
+physical continuation is priced from the actual MIR child result and memory.
+An affordable suffix still executes the caller and helper SSA. -/
+def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (caller : Caller)
+    (budgets : List Nat) (price : Option HelperCallPrice)
     (hash : List Byte → Word := Keccak.hash) : Trace.Step (Except String MirCursor) EVM.State.Result :=
   Trace.checkedStart fun fuel state => do
     if state.preSampleExhausted then
       return .inl ⟨.outOfGas,[],state.machine.frame.world,0,0⟩
     let site := instAt functions state.machine.cursor
-    let unpaidBudget := match site.map (·.operation), unpaid with
-      | some (.external (.raw 0xf1)), some (callee,budget)
-      | some (.external (.address 0xf1 ..)), some (callee,budget) =>
-        if state.machine.cursor.function == callee then some budget else none
+    let activePrice := match site.map (·.operation), price with
+      | some (.external (.raw 0xf1)), some price
+      | some (.external (.address 0xf1 ..)), some price =>
+        if state.machine.cursor.function == price.callee then some price else none
       | _,_ => none
-    let ledger := budgets ++ unpaidBudget.toList
+    let ledger := match activePrice with
+      | none => budgets
+      | some price => budgets.take state.machine.frame.messageGas.length ++ [price.gas]
     let (result,samples) ← mirTransition fuel {cfg with messageGas := some ledger} functions state site hash
     match result with
     | .next _ next =>
-      if unpaidBudget.isSome then .error "MIR helper paid the underfunded CALL" else
-      return .inr ⟨next,samples,false⟩
+      let exitGas ← match activePrice with
+        | none => pure state.exitGas
+        | some price =>
+          if !price.paid then .error "MIR helper paid the underfunded CALL" else do
+          if !samples.isEmpty || next.frame.messageGas.length != budgets.length then
+            .error "emitted call ledger does not match MIR execution" else
+          priceContinuation caller (← required site "missing helper CALL") next.frame
+      if activePrice.isSome && exitGas.isNone then
+        return .inl ⟨.outOfGas,[],next.frame.world,0,0⟩
+      return .inr ⟨next,samples,false,exitGas⟩
     | .finished result =>
       let (stop,data) := match result.completion with
         | .returned words => (EVM.State.Stop.success,words.flatMap wordBytes)
@@ -366,14 +402,14 @@ def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (budgets : List
         | .invalid => (.exception,[])
         | .outOfGas => (.outOfGas,[])
       if !samples.isEmpty || result.messageGas.length != budgets.length ||
-          (unpaid.isSome && !(unpaidBudget.isSome && stop == .outOfGas)) then
+          (price.any (fun p => !p.paid) && !(activePrice.isSome && stop == .outOfGas)) then
         .error "emitted call ledger does not match MIR execution" else
-      return .inl ⟨stop,data,result.world,0,0⟩
+      return .inl ⟨stop,data,result.world,state.exitGas.getD 0,0⟩
 
-def runMirExit (cfg : MIR.State.Config) (functions : Functions) (fuel : Nat)
+def runMirExit (cfg : MIR.State.Config) (functions : Functions) (caller : Caller) (fuel : Nat)
     (physical : ByteCut) (priced : ByteExit) (cut : MirCut) : EVM.State.Run :=
-  Trace.run (mirExitStep cfg functions (physical.budgets ++ priced.budgets)
-    (unpaidHelperCall cfg functions physical cut)) fuel
+  Trace.run (mirExitStep cfg functions caller (physical.budgets ++ priced.budgets)
+    (helperCallPrice cfg functions physical cut)) fuel
     (mirExitStart cfg functions physical cut priced)
 
 structure CallerBody where
@@ -393,7 +429,7 @@ def fromAbi (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : Byte
   let result ← if physical then pure priced.result else do
     let mirCut ← mirPrefix mirCfg body.functions body.entry body.helper body.returned
       selector caller initial.world cut mirFuel
-    runMirExit mirCfg body.functions exitFuel cut priced mirCut
+    runMirExit mirCfg body.functions caller exitFuel cut priced mirCut
   return EVM.State.observe cfg .effects (finishByte initial.world result)
 
 theorem fromAbi_byte (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
@@ -413,7 +449,7 @@ theorem fromAbi_mir (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initia
     (byteResume : runByteExit cfg exitFuel cut = .ok priced)
     (mirPrefix : TransferFromEntry.mirPrefix mirCfg body.functions body.entry body.helper body.returned
       selector caller initial.world cut mirFuel = .ok mirCut)
-    (mirResume : runMirExit mirCfg body.functions exitFuel cut priced mirCut = .ok terminal) :
+    (mirResume : runMirExit mirCfg body.functions caller exitFuel cut priced mirCut = .ok terminal) :
     fromAbi cfg mirCfg initial pc selector caller body byteFuel mirFuel exitFuel false =
       .ok (EVM.State.observe cfg .effects (finishByte initial.world terminal)) := by
   simp [fromAbi, enters, byteResume, mirPrefix, mirResume, Bind.bind, Except.bind, Pure.pure, Except.pure]

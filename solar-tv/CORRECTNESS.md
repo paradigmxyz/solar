@@ -727,19 +727,19 @@ its own reached memory and journal, so the proof carries the actual writes
 from the prefix into the suffix. On success it compares the ABI publication,
 committed accounts and logs. On revert it compares the payload and rollback
 to the owning checkpoint. The bytecode result provides both the prefix and
-suffix GAS samples and call budgets for the MIR executions. At the helper
-cut, the checked Cancun schedule also prices the code-size guard and
-argument setup through GAS. MIR uses its own token, warmth, code presence
-and FMP together with the physical entry gas and active memory. The empty
-token-code path prices only the guard at this boundary. The kernel checks
-that a predicted exhaustion stops the actual emitted trace with an empty
-sample and call ledger. For exhaustion at the CALL charge, the same schedule
-derives the remaining parent budget independently of the tail result. Only
-the helper's MIR CALL receives this budget and its usual message semantics
-must exhaust the frame before child entry. The bytecode ledger records the
-PC and pre-charge budget when CALL itself exhausts the parent. A child
-exhaustion instead returns failure through a paid CALL. The complete ABI
-proof checks rollback on both IRs.
+suffix GAS samples and the prefix's call budgets for the MIR executions.
+At the helper cut the checked Cancun schedule prices the guard, argument
+setup and both paid and unpaid CALLs. MIR uses its own token, warmth, code
+presence and FMP together with the physical entry gas and active memory.
+The empty token-code path prices only the guard at this boundary. The
+kernel checks a predicted early exhaustion against the emitted trace and
+its sample and call ledgers. On a paid CALL, the MIR executable child
+result supplies returned gas, return data and the active parent memory.
+The six checked helper continuation prices and the caller's published
+return cost jointly determine whether the parent exhausts its budget and
+how much gas remains on an affordable exit. The kernel checks that result
+against the emitted trace through the exact ABI exit. The complete ABI proof
+also checks the published bytes, effects and rollback on both IRs.
 
 `MorphoAbiSuite.lean` assembles separate certificates for the five callers.
 Each certificate composes short transitions over complete states. The
@@ -752,11 +752,12 @@ simulation, general private-memory correspondence and physical MIR
 instruction pricing remain open. The low-gas Supply fixture reaches the
 helper with 1,343 gas and exhausts it at the cold code-size check. The
 independent Rust replay and the kernel agree on out-of-gas and rollback. At
-36,420 root gas the certified Supply invocation instead reaches the CALL
-with zero gas after taking the sample. Replay at the exact CALL fee proves
-that the parent resumes with a failed child result and zero remaining gas.
-The surrounding scalar MIR continuation has no physical instruction
-meter, so the fee-boundary replay checks this continuation entry.
+36,420 root gas Supply reaches CALL with zero gas after taking the sample.
+With 36,520 gas it pays for CALL, resumes from child failure with zero
+remaining gas, and exhausts the budget in the continuation. Replays also
+cover a paid CALL that returns child failure with enough gas for an
+ordinary parent revert, and a successful child one gas below and at the
+ABI publication fee.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code

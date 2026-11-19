@@ -45,7 +45,7 @@ class CallBudgetTests(unittest.TestCase):
                 fixture["warm_addresses"] = [caller_replay.TOKEN]
                 fixture["accounts"][0]["storage"]["0xbeef"] = str(10 + offset)
                 if name == "supply":
-                    fixture["gas"] = 36420
+                    fixture["gas"] = 36520
                     fixture["warm_addresses"] = []
                     fixture["accounts"][1]["code"] = "0x5a5f5560015f5260205ff3"
                 if name in failures:
@@ -183,7 +183,7 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertEqual(words, report["caller_replays"][name]["abi_words"])
                 self.assertEqual(snapshot["gas"], entry[name]["gas"])
                 if name == "supply":
-                    self.assertEqual(snapshot["gas"], 2763)
+                    self.assertEqual(snapshot["gas"], 2863)
                 self.assertEqual(
                     len(snapshot["budgets"]),
                     2 if name in {"liquidate", "flashLoan"} else 0,
@@ -234,18 +234,22 @@ class CallBudgetTests(unittest.TestCase):
 import EntrySupplyProofafterLink
 {entry_proof.HEADER}
 open EntrySupply
-theorem supply_unpaid_call : byteTailCut.unpaidCall = some ({report["call_pc"]}, 0) :=
+theorem supply_paid_call : byteTailCut.budgets = [100] :=
   by decide +kernel
-example : (unpaidHelperCall mirCfg beforeFunctions physicalCut beforeCut).map Prod.snd = some 0 :=
-  before_unpaid_call.trans (congrArg (Option.map Prod.snd) supply_unpaid_call)
-example : (unpaidHelperCall mirCfg afterFunctions physicalCut afterCut).map Prod.snd = some 0 :=
-  after_unpaid_call.trans (congrArg (Option.map Prod.snd) supply_unpaid_call)
+example : (paidHelperBudget (helperCallPrice mirCfg beforeFunctions physicalCut beforeCut)).toList = [100] :=
+  before_paid_call.trans supply_paid_call
+example : (paidHelperBudget (helperCallPrice mirCfg afterFunctions physicalCut afterCut)).toList = [100] :=
+  after_paid_call.trans supply_paid_call
 example :
-    byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [2] ∧ byteTailCut.budgets = [] :=
+    byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [102] ∧ byteTailCut.unpaidCall = none :=
   by decide +kernel
-#print axioms supply_unpaid_call
+example : beforeTailCut.gas = 0 :=
+  (before_paid_exit_gas (by decide +kernel)).trans bytecode_gas
+example : afterTailCut.gas = 0 :=
+  (after_paid_exit_gas (by decide +kernel)).trans bytecode_gas
+#print axioms supply_paid_call
 """
-            proved = entry_proof.lean(kernel, "SupplyUnpaidCall", pricing, 60)
+            proved = entry_proof.lean(kernel, "SupplyPaidCall", pricing, 60)
             self.assertEqual(proved.returncode, 0, proved.stdout + proved.stderr)
             entry_proof.check_axioms(proved.stdout.splitlines(), 1)
             self.assertEqual(
@@ -368,7 +372,7 @@ def throughHelper : EVM.State.Run := do
   let cut ← priced
   let physical ← runByteExit tvWorldConfig 1024 cut
   let entered ← before cut
-  let result ← runMirExit mirCfg beforeFunctions 1024 cut physical entered
+  let result ← runMirExit mirCfg beforeFunctions .supply 1024 cut physical entered
   return finishByte checkpoint result
 #eval IO.println (EVM.State.describe tvWorldConfig .effects throughHelper)
 """
@@ -431,12 +435,12 @@ def checkGas (gas : Nat) : Except String Lean.Json := do
   let cut ← runBytes {report["entry_pc"]} 2048 tvWorldConfig {{initial with frame.gas := gas}}
   let terminal ← runByteExit tvWorldConfig 1024 cut
   let entered ← before cut
-  let unpaid := unpaidHelperCall mirCfg beforeFunctions cut entered
+  let unpaid := unpaidHelperBudget (helperCallPrice mirCfg beforeFunctions cut entered)
   let physical := EVM.State.describe tvWorldConfig .exact (.ok (finishByte checkpoint terminal.result))
-  let mir := EVM.State.describe tvWorldConfig .effects
-    ((runMirExit mirCfg beforeFunctions 1024 cut terminal entered).map (finishByte checkpoint))
+  let mir := EVM.State.describe tvWorldConfig .exact
+    ((runMirExit mirCfg beforeFunctions .supply 1024 cut terminal entered).map (finishByte checkpoint))
   return Lean.Json.arr #[Lean.toJson terminal.samples, Lean.toJson terminal.budgets,
-    Lean.toJson terminal.unpaidCall, Lean.toJson (unpaid.map Prod.snd), Lean.toJson physical, Lean.toJson mir]
+    Lean.toJson terminal.unpaidCall, Lean.toJson unpaid, Lean.toJson physical, Lean.toJson mir]
 
 def printGas (gas : Nat) : IO Unit :=
   match checkGas gas with
@@ -493,8 +497,7 @@ def printGas (gas : Nat) : IO Unit :=
                     unpaid, [call_pc, predicted] if predicted is not None else None
                 )
                 self.assertEqual(json.loads(physical), exits[index])
-                if index != len(amounts) - 1:
-                    self.assertEqual(json.loads(mir), exits[index])
+                self.assertEqual(json.loads(mir), exits[index])
 
             # A paid CALL can exhaust its child's gas and leave its parent
             # enough gas to revert normally. MSTORE tries to expand memory at
@@ -521,7 +524,48 @@ def printGas (gas : Nat) : IO Unit :=
             self.assertIsNone(unpaid)
             self.assertIsNone(predicted)
             self.assertEqual(json.loads(physical), child_exit)
-            self.assertEqual(json.loads(mir), child_exit[:2] + [0, 0] + child_exit[4:])
+            self.assertEqual(json.loads(mir), child_exit)
+
+            # An empty successful child returns all forwarded gas. Find the
+            # ABI publication threshold independently on the emitted runtime.
+            empty = state | {
+                "accounts": [
+                    account | {"code": [0]}
+                    if int(account["address"]) == caller_replay.TOKEN
+                    else account
+                    for account in state["accounts"]
+                ],
+            }
+            low, high = call_minimum, call_minimum + 4096
+            while high - low > 1:
+                middle = (low + high) // 2
+                observation = caller_entry.replay(
+                    empty | {"gas": middle}, None, executable, 30
+                )
+                if observation[0] == "success":
+                    high = middle
+                else:
+                    low = middle
+            publication = [empty | {"gas": amount} for amount in (low, high)]
+            self.assertEqual(
+                [
+                    caller_entry.replay(case, site.return_pc, executable, 30)["gas"]
+                    for case in publication
+                ],
+                [site.gas - 1, site.gas],
+            )
+            observations = [
+                caller_entry.replay(case, None, executable, 30) for case in publication
+            ]
+            self.assertEqual(
+                [row[0] for row in observations], ["out-of-gas", "success"]
+            )
+            for check, expected in zip(
+                check_gas(empty, [low, high]), observations, strict=True
+            ):
+                self.assertEqual(
+                    list(map(json.loads, check[-2:])), [expected, expected]
+                )
 
             self.assertEqual(runtime[report["entry_pc"]], 0x5B)
             self.assertEqual(
@@ -773,7 +817,7 @@ theorem decodedVariant :
       let frame ← entryFrame caller checkpoint variant.market
         ((parameterWidths caller).zip variant.parameters) (4 + variant.offset + 32) variant.payload.length
       let started ← MIR.State.start beforeFunctions beforeEntry frame.arguments frame
-      return ⟨⟨{{function := beforeEntry}},[],started⟩,mirGas.samples,false⟩) :=
+      return ⟨⟨{{function := beforeEntry}},[],started⟩,mirGas.samples,false,none⟩) :=
   start_encoding caller changedCfg checkpoint variant beforeFunctions beforeEntry mirGas
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
     (by decide +kernel) (by decide +kernel)

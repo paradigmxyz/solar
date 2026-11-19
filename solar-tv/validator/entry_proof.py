@@ -434,8 +434,8 @@ def byteTailWith (hash : List Execution.Byte → Word) := chunkedByteExitStep tv
 def {label}Body : CallerBody := ⟨{label}Functions,{label}Entry,{label}Helper,{label}Returned⟩
 def {label}TailStart := mirExitStart mirCfg {label}Functions physicalCut {label}Cut byteTailCut
 def {label}TailWith (hash : List Execution.Byte → Word) :=
-  mirExitStep mirCfg {label}Functions (physicalCut.budgets ++ byteTailCut.budgets)
-    (unpaidHelperCall mirCfg {label}Functions physicalCut {label}Cut) hash
+  mirExitStep mirCfg {label}Functions caller (physicalCut.budgets ++ byteTailCut.budgets)
+    (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut) hash
 """
     success(prove(mir, source, timeout, module=True), mir)
     mir_memo, mir_imports, mir_count = phase(
@@ -521,7 +521,7 @@ theorem {label}_fmp :
             + HEADER
             + f"""
 theorem {label}_exit :
-    runMirExit mirCfg {label}Functions 1024 physicalCut byteTailCut {label}Cut = .ok {label}TailCut := by
+    runMirExit mirCfg {label}Functions caller 1024 physicalCut byteTailCut {label}Cut = .ok {label}TailCut := by
   unfold runMirExit
   rw [←{mir_memo}.hashChecked_eq]
   exact {label}TailReached
@@ -536,8 +536,17 @@ theorem {label}_pre_sample :
   by decide +kernel
 
 theorem {label}_unpaid_call :
-    (unpaidHelperCall mirCfg {label}Functions physicalCut {label}Cut).map Prod.snd =
+    unpaidHelperBudget (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut) =
       byteTailCut.unpaidCall.map Prod.snd :=
+  by decide +kernel
+
+theorem {label}_paid_call :
+    (paidHelperBudget (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut)).toList =
+      byteTailCut.budgets :=
+  by decide +kernel
+
+theorem {label}_paid_exit_gas :
+    byteTailCut.budgets ≠ [] → {label}TailCut.gas = physicalResult.gas :=
   by decide +kernel
 
 theorem {label}_from_abi :

@@ -88,12 +88,16 @@ private theorem expanded (memory active : List Byte) (ok : expand memory 0 64 = 
     have more := Nat.le_max_right (memoryWords memory) 2
     omega
 
-def pricedReturn (checkpoint world : Journal) (fixed gas : Nat) (start active bytes : List Byte) :
-    EVM.State.Result :=
+private def publicationGas (fixed gas : Nat) (start active : List Byte) : Option Nat :=
   let charge := fixed + EVM.State.memoryCost (memoryWords active) -
     EVM.State.memoryCost (memoryWords start)
-  if gas < charge then ⟨.outOfGas,[],checkpoint,0,0⟩
-  else ⟨.success,bytes,world,gas-charge,0⟩
+  EVM.CallBudget.charged gas charge
+
+def pricedReturn (checkpoint world : Journal) (fixed gas : Nat) (start active bytes : List Byte) :
+    EVM.State.Result :=
+  match publicationGas fixed gas start active with
+  | none => ⟨.outOfGas,[],checkpoint,0,0⟩
+  | some left => ⟨.success,bytes,world,left,0⟩
 
 /-- Physical stores at 0 and 32 publish the selected stack words. STOP and
 RETURN end this message. The caller-local gas check can also exhaust a
@@ -125,6 +129,42 @@ def mirContinue (caller : Caller) (amount other : Word) (checkpoint : Journal)
     let active ← if words.isEmpty then pure memory else expand memory 0 64
     return pricedReturn checkpoint world (reference caller).gas gas memory active
       (words.flatMap wordBytes)
+
+/-- Price the ABI publication after the checked helper finishes. Exhaustion
+in the helper or the publication exhausts the owning EVM frame. -/
+def gasAfter (caller : Caller) : Exit → Except String (Option Nat)
+  | .outOfGas => .ok none
+  | .reverted _ gas => .ok (some gas)
+  | .returned memory _ _ gas => do
+    let suffix := reference caller
+    let active ← match suffix.publication with
+      | .stop => pure memory
+      | .pair .. => expand memory 0 64
+    return publicationGas suffix.gas gas memory active
+
+private theorem pricedReturnGas (checkpoint world : Journal) (fixed gas : Nat)
+    (start active bytes : List Byte) :
+    (Except.ok (pricedReturn checkpoint world fixed gas start active bytes) : EVM.State.Run).map
+      (fun result => if result.stop = .outOfGas then none else some result.gas) =
+    .ok (publicationGas fixed gas start active) := by
+  cases h : publicationGas fixed gas start active <;> simp [pricedReturn,h] <;> rfl
+
+theorem gasAfter_matches (caller : Caller) (amount other : Word) (checkpoint : Journal)
+    (helper : Exit) :
+    (mirContinue caller amount other checkpoint (.ok helper)).map
+      (fun result => if result.stop = .outOfGas then none else some result.gas) =
+    gasAfter caller helper := by
+  cases helper with
+  | outOfGas | reverted _ _ => rfl
+  | returned memory world _ gas =>
+    simp only [mirContinue,Bind.bind,Except.bind,typed_live,gasAfter,Pure.pure,Except.pure]
+    cases caller <;> simp only [liveOperands,List.isEmpty_cons,List.isEmpty_nil,ite_true,
+      Bool.false_eq_true,ite_false,reference] <;>
+      first
+      | exact pricedReturnGas ..
+      | cases expand memory 0 64 <;> first
+        | rfl
+        | exact pricedReturnGas ..
 
 theorem resume_eq (caller : Caller) (suffix : Suffix) (stack : List Word)
     (amount other : Word) (checkpoint : Journal) (helper : Except String Exit)
