@@ -216,7 +216,8 @@ def storage_layouts(layouts, where):
     `t_struct(Info)#`. IDs of one layout that share a name are numbered, `#1`,
     `#2`, in the order a walk of its storage entries and the types they use
     first reaches them, so equal layouts agree whatever their IDs. An ID the
-    walk does not reach keeps its plain name, and an error if another ID has it.
+    walk does not reach keeps its plain name, which is an error if another ID
+    has it too.
     """
     seen_labels = {}
     result = {}
