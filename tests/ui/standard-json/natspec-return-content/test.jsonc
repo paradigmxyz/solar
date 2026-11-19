@@ -1,12 +1,26 @@
 //@ filecheck:
 // devdoc keeps `@return` tags like solc 0.8.38: a name with no text documents itself, a bare tag
 // documents an empty text, and a tag that ends its `///` line takes its text from the next line.
-// solc writes `x ` for the getter's `return`, where we leave out the name, as for any tag text,
-// and keeps the blanks of `blankLine`'s second line, where we trim them.
+// A getter's `return` keeps the whole tag text, and an inherited tag gets the getter's return name
+// in front unless its text starts with it. solc keeps the blanks of `blankLine`'s second line,
+// where we trim them.
 // CHECK: "errorCode": "5856",
 // CHECK-NEXT: "message": "tag `@return` references non-existent return parameter '@'",
 // CHECK-NOT: "errorCode": "5856"
 // CHECK-LABEL: "contracts": {
+// CHECK-LABEL: "GetterReturn.sol": {
+// CHECK: "inherited": {
+// CHECK-NEXT: "return": "fresh Units",
+// CHECK: "inheritedEmpty": {
+// CHECK-NEXT: "return": "fresh ",
+// CHECK: "named": {
+// CHECK-NEXT: "return": "x the x",
+// CHECK: "nameOnly": {
+// CHECK-NEXT: "return": "x",
+// CHECK: "sameAsName": {
+// CHECK-NEXT: "return": "x x",
+// CHECK: "unnamed": {
+// CHECK-NEXT: "return": "plain",
 // CHECK-LABEL: "NameOnly.sol": {
 // CHECK: "block()": {
 // CHECK: "a": "a"
@@ -31,7 +45,7 @@
 // CHECK: "IThing": {
 // CHECK: "_0": ""
 // CHECK: "value": {
-// CHECK-NEXT: "return": ""
+// CHECK-NEXT: "return": "x ",
 // CHECK-NEXT: "returns": {
 // CHECK-NEXT: "x": ""
 {

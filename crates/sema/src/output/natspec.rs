@@ -128,7 +128,7 @@ impl<'gcx> Gcx<'gcx> {
                 .into_iter()
                 .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
             if let (Some(item), None) = (returns.next(), returns.next()) {
-                documentation_item.r#return = Some(item.content);
+                documentation_item.r#return = Some(getter_return_doc(self, variable.getter, item));
             }
             if let Some(getter) = variable.getter {
                 documentation_item.returns =
@@ -282,6 +282,26 @@ fn return_docs(
         .collect()
 }
 
+/// Returns a getter's `return` text like solc, which keeps the whole `@return` text: the name of
+/// a named return value, then its description. An inherited tag gets the getter's return name in
+/// front unless its text starts with that name already (`copyMissingTags` in solc's
+/// `DocStringAnalyser.cpp`).
+fn getter_return_doc(gcx: Gcx<'_>, getter: Option<hir::FunctionId>, item: DocItem) -> String {
+    let Some(name) = getter
+        .and_then(|getter| gcx.hir.function(getter).returns.first())
+        .and_then(|&id| gcx.hir.variable(id).name)
+    else {
+        return item.content;
+    };
+    let has_name = match item.kind {
+        hir::NatSpecKind::Return { name: Some(documented) } => {
+            item.name_only && documented.name == name.name
+        }
+        _ => item.content.split([' ', '\t']).next() == Some(name.as_str()),
+    };
+    if has_name { item.content } else { format!("{name} {}", item.content) }
+}
+
 /// A NatSpec item with its text as solc's documentation output has it.
 struct DocItem {
     kind: hir::NatSpecKind,
@@ -289,6 +309,8 @@ struct DocItem {
     /// Whether the line of the tag ends right after its name, so that the next line's leading
     /// whitespace goes.
     bare: bool,
+    /// Whether a named `@return` tag holds only its name, which is then its text.
+    name_only: bool,
 }
 
 /// Returns the NatSpec items of `item_id` with their text joined and trimmed like solc.
@@ -352,7 +374,13 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
                 append_doc_line(&mut content, line);
             }
         }
-        items.push(DocItem { kind: item.kind, content, bare });
+        let name_only = matches!(item.kind, hir::NatSpecKind::Return { name: Some(name) }
+            if content == name.as_str()
+                && item.symbol.as_str()[..item.content_start as usize]
+                    .split_ascii_whitespace()
+                    .next_back()
+                    != Some(name.as_str()));
+        items.push(DocItem { kind: item.kind, content, bare, name_only });
     }
     if let Some((_, target)) = target {
         let local_tags = LocalTags::from_group(gcx, &local);
