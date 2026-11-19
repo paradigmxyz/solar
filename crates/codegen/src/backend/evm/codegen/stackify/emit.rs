@@ -257,25 +257,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             // A use in another block than the definition counts twice: the read moves into that
             // block, where LLVM drops the location of the moved code (`dropLocation`), so the
-            // read takes the origin of its use like a copy. A phi input is used in the block
-            // that the edge leaves.
-            let mut count = |operand: ValueId, at: BlockId| {
-                let local = definitions.get(&operand).is_none_or(|&def| def == at);
+            // read takes the origin of its use like a copy. So does a phi input, which an edge
+            // copies when the edge is taken and not where the phi sits.
+            let mut count = |operand: ValueId, block: Option<BlockId>| {
+                let local = block
+                    .is_some_and(|block| definitions.get(&operand).is_none_or(|&def| def == block));
                 self.use_counts[operand] += if local { 1 } else { 2 };
             };
             for (block, data) in func.blocks.iter_enumerated() {
                 for &inst in &data.instructions {
                     match &func.inst(inst).kind {
                         InstKind::Phi(incoming) => {
-                            for &(from, operand) in incoming {
-                                count(operand, from);
+                            for &(_, operand) in incoming {
+                                count(operand, None);
                             }
                         }
-                        kind => kind.visit_operands(|operand| count(operand, block)),
+                        kind => kind.visit_operands(|operand| count(operand, Some(block))),
                     }
                 }
                 if let Some(term) = &data.terminator {
-                    term.visit_operands(|operand| count(operand, block));
+                    term.visit_operands(|operand| count(operand, Some(block)));
                 }
             }
             // A copy that rebuilding made stands for one of several uses of its original, so it
