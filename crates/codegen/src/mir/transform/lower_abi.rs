@@ -106,10 +106,10 @@
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, Callee, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId, InstKind, Instruction,
-    InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
-    RevertReason, Terminator, Value, ValueId, ValueLayout,
+    AbiParamTypeRef, AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, Callee,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase,
+    MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
     analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -121,7 +121,7 @@ use solar_config::{EvmVersion, OptimizationMode, RevertStrings};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{Ident, Span, Symbol, sym};
 use std::sync::Arc;
@@ -565,7 +565,7 @@ impl LowerAbiCx {
                     if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata)) {
                         if let AbiParamType::DynamicArray(element) = &ty
                             && !element.is_scalar_word()
-                            && !matches!(element.as_ref(), AbiParamType::Bytes)
+                            && !matches!(**element, AbiParamType::Bytes)
                         {
                             // Assembly can set a length whose head size wraps to a small one,
                             // where solc runs out of gas.
@@ -660,7 +660,7 @@ impl LowerAbiCx {
         module: &mut Module,
         decode_functions: &DenseBitSet<FunctionId>,
     ) {
-        let mut decode_counts = FxHashMap::default();
+        let mut decode_counts = FxIndexMap::default();
         let mut memory_type_counts = FxHashMap::default();
         for func_id in decode_functions.iter() {
             let func = module.function(func_id);
@@ -2204,7 +2204,7 @@ impl LowerAbiCx {
         }
         if let AbiParamType::FixedArray { element, len } = ty
             && Self::is_scalar_or_enum(element)
-            && !matches!(element.as_ref(), AbiParamType::Scalar(ValueLayout::Function))
+            && !matches!(**element, AbiParamType::Scalar(ValueLayout::Function))
         {
             let (object, _) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
             if element.word_validator().is_some() {
@@ -2748,18 +2748,21 @@ fn calldata_type_helper_args(
     if decodes_nested(ty) { vec![head, tuple_base] } else { vec![head] }
 }
 
-/// Adds `occurrences` to the use count of `ty`, saturating at two.
+/// Adds `occurrences` to the use count of `ty`, saturating at two, and returns the increase, or
+/// `None` when `ty` was already counted and its count did not change.
 fn count_type(
     counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
     ty: &AbiParamType,
     occurrences: usize,
-) {
+) -> Option<usize> {
     let first = counts.len();
-    let count = match counts.get_mut(ty) {
-        Some(count) => count,
-        None => counts.entry(ty.clone()).or_insert((0, first)),
+    let (count, new) = match counts.get_mut(ty) {
+        Some(count) => (count, false),
+        None => (counts.entry(ty.clone()).or_insert((0, first)), true),
     };
-    count.0 = count.0.saturating_add(occurrences).min(2);
+    let previous = count.0;
+    count.0 = previous.saturating_add(occurrences).min(2);
+    (new || count.0 != previous).then(|| count.0 - previous)
 }
 
 /// Returns the types counted at least twice, inner types before the types that contain them.
@@ -2768,48 +2771,38 @@ fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiPar
         .into_iter()
         .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
         .collect::<Vec<_>>();
-    types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
+    types.sort_by_key(|(first, ty)| (ty.depth(), *first));
     types.into_iter().map(|(_, ty)| ty).collect()
 }
 
 /// Adds `occurrences` to the use count of every dynamic tuple and dynamic array in `ty`, itself
-/// included.
+/// included. Only the increase of a counted value reaches the values inside it, and none once its
+/// count saturates, so a value shared along many paths is walked at most three times.
 fn count_nested_types(
     ty: &AbiParamType,
     occurrences: usize,
     counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
 ) {
     match ty {
-        AbiParamType::FixedArray { element, len } => count_nested_types(
+        AbiParamType::FixedArray { element, len } if element.is_dynamic() => count_nested_types(
             element,
             occurrences.saturating_mul(usize::try_from(*len).unwrap_or(usize::MAX)).min(2),
             counts,
         ),
         AbiParamType::DynamicArray(element) => {
-            count_type(counts, ty, occurrences);
-            count_nested_types(element, occurrences, counts)
-        }
-        AbiParamType::Tuple(fields) => {
-            if ty.has_dynamic_child() {
-                count_type(counts, ty, occurrences);
-            }
-            for field in fields {
-                count_nested_types(field, occurrences, counts);
+            if let Some(added) = count_type(counts, ty, occurrences) {
+                count_nested_types(element, added, counts);
             }
         }
-        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
-    }
-}
-
-fn abi_param_type_depth(ty: &AbiParamType) -> usize {
-    match ty {
-        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
-            abi_param_type_depth(element) + 1
+        AbiParamType::Tuple(fields) if ty.has_dynamic_child() => {
+            if let Some(added) = count_type(counts, ty, occurrences) {
+                for field in fields {
+                    count_nested_types(field, added, counts);
+                }
+            }
         }
-        AbiParamType::Tuple(fields) => {
-            fields.iter().map(abi_param_type_depth).max().unwrap_or_default() + 1
-        }
-        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => 0,
+        // A static value holds no dynamic tuple or array.
+        _ => {}
     }
 }
 
@@ -3434,7 +3427,7 @@ fn allocation_initializers(func: &Function, alloc: InstId) -> Option<&[InstId]> 
 
 fn is_canonical_return_object(
     func: &Function,
-    fields: &[AbiParamType],
+    fields: &[AbiParamTypeRef],
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
     visiting: &mut FxHashSet<ValueId>,

@@ -1,0 +1,8 @@
+error: undefined ABI shape `$0`
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_abi_shape_undefined.mir:LL:CC
+   │
+LL │     v0 = abi_decode [tuple<$0, $0>], arg0
+   ╰╴                           ━━
+
+error: aborting due to 1 previous error
+

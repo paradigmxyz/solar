@@ -209,7 +209,7 @@ fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tu
 }
 
 ; function grid(Grid memory g) external pure returns (uint256 total) [selector 0x96087a12]
-fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tuple<array<_, array<_, uint256>>, array<_, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
+fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tuple<$0 = array<_, array<_, uint256>>, $0>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
