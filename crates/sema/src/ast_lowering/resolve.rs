@@ -1,4 +1,8 @@
-use crate::{builtins::Builtin, hir, natspec::report_misplaced_solar_tags};
+use crate::{
+    builtins::Builtin,
+    hir,
+    natspec::{report_misplaced_solar_tags, starts_group},
+};
 use alloy_primitives::U256;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -1118,8 +1122,13 @@ impl<'gcx> ResolveContext<'gcx> {
         assembly: &ast::StmtAssembly<'_>,
         docs: &ast::DocComments<'_>,
     ) -> hir::StmtKind<'gcx> {
-        // The legacy form: a `@solidity memory-safe-assembly` comment before the block.
-        let mut memory_safe = docs.iter().flat_map(|doc| doc.natspec.iter()).any(|item| {
+        // The legacy form: a `@solidity memory-safe-assembly` comment before the block, in the
+        // last group of doc comments, the only one solc reads.
+        let group = (1..docs.len())
+            .rev()
+            .find(|&i| starts_group(self.sess, &docs[i - 1], &docs[i]))
+            .unwrap_or(0);
+        let mut memory_safe = docs[group..].iter().flat_map(|doc| doc.natspec.iter()).any(|item| {
             matches!(item.kind, ast::NatSpecKind::Internal { tag } if tag.name == sym::solidity)
                 && item.content().split_whitespace().any(|word| word == "memory-safe-assembly")
         });

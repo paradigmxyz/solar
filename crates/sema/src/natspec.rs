@@ -5,7 +5,7 @@ use crate::{
 use solar_ast::{self as ast, NatSpecItem, NatSpecKind};
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{
-    Ident, Span, Symbol,
+    Ident, Session, Span, Symbol,
     config::OptimizationMode,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
@@ -357,7 +357,7 @@ impl<'gcx> Resolver<'gcx> {
             // counts within one group.
             // NOTE: `@return` tags still count across groups, unlike in solc; counting them in
             // the last group alone needs the diagnostics of the earlier groups dropped as well.
-            if i > 0 && starts_group(self.gcx, &docs[i - 1], doc_comment) {
+            if i > 0 && starts_group(self.gcx.sess, &docs[i - 1], doc_comment) {
                 state.seen_tags = SeenTags::default();
                 sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
                 group_start = local_tags.len();
@@ -1170,12 +1170,11 @@ pub(crate) fn report_misplaced_solar_tags(dcx: &DiagCtxt, docs: &[ast::DocCommen
 /// Whether `doc` starts a new group of doc comments after `prev`: anything but two `///` comments
 /// on consecutive lines. solc ends a line at LF, CR LF, or a lone CR.
 pub(crate) fn starts_group(
-    gcx: Gcx<'_>,
+    sess: &Session,
     prev: &ast::DocComment<'_>,
     doc: &ast::DocComment<'_>,
 ) -> bool {
-    let gap = gcx
-        .sess
+    let gap = sess
         .source_map()
         .span_to_snippet(prev.span.shrink_to_hi().with_hi(doc.span.lo()))
         .unwrap_or_default();

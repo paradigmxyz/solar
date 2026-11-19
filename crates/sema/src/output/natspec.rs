@@ -403,7 +403,7 @@ fn ignored_doc_comments(gcx: Gcx<'_>, doc_id: hir::DocId) -> Option<Span> {
         return None;
     }
     let docs = gcx.hir.doc(doc_id).ast_comments();
-    let start = (1..docs.len()).rev().find(|&i| starts_group(gcx, &docs[i - 1], &docs[i]))?;
+    let start = (1..docs.len()).rev().find(|&i| starts_group(gcx.sess, &docs[i - 1], &docs[i]))?;
     Some(docs[0].span.with_hi(docs[start].span.lo()))
 }
 

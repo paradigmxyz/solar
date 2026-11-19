@@ -1292,10 +1292,10 @@ fn parse_natspec(
     };
 
     // Early-exit if no tag is found.
-    if memchr::memchr(b'@', bytes).is_none_or(|at| text_line && !at_line_start(0, at)) {
-        // A blank line passes the text of a bare tag on to the next one.
+    if memchr::memchr(b'@', bytes).is_none() {
         if content.trim().is_empty() {
-            return text_line;
+            // As in solc, an empty line passes the text of a bare tag on to the next one.
+            return text_line && content.trim_end_matches('\r').is_empty();
         }
 
         // Create a synthetic @notice tag for the entire comment
@@ -1344,10 +1344,11 @@ fn parse_natspec(
 
     // Iterate over each line and look for tags. As in solc, a line ends at LF, CR LF or a lone CR,
     // and its first '@' starts a tag wherever it is, dropping the text before it.
-    let (mut prev_line_end, mut bare_tag) = (0, false);
+    let (mut prev_line_end, mut bare_tag, mut tagged) = (0, text_line, false);
     for line_end in memchr::memchr2_iter(b'\n', b'\r', bytes).chain(std::iter::once(bytes.len())) {
-        let text_line = bare_tag
-            && !bytes[line_start..line_end].iter().all(|&b| b.is_ascii_whitespace() || b == b'*');
+        // As in solc, an empty line or a lone `*` passes the text of a bare tag on.
+        let text_line =
+            bare_tag && !matches!(bytes[line_start..line_end].trim_ascii_start(), b"" | b"*");
         if text_line {
             bare_tag = false;
         }
@@ -1361,6 +1362,14 @@ fn parse_natspec(
             // The tag name must immediately follow the '@': `@ param` is
             // plain text continuing the previous tag, matching solc.
             let (tag, rest_start) = crate::natspec::split_once_ws(content, tag_start, line_end);
+            // A `solar-` tag changes how we compile, so a mention in the middle of a line, such as
+            // in prose, is text.
+            if !at_line_start && tag.starts_with("custom:solar-") {
+                prev_line_end = line_end;
+                line_start = line_end + 1;
+                continue;
+            }
+            tagged = true;
             bare_tag = tag_start + tag.len() == line_end;
             if tag.is_empty() {
                 prev_line_end = line_end;
@@ -1403,9 +1412,7 @@ fn parse_natspec(
                 }
                 "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
-                    if let Some(custom_tag) = tag.strip_prefix("custom:")
-                        && (at_line_start || !custom_tag.starts_with("solar-"))
-                    {
+                    if let Some(custom_tag) = tag.strip_prefix("custom:") {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
                         ast::NatSpecKind::Custom { name: ident }
                     } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
@@ -1415,8 +1422,7 @@ fn parse_natspec(
                         // NOTE: We cannot tell yet whether solc reads this comment, so we only warn
                         // about an invalid tag that starts the line. One in the middle of a line,
                         // often an email address in a comment that solc ignores, still ends the
-                        // previous tag as in solc. So does a `solar-` tag there, which changes how
-                        // we compile, so that a mention in prose does not apply it.
+                        // previous tag as in solc.
                         if at_line_start && !in_yul {
                             invalid_tag(dcx, tag, comment_span);
                         }
@@ -1432,6 +1438,16 @@ fn parse_natspec(
         line_start = line_end + 1;
     }
     flush_item(items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
+    if comment_kind == ast::CommentKind::Line && !tagged {
+        // A `///` line whose '@' starts no tag is text, as when it has no '@'.
+        items.push(ast::NatSpecItem {
+            kind: ast::NatSpecKind::Notice,
+            span: comment_span,
+            symbol: comment_symbol,
+            content_start: 0,
+            content_end: content.len() as u32,
+        });
+    }
     bare_tag && comment_kind == ast::CommentKind::Line
 }
 

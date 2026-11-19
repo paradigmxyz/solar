@@ -21,6 +21,10 @@
 // CHECK: "details": "mail user@example.com",
 // CHECK-LABEL: "J": {
 // CHECK: "details": "see @custom:y z",
+// CHECK-LABEL: "R": {
+// CHECK: "custom:y": "z",
+// CHECK-LABEL: "P": {
+// CHECK: "notice": "Safe vault. Do not add @custom:solar-trusted here",
 {
   "language": "Solidity",
   "settings": {

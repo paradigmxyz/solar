@@ -84,6 +84,32 @@
           "details": "see @custom:y z",
           "version": 1
         }
+      },
+      "R": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "custom:y": "z",
+          "version": 1
+        }
+      },
+      "P": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "notice": "Safe vault. Do not add @custom:solar-trusted here",
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
       }
     }
   }

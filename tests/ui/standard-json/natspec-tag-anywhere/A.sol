@@ -43,3 +43,16 @@ contract G {}
 ///
 /// see @custom:y z
 contract J {}
+
+// A line with only spaces is not empty, so it is the bare tag's text, as in solc.
+/// @dev
+/// 
+/// see @custom:y z
+contract R {}
+
+// Unlike in solc, a `solar-` tag in the middle of a line is text, so that prose does not apply it.
+/**
+ * @notice Safe vault.
+ * Do not add @custom:solar-trusted here
+ */
+contract P {}
