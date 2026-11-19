@@ -20,15 +20,16 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiParamType, AbiType, BlockId, Builtin, CallOutput, CallPolicy, Callee,
-        CheckedOp, Function, FunctionAttributes, Hotness, ImmutableEncoding, InstId, InstKind,
-        MirType, Module, Op, Terminator, ValueId, analysis::AddressSpace,
+        AbiLayout, AbiParamType, AbiParamTypeRef, AbiType, BlockId, Builtin, CallOutput,
+        CallPolicy, Callee, CheckedOp, Function, FunctionAttributes, Hotness, ImmutableEncoding,
+        InstId, InstKind, MirType, Module, Op, Terminator, ValueId, analysis::AddressSpace,
         immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode, Tune};
+use solar_data_structures::map::FxHashMap;
 use solar_evmir::gas::since;
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
@@ -1757,18 +1758,23 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
 }
 
 /// Returns the number of nodes in `ty`, counting a byte string as two, which sizes its inline
-/// decoder.
+/// decoder. Each shared node is counted along every path to it, but walked once.
 fn abi_param_type_nodes(ty: &AbiParamType) -> u64 {
-    match ty {
-        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
-            abi_param_type_nodes(element).saturating_add(1)
-        }
-        AbiParamType::Tuple(fields) => {
-            fields.iter().map(abi_param_type_nodes).fold(1, u64::saturating_add)
-        }
-        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => 1,
-        AbiParamType::Bytes => 2,
+    fn count<'a>(ty: &'a AbiParamType, memo: &mut FxHashMap<&'a AbiParamTypeRef, u64>) -> u64 {
+        let own = if matches!(ty, AbiParamType::Bytes) { 2 } else { 1 };
+        ty.children().fold(own, |sum, child| {
+            let nodes = match memo.get(child) {
+                Some(&nodes) => nodes,
+                None => {
+                    let nodes = count(child, memo);
+                    memo.insert(child, nodes);
+                    nodes
+                }
+            };
+            sum.saturating_add(nodes)
+        })
     }
+    count(ty, &mut FxHashMap::default())
 }
 
 #[cfg(test)]
@@ -2758,14 +2764,16 @@ mod tests {
     #[test]
     fn abi_decoders_share_by_copy_bytes() {
         let word = || AbiParamType::Scalar(ValueLayout::Address);
-        let array = AbiParamType::DynamicArray(Box::new(word()));
-        let call = AbiParamType::DynamicArray(Box::new(AbiParamType::Tuple(
-            [word(), word(), AbiParamType::Bytes].into(),
+        let node = AbiParamTypeRef::new;
+        let array = AbiParamType::DynamicArray(node(word()));
+        let call = AbiParamType::DynamicArray(node(AbiParamType::Tuple(
+            [node(word()), node(word()), node(AbiParamType::Bytes)].into(),
         )));
         // `struct S { T a; T b; }` over `struct T { uint256[] a; }`, nested ten times: 4,095 nodes.
-        let mut tree = AbiParamType::Tuple([array.clone()].into());
+        let mut tree = AbiParamType::Tuple([node(array.clone())].into());
         for _ in 0..10 {
-            tree = AbiParamType::Tuple([tree.clone(), tree].into());
+            let inner = node(tree);
+            tree = AbiParamType::Tuple([inner.clone(), inner].into());
         }
         let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
         // Two copies of a `uint256[]` or of a `Call[]` decoder add 80 and 240 bytes.

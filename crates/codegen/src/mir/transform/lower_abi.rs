@@ -110,11 +110,11 @@
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation,
-        AbiParamType, AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, Callee,
-        EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate,
-        InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectLayout,
-        MirModuleTarget, MirPhase, MirType, Module, PtrLocation, RevertReason, Terminator, Value,
-        ValueId, ValueLayout,
+        AbiParamType, AbiParamTypeRef, AbiType, AbiWordValidator, AllocationSemantics, ArgIdx,
+        BlockId, Callee, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
+        MemoryObjectLayout, MirModuleTarget, MirPhase, MirType, Module, PtrLocation, RevertReason,
+        Terminator, Value, ValueId, ValueLayout,
         analysis::{
             AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask,
         },
@@ -130,7 +130,7 @@ use solar_config::{EvmVersion, OptimizationMode, RevertStrings};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{Ident, Span, Symbol, sym};
 use std::sync::Arc;
@@ -569,7 +569,7 @@ impl LowerAbiCx {
                     if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata)) {
                         if let AbiParamType::DynamicArray(element) = &ty
                             && !element.is_scalar_word()
-                            && !matches!(element.as_ref(), AbiParamType::Bytes)
+                            && !matches!(**element, AbiParamType::Bytes)
                         {
                             // Assembly can set a length whose head size wraps to a small one,
                             // where solc runs out of gas.
@@ -665,9 +665,9 @@ impl LowerAbiCx {
         target: Target,
         decode_functions: &DenseBitSet<FunctionId>,
     ) {
-        let mut decode_counts = FxHashMap::default();
-        let mut memory_type_counts = FxHashMap::default();
-        let mut calldata_type_counts = FxHashMap::default();
+        let mut decode_counts = FxIndexMap::default();
+        let mut memory_type_counts = FxIndexMap::default();
+        let mut calldata_type_counts = FxIndexMap::default();
         for func_id in decode_functions.iter() {
             let func = module.function(func_id);
             for inst_id in func.instructions() {
@@ -680,7 +680,7 @@ impl LowerAbiCx {
                 if func.value_slice_location(*data) == Some(PtrLocation::Calldata) {
                     for ty in &layout.types {
                         for_each_decoder(ty, &mut |ty| {
-                            count_type(&mut calldata_type_counts, ty, 1)
+                            count_type(&mut calldata_type_counts, ty, 1, usize::MAX);
                         });
                     }
                     continue;
@@ -797,7 +797,7 @@ impl LowerAbiCx {
         // Debug revert strings give nested sites their own offset reasons, which only inline
         // decoding reports, so only parameters count there.
         let nested = !self.revert_strings.is_debug();
-        let mut counts = FxHashMap::<AbiParamType, (usize, usize)>::default();
+        let mut counts = FxIndexMap::default();
         for &id in targets {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
@@ -805,7 +805,7 @@ impl LowerAbiCx {
                 if !ty.is_scalar_word() && arg_type == MirType::MEMPTR {
                     // `count_nested_types` counts a dynamic tuple or array itself.
                     if !nested || !decodes_nested(ty) {
-                        count_type(&mut counts, ty, 1);
+                        count_type(&mut counts, ty, 1, 2);
                     }
                     if nested {
                         count_nested_types(ty, 1, &mut counts);
@@ -2206,7 +2206,7 @@ impl LowerAbiCx {
         }
         if let AbiParamType::FixedArray { element, len } = ty
             && Self::is_scalar_or_enum(element)
-            && !matches!(element.as_ref(), AbiParamType::Scalar(ValueLayout::Function))
+            && !matches!(**element, AbiParamType::Scalar(ValueLayout::Function))
         {
             let (object, _) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
             if element.word_validator().is_some() {
@@ -2752,68 +2752,60 @@ fn calldata_type_helper_args(
     if decodes_nested(ty) { vec![head, tuple_base] } else { vec![head] }
 }
 
-/// Adds `occurrences` to the use count of `ty`.
+/// Adds `occurrences` to the use count of `ty`, saturating at `limit`, and returns the increase,
+/// or `None` when `ty` was already counted and its count did not change.
 fn count_type(
-    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+    counts: &mut FxIndexMap<AbiParamType, usize>,
     ty: &AbiParamType,
     occurrences: usize,
-) {
-    let first = counts.len();
-    let count = match counts.get_mut(ty) {
-        Some(count) => count,
-        None => counts.entry(ty.clone()).or_insert((0, first)),
+    limit: usize,
+) -> Option<usize> {
+    let (count, new) = match counts.get_mut(ty) {
+        Some(count) => (count, false),
+        None => (counts.entry(ty.clone()).or_default(), true),
     };
-    count.0 = count.0.saturating_add(occurrences);
+    let previous = *count;
+    *count = previous.saturating_add(occurrences).min(limit);
+    (new || *count != previous).then(|| *count - previous)
 }
 
-/// Returns the types counted at least twice, inner types before the types that contain them.
-fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiParamType> {
-    let mut types = counts
-        .into_iter()
-        .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
-        .collect::<Vec<_>>();
-    types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
-    types.into_iter().map(|(_, ty)| ty).collect()
+/// Returns the types counted at least twice, inner types before the types that contain them,
+/// and otherwise in the order they were first counted.
+fn repeated_types(counts: FxIndexMap<AbiParamType, usize>) -> Vec<AbiParamType> {
+    let mut types =
+        counts.into_iter().filter_map(|(ty, count)| (count >= 2).then_some(ty)).collect::<Vec<_>>();
+    types.sort_by_key(AbiParamType::depth);
+    types
 }
 
 /// Adds `occurrences` to the use count of every dynamic tuple and dynamic array in `ty`, itself
-/// included.
+/// included. Only the increase of a counted value reaches the values inside it, and none once its
+/// count saturates, so a value shared along many paths is walked at most three times.
 fn count_nested_types(
     ty: &AbiParamType,
     occurrences: usize,
-    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+    counts: &mut FxIndexMap<AbiParamType, usize>,
 ) {
     match ty {
-        AbiParamType::FixedArray { element, len } => count_nested_types(
+        AbiParamType::FixedArray { element, len } if element.is_dynamic() => count_nested_types(
             element,
             occurrences.saturating_mul(usize::try_from(*len).unwrap_or(usize::MAX)).min(2),
             counts,
         ),
         AbiParamType::DynamicArray(element) => {
-            count_type(counts, ty, occurrences);
-            count_nested_types(element, occurrences, counts)
-        }
-        AbiParamType::Tuple(fields) => {
-            if ty.has_dynamic_child() {
-                count_type(counts, ty, occurrences);
-            }
-            for field in fields {
-                count_nested_types(field, occurrences, counts);
+            if let Some(added) = count_type(counts, ty, occurrences, 2) {
+                count_nested_types(element, added, counts);
             }
         }
-        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
-    }
-}
-
-fn abi_param_type_depth(ty: &AbiParamType) -> usize {
-    match ty {
-        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
-            abi_param_type_depth(element) + 1
+        AbiParamType::Tuple(fields) if ty.has_dynamic_child() => {
+            if let Some(added) = count_type(counts, ty, occurrences, 2) {
+                for field in fields {
+                    count_nested_types(field, added, counts);
+                }
+            }
         }
-        AbiParamType::Tuple(fields) => {
-            fields.iter().map(abi_param_type_depth).max().unwrap_or_default() + 1
-        }
-        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => 0,
+        // A static value holds no dynamic tuple or array.
+        _ => {}
     }
 }
 
@@ -2823,6 +2815,8 @@ fn for_each_decoder(ty: &AbiParamType, f: &mut impl FnMut(&AbiParamType)) {
     match ty {
         AbiParamType::DynamicArray(_) => f(ty),
         AbiParamType::Tuple(_) if ty.has_dynamic_child() => f(ty),
+        // A static value holds no dynamic tuple or array.
+        _ if !ty.is_dynamic() => {}
         _ => for_each_inner_decoder(ty, f),
     }
 }
@@ -2845,29 +2839,33 @@ fn for_each_inner_decoder(ty: &AbiParamType, f: &mut impl FnMut(&AbiParamType)) 
 /// while an inline type passes on one per copy of itself.
 fn shared_calldata_types(
     target: Target,
-    mut counts: FxHashMap<AbiParamType, (usize, usize)>,
-) -> FxHashMap<AbiParamType, (usize, usize)> {
+    mut counts: FxIndexMap<AbiParamType, usize>,
+) -> FxIndexMap<AbiParamType, usize> {
     let mut types = counts.keys().cloned().collect::<Vec<_>>();
     let mut next = 0;
     while let Some(ty) = types.get(next).cloned() {
         for_each_inner_decoder(&ty, &mut |inner| {
             if !counts.contains_key(inner) {
-                count_type(&mut counts, inner, 0);
+                count_type(&mut counts, inner, 0, usize::MAX);
                 types.push(inner.clone());
             }
         });
         next += 1;
     }
-    types.sort_by_key(|ty| std::cmp::Reverse(abi_param_type_depth(ty)));
+    types.sort_by_key(|ty| std::cmp::Reverse(ty.depth()));
+    let mut unshared = FxHashSet::default();
     for ty in types {
-        let copies = counts[&ty].0;
+        let copies = counts[&ty];
         let shared = target.shares_abi_decoder(&ty, copies);
         let inner_copies = if shared { 1 } else { copies };
-        for_each_inner_decoder(&ty, &mut |inner| count_type(&mut counts, inner, inner_copies));
+        for_each_inner_decoder(&ty, &mut |inner| {
+            count_type(&mut counts, inner, inner_copies, usize::MAX);
+        });
         if !shared {
-            counts.remove(&ty);
+            unshared.insert(ty);
         }
     }
+    counts.retain(|ty, _| !unshared.contains(ty));
     counts
 }
 
@@ -2876,7 +2874,7 @@ fn shared_calldata_types(
 fn synthesize_decode_type_helpers(
     revert_strings: RevertStrings,
     module: &mut Module,
-    counts: FxHashMap<AbiParamType, (usize, usize)>,
+    counts: FxIndexMap<AbiParamType, usize>,
     calldata: bool,
 ) -> FxHashMap<AbiParamType, FunctionId> {
     let name = if calldata { sym::decode_calldata_slice_type } else { sym::decode_memory_type };
@@ -3499,7 +3497,7 @@ fn allocation_initializers(func: &Function, alloc: InstId) -> Option<&[InstId]> 
 
 fn is_canonical_return_object(
     func: &Function,
-    fields: &[AbiParamType],
+    fields: &[AbiParamTypeRef],
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
     visiting: &mut FxHashSet<ValueId>,

@@ -1,0 +1,8 @@
+error: ABI shape `$0` is already defined
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_abi_shape_redefined.mir:LL:CC
+   │
+LL │     v0 = abi_decode [tuple<$0 = tuple<array<_, uint256>>, $0 = tuple<array<_, uint256>>>], arg0
+   ╰╴                                                          ━━
+
+error: aborting due to 1 previous error
+
