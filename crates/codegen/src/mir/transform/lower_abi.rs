@@ -40,7 +40,10 @@
 //! helpers of `abi_decode`, for memory and calldata slices, follow the same policy and also take
 //! the input's end. A shared nested decode costs one internal call where inline decoding costs
 //! none, and saves the decoder's code at every further site. Fixed arrays with dynamic elements
-//! and nested `bytes` decode inline: sharing them saves too little code to pay for the call.
+//! and nested `bytes` decode inline: sharing them saves too little code to pay for the call. A gas
+//! build keeps a calldata slice's repeated decoders inline until their copies grow too large, as
+//! the cost model prices them, so a small repeated type saves its calls while a tree that repeats
+//! a type at every level still decodes in linear code.
 //!
 //! Scalar arrays whose canonicality requires zero bits fold their words with OR and validate
 //! once after the loop. Their checked source range supplies a non-wrapping end for a word
@@ -104,17 +107,23 @@
 //! to these argument-free wrappers, this materializes the ABI boundary before
 //! EVM codegen. Both passes must complete before the backend runs.
 
-use crate::mir::{
-    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, Callee, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId, InstKind, Instruction,
-    InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
-    RevertReason, Terminator, Value, ValueId, ValueLayout,
-    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
-    memory::EvmMemoryLayout,
-    pass::{MirPass, ModuleAnalyses},
-    transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
-    typing::memory_object,
+use crate::{
+    mir::{
+        AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation,
+        AbiParamType, AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, Callee,
+        EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate,
+        InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectLayout,
+        MirModuleTarget, MirPhase, MirType, Module, PtrLocation, RevertReason, Terminator, Value,
+        ValueId, ValueLayout,
+        analysis::{
+            AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, ModuleAnalyses},
+        transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
+        typing::memory_object,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, RevertStrings};
@@ -150,7 +159,7 @@ impl MirPass for LowerAbi {
     ) -> bool {
         let gas = module.runs_objective(OptimizationMode::is_gas);
         LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }
-            .run(module, gcx.sess.opts.evm_version, gas)
+            .run(module, module.target(gcx), gas)
             .unwrap_or_else(|| {
                 analyses.fail(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
                 false
@@ -255,12 +264,7 @@ impl DecodeOptions<'_> {
 impl LowerAbiCx {
     /// Lowers the module's ABI boundary, returning whether it changed, or `None` when the module
     /// has an ABI shape this pass cannot lower.
-    fn run(
-        &mut self,
-        module: &mut Module,
-        evm_version: EvmVersion,
-        gas_mode: bool,
-    ) -> Option<bool> {
+    fn run(&mut self, module: &mut Module, target: Target, gas_mode: bool) -> Option<bool> {
         let mut targets = Vec::new();
         let mut constructors = Vec::new();
         let mut bytes_fallback = None;
@@ -336,10 +340,10 @@ impl LowerAbiCx {
             FxHashSet::default()
         };
 
-        self.lower_decode_instructions(module, &decode_functions);
+        self.lower_decode_instructions(module, target, &decode_functions);
 
         if has_revert_returndata {
-            self.lower_revert_returndata(module, evm_version);
+            self.lower_revert_returndata(module, target.evm_version());
         }
 
         // A bytes fallback receives the complete calldata blob and returns raw
@@ -658,6 +662,7 @@ impl LowerAbiCx {
     fn lower_decode_instructions(
         &self,
         module: &mut Module,
+        target: Target,
         decode_functions: &DenseBitSet<FunctionId>,
     ) {
         let mut decode_counts = FxHashMap::default();
@@ -670,10 +675,13 @@ impl LowerAbiCx {
                     continue;
                 };
                 // A calldata slice decodes in place at every site, without a whole-decode helper,
-                // so each site counts toward sharing its dynamic tuples and arrays.
+                // so each site makes a copy of the decoders of its outermost dynamic tuples and
+                // arrays.
                 if func.value_slice_location(*data) == Some(PtrLocation::Calldata) {
                     for ty in &layout.types {
-                        count_nested_types(ty, 1, &mut calldata_type_counts);
+                        for_each_decoder(ty, &mut |ty| {
+                            count_type(&mut calldata_type_counts, ty, 1)
+                        });
                     }
                     continue;
                 }
@@ -690,6 +698,7 @@ impl LowerAbiCx {
 
         let memory_type_helpers =
             synthesize_decode_type_helpers(self.revert_strings, module, memory_type_counts, false);
+        let calldata_type_counts = shared_calldata_types(target, calldata_type_counts);
         let calldata_type_helpers =
             synthesize_decode_type_helpers(self.revert_strings, module, calldata_type_counts, true);
 
@@ -2743,7 +2752,7 @@ fn calldata_type_helper_args(
     if decodes_nested(ty) { vec![head, tuple_base] } else { vec![head] }
 }
 
-/// Adds `occurrences` to the use count of `ty`, saturating at two.
+/// Adds `occurrences` to the use count of `ty`.
 fn count_type(
     counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
     ty: &AbiParamType,
@@ -2754,7 +2763,7 @@ fn count_type(
         Some(count) => count,
         None => counts.entry(ty.clone()).or_insert((0, first)),
     };
-    count.0 = count.0.saturating_add(occurrences).min(2);
+    count.0 = count.0.saturating_add(occurrences);
 }
 
 /// Returns the types counted at least twice, inner types before the types that contain them.
@@ -2806,6 +2815,60 @@ fn abi_param_type_depth(ty: &AbiParamType) -> usize {
         }
         AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => 0,
     }
+}
+
+/// Calls `f` on `ty` when it is a dynamic tuple or dynamic array, whose decoder a helper can share,
+/// and otherwise on the nearest such types inside it.
+fn for_each_decoder(ty: &AbiParamType, f: &mut impl FnMut(&AbiParamType)) {
+    match ty {
+        AbiParamType::DynamicArray(_) => f(ty),
+        AbiParamType::Tuple(_) if ty.has_dynamic_child() => f(ty),
+        _ => for_each_inner_decoder(ty, f),
+    }
+}
+
+/// Calls [`for_each_decoder`] on each type directly inside `ty`. A fixed array decodes its
+/// elements in a loop, so its element counts once.
+fn for_each_inner_decoder(ty: &AbiParamType, f: &mut impl FnMut(&AbiParamType)) {
+    match ty {
+        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
+            for_each_decoder(element, f)
+        }
+        AbiParamType::Tuple(fields) => fields.iter().for_each(|field| for_each_decoder(field, f)),
+        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
+    }
+}
+
+/// Returns the dynamic tuples and arrays of calldata decodes that share a helper, given the copies
+/// of their decoders that the decode sites make. Types are decided from the outermost in: a shared
+/// type decodes once, in its helper, so each type inside it counts one copy per occurrence there,
+/// while an inline type passes on one per copy of itself.
+fn shared_calldata_types(
+    target: Target,
+    mut counts: FxHashMap<AbiParamType, (usize, usize)>,
+) -> FxHashMap<AbiParamType, (usize, usize)> {
+    let mut types = counts.keys().cloned().collect::<Vec<_>>();
+    let mut next = 0;
+    while let Some(ty) = types.get(next).cloned() {
+        for_each_inner_decoder(&ty, &mut |inner| {
+            if !counts.contains_key(inner) {
+                count_type(&mut counts, inner, 0);
+                types.push(inner.clone());
+            }
+        });
+        next += 1;
+    }
+    types.sort_by_key(|ty| std::cmp::Reverse(abi_param_type_depth(ty)));
+    for ty in types {
+        let copies = counts[&ty].0;
+        let shared = target.shares_abi_decoder(&ty, copies);
+        let inner_copies = if shared { 1 } else { copies };
+        for_each_inner_decoder(&ty, &mut |inner| count_type(&mut counts, inner, inner_copies));
+        if !shared {
+            counts.remove(&ty);
+        }
+    }
+    counts
 }
 
 /// Adds a helper for each dynamic tuple or array counted at least twice in the ABI decodes of

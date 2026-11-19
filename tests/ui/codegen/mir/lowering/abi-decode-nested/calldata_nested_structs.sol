@@ -1,14 +1,15 @@
 //@ revisions: ir gas size
 //@[ir] compile-flags: -O none -Zdump=mir-final
 //@[ir] filecheck:
-//@[gas] compile-flags: -Ogas
+//@[gas] compile-flags: -Ogas -Zdump=mir
+//@[gas] filecheck: --check-prefix=GAS
 //@[size] compile-flags: -Osize
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: shallow 0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000009 => 2, 7, 9
 //@ run-call-fail: 0x5303452b000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000009 => 0x
 
-// A calldata `abi.decode` shares one decoder per repeated nested type, so a tree of structs whose
-// encoding doubles at each level compiles to linear code. The decoders bound every read by the
+// A calldata `abi.decode` shares the decoders of nested types it repeats, so a tree of structs
+// whose encoding doubles at each level compiles to linear code, under the gas objective too. The decoders bound every read by the
 // end of the decoded slice, not by `calldatasize`: the second call puts the last array element
 // just past the slice, still inside calldata, and must revert.
 
@@ -32,6 +33,9 @@ contract C {
     // CHECK-LABEL: fn @deep(
     // CHECK: icall @decode_calldata_slice_type.[[S13:[0-9]+]],
     // CHECK: icall @decode_calldata_slice_type.[[S13]],
+    // GAS-LABEL: fn @deep(
+    // GAS: icall @decode_calldata_slice_type.[[S13:[0-9]+]],
+    // GAS: icall @decode_calldata_slice_type.[[S13]],
     function deep(bytes calldata data) external pure returns (uint256) {
         S14 memory s = abi.decode(data, (S14));
         return s.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.length;
@@ -39,7 +43,7 @@ contract C {
 
     // CHECK-LABEL: fn @shallow(
     // CHECK: icall @decode_calldata_slice_type
-    // CHECK-COUNT-15: fn @decode_calldata_slice_type
+    // CHECK-COUNT-14: fn @decode_calldata_slice_type
     // CHECK-NOT: fn @decode_calldata_slice_type
     function shallow(bytes calldata data) external pure returns (uint256, uint256, uint256) {
         S1 memory s = abi.decode(data, (S1));
