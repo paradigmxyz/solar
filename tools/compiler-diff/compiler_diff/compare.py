@@ -631,7 +631,9 @@ def compare_outputs(left, right, comparator="abi", policy="interface", rules=())
             "differences": diff,
             **({"error": "\n".join(errors)} if errors else {}),
         }
-    except (ValueError, KeyError, TypeError) as error:
+    # Every comparator walks the outputs recursively, so absurdly deep JSON can
+    # overflow the stack; report that as an error instead of aborting the run.
+    except (ValueError, KeyError, TypeError, RecursionError) as error:
         return {
             "comparator": comparator,
             "version": version,
@@ -1054,6 +1056,15 @@ class Tests(unittest.TestCase):
                 )
                 self.assertEqual(result["status"], "error")
                 self.assertIn("right: " + message, result["error"])
+
+    def test_deep_output_is_an_error(self):
+        output = self.storage_output()
+        deep = {}
+        for _ in range(10_000):
+            deep = {"x": deep}
+        output["contracts"]["C.sol"]["C"]["storageLayout"]["types"]["x"] = deep
+        result = compare_outputs(self.storage_output(), output, "storage-layout")
+        self.assertEqual(result["status"], "error")
 
     def test_storage_layout_missing(self):
         left = self.storage_output()
