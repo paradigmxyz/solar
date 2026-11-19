@@ -247,12 +247,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.use_counts.clear();
         if self.capture_debug_info {
             self.use_counts.resize(func.num_values(), 0);
-            for block in &func.blocks {
-                for &inst in &block.instructions {
-                    func.inst(inst).kind.visit_operands(|operand| self.use_counts[operand] += 1);
+            let mut definitions = FxHashMap::<ValueId, BlockId>::default();
+            for (block, data) in func.blocks.iter_enumerated() {
+                for &inst in &data.instructions {
+                    if let Some(result) = func.inst_result_value(inst) {
+                        definitions.insert(result, block);
+                    }
                 }
-                if let Some(term) = &block.terminator {
-                    term.visit_operands(|operand| self.use_counts[operand] += 1);
+            }
+            // A use in another block than the definition counts twice: the read moves into that
+            // block, where LLVM drops the location of the moved code (`dropLocation`), so the
+            // read takes the origin of its use like a copy.
+            for (block, data) in func.blocks.iter_enumerated() {
+                let mut count = |operand: ValueId| {
+                    let local = definitions.get(&operand).is_none_or(|&def| def == block);
+                    self.use_counts[operand] += if local { 1 } else { 2 };
+                };
+                for &inst in &data.instructions {
+                    func.inst(inst).kind.visit_operands(&mut count);
+                }
+                if let Some(term) = &data.terminator {
+                    term.visit_operands(&mut count);
                 }
             }
             // A copy that rebuilding made stands for one of several uses of its original, so it
@@ -938,11 +953,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// re-executed at each use like an immediate, so it takes the user's origins, as LLVM gives a
     /// per-use materialized constant the user's location and a reload none of its own. The
     /// definition's origins would send the debugger back to the parameter list or to an earlier
-    /// statement at every use. A read with a single use is not such a copy: it runs once and only
-    /// moves within its block, and LLVM keeps the `DebugLoc` of an instruction that moves within
-    /// its block (`HowToUpdateDebugInfo`, "Preserve"). Its use can be code the optimizer moved
-    /// into the statement, such as the body of an inlined callee that reads the argument, and the
-    /// statement of the read would be left with no instruction. A definition inside the use is the
+    /// statement at every use. A read with a single use in its own block is not such a copy: it
+    /// runs once and only moves within its block, and LLVM keeps the `DebugLoc` of an instruction
+    /// that moves within its block (`HowToUpdateDebugInfo`, "Preserve"). Its use can be code the
+    /// optimizer moved into the statement, such as the body of an inlined callee that reads the
+    /// argument, and the statement of the read would be left with no instruction. A use in another
+    /// block, such as the body of a loop, counts as a second use: LLVM drops the location of code
+    /// that moves to another block. A definition inside the use is the
     /// more precise origin of this very read, so it stays. An unoptimized build also keeps a
     /// definition that is its own item, such as the initializer of a local, because the read may
     /// be the only instruction coverage can anchor that item to. A parameter read, whose definition
@@ -976,13 +993,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let at_implicit_exit =
             || consumer.only_source_span().is_some_and(|user| is_closing_brace(func, user));
+        // A parameter read maps to the definition of its function. The dispatcher's entry holds the
+        // routes it inlined and has no span to tell their parameters by, so any read of it passes
+        // for one.
+        let is_parameter_read = || {
+            func.declaration_span.is_dummy()
+                || definition.source_span() == Some(func.declaration_span)
+        };
         !is_operandless_read(func, value)
             || !consumer.has_source_spans()
             || definition_in_use()
             || at_implicit_exit()
-            || (self.optimization.is_none()
-                // A parameter read maps to the definition of its function.
-                || single_use && definition.source_span() != Some(func.declaration_span))
+            || (self.optimization.is_none() || single_use && !is_parameter_read())
                 && !use_in_definition()
     }
 

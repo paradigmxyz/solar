@@ -39,6 +39,12 @@
 // CHECK-NEXT: push 4 !metadata(span=[[INLINED]])
 // CHECK-NEXT: calldataload !metadata(span=[[INLINED]])
 
+// A single use in another block than the definition is a copy that moved there, and takes the
+// origin of its use too. The read of `msg.sender` runs in the loop body, under the call and not
+// under the declaration of `s` before the loop.
+
+// CHECK: caller !metadata(span=[[LOOP:[0-9]+..[0-9]+]])
+// CHECK: sload !metadata(span=[[LOOP]])
 interface I {
     event E(uint64 a, bytes b);
 }
@@ -77,5 +83,22 @@ contract C is I {
     // Shares the encoding of the `emit` in `emitE`, so the code of `fromLibrary` is the shared one.
     function direct(uint64 a, bytes calldata b) external {
         emit I.E(a, b);
+    }
+}
+
+contract D {
+    mapping(address => uint256) b;
+    uint256 n;
+
+    function _add(address to, uint256 v) internal {
+        b[to] += v;
+    }
+
+    function run(uint256 k) external {
+        address s = msg.sender;
+        for (uint256 i = 0; i < k; i++) {
+            _add(s, i);
+        }
+        n = k;
     }
 }
