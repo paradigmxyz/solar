@@ -199,11 +199,11 @@ theorem resume_dispatch {binders} :
   exact Execution.Trace.run_segment {width} 2048 _ _
     (symbolic_dispatch env journal surplus large small noValue selected)
 
-def physicalStart := dispatched env checkpoint (initial.frame.gas - {route.gas})
+def dispatchStart := dispatched env checkpoint (initial.frame.gas - {route.gas})
 
 theorem dispatch_concrete :
     runBytes {helper} 2048 tvWorldConfig initial =
-      Execution.Trace.run (chunkedByteStep {helper} tvWorldConfig code) {2048 - width} physicalStart :=
+      Execution.Trace.run (chunkedByteStep {helper} tvWorldConfig code) {2048 - width} dispatchStart :=
   resume_dispatch env checkpoint (initial.frame.gas - {route.gas})
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
 

@@ -1490,15 +1490,19 @@ success, token revert and false-return fixtures. It checks return words,
 storage and log rollback.
 
 Add `--check-caller-entry` to certify five complete ABI invocations in Cancun.
-The Lean kernel checks the emitted selector dispatch symbolically for all five
-callers. For zero call value, the matching selector, and sufficient dispatch
-gas, the proof carries arbitrary calldata and the complete journal to the ABI
-decoder. The MIR ABI model separately proves decoding for arbitrary canonical
-head words and callback bytes. The concrete invocation certificates use the
-symbolic dispatch proof to enter the captured ABI body, then validate its
-execution to the helper and exit. Each checks the helper live-ins and
-FMP, then resumes each reached frame through the actual helper and caller
-instructions. The final proof compares terminal status, ABI bytes, accounts
+The Lean kernel checks the emitted selector dispatch and ABI decoding for all
+five callers. For zero call value, a matching selector, a canonical bytes
+offset, clean addresses and an in-bounds payload, the proof preserves the
+journal and derives the decoder's stack, memory and gas charge. The decoder's
+market tuple and free memory pointer agree with the MIR entry frame. Rust
+independently replays the decoder exits.
+
+The invocation certificates apply these results to the supplied input, then
+check the concrete execution from the decoder to the helper and ABI exit.
+Other valid offsets use the concrete trace from the dispatcher exit. Each
+certificate checks the helper live-ins and FMP, then resumes each reached
+frame through the actual helper and caller instructions. The final proof
+compares terminal status, ABI bytes, accounts
 and logs. MIR uses the gas samples and message budgets from the checked
 bytecode execution. The exact physical gas and refund are separately checked
 against the Rust replay.

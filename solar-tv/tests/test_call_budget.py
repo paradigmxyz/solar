@@ -118,6 +118,7 @@ class CallBudgetTests(unittest.TestCase):
             entry_report = report["abi_entry"]
             self.assertEqual(entry_report["reachability"], "lean-kernel")
             self.assertEqual(entry_report["dispatcher"], "symbolic-lean-kernel")
+            self.assertEqual(entry_report["decoder"], "symbolic-lean-kernel")
             self.assertEqual(entry_report["independent_replay"], "lean-and-rust-replay")
             self.assertEqual(entry_report["snapshot_live_ins"], "lean-kernel")
             self.assertEqual(entry_report["end_to_end"], "lean-kernel")
@@ -133,6 +134,20 @@ class CallBudgetTests(unittest.TestCase):
                 dispatch = entry[name]["dispatch"]
                 self.assertTrue((output / "entry" / dispatch["proof"]).is_file())
                 self.assertEqual(dispatch["pc"], site["abi_pc"])
+                decoder = entry[name]["decoder"]
+                self.assertTrue(decoder["applied"])
+                self.assertTrue((output / "entry" / decoder["proof"]).is_file())
+                decoded = json.loads(
+                    (output / f"entry/{name}-decoder.json").read_text()
+                )
+                self.assertEqual(decoded["pc"], decoder["pc"])
+                routed = json.loads(
+                    (output / f"entry/{name}-dispatch.json").read_text()
+                )
+                self.assertEqual(routed["gas"] - decoded["gas"], decoder["gas"])
+                self.assertEqual(
+                    len(decoded["pcs"]), dispatch["steps"] + decoder["steps"]
+                )
                 end = entry[name]["exit"]
                 self.assertTrue((output / "entry" / end["proof"]).is_file())
                 self.assertGreater(end["segments"], 0)
@@ -320,7 +335,7 @@ example : afterTailCut.gas = 0 :=
             self.assertEqual(
                 report["runtime_sha256"], hashlib.sha256(runtime).hexdigest()
             )
-            self.check_symbolic_dispatch(output, runtime, report)
+            self.check_symbolic_abi_prefix(output, runtime, report)
 
             # Dispatch with a different selector must never certify a reached cut.
             state = world.read(output / "entry/supply.world.json", SOLAR, "exact")
@@ -757,13 +772,14 @@ def printGas (gas : Nat) : IO Unit :=
             self.assertEqual(rejected.returncode, 2, rejected.stdout + rejected.stderr)
             self.assertIn("differs from the same-compile", rejected.stderr)
 
-    def check_symbolic_dispatch(self, output, runtime, report):
+    def check_symbolic_abi_prefix(self, output, runtime, report):
         directory = output / "entry"
         kernel = directory / "kernel"
         executable = native.default(SOLAR)
         for index, site in enumerate(report["callers"]):
             name = site["name"]
-            evidence = report["abi_entry"]["paths"][name]["dispatch"]
+            path = report["abi_entry"]["paths"][name]
+            evidence, decoder = path["dispatch"], path["decoder"]
             state = world.read(directory / f"{name}.world.json", SOLAR, "exact")
             accounts = {
                 int(account["address"]): account for account in state["accounts"]
@@ -771,7 +787,7 @@ def printGas (gas : Nat) : IO Unit :=
             accounts[caller_replay.MORPHO]["code"] = list(runtime)
             accounts[caller_replay.MORPHO]["storage"] = []
             accounts[caller_replay.TOKEN]["code"] = [0]
-            state["gas"] = evidence["gas"] + index
+            state["gas"] = evidence["gas"] + decoder["gas"] + index
             tag = site["selector"].to_bytes(4, "big")
             original = caller_replay.calldata(name)
             words = [
@@ -791,12 +807,46 @@ def printGas (gas : Nat) : IO Unit :=
             )
             state["calldata"] = list(input_)
             observed = caller_entry.replay(state, site["abi_pc"], executable, 30)
-            self.assertEqual(observed["gas"], index)
+            self.assertEqual(observed["gas"], decoder["gas"] + index)
             self.assertEqual(observed["stack"], [str(site["selector"])])
             self.assertEqual(len(observed["pcs"]), evidence["steps"])
 
-            module = Path(evidence["proof"]).stem
-            namespace = module.removesuffix("Dispatch")
+            observed = caller_entry.replay(state, decoder["pc"], executable, 30)
+            self.assertEqual(observed["gas"], index)
+            start = 36 + head[-2]
+            self.assertEqual(
+                observed["stack"],
+                list(
+                    map(
+                        str,
+                        (
+                            start,
+                            len(payload),
+                            128 if market else parameters[1],
+                            site["selector"],
+                        ),
+                    )
+                ),
+            )
+            arena = [0, 0, 288, 0, *market] if market else [0, 0, 128]
+            self.assertEqual(
+                bytes(observed["memory"]), b"".join(map(caller_replay.word, arena))
+            )
+            self.assertEqual(len(observed["pcs"]), decoder["steps"] + evidence["steps"])
+            length_at = start - 32
+            changed = state["calldata"].copy()
+            changed[length_at:start] = list(caller_replay.word(len(input_) - start + 1))
+            rejected_input = {**state, "calldata": changed, "gas": state["gas"] + 1000}
+            with self.assertRaisesRegex(Unsupported, "bytecode probe was not reached"):
+                caller_entry.replay(rejected_input, decoder["pc"], executable, 30)
+            self.assertEqual(
+                caller_entry.replay(rejected_input, None, executable, 30)[0], "revert"
+            )
+
+            module = Path(decoder["proof"]).stem
+            namespace = module.removesuffix("Decoder")
+            address_count = (4 if market else 0) + 1
+            cases = " | ".join("rfl" for _ in range(address_count))
             source = f"""import {module}
 {entry_proof.HEADER}
 namespace {namespace}
@@ -807,9 +857,30 @@ def changedCfg : MIR.State.Config := {{mirCfg with environment := changedEnv}}
 theorem selectedVariant :
     Execution.Trace.segment (chunkedByteStep {report["entry_pc"]} tvWorldConfig code) {evidence["steps"]} 2048
       ⟨dispatchFrame changedEnv {state["gas"]} 0 [],checkpoint,[],[],[]⟩ =
-        .ok (.inr (dispatched changedEnv checkpoint {index})) :=
-  symbolic_dispatch changedEnv checkpoint {index}
+        .ok (.inr (dispatched changedEnv checkpoint {decoder["gas"] + index})) :=
+  symbolic_dispatch changedEnv checkpoint {decoder["gas"] + index}
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+theorem reachedVariant :
+    Execution.Trace.segment (chunkedByteStep {report["entry_pc"]} tvWorldConfig code)
+      {decoder["steps"]} {2048 - evidence["steps"]}
+      (dispatched changedEnv checkpoint {decoder["gas"] + index}) =
+        .ok (.inr (decodedFrame changedEnv checkpoint {index})) :=
+  symbolic_decoder changedEnv checkpoint {index}
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by intro i h; simp only [List.mem_cons,List.not_mem_nil,or_false] at h
+        rcases h with {cases} <;> decide +kernel)
+theorem replayedVariant :
+    (decodedFrame changedEnv checkpoint {index}).frame.stack = {list(map(int, observed["stack"]))} ∧
+    (decodedFrame changedEnv checkpoint {index}).frame.memory = {observed["memory"]} := by
+  decide +kernel
+theorem memoryMatches :
+    (decode selector caller changedCfg checkpoint).map (·.memory) =
+      .ok (decodedFrame changedEnv checkpoint {index}).frame.memory :=
+  decoded_mir_memory changedEnv checkpoint {index}
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by intro i h; simp only [List.mem_cons,List.not_mem_nil,or_false] at h
+        rcases h with {cases} <;> decide +kernel)
+    mirCfg (by decide +kernel)
 theorem decodedVariant :
     mirStart changedCfg beforeFunctions beforeEntry (MIR.TransferFromDispatch.selector variant.tag)
       caller checkpoint mirGas =

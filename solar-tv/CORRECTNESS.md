@@ -724,14 +724,20 @@ length in the word domain, zero call value, arbitrary journal, and enough
 gas to reach that decoder. The proof checks each actual opcode, PUSH
 immediate and taken jump destination against the emitted image, and its
 charge against the Cancun opcode table. Every step carries the world through
-unchanged. A separate theorem relates the typed MIR decoder and its initial
-frame to the canonical encoding for arbitrary head words and callback bytes.
+unchanged. From there a second symbolic segment checks the emitted length
+and address guards, tuple stores and bytes-slice decoding for the canonical
+ABI head offset. It derives the physical stack, active memory, and residual
+gas for arbitrary valid head words and callback bytes. Aligned word-store
+lemmas relate the physical memory to the MIR entry frame. The MIR ABI
+model separately relates the typed arguments to the canonical encoding.
 
-The concrete ABI-to-exit certificates apply that dispatcher theorem to the
-supplied input, resume at the decoder PC with the exact residual gas, and
-then prove reachability in the emitted runtime and both captured MIR bodies. They check
-the stack, ABI words and FMP at the helper cut. Each execution resumes with
-its own reached memory and journal, so the proof carries the actual writes
+The concrete ABI-to-exit certificates compose both segments for the
+supplied input, resume beyond decode with the exact residual gas, and then
+prove reachability in the emitted runtime and both captured MIR bodies.
+Valid alternate bytes offsets use the concrete trace from the dispatcher
+exit. The certificates check the stack, ABI words and FMP at the helper cut.
+Each execution resumes with its own reached memory and journal, so the proof
+carries the actual writes
 from the prefix into the suffix. On success it compares the ABI publication,
 committed accounts and logs. On revert it compares the payload and rollback
 to the owning checkpoint. The bytecode result provides both the prefix and
@@ -753,10 +759,10 @@ also checks the published bytes, effects and rollback on both IRs.
 Each certificate composes short transitions over complete states. The
 instruction-aligned image chunks and concrete Keccak digests have
 correspondence theorems to the list decoder and original hash. Rust replay
-independently checks the physical frame at the helper PC and the complete
-ABI exit, including exact gas and refund. `--caller-worlds` changes the
-concrete inputs used to derive the certificates. An all-input prefix
-simulation, general private-memory correspondence and physical MIR
+independently checks the physical frames at the ABI decoder exit and helper
+PC, and the complete ABI exit, including exact gas and refund.
+`--caller-worlds` changes the concrete inputs used to derive the certificates.
+An all-input prefix simulation, general private-memory correspondence and physical MIR
 instruction pricing remain open. The low-gas Supply fixture reaches the
 helper with 1,343 gas and exhausts it at the cold code-size check. The
 independent Rust replay and the kernel agree on out-of-gas and rollback. At

@@ -81,6 +81,158 @@ private theorem Calldata.word (data : Calldata) (tag : data.tag.length = 4) (ind
   rw [List.append_assoc, ← tag, readAt, Nat.mul_comm]
   exact encodedWord _ _ _ _ present
 
+/-- The emitted ABI decoders use aligned, word-sized stores. Track their
+active memory in words while keeping ordinary byte memory in each EVM step. -/
+def wordArena (words : List Word) : List Byte := words.flatMap wordBytes
+
+theorem wordArena_cons (head : Word) (tail : List Word) :
+    wordArena (head :: tail) = wordBytes head ++ wordArena tail := rfl
+
+theorem wordArena_append (left right : List Word) :
+    wordArena (left ++ right) = wordArena left ++ wordArena right := by
+  simp [wordArena,List.flatMap_append]
+
+@[simp] theorem wordArena_length (words : List Word) :
+    (wordArena words).length = words.length * 32 := by
+  induction words with
+  | nil => rfl
+  | cons head tail ih =>
+    simp only [wordArena_cons,List.length_append,wordBytes_length,ih,List.length_cons]
+    omega
+
+private theorem zeros (n : Nat) : wordArena (List.replicate n 0) = List.replicate (32*n) 0 := by
+  have wordZero : wordBytes (0 : Word) = List.replicate 32 0 := by decide
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [List.replicate_succ,wordArena_cons,wordZero,ih, List.replicate_append_replicate]
+    congr 1
+    omega
+
+private theorem takeArena (words : List Word) (n : Nat) :
+    (wordArena words).take (32*n) = wordArena (words.take n) := by
+  induction words generalizing n with
+  | nil => simp [wordArena]
+  | cons word words ih =>
+    cases n with
+    | zero => rfl
+    | succ n =>
+      have count : 32 * (n+1) = (wordBytes word).length + 32*n := by
+        simp [Nat.mul_succ,Nat.add_comm]
+      rw [count]
+      simp only [wordArena_cons,List.take_succ_cons,List.take_append,
+        List.take_of_length_le (Nat.le_add_right _ _),Nat.add_sub_cancel_left]
+      exact congrArg (wordBytes word ++ ·) (ih n)
+
+private theorem dropArena (words : List Word) (n : Nat) :
+    (wordArena words).drop (32*n) = wordArena (words.drop n) := by
+  induction words generalizing n with
+  | nil => simp [wordArena]
+  | cons word words ih =>
+    cases n with
+    | zero => rfl
+    | succ n =>
+      have count : 32 * (n+1) = (wordBytes word).length + 32*n := by
+        simp [Nat.mul_succ,Nat.add_comm]
+      rw [count]
+      simp only [wordArena_cons,List.drop_succ_cons,List.drop_append,
+        List.drop_of_length_le (Nat.le_add_right _ _),List.nil_append,
+        Nat.add_sub_cancel_left,ih]
+
+def activeWords (words : List Word) (index : Nat) : List Word :=
+  words ++ List.replicate (index+1-words.length) 0
+
+def storeArena (words : List Word) (index : Nat) (value : Word) : List Word :=
+  let active := activeWords words index
+  active.take index ++ value :: active.drop (index+1)
+
+@[simp] theorem requiredWordStore (words : List Word) (index : Nat) :
+    requiredWords (wordArena words) (32*index) 32 = max words.length (index+1) := by
+  unfold requiredWords memoryWords
+  simp only [wordArena_length,show ¬ (32 : Nat) = 0 by decide,ite_false]
+  congr 1 <;> omega
+
+theorem expandArena (words : List Word) (index : Nat)
+    (bounds : 32 * max words.length (index+1) ≤ 65536) :
+    expand (wordArena words) (32*index) 32 = .ok (wordArena (activeWords words index)) := by
+  simp only [expand,requiredWordStore,Nat.not_lt_of_ge bounds,ite_false,wordArena_length]
+  have growth : 32 * max words.length (index+1) - words.length * 32 =
+      32 * (index+1-words.length) := by omega
+  rw [growth]
+  rw [activeWords,wordArena_append,zeros]
+
+theorem writeArena (words : List Word) (index : Nat) (value : Word) :
+    writeBytes (wordArena (activeWords words index)) (32*index) (wordBytes value) =
+      wordArena (storeArena words index value) := by
+  have bound : 32 ≤ (wordArena (activeWords words index)).length - 32*index := by
+    simp only [wordArena_length,activeWords,List.length_append,List.length_replicate]
+    omega
+  unfold writeBytes
+  rw [takeArena,List.take_of_length_le (l := wordBytes value) (by simpa using bound),
+    show 32 * index + (wordBytes value).length = 32 * (index+1) by simp [Nat.mul_succ],
+    dropArena]
+  simp only [storeArena,wordArena_append,wordArena_cons,List.append_assoc]
+
+private theorem writeWithin (words : List Word) (index : Nat) (value : Word)
+    (within : index < words.length) :
+    writeBytes (wordArena words) (32*index) (wordBytes value) =
+      wordArena (storeArena words index value) := by
+  have active : activeWords words index = words := by
+    simp [activeWords,show index+1-words.length = 0 by omega]
+  simpa only [active] using writeArena words index value
+
+theorem marketEntryArena (caller : Caller) (journal : Journal) (a b c d e : Word)
+    (parameters : List (Nat × Word)) (start length : Nat) (market : hasMarket caller = true) :
+    (entryFrame caller journal [a,b,c,d,e] parameters start length).map (·.memory) =
+      .ok (wordArena [0,0,288,0,a,b,c,d,e]) := by
+  unfold entryFrame
+  simp only [market,ite_true]
+  rw [show expand [] 0 288 = .ok (wordArena [0,0,0,0,0,0,0,0,0]) by
+    change (Except.ok (List.replicate (32*9) 0) : Except String (List Byte)) = _
+    rw [← zeros]
+    rfl]
+  change Except.ok (writeBytes (writeBytes (writeBytes (writeBytes (writeBytes
+    (writeBytes (wordArena [0,0,0,0,0,0,0,0,0]) (32*2) (wordBytes 288))
+    (32*4) (wordBytes a)) (32*5) (wordBytes b)) (32*6) (wordBytes c))
+    (32*7) (wordBytes d)) (32*8) (wordBytes e)) = _
+  rw [writeWithin _ 2 _ (by decide)]
+  rw [writeWithin _ 4 _ (by decide)]
+  rw [writeWithin _ 5 _ (by change 5 < 9; decide)]
+  rw [writeWithin _ 6 _ (by change 6 < 9; decide)]
+  rw [writeWithin _ 7 _ (by change 7 < 9; decide)]
+  rw [writeWithin _ 8 _ (by change 8 < 9; decide)]
+  rfl
+
+theorem flashEntryArena (journal : Journal) (parameters : List (Nat × Word)) (start length : Nat) :
+    (entryFrame .flashLoan journal [] parameters start length).map (·.memory) =
+      .ok (wordArena [0,0,128]) := by
+  change Except.ok (writeBytes (wordArena [0,0,0]) (32*2) (wordBytes 128)) = _
+  rw [writeWithin _ 2 _ (by decide)]
+  rfl
+
+theorem wordSize (size : Nat) (small : size < 2^256) :
+    (BitVec.ofNat 256 size).toNat = size := by simp [Nat.mod_eq_of_lt small]
+
+theorem sizeSub (size n : Nat) (small : size < 2^256) (bounds : n ≤ size) :
+    Evm.sub (BitVec.ofNat 256 size) (BitVec.ofNat 256 n) = BitVec.ofNat 256 (size-n) := by
+  unfold Evm.sub
+  rw [BitVec.ofNat_sub_ofNat_of_le _ _ (by omega) bounds]
+
+theorem ltSize (size n : Nat) (small : size < 2^256) (bounds : n ≤ size) :
+    Evm.lt (BitVec.ofNat 256 size) (BitVec.ofNat 256 n) = 0 := by
+  simp [Evm.lt,BitVec.ult_eq_decide,wordSize _ small,wordSize n (by omega),Nat.not_lt_of_ge bounds]
+
+theorem addressShift (word : Word) (canonical : word.toNat < 2^160) :
+    Evm.shr 160 word = 0 := by
+  change word >>> 160 = 0
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ushiftRight,Nat.shiftRight_eq_div_pow,Nat.div_eq_of_lt canonical]
+  rfl
+
+theorem fitsSlice (word : Word) (size : Nat) (small : size < 2^256)
+    (bounds : word.toNat ≤ size) : Evm.gt word (BitVec.ofNat 256 size) = 0 := by
+  simp [Evm.gt,BitVec.ult_eq_decide,wordSize _ small,Nat.not_lt_of_ge bounds]
+
 theorem decode_encoding (caller : Caller) (cfg : MIR.State.Config) (journal : Journal)
     (data : Calldata) (input : cfg.environment.input = data.encode)
     (tag : data.tag.length = 4)

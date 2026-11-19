@@ -5,7 +5,7 @@ import os
 from functools import partial
 from textwrap import indent
 
-from . import dispatch_proof
+from . import decoder_proof, dispatch_proof
 from .callers import require
 from .check import ROOT, run
 
@@ -343,7 +343,31 @@ def certify_dispatch(prove, base, route, helper_pc, selector, runtime_size, time
     return name
 
 
-def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout):
+def certify_decoder(prove, dispatch, decoder, route, pc, concrete, timeout):
+    name = dispatch.removesuffix("Dispatch") + "Decoder"
+    source = (
+        import_modules([dispatch])
+        + HEADER
+        + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
+        + decoder_proof.source(decoder, route, pc, concrete)
+    )
+    output = success(prove(name, source, timeout, module=True), name)
+    check_axioms(output.splitlines(), 2)
+    return name
+
+
+def certify(
+    directory,
+    site,
+    fixture,
+    observed,
+    pc,
+    route,
+    decoder,
+    concrete,
+    runtime_size,
+    timeout,
+):
     name = site.name
     base = f"Entry{name[0].upper() + name[1:]}"
     prove = partial(lean, directory, namespace=base)
@@ -351,12 +375,16 @@ def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout
     dispatch = certify_dispatch(
         prove, base, route, pc, site.selector, runtime_size, timeout
     )
+    decoded = certify_decoder(prove, dispatch, decoder, route, pc, concrete, timeout)
+    prefix_steps = len(route.instructions) + (
+        len(decoder.instructions) if concrete else 0
+    )
     layers = (
-        ("physical", "ByteCut", "ByteCut", 2048 - len(route.instructions)),
+        ("physical", "ByteCut", "ByteCut", 2048 - prefix_steps),
         ("before", "Except String MirCursor", "MirCut", 1024),
         ("after", "Except String MirCursor", "MirCut", 1024),
     )
-    memo, imports, count = phase(prove, dispatch, layers, timeout)
+    memo, imports, count = phase(prove, decoded, layers, timeout)
 
     source = (
         import_modules(imports)
@@ -364,7 +392,7 @@ def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout
         + f"""
 open MIR.TransferFromCallers
 theorem bytecode_reaches : runBytes {pc} 2048 tvWorldConfig initial = .ok physicalCut := by
-  rw [dispatch_concrete, ←{memo}.hashChecked_eq]
+  rw [entry_concrete, ←{memo}.hashChecked_eq]
   exact physicalReached
 
 theorem cut_pc : physicalCut.frame.pc = {pc} := by decide +kernel
@@ -409,6 +437,13 @@ theorem after_live :
             "pc": route.pc,
             "steps": len(route.instructions),
             "gas": route.gas,
+        },
+        "decoder": {
+            "proof": f"kernel/{decoded}.lean",
+            "pc": decoder.pc,
+            "steps": len(decoder.instructions),
+            "gas": decoder.gas,
+            "applied": concrete,
         },
     }
 

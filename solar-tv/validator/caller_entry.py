@@ -3,7 +3,15 @@
 import json
 from pathlib import Path
 
-from . import caller_replay, dispatch_proof, entry_proof, mir_state, native, world
+from . import (
+    caller_replay,
+    decoder_proof,
+    dispatch_proof,
+    entry_proof,
+    mir_state,
+    native,
+    world,
+)
 from .callers import require
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Program
@@ -298,6 +306,24 @@ def check(
             f"{site.name} dispatcher disagrees with raw bytecode replay",
         )
         (directory / f"{site.name}-dispatch.json").write_text(json.dumps(routed))
+        decoder = decoder_proof.plan(runtime, site, observed["pcs"], catalog)
+        concrete = decoder.accepts(state["calldata"])
+        if concrete:
+            reached = replay(state, decoder.pc, executable, timeout)
+            stack, memory = decoder.replay_state(state["calldata"])
+            require(
+                reached["pc"] == decoder.pc
+                and reached["pcs"]
+                == routed["pcs"] + [step.inst.pc for step in decoder.instructions]
+                and reached["stack"] == stack
+                and reached["memory"] == memory
+                and reached["gas"] == routed["gas"] - decoder.gas
+                and not (
+                    reached["samples"] or reached["budgets"] or reached["returndata"]
+                ),
+                f"{site.name} ABI decoder disagrees with raw bytecode replay",
+            )
+            (directory / f"{site.name}-decoder.json").write_text(json.dumps(reached))
         source = replay_source(
             state, runtime, helper_pc, site, tables, solar, executable, timeout
         )
@@ -335,7 +361,16 @@ def check(
             live=live_values(site, snapshots),
         )
         proof = entry_proof.certify(
-            kernel, site, fixture, observed, helper_pc, route, len(runtime), timeout
+            kernel,
+            site,
+            fixture,
+            observed,
+            helper_pc,
+            route,
+            decoder,
+            concrete,
+            len(runtime),
+            timeout,
         )
         terminal = replay(state, None, executable, timeout)
         exit_proof = entry_proof.certify_exit(
