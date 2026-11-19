@@ -300,13 +300,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if values.len() != elements.iter().flatten().count() {
                 return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
             }
+            // The call returns `(bool, bytes memory)`: a storage `bytes` target must copy the
+            // memory value, not store it as a slot.
+            let Some(TyKind::Tuple(source_types)) =
+                self.cx.gcx.type_of_expr(rhs.id).map(|ty| ty.kind)
+            else {
+                return self.cx.report_unsupported(rhs.span, "low-level call result types");
+            };
             return self.store_tuple_values(
                 elements
                     .iter()
-                    .flatten()
-                    .copied()
+                    .zip(source_types)
+                    .filter_map(|(element, &source_ty)| element.map(|element| (element, source_ty)))
                     .zip(values)
-                    .map(|(element, value)| (element, Word::from_clean(value), None)),
+                    .map(|((element, source_ty), value)| {
+                        (element, Word::from_clean(value), Some(source_ty))
+                    }),
             );
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
