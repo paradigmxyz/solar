@@ -2,6 +2,8 @@
 
 import json
 
+STORAGE_LAYOUTS = ("storageLayout", "transientStorageLayout")
+
 
 def contract_outputs(output, require_contracts=True):
     if not isinstance(output, dict):
