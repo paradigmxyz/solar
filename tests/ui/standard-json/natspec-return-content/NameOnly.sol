@@ -9,4 +9,13 @@ contract NameOnly {
     /// @return b
     ///   
     function blankLine() public returns (uint256 b) {}
+
+    /// @return c
+    /// @
+    function loneAt() public returns (uint256 c) {}
+
+    /// @return
+    ///
+    /// d after an empty line
+    function emptyLine() public returns (uint256 d) {}
 }

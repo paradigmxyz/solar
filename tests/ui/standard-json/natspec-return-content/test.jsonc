@@ -9,6 +9,10 @@
 // CHECK: "a": "a"
 // CHECK: "blankLine()": {
 // CHECK: "b": ""
+// CHECK: "loneAt()": {
+// CHECK: "c": "c"
+// CHECK: "emptyLine()": {
+// CHECK: "d": "after an empty line"
 // CHECK-LABEL: "ReturnDescAfterNl.sol": {
 // CHECK: "second": "Documentation for the second parameter"
 // CHECK: "returns": {

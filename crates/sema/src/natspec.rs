@@ -351,7 +351,7 @@ impl<'gcx> Resolver<'gcx> {
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
         let mut sections = LocalTags::empty();
         let mut group_start = 0;
-        let mut skip_next_line = false;
+        let mut skip_line = None;
 
         for (i, doc_comment) in docs.iter().enumerate() {
             // solc reads only the last group of doc comments, so a tag that may appear once
@@ -363,9 +363,7 @@ impl<'gcx> Resolver<'gcx> {
                 sections |= LocalTags::from_group(self.gcx, &local_tags[group_start..]);
                 group_start = local_tags.len();
             }
-            for natspec in
-                doc_comment.natspec.iter().skip(std::mem::take(&mut skip_next_line).into())
-            {
+            for natspec in doc_comment.natspec.iter().skip((skip_line == Some(i)).into()) {
                 let tag_span = natspec.span;
 
                 match &natspec.kind {
@@ -505,32 +503,36 @@ impl<'gcx> Resolver<'gcx> {
                             true
                         };
 
+                        // The index of the next untagged `///` line of the group from `from`;
+                        // solc skips empty lines.
+                        let untagged_line = |from: usize| {
+                            (from..docs.len())
+                                .take_while(|&j| !starts_group(self.gcx, &docs[j - 1], &docs[j]))
+                                .find(|&j| !docs[j].symbol.as_str().is_empty())
+                                .filter(|&j| docs[j].natspec.first().is_none_or(is_untagged))
+                        };
                         // solc reads the text of a `///` tag that ends its line from the next line.
                         let index = state.return_count - 1;
-                        let next = docs.get(i + 1).filter(|next| {
+                        let next = untagged_line(i + 1).filter(|_| {
                             rets.get(index)
                                 .is_some_and(|&id| self.gcx.hir.variable(id).name.is_some())
                                 && natspec.content_start == natspec.content_end
                                 && !natspec.symbol.as_str().ends_with([' ', '\t'])
-                                && !starts_group(self.gcx, doc_comment, next)
-                                && next.natspec.first().is_none_or(is_untagged)
                         });
-                        // Whether a later `///` line continues the tag's text; solc skips empty
-                        // lines.
-                        let after = i + 1 + usize::from(next.is_some());
-                        let continued = docs[after..]
-                            .iter()
-                            .zip(&docs[after - 1..])
-                            .take_while(|&(next, prev)| !starts_group(self.gcx, prev, next))
-                            .map(|(next, _)| next)
-                            .find(|next| !next.symbol.as_str().is_empty())
-                            .is_some_and(|next| next.natspec.first().is_none_or(is_untagged));
+                        // Whether a later line continues the tag's text; a lone `@` adds none.
+                        let continued = untagged_line(next.unwrap_or(i) + 1)
+                            .is_some_and(|j| docs[j].symbol.as_str().trim() != "@");
                         if return_valid
-                            && let Some(item) =
-                                self.lower_return_natspec(*natspec, next, continued, rets, index)
+                            && let Some(item) = self.lower_return_natspec(
+                                *natspec,
+                                next.map(|j| &docs[j]),
+                                continued,
+                                rets,
+                                index,
+                            )
                         {
                             local_tags.push(item);
-                            skip_next_line = next.is_some();
+                            skip_line = next;
                         }
                     }
                 }

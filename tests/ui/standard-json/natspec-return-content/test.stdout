@@ -44,6 +44,16 @@
               "returns": {
                 "b": ""
               }
+            },
+            "loneAt()": {
+              "returns": {
+                "c": "c"
+              }
+            },
+            "emptyLine()": {
+              "returns": {
+                "d": "after an empty line"
+              }
             }
           },
           "version": 1
