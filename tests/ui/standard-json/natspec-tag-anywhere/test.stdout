@@ -1,0 +1,51 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "i()": {
+              "notice": "mail user@example.com"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f()": {
+              "details": "after a non-breaking space"
+            },
+            "g()": {
+              "details": "mid line"
+            },
+            "h()": {
+              "details": "first line second line"
+            }
+          },
+          "version": 1
+        }
+      },
+      "D": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "details": "Example:",
+          "custom:x": "y   continued",
+          "version": 1
+        }
+      }
+    }
+  }
+}

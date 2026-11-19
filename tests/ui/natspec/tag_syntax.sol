@@ -78,6 +78,11 @@ contract InvalidTag1 {}
 //~^ WARN: invalid natspec tag '@customwrong', custom tags must use format '@custom:name'
 contract InvalidCustom {}
 
+// The first `@` of a line starts a tag, even inside a word, as in solc.
+/// contact user@example.com
+//~^ WARN: invalid natspec tag '@example.com'
+contract EmailAddress {}
+
 // Yul context - should silently ignore unknown tags
 contract YulContext {
     function testYul() public {

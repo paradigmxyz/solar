@@ -897,7 +897,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut items = SmallVec::new();
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
+                parse_natspec(self.token.span, symbol, self.in_yul, self.dcx(), &mut items);
                 let natspec = if items.is_empty() {
                     BoxSlice::default()
                 } else {
@@ -1245,7 +1245,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 fn parse_natspec(
     comment_span: Span,
     comment_symbol: Symbol,
-    comment_kind: ast::CommentKind,
     in_yul: bool,
     dcx: &DiagCtxt,
     items: &mut SmallVec<[ast::NatSpecItem; 6]>,
@@ -1303,32 +1302,11 @@ fn parse_natspec(
         );
     }
 
-    // Check if '@' is located at the logical start of the line.
-    let is_line_start = |line_start: usize, at_pos: usize| {
-        match comment_kind {
-            // can only be followed by whitespace
-            ast::CommentKind::Line => bytes[line_start..at_pos].trim_ascii().is_empty(),
-
-            // can only be followed by whitespaces and '*' decorations, which
-            // may repeat (`* * @return` still starts a tag, as in solc, where
-            // the scanner strips one decoration and the parser finds the tag
-            // anywhere in the line).
-            ast::CommentKind::Block => {
-                let mut rest = bytes[line_start..at_pos].trim_ascii_start();
-                while let Some(stripped) = rest.strip_prefix(b"*") {
-                    rest = stripped.trim_ascii_start();
-                }
-                rest.is_empty()
-            }
-        }
-    };
-
-    // Iterate over each line and look for tags. As in solc, a line ends at LF, CR LF or a lone CR.
+    // Iterate over each line and look for tags. As in solc, a line ends at LF, CR LF or a lone CR,
+    // and its first '@' starts a tag wherever it is, dropping the text before it.
     let mut prev_line_end = 0;
     for line_end in memchr::memchr2_iter(b'\n', b'\r', bytes).chain(std::iter::once(bytes.len())) {
-        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end])
-            && is_line_start(line_start, line_start + tag_offset)
-        {
+        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end]) {
             let tag_start = line_start + tag_offset + 1;
 
             // The tag name must immediately follow the '@': `@ param` is

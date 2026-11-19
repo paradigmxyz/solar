@@ -1,0 +1,26 @@
+//@ filecheck:
+// NatSpec tags start at the first `@` of a line like in solc 0.8.38, after a non-breaking space,
+// after other text, or inside a block comment's code example. Later `@`s on the line and lines
+// without `@` stay text.
+// CHECK-LABEL: "C": {
+// CHECK: "i()": {
+// CHECK-NEXT: "notice": "mail user@example.com"
+// CHECK: "f()": {
+// CHECK-NEXT: "details": "after a non-breaking space"
+// CHECK: "g()": {
+// CHECK-NEXT: "details": "mid line"
+// CHECK: "h()": {
+// CHECK-NEXT: "details": "first line second line"
+// CHECK-LABEL: "D": {
+// CHECK: "details": "Example:",
+// CHECK-NEXT: "custom:x": "y   continued",
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": ["userdoc", "devdoc"]
+      }
+    }
+  }
+}
