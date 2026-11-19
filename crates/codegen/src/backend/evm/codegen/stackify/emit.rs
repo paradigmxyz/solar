@@ -257,17 +257,25 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             // A use in another block than the definition counts twice: the read moves into that
             // block, where LLVM drops the location of the moved code (`dropLocation`), so the
-            // read takes the origin of its use like a copy.
+            // read takes the origin of its use like a copy. A phi input is used in the block
+            // that the edge leaves.
+            let mut count = |operand: ValueId, at: BlockId| {
+                let local = definitions.get(&operand).is_none_or(|&def| def == at);
+                self.use_counts[operand] += if local { 1 } else { 2 };
+            };
             for (block, data) in func.blocks.iter_enumerated() {
-                let mut count = |operand: ValueId| {
-                    let local = definitions.get(&operand).is_none_or(|&def| def == block);
-                    self.use_counts[operand] += if local { 1 } else { 2 };
-                };
                 for &inst in &data.instructions {
-                    func.inst(inst).kind.visit_operands(&mut count);
+                    match &func.inst(inst).kind {
+                        InstKind::Phi(incoming) => {
+                            for &(from, operand) in incoming {
+                                count(operand, from);
+                            }
+                        }
+                        kind => kind.visit_operands(|operand| count(operand, block)),
+                    }
                 }
                 if let Some(term) = &data.terminator {
-                    term.visit_operands(&mut count);
+                    term.visit_operands(|operand| count(operand, block));
                 }
             }
             // A copy that rebuilding made stands for one of several uses of its original, so it
