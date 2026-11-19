@@ -216,14 +216,30 @@ def frame(pc, stack, memory, fee):
     return f"decoderFrame env (surplus + {fee}) {pc} {words(stack)} {words(memory)}"
 
 
-def source(decoder, dispatch, helper, concrete):
+def input_binders(decoder):
     required = decoder.payload
     addresses = list(decoder.addresses)
-    binders = f"""(env : World.Environment) (journal : Execution.Journal) (surplus : Nat)
+    return f"""(env : World.Environment) (journal : Execution.Journal) (surplus : Nat)
     (room : {required} ≤ env.input.length) (small : env.input.length < 2^256)
     (offsetWord : Execution.readWord env.input {decoder.offset_at} = {decoder.offset})
     (slice : (Execution.readWord env.input {required - 32}).toNat ≤ env.input.length - {required})
     (addresses : ∀ i, i ∈ ({addresses} : List Nat) → (Execution.readWord env.input i).toNat < 2^160)"""
+
+
+def entry_alias(helper, fuel, start, proof):
+    return f"""
+abbrev physicalStart := {start}
+theorem entry_concrete :
+    runBytes {helper} 2048 tvWorldConfig initial =
+      Execution.Trace.run (chunkedByteStep {helper} tvWorldConfig code) {fuel} physicalStart :=
+  {proof}
+"""
+
+
+def source(decoder, dispatch, helper, concrete):
+    required = decoder.payload
+    addresses = list(decoder.addresses)
+    binders = input_binders(decoder)
     args = "env journal surplus room small offsetWord slice addresses"
     out = """
 open MIR.TransferFromABI
@@ -389,10 +405,10 @@ theorem resume_abi_prefix {binders}
 """
     if concrete:
         out += f"""
-def physicalStart := decodedFrame env checkpoint (dispatchStart.frame.gas - {decoder.gas})
-theorem entry_concrete :
+def decoderStart := decodedFrame env checkpoint (dispatchStart.frame.gas - {decoder.gas})
+theorem decoder_concrete :
     runBytes {helper} 2048 tvWorldConfig initial =
-      Execution.Trace.run (chunkedByteStep {helper} tvWorldConfig code) {fuel - width} physicalStart := by
+      Execution.Trace.run (chunkedByteStep {helper} tvWorldConfig code) {fuel - width} decoderStart := by
   exact resume_abi_prefix env checkpoint (dispatchStart.frame.gas - {decoder.gas})
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
     (by intro i h; simp only [List.mem_cons,List.not_mem_nil,or_false] at h
@@ -400,8 +416,11 @@ theorem entry_concrete :
     (by decide +kernel) (by decide +kernel)
 """
     else:
-        out += """
-abbrev physicalStart := dispatchStart
-theorem entry_concrete := dispatch_concrete
+        out += f"""
+abbrev decoderStart := dispatchStart
+theorem decoder_concrete :
+    runBytes {helper} 2048 tvWorldConfig initial =
+      Execution.Trace.run (chunkedByteStep {helper} tvWorldConfig code) {fuel} decoderStart :=
+  dispatch_concrete
 """
     return out

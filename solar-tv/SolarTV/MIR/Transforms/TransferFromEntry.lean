@@ -87,6 +87,18 @@ theorem chunkedByteStep_eq (pc : Nat) (cfg : EVM.State.Config) (code : EVM.State
 
 /-- The dispatcher uses only ordinary EVM steps. Each symbolic edge has to
 establish the actual instruction action before extending the trace. -/
+theorem ordinaryNext (helper fuel : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (frame next : EVM.State.Frame) (journal nextWorld : Journal) (pcs : List Nat) (opcode : Byte)
+    (outside : frame.pc ≠ helper) (get : code.get? frame.pc = some opcode) (notGas : opcode ≠ 0x5a)
+    (executes : EVM.State.instructionWithImage cfg journal {frame with code := code.bytes}
+      code.size opcode (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) =
+        .ok (.next nextWorld next)) :
+    chunkedByteStep helper cfg code Keccak.hash fuel ⟨frame,journal,[],[],pcs⟩ =
+      .ok (.inr ⟨next,nextWorld,[],[],frame.pc :: pcs⟩) := by
+  simp only [chunkedByteStep, byteStepUsing, byteTransition, outside, get, Option.getD_some,
+    executes, notGas, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure,
+    beq_iff_eq, Option.some.injEq, ite_false]
+
 theorem dispatchNext (helper fuel : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
     (frame next : EVM.State.Frame) (journal : Journal) (pcs : List Nat) (opcode : Byte)
     (outside : frame.pc ≠ helper) (get : code.get? frame.pc = some opcode) (notGas : opcode ≠ 0x5a)
@@ -94,10 +106,8 @@ theorem dispatchNext (helper fuel : Nat) (cfg : EVM.State.Config) (code : EVM.St
       code.size opcode (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) =
         .ok (.next journal next)) :
     chunkedByteStep helper cfg code Keccak.hash fuel ⟨frame,journal,[],[],pcs⟩ =
-      .ok (.inr ⟨next,journal,[],[],frame.pc :: pcs⟩) := by
-  simp only [chunkedByteStep, byteStepUsing, byteTransition, outside, get, Option.getD_some,
-    executes, notGas, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure,
-    beq_iff_eq, Option.some.injEq, ite_false]
+      .ok (.inr ⟨next,journal,[],[],frame.pc :: pcs⟩) :=
+  ordinaryNext helper fuel cfg code frame next journal journal pcs opcode outside get notGas executes
 
 def runBytes (pc : Nat) (fuel : Nat) (cfg : EVM.State.Config) (state : ByteCut) :
     Except String ByteCut :=
@@ -115,6 +125,19 @@ def chunkedByteExitStep (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
     EVM.State.instructionWithImage cfg world frame code.size ((code.get? frame.pc).getD 0)
       (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) hash)
     code.get? {state with frame := {state.frame with code := code.bytes}}
+
+theorem storageExhaustion (fuel : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (frame : EVM.State.Frame) (journal : Journal) (pcs : List Nat)
+    (get : code.get? frame.pc = some 0x54)
+    (executes : EVM.State.instructionWithImage cfg journal {frame with code := code.bytes}
+      code.size 0x54 (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) =
+        EVM.State.stepExhausted journal) :
+    chunkedByteExitStep cfg code Keccak.hash fuel ⟨frame,journal,[],[],pcs⟩ =
+      .ok (.inl ⟨⟨.outOfGas,[],journal,0,0⟩,[],[],none⟩) := by
+  simp only [chunkedByteExitStep, byteTransition, get, Option.getD_some,
+    executes, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind,
+    Pure.pure, Except.pure]
+  rfl
 
 theorem chunkedByteExitStep_eq (cfg : EVM.State.Config) (code : EVM.State.CodeChunks) :
     chunkedByteExitStep cfg code = byteExitStep cfg code.bytes := by

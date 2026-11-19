@@ -5,7 +5,7 @@ import os
 from functools import partial
 from textwrap import indent
 
-from . import decoder_proof, dispatch_proof
+from . import decoder_proof, dispatch_proof, market_proof
 from .callers import require
 from .check import ROOT, run
 
@@ -343,7 +343,7 @@ def certify_dispatch(prove, base, route, helper_pc, selector, runtime_size, time
     return name
 
 
-def certify_decoder(prove, dispatch, decoder, route, pc, concrete, timeout):
+def certify_decoder(prove, dispatch, decoder, route, pc, concrete, market, timeout):
     name = dispatch.removesuffix("Dispatch") + "Decoder"
     source = (
         import_modules([dispatch])
@@ -351,8 +351,29 @@ def certify_decoder(prove, dispatch, decoder, route, pc, concrete, timeout):
         + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
         + decoder_proof.source(decoder, route, pc, concrete)
     )
+    if market is None:
+        fuel = 2048 - len(route.instructions)
+        if concrete:
+            fuel -= len(decoder.instructions)
+        source += decoder_proof.entry_alias(
+            pc, fuel, "decoderStart", "decoder_concrete"
+        )
     output = success(prove(name, source, timeout, module=True), name)
     check_axioms(output.splitlines(), 2)
+    return name
+
+
+def certify_market(prove, decoded, market, decoder, route, pc, snapshot, timeout):
+    name = decoded.removesuffix("Decoder") + "Market"
+    source = (
+        import_modules([decoded, "SolarTV.MIR.Transforms.TransferFromMarket"])
+        + HEADER
+        + "set_option linter.unusedSimpArgs false\n"
+        + market_proof.source(market, decoder, route, pc, snapshot)
+        + market_proof.mir_source(decoder, market.mir_results)
+    )
+    output = success(prove(name, source, timeout, module=True), name)
+    check_axioms(output.splitlines(), 4)
     return name
 
 
@@ -365,6 +386,8 @@ def certify(
     route,
     decoder,
     concrete,
+    market,
+    market_snapshot,
     runtime_size,
     timeout,
 ):
@@ -375,16 +398,25 @@ def certify(
     dispatch = certify_dispatch(
         prove, base, route, pc, site.selector, runtime_size, timeout
     )
-    decoded = certify_decoder(prove, dispatch, decoder, route, pc, concrete, timeout)
+    decoded = certify_decoder(
+        prove, dispatch, decoder, route, pc, concrete, market, timeout
+    )
     prefix_steps = len(route.instructions) + (
         len(decoder.instructions) if concrete else 0
     )
+    prefix = decoded
+    if market is not None:
+        prefix = certify_market(
+            prove, decoded, market, decoder, route, pc, market_snapshot, timeout
+        )
+        if market_snapshot is not None:
+            prefix_steps += len(market.instructions)
     layers = (
         ("physical", "ByteCut", "ByteCut", 2048 - prefix_steps),
         ("before", "Except String MirCursor", "MirCut", 1024),
         ("after", "Except String MirCursor", "MirCut", 1024),
     )
-    memo, imports, count = phase(prove, decoded, layers, timeout)
+    memo, imports, count = phase(prove, prefix, layers, timeout)
 
     source = (
         import_modules(imports)
@@ -429,7 +461,7 @@ theorem after_live :
     name = base + "Proof"
     output = success(prove(name, source, timeout, module=True), name)
     check_axioms(output.splitlines(), 7)
-    return {
+    evidence = {
         "segments": count,
         "proof": f"kernel/{name}.lean",
         "dispatch": {
@@ -446,6 +478,16 @@ theorem after_live :
             "applied": concrete,
         },
     }
+    if market is not None:
+        evidence["market_read"] = {
+            "proof": f"kernel/{prefix}.lean",
+            "load_pc": market.load_pc,
+            "pc": market.pc,
+            "steps": len(market.instructions),
+            "gas_before_load": market.gas_before_load,
+            "applied": market_snapshot is not None,
+        }
+    return evidence
 
 
 def certify_exit(directory, prefix, pc, observed, timeout):

@@ -731,8 +731,19 @@ gas for arbitrary valid head words and callback bytes. Aligned word-store
 lemmas relate the physical memory to the MIR entry frame. The MIR ABI
 model separately relates the typed arguments to the canonical encoding.
 
+For Supply, Repay, SupplyCollateral and Liquidate the symbolic physical
+prefix continues through the first market storage read. It checks the
+`MarketParams` hash, both mapping scratch stores, the derived storage
+key, and the loaded word for an arbitrary journal. The corresponding
+typed MIR prefixes run from canonical ABI decoding through the actual
+load on both sides of the rewrite and agree on the value, memory and
+journal. The physical proof checks the Cancun warm or cold charge and
+the slot-warming update. An underpaid read halts without warming the
+slot. Rust replay varies the market input, storage value and warmth and
+checks the exact gas boundary.
+
 The concrete ABI-to-exit certificates compose both segments for the
-supplied input, resume beyond decode with the exact residual gas, and then
+supplied input, resume with the exact residual gas, and then
 prove reachability in the emitted runtime and both captured MIR bodies.
 Valid alternate bytes offsets use the concrete trace from the dispatcher
 exit. The certificates check the stack, ABI words and FMP at the helper cut.

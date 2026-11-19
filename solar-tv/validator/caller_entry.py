@@ -8,6 +8,7 @@ from . import (
     decoder_proof,
     dispatch_proof,
     entry_proof,
+    market_proof,
     mir_state,
     native,
     world,
@@ -269,7 +270,7 @@ def check(
     directory.mkdir()
     built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
-    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromABI")
+    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromMarket")
     require(not built.returncode, built.stdout + built.stderr)
     kernel = directory / "kernel"
     kernel.mkdir()
@@ -307,7 +308,19 @@ def check(
         )
         (directory / f"{site.name}-dispatch.json").write_text(json.dumps(routed))
         decoder = decoder_proof.plan(runtime, site, observed["pcs"], catalog)
+        market = (
+            market_proof.plan(
+                runtime,
+                decoder,
+                observed["pcs"],
+                catalog,
+                market_proof.mir_results(tables, site.name),
+            )
+            if site.name != "flashLoan"
+            else None
+        )
         concrete = decoder.accepts(state["calldata"])
+        market_snapshot = None
         if concrete:
             reached = replay(state, decoder.pc, executable, timeout)
             stack, memory = decoder.replay_state(state["calldata"])
@@ -324,6 +337,16 @@ def check(
                 f"{site.name} ABI decoder disagrees with raw bytecode replay",
             )
             (directory / f"{site.name}-decoder.json").write_text(json.dumps(reached))
+            if market is not None:
+                before_read = replay(state, market.load_pc, executable, timeout)
+                read = replay(state, market.pc, executable, timeout)
+                require(
+                    read["pcs"]
+                    == reached["pcs"] + [step.inst.pc for step in market.instructions],
+                    f"{site.name} first market read disagrees with raw bytecode replay",
+                )
+                market_snapshot = before_read, read
+                (directory / f"{site.name}-market.json").write_text(json.dumps(read))
         source = replay_source(
             state, runtime, helper_pc, site, tables, solar, executable, timeout
         )
@@ -369,6 +392,8 @@ def check(
             route,
             decoder,
             concrete,
+            market,
+            market_snapshot,
             len(runtime),
             timeout,
         )

@@ -124,7 +124,7 @@ private theorem takeArena (words : List Word) (n : Nat) :
         List.take_of_length_le (Nat.le_add_right _ _),Nat.add_sub_cancel_left]
       exact congrArg (wordBytes word ++ ·) (ih n)
 
-private theorem dropArena (words : List Word) (n : Nat) :
+theorem dropArena (words : List Word) (n : Nat) :
     (wordArena words).drop (32*n) = wordArena (words.drop n) := by
   induction words generalizing n with
   | nil => simp [wordArena]
@@ -138,6 +138,39 @@ private theorem dropArena (words : List Word) (n : Nat) :
       simp only [wordArena_cons,List.drop_succ_cons,List.drop_append,
         List.drop_of_length_le (Nat.le_add_right _ _),List.nil_append,
         Nat.add_sub_cancel_left,ih]
+
+theorem readArena (words : List Word) (index count : Nat)
+    (within : index + count ≤ words.length) :
+    readBytes (wordArena words) (32*index) (32*count) =
+      wordArena ((words.drop index).take count) := by
+  have read : readBytes (wordArena words) (32*index) (32*count) =
+      ((wordArena words).drop (32*index)).take (32*count) := by
+    apply List.ext_getElem
+    · simp [readBytes,wordArena_length]
+      omega
+    · intro i h _
+      have present : 32*index+i < (wordArena words).length := by
+        simp only [readBytes,List.length_map,List.length_range] at h
+        rw [wordArena_length]
+        omega
+      have present' : i+32*index < (wordArena words).length := by omega
+      simp [readBytes,Nat.add_comm,List.getElem?_eq_getElem present']
+  rw [read,dropArena,takeArena]
+
+theorem arenaRange (words : List Word) (index count : Nat)
+    (within : index + count ≤ words.length) :
+    requiredWords (wordArena words) (32*index) (32*count) = words.length := by
+  by_cases zero : count = 0
+  · simp [zero,requiredWords,memoryWords,Nat.mul_comm words.length]
+  · unfold requiredWords memoryWords
+    simp only [wordArena_length,show 32*count ≠ 0 by omega,ite_false]
+    omega
+
+theorem expandArenaRange (words : List Word) (index count : Nat)
+    (within : index + count ≤ words.length) (bounded : 32 * words.length ≤ 65536) :
+    expand (wordArena words) (32*index) (32*count) = .ok (wordArena words) := by
+  simp [expand,arenaRange words index count within,Nat.not_lt_of_ge bounded,
+    Nat.mul_comm words.length]
 
 def activeWords (words : List Word) (index : Nat) : List Word :=
   words ++ List.replicate (index+1-words.length) 0
@@ -173,7 +206,7 @@ theorem writeArena (words : List Word) (index : Nat) (value : Word) :
     dropArena]
   simp only [storeArena,wordArena_append,wordArena_cons,List.append_assoc]
 
-private theorem writeWithin (words : List Word) (index : Nat) (value : Word)
+theorem writeActiveArena (words : List Word) (index : Nat) (value : Word)
     (within : index < words.length) :
     writeBytes (wordArena words) (32*index) (wordBytes value) =
       wordArena (storeArena words index value) := by
@@ -181,33 +214,45 @@ private theorem writeWithin (words : List Word) (index : Nat) (value : Word)
     simp [activeWords,show index+1-words.length = 0 by omega]
   simpa only [active] using writeArena words index value
 
-theorem marketEntryArena (caller : Caller) (journal : Journal) (a b c d e : Word)
+theorem marketEntryFrame (caller : Caller) (journal : Journal) (a b c d e : Word)
     (parameters : List (Nat × Word)) (start length : Nat) (market : hasMarket caller = true) :
-    (entryFrame caller journal [a,b,c,d,e] parameters start length).map (·.memory) =
-      .ok (wordArena [0,0,288,0,a,b,c,d,e]) := by
+    entryFrame caller journal [a,b,c,d,e] parameters start length =
+      .ok ⟨journal,wordArena [0,0,288,0,a,b,c,d,e],
+        scalar 256 128 :: parameters.map (fun (width,word) => scalar width word) ++
+          [.aggregate [scalar 256 (BitVec.ofNat 256 start),scalar 256 (BitVec.ofNat 256 length)]],
+        [],[],0,0,[]⟩ := by
   unfold entryFrame
   simp only [market,ite_true]
   rw [show expand [] 0 288 = .ok (wordArena [0,0,0,0,0,0,0,0,0]) by
     change (Except.ok (List.replicate (32*9) 0) : Except String (List Byte)) = _
     rw [← zeros]
     rfl]
-  change Except.ok (writeBytes (writeBytes (writeBytes (writeBytes (writeBytes
-    (writeBytes (wordArena [0,0,0,0,0,0,0,0,0]) (32*2) (wordBytes 288))
-    (32*4) (wordBytes a)) (32*5) (wordBytes b)) (32*6) (wordBytes c))
-    (32*7) (wordBytes d)) (32*8) (wordBytes e)) = _
-  rw [writeWithin _ 2 _ (by decide)]
-  rw [writeWithin _ 4 _ (by decide)]
-  rw [writeWithin _ 5 _ (by change 5 < 9; decide)]
-  rw [writeWithin _ 6 _ (by change 6 < 9; decide)]
-  rw [writeWithin _ 7 _ (by change 7 < 9; decide)]
-  rw [writeWithin _ 8 _ (by change 8 < 9; decide)]
+  change Except.ok (⟨journal,
+    writeBytes (writeBytes (writeBytes (writeBytes (writeBytes
+      (writeBytes (wordArena [0,0,0,0,0,0,0,0,0]) (32*2) (wordBytes 288))
+      (32*4) (wordBytes a)) (32*5) (wordBytes b)) (32*6) (wordBytes c))
+      (32*7) (wordBytes d)) (32*8) (wordBytes e),
+    _,[],[],0,0,[]⟩ : MIR.State.Frame) = _
+  rw [writeActiveArena _ 2 _ (by decide)]
+  rw [writeActiveArena _ 4 _ (by decide)]
+  rw [writeActiveArena _ 5 _ (by change 5 < 9; decide)]
+  rw [writeActiveArena _ 6 _ (by change 6 < 9; decide)]
+  rw [writeActiveArena _ 7 _ (by change 7 < 9; decide)]
+  rw [writeActiveArena _ 8 _ (by change 8 < 9; decide)]
+  rfl
+
+theorem marketEntryArena (caller : Caller) (journal : Journal) (a b c d e : Word)
+    (parameters : List (Nat × Word)) (start length : Nat) (market : hasMarket caller = true) :
+    (entryFrame caller journal [a,b,c,d,e] parameters start length).map (·.memory) =
+      .ok (wordArena [0,0,288,0,a,b,c,d,e]) := by
+  rw [marketEntryFrame caller journal a b c d e parameters start length market]
   rfl
 
 theorem flashEntryArena (journal : Journal) (parameters : List (Nat × Word)) (start length : Nat) :
     (entryFrame .flashLoan journal [] parameters start length).map (·.memory) =
       .ok (wordArena [0,0,128]) := by
   change Except.ok (writeBytes (wordArena [0,0,0]) (32*2) (wordBytes 128)) = _
-  rw [writeWithin _ 2 _ (by decide)]
+  rw [writeActiveArena _ 2 _ (by decide)]
   rfl
 
 theorem wordSize (size : Nat) (small : size < 2^256) :

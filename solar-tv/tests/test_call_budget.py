@@ -796,6 +796,8 @@ def printGas (gas : Nat) : IO Unit :=
             ]
             split = 0 if name == "flashLoan" else 5
             market, parameters = words[:split], words[split:]
+            if market:
+                market[-1] += index + 1
             index_of_amount = 1 if name in {"liquidate", "flashLoan"} else 0
             parameters[index_of_amount] += 11
             payload = [index, 255, 0]
@@ -894,5 +896,95 @@ theorem decodedVariant :
     (by decide +kernel) (by decide +kernel)
 end {namespace}
 """
-            result = entry_proof.lean(kernel, module + "Variant", source, 45)
+            result = entry_proof.lean(
+                kernel, module + "Variant", source, 45, module=bool(market)
+            )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            if market:
+                self.check_symbolic_market(
+                    kernel,
+                    namespace,
+                    module,
+                    path["market_read"],
+                    state,
+                    state["gas"] - index,
+                    executable,
+                )
+
+    def check_symbolic_market(
+        self, kernel, namespace, decoder_module, market, state, decode_gas, executable
+    ):
+        module = Path(market["proof"]).stem
+        self.assertTrue(market["applied"])
+        self.assertTrue((kernel / f"{module}.lean").is_file())
+        load_gas = decode_gas + market["gas_before_load"]
+        before = caller_entry.replay(
+            {**state, "gas": load_gas}, market["load_pc"], executable, 30
+        )
+        self.assertEqual(before["gas"], 0)
+        key = int(before["stack"][0])
+        identity = int.from_bytes(bytes(before["memory"][:32]), "big")
+        owner = int(state["address"])
+        value = (1 << 128) + 19
+        accounts = [
+            {**account, "storage": [[str(key), str(value)]]}
+            if int(account["address"]) == owner
+            else account
+            for account in state["accounts"]
+        ]
+        for warm, price in ((False, 2100), (True, 100)):
+            world_state = {
+                **state,
+                "accounts": accounts,
+                "warm_slots": [(str(owner), str(key))] if warm else [],
+                "gas": load_gas + price,
+            }
+            reached = caller_entry.replay(world_state, market["pc"], executable, 30)
+            self.assertEqual(reached["stack"], [str(value), *before["stack"][1:]])
+            self.assertEqual(reached["memory"], before["memory"])
+            self.assertEqual(reached["gas"], 0)
+            underpaid = {**world_state, "gas": world_state["gas"] - 1}
+            self.assertEqual(
+                caller_entry.replay(underpaid, None, executable, 30)[0], "out-of-gas"
+            )
+
+        source = f"""import {module}
+import {decoder_module}Variant
+{entry_proof.HEADER}
+namespace {namespace}
+open MIR.TransferFromMarket
+def testAccount : Execution.Account :=
+  {{(Execution.account checkpoint changedEnv.address) with storage := [({key},{value})]}}
+def cold : Execution.Journal :=
+  Execution.putAccount {{checkpoint with warmSlots := []}} testAccount
+def warm : Execution.Journal := Execution.warmSlot cold changedEnv.address {key}
+
+theorem marketInput : MIR.TransferFromABI.wordArena (argumentWords changedEnv) =
+    {before["memory"][128:]} := by decide +kernel
+theorem sameId : marketId changedEnv = {identity} := by
+  rw [marketId,marketHash,marketInput]
+  decide +kernel
+theorem sameSlot : marketSlot changedEnv = {key} := by
+  change SolarTV.Keccak.hash (MIR.TransferFromABI.wordArena [marketId changedEnv,3]) + 2 = _
+  rw [sameId]
+  change SolarTV.Keccak.hash {before["memory"][:64]} + 2 = _
+  decide +kernel
+theorem coldPrice : marketPrice changedEnv cold = 2100 := by
+  simp [marketPrice,sameSlot,cold,Execution.putAccount,SolarTV.Storage.readPrice,Fork.atLeast,Fork.ordinal]
+theorem warmPrice : marketPrice changedEnv warm = 100 := by
+  simp [marketPrice,sameSlot,warm,cold,Execution.putAccount,Execution.warmSlot,
+    SolarTV.Storage.readPrice,Fork.atLeast,Fork.ordinal]
+theorem readVariantValue :
+    (readMarket changedEnv warm 0).frame.stack.head? = some {value} := by
+  change some (marketValue changedEnv warm) = _
+  rw [marketValue,sameSlot]
+  decide +kernel
+theorem readVariantMemory :
+    (readMarket changedEnv warm 0).frame.memory = {before["memory"]} := by
+  change MIR.TransferFromABI.wordArena ([marketId changedEnv,3,288,0] ++ argumentWords changedEnv) = _
+  rw [sameId,MIR.TransferFromABI.wordArena_append,marketInput]
+  decide +kernel
+end {namespace}
+"""
+        result = entry_proof.lean(kernel, module + "Variant", source, 60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

@@ -1497,6 +1497,12 @@ journal and derives the decoder's stack, memory and gas charge. The decoder's
 market tuple and free memory pointer agree with the MIR entry frame. Rust
 independently replays the decoder exits.
 
+For the four callers that take a market tuple, the symbolic bytecode proof
+continues through the first storage read. It derives the mapping key and
+checks scratch memory, the loaded value and the warm or cold gas charge
+against an arbitrary journal. Both MIR versions reach the same read
+with the same scratch memory and slot-warming effect.
+
 The invocation certificates apply these results to the supplied input, then
 check the concrete execution from the decoder to the helper and ABI exit.
 Other valid offsets use the concrete trace from the dispatcher exit. Each
