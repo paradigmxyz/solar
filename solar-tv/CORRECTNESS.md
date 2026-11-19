@@ -311,15 +311,18 @@ successful interpreter results and compares all live boundary observations.
 It is false for equal model errors. Work is bounded structurally over the
 acyclic CFG/call graph; exhaustion cannot satisfy the theorem.
 
-When neither side of an explicit-world pair reads `MSIZE`, the theorem uses
+When neither side of an explicit-world pair reads `MSIZE` or touches a frame
+slot (`frame_load`, `frame_store`), the theorem uses
 `State.equivalentBelowFree` instead: a normal return's memory is compared only
 below the free memory pointer (and always below `0x60`), with trailing zero
 bytes ignored. Solidity guarantees nothing about memory at or above the free
 memory pointer, and only `MSIZE` observes how far memory reaches, so such code
 may leave that region and the memory size as it likes. Every other observation,
 and every byte below the free memory pointer, is still compared. A pair in which
-either side reads `MSIZE`, including through inline assembly, keeps
-`State.equivalent`.
+either side reads `MSIZE`, including through inline assembly, or touches a
+frame slot keeps `State.equivalent`: frame slots sit at convention-defined
+addresses (external scratch from `0x80`, where the free memory pointer begins)
+that the free memory pointer does not cover.
 
 The real storage, memory, multiple-return, aggregate and helper-call `egraph`
 pairs in `examples/mir/universal-state/` pass this route. Their broken storage,

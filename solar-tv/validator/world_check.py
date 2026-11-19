@@ -87,14 +87,17 @@ def check(
     )
 
     # Free memory and the memory size are unobservable without MSIZE, so a pair in which
-    # neither side reads it compares memory below the free memory pointer only.
-    reads_msize = any(
-        re.search(r"\bmsize\b", text)
+    # neither side reads it compares memory below the free memory pointer only. Frame slots
+    # live at convention-defined addresses the allocator does not track (external scratch
+    # starts at 0x80, where the free memory pointer begins), so a pair that touches a frame
+    # slot keeps comparing all of memory.
+    observes_free = any(
+        re.search(r"\bmsize\b|\bframe_(?:load|store)\b", text)
         for program in (a, b)
         for text in (program.body, program.canonical_ir, program.replay_ir)
     )
     mir_relation = (
-        "MIR.State.equivalent" if reads_msize else "MIR.State.equivalentBelowFree"
+        "MIR.State.equivalent" if observes_free else "MIR.State.equivalentBelowFree"
     )
 
     def relation(left, right):

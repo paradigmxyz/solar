@@ -64,8 +64,10 @@ def observeBelowFree (result : Result) : Observation :=
   let o := observe result
   {o with memory := o.memory.map belowFree}
 
-/-- `equivalent` for a pair in which neither side reads `MSIZE`: free memory and the memory size
-are not observed. Everything else, including every byte below the free memory pointer, is. -/
+/-- `equivalent` for a pair in which neither side reads `MSIZE` or touches a frame slot: free
+memory and the memory size are not observed. Everything else, including every byte below the free
+memory pointer, is. Frame slots sit at convention-defined addresses the allocator does not track,
+so a pair that uses them keeps `equivalent`. -/
 def equivalentBelowFree (before after : Run) : Prop :=
   match before,after with | .ok a,.ok b => observeBelowFree a = observeBelowFree b | _,_ => False
 

@@ -95,6 +95,20 @@ class MirFrameTests(unittest.TestCase):
         )
         self.pair(source, source.replace("v0, 4", "v0, 5"), status=1)
 
+    def test_frame_slot_at_the_free_memory_pointer_is_observed(self):
+        # External scratch starts at 0x80, the free memory pointer's initial value, so the slot
+        # sits in what the allocator counts as free memory; its contents stay observed.
+        word = (0x80).to_bytes(32, "big")
+        fixture = {"memory": {"size": 96, "data": "0x" + (bytes(64) + word).hex()}}
+        source = state.module(
+            "v0 = inttoptr i256 2 to ptr<memory>\nv1 = make_memory_slice v0, 4\n"
+            "frame_store scratch, memory, 0, v1\nret 0"
+        )
+        result, _ = self.pair(
+            source, source.replace("v0, 4", "v0, 5"), fixture=fixture, status=1
+        )
+        self.assertIn("Live memory", result.stdout)
+
     def test_missing_placements_and_invalid_slots_stay_inconclusive(self):
         for body in (
             "v0 = frame_load internal_frame, word, 0\nret v0",
