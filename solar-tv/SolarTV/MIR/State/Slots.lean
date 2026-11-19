@@ -12,10 +12,10 @@ namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
 
 /-- Hash fixed-width big-endian words, preserving the scratch writes and MSIZE. -/
-def fixedSlot (frame : Frame) (words : List Word) : Except String (Word × Frame) := do
+def fixedSlot (frame : Frame) (words : List Word) (hash : List Byte → Word := Keccak.hash) : Except String (Word × Frame) := do
   let bytes := words.flatMap wordBytes
   let memory ← expand frame.memory 0 bytes.length
-  return (Keccak.hash bytes,{frame with memory := writeBytes memory 0 bytes})
+  return (hash bytes,{frame with memory := writeBytes memory 0 bytes})
 
 /-- A memory object reads its header; a calldata slice supplies a logical range. -/
 def bytesSlot (cfg : Config) (frame : Frame) (key : Value) (slot : Word) : Except String (Word × Frame) := do

@@ -19,10 +19,13 @@ def pureOp : Nat → Option EVM.Op
   | 0x1d => some .sar | 0x1e => some .clz
   | _ => none
 
-private def scanJumps : Nat → Nat → List Byte → List Nat
+def pushWidth (opcode : Nat) : Nat :=
+  if 0x60 ≤ opcode ∧ opcode ≤ 0x7f then opcode - 0x5f else 0
+
+def scanJumps : Nat → Nat → List Byte → List Nat
   | fuel+1, pc, byte :: rest =>
     let byte := byte.toNat
-    let skip := if 0x60 ≤ byte ∧ byte ≤ 0x7f then byte - 0x5f else 0
+    let skip := pushWidth byte
     let remaining := scanJumps fuel (pc+1+skip) (rest.drop skip)
     if byte = 0x5b then pc :: remaining else remaining
   | _, _, _ => []

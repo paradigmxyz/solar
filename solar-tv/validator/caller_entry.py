@@ -2,7 +2,7 @@
 
 import json
 
-from . import caller_replay, mir_state, native, world
+from . import caller_replay, entry_proof, mir_state, native, world
 from .callers import require
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Program
@@ -84,7 +84,18 @@ def fixtures(code, site, directory, solar, timeout):
     return state
 
 
-def replay_source(state, runtime, helper_pc, site, tables, solar, executable, timeout):
+def replay_source(
+    state,
+    runtime,
+    helper_pc,
+    site,
+    tables,
+    solar,
+    executable,
+    timeout,
+    *,
+    observed=None,
+):
     env = world.environment_expression(state)
     context = world.context_expression(state)
     config = world.configuration(solar, FORK, state, timeout, executable)
@@ -102,11 +113,19 @@ def replay_source(state, runtime, helper_pc, site, tables, solar, executable, ti
             for account in state["accounts"]
         ],
     }
-    program = (
-        PRELUDE.replace("import SolarTV\n", f"import {MODULE}\n", 1)
+    kernel = observed is not None
+    header = (
+        "import EntryImage\n" + entry_proof.HEADER
+        if kernel
+        else PRELUDE.replace("import SolarTV\n", f"import {MODULE}\n", 1)
         + "open MIR.TransferFromEntry\nset_option maxRecDepth 16384\n"
+    )
+    if not kernel:
+        header += f'def image := imageBytes "{runtime.hex()}"\n'
+    program = (
+        header
         + config
-        + f"""def image := imageBytes "{runtime.hex()}"
+        + f"""
 def initialAccounts : List Execution.Account :=
   ({world.accounts_expression(seed)} : List Execution.Account).map fun a =>
     if a.address = {state["address"]} then {{a with code := image}} else a
@@ -114,22 +133,43 @@ def checkpoint : Execution.Journal := ⟨initialAccounts,initialAccounts,[{warm}
 def env : World.Environment := {env}
 def startFrame : EVM.State.Frame := ⟨env,image,0,[],[],[],{state["gas"]}⟩
 def initial : ByteCut := ⟨startFrame,checkpoint,[],[],[]⟩
-def priced := runBytes {helper_pc} 2048 tvWorldConfig initial
 def mirCfg : MIR.State.Config :=
   {{ fork := .cancun, environment := env, context := {context}, available := {available},
     entry := false, externalConfig := some tvWorldConfig }}
 """
     )
+    if kernel:
+        program += f"""
+def physicalStart := initial
+def physicalWith (hash : List Execution.Byte → Word) := chunkedByteStep {helper_pc} tvWorldConfig code hash
+def mirGas := {{initial with samples := {observed["samples"]}, budgets := {observed["budgets"]}}}
+""" + live_in_definitions(site)
+    else:
+        program += f"def priced := runBytes {helper_pc} 2048 tvWorldConfig initial\n"
     for label, table in zip(("before", "after"), tables, strict=True):
         functions, entry, helper, returned = body_context(table, site)
         model = ",\n".join(mir_state.function_body(body, catalog) for body in functions)
-        program += f"""
-def {label}Functions : MIR.State.Functions := [{model}]
+        program += f"\ndef {label}Functions : MIR.State.Functions := [{model}]\n"
+        operands = mir_state.operands(returned)
+        if kernel:
+            program += f"""
+def {label}Entry := {entry}
+def {label}Helper := {helper}
+def {label}Returned : List MIR.State.Operand := {operands}
+def {label}Start := mirStart mirCfg {label}Functions {label}Entry selector caller checkpoint mirGas
+def {label}With (hash : List Execution.Byte → Word) := mirTrace mirCfg {label}Functions {label}Helper {label}Returned mirGas hash
+"""
+        else:
+            program += f"""
 def {label} (cut : ByteCut) : Except String MirCut :=
-  mirPrefix mirCfg {label}Functions {entry} {helper} {mir_state.operands(returned)}
+  mirPrefix mirCfg {label}Functions {entry} {helper} {operands}
     {site.selector} .{site.name} checkpoint cut 1024
 """
-    return program + "#eval IO.println (describe priced before after)\n"
+    return (
+        program
+        if kernel
+        else program + "#eval IO.println (describe priced before after)\n"
+    )
 
 
 def replay(state, pc, executable, timeout):
@@ -144,43 +184,61 @@ def replay(state, pc, executable, timeout):
     return json.loads(left)
 
 
-def live_in_source(site, observations):
+def live_in_definitions(site):
     suffix = (
         f".pair {site.live_words[0]} {site.live_words[1]}"
         if site.live_words
         else ".stop"
     )
     other = {"supply": 7_000_000, "repay": 7_000_000, "liquidate": 8}.get(site.name, 0)
+    return f"""
+open MIR.TransferFromCallers
+def caller : Caller := .{site.name}
+def selector : Word := {site.selector}
+def suffix : Suffix := ⟨{suffix},{site.gas}⟩
+def returnPC : Word := {site.return_pc}
+def inputs : MIR.TransferFromFrame.Inputs := ⟨{caller_replay.TOKEN},{caller_replay.CALLER},{caller_replay.MORPHO},7⟩
+def other : Word := {other}
+"""
+
+
+def live_in_source(site, observations):
     stack = list(map(int, observations["bytecode"]["stack"]))
     source = (
         PRELUDE.replace("import SolarTV\n", f"import {MODULE}\n", 1)
-        + f"""
-open MIR.TransferFromEntry MIR.TransferFromCallers
-def caller : Caller := .{site.name}
-def suffix : Suffix := ⟨{suffix},{site.gas}⟩
-def returnPC : Word := {site.return_pc}
-def args : MIR.TransferFromFrame.Inputs := ⟨{caller_replay.TOKEN},{caller_replay.CALLER},{caller_replay.MORPHO},7⟩
-def other : Word := {other}
-def stack : List Word := {stack}
-"""
+        + "open MIR.TransferFromEntry\n"
+        + live_in_definitions(site)
+        + f"def stack : List Word := {stack}\n"
     )
     for side in ("before", "after"):
         arguments, returned = (list(map(int, row)) for row in observations[side])
         source += f"""
 theorem {side}_entry :
-    related caller suffix returnPC args other stack {arguments} {returned} := by decide +kernel
+    related caller suffix returnPC inputs other stack {arguments} {returned} := by decide +kernel
 theorem {side}_live :
-    ∃ rest, stack = returnPC :: (argumentWords args ++ rest) ∧
-      suffix.publication.words rest = .ok (liveOperands caller args.amount other) :=
-  liveIns caller suffix returnPC args other stack {arguments} {returned} {side}_entry
+    ∃ rest, stack = returnPC :: (argumentWords inputs ++ rest) ∧
+      suffix.publication.words rest = .ok (liveOperands caller inputs.amount other) :=
+  liveIns caller suffix returnPC inputs other stack {arguments} {returned} {side}_entry
 """
     return source
 
 
 def check(runtime, helper_pc, sites, tables, directory, solar, executable, timeout):
     directory.mkdir()
-    built = build_model(timeout, MODULE)
+    built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
+    kernel = directory / "kernel"
+    kernel.mkdir()
+    entry_proof.success(
+        entry_proof.lean(
+            kernel,
+            "EntryImage",
+            entry_proof.image_source(runtime),
+            timeout,
+            module=True,
+        ),
+        "runtime image",
+    )
     evidence = {}
     for site in sites:
         state = fixtures(runtime, site, directory, solar, timeout)
@@ -209,7 +267,22 @@ def check(runtime, helper_pc, sites, tables, directory, solar, executable, timeo
             f"{site.name} live-in proof failed\n" + proved.stdout + proved.stderr,
         )
         (directory / f"{site.name}.json").write_text(json.dumps(snapshots))
+        fixture = replay_source(
+            state,
+            runtime,
+            helper_pc,
+            site,
+            tables,
+            solar,
+            executable,
+            timeout,
+            observed=observed,
+        )
+        proof = entry_proof.certify(
+            kernel, site.name, fixture, observed, helper_pc, timeout
+        )
         evidence[site.name] = {
+            **proof,
             "pc": helper_pc,
             "gas": observed["gas"],
             "steps": len(observed["pcs"]),

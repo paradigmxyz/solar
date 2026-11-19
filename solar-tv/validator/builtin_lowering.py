@@ -770,7 +770,8 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         artifact = final_call["artifact"]
         artifact["abi_entry"] = {
             "scope": "pinned Cancun worlds from ABI dispatch to the helper cut",
-            "reachability": "lean-and-rust-replay",
+            "reachability": "lean-kernel",
+            "independent_replay": "lean-and-rust-replay",
             "snapshot_live_ins": "lean-kernel",
             "paths": caller_entry.check(
                 runtime,

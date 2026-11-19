@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -11,7 +12,15 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import call_budget, call_tail, caller_entry, callers, native, world
+from validator import (
+    call_budget,
+    call_tail,
+    caller_entry,
+    callers,
+    entry_proof,
+    native,
+    world,
+)
 from validator.common import Unsupported
 
 
@@ -31,7 +40,7 @@ class CallBudgetTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                timeout=420,
+                timeout=1200,
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -78,7 +87,8 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertIn(b"transferFrom reverted", bytes(observations[1][1]))
                 self.assertIn(b"transferFrom returned false", bytes(observations[2][1]))
             entry_report = report["abi_entry"]
-            self.assertEqual(entry_report["reachability"], "lean-and-rust-replay")
+            self.assertEqual(entry_report["reachability"], "lean-kernel")
+            self.assertEqual(entry_report["independent_replay"], "lean-and-rust-replay")
             self.assertEqual(entry_report["snapshot_live_ins"], "lean-kernel")
             entry = entry_report["paths"]
             self.assertEqual(set(entry), set(report["caller_replays"]))
@@ -86,6 +96,8 @@ class CallBudgetTests(unittest.TestCase):
                 name = site["name"]
                 proof = output / f"entry/{name}.lean"
                 self.assertTrue(proof.is_file())
+                self.assertTrue((output / "entry" / entry[name]["proof"]).is_file())
+                self.assertGreater(entry[name]["segments"], 0)
                 snapshot = json.loads((output / f"entry/{name}.json").read_text())[
                     "bytecode"
                 ]
@@ -126,6 +138,20 @@ class CallBudgetTests(unittest.TestCase):
             )
             self.assertNotEqual(rejected.returncode, 0, rejected.stdout)
             self.assertIn("decide", rejected.stdout)
+
+            # The first physical segment must reject a different checkpoint PC.
+            kernel = output / "entry/kernel"
+            segment = next(kernel.glob("EntrySupply*physical0.lean")).read_text()
+            modified, replacements = re.subn(
+                r"(\bpc := )(\d+)",
+                lambda match: f"{match[1]}{int(match[2]) + 1}",
+                segment,
+                count=1,
+            )
+            self.assertEqual(replacements, 1)
+            rejected = entry_proof.lean(kernel, "WrongCheckpoint", modified, 60)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("(kernel) declaration type mismatch", rejected.stdout)
             self.assertEqual(
                 report["tail_fixed_gas"],
                 {

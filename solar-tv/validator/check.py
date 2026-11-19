@@ -41,12 +41,15 @@ UNFOLD = (
 )
 
 
-def run(args: list, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+def run(
+    args: list, cwd: Path, timeout: int, *, env: dict | None = None
+) -> subprocess.CompletedProcess:
     # Lake spawns Lean. A timeout must reap the entire invocation, not leave the
     # prover consuming CPU after the driver has reported an inconclusive result.
     with subprocess.Popen(
         args,
         cwd=cwd,
+        env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

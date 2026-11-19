@@ -49,9 +49,11 @@ def withMemory (world : Journal) (frame : Frame) (charge offset count : Nat)
     let memory ← expand frame.memory offset count
     continuation {frame with memory, gas := frame.gas - total}
 
-def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
-  if frame.pc ≥ frame.code.length then .ok (.done ⟨.success, [], world, frame.gas, 0⟩) else
-  let opcode := frame.code[frame.pc]?.getD 0 |>.toNat
+def instructionWithImage (cfg : Config) (world : Journal) (frame : Frame)
+    (codeLength : Nat) (opcodeByte : Byte) (immediate : Nat → Word) (jump : Word → Bool)
+    (hash : List Byte → Word := Keccak.hash) : Action :=
+  if frame.pc ≥ codeLength then .ok (.done ⟨.success, [], world, frame.gas, 0⟩) else
+  let opcode := opcodeByte.toNat
   let info := available cfg opcode
   if !info.available then stepFailed world
   -- Amsterdam's environment/memory fragment is admitted independently of the
@@ -73,7 +75,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     if frame.gas < info.base then stepExhausted world else
       .ok (.next world {frame with
         pc := frame.pc + 1 + (opcode - 0x5f)
-        stack := pushValue frame.code frame.pc (opcode - 0x5f) :: frame.stack
+        stack := immediate (opcode - 0x5f) :: frame.stack
         gas := frame.gas - info.base})
   else if 0x80 ≤ opcode ∧ opcode ≤ 0x9f then
     let op := if opcode < 0x90 then EVM.Op.dup ⟨opcode - 0x80, by omega⟩
@@ -96,7 +98,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       else next world {frame with gas := frame.gas - info.base}
         (environmentValue cfg opcode a :: rest)
     | 0x20 => withMemory world frame (info.base + info.dynamic * ((b.toNat + 31) / 32)) a.toNat b.toNat fun frame =>
-          next world frame (Keccak.hash (readBytes frame.memory a.toNat b.toNat) :: rest)
+          next world frame (hash (readBytes frame.memory a.toNat b.toNat) :: rest)
     | 0x30 | 0x32 | 0x33 | 0x34 | 0x36 | 0x38 | 0x3a | 0x3d | 0x47 | 0x58 | 0x59 | 0x5a | 0x5f =>
       if frame.gas < info.base then stepExhausted world else
         let value := match opcode with
@@ -105,7 +107,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
           | 0x33 => frame.environment.caller.setWidth 256
           | 0x34 => frame.environment.value
           | 0x36 => BitVec.ofNat 256 frame.environment.input.length
-          | 0x38 => BitVec.ofNat 256 frame.code.length
+          | 0x38 => BitVec.ofNat 256 codeLength
           | 0x3a => frame.environment.gasPrice
           | 0x3d => BitVec.ofNat 256 frame.returnData.length
           | 0x47 => (account world frame.environment.address).balance
@@ -176,7 +178,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     | 0x56 | 0x57 =>
       if frame.gas < info.base then stepExhausted world
       else if opcode = 0x57 && b == 0 then next world {frame with gas := frame.gas - info.base} rest
-      else if !validJump frame.code a then stepFailed world
+      else if !jump a then stepFailed world
       else .ok (.next world {frame with stack := rest, pc := a.toNat, gas := frame.gas - info.base})
     | 0x5b =>
       if frame.gas < info.base then stepExhausted world
@@ -231,6 +233,10 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
             let log := World.Log.mk frame.environment.address (values.drop 2) (readBytes frame.memory a.toNat b.toNat)
             next {world with logs := world.logs ++ [log]} frame rest
       else .error s!"unmodeled world opcode {opcode}"
+
+def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
+  instructionWithImage cfg world frame frame.code.length (frame.code[frame.pc]?.getD 0)
+    (pushValue frame.code frame.pc) (validJump frame.code)
 
 /-- Resolve a step using the same child evaluator at every message boundary. -/
 def advance (cfg : Config) (execute : ChildExecutor) (signal : Step) :

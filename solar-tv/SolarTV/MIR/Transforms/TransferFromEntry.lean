@@ -1,5 +1,8 @@
 import SolarTV.MIR.State.Interpreter
 import SolarTV.MIR.Transforms.TransferFromCallers
+import SolarTV.State.Trace
+import SolarTV.State.CheckedHashes
+import SolarTV.EVMIR.State.CodeChunks
 import Lean.Data.Json
 
 /-! Execute both representations to the helper entry. The bytecode starts at PC 0;
@@ -19,23 +22,50 @@ structure ByteCut where
   budgets : List Nat
   pcs : List Nat
 
-def runBytes (pc : Nat) (fuel : Nat) (cfg : EVM.State.Config) (state : ByteCut) :
-    Except String ByteCut := do
+/-- Reaching the cut consumes no instruction. A continuing transition spends
+one unit of root fuel and evaluates any child with the remaining fuel. -/
+private def byteStepUsing (pc fuel : Nat) (cfg : EVM.State.Config) (code : List Byte)
+    (instruction : Journal → EVM.State.Frame → EVM.State.Action) (readByte : Nat → Option Byte)
+    (state : ByteCut) : Except String (ByteCut ⊕ ByteCut) := do
   let ⟨frame,world,samples,budgets,pcs⟩ := state
-  if frame.pc = pc then return ⟨frame,world,samples.reverse,budgets.reverse,pcs.reverse⟩
-  match fuel with
-  | 0 => .error "bytecode entry work limit"
-  | fuel+1 =>
-    let signal ← EVM.State.instruction cfg world frame
-    let budgets := match signal with
-      | .call .. => frame.gas :: budgets
-      | _ => budgets
-    let samples := if frame.code[frame.pc]? == some 0x5a then frame.gas :: samples else samples
-    match ← EVM.State.advance cfg (EVM.State.run fuel cfg) signal with
-    | .inl _ => .error "bytecode terminated before the helper"
-    | .inr (_,nextWorld,nextFrame) =>
-      runBytes pc fuel cfg ⟨nextFrame,nextWorld,samples,budgets,frame.pc :: pcs⟩
-termination_by structural fuel
+  let frame := {frame with code}
+  if frame.pc = pc then return .inl ⟨frame,world,samples.reverse,budgets.reverse,pcs.reverse⟩
+  let signal ← instruction world frame
+  let budgets := match signal with
+    | .call .. => frame.gas :: budgets
+    | _ => budgets
+  let samples := if readByte frame.pc == some 0x5a then frame.gas :: samples else samples
+  match ← EVM.State.advance cfg (EVM.State.run fuel cfg) signal with
+  | .inl _ => .error "bytecode terminated before the helper"
+  | .inr (_,nextWorld,nextFrame) =>
+    return .inr ⟨nextFrame,nextWorld,samples,budgets,frame.pc :: pcs⟩
+
+def byteStep (pc : Nat) (cfg : EVM.State.Config) (code : List Byte) :
+    Trace.Step ByteCut ByteCut := fun fuel =>
+  byteStepUsing pc fuel cfg code (EVM.State.instruction cfg) (fun i => code[i]?)
+
+def chunkedByteStep (pc : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (hash : List Byte → Word := Keccak.hash) :
+    Trace.Step ByteCut ByteCut := fun fuel =>
+  byteStepUsing pc fuel cfg code.bytes
+    (fun world frame =>
+      EVM.State.instructionWithImage cfg world frame code.size ((code.get? frame.pc).getD 0)
+        (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) hash)
+    code.get?
+
+theorem chunkedByteStep_eq (pc : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks) :
+    chunkedByteStep pc cfg code = byteStep pc cfg code.bytes := by
+  funext fuel state
+  cases state
+  unfold chunkedByteStep byteStep byteStepUsing EVM.State.instruction
+  have immediate (i : Nat) : code.immediate i = EVM.State.pushValue code.bytes i :=
+    funext (code.immediate_eq i)
+  simp only [EVM.State.CodeChunks.get_eq, immediate,
+    EVM.State.CodeChunks.jump_eq, ← EVM.State.CodeChunks.size_eq]
+
+def runBytes (pc : Nat) (fuel : Nat) (cfg : EVM.State.Config) (state : ByteCut) :
+    Except String ByteCut :=
+  Trace.run (byteStep pc cfg state.frame.code) fuel state
 
 structure MirCut where
   args : List Word
@@ -47,27 +77,49 @@ def instAt (functions : Functions) (cursor : Cursor) : Option Instruction := do
   let block ← body.blocks[cursor.block]?
   if cursor.entered then block.instructions[cursor.next]? else none
 
+structure MirCursor where
+  machine : Machine
+  samples : List Nat
+
 /-- Gas samples and per-message pricing come from the physical prefix. MIR
 prices child messages, and its intervening SSA instructions remain unpriced. -/
-def runMir (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.State.Config)
-    (functions : Functions) (machine : Machine) (samples : List Nat) : Except String MirCut := do
+def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.State.Config)
+    (functions : Functions) (state : MirCursor) (hash : List Byte → Word := Keccak.hash) :
+    Except String (MirCut ⊕ MirCursor) := do
+  let ⟨machine,samples⟩ := state
   let site := instAt functions machine.cursor
   if let some ⟨_,_,_,.call callee,callOperands⟩ := site then
     if callee = helper then
       if !machine.stack.isEmpty then .error "unexpected nested caller at helper cut" else
-      return ⟨← callOperands.mapM (read machine.frame), ← returned.mapM (read machine.frame), machine.frame⟩
-  match fuel with
-  | 0 => .error "MIR caller work limit"
-  | fuel+1 =>
-    let (stepCfg,samples) ← match site with
-      | some ⟨_,_,_,.context .gasSample,_⟩ => do
-        let sample ← required samples.head? "missing physical GAS sample"
-        pure ({cfg with layout := {cfg.layout with gasBefore := some sample}},samples.drop 1)
-      | _ => pure (cfg,samples)
-    match ← transition fuel stepCfg functions machine with
-    | .finished _ => .error "MIR terminated before the helper"
-    | .next _ next => runMir helper returned fuel cfg functions next samples
-termination_by structural fuel
+      return .inl ⟨← callOperands.mapM (read machine.frame), ← returned.mapM (read machine.frame), machine.frame⟩
+  let (stepCfg,samples) ← match site with
+    | some ⟨_,_,_,.context .gasSample,_⟩ => do
+      let sample ← required samples.head? "missing physical GAS sample"
+      pure ({cfg with layout := {cfg.layout with gasBefore := some sample}},samples.drop 1)
+    | _ => pure (cfg,samples)
+  match ← transition fuel stepCfg functions machine hash with
+  | .finished _ => .error "MIR terminated before the helper"
+  | .next _ next => return .inr ⟨next,samples⟩
+
+/-- Prompts for a digest certificate. The step still computes any hash absent
+from this list, including hashes in nested messages. -/
+def byteHashInput (code : EVM.State.CodeChunks) (state : ByteCut) : Option (List Byte) := do
+  let frame := state.frame
+  if code.get? frame.pc != some 0x20 then none else
+  let offset ← frame.stack[0]?
+  let count ← frame.stack[1]?
+  some (readBytes frame.memory offset.toNat count.toNat)
+
+def mirHashInput (functions : Functions) (state : Except String MirCursor) : Option (List Byte) := do
+  let machine := (← state.toOption).machine
+  let inst ← instAt functions machine.cursor
+  let frame := machine.frame
+  let args ← (inst.operands.mapM (read frame)).toOption
+  match inst.operation,args with
+  | .memory .hash,[offset,count] => some (readBytes frame.memory offset.toNat count.toNat)
+  | .slot .mapping,[key,slot] => some (wordBytes key ++ wordBytes slot)
+  | .slot .arrayData,[slot] | .slot (.arrayElement _),slot :: _ => some (wordBytes slot)
+  | _,_ => none
 
 def scalar (width : Nat) (word : Word) : Value := .scalar (Scalar.ofWord width word)
 
@@ -134,13 +186,24 @@ instance (caller : Caller) (suffix : Suffix) (returnPC : Word) (args : Inputs) (
   unfold related
   infer_instance
 
-def mirPrefix (cfg : MIR.State.Config) (functions : Functions) (entry helper : Nat)
-    (returned : List Operand) (selector : Word) (caller : Caller) (journal : Journal)
-    (priced : ByteCut) (fuel : Nat) : Except String MirCut := do
+def mirStart (cfg : MIR.State.Config) (functions : Functions) (entry : Nat)
+    (selector : Word) (caller : Caller) (journal : Journal) (priced : ByteCut) :
+    Except String MirCursor := do
   let frame ← decode selector caller cfg journal
   let initial ← start functions entry frame.arguments frame
-  runMir helper returned fuel {cfg with messageGas := some priced.budgets} functions
-    ⟨{function := entry},[],initial⟩ priced.samples
+  return ⟨⟨{function := entry},[],initial⟩,priced.samples⟩
+
+def mirTrace (cfg : MIR.State.Config) (functions : Functions) (helper : Nat)
+    (returned : List Operand) (priced : ByteCut) (hash : List Byte → Word := Keccak.hash) :
+    Trace.Step (Except String MirCursor) MirCut :=
+  Trace.checkedStart fun fuel =>
+    fun cursor => mirStep helper returned fuel {cfg with messageGas := some priced.budgets} functions cursor hash
+
+def mirPrefix (cfg : MIR.State.Config) (functions : Functions) (entry helper : Nat)
+    (returned : List Operand) (selector : Word) (caller : Caller) (journal : Journal)
+    (priced : ByteCut) (fuel : Nat) : Except String MirCut :=
+  Trace.run (mirTrace cfg functions helper returned priced) fuel
+    (mirStart cfg functions entry selector caller journal priced)
 
 theorem liveIns (caller : Caller) (suffix : Suffix) (returnPC : Word) (args : Inputs) (other : Word)
     (stack arguments returns : List Word)

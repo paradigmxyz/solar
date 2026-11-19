@@ -946,7 +946,7 @@ def main(arguments):
         return 2
     print(f"verified Morpho {FUNCTION} through CALL and five caller exits")
     if args.check_caller_entry:
-        print("replayed five pinned ABI entry paths and proved their snapshot live-ins")
+        print("kernel-checked five pinned ABI entry paths and their helper live-ins")
     print(
         f"counterexample: child GAS {child_samples[0]} -> {child_samples[1]} (Rust replay matched)"
     )

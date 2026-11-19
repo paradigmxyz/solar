@@ -62,7 +62,8 @@ def stop (completion : Completion) (frame : Frame) : Except String Transition :=
   .ok (.finished (finish completion frame))
 
 /-- One MIR transition. Internal calls use continuations; external children spend the shared fuel. -/
-def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Machine) : Except String Transition := do
+def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Machine)
+    (hash : List Byte → Word := Keccak.hash) : Except String Transition := do
   let ⟨cursor,stack,frame⟩ := machine
   let body ← function functions cursor.function
   let block ← required body.blocks[cursor.block]? "unknown MIR block"
@@ -93,7 +94,7 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
         next {function := callee} (caller :: stack) child
     | _ =>
       let activation := stack.countP (fun caller => caller.cursor.function == cursor.function)
-      match ← instruction cfg frame inst activation with
+      match ← instruction cfg frame inst activation hash with
       | .returned (_,frame) => next (advance cursor) stack frame
       | .reverted data => stop (.reverted (failureData data)) frame
       | .invalid => stop .invalid frame

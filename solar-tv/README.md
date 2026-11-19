@@ -1489,14 +1489,24 @@ from all five real ABI selectors and executes the unchanged runtime against
 success, token revert and false-return fixtures. It checks return words,
 storage and log rollback.
 
-Add `--check-caller-entry` to replay the five ABI prefixes in the pinned
-Cancun worlds. Lean executes the original runtime from PC 0 and both typed
-MIR snapshots from the same decoded calldata. It compares accounts, logs and
-returndata. The Rust inspector independently checks the physical execution
-path, stack, memory, returndata and gas at the helper PC. The kernel then
-checks the helper arguments, return address and saved ABI words from those
-snapshots. The prefix reachability result is replay evidence. The saved
-files under `entry/` include the executable replays and live-in proofs.
+Add `--check-caller-entry` to prove the five ABI prefixes in the pinned
+Cancun worlds. The Lean kernel checks execution from PC 0 in the original
+runtime and from ABI decoding in both typed MIR snapshots. It checks the
+helper arguments, return address and saved ABI words at the reached states.
+Short execution segments and reusable bytecode decoding and Keccak proofs
+keep the checks within the per-process memory limit.
+
+Independent replay compares the bytecode path, stack, memory, returndata and
+gas with the Rust inspector, and compares accounts, logs and returndata
+across the bytecode and MIR executions. The saved files under `entry/` include
+the replays and the kernel certificates. From this directory, recheck a saved
+certificate with its compiled segment modules on the search path:
+
+```sh
+kernel=/absolute/path/to/call-budget/entry/kernel
+LEAN_PATH="$kernel${LEAN_PATH:+:$LEAN_PATH}" \
+  lake env lean -j1 --memory=2048 "$kernel/EntrySupplyProof.lean"
+```
 
 Use `--mir-pair BEFORE AFTER` to verify an existing capture. The output
 includes the runtime, the Lean certificates, `mir.json` and the independent

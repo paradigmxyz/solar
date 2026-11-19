@@ -40,7 +40,8 @@ def returnDataBytes (frame : Frame) : Step := do
   | .invalid => return .invalid
   | _ => .error "MIR returndata allocation result missing"
 
-def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List Word) : Step := do
+def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List Word)
+    (hash : List Byte → Word := Keccak.hash) : Step := do
   match op,args with
   | .returnDataBytes,[] => returnDataBytes frame
   | .size,[] => value frame (BitVec.ofNat 256 frame.memory.length)
@@ -69,7 +70,7 @@ def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List 
     effect {frame with memory := writeBytes memory offset.toNat (List.replicate size.toNat 0)}
   | .hash,[offset,size] =>
     let memory ← expand frame.memory offset.toNat size.toNat
-    value {frame with memory} (Keccak.hash (readBytes memory offset.toNat size.toNat))
+    value {frame with memory} (hash (readBytes memory offset.toNat size.toNat))
   | _,_ => .error "MIR memory operand count"
 
 def storageOperation (cfg : Config) (frame : Frame) (transient write : Bool) (args : List Word) : Step := do
@@ -122,7 +123,7 @@ def contextOperation (cfg : Config) (frame : Frame) (opcode : Nat) (args : List 
     value frame (Execution.environmentValue cfg.fork cfg.context opcode 0)
   | _,_ => .error "unmodeled MIR context read"
 
-def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word) (activation : Nat := 0) : Step := do
+def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word) (activation : Nat := 0) (hash : List Byte → Word := Keccak.hash) : Step := do
   match op,args with
   | .binary op width,[a,b] => value frame (widenBits (MIR.eval op (wordBits width a) (wordBits width b)))
   | .comparison op width,[a,b] => value frame (widenBits (MIR.compare op (wordBits width a) (wordBits width b)))
@@ -147,13 +148,13 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .dataCopy id bytes relocations offset,[destination,count] =>
     copyData cfg frame id bytes relocations offset destination count
   | .slot .mapping,[key,slot] =>
-    let (word,next) ← fixedSlot frame [key,slot]
+    let (word,next) ← fixedSlot frame [key,slot] hash
     value next word
   | .slot .arrayData,[slot] =>
-    let (word,next) ← fixedSlot frame [slot]
+    let (word,next) ← fixedSlot frame [slot] hash
     value next word
   | .slot (.arrayElement stride),[slot,index] =>
-    let (word,next) ← fixedSlot frame [slot]
+    let (word,next) ← fixedSlot frame [slot] hash
     value next (word + index * BitVec.ofNat 256 stride)
   | .slot .bytesKey,_ => .error "bytes mapping needs typed operands"
   | .slot .namespace,[object] =>
@@ -176,7 +177,7 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
             message.map (fun bytes => RevertData.fromBytes (requireLiteral bytes)) |>.getD .empty
           else .empty)
     else effect frame
-  | .memory op,args => memoryOperation cfg frame op args
+  | .memory op,args => memoryOperation cfg frame op args hash
   | .storage transient write,args => storageOperation cfg frame transient write args
   | .context (.environment opcode),args => contextOperation cfg frame opcode args
   | .context op,args => layoutOperation cfg frame op args activation
@@ -201,7 +202,7 @@ def assign (next : Frame) (result : Option Nat) (ty : ValueType) (word : Option 
       assignValue next result ty (.scalar (Scalar.ofWord ty.width word))
   | _,_ => .error "MIR result arity mismatch"
 
-def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation : Nat := 0) : Step := do
+def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation : Nat := 0) (hash : List Byte → Word := Keccak.hash) : Step := do
   if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then return .invalid
   match inst.operation,inst.operands with
   | .binary op 1,[a,b] =>
@@ -294,7 +295,7 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation 
     effect (← storeFrame frame address ty value)
   | _,_ =>
     let args ← inst.operands.mapM (read frame)
-    let result ← operation cfg frame inst.operation args activation
+    let result ← operation cfg frame inst.operation args activation hash
     match result with
     | .returned (word,next) => assign next inst.result inst.ty word
     | .reverted data => return .reverted data

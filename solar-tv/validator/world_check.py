@@ -11,7 +11,7 @@ from .common import Inconclusive, Program, Unsupported
 
 UNFOLD = (
     "before, after, EVM.State.equivalent, EVM.State.observe, "
-    "EVM.State.execute, EVM.State.reduceRun, EVM.State.instruction, EVM.State.available, "
+    "EVM.State.execute, EVM.State.reduceRun, EVM.State.instruction, EVM.State.instructionWithImage, EVM.State.available, "
     "EVM.State.next, EVM.State.stepFailed, EVM.State.stepExhausted, EVM.State.withMemory, EVM.State.account, "
     "EVM.State.putAccount, EVM.State.slotsRead, EVM.State.slotsWrite, EVM.State.warmSlot, "
     "EVM.State.warmAddress, EVM.State.memoryCharge, EVM.State.requiredWords, "
