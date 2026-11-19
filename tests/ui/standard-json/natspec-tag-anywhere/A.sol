@@ -50,7 +50,8 @@ contract J {}
 /// see @custom:y z
 contract R {}
 
-// Unlike in solc, a `solar-` tag in the middle of a line is text, so that prose does not apply it.
+// A `solar-` tag in the middle of a line ends the tag before it, as in solc, but unlike in solc it
+// is not a tag, so that prose does not apply it.
 /**
  * @notice Safe vault.
  * Do not add @custom:solar-trusted here

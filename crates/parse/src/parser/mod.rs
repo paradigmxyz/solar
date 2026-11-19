@@ -1362,13 +1362,6 @@ fn parse_natspec(
             // The tag name must immediately follow the '@': `@ param` is
             // plain text continuing the previous tag, matching solc.
             let (tag, rest_start) = crate::natspec::split_once_ws(content, tag_start, line_end);
-            // A `solar-` tag changes how we compile, so a mention in the middle of a line, such as
-            // in prose, is text.
-            if !at_line_start && tag.starts_with("custom:solar-") {
-                prev_line_end = line_end;
-                line_start = line_end + 1;
-                continue;
-            }
             tagged = true;
             bare_tag = tag_start + tag.len() == line_end;
             if tag.is_empty() {
@@ -1412,7 +1405,9 @@ fn parse_natspec(
                 }
                 "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
-                    if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                    if let Some(custom_tag) = tag.strip_prefix("custom:")
+                        && (at_line_start || !custom_tag.starts_with("solar-"))
+                    {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
                         ast::NatSpecKind::Custom { name: ident }
                     } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
@@ -1422,7 +1417,8 @@ fn parse_natspec(
                         // NOTE: We cannot tell yet whether solc reads this comment, so we only warn
                         // about an invalid tag that starts the line. One in the middle of a line,
                         // often an email address in a comment that solc ignores, still ends the
-                        // previous tag as in solc.
+                        // previous tag as in solc. So does a `solar-` tag there, which changes how
+                        // we compile, so that a mention in prose does not apply it.
                         if at_line_start && !in_yul {
                             invalid_tag(dcx, tag, comment_span);
                         }
@@ -1656,8 +1652,8 @@ import * as B from "b.sol";
         let src = r#"
 /**
  * note @solidity foo
+ * do not add @custom:solar-trusted memory-safe-assembly
  * x @bar memory-safe-assembly
- * do not add @custom:solar-trusted here
  * see @custom:x y
  * @dev
  * see @solidity memory-safe-assembly

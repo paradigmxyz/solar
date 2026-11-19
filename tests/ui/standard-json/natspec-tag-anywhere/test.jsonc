@@ -24,7 +24,8 @@
 // CHECK-LABEL: "R": {
 // CHECK: "custom:y": "z",
 // CHECK-LABEL: "P": {
-// CHECK: "notice": "Safe vault. Do not add @custom:solar-trusted here",
+// CHECK: "notice": "Safe vault.",
+// CHECK-NOT: "custom:solar-trusted"
 {
   "language": "Solidity",
   "settings": {

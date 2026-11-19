@@ -102,7 +102,7 @@
         "userdoc": {
           "kind": "user",
           "methods": {},
-          "notice": "Safe vault. Do not add @custom:solar-trusted here",
+          "notice": "Safe vault.",
           "version": 1
         },
         "devdoc": {

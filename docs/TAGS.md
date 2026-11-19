@@ -8,7 +8,7 @@ The whole `solar-` namespace is reserved. An unknown `@custom:solar-` tag, or a 
 cannot document, is an error rather than a requirement that silently goes unchecked. The
 divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags-are-requirements).
 A tag must start its line, after the comment's `///`, `/**` or `*`; one mentioned in the middle of
-a line is plain text.
+a line applies nothing, but ends the text of the tag before it, as any tag does.
 
 | Tag | Documents | Meaning |
 |---|---|---|
