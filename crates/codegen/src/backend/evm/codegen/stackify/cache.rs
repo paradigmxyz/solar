@@ -336,7 +336,7 @@ fn remap_steps(
         .iter()
         .map(|step| {
             Some(match step {
-                Step::Call(callee) => Step::Call(map(*callee)?),
+                &Step::Call { callee, inst } => Step::Call { callee: map(callee)?, inst },
                 &Step::Publish { inst, callee, arity, params } => {
                     Step::Publish { inst, callee: map(callee)?, arity, params }
                 }

@@ -1257,6 +1257,7 @@ impl LowerAbiCx {
             let mut values = Vec::with_capacity(return_types.len());
             let call = builder.icall(body_id, args, first);
             let inst = *builder.func().blocks[block].instructions.last().expect("the call");
+            builder.func_mut().inst_mut(inst).metadata.set_returns_to_exit();
             Self::widen_word_args(builder.func_mut(), block, inst, word_params);
             // NOTE: Everything after the call is the epilogue of the wrapper, which maps to the
             // closing brace of the body, as clang's `FinishFunction(EndLoc)` places the epilogue.
@@ -1282,6 +1283,7 @@ impl LowerAbiCx {
         } else {
             builder.icall_void(body_id, args);
             let call = *builder.func().blocks[block].instructions.last().expect("the call");
+            builder.func_mut().inst_mut(call).metadata.set_returns_to_exit();
             Self::widen_word_args(builder.func_mut(), block, call, word_params);
             builder.replace_source_span(exit);
             builder.ret([]);

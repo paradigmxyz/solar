@@ -631,7 +631,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee) => {
+            &Step::Call { callee, inst } => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -641,20 +641,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_label(self.function_labels[&callee]);
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
-                // NOTE: The call of a wrapper to its extracted body is the only one that maps to
-                // the whole declaration. The code after it is the epilogue of the wrapper, which
-                // maps to the closing brace, as clang places the epilogue
-                // (`CodeGenFunction::FinishFunction(EndLoc)`), so its return tag does too and the
-                // header is not a stop of the return.
-                if self.capture_debug_info {
-                    let origin = self.asm.debug_origin();
-                    if origin.only_source_span() == Some(func.declaration_span) {
-                        self.asm.set_label_origins(
-                            return_label,
-                            [func.exit_span],
-                            origin.modifier_depth(),
-                        );
-                    }
+                // NOTE: The code after the call of a wrapper to its extracted body is the epilogue
+                // of the wrapper, which maps to the closing brace, as clang places the epilogue
+                // (`CodeGenFunction::FinishFunction(EndLoc)`), so the return tag does too and the
+                // header is not a stop of the return. The call itself and the other calls of the
+                // wrapper, such as the argument decoders, keep the declaration.
+                if self.capture_debug_info && func.inst(inst).metadata.returns_to_exit() {
+                    let modifier_depth = self.asm.debug_origin().modifier_depth();
+                    self.asm.set_label_origins(return_label, [func.exit_span], modifier_depth);
                 }
             }
             &Step::Publish { callee, arity, params, .. } => {

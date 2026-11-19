@@ -240,8 +240,8 @@ enum Step {
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
     Inst(InstId),
-    /// Calls an internal function whose arguments are prepared.
-    Call(FunctionId),
+    /// Calls an internal function whose arguments are prepared, for the call `inst`.
+    Call { callee: FunctionId, inst: InstId },
     /// Stores the extra results below the first result of the call `inst` to the callee's return
     /// area and publishes it as the multi-return buffer.
     Publish { inst: InstId, callee: FunctionId, arity: usize, params: usize },

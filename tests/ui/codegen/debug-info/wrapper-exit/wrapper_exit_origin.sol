@@ -2,7 +2,7 @@
 //@[none] compile-flags: -Onone
 //@[none] filecheck: --check-prefixes=CHECK,NONE
 //@[gas] compile-flags: -Ogas
-//@[gas] filecheck:
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
 //@ compile-flags: --emit=srcmap-runtime -Zevm-ir-pipeline=none -Zdump=evm-ir-runtime-scheduled
 //@ normalize-stdout-test: "(?s).+" -> ""
 
@@ -12,7 +12,13 @@
 // not to its header, which a debugger that steps by line would show again after the last
 // statement. The entry of the wrapper keeps the whole definition, and the call of the wrapper
 // keeps it as well, so the header is the first stop. The return tag after a call from the source
-// stays under the call.
+// stays under the call, and so does the one after a call that decodes a memory argument, which is
+// part of the entry of the wrapper.
+struct Point {
+    uint256 x;
+    uint256 y;
+}
+
 contract C {
     uint256 stored;
 
@@ -52,5 +58,24 @@ contract C {
     function use_set(uint256 a) external {
         set(a);
         set(a + 1);
+    }
+
+    // At `-Ogas` the wrapper decodes the struct in a helper before it calls the body.
+    // CHECK-LABEL: [entry, invoke=sum@
+    // CHECK-SAME: [[#SUM_LO:]]..[[#SUM_HI:]]]
+    // CHECK-SAME: !metadata(span=[[#SUM_LO]]..
+    // CHECK-SAME: [[#SUM_HI]])
+    // GAS: [continuation] !metadata(span=[[#SUM_LO]]..
+    // GAS-SAME: [[#SUM_HI]])
+    // GAS: [continuation] !metadata(span=[[#SUM_HI - 1]]..
+    // GAS-SAME: [[#SUM_HI]])
+    // CHECK: return !metadata(span=[[#SUM_HI - 1]]..
+    // CHECK-SAME: [[#SUM_HI]], exit=return)
+    function sum(Point memory p) public pure returns (uint256) {
+        return p.x + p.y;
+    }
+
+    function use_sum(Point memory p) external pure returns (uint256) {
+        return sum(p) + 1;
     }
 }
