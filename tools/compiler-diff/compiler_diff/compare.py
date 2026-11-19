@@ -224,7 +224,9 @@ def storage_layouts(layouts, where):
             if match and isinstance(label, str):
                 if not STORAGE_TYPE_LABEL.fullmatch(label):
                     raise ValueError(f"malformed type label {label!r} in {where}")
-                names[match[0]] = f"{match[1]}{match[2]}{{{label}}}"
+                name = f"{match[1]}{match[2]}{{{label}}}"
+                if (other := names.setdefault(match[0], name)) != name:
+                    raise ValueError(f"{where}: {match[0]} is both {other} and {name}")
     result = {
         key: storage_layout(layout, f"{where} {key}", names)
         for key, layout in layouts.items()
@@ -1017,6 +1019,11 @@ class Tests(unittest.TestCase):
             types = c["storageLayout"]["types"]
             types["t_struct(S)1_storage"]["label"] = "struct C.S}_storage,t_struct(T){T"
 
+        def two_labels(c):
+            types = c["storageLayout"]["types"]
+            types["t_struct(S)1_storage_ptr"] = {**types["t_struct(S)1_storage"]}
+            types["t_struct(S)1_storage_ptr"]["label"] = "struct D.S"
+
         def normalized_row(c):
             c["storageLayout"]["storage"][0]["type"] = "t_struct(S){struct C.S}_storage"
 
@@ -1025,6 +1032,7 @@ class Tests(unittest.TestCase):
             (hash_key, "malformed"),
             (normalized_row, "malformed"),
             (forged_label, "malformed type label"),
+            (two_labels, "C.sol:C: t_struct(S)1 is both"),
             (lambda c: c["storageLayout"]["storage"].append(None), "malformed"),
             (lambda c: c["storageLayout"]["types"].update(x=None), "malformed"),
             (lambda c: c["storageLayout"]["storage"][0].update(type=1), "malformed"),
