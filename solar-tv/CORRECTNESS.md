@@ -671,6 +671,14 @@ the overlapping selector and first argument. The resulting full memories agree,
 including untouched bytes outside the object. This derives the warm journal,
 memory extent, and 100-byte length word needed to price the call.
 
+The imported write sequence also has a symbolic child-input theorem for
+separate bounded MIR and machine arenas. Each arena may start with a
+different free pointer and dirty contents. The selector and argument stores
+cover every byte in the CALL payload, so both layouts pass the same bytes
+for arbitrary sender, receiver and amount. This relates the child input.
+The full ABI proof still needs a relation for the remaining live state and
+the physical active-memory extent.
+
 The earlier MIR GAS sample reaches the same EIP-150 cap as the emitted sample.
 Both sides execute the same child code with that gas, environment, input
 and journal. SUCCESS commits the child journal. REVERT restores the checkpoint

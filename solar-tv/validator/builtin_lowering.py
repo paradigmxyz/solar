@@ -868,6 +868,23 @@ def returnAddress : Caller → Word
 theorem suffixShape (caller : Caller) : callerSuffix caller = reference caller := by
   cases caller <;> decide
 
+theorem separateArenas (frame : Frame) (physical : List Byte) (sender receiver amount : Word)
+    (mirAligned : frame.memory.length % 32 = 0) (mirBound : frame.memory.length ≤ 65536)
+    (mirLive : 96 ≤ frame.memory.length) (mirHeap : 128 ≤ (readWord frame.memory 64).toNat)
+    (mirFits : (readWord frame.memory 64).toNat + 160 ≤ 65536)
+    (evmAligned : physical.length % 32 = 0) (evmBound : physical.length ≤ 65536)
+    (evmLive : 96 ≤ physical.length) (evmHeap : 128 ≤ (readWord physical 64).toNat)
+    (evmFits : (readWord physical 64).toNat + 160 ≤ 65536) :
+    ∃ mirAfter evmAfter,
+      abiEncode frame 1 false true [false,false,false] [selector,sender,receiver,amount] =
+        .ok (.scalar (Scalar.ofWord 256 (readWord frame.memory 64)),{frame with memory := mirAfter}) ∧
+      runMemory sender receiver amount finalWrites physical 0 = .ok evmAfter ∧
+      readBytes mirAfter ((readWord frame.memory 64).toNat+32) 100 =
+        readBytes evmAfter ((readWord physical 64).toNat+32) 100 := by
+  rw [finalWritesShape]
+  exact independentMemoryInput frame physical sender receiver amount mirAligned mirBound
+    mirLive mirHeap mirFits evmAligned evmBound evmLive evmHeap evmFits
+
 theorem contextual (cfg : Config) (fuel : Nat)
     (evm : EVM.State.Frame) (world : Journal) (args : Inputs)
     (sample available child retained words elapsed : Nat)

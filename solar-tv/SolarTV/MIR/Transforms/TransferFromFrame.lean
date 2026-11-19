@@ -215,6 +215,158 @@ theorem encode (frame : Frame) (sender receiver amount : Word)
     erw [h5]
 
 
+private theorem readPrefix (memory extra : List Byte) (offset count : Nat)
+    (within : offset + count ≤ memory.length) :
+    readBytes (memory ++ extra) offset count = readBytes memory offset count := by
+  unfold readBytes
+  apply List.map_congr_left
+  intro i hi
+  have hm : offset + i < memory.length := by have := List.mem_range.mp hi; omega
+  simp [List.getElem?_append_left hm]
+
+private theorem readTake (memory : List Byte) (offset count keep : Nat) (within : keep ≤ count) :
+    (readBytes memory offset count).take keep = readBytes memory offset keep := by
+  simp [readBytes, ←List.map_take, Nat.min_eq_left within]
+
+private theorem readSplit (memory : List Byte) (offset first rest : Nat) :
+    readBytes memory offset (first+rest) =
+      readBytes memory offset first ++ readBytes memory (offset+first) rest := by
+  simp [readBytes,List.range_add,List.map_append,List.map_map,Function.comp_def,Nat.add_assoc]
+
+private theorem readStore (before after : List Byte) (offset : Nat) (word : Word)
+    (written : storeWord before offset word = .ok after)
+    (within : offset + 32 ≤ after.length) :
+    readBytes after offset 32 = wordBytes word := by
+  unfold storeWord at written
+  cases ex : expand before offset 32 with
+  | error _ => simp [ex,Bind.bind,Except.bind] at written
+  | ok active =>
+    simp only [ex,Bind.bind,Except.bind,Pure.pure,Except.pure,Except.ok.injEq] at written
+    subst after
+    rw [writeBytes_length] at within
+    simpa using readBytes_writeBytes_same active (wordBytes word) offset (by simpa using within)
+
+private theorem readStoreDisjoint (before after : List Byte) (offset source count : Nat)
+    (word : Word) (written : storeWord before offset word = .ok after)
+    (within : source + count ≤ before.length)
+    (disjoint : offset + 32 ≤ source ∨ source + count ≤ offset) :
+    readBytes after source count = readBytes before source count := by
+  unfold storeWord at written
+  cases ex : expand before offset 32 with
+  | error _ => simp [ex,Bind.bind,Except.bind] at written
+  | ok active =>
+    simp only [ex,Bind.bind,Except.bind,Pure.pure,Except.pure,Except.ok.injEq] at written
+    subst after
+    rw [readBytes_writeBytes_disjoint _ _ _ _ _ (by simpa using disjoint)]
+    unfold expand at ex
+    dsimp only at ex
+    split at ex
+    · contradiction
+    · cases ex
+      exact readPrefix _ _ _ _ within
+
+def canonicalInput (sender receiver amount : Word) : List Byte :=
+  (wordBytes selector).take 4 ++ wordBytes sender ++ wordBytes receiver ++ wordBytes amount
+
+private theorem payloadAfterStores (p : Nat) (sender receiver amount : Word)
+    (m1 m2 m3 m4 m5 : List Byte)
+    (h2 : storeWord m1 (p+32) selector = .ok m2)
+    (h3 : storeWord m2 (p+36) sender = .ok m3)
+    (h4 : storeWord m3 (p+68) receiver = .ok m4)
+    (h5 : storeWord m4 (p+100) amount = .ok m5)
+    (l2 : p+64 ≤ m2.length) (l3 : p+68 ≤ m3.length)
+    (l4 : p+100 ≤ m4.length) (l5 : p+132 ≤ m5.length) :
+    readBytes m5 (p+32) 100 = canonicalInput sender receiver amount := by
+  have first : readBytes m2 (p+32) 4 = (wordBytes selector).take 4 := by
+    rw [←readTake m2 (p+32) 32 4 (by decide),readStore _ _ _ _ h2 (by omega)]
+  rw [show 100 = 4 + (32 + (32+32)) by decide,readSplit,readSplit m5 (p+32+4),
+    readSplit m5 (p+32+4+32)]
+  have offsets : p+32+4 = p+36 ∧ p+32+4+32 = p+68 ∧ p+32+4+32+32 = p+100 := by omega
+  rw [offsets.2.2,offsets.2.1,offsets.1]
+  rw [readStoreDisjoint _ _ _ (p+32) 4 _ h5 (by omega) (Or.inr (by omega)),
+    readStoreDisjoint _ _ _ (p+32) 4 _ h4 (by omega) (Or.inr (by omega)),
+    readStoreDisjoint _ _ _ (p+32) 4 _ h3 (by omega) (Or.inr (by omega)),first]
+  rw [readStoreDisjoint _ _ _ (p+36) 32 _ h5 (by omega) (Or.inr (by omega)),
+    readStoreDisjoint _ _ _ (p+36) 32 _ h4 (by omega) (Or.inr (by omega)),
+    readStore _ _ _ _ h3 (by omega)]
+  rw [readStoreDisjoint _ _ _ (p+68) 32 _ h5 (by omega) (Or.inr (by omega)),
+    readStore _ _ _ _ h4 (by omega),readStore _ _ _ _ h5 (by omega)]
+  simp only [canonicalInput,List.append_assoc]
+
+private theorem storeExtent (memory after : List Byte) (offset : Nat) (word : Word)
+    (written : storeWord memory offset word = .ok after) : offset + 32 ≤ after.length := by
+  unfold storeWord at written
+  cases ex : expand memory offset 32 with
+  | error _ => simp [ex,Bind.bind,Except.bind] at written
+  | ok active =>
+    simp only [ex,Bind.bind,Except.bind,Pure.pure,Except.pure,Except.ok.injEq] at written
+    subst after
+    rw [writeBytes_length]
+    unfold expand at ex
+    dsimp only at ex
+    split at ex
+    · contradiction
+    · cases ex
+      simp only [List.length_append,List.length_replicate,requiredWords,
+        show ¬ (32 : Nat) = 0 by decide,ite_false]
+      have lower := Nat.le_max_right (memoryWords memory) ((offset+32+31)/32)
+      omega
+
+/-- The physical stores initialize every byte sent to the child. The payload
+depends on the three ABI words and is independent of the incoming arena. -/
+theorem projectedInput (memory : List Byte) (sender receiver amount : Word)
+    (aligned : memory.length % 32 = 0) (bounded : memory.length ≤ 65536)
+    (live : 96 ≤ memory.length) (heap : 128 ≤ (readWord memory 64).toNat)
+    (valid : (readWord memory 64).toNat + 160 ≤ 65536) :
+    ∃ after, runMemory sender receiver amount stores memory 0 = .ok after ∧
+      readBytes after ((readWord memory 64).toNat+32) 100 =
+        canonicalInput sender receiver amount := by
+  let p := (readWord memory 64).toNat
+  obtain ⟨m0,m1,m2,m3,m4,m5,h0,h1,h2,h3,h4,h5,_,_,_,_⟩ :=
+    written memory (readWord memory 64) sender receiver amount aligned bounded live valid heap
+  refine ⟨m5,?_,payloadAfterStores p sender receiver amount m1 m2 m3 m4 m5 h2 h3 h4 h5
+    (by have := storeExtent _ _ _ _ h2; omega) (storeExtent _ _ _ _ h3)
+    (storeExtent _ _ _ _ h4) (storeExtent _ _ _ _ h5)⟩
+  have hdr := FinalCallBudget.expandCovered memory 64 32 aligned live bounded
+  simp only [stores,runMemory,hdr,Bind.bind,Except.bind,EVM.CallBudget.Address.at,Nat.add_zero]
+  erw [h0]
+  dsimp only
+  erw [h1]
+  dsimp only
+  erw [h2]
+  dsimp only
+  erw [h3]
+  dsimp only
+  erw [h4]
+  dsimp only
+  erw [h5]
+
+/-- Relate the child input from distinct MIR and machine arenas. Each arena
+keeps its own placement and unrelated bytes. The caller separately relates
+its journal and any memory it reads after the helper. -/
+theorem independentMemoryInput (frame : Frame) (physical : List Byte)
+    (sender receiver amount : Word)
+    (mirAligned : frame.memory.length % 32 = 0) (mirBound : frame.memory.length ≤ 65536)
+    (mirLive : 96 ≤ frame.memory.length) (mirHeap : 128 ≤ (readWord frame.memory 64).toNat)
+    (mirFits : (readWord frame.memory 64).toNat + 160 ≤ 65536)
+    (evmAligned : physical.length % 32 = 0) (evmBound : physical.length ≤ 65536)
+    (evmLive : 96 ≤ physical.length) (evmHeap : 128 ≤ (readWord physical 64).toNat)
+    (evmFits : (readWord physical 64).toNat + 160 ≤ 65536) :
+    ∃ mirAfter evmAfter,
+      abiEncode frame 1 false true [false,false,false] [selector,sender,receiver,amount] =
+        .ok (.scalar (Scalar.ofWord 256 (readWord frame.memory 64)),{frame with memory := mirAfter}) ∧
+      runMemory sender receiver amount stores physical 0 = .ok evmAfter ∧
+      readBytes mirAfter ((readWord frame.memory 64).toNat+32) 100 =
+        readBytes evmAfter ((readWord physical 64).toNat+32) 100 := by
+  obtain ⟨left,encoded,storesLeft,_,_,_,_⟩ :=
+    encode frame sender receiver amount mirAligned mirBound mirLive mirHeap mirFits
+  obtain ⟨same,leftWrites,leftInput⟩ :=
+    projectedInput frame.memory sender receiver amount mirAligned mirBound mirLive mirHeap mirFits
+  obtain ⟨right,rightWrites,rightInput⟩ :=
+    projectedInput physical sender receiver amount evmAligned evmBound evmLive evmHeap evmFits
+  have equality := Except.ok.inj (storesLeft.symm.trans leftWrites)
+  exact ⟨left,right,encoded,rightWrites,(equality ▸ leftInput).trans rightInput.symm⟩
+
 structure Inputs where
   token : Address
   sender : Address
