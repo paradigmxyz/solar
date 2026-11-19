@@ -201,15 +201,19 @@ def abi_entries(abi, policy):
     }
 
 
-def storage_layout(layout, where):
-    """Drop AST IDs from a storage layout; two types that become one name are an error."""
+def storage_layout(layout, where, ids):
+    """Drop AST IDs from a storage layout.
+
+    `ids` maps each type name to its AST ID across a contract's layouts; two IDs
+    of one name are an error.
+    """
+    malformed = ValueError(f"malformed storage layout in {where}")
     if (
         not isinstance(layout, dict)
         or not isinstance(layout.get("storage"), list)
         or not isinstance(layout.get("types"), (dict, type(None)))
     ):
-        raise ValueError(f"malformed storage layout in {where}")
-    ids = {}
+        raise malformed
 
     def strip(match):
         if ids.setdefault(match[1], match[2]) != match[2]:
@@ -221,14 +225,28 @@ def storage_layout(layout, where):
 
     def rename(key, value):
         if isinstance(value, list):
+            # Only `storage` and `members` hold lists, of variables.
+            if not all(
+                isinstance(v, dict) and isinstance(v.get("type"), str) for v in value
+            ):
+                raise malformed
             return [rename(None, v) for v in value]
-        if isinstance(value, dict):
-            return {
-                STORAGE_TYPE_ID.sub(strip, k) if key == "types" else k: rename(k, v)
-                for k, v in value.items()
-                if k != "astId"
+        if isinstance(value, dict) and key == "types":
+            if not all(isinstance(v, dict) for v in value.values()):
+                raise malformed
+            types = {
+                STORAGE_TYPE_ID.sub(strip, k): rename(k, v) for k, v in value.items()
             }
-        if isinstance(value, str) and key in STORAGE_TYPE_FIELDS:
+            if len(types) != len(value):
+                raise ValueError(
+                    f"{where}: two types have the same name without AST IDs"
+                )
+            return types
+        if isinstance(value, dict):
+            return {k: rename(k, v) for k, v in value.items() if k != "astId"}
+        if key in STORAGE_TYPE_FIELDS:
+            if not isinstance(value, str):
+                raise malformed
             return STORAGE_TYPE_ID.sub(strip, value)
         return value
 
@@ -249,6 +267,7 @@ def artifact(output, comparator, policy):
                 raise ValueError("malformed contract artifact")
             if comparator == "storage-layout":
                 layouts = result[path][name] = {}
+                ids = {}
                 for key in STORAGE_LAYOUTS:
                     value = contract.get(key)
                     if value is None:
@@ -257,7 +276,7 @@ def artifact(output, comparator, policy):
                         continue
                     # A bad layout fails the check but leaves other contracts compared.
                     try:
-                        value = storage_layout(value, f"{path}:{name} {key}")
+                        value = storage_layout(value, f"{path}:{name} {key}", ids)
                         layouts[key] = {"available": True, "value": value}
                     except ValueError as error:
                         errors[path, name, key] = str(error)
@@ -897,6 +916,28 @@ class Tests(unittest.TestCase):
             [d["path"] for d in result["differences"]],
             ["/contracts/D.sol/C/storageLayout/value/storage/1"],
         )
+
+    def test_storage_layout_malformed_or_ambiguous(self):
+        def transient(c):
+            c["transientStorageLayout"]["storage"][0]["type"] = "t_enum(E)99"
+
+        def hash_key(c):
+            types = c["storageLayout"]["types"]
+            types["t_struct(S)#_storage"] = types["t_struct(S)1_storage"]
+
+        for edit, message in [
+            (transient, "transientStorageLayout: t_enum(E)4 and t_enum(E)99"),
+            (hash_key, "storageLayout: two types have the same name"),
+            (lambda c: c["storageLayout"]["storage"].append(None), "malformed"),
+            (lambda c: c["storageLayout"]["types"].update(x=None), "malformed"),
+            (lambda c: c["storageLayout"]["storage"][0].update(type=1), "malformed"),
+        ]:
+            with self.subTest(message):
+                output = self.storage_output()
+                edit(output["contracts"]["C.sol"]["C"])
+                result = compare_outputs(output, output, "storage-layout")
+                self.assertEqual(result["status"], "error")
+                self.assertIn(message, result["error"])
 
     def test_storage_layout_missing(self):
         left = self.storage_output()

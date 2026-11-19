@@ -109,9 +109,10 @@ AST IDs never match between compilers, so `storage-layout` drops `astId` and
 replaces the ID that ends `t_struct(Name)N`, `t_enum(Name)N`,
 `t_contract(Name)N` and `t_userDefinedValueType(Name)N` with `#`, in the keys
 of `types` and in every `type`, `key`, `value` and `base`, including those of
-struct members. If two IDs of one name meet in one layout, such as two structs
-`S` from different scopes, the check reports an error naming the contract
-rather than guessing which is which, and still compares the other contracts.
+struct members. If two IDs of one name meet in one contract's layouts, such as
+two structs `S` from different scopes, the check reports an error naming the
+contract rather than guessing which is which, and still compares the other
+contracts; so does a malformed layout.
 `storage` and each struct's `members` compare in order; `types` compares as an
 object, so its key order does not matter. Each layout counts as one output for
 the missing and `unsupported` rules below; solc before 0.8.27 emits no
