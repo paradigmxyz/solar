@@ -10,9 +10,3 @@ warning[6546]: invalid natspec tag '@customwrong', custom tags must use format '
 LL │ /// @customwrong Should use colon format
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-warning[6546]: invalid natspec tag '@example.com', custom tags must use format '@custom:name'
-   ╭▸ ROOT/tests/ui/natspec/tag_syntax.sol:LL:CC
-   │
-LL │ /// contact user@example.com
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-

@@ -1361,7 +1361,14 @@ fn parse_natspec(
                         ast::NatSpecKind::Internal { tag: ident }
                     } else {
                         // Emit error for invalid solidity tags, but ignore in Yul.
-                        if !in_yul {
+                        // NOTE: We cannot tell yet whether solc reads this comment, so we only
+                        // warn when the '@' starts the line; an '@' in the middle of a line is
+                        // often an email address in a comment that solc ignores.
+                        if !in_yul
+                            && bytes[line_start..line_start + tag_offset]
+                                .iter()
+                                .all(|&b| b.is_ascii_whitespace() || b == b'*')
+                        {
                             invalid_tag(dcx, tag, comment_span);
                         }
                         line_start = line_end + 1;
