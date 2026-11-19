@@ -3,6 +3,7 @@ import SolarTV.MIR.Transforms.TransferFromCallers
 import SolarTV.State.Trace
 import SolarTV.State.CheckedHashes
 import SolarTV.EVMIR.State.CodeChunks
+import SolarTV.EVMIR.State.Observe
 import Lean.Data.Json
 
 /-! Execute both representations to the helper entry. The bytecode starts at PC 0;
@@ -22,23 +23,36 @@ structure ByteCut where
   budgets : List Nat
   pcs : List Nat
 
+structure ByteExit where
+  result : EVM.State.Result
+  samples : List Nat
+  budgets : List Nat
+
 /-- Reaching the cut consumes no instruction. A continuing transition spends
 one unit of root fuel and evaluates any child with the remaining fuel. -/
-private def byteStepUsing (pc fuel : Nat) (cfg : EVM.State.Config) (code : List Byte)
+private def byteTransition (fuel : Nat) (cfg : EVM.State.Config)
     (instruction : Journal → EVM.State.Frame → EVM.State.Action) (readByte : Nat → Option Byte)
-    (state : ByteCut) : Except String (ByteCut ⊕ ByteCut) := do
+    (state : ByteCut) : Except String (ByteExit ⊕ ByteCut) := do
   let ⟨frame,world,samples,budgets,pcs⟩ := state
-  let frame := {frame with code}
-  if frame.pc = pc then return .inl ⟨frame,world,samples.reverse,budgets.reverse,pcs.reverse⟩
   let signal ← instruction world frame
   let budgets := match signal with
     | .call .. => frame.gas :: budgets
     | _ => budgets
   let samples := if readByte frame.pc == some 0x5a then frame.gas :: samples else samples
   match ← EVM.State.advance cfg (EVM.State.run fuel cfg) signal with
-  | .inl _ => .error "bytecode terminated before the helper"
+  | .inl result => return .inl ⟨result,samples.reverse,budgets.reverse⟩
   | .inr (_,nextWorld,nextFrame) =>
     return .inr ⟨nextFrame,nextWorld,samples,budgets,frame.pc :: pcs⟩
+
+private def byteStepUsing (pc fuel : Nat) (cfg : EVM.State.Config) (code : List Byte)
+    (instruction : Journal → EVM.State.Frame → EVM.State.Action) (readByte : Nat → Option Byte)
+    (state : ByteCut) : Except String (ByteCut ⊕ ByteCut) := do
+  let frame := {state.frame with code}
+  if frame.pc = pc then
+    return .inl ⟨frame,state.world,state.samples.reverse,state.budgets.reverse,state.pcs.reverse⟩
+  match ← byteTransition fuel cfg instruction readByte {state with frame} with
+  | .inl _ => .error "bytecode terminated before the helper"
+  | .inr next => return .inr next
 
 def byteStep (pc : Nat) (cfg : EVM.State.Config) (code : List Byte) :
     Trace.Step ByteCut ByteCut := fun fuel =>
@@ -57,7 +71,7 @@ theorem chunkedByteStep_eq (pc : Nat) (cfg : EVM.State.Config) (code : EVM.State
     chunkedByteStep pc cfg code = byteStep pc cfg code.bytes := by
   funext fuel state
   cases state
-  unfold chunkedByteStep byteStep byteStepUsing EVM.State.instruction
+  unfold chunkedByteStep byteStep byteStepUsing byteTransition EVM.State.instruction
   have immediate (i : Nat) : code.immediate i = EVM.State.pushValue code.bytes i :=
     funext (code.immediate_eq i)
   simp only [EVM.State.CodeChunks.get_eq, immediate,
@@ -67,10 +81,34 @@ def runBytes (pc : Nat) (fuel : Nat) (cfg : EVM.State.Config) (state : ByteCut) 
     Except String ByteCut :=
   Trace.run (byteStep pc cfg state.frame.code) fuel state
 
+def byteExitStart (cut : ByteCut) : ByteCut := {cut with samples := [], budgets := [], pcs := []}
+
+def byteExitStep (cfg : EVM.State.Config) (code : List Byte) : Trace.Step ByteCut ByteExit :=
+  fun fuel state => byteTransition fuel cfg (EVM.State.instruction cfg) (fun i => code[i]?)
+    {state with frame := {state.frame with code}}
+
+def chunkedByteExitStep (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (hash : List Byte → Word := Keccak.hash) : Trace.Step ByteCut ByteExit := fun fuel state =>
+  byteTransition fuel cfg (fun world frame =>
+    EVM.State.instructionWithImage cfg world frame code.size ((code.get? frame.pc).getD 0)
+      (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) hash)
+    code.get? {state with frame := {state.frame with code := code.bytes}}
+
+theorem chunkedByteExitStep_eq (cfg : EVM.State.Config) (code : EVM.State.CodeChunks) :
+    chunkedByteExitStep cfg code = byteExitStep cfg code.bytes := by
+  funext fuel state
+  unfold chunkedByteExitStep byteExitStep byteTransition EVM.State.instruction
+  have immediate (i : Nat) : code.immediate i = EVM.State.pushValue code.bytes i :=
+    funext (code.immediate_eq i)
+  simp only [EVM.State.CodeChunks.get_eq, immediate,
+    EVM.State.CodeChunks.jump_eq, ← EVM.State.CodeChunks.size_eq]
+
 structure MirCut where
   args : List Word
   returns : List Word
   frame : MIR.State.Frame
+  cursor : Cursor
+  samples : List Nat
 
 def instAt (functions : Functions) (cursor : Cursor) : Option Instruction := do
   let body ← (functions.find? (·.1 == cursor.function)).map Prod.snd
@@ -80,6 +118,16 @@ def instAt (functions : Functions) (cursor : Cursor) : Option Instruction := do
 structure MirCursor where
   machine : Machine
   samples : List Nat
+
+private def mirTransition (fuel : Nat) (cfg : MIR.State.Config) (functions : Functions)
+    (state : MirCursor) (site : Option Instruction) (hash : List Byte → Word) :
+    Except String (Transition × List Nat) := do
+  let (stepCfg,samples) ← match site with
+    | some ⟨_,_,_,.context .gasSample,_⟩ => do
+      let sample ← required state.samples.head? "missing physical GAS sample"
+      pure ({cfg with layout := {cfg.layout with gasBefore := some sample}},state.samples.drop 1)
+    | _ => pure (cfg,state.samples)
+  return (← transition fuel stepCfg functions state.machine hash,samples)
 
 /-- Gas samples and per-message pricing come from the physical prefix. MIR
 prices child messages, and its intervening SSA instructions remain unpriced. -/
@@ -91,13 +139,10 @@ def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.Sta
   if let some ⟨_,_,_,.call callee,callOperands⟩ := site then
     if callee = helper then
       if !machine.stack.isEmpty then .error "unexpected nested caller at helper cut" else
-      return .inl ⟨← callOperands.mapM (read machine.frame), ← returned.mapM (read machine.frame), machine.frame⟩
-  let (stepCfg,samples) ← match site with
-    | some ⟨_,_,_,.context .gasSample,_⟩ => do
-      let sample ← required samples.head? "missing physical GAS sample"
-      pure ({cfg with layout := {cfg.layout with gasBefore := some sample}},samples.drop 1)
-    | _ => pure (cfg,samples)
-  match ← transition fuel stepCfg functions machine hash with
+      return .inl ⟨← callOperands.mapM (read machine.frame), ← returned.mapM (read machine.frame),
+        machine.frame,machine.cursor,samples⟩
+  let (result,samples) ← mirTransition fuel cfg functions state site hash
+  match result with
   | .finished _ => .error "MIR terminated before the helper"
   | .next _ next => return .inr ⟨next,samples⟩
 
@@ -204,6 +249,103 @@ def mirPrefix (cfg : MIR.State.Config) (functions : Functions) (entry helper : N
     (priced : ByteCut) (fuel : Nat) : Except String MirCut :=
   Trace.run (mirTrace cfg functions helper returned priced) fuel
     (mirStart cfg functions entry selector caller journal priced)
+
+def finishByte (checkpoint : Journal) (result : EVM.State.Result) : EVM.State.Result :=
+  {result with world := if result.stop = .success then EVM.State.finalize result.world else checkpoint}
+
+def runByteExit (cfg : EVM.State.Config) (fuel : Nat) (cut : ByteCut) : Except String ByteExit :=
+  Trace.run (byteExitStep cfg cut.frame.code) fuel (byteExitStart cut)
+
+def mirExitStart (cut : MirCut) (priced : ByteExit) : Except String MirCursor :=
+  .ok ⟨⟨cut.cursor,[],cut.frame⟩,cut.samples ++ priced.samples⟩
+
+/-- Resume the actual caller and helper SSA. Gas is priced at message
+boundaries from the emitted execution. The returned gas field is unused
+by the effects projection because scalar MIR is unpriced. -/
+def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (budgets : List Nat)
+    (hash : List Byte → Word := Keccak.hash) : Trace.Step (Except String MirCursor) EVM.State.Result :=
+  Trace.checkedStart fun fuel state => do
+    let site := instAt functions state.machine.cursor
+    let (result,samples) ← mirTransition fuel {cfg with messageGas := some budgets} functions state site hash
+    match result with
+    | .next _ next => return .inr ⟨next,samples⟩
+    | .finished result =>
+      if !samples.isEmpty || result.messageGas.length != budgets.length then
+        .error "emitted call ledger does not match MIR execution" else
+      let (stop,data) := match result.completion with
+        | .returned words => (EVM.State.Stop.success,words.flatMap wordBytes)
+        | .success data => (.success,data)
+        | .reverted data => (.reverted,data)
+        | .invalid => (.exception,[])
+        | .outOfGas => (.outOfGas,[])
+      return .inl ⟨stop,data,result.world,0,0⟩
+
+def runMirExit (cfg : MIR.State.Config) (functions : Functions) (fuel : Nat)
+    (physical : ByteCut) (priced : ByteExit) (cut : MirCut) : EVM.State.Run :=
+  Trace.run (mirExitStep cfg functions (physical.budgets ++ priced.budgets)) fuel
+    (mirExitStart cut priced)
+
+structure CallerBody where
+  functions : Functions
+  entry : Nat
+  helper : Nat
+  returned : List Operand
+
+/-- One observation for a complete ABI invocation through the certified helper
+cut. The MIR runs use the same calldata, journal and physical call ledger.
+Private memory is local to each execution and is discarded on exit. -/
+def fromAbi (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
+    (pc : Nat) (selector : Word) (caller : Caller) (body : CallerBody)
+    (byteFuel mirFuel exitFuel : Nat) (physical : Bool) : Except String EVM.State.Observation := do
+  let cut ← runBytes pc byteFuel cfg initial
+  let priced ← runByteExit cfg exitFuel cut
+  let result ← if physical then pure priced.result else do
+    let mirCut ← mirPrefix mirCfg body.functions body.entry body.helper body.returned
+      selector caller initial.world cut mirFuel
+    runMirExit mirCfg body.functions exitFuel cut priced mirCut
+  return EVM.State.observe cfg .effects (finishByte initial.world result)
+
+theorem fromAbi_byte (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
+    (pc : Nat) (selector : Word) (caller : Caller) (body : CallerBody)
+    (byteFuel mirFuel exitFuel : Nat) (cut : ByteCut) (terminal : ByteExit)
+    (enters : runBytes pc byteFuel cfg initial = .ok cut)
+    (resume : runByteExit cfg exitFuel cut = .ok terminal) :
+    fromAbi cfg mirCfg initial pc selector caller body byteFuel mirFuel exitFuel true =
+      .ok (EVM.State.observe cfg .effects (finishByte initial.world terminal.result)) := by
+  simp [fromAbi, enters, resume, Bind.bind, Except.bind, Pure.pure, Except.pure]
+
+theorem fromAbi_mir (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
+    (pc : Nat) (selector : Word) (caller : Caller) (body : CallerBody)
+    (byteFuel mirFuel exitFuel : Nat) (cut : ByteCut) (priced : ByteExit) (mirCut : MirCut)
+    (terminal : EVM.State.Result)
+    (enters : runBytes pc byteFuel cfg initial = .ok cut)
+    (byteResume : runByteExit cfg exitFuel cut = .ok priced)
+    (mirPrefix : TransferFromEntry.mirPrefix mirCfg body.functions body.entry body.helper body.returned
+      selector caller initial.world cut mirFuel = .ok mirCut)
+    (mirResume : runMirExit mirCfg body.functions exitFuel cut priced mirCut = .ok terminal) :
+    fromAbi cfg mirCfg initial pc selector caller body byteFuel mirFuel exitFuel false =
+      .ok (EVM.State.observe cfg .effects (finishByte initial.world terminal)) := by
+  simp [fromAbi, enters, byteResume, mirPrefix, mirResume, Bind.bind, Except.bind, Pure.pure, Except.pure]
+
+structure Invocation where
+  cfg : EVM.State.Config
+  mirCfg : MIR.State.Config
+  initial : ByteCut
+  pc : Nat
+  selector : Word
+  caller : Caller
+  before : CallerBody
+  after : CallerBody
+  byteFuel : Nat
+  mirFuel : Nat
+  exitFuel : Nat
+
+def Invocation.Verified (entry : Invocation) : Prop :=
+  let execute := fromAbi entry.cfg entry.mirCfg entry.initial entry.pc entry.selector entry.caller
+  ∃ observation,
+    execute entry.before entry.byteFuel entry.mirFuel entry.exitFuel true = .ok observation ∧
+    execute entry.before entry.byteFuel entry.mirFuel entry.exitFuel false = .ok observation ∧
+    execute entry.after entry.byteFuel entry.mirFuel entry.exitFuel false = .ok observation
 
 theorem liveIns (caller : Caller) (suffix : Suffix) (returnPC : Word) (args : Inputs) (other : Word)
     (stack arguments returns : List Word)

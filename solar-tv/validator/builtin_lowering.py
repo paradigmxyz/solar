@@ -766,23 +766,27 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
     if final_call and final_call.get("caller_entry"):
         from . import caller_entry
 
-        runtime, directory = final_call["caller_entry"]
+        runtime, directory, worlds = final_call["caller_entry"]
         artifact = final_call["artifact"]
+        paths, suite = caller_entry.check(
+            runtime,
+            artifact["entry_pc"],
+            final_call["callers"],
+            bodies,
+            directory,
+            solar,
+            executable,
+            timeout,
+            worlds,
+        )
         artifact["abi_entry"] = {
-            "scope": "pinned Cancun worlds from ABI dispatch to the helper cut",
+            "scope": "concrete Cancun worlds from ABI dispatch to exit via the helper",
             "reachability": "lean-kernel",
+            "end_to_end": "lean-kernel",
             "independent_replay": "lean-and-rust-replay",
             "snapshot_live_ins": "lean-kernel",
-            "paths": caller_entry.check(
-                runtime,
-                artifact["entry_pc"],
-                final_call["callers"],
-                bodies,
-                directory,
-                solar,
-                executable,
-                timeout,
-            ),
+            "paths": paths,
+            "proof": suite,
         }
 
     pair = tuple(

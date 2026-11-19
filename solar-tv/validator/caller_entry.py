@@ -1,6 +1,7 @@
 """Check the real ABI path to the internal Morpho helper."""
 
 import json
+from pathlib import Path
 
 from . import caller_replay, entry_proof, mir_state, native, world
 from .callers import require
@@ -31,50 +32,59 @@ def body_context(table, site):
                     )
                     tail = block["instructions"][block["instructions"].index(row) + 1 :]
                     returns = [inst["operation"]["args"][1] for inst in tail]
-                elif target is not None and target not in seen:
+                if target is not None and target not in seen:
                     seen[target] = by_id[target]
                     pending.append(by_id[target])
     require(returns is not None, f"cannot find MIR helper cut in {site.name}")
     return seen.values(), entry["id"], helper, returns
 
 
-def fixtures(code, site, directory, solar, timeout):
+def default_fixture(name, solar, timeout):
     token = world.runtime(caller_replay.TOKEN_IR, "evmir", solar, FORK, timeout)
     oracle = b"\x7f" + caller_replay.word(10**36) + bytes.fromhex("5f5260205ff3")
-    fixture = directory / f"{site.name}.world.json"
-    fixture.write_text(
-        json.dumps(
+    return {
+        "version": 1,
+        "address": caller_replay.MORPHO,
+        "caller": caller_replay.CALLER,
+        "gas": 300000,
+        "calldata": "0x" + caller_replay.calldata(name).hex(),
+        "accounts": [
             {
-                "version": 1,
                 "address": caller_replay.MORPHO,
-                "caller": caller_replay.CALLER,
-                "gas": 300000,
-                "calldata": "0x" + caller_replay.calldata(site.name).hex(),
-                "accounts": [
-                    {
-                        "address": caller_replay.MORPHO,
-                        "nonce": 1,
-                        "storage": {
-                            hex(key): str(value)
-                            for key, value in caller_replay.INITIAL.items()
-                        },
-                    },
-                    {
-                        "address": caller_replay.TOKEN,
-                        "nonce": 1,
-                        "code": "0x" + token.hex(),
-                    },
-                    {
-                        "address": caller_replay.ORACLE,
-                        "nonce": 1,
-                        "code": "0x" + oracle.hex(),
-                    },
-                    {"address": caller_replay.CALLER, "nonce": 1, "code": "0x00"},
-                ],
-            }
-        )
-    )
+                "nonce": 1,
+                "storage": {
+                    hex(key): str(value) for key, value in caller_replay.INITIAL.items()
+                },
+            },
+            {
+                "address": caller_replay.TOKEN,
+                "nonce": 1,
+                "code": "0x" + token.hex(),
+            },
+            {
+                "address": caller_replay.ORACLE,
+                "nonce": 1,
+                "code": "0x" + oracle.hex(),
+            },
+            {"address": caller_replay.CALLER, "nonce": 1, "code": "0x00"},
+        ],
+    }
+
+
+def fixtures(code, site, directory, solar, timeout, worlds=None):
+    fixture = directory / f"{site.name}.world.json"
+    if worlds is None:
+        fixture.write_text(json.dumps(default_fixture(site.name, solar, timeout)))
+    else:
+        supplied = Path(worlds) / fixture.name
+        require(supplied.stat().st_size <= 262144, "world fixture exceeds 256 KiB")
+        fixture.write_bytes(supplied.read_bytes())
     state = world.read(fixture, solar, "exact")
+    require(not state["symbols"], "ABI caller fixtures require concrete world values")
+    require(
+        bytes(state["calldata"][:4]) == site.selector.to_bytes(4, "big"),
+        f"wrong ABI selector in {site.name} world",
+    )
     root = next(
         account
         for account in state["accounts"]
@@ -95,6 +105,7 @@ def replay_source(
     timeout,
     *,
     observed=None,
+    live=None,
 ):
     env = world.environment_expression(state)
     context = world.context_expression(state)
@@ -104,6 +115,7 @@ def replay_source(
         row["opcode"] for row in catalog.values() if row["forks"][FORK]["available"]
     ]
     warm = ", ".join(world.warm_addresses(state, FORK))
+    warm_slots = ", ".join(f"({address},{key})" for address, key in state["warm_slots"])
     seed = {
         **state,
         "accounts": [
@@ -129,13 +141,13 @@ def replay_source(
 def initialAccounts : List Execution.Account :=
   ({world.accounts_expression(seed)} : List Execution.Account).map fun a =>
     if a.address = {state["address"]} then {{a with code := image}} else a
-def checkpoint : Execution.Journal := ⟨initialAccounts,initialAccounts,[{warm}],[],[],0⟩
+def checkpoint : Execution.Journal := ⟨initialAccounts,initialAccounts,[{warm}],[{warm_slots}],[],0⟩
 def env : World.Environment := {env}
 def startFrame : EVM.State.Frame := ⟨env,image,0,[],[],[],{state["gas"]}⟩
 def initial : ByteCut := ⟨startFrame,checkpoint,[],[],[]⟩
 def mirCfg : MIR.State.Config :=
   {{ fork := .cancun, environment := env, context := {context}, available := {available},
-    entry := false, externalConfig := some tvWorldConfig }}
+    entry := false, externalConfig := some {{tvWorldConfig with unknownCode := some env.address}} }}
 """
     )
     if kernel:
@@ -143,7 +155,7 @@ def mirCfg : MIR.State.Config :=
 def physicalStart := initial
 def physicalWith (hash : List Execution.Byte → Word) := chunkedByteStep {helper_pc} tvWorldConfig code hash
 def mirGas := {{initial with samples := {observed["samples"]}, budgets := {observed["budgets"]}}}
-""" + live_in_definitions(site)
+""" + live_in_definitions(site, live)
     else:
         program += f"def priced := runBytes {helper_pc} 2048 tvWorldConfig initial\n"
     for label, table in zip(("before", "after"), tables, strict=True):
@@ -177,27 +189,48 @@ def replay(state, pc, executable, timeout):
         ("world-entry", "evmir"), [], "", "", world=state, evm_version=FORK, gas="exact"
     )
     raw = native.replay(
-        program, program, [], executable=executable, timeout=timeout, probe_pc=pc
+        program,
+        program,
+        [],
+        executable=executable,
+        timeout=timeout,
+        probe_pc=pc,
+        raw_runtime=pc is None,
     )
     left, right = raw["observations"]
     require(left == right, "unstable native helper-entry snapshot")
     return json.loads(left)
 
 
-def live_in_definitions(site):
+def live_values(site, snapshots):
+    args, returned = snapshots["before"]
+    require(len(args) == 4, "unexpected Morpho transferFrom argument count")
+    values = list(map(int, args))
+    require(
+        all(0 <= value < 2**160 for value in values[:3]), "noncanonical helper address"
+    )
+    other = 0
+    if site.live_words:
+        require(len(returned) == 2, "unexpected Morpho caller return count")
+        other = int(returned[0 if site.name == "liquidate" else 1])
+    return values, other
+
+
+def live_in_definitions(site, live):
     suffix = (
         f".pair {site.live_words[0]} {site.live_words[1]}"
         if site.live_words
         else ".stop"
     )
-    other = {"supply": 7_000_000, "repay": 7_000_000, "liquidate": 8}.get(site.name, 0)
+    args, other = live
+    words = ",".join(map(str, args))
     return f"""
 open MIR.TransferFromCallers
 def caller : Caller := .{site.name}
 def selector : Word := {site.selector}
 def suffix : Suffix := ⟨{suffix},{site.gas}⟩
 def returnPC : Word := {site.return_pc}
-def inputs : MIR.TransferFromFrame.Inputs := ⟨{caller_replay.TOKEN},{caller_replay.CALLER},{caller_replay.MORPHO},7⟩
+def inputs : MIR.TransferFromFrame.Inputs := ⟨{words}⟩
 def other : Word := {other}
 """
 
@@ -207,7 +240,7 @@ def live_in_source(site, observations):
     source = (
         PRELUDE.replace("import SolarTV\n", f"import {MODULE}\n", 1)
         + "open MIR.TransferFromEntry\n"
-        + live_in_definitions(site)
+        + live_in_definitions(site, live_values(site, observations))
         + f"def stack : List Word := {stack}\n"
     )
     for side in ("before", "after"):
@@ -223,7 +256,9 @@ theorem {side}_live :
     return source
 
 
-def check(runtime, helper_pc, sites, tables, directory, solar, executable, timeout):
+def check(
+    runtime, helper_pc, sites, tables, directory, solar, executable, timeout, worlds
+):
     directory.mkdir()
     built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
@@ -241,7 +276,7 @@ def check(runtime, helper_pc, sites, tables, directory, solar, executable, timeo
     )
     evidence = {}
     for site in sites:
-        state = fixtures(runtime, site, directory, solar, timeout)
+        state = fixtures(runtime, site, directory, solar, timeout, worlds)
         observed = replay(state, helper_pc, executable, timeout)
         source = replay_source(
             state, runtime, helper_pc, site, tables, solar, executable, timeout
@@ -277,14 +312,22 @@ def check(runtime, helper_pc, sites, tables, directory, solar, executable, timeo
             executable,
             timeout,
             observed=observed,
+            live=live_values(site, snapshots),
         )
         proof = entry_proof.certify(
             kernel, site.name, fixture, observed, helper_pc, timeout
         )
+        terminal = replay(state, None, executable, timeout)
+        exit_proof = entry_proof.certify_exit(
+            kernel, proof["proof"], helper_pc, terminal, timeout
+        )
+        (directory / f"{site.name}-exit.json").write_text(json.dumps(terminal))
         evidence[site.name] = {
             **proof,
+            "exit": {**exit_proof, "status": terminal[0], "gas": terminal[2]},
+            "world_sha256": state["fixture_sha256"],
             "pc": helper_pc,
             "gas": observed["gas"],
             "steps": len(observed["pcs"]),
         }
-    return evidence
+    return evidence, entry_proof.certify_suite(kernel, evidence, timeout)

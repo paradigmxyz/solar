@@ -790,10 +790,16 @@ def main(arguments):
     parser.add_argument(
         "--check-caller-entry",
         action="store_true",
-        help="also replay the five pinned ABI entry paths and check the live-ins",
+        help="also certify five ABI invocations from dispatch through the helper to exit",
+    )
+    parser.add_argument(
+        "--caller-worlds",
+        type=Path,
+        help="use each caller's NAME.world.json from this directory and certify the invocations",
     )
     parser.add_argument("--timeout", type=int, default=60)
     args = parser.parse_args(arguments)
+    check_caller_entry = args.check_caller_entry or args.caller_worlds is not None
     solar = str(Path(shutil.which(args.solar) or args.solar).resolve())
     replay = str(Path(args.replay or native.default(solar)).resolve())
     directory = args.output.resolve()
@@ -874,7 +880,9 @@ def main(arguments):
                 "artifact": artifact,
                 "proof": directory / "MIRCallBudget.lean",
                 "caller_entry": (
-                    (final, directory / "entry") if args.check_caller_entry else None
+                    (final, directory / "entry", args.caller_worlds)
+                    if check_caller_entry
+                    else None
                 ),
             },
         )
@@ -910,11 +918,7 @@ def main(arguments):
                 "scope": "Cancun transferFrom entry through the five owning caller exits",
                 "callers": artifact["callers"],
                 "caller_replays": caller_receipts,
-                **(
-                    {"abi_entry": artifact["abi_entry"]}
-                    if args.check_caller_entry
-                    else {}
-                ),
+                **({"abi_entry": artifact["abi_entry"]} if check_caller_entry else {}),
                 "tail_fixed_gas": dict(zip(call_tail.ROUTES, tail.prices, strict=True)),
                 "returndatacopy_word_gas": tail.copy_gas,
                 "runtime_sha256": evaluate.digest(final),
@@ -945,8 +949,8 @@ def main(arguments):
         print(f"inconclusive: {error}", file=sys.stderr)
         return 2
     print(f"verified Morpho {FUNCTION} through CALL and five caller exits")
-    if args.check_caller_entry:
-        print("kernel-checked five pinned ABI entry paths and their helper live-ins")
+    if check_caller_entry:
+        print("kernel-checked five ABI invocations from dispatch to exit")
     print(
         f"counterexample: child GAS {child_samples[0]} -> {child_samples[1]} (Rust replay matched)"
     )

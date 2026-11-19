@@ -13,9 +13,11 @@ from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
 from validator import (
+    builtin_lowering,
     call_budget,
     call_tail,
     caller_entry,
+    caller_replay,
     callers,
     entry_proof,
     native,
@@ -28,6 +30,28 @@ class CallBudgetTests(unittest.TestCase):
     def test_actual_morpho_budget_and_replay(self):
         with tempfile.TemporaryDirectory() as work:
             output = Path(work) / "call-budget"
+            worlds = Path(work) / "worlds"
+            worlds.mkdir()
+            failures = {
+                "repay": ("602a5f5563deadbeef5f526004601cfd", b"transferFrom reverted"),
+                "supplyCollateral": (
+                    "602a5f555f5f5260205ff3",
+                    b"transferFrom returned false",
+                ),
+            }
+            for offset, name in enumerate(callers.SELECTORS):
+                fixture = caller_entry.default_fixture(name, SOLAR, 30)
+                fixture["gas"] = 330000 + offset * 1000
+                fixture["warm_addresses"] = [caller_replay.TOKEN]
+                fixture["accounts"][0]["storage"]["0xbeef"] = str(10 + offset)
+                if name in failures:
+                    fixture["accounts"][1]["code"] = "0x" + failures[name][0]
+                if name == "flashLoan":
+                    data = caller_replay.calldata(name)
+                    fixture["calldata"] = (
+                        "0x" + (data[:36] + caller_replay.word(9) + data[68:]).hex()
+                    )
+                (worlds / f"{name}.world.json").write_text(json.dumps(fixture))
             result = subprocess.run(
                 [
                     CLI,
@@ -36,11 +60,12 @@ class CallBudgetTests(unittest.TestCase):
                     SOLAR,
                     "--output",
                     output,
-                    "--check-caller-entry",
+                    "--caller-worlds",
+                    worlds,
                 ],
                 capture_output=True,
                 text=True,
-                timeout=1200,
+                timeout=1500,
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -90,6 +115,8 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(entry_report["reachability"], "lean-kernel")
             self.assertEqual(entry_report["independent_replay"], "lean-and-rust-replay")
             self.assertEqual(entry_report["snapshot_live_ins"], "lean-kernel")
+            self.assertEqual(entry_report["end_to_end"], "lean-kernel")
+            self.assertTrue((output / "entry" / entry_report["proof"]).is_file())
             entry = entry_report["paths"]
             self.assertEqual(set(entry), set(report["caller_replays"]))
             for site in report["callers"]:
@@ -98,6 +125,32 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertTrue(proof.is_file())
                 self.assertTrue((output / "entry" / entry[name]["proof"]).is_file())
                 self.assertGreater(entry[name]["segments"], 0)
+                end = entry[name]["exit"]
+                self.assertTrue((output / "entry" / end["proof"]).is_file())
+                self.assertGreater(end["segments"], 0)
+                observation = json.loads(
+                    (output / f"entry/{name}-exit.json").read_text()
+                )
+                self.assertEqual(end["gas"], observation[2])
+                self.assertEqual(
+                    end["status"], "revert" if name in failures else "success"
+                )
+                if name in failures:
+                    self.assertIn(failures[name][1], bytes(observation[1]))
+                    accounts = {int(account[0]): account for account in observation[4]}
+                    self.assertEqual(accounts[caller_replay.TOKEN][4], [])
+                    self.assertEqual(observation[5], [])
+                    initial = json.loads((worlds / f"{name}.world.json").read_text())
+                    self.assertEqual(
+                        {
+                            int(slot): int(value)
+                            for slot, value in accounts[caller_replay.MORPHO][4]
+                        },
+                        {
+                            int(slot, 16): int(value)
+                            for slot, value in initial["accounts"][0]["storage"].items()
+                        },
+                    )
                 snapshot = json.loads((output / f"entry/{name}.json").read_text())[
                     "bytecode"
                 ]
@@ -109,7 +162,7 @@ class CallBudgetTests(unittest.TestCase):
                         "262144",
                         "65536",
                         "327680",
-                        "7",
+                        "9" if name == "flashLoan" else "7",
                     ],
                 )
                 words = [
@@ -152,6 +205,17 @@ class CallBudgetTests(unittest.TestCase):
             rejected = entry_proof.lean(kernel, "WrongCheckpoint", modified, 60)
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("(kernel) declaration type mismatch", rejected.stdout)
+
+            supply_exit = entry["supply"]["exit"]
+            wrong_gas, replacements = re.subn(
+                r"(theorem bytecode_gas : physicalResult.gas = )(\d+)",
+                lambda match: f"{match[1]}{int(match[2]) + 1}",
+                (output / "entry" / supply_exit["price_proof"]).read_text(),
+            )
+            self.assertEqual(replacements, 1)
+            rejected = entry_proof.lean(kernel, "WrongExitGas", wrong_gas, 60)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("decide", rejected.stdout)
             self.assertEqual(
                 report["tail_fixed_gas"],
                 {
@@ -233,6 +297,59 @@ class CallBudgetTests(unittest.TestCase):
                 caller_entry.replay(
                     state, report["entry_pc"], native.default(SOLAR), 30
                 )
+
+            # A child must never answer MIR reentry by running the final bytecode
+            # on both sides of the comparison.
+            state = world.read(output / "entry/supply.world.json", SOLAR, "exact")
+            accounts = {
+                int(account["address"]): account for account in state["accounts"]
+            }
+            accounts[caller_replay.MORPHO]["code"] = list(runtime)
+            accounts[caller_replay.TOKEN]["code"] = list(
+                bytes.fromhex("5f5f5f5f620500005afa5060015f5260205ff3")
+            )
+            executable = native.default(SOLAR)
+            _, models, _ = builtin_lowering.load_pair(
+                [output / "before.mir", output / "after.mir"],
+                SOLAR,
+                executable,
+                "cancun",
+                30,
+            )
+            source = caller_entry.replay_source(
+                state,
+                runtime,
+                report["entry_pc"],
+                callers.Site(**report["callers"][0]),
+                list(map(builtin_lowering.functions, models)),
+                SOLAR,
+                executable,
+                30,
+            )
+            reentry = Path(work) / "Reentry.lean"
+            reentry.write_text(
+                source.split("#eval")[0]
+                + """
+def throughHelper : EVM.State.Run := do
+  let cut ← priced
+  let physical ← runByteExit tvWorldConfig 1024 cut
+  let entered ← before cut
+  runMirExit mirCfg beforeFunctions 1024 cut physical entered
+#eval IO.println (EVM.State.describe tvWorldConfig .effects throughHelper)
+"""
+            )
+            result = subprocess.run(
+                ["lake", "env", "lean", "-j1", reentry],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(
+                result.stdout.strip(), "unsupported: MIR root runtime code is unknown"
+            )
 
             self.assertEqual(runtime[report["entry_pc"]], 0x5B)
             self.assertEqual(

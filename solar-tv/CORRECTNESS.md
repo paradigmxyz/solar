@@ -711,18 +711,23 @@ starts at helper entry with related caller live-in values and the owning
 checkpoint.
 
 With `--check-caller-entry`, the kernel proves reachability from PC 0 in the
-emitted runtime and from ABI decoding in both captured MIR bodies for each
-pinned Cancun fixture. MIR consumes the GAS samples and message budgets of
-the proved bytecode cut. The kernel checks the stack and ABI-word premises
-on the reached states. The certificate composes short transitions across
-complete states, with separately checked instruction-aligned image chunks
-and concrete Keccak digests. The image and hash tables have correspondence
-theorems to the list decoder and original hash.
+emitted runtime and from ABI decoding in both captured MIR bodies. It checks
+the stack, ABI words and FMP at the helper cut. Each execution resumes with
+its own reached memory and journal, so the proof carries the actual writes
+from the prefix into the suffix. On success it compares the ABI publication,
+committed accounts and logs. On revert it compares the payload and rollback
+to the owning checkpoint. The bytecode result provides both the prefix and
+suffix GAS samples and call budgets for the MIR executions.
 
-Replay also compares accounts, logs and returndata. A Rust EVM inspector
-independently matches the physical path and frame at the helper PC.
-Private-memory correspondence and arbitrary-world prefix equivalence remain
-open.
+`MorphoAbiSuite.lean` assembles separate certificates for the five callers.
+Each certificate composes short transitions over complete states. The
+instruction-aligned image chunks and concrete Keccak digests have
+correspondence theorems to the list decoder and original hash. Rust replay
+independently checks the physical frame at the helper PC and the complete
+ABI exit, including exact gas and refund. `--caller-worlds` changes the
+concrete inputs used to derive the certificates. An all-input prefix
+simulation, general private-memory correspondence and physical MIR
+instruction pricing remain open.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code

@@ -257,7 +257,7 @@ def record(
                 )
                 if program.import_evidence.get("final_bytecode", {}).get("abi_entry"):
                     assumptions.append(
-                        "the separate ABI entry certificates establish stack and caller return live-ins for the five pinned fixture executions"
+                        "the separate ABI-to-exit certificate connects both MIR bodies and emitted bytecode for five concrete caller worlds"
                     )
             else:
                 assumptions.append(

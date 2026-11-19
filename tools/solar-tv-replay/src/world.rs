@@ -57,6 +57,9 @@ pub(super) struct Input {
     /// Observe the first root instruction at this PC in the fixture runtime.
     #[serde(default)]
     probe_pc: Option<usize>,
+    /// Execute the fixture's captured root bytecode directly.
+    #[serde(default)]
+    raw_runtime: bool,
 }
 
 #[derive(Deserialize)]
@@ -221,7 +224,7 @@ pub(super) fn spec(text: &str) -> Result<SpecId, String> {
 
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
     if request.kind == "mir" {
-        if input.probe_pc.is_some() {
+        if input.raw_runtime || input.probe_pc.is_some() {
             return Err("bytecode probe requires EVM execution".into());
         }
         return mir::replay(request, input);
@@ -255,13 +258,13 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     let execute = |text: &str| -> Result<String, String> {
         let root = address(request, &input.address)?;
         let caller = address(request, &input.caller)?;
-        let code = if let Some(pc) = input.probe_pc {
+        let code = if input.raw_runtime || input.probe_pc.is_some() {
             let runtime = input
                 .accounts
                 .iter()
                 .find(|account| account.address == input.address)
-                .ok_or("bytecode probe requires a root account")?;
-            if pc >= runtime.code.len() {
+                .ok_or("raw bytecode replay requires a root account")?;
+            if input.probe_pc.is_some_and(|pc| pc >= runtime.code.len()) {
                 return Err("bytecode probe PC is outside the root runtime".into());
             }
             runtime.code.clone()

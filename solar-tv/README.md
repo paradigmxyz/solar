@@ -1489,23 +1489,30 @@ from all five real ABI selectors and executes the unchanged runtime against
 success, token revert and false-return fixtures. It checks return words,
 storage and log rollback.
 
-Add `--check-caller-entry` to prove the five ABI prefixes in the pinned
-Cancun worlds. The Lean kernel checks execution from PC 0 in the original
-runtime and from ABI decoding in both typed MIR snapshots. It checks the
-helper arguments, return address and saved ABI words at the reached states.
-Short execution segments and reusable bytecode decoding and Keccak proofs
-keep the checks within the per-process memory limit.
+Add `--check-caller-entry` to certify five complete ABI invocations in Cancun.
+The Lean kernel checks execution from PC 0 in the original runtime and from
+ABI decoding in both typed MIR snapshots. It checks the helper live-ins and
+FMP, then resumes each reached frame through the actual helper and caller
+instructions. The final proof compares terminal status, ABI bytes, accounts
+and logs. MIR uses the gas samples and message budgets from the checked
+bytecode execution. The exact physical gas and refund are separately checked
+against the Rust replay.
 
-Independent replay compares the bytecode path, stack, memory, returndata and
-gas with the Rust inspector, and compares accounts, logs and returndata
-across the bytecode and MIR executions. The saved files under `entry/` include
-the replays and the kernel certificates. From this directory, recheck a saved
-certificate with its compiled segment modules on the search path:
+Use `--caller-worlds DIR` to supply concrete calldata, accounts, gas and
+child code. Copy the `*.world.json` files saved under `entry/` and edit the
+five inputs. Each file must keep its caller's selector and reach the checked
+helper. The proof covers the supplied invocations. Children that depend on
+the MIR root's runtime code cause an unsupported result.
+
+Short execution segments and reusable bytecode decoding and Keccak proofs
+keep the checks within the per-process memory limit. The saved files under
+`entry/` include the checked segments and independent replays. From this
+directory, recheck all five proofs with the compiled modules on the search path:
 
 ```sh
 kernel=/absolute/path/to/call-budget/entry/kernel
 LEAN_PATH="$kernel${LEAN_PATH:+:$LEAN_PATH}" \
-  lake env lean -j1 --memory=2048 "$kernel/EntrySupplyProof.lean"
+  lake env lean -j1 --memory=2048 "$kernel/MorphoAbiSuite.lean"
 ```
 
 Use `--mir-pair BEFORE AFTER` to verify an existing capture. The output
