@@ -387,19 +387,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             let assignments = self.edge_assignments(func, source, target);
-            let records = self.edge_records(func, source, target);
-            let dropped_exit = !records.is_empty()
-                && records.iter().all(|record| record.dropped_exit == Some(true));
             self.emit_edge_steps(func_id, func, terminator_origin, &steps, assignments, cold);
-            // NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on this edge.
-            // The jump replaces the arm's jump, so it keeps that jump's location, as LLVM's
-            // Preserve rule gives a replacement the location of what it replaces. The jump out of
-            // an `if` arm has none, and the branch's origin would show the condition's line again
-            // after the arm ran.
-            if dropped_exit {
-                self.asm.set_source_span(None);
-                self.asm.set_debug_loc_kind(DebugLocKind::Dropped);
-            }
+            self.drop_bypassed_exit_origin(func, source, target);
             self.emit_stackified_jump(target, None);
         }
         self.asm.repeating_code = repeating;
@@ -503,6 +492,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let assignments = self.edge_assignments(func, block, fall.target);
                 let steps = fall.trampoline.as_deref().unwrap_or_default();
                 self.emit_edge_steps(func_id, func, terminator_origin, steps, assignments, cold);
+                if next != Some(resolve(fall.target)) {
+                    self.drop_bypassed_exit_origin(func, block, fall.target);
+                }
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {
@@ -823,6 +815,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 },
             )
             .collect()
+    }
+
+    /// Drops the origin of the jump that ends the edge from `block` to `target` when the edge
+    /// replaces the jump of a bypassed arm that has no location.
+    ///
+    /// NOTE: An empty arm that `cfg-simplify` bypassed leaves its assignments on the edge. The jump
+    /// replaces the arm's jump, so it keeps that jump's location, as LLVM's Preserve rule gives a
+    /// replacement the location of what it replaces. The jump out of an `if` arm has none, and the
+    /// branch's origin would show the condition's line again after the arm ran.
+    fn drop_bypassed_exit_origin(&mut self, func: &Function, block: BlockId, target: BlockId) {
+        let records = self.edge_records(func, block, target);
+        if !records.is_empty() && records.iter().all(|record| record.dropped_exit == Some(true)) {
+            self.asm.set_source_span(None);
+            self.asm.set_debug_loc_kind(DebugLocKind::Dropped);
+        }
     }
 
     /// Returns the assignments, as the value each stored and its source context, whose pushes and
