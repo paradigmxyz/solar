@@ -23,6 +23,8 @@ COMPARATORS = {
 STORAGE_TYPE_ID = re.compile(
     r"(t_(?:struct|enum|contract|userDefinedValueType))(\([^)]*\))(\d+)"
 )
+# A type label such as `struct Tick.Info`; others could forge type ID syntax.
+STORAGE_TYPE_LABEL = re.compile(r"[\w$. ]+")
 # A user-defined type without an AST ID, which compilers never emit.
 STORAGE_TYPE_WITHOUT_ID = re.compile(
     r"t_(?:struct|enum|contract|userDefinedValueType)\([^)]*\)(?!\d)"
@@ -210,20 +212,19 @@ def storage_layouts(layouts, where):
 
     `t_struct(Info)3` becomes `t_struct(Info){struct Tick.Info}`, with the label
     of the `types` entry that the ID heads, so same-named types from different
-    scopes stay apart. An ID with no entry keeps its bare name, `t_struct(Info)#`. Two
-    IDs that end up with one name are an error.
+    scopes stay apart. An ID with no entry keeps its bare name,
+    `t_struct(Info)#`. Two IDs that end up with one name are an error.
     """
     names = {}
     for layout in layouts.values():
         types = layout.get("types") if isinstance(layout, dict) else None
         for key, entry in (types if isinstance(types, dict) else {}).items():
             match = STORAGE_TYPE_ID.match(key)
-            if (
-                match
-                and isinstance(entry, dict)
-                and isinstance(entry.get("label"), str)
-            ):
-                names[match[0]] = f"{match[1]}{match[2]}{{{entry['label']}}}"
+            label = entry.get("label") if isinstance(entry, dict) else None
+            if match and isinstance(label, str):
+                if not STORAGE_TYPE_LABEL.fullmatch(label):
+                    raise ValueError(f"malformed type label {label!r} in {where}")
+                names[match[0]] = f"{match[1]}{match[2]}{{{label}}}"
     result = {
         key: storage_layout(layout, f"{where} {key}", names)
         for key, layout in layouts.items()
@@ -1012,6 +1013,10 @@ class Tests(unittest.TestCase):
             types = c["storageLayout"]["types"]
             types["t_struct(S){struct C.S}_storage"] = types["t_struct(S)1_storage"]
 
+        def forged_label(c):
+            types = c["storageLayout"]["types"]
+            types["t_struct(S)1_storage"]["label"] = "struct C.S}_storage,t_struct(T){T"
+
         def normalized_row(c):
             c["storageLayout"]["storage"][0]["type"] = "t_struct(S){struct C.S}_storage"
 
@@ -1019,6 +1024,7 @@ class Tests(unittest.TestCase):
             (transient, "C.sol:C: t_enum(E)4 and t_enum(E)99 both become t_enum(E)#"),
             (hash_key, "malformed"),
             (normalized_row, "malformed"),
+            (forged_label, "malformed type label"),
             (lambda c: c["storageLayout"]["storage"].append(None), "malformed"),
             (lambda c: c["storageLayout"]["types"].update(x=None), "malformed"),
             (lambda c: c["storageLayout"]["storage"][0].update(type=1), "malformed"),
