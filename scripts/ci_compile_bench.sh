@@ -43,15 +43,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-mkdir -p "$OUTPUT_DIR"
-
 REPROS_DIR="testdata/repros"
 SIZES=("small" "medium")  # Skip large in CI for speed
-
-# Build release binary
-echo "::group::Building release binary" >&2
-cargo build --release --quiet 2>/dev/null
-echo "::endgroup::" >&2
 
 # Collect benchmark results
 collect_benchmarks() {
@@ -75,13 +68,13 @@ collect_benchmarks() {
                 # Time parse phase
                 local start end
                 start=$(python3 -c 'import time; print(time.time())')
-                ./target/release/solar "$repro" --stop-after=parsing 2>&1 >/dev/null || true
+                ./target/release/solar "$repro" --stop-after=parsing >/dev/null
                 end=$(python3 -c 'import time; print(time.time())')
                 parse_times+=("$(echo "scale=6; ($end - $start) * 1000" | bc)")
                 
                 # Time full compile
                 start=$(python3 -c 'import time; print(time.time())')
-                ./target/release/solar "$repro" 2>&1 >/dev/null || true
+                ./target/release/solar "$repro" >/dev/null
                 end=$(python3 -c 'import time; print(time.time())')
                 sema_times+=("$(echo "scale=6; ($end - $start) * 1000" | bc)")
             done
@@ -95,6 +88,11 @@ collect_benchmarks() {
         done
     done
     
+    if (( ${#results[@]} == 0 )); then
+        echo "No benchmark cases found in $REPROS_DIR" >&2
+        return 1
+    fi
+
     # Output JSON
     echo "{"
     echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
@@ -122,7 +120,7 @@ compare_benchmarks() {
     local current="$2"
     local threshold="$3"
     
-    python3 - "$baseline" "$current" "$threshold" << 'PYTHON'
+    python3 - "$baseline" "$current" "$threshold" "${4:-}" << 'PYTHON'
 import json
 import sys
 
@@ -166,6 +164,9 @@ for name, curr in current_map.items():
     elif parse_diff < -threshold or sema_diff < -threshold:
         improvements.append(result)
 
+if not all_results:
+    sys.exit("No benchmark cases in common")
+
 output = {
     "baseline_commit": baseline["commit_short"],
     "current_commit": current["commit_short"],
@@ -177,7 +178,8 @@ output = {
 }
 
 print(json.dumps(output, indent=2))
-sys.exit(1 if regressions else 0)
+if regressions and sys.argv[4] != "--report-only":
+    sys.exit(1)
 PYTHON
 }
 
@@ -251,15 +253,23 @@ PYTHON
 
 # Main execution
 if [[ -n "$COMPARE_FILE" && -n "$BASELINE_FILE" ]]; then
-    # Compare mode
+    # Comparing saved results needs neither a build nor an output directory.
     compare_benchmarks "$BASELINE_FILE" "$COMPARE_FILE" "$THRESHOLD"
-elif [[ -n "$BASELINE_FILE" ]]; then
+    exit
+fi
+
+mkdir -p "$OUTPUT_DIR"
+echo "::group::Building release binary" >&2
+cargo build --release --quiet >&2
+echo "::endgroup::" >&2
+
+if [[ -n "$BASELINE_FILE" ]]; then
     # Generate report with comparison
     RESULTS_FILE="$OUTPUT_DIR/current.json"
     collect_benchmarks > "$RESULTS_FILE"
     
     COMPARISON_FILE="$OUTPUT_DIR/comparison.json"
-    compare_benchmarks "$BASELINE_FILE" "$RESULTS_FILE" "$THRESHOLD" > "$COMPARISON_FILE" || true
+    compare_benchmarks "$BASELINE_FILE" "$RESULTS_FILE" "$THRESHOLD" --report-only > "$COMPARISON_FILE"
     
     generate_report "$RESULTS_FILE" "$COMPARISON_FILE"
 else
