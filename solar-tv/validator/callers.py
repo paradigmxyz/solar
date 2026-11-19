@@ -25,6 +25,7 @@ SELECTORS = {
 class Site:
     name: str
     selector: int
+    abi_pc: int
     call_block: str
     return_block: str
     call_block_pc: int
@@ -250,6 +251,7 @@ def extract(scheduled, finalized, decoded, helper, catalog, fork):
         found[owner] = Site(
             owner,
             SELECTORS[owner],
+            pcs[abi_entries[owner]],
             final_label,
             continuation,
             pcs[final_label],

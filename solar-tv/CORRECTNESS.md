@@ -710,8 +710,18 @@ journal with the exact revert bytes. Out-of-gas also rolls back. The theorem
 starts at helper entry with related caller live-in values and the owning
 checkpoint.
 
-With `--check-caller-entry`, the kernel proves reachability from PC 0 in the
-emitted runtime and from ABI decoding in both captured MIR bodies. It checks
+With `--check-caller-entry`, each emitted route from PC 0 to its named ABI
+decoder is proved for arbitrary calldata with the matching selector and
+length in the word domain, zero call value, arbitrary journal, and enough
+gas to reach that decoder. The proof checks each actual opcode, PUSH
+immediate and taken jump destination against the emitted image, and its
+charge against the Cancun opcode table. Every step carries the world through
+unchanged. A separate theorem relates the typed MIR decoder and its initial
+frame to the canonical encoding for arbitrary head words and callback bytes.
+
+The concrete ABI-to-exit certificates apply that dispatcher theorem to the
+supplied input, resume at the decoder PC with the exact residual gas, and
+then prove reachability in the emitted runtime and both captured MIR bodies. They check
 the stack, ABI words and FMP at the helper cut. Each execution resumes with
 its own reached memory and journal, so the proof carries the actual writes
 from the prefix into the suffix. On success it compares the ABI publication,
@@ -727,7 +737,9 @@ independently checks the physical frame at the helper PC and the complete
 ABI exit, including exact gas and refund. `--caller-worlds` changes the
 concrete inputs used to derive the certificates. An all-input prefix
 simulation, general private-memory correspondence and physical MIR
-instruction pricing remain open.
+instruction pricing remain open. For example, the low-gas Supply regression
+reaches the helper with 1,343 gas. The emitted runtime exhausts that gas
+before the helper's GAS sample, so the MIR side has no sample to consume.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code

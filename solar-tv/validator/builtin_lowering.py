@@ -782,6 +782,7 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         artifact["abi_entry"] = {
             "scope": "concrete Cancun worlds from ABI dispatch to exit via the helper",
             "reachability": "lean-kernel",
+            "dispatcher": "symbolic-lean-kernel",
             "end_to_end": "lean-kernel",
             "independent_replay": "lean-and-rust-replay",
             "snapshot_live_ins": "lean-kernel",

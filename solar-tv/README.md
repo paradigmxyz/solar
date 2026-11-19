@@ -1490,8 +1490,13 @@ success, token revert and false-return fixtures. It checks return words,
 storage and log rollback.
 
 Add `--check-caller-entry` to certify five complete ABI invocations in Cancun.
-The Lean kernel checks execution from PC 0 in the original runtime and from
-ABI decoding in both typed MIR snapshots. It checks the helper live-ins and
+The Lean kernel checks the emitted selector dispatch symbolically for all five
+callers. For zero call value, the matching selector, and sufficient dispatch
+gas, the proof carries arbitrary calldata and the complete journal to the ABI
+decoder. The MIR ABI model separately proves decoding for arbitrary canonical
+head words and callback bytes. The concrete invocation certificates use the
+symbolic dispatch proof to enter the captured ABI body, then validate its
+execution to the helper and exit. Each checks the helper live-ins and
 FMP, then resumes each reached frame through the actual helper and caller
 instructions. The final proof compares terminal status, ABI bytes, accounts
 and logs. MIR uses the gas samples and message budgets from the checked

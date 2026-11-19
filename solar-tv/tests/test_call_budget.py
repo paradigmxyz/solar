@@ -113,6 +113,7 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertIn(b"transferFrom returned false", bytes(observations[2][1]))
             entry_report = report["abi_entry"]
             self.assertEqual(entry_report["reachability"], "lean-kernel")
+            self.assertEqual(entry_report["dispatcher"], "symbolic-lean-kernel")
             self.assertEqual(entry_report["independent_replay"], "lean-and-rust-replay")
             self.assertEqual(entry_report["snapshot_live_ins"], "lean-kernel")
             self.assertEqual(entry_report["end_to_end"], "lean-kernel")
@@ -125,6 +126,9 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertTrue(proof.is_file())
                 self.assertTrue((output / "entry" / entry[name]["proof"]).is_file())
                 self.assertGreater(entry[name]["segments"], 0)
+                dispatch = entry[name]["dispatch"]
+                self.assertTrue((output / "entry" / dispatch["proof"]).is_file())
+                self.assertEqual(dispatch["pc"], site["abi_pc"])
                 end = entry[name]["exit"]
                 self.assertTrue((output / "entry" / end["proof"]).is_file())
                 self.assertGreater(end["segments"], 0)
@@ -284,6 +288,7 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(
                 report["runtime_sha256"], hashlib.sha256(runtime).hexdigest()
             )
+            self.check_symbolic_dispatch(output, runtime, report)
 
             # Dispatch with a different selector must never certify a reached cut.
             state = world.read(output / "entry/supply.world.json", SOLAR, "exact")
@@ -349,6 +354,48 @@ def throughHelper : EVM.State.Run := do
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(
                 result.stdout.strip(), "unsupported: MIR root runtime code is unknown"
+            )
+
+            low_gas = Path(work) / "low-gas.world.json"
+            fixture = caller_entry.default_fixture("supply", SOLAR, 30)
+            fixture["gas"] = 35000
+            fixture["accounts"][1]["code"] = "0x5a5f5560015f5260205ff3"
+            low_gas.write_text(json.dumps(fixture))
+            state = world.read(low_gas, SOLAR, "exact")
+            next(
+                account
+                for account in state["accounts"]
+                if account["address"] == state["address"]
+            )["code"] = list(runtime)
+            cut = caller_entry.replay(state, report["entry_pc"], executable, 30)
+            self.assertEqual(cut["gas"], 1343)
+            exit_ = caller_entry.replay(state, None, executable, 30)
+            self.assertEqual(exit_[:4], ["out-of-gas", [], 0, 0])
+            source = caller_entry.replay_source(
+                state,
+                runtime,
+                report["entry_pc"],
+                callers.Site(**report["callers"][0]),
+                list(map(builtin_lowering.functions, models)),
+                SOLAR,
+                executable,
+                30,
+            )
+            through_helper = reentry.read_text().split("def throughHelper", 1)[1]
+            reentry.write_text(
+                source.split("#eval")[0] + "def throughHelper" + through_helper
+            )
+            result = subprocess.run(
+                ["lake", "env", "lean", "-j1", reentry],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(
+                result.stdout.strip(), "unsupported: missing physical GAS sample"
             )
 
             self.assertEqual(runtime[report["entry_pc"]], 0x5B)
@@ -540,3 +587,72 @@ def throughHelper : EVM.State.Run := do
             )
             self.assertEqual(rejected.returncode, 2, rejected.stdout + rejected.stderr)
             self.assertIn("differs from the same-compile", rejected.stderr)
+
+    def check_symbolic_dispatch(self, output, runtime, report):
+        directory = output / "entry"
+        kernel = directory / "kernel"
+        executable = native.default(SOLAR)
+        for index, site in enumerate(report["callers"]):
+            name = site["name"]
+            evidence = report["abi_entry"]["paths"][name]["dispatch"]
+            state = world.read(directory / f"{name}.world.json", SOLAR, "exact")
+            accounts = {
+                int(account["address"]): account for account in state["accounts"]
+            }
+            accounts[caller_replay.MORPHO]["code"] = list(runtime)
+            accounts[caller_replay.MORPHO]["storage"] = []
+            accounts[caller_replay.TOKEN]["code"] = [0]
+            state["gas"] = evidence["gas"] + index
+            tag = site["selector"].to_bytes(4, "big")
+            original = caller_replay.calldata(name)
+            words = [
+                int.from_bytes(original[start : start + 32], "big")
+                for start in range(4, len(original) - 64, 32)
+            ]
+            split = 0 if name == "flashLoan" else 5
+            market, parameters = words[:split], words[split:]
+            index_of_amount = 1 if name in {"liquidate", "flashLoan"} else 0
+            parameters[index_of_amount] += 11
+            payload = [index, 255, 0]
+            head = (*market, *parameters, 32 * (len(words) + 1), len(payload))
+            input_ = (
+                tag
+                + b"".join(map(caller_replay.word, head))
+                + bytes(payload).ljust(32, b"\0")
+            )
+            state["calldata"] = list(input_)
+            observed = caller_entry.replay(state, site["abi_pc"], executable, 30)
+            self.assertEqual(observed["gas"], index)
+            self.assertEqual(observed["stack"], [str(site["selector"])])
+            self.assertEqual(len(observed["pcs"]), evidence["steps"])
+
+            module = Path(evidence["proof"]).stem
+            namespace = module.removesuffix("Dispatch")
+            source = f"""import {module}
+{entry_proof.HEADER}
+namespace {namespace}
+open MIR.TransferFromABI
+def variant : Calldata := ⟨{list(tag)},{market},{parameters},{payload}⟩
+def changedEnv : World.Environment := {{env with input := {list(input_)}}}
+def changedCfg : MIR.State.Config := {{mirCfg with environment := changedEnv}}
+theorem selectedVariant :
+    Execution.Trace.segment (chunkedByteStep {report["entry_pc"]} tvWorldConfig code) {evidence["steps"]} 2048
+      ⟨dispatchFrame changedEnv {state["gas"]} 0 [],checkpoint,[],[],[]⟩ =
+        .ok (.inr (dispatched changedEnv checkpoint {index})) :=
+  symbolic_dispatch changedEnv checkpoint {index}
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+theorem decodedVariant :
+    mirStart changedCfg beforeFunctions beforeEntry (MIR.TransferFromDispatch.selector variant.tag)
+      caller checkpoint mirGas =
+    (do
+      let frame ← entryFrame caller checkpoint variant.market
+        ((parameterWidths caller).zip variant.parameters) (4 + variant.offset + 32) variant.payload.length
+      let started ← MIR.State.start beforeFunctions beforeEntry frame.arguments frame
+      return ⟨⟨{{function := beforeEntry}},[],started⟩,mirGas.samples⟩) :=
+  start_encoding caller changedCfg checkpoint variant beforeFunctions beforeEntry mirGas
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel)
+end {namespace}
+"""
+            result = entry_proof.lean(kernel, module + "Variant", source, 45)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

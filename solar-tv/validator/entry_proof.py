@@ -5,6 +5,7 @@ import os
 from functools import partial
 from textwrap import indent
 
+from . import dispatch_proof
 from .callers import require
 from .check import ROOT, run
 
@@ -328,16 +329,34 @@ def check_axioms(lines, count):
     )
 
 
-def certify(directory, name, fixture, observed, pc, timeout):
+def certify_dispatch(prove, base, route, helper_pc, selector, runtime_size, timeout):
+    name = base + "Dispatch"
+    imports = (base, "SolarTV.MIR.Transforms.TransferFromABI")
+    source = (
+        import_modules(imports)
+        + HEADER
+        + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
+        + dispatch_proof.source(route, helper_pc, selector, runtime_size)
+    )
+    output = success(prove(name, source, timeout, module=True), name)
+    check_axioms(output.splitlines(), 2)
+    return name
+
+
+def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout):
+    name = site.name
     base = f"Entry{name[0].upper() + name[1:]}"
     prove = partial(lean, directory, namespace=base)
     success(prove(base, fixture, timeout, module=True), name)
+    dispatch = certify_dispatch(
+        prove, base, route, pc, site.selector, runtime_size, timeout
+    )
     layers = (
-        ("physical", "ByteCut", "ByteCut", 2048),
+        ("physical", "ByteCut", "ByteCut", 2048 - len(route.instructions)),
         ("before", "Except String MirCursor", "MirCut", 1024),
         ("after", "Except String MirCursor", "MirCut", 1024),
     )
-    memo, imports, count = phase(prove, base, layers, timeout)
+    memo, imports, count = phase(prove, dispatch, layers, timeout)
 
     source = (
         import_modules(imports)
@@ -345,9 +364,7 @@ def certify(directory, name, fixture, observed, pc, timeout):
         + f"""
 open MIR.TransferFromCallers
 theorem bytecode_reaches : runBytes {pc} 2048 tvWorldConfig initial = .ok physicalCut := by
-  unfold runBytes
-  change Execution.Trace.run (byteStep {pc} tvWorldConfig code.bytes) 2048 initial = _
-  rw [←chunkedByteStep_eq, ←{memo}.hashChecked_eq]
+  rw [dispatch_concrete, ←{memo}.hashChecked_eq]
   exact physicalReached
 
 theorem cut_pc : physicalCut.frame.pc = {pc} := by decide +kernel
@@ -384,7 +401,16 @@ theorem after_live :
     name = base + "Proof"
     output = success(prove(name, source, timeout, module=True), name)
     check_axioms(output.splitlines(), 7)
-    return {"segments": count, "proof": f"kernel/{name}.lean"}
+    return {
+        "segments": count,
+        "proof": f"kernel/{name}.lean",
+        "dispatch": {
+            "proof": f"kernel/{dispatch}.lean",
+            "pc": route.pc,
+            "steps": len(route.instructions),
+            "gas": route.gas,
+        },
+    }
 
 
 def certify_exit(directory, prefix, pc, observed, timeout):

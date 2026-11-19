@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from . import caller_replay, entry_proof, mir_state, native, world
+from . import caller_replay, dispatch_proof, entry_proof, mir_state, native, world
 from .callers import require
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Program
@@ -152,7 +152,6 @@ def mirCfg : MIR.State.Config :=
     )
     if kernel:
         program += f"""
-def physicalStart := initial
 def physicalWith (hash : List Execution.Byte → Word) := chunkedByteStep {helper_pc} tvWorldConfig code hash
 def mirGas := {{initial with samples := {observed["samples"]}, budgets := {observed["budgets"]}}}
 """ + live_in_definitions(site, live)
@@ -262,6 +261,8 @@ def check(
     directory.mkdir()
     built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
+    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromABI")
+    require(not built.returncode, built.stdout + built.stderr)
     kernel = directory / "kernel"
     kernel.mkdir()
     entry_proof.success(
@@ -275,9 +276,28 @@ def check(
         "runtime image",
     )
     evidence = {}
+    catalog = {
+        row["opcode"]: row for row in native.catalog(executable, timeout)["evmir"]
+    }
     for site in sites:
         state = fixtures(runtime, site, directory, solar, timeout, worlds)
         observed = replay(state, helper_pc, executable, timeout)
+        routed = replay(state, site.abi_pc, executable, timeout)
+        route = dispatch_proof.plan(runtime, site, observed["pcs"], catalog)
+        require(
+            routed["pc"] == route.pc
+            and routed["pcs"] == [inst.pc for inst in route.instructions]
+            and routed["stack"] == list(map(str, route.stack))
+            and routed["gas"] == state["gas"] - route.gas
+            and not (
+                routed["samples"]
+                or routed["budgets"]
+                or routed["memory"]
+                or routed["returndata"]
+            ),
+            f"{site.name} dispatcher disagrees with raw bytecode replay",
+        )
+        (directory / f"{site.name}-dispatch.json").write_text(json.dumps(routed))
         source = replay_source(
             state, runtime, helper_pc, site, tables, solar, executable, timeout
         )
@@ -315,7 +335,7 @@ def check(
             live=live_values(site, snapshots),
         )
         proof = entry_proof.certify(
-            kernel, site.name, fixture, observed, helper_pc, timeout
+            kernel, site, fixture, observed, helper_pc, route, len(runtime), timeout
         )
         terminal = replay(state, None, executable, timeout)
         exit_proof = entry_proof.certify_exit(

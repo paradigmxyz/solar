@@ -32,6 +32,12 @@ def resume (step : Step S R) (fuel : Nat) : R ⊕ S → Except String R
   | .inl result => .ok result
   | .inr state => run step fuel state
 
+theorem segment_next {step : Step S R} (width fuel : Nat) {state next : S}
+    {result : Except String (R ⊕ S)}
+    (head : step fuel state = .ok (.inr next)) (rest : segment step width fuel next = result) :
+    segment step (width+1) (fuel+1) state = result := by
+  simpa only [segment, Nat.add_sub_cancel, Nat.succ_ne_zero, ite_false, head, Bind.bind, Except.bind] using rest
+
 theorem run_segment {step : Step S R} (width fuel : Nat) (state : S) (endState : R ⊕ S)
     (checked : segment step width fuel state = .ok endState) :
     run step fuel state = resume step (fuel-width) endState := by

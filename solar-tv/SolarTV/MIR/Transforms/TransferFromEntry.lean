@@ -77,6 +77,20 @@ theorem chunkedByteStep_eq (pc : Nat) (cfg : EVM.State.Config) (code : EVM.State
   simp only [EVM.State.CodeChunks.get_eq, immediate,
     EVM.State.CodeChunks.jump_eq, ← EVM.State.CodeChunks.size_eq]
 
+/-- The dispatcher uses only ordinary EVM steps. Each symbolic edge has to
+establish the actual instruction action before extending the trace. -/
+theorem dispatchNext (helper fuel : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (frame next : EVM.State.Frame) (journal : Journal) (pcs : List Nat) (opcode : Byte)
+    (outside : frame.pc ≠ helper) (get : code.get? frame.pc = some opcode) (notGas : opcode ≠ 0x5a)
+    (executes : EVM.State.instructionWithImage cfg journal {frame with code := code.bytes}
+      code.size opcode (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) =
+        .ok (.next journal next)) :
+    chunkedByteStep helper cfg code Keccak.hash fuel ⟨frame,journal,[],[],pcs⟩ =
+      .ok (.inr ⟨next,journal,[],[],frame.pc :: pcs⟩) := by
+  simp only [chunkedByteStep, byteStepUsing, byteTransition, outside, get, Option.getD_some,
+    executes, notGas, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure,
+    beq_iff_eq, Option.some.injEq, ite_false]
+
 def runBytes (pc : Nat) (fuel : Nat) (cfg : EVM.State.Config) (state : ByteCut) :
     Except String ByteCut :=
   Trace.run (byteStep pc cfg state.frame.code) fuel state
@@ -168,37 +182,51 @@ def mirHashInput (functions : Functions) (state : Except String MirCursor) : Opt
 
 def scalar (width : Nat) (word : Word) : Value := .scalar (Scalar.ofWord width word)
 
+def hasMarket : Caller → Bool
+  | .flashLoan => false
+  | _ => true
+
+def parameterWidths : Caller → List Nat
+  | .supply | .repay => [256,256,160]
+  | .supplyCollateral => [256,160]
+  | .liquidate => [160,256,256]
+  | .flashLoan => [160,256]
+
+def canonicalAddresses (market : List Word) (parameters : List (Nat × Word)) : Bool :=
+  (market.take 4 ++ (parameters.filterMap fun (width,value) =>
+    if width == 160 then some value else none)).all (·.toNat < 2^160)
+
+def entryFrame (caller : Caller) (journal : Journal) (market : List Word)
+    (parameters : List (Nat × Word)) (start length : Nat) : Except String MIR.State.Frame := do
+  let hasMarket := hasMarket caller
+  let memory ← expand [] 0 (if hasMarket then 288 else 96)
+  let frameMemory := writeBytes memory 64 (wordBytes (if hasMarket then 288 else 128))
+  let frameMemory := market.zipIdx.foldl
+    (fun memory (word,index) => writeBytes memory (128+32*index) (wordBytes word)) frameMemory
+  let arguments := (if hasMarket then [scalar 256 128] else []) ++
+    parameters.map (fun (width,word) => scalar width word) ++
+    [.aggregate [scalar 256 (BitVec.ofNat 256 start),scalar 256 (BitVec.ofNat 256 length)]]
+  return ⟨journal,frameMemory,arguments,[],[],0,0,[]⟩
+
 /-- Morpho's caller signatures have a static MarketParams tuple (except
 flashLoan), scalar head values, and a final calldata bytes parameter. -/
 def decode (selector : Word) (caller : Caller) (cfg : MIR.State.Config)
     (journal : Journal) : Except String MIR.State.Frame := do
   let input := cfg.environment.input
-  let hasMarket := match caller with | .flashLoan => false | _ => true
-  let widths : List Nat := match caller with
-    | .supply | .repay => [256,256,160]
-    | .supplyCollateral => [256,160]
-    | .liquidate => [160,256,256]
-    | .flashLoan => [160,256]
+  let hasMarket := hasMarket caller
+  let widths := parameterWidths caller
   let scalarBase := if hasMarket then 164 else 4
   let offsetAt := scalarBase + 32 * widths.length
   if input.length < offsetAt + 32 || (readWord input 0 >>> 224) != selector then
     .error "bad Morpho selector or ABI head" else
   let tuple := if hasMarket then (List.range 5).map (fun i => readWord input (4+32*i)) else []
   let values := widths.zipIdx.map fun (width,i) => (width,readWord input (scalarBase+32*i))
-  if !(tuple.take 4 ++ (values.filterMap fun (width,value) => if width == 160 then some value else none)).all
-      (·.toNat < 2^160) then .error "noncanonical Morpho address" else
+  if !canonicalAddresses tuple values then .error "noncanonical Morpho address" else
   let offset := (readWord input offsetAt).toNat
   let start := 4 + offset + 32
   let length := (readWord input (4+offset)).toNat
   if start > input.length || length > input.length-start then .error "bad Morpho calldata slice" else
-  let memory ← expand [] 0 (if hasMarket then 288 else 96)
-  let frameMemory := writeBytes memory 64 (wordBytes (if hasMarket then 288 else 128))
-  let frameMemory := tuple.zipIdx.foldl
-    (fun memory (word,index) => writeBytes memory (128+32*index) (wordBytes word)) frameMemory
-  let arguments := (if hasMarket then [scalar 256 128] else []) ++
-    values.map (fun (width,word) => scalar width word) ++
-    [.aggregate [scalar 256 (BitVec.ofNat 256 start),scalar 256 (BitVec.ofNat 256 length)]]
-  return ⟨journal,frameMemory,arguments,[],[],0,0,[]⟩
+  entryFrame caller journal tuple values start length
 
 private def hexDigit (digit : Char) : Nat :=
   if digit.toNat < 97 then digit.toNat - 48 else digit.toNat - 87
