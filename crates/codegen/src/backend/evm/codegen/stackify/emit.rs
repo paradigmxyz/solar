@@ -631,7 +631,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee) => {
+            &Step::Call { callee, inst } => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -641,6 +641,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_label(self.function_labels[&callee]);
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
+                // NOTE: The code after the call of a wrapper to its extracted body is the epilogue
+                // of the wrapper, which maps to the closing brace, as clang places the epilogue
+                // (`CodeGenFunction::FinishFunction(EndLoc)`), so the return tag does too and the
+                // header is not a stop of the return, and neither are the scheduler steps that
+                // follow the tag before the next instruction begins. The call itself and the other
+                // calls of the wrapper, such as the argument decoders, keep the declaration.
+                if self.capture_debug_info && func.inst(inst).metadata.returns_to_exit() {
+                    self.asm.set_label_origins(return_label, [func.exit_span], 0);
+                    self.asm.set_source_spans([func.exit_span]);
+                }
             }
             &Step::Publish { callee, arity, params, .. } => {
                 // [result(m-1), ..., result1, result0]

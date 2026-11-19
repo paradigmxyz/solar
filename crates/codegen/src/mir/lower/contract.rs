@@ -377,6 +377,8 @@ pub(super) fn declaration(
     let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = declaration_span(gcx, function);
+    mir.exit_span =
+        function.body.map_or(mir.declaration_span, |body| body.span.with_lo(body.span.hi() - 1));
     mir.debug_identifier = Some(name.name);
     if gcx.sess.opts.unstable.dump.is_some() {
         mir.debug_signature = debug_signature(gcx, function.span);

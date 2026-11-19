@@ -114,7 +114,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
-    let declaration_span = mir.declaration_span;
+    let (declaration_span, exit_span) = (mir.declaration_span, mir.exit_span);
     if !expose_selector {
         mir.selector = None;
     }
@@ -185,11 +185,7 @@ pub(super) fn lower(
         // debugger then stops on the header again after the last statement, so like a clang
         // epilogue the exit maps to the closing brace of the body.
         // ret named_returns !metadata(closing brace)
-        lowerer.builder.replace_source_span(
-            hir_function
-                .body
-                .map_or(declaration_span, |body| body.span.with_lo(body.span.hi() - 1)),
-        );
+        lowerer.builder.replace_source_span(exit_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)

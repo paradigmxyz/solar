@@ -267,8 +267,8 @@ impl InstructionMetadata {
 
     /// Copies the metadata of an instruction that is cloned with remapped operands: the source
     /// context and the semantic markers, such as `preserves_fmp`. Facts proved from the old
-    /// operands (memory region, storage alias, effect) and analysis results (HIR expression, loop
-    /// depth) are dropped.
+    /// operands (memory region, storage alias, effect), analysis results (HIR expression, loop
+    /// depth) and the epilogue a call returns into are dropped.
     #[must_use]
     pub fn without_operand_facts(&self) -> Self {
         let Self {
@@ -282,6 +282,7 @@ impl InstructionMetadata {
         let mut metadata = Self { debug_loc: debug_loc.clone(), flags: *flags, ..Self::EMPTY };
         metadata.flags.set_memory_region(None);
         metadata.flags.set_effect(None);
+        metadata.flags.clear_returns_to_exit();
         metadata
     }
 
@@ -369,6 +370,19 @@ impl InstructionMetadata {
         self.flags.set_alloc_ptr(value);
     }
 
+    /// Returns whether this call returns into the epilogue of its function, which has no code of
+    /// its own between the call and the exit, as the call of an ABI wrapper to its extracted body.
+    #[must_use]
+    pub fn returns_to_exit(&self) -> bool {
+        self.flags.returns_to_exit()
+    }
+
+    /// Marks a call that returns into the epilogue of its function. It is not part of the text
+    /// format.
+    pub fn set_returns_to_exit(&mut self) {
+        self.flags.set_returns_to_exit();
+    }
+
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
     pub fn disjoint(&self) -> bool {
@@ -416,6 +430,7 @@ impl MetadataFlags {
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const CHECKED_OBJECT_OFFSET: u16 = 0b10_0000_0000_0000;
     const ALLOC_PTR: u16 = 0b100_0000_0000_0000;
+    const RETURNS_TO_EXIT: u16 = 0b1000_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -507,6 +522,18 @@ impl MetadataFlags {
         } else {
             self.0 &= !Self::ALLOC_PTR;
         }
+    }
+
+    fn returns_to_exit(self) -> bool {
+        self.0 & Self::RETURNS_TO_EXIT != 0
+    }
+
+    fn set_returns_to_exit(&mut self) {
+        self.0 |= Self::RETURNS_TO_EXIT;
+    }
+
+    fn clear_returns_to_exit(&mut self) {
+        self.0 &= !Self::RETURNS_TO_EXIT;
     }
 
     fn displays_source_span(self) -> bool {
