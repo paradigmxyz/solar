@@ -21,3 +21,16 @@ contract C is I {
     /// @return plain
     uint256 public unnamed;
 }
+
+interface J {
+    /// @return amount fresh Units
+    function throughUnnamed(address who) external view returns (uint256 amount);
+}
+
+abstract contract Mid is J {
+    function throughUnnamed(address who) external view virtual override returns (uint256);
+}
+
+contract D is Mid {
+    mapping(address who => uint256 fresh) public override throughUnnamed;
+}

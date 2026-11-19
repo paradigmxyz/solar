@@ -128,7 +128,7 @@ impl<'gcx> Gcx<'gcx> {
                 .into_iter()
                 .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
             if let (Some(item), None) = (returns.next(), returns.next()) {
-                documentation_item.r#return = Some(getter_return_doc(self, variable.getter, item));
+                documentation_item.r#return = Some(getter_return_doc(item));
             }
             if let Some(getter) = variable.getter {
                 documentation_item.returns =
@@ -283,23 +283,14 @@ fn return_docs(
 }
 
 /// Returns a getter's `return` text like solc, which keeps the whole `@return` text: the name of
-/// a named return value, then its description. An inherited tag gets the getter's return name in
-/// front unless its text starts with that name already (`copyMissingTags` in solc's
-/// `DocStringAnalyser.cpp`).
-fn getter_return_doc(gcx: Gcx<'_>, getter: Option<hir::FunctionId>, item: DocItem) -> String {
-    let Some(name) = getter
-        .and_then(|getter| gcx.hir.function(getter).returns.first())
-        .and_then(|&id| gcx.hir.variable(id).name)
-    else {
-        return item.content;
-    };
-    let has_name = match item.kind {
-        hir::NatSpecKind::Return { name: Some(documented) } => {
-            item.name_only && documented.name == name.name
+/// a named return value, then its description.
+fn getter_return_doc(item: DocItem) -> String {
+    match item.kind {
+        hir::NatSpecKind::Return { name: Some(name) } if !item.name_only => {
+            format!("{name} {}", item.content)
         }
-        _ => item.content.split([' ', '\t']).next() == Some(name.as_str()),
-    };
-    if has_name { item.content } else { format!("{name} {}", item.content) }
+        _ => item.content,
+    }
 }
 
 /// A NatSpec item with its text as solc's documentation output has it.
@@ -333,7 +324,9 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
         resolved.local_items().iter().copied().filter(|item| read(item.span)).collect::<Vec<_>>();
     let target = resolved.inheritdoc_target().filter(|&(span, _)| read(span));
     if local.is_empty() && target.is_none() {
-        return inherited_doc_items(gcx, item_id);
+        let mut items = inherited_doc_items(gcx, item_id);
+        rename_inherited_returns(gcx, item_id, &mut items);
+        return items;
     }
     let mut items: Vec<DocItem> = Vec::new();
     for &item in &local {
@@ -384,11 +377,46 @@ fn doc_items(gcx: Gcx<'_>, item_id: hir::ItemId) -> Vec<DocItem> {
     }
     if let Some((_, target)) = target {
         let local_tags = LocalTags::from_group(gcx, &local);
-        items.extend(
-            doc_items(gcx, target).into_iter().filter(|item| local_tags.inherits(&item.kind)),
-        );
+        let mut inherited = doc_items(gcx, target);
+        inherited.retain(|item| local_tags.inherits(&item.kind));
+        rename_inherited_returns(gcx, item_id, &mut inherited);
+        items.extend(inherited);
     }
     items
+}
+
+/// Rewrites the `@return` items `item_id` inherits for its return names, as solc's
+/// `copyMissingTags` does at each inheritance edge: a tag whose text does not start with the
+/// return's name gets the name in front, and an unnamed return drops the name.
+fn rename_inherited_returns(gcx: Gcx<'_>, item_id: hir::ItemId, items: &mut [DocItem]) {
+    let function = match item_id {
+        hir::ItemId::Function(function) => Some(function),
+        hir::ItemId::Variable(variable) => gcx.hir.variable(variable).getter,
+        _ => None,
+    };
+    let Some(function) = function else { return };
+    let items = items.iter_mut().filter_map(|item| match item.kind {
+        hir::NatSpecKind::Return { name } => Some((name, item)),
+        _ => None,
+    });
+    for ((documented, item), &id) in items.zip(gcx.hir.function(function).returns) {
+        let name = gcx.hir.variable(id).name;
+        // An unnamed tag whose text starts with the return's name now documents that name.
+        if documented.is_none()
+            && let Some(name) = name
+            && item.content.split([' ', '\t']).next() == Some(name.as_str())
+        {
+            match item.content.find([' ', '\t']) {
+                Some(end) => drop(item.content.drain(..=end)),
+                None => item.name_only = true,
+            }
+        } else if documented.zip(name).is_none_or(|(documented, name)| documented.name != name.name)
+        {
+            // The text now follows another name, or none.
+            item.name_only = false;
+        }
+        item.kind = hir::NatSpecKind::Return { name };
+    }
 }
 
 /// Returns the documentation an undocumented item inherits, like solc's `DocStringAnalyser`.

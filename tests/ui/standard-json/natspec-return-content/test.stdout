@@ -113,6 +113,47 @@
           },
           "version": 1
         }
+      },
+      "J": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "throughUnnamed(address)": {
+              "returns": {
+                "amount": "fresh Units"
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "Mid": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "throughUnnamed(address)": {
+              "returns": {
+                "_0": "fresh Units"
+              }
+            }
+          },
+          "version": 1
+        }
+      },
+      "D": {
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "stateVariables": {
+            "throughUnnamed": {
+              "return": "fresh Units",
+              "returns": {
+                "fresh": "Units"
+              }
+            }
+          },
+          "version": 1
+        }
       }
     },
     "LoneAtFirst.sol": {
