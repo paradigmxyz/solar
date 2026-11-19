@@ -492,9 +492,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let assignments = self.edge_assignments(func, block, fall.target);
                 let steps = fall.trampoline.as_deref().unwrap_or_default();
                 self.emit_edge_steps(func_id, func, terminator_origin, steps, assignments, cold);
-                if next != Some(resolve(fall.target)) {
-                    self.drop_bypassed_exit_origin(func, block, fall.target);
-                }
+                self.drop_bypassed_exit_origin(func, block, fall.target);
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
             Exit::Switch { default, cases, trampolines: switch_trampolines } => {
