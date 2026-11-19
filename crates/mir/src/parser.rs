@@ -31,6 +31,7 @@
 //!   immediates. Boolean literals use `true` and `false`, and undefined values use `undef TYPE`.
 //! - SSA structs are declared in the module's `types:` section. Nested fields refer to earlier
 //!   declarations, preventing recursive by-value layouts.
+//! - ABI types are limited to 128 nested nodes, including the leaf, in modules and candidates.
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
@@ -71,12 +72,47 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     Ok(module)
 }
 
+/// Parses one function as a candidate replacement for a function of `module`.
+///
+/// Candidate text is untrusted, so it may not use what the module-level parser accepts on trust:
+/// `!metadata`, `undef`, `err`, implicit arguments, numeric `fnN` references, `entry`, ABI
+/// layouts in instructions, or libraries and struct types the module does not declare. Function
+/// ABI headers can round-trip, but replacement validation must match them to the original.
+/// Exactly one function must follow, with function references resolved against `module` by name.
+pub(super) fn parse_candidate(
+    sess: &Session,
+    source: &SourceFile,
+    module: &Module,
+) -> Result<Function> {
+    let errors_before = sess.dcx.err_count();
+    let arena = Arena::new();
+    let mut parser = Parser::new(sess, &arena, source);
+    let function = parser.parse_candidate(module).map_err(PErr::emit)?;
+    if sess.dcx.err_count() != errors_before {
+        sess.dcx.has_errors()?;
+    }
+    Ok(function)
+}
+
+#[cfg(test)]
+pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
+    let name = format!("test{}.mir", sess.source_map().files().len());
+    let file = sess
+        .source_map()
+        .new_source_file(solar_interface::source_map::FileName::Custom(name), input)
+        .unwrap();
+    Module::parse(sess, &file)
+}
+
 // =============================================================================
 // Parser implementation
 // =============================================================================
 
+const MAX_ABI_TYPE_DEPTH: usize = 128;
+
 struct Parser<'sess, 'ast> {
     parser: solar_ir::ir_parse::Parser<'sess, 'ast>,
+    candidate: bool,
     pending_function_ref: Option<(MangledSymbol, Span)>,
     parsed_dispatch_entry: bool,
     parsed_constructor: bool,
@@ -94,6 +130,8 @@ struct Parser<'sess, 'ast> {
     abi_layouts: Vec<AbiLayoutRef>,
     /// ABI input layouts interned while parsing instructions.
     abi_param_layouts: Vec<AbiParamLayoutRef>,
+    /// Current nesting of ABI arrays and tuples, including their leaf types.
+    abi_type_depth: usize,
     /// Number of `>` closers still owed after splitting a `>>`/`>>>` token.
     pending_gt: u32,
 }
@@ -139,6 +177,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
             parser: solar_ir::ir_parse::Parser::new(sess, arena, source),
+            candidate: false,
             pending_function_ref: None,
             parsed_dispatch_entry: false,
             parsed_constructor: false,
@@ -154,6 +193,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             abi_layouts: Vec::new(),
             struct_types: Default::default(),
             abi_param_layouts: Vec::new(),
+            abi_type_depth: 0,
             pending_gt: 0,
         }
     }
@@ -369,110 +409,101 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
         explicit_results: &FxHashSet<(FunctionId, InstId)>,
     ) -> PResult<'sess, ()> {
-        let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
-        for (id, function) in module.functions.iter_enumerated() {
-            declarations.entry(function.name).or_default().push(id);
-        }
+        let declarations = function_declarations(&module.functions);
         for (owner, reference) in function_refs {
-            let matches = declarations.get(&reference.name);
-            let Some(matches) = matches else {
-                return Err(self.parser.error_at(
-                    reference.span,
-                    format!("unknown function reference `{}`", reference.name),
-                ));
-            };
-            let [function] = matches.as_slice() else {
-                return Err(self.parser.error_at(
-                    reference.span,
-                    format!("function reference `{}` is ambiguous", reference.name),
-                ));
-            };
-            match reference.target {
-                FunctionRefTarget::Instruction(inst) => {
-                    let instruction = module.functions[owner].inst_mut(inst);
-                    let InstKind::ICall { function: Callee::Function(target), .. } =
-                        &mut instruction.kind
-                    else {
-                        unreachable!()
-                    };
-                    *target = *function;
-                }
-                FunctionRefTarget::Terminator(block) => {
-                    let Some(Terminator::TailCall { function: target, .. }) =
-                        &mut module.functions[owner].blocks[block].terminator
-                    else {
-                        unreachable!()
-                    };
-                    *target = *function;
-                }
-            }
+            let function = self.resolve_function_ref(&declarations, &reference)?;
+            retarget_function_ref(&mut module.functions[owner], reference.target, function);
         }
-        let return_types = module
-            .functions
-            .iter()
-            .map(|function| function.return_components().first().copied())
-            .collect::<IndexVec<_, _>>();
+        let return_types = function_return_types(&module.functions);
         for (function_id, function) in module.functions.iter_mut_enumerated() {
-            let instructions = function.instructions().collect::<Vec<_>>();
-            for &id in &instructions {
-                let instruction = function.inst_mut(id);
-                if explicit_results.contains(&(function_id, id)) {
-                    continue;
-                }
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    instruction.kind
-                    && instruction.result_ty.is_some()
-                    && let Some(Some(ty)) = return_types.get(function)
-                {
-                    instruction.result_ty = Some(*ty);
-                }
-            }
-            // phi/select of typed operands -> the operand type
-            // Resolve after calls, including forward and numeric function references. Each merge
-            // acquires a non-default type at most once, so cyclic value references cannot
-            // oscillate.
-            loop {
-                let mut changed = false;
-                for &id in &instructions {
-                    let instruction = function.inst(id);
-                    let non_default = |ty| {
-                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::Ptr(_))
-                            || matches!(ty, MirType::Int(bits) if bits.get() != 256)
-                    };
-                    if explicit_results.contains(&(function_id, id))
-                        || instruction.result_ty.is_some_and(non_default)
-                    {
-                        continue;
-                    }
-                    let ty = match &instruction.kind {
-                        kind if matches!(
-                            kind.op_def().result,
-                            super::ResultKind::Integer | super::ResultKind::Pointer
-                        ) =>
-                        {
-                            kind.inferred_result_type(function).filter(|&ty| non_default(ty))
-                        }
-                        InstKind::Select(_, a, b) => [*a, *b]
-                            .into_iter()
-                            .filter_map(|value| function.value_ty(value))
-                            .find(|&ty| non_default(ty)),
-                        InstKind::Phi(incoming) => incoming
-                            .iter()
-                            .filter_map(|&(_, value)| function.value_ty(value))
-                            .find(|&ty| non_default(ty)),
-                        _ => None,
-                    };
-                    if let Some(ty) = ty {
-                        function.inst_mut(id).result_ty = Some(ty);
-                        changed = true;
-                    }
-                }
-                if !changed {
-                    break;
-                }
-            }
+            infer_result_types(function, &return_types, |inst| {
+                explicit_results.contains(&(function_id, inst))
+            });
         }
         Ok(())
+    }
+
+    fn resolve_function_ref(
+        &self,
+        declarations: &FxHashMap<MangledSymbol, Vec<FunctionId>>,
+        reference: &PendingFunctionRef,
+    ) -> PResult<'sess, FunctionId> {
+        let Some(matches) = declarations.get(&reference.name) else {
+            return Err(self.parser.error_at(
+                reference.span,
+                format!("unknown function reference `{}`", reference.name),
+            ));
+        };
+        let [function] = matches.as_slice() else {
+            return Err(self.parser.error_at(
+                reference.span,
+                format!("function reference `{}` is ambiguous", reference.name),
+            ));
+        };
+        Ok(*function)
+    }
+
+    fn parse_candidate(&mut self, module: &Module) -> PResult<'sess, Function> {
+        self.candidate = true;
+        self.struct_types = module.struct_types.clone();
+        self.data_sizes = module
+            .data
+            .iter()
+            .map(|data| data.bytes.known().map_or(0, |bytes| bytes.len()))
+            .collect();
+        self.immutable_names = module
+            .iter_immutables()
+            .map(|(id, immutable)| {
+                let name = super::display::immutable_display_name(module, id).unwrap();
+                (Symbol::intern(&name), (id, immutable.ty.mir_type()))
+            })
+            .collect();
+        self.parser.libraries = module.libraries.clone();
+
+        let mut function = self.parse_function()?;
+        if !self.parser.is_eof() {
+            return Err(self.parser.error("expected the end of the candidate after its function"));
+        }
+        // Instruction layouts may not introduce struct types into the unchanged module.
+        if self.struct_types.len() != module.struct_types.len() {
+            return Err(self.parser.error("candidates may not declare struct types"));
+        }
+        let declarations = function_declarations(&module.functions);
+        for reference in std::mem::take(&mut self.function_refs) {
+            let target = self.resolve_function_ref(&declarations, &reference)?;
+            retarget_function_ref(&mut function, reference.target, target);
+        }
+        let explicit_results =
+            std::mem::take(&mut self.explicit_results).into_iter().collect::<FxHashSet<_>>();
+        infer_result_types(&mut function, &function_return_types(&module.functions), |inst| {
+            explicit_results.contains(&inst)
+        });
+        for (value, ty, span) in std::mem::take(&mut self.cast_sources) {
+            if function.value_ty(value) != Some(ty) {
+                return Err(self
+                    .parser
+                    .error_at(span, "cast source type does not match its operand"));
+            }
+        }
+        // An unchanged printed function can safely retain its compiler-owned metadata and frame
+        // reservations. Never transfer those facts to a changed body.
+        let mut originals =
+            module.functions.iter().filter(|original| original.name == function.name);
+        if let Some(original) = originals.next()
+            && originals.next().is_none()
+        {
+            if module.candidate_text(original).to_string()
+                == module.candidate_text(&function).to_string()
+            {
+                return Ok(original.clone());
+            }
+            function.internal_frame_size = original.internal_frame_size;
+            function.external_static_return_size = original.external_static_return_size;
+            // Data locations are compiler-owned and have no textual spelling. Keep them even
+            // for an edited body; validation still rejects changed ABI layouts or signatures.
+            function.abi_param_locations = original.abi_param_locations.clone();
+        }
+        Ok(function)
     }
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
@@ -674,6 +705,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         loop {
+            let key_span = self.parser.token().span;
             let key = self.parser.parse_ident()?;
             match key {
                 sym::selector => {
@@ -698,17 +730,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;
-                    builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
+                    builder.func_mut().abi_returns = Some(self.parse_abi_layout_contents()?);
                 }
                 sym::abi_return_params => {
                     self.parser.expect(TokenKind::Eq)?;
-                    builder.func_mut().abi_return_params = Some(self.parse_abi_param_layout()?);
+                    builder.func_mut().abi_return_params =
+                        Some(self.parse_abi_param_layout_contents()?);
                 }
                 sym::abi_params => {
                     self.parser.expect(TokenKind::Eq)?;
-                    builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
+                    builder.func_mut().abi_params = Some(self.parse_abi_param_layout_contents()?);
                 }
                 sym::abi_wrapper => builder.func_mut().attributes.is_abi_wrapper = true,
+                sym::entry if self.candidate => {
+                    return Err(self
+                        .parser
+                        .error_at(key_span, "candidates may not declare `entry`"));
+                }
                 sym::entry => self.parsed_dispatch_entry = true,
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
@@ -873,7 +911,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(builder.imm(v));
         }
         // Identifier-like — could be argN, vN, true, false.
+        let span = self.parser.token().span;
         let ident = self.parser.parse_ident()?;
+        if self.candidate && (ident == sym::undef || ident == sym::err) {
+            return Err(self.parser.error_at(span, format!("candidates may not use `{ident}`")));
+        }
         if ident == sym::undef {
             let ty = self.parse_type()?;
             return Ok(builder.undef(ty));
@@ -892,6 +934,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
+            if self.candidate && idx >= self.arg_values.len() {
+                return Err(self
+                    .parser
+                    .error_at(span, "candidates must declare the arguments they use"));
+            }
             return self
                 .arg_values
                 .get(idx)
@@ -1030,6 +1077,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an ABI layout: `[type, type, ...]`. Structurally identical
     /// layouts are interned so repeated encodes share one allocation.
     fn parse_abi_layout(&mut self) -> PResult<'sess, AbiLayoutRef> {
+        self.reject_candidate_abi_layout()?;
+        self.parse_abi_layout_contents()
+    }
+
+    /// Parses a function's ABI header as data, without granting it any trusted body facts.
+    fn parse_abi_layout_contents(&mut self) -> PResult<'sess, AbiLayoutRef> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -1060,7 +1113,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         layout
     }
 
+    /// Rejects instruction ABI layouts in candidates: they can introduce struct types that the
+    /// unchanged module lacks. Function headers use the contents parsers and remain validated.
+    fn reject_candidate_abi_layout(&self) -> PResult<'sess, ()> {
+        if self.candidate {
+            return Err(self.parser.error("candidates may not use ABI layouts"));
+        }
+        Ok(())
+    }
+
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
+        self.with_abi_type_limit(Self::parse_abi_type_contents)
+    }
+
+    fn parse_abi_type_contents(&mut self) -> PResult<'sess, AbiType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             sym::word => {
@@ -1132,6 +1198,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_abi_param_layout(&mut self) -> PResult<'sess, AbiParamLayout> {
+        self.reject_candidate_abi_layout()?;
+        self.parse_abi_param_layout_contents()
+    }
+
+    /// Parses ABI parameter headers; the replacement validator checks them against the original.
+    fn parse_abi_param_layout_contents(&mut self) -> PResult<'sess, AbiParamLayout> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -1147,6 +1219,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_abi_param_type(&mut self) -> PResult<'sess, AbiParamType> {
+        self.with_abi_type_limit(Self::parse_abi_param_type_contents)
+    }
+
+    fn parse_abi_param_type_contents(&mut self) -> PResult<'sess, AbiParamType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             kw::Bytes => AbiParamType::Bytes,
@@ -1245,6 +1321,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let span = self.parser.token().span;
         let name = self.parser.parse_ident()?;
+        if self.candidate {
+            return Err(self
+                .parser
+                .error_at(span, "candidates must reference functions by `@name`"));
+        }
         if let Some(index) = name.as_str().strip_prefix("fn").and_then(|s| s.parse().ok()) {
             return Ok(FunctionId::from_usize(index));
         }
@@ -1461,8 +1542,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, InstructionMetadata> {
         let mut metadata = InstructionMetadata::EMPTY;
+        let span = self.parser.token().span;
         if !self.parser.eat(TokenKind::Not) {
             return Ok(metadata);
+        }
+        // The backend trusts memory regions and effects, so candidates carry none.
+        if self.candidate {
+            return Err(self.parser.error_at(span, "candidates may not carry `!metadata`"));
         }
         self.parser.expect_keyword(sym::metadata)?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
@@ -2171,6 +2257,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::trunc | sym::zext | sym::sext | sym::ptrtoint | sym::inttoptr => {
                 let from = self.parse_type()?;
                 let value = if self.parser.eat_keyword(sym::undef) {
+                    if self.candidate {
+                        return Err(self.parser.error("candidates may not use `undef`"));
+                    }
                     builder.undef(from)
                 } else if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
                     let (value, span) = self.parser.parse_uint_spanned()?;
@@ -2298,6 +2387,124 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         Ok(parsed)
     }
+
+    /// Bounds recursive parsing and the depth of ABI values later traversed or dropped.
+    fn with_abi_type_limit<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, T> {
+        if self.abi_type_depth == MAX_ABI_TYPE_DEPTH {
+            return Err(self.parser.error("ABI type nesting limit exceeded"));
+        }
+        self.abi_type_depth += 1;
+        let result = parse(self);
+        self.abi_type_depth -= 1;
+        result
+    }
+}
+
+/// Maps each function name to the functions that declare it.
+fn function_declarations(
+    functions: &IndexVec<FunctionId, Function>,
+) -> FxHashMap<MangledSymbol, Vec<FunctionId>> {
+    let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
+    for (id, function) in functions.iter_enumerated() {
+        declarations.entry(function.name).or_default().push(id);
+    }
+    declarations
+}
+
+/// Points a parsed call at its resolved callee.
+fn retarget_function_ref(function: &mut Function, target: FunctionRefTarget, callee: FunctionId) {
+    match target {
+        FunctionRefTarget::Instruction(inst) => {
+            let InstKind::ICall { function: Callee::Function(target), .. } =
+                &mut function.inst_mut(inst).kind
+            else {
+                unreachable!()
+            };
+            *target = callee;
+        }
+        FunctionRefTarget::Terminator(block) => {
+            let Some(Terminator::TailCall { function: target, .. }) =
+                &mut function.blocks[block].terminator
+            else {
+                unreachable!()
+            };
+            *target = callee;
+        }
+    }
+}
+
+/// Returns each function's first return component, which types its call results.
+fn function_return_types(
+    functions: &IndexVec<FunctionId, Function>,
+) -> IndexVec<FunctionId, Option<MirType>> {
+    functions.iter().map(|function| function.return_components().first().copied()).collect()
+}
+
+/// Types call results from their callees, and merges and integer operations from their operands,
+/// leaving the results whose type the text states.
+fn infer_result_types(
+    function: &mut Function,
+    return_types: &IndexVec<FunctionId, Option<MirType>>,
+    is_explicit: impl Fn(InstId) -> bool,
+) {
+    let instructions = function.instructions().collect::<Vec<_>>();
+    for &id in &instructions {
+        if is_explicit(id) {
+            continue;
+        }
+        let instruction = function.inst_mut(id);
+        if let InstKind::ICall { function: Callee::Function(function), .. } = instruction.kind
+            && instruction.result_ty.is_some()
+            && let Some(Some(ty)) = return_types.get(function)
+        {
+            instruction.result_ty = Some(*ty);
+        }
+    }
+    // phi/select of typed operands -> the operand type
+    // Resolve after calls, including forward and numeric function references. Each merge
+    // acquires a non-default type at most once, so cyclic value references cannot
+    // oscillate.
+    loop {
+        let mut changed = false;
+        for &id in &instructions {
+            let instruction = function.inst(id);
+            let non_default = |ty| {
+                matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::Ptr(_))
+                    || matches!(ty, MirType::Int(bits) if bits.get() != 256)
+            };
+            if is_explicit(id) || instruction.result_ty.is_some_and(non_default) {
+                continue;
+            }
+            let ty = match &instruction.kind {
+                kind if matches!(
+                    kind.op_def().result,
+                    super::ResultKind::Integer | super::ResultKind::Pointer
+                ) =>
+                {
+                    kind.inferred_result_type(function).filter(|&ty| non_default(ty))
+                }
+                InstKind::Select(_, a, b) => [*a, *b]
+                    .into_iter()
+                    .filter_map(|value| function.value_ty(value))
+                    .find(|&ty| non_default(ty)),
+                InstKind::Phi(incoming) => incoming
+                    .iter()
+                    .filter_map(|&(_, value)| function.value_ty(value))
+                    .find(|&ty| non_default(ty)),
+                _ => None,
+            };
+            if let Some(ty) = ty {
+                function.inst_mut(id).result_ty = Some(ty);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
 }
 
 /// Returns the location a `ptr<...>`, `slice<...>`, or frame slot keyword names.
@@ -2326,4 +2533,440 @@ fn mnemonic_location(mnemonic: Symbol) -> PtrLocation {
 /// Whether `ident` followed by `next` starts a typed literal: `i8 5`, `ptr<memory> 64`.
 fn starts_typed_literal(ident: Symbol, next: &TokenKind) -> bool {
     ident == sym::ptr || matches!(next, TokenKind::Literal(TokenLitKind::Integer, _))
+}
+
+#[cfg(test)]
+mod candidate_tests {
+    use super::*;
+    use crate::AbiParamLocation;
+    use snapbox::{assert_data_eq, str};
+    use solar_interface::{ColorChoice, diagnostics::DiagCtxt, source_map::FileName};
+    use std::sync::Arc;
+
+    #[test]
+    fn rejects_undefined_casts_and_lexer_errors() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, "@module M\nfn @f() { bb0: ret }").unwrap();
+            for input in [
+                "fn @f() -> i256 { bb0: v0 = zext i1 undef to i256 ret v0 }",
+                "fn @f() { bb0: ret } /*",
+            ] {
+                assert!(parse_candidate(&sess, &module, input).is_err());
+            }
+        });
+    }
+
+    #[test]
+    fn fork_reports_candidate_errors_with_empty_parent_source_map() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = Module::new(Ident::from_str("M"));
+            assert!(parse_candidate(&sess, &module, "fn @f() { bb0: ret undef i256 }").is_err());
+        });
+    }
+
+    #[test]
+    fn unchanged_candidate_keeps_frame_and_allocation_metadata() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(
+                &sess,
+                "@module M\nfn @f() -> ptr<memory> { bb0: v0 = alloc 64 !metadata(deferred_alloc, preserves_fmp) ret v0 }",
+            )
+            .unwrap();
+            let id = FunctionId::new(0);
+            module.functions[id].internal_frame_size = 128;
+            let text = module.candidate_text(&module.functions[id]).to_string();
+            let candidate = parse_candidate(&sess, &module, &text).unwrap();
+            assert_eq!(candidate.internal_frame_size, 128);
+            let alloc = candidate.instructions().next().unwrap();
+            assert!(candidate.inst(alloc).metadata.deferred_alloc());
+            assert!(candidate.inst(alloc).metadata.preserves_fmp());
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                id,
+                &candidate,
+                crate::MirPhase::Lowered,
+            )
+            .is_ok());
+            let changed = text.replace("alloc 64", "alloc 96");
+            assert_ne!(text, changed);
+            let candidate = parse_candidate(&sess, &module, &changed).unwrap();
+            assert_eq!(candidate.internal_frame_size, 128);
+        });
+    }
+
+    #[test]
+    fn replacement_rechecks_callers_with_new_returnability() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(
+                &sess,
+                "@module M\nfn @f(arg0: i1) -> i256 { bb0: stop }\nfn @g() { bb0: tail_call @f, true }",
+            )
+            .unwrap();
+            let candidate = parse_candidate(
+                &sess,
+                &module,
+                "fn @f(arg0: i1) -> i256 { bb0: jumpi arg0, bb1, bb2 bb1: ret 1 bb2: tail_call @g }",
+            )
+            .unwrap();
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                FunctionId::new(0),
+                &candidate,
+                crate::MirPhase::Semantic,
+            )
+            .is_err());
+        });
+    }
+
+    #[test]
+    fn replacement_cannot_drop_compiler_owned_attributes() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(&sess, "@module M\nfn @f() { bb0: ret }").unwrap();
+            let id = FunctionId::new(0);
+            module.functions[id].attributes.creation_only = true;
+            let mut candidate = module.functions[id].clone();
+            candidate.attributes.creation_only = false;
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(
+                crate::analysis::validate_function_at_phase(
+                    &dcx,
+                    &module,
+                    id,
+                    &candidate,
+                    crate::MirPhase::Semantic,
+                )
+                .is_err()
+            );
+        });
+    }
+
+    #[test]
+    fn rejects_invalid_replacement_interfaces_and_control_flow() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(
+                &sess,
+                "@module M\nfn @f(arg0: i256) -> i256 { bb0: ret arg0 }",
+            )
+            .unwrap();
+            for (input, phase) in [
+                ("fn @f() -> i256 { bb0: ret 1 }", crate::MirPhase::Semantic),
+                ("fn @f(arg0: i256) -> i256 { bb0: jump bb1 bb1: v0 = add arg0, 1 v1 = phi [bb0: arg0] ret v1 }", crate::MirPhase::Semantic),
+                ("fn @f(arg0: i256) -> i256 { bb0: switch arg0, default bb1, [arg0 => bb1] bb1: ret arg0 }", crate::MirPhase::Lowered),
+            ] {
+                let candidate = parse_candidate(&sess, &module, input).unwrap();
+                let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                assert!(crate::analysis::validate_function_at_phase(
+                    &dcx,
+                    &module,
+                    FunctionId::new(0),
+                    &candidate,
+                    phase,
+                )
+                .is_err());
+            }
+            let candidate = parse_candidate(&sess, &module, "fn @f(arg0: i256) -> i256 { bb0: switch arg0, default bb1, [arg0 => bb1] bb1: ret arg0 }").unwrap();
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(&dcx, &module, FunctionId::new(0), &candidate, crate::MirPhase::Semantic).is_ok());
+        });
+    }
+    #[test]
+    fn candidate_restrictions() {
+        const MODULE: &str = "@module Candidates
+fn @helper(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @helper, arg0
+    ret v0
+}
+";
+        let cases = [
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    v0 = icall @helper, arg0\n    ret v0\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    v0 = add arg0, 1 !metadata(unchecked)\n    ret v0\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    ret undef i256\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    ret err\n}\n",
+            "fn @f() -> i256 {\n  bb0:\n    ret arg0\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    v0 = icall fn0, arg0\n    ret v0\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    v0 = icall @missing, arg0\n    ret v0\n}\n",
+            "fn @f(arg0: i256) -> i256 [entry] {\n  bb0:\n    ret arg0\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    v0 = abi_encode [word], args arg0\n    ret arg0\n}\n",
+            "fn @f(arg0: i256) -> i256 {\n  bb0:\n    ret arg0\n}\nfn @g() {\n  bb0:\n    stop\n}\n",
+            "@module Candidates\nfn @f(arg0: i256) -> i256 {\n  bb0:\n    ret arg0\n}\n",
+        ];
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, MODULE).unwrap();
+            let results = cases
+                .iter()
+                .map(|case| match parse_candidate(&sess, &module, case) {
+                    Ok(candidate) => module.candidate_text(&candidate).to_string(),
+                    Err(error) => error,
+                })
+                .collect::<Vec<_>>();
+            assert_data_eq!(
+                results.join("\n"),
+                str![[r#"
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @helper, arg0
+    ret v0
+}
+
+error: candidates may not carry `!metadata`
+  ╭▸ <candidate>:3:22
+  │
+3 │     v0 = add arg0, 1 !metadata(unchecked)
+  ╰╴                     ━
+
+
+error: candidates may not use `undef`
+  ╭▸ <candidate>:3:9
+  │
+3 │     ret undef i256
+  ╰╴        ━━━━━
+
+
+error: candidates may not use `err`
+  ╭▸ <candidate>:3:9
+  │
+3 │     ret err
+  ╰╴        ━━━
+
+
+error: candidates must declare the arguments they use
+  ╭▸ <candidate>:3:9
+  │
+3 │     ret arg0
+  ╰╴        ━━━━
+
+
+error: candidates must reference functions by `@name`
+  ╭▸ <candidate>:3:16
+  │
+3 │     v0 = icall fn0, arg0
+  ╰╴               ━━━
+
+
+error: unknown function reference `missing`
+  ╭▸ <candidate>:3:17
+  │
+3 │     v0 = icall @missing, arg0
+  ╰╴                ━━━━━━━
+
+
+error: candidates may not declare `entry`
+  ╭▸ <candidate>:1:28
+  │
+1 │ fn @f(arg0: i256) -> i256 [entry] {
+  ╰╴                           ━━━━━
+
+
+error: candidates may not use ABI layouts
+  ╭▸ <candidate>:3:21
+  │
+3 │     v0 = abi_encode [word], args arg0
+  ╰╴                    ━
+
+
+error: expected the end of the candidate after its function
+  ╭▸ <candidate>:5:1
+  │
+5 │ fn @g() {
+  ╰╴━━
+
+
+error: expected `fn`
+  ╭▸ <candidate>:1:1
+  │
+1 │ @module Candidates
+  ╰╴━
+
+
+"#]]
+            );
+        });
+    }
+
+    /// Parses `input` as a candidate for `module`, rendering diagnostics privately.
+    fn parse_candidate(sess: &Session, module: &Module, input: &str) -> Result<Function, String> {
+        let source_map = sess.clone_source_map();
+        let name = format!("candidate{}", source_map.files().len());
+        let dcx = DiagCtxt::with_buffer_emitter(Some(Arc::clone(&source_map)), ColorChoice::Never)
+            .with_flags(|flags| flags.track_diagnostics = false);
+        let fork = sess.with_diagnostics(dcx);
+        let file = source_map.new_source_file(FileName::Custom(name.clone()), input).unwrap();
+        module.parse_function(&fork, &file).map_err(|_| {
+            // Normalize only the fresh test file's name; spans still use the shared source map.
+            fork.dcx.emitted_diagnostics().unwrap().to_string().replace(&name, "candidate")
+        })
+    }
+
+    #[test]
+    fn replacement_preserves_abi_parameter_locations() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(
+                &sess,
+                "@module M\nfn @f(arg0: ptr<memory>) -> i256 [selector=0x12345678, abi_params=[bytes]] { bb0: ret 1 }",
+            )
+            .unwrap();
+            let id = FunctionId::new(0);
+            module.functions[id].abi_param_locations = Some(Box::new([AbiParamLocation::Memory]));
+            let original = &module.functions[id];
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                id,
+                original,
+                crate::MirPhase::Semantic,
+            )
+            .is_ok());
+
+            for locations in [
+                None,
+                Some(Vec::new().into_boxed_slice()),
+                Some(vec![AbiParamLocation::Calldata].into_boxed_slice()),
+                Some(vec![AbiParamLocation::Memory; 2].into_boxed_slice()),
+            ] {
+                let mut candidate = original.clone();
+                candidate.abi_param_locations = locations;
+                let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                assert!(crate::analysis::validate_function_at_phase(
+                    &dcx,
+                    &module,
+                    id,
+                    &candidate,
+                    crate::MirPhase::Semantic,
+                )
+                .is_err());
+            }
+
+            let mut candidate = original.clone();
+            module.functions[id].abi_param_locations = None;
+            candidate.abi_param_locations = Some(Box::new([AbiParamLocation::Calldata]));
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                id,
+                &candidate,
+                crate::MirPhase::Semantic,
+            )
+            .is_err());
+        });
+    }
+
+    #[test]
+    fn semantic_entry_candidates_keep_abi_headers_and_locations() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(&sess, "@module AbiCandidates
+fn @constructor(arg0: ptr<memory>) [abi_params=[bytes], creation_only] {
+  bb0:
+    mstore arg0, 1
+    ret
+}
+fn @entry_f(arg0: ptr<memory>) -> i256 [selector=0x12345678, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add 1, 2
+    ret v0
+}
+fn @from_calldata(arg0: slice<calldata>) -> i256 [selector=0x87654321, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add 1, 2
+    ret v0
+}").unwrap();
+            for (index, location) in [(0, AbiParamLocation::Memory), (1, AbiParamLocation::Memory), (2, AbiParamLocation::Calldata)] {
+                let id = FunctionId::new(index);
+                module.functions[id].abi_param_locations = Some(Box::new([location]));
+                let original = &module.functions[id];
+                let printed = module.candidate_text(original).to_string();
+                let unchanged = parse_candidate(&sess, &module, &printed).unwrap();
+                let edited = printed.replace("mstore arg0, 1", "mstore arg0, 2")
+                    .replace("add 2, 1", "add 2, 3");
+                assert_ne!(edited, printed);
+                let candidate = parse_candidate(&sess, &module, &edited).unwrap();
+                for body in [&unchanged, &candidate] {
+                    assert_eq!(body.abi_params, original.abi_params);
+                    assert_eq!(body.abi_returns, original.abi_returns);
+                    assert_eq!(body.abi_return_params, original.abi_return_params);
+                    assert_eq!(body.abi_param_locations, original.abi_param_locations);
+                    let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                    assert!(crate::analysis::validate_function_at_phase(
+                        &dcx, &module, id, body, crate::MirPhase::Semantic,
+                    ).is_ok(), "{}", dcx.emitted_diagnostics().unwrap());
+                }
+                // Header syntax is data to validate, never permission to change the interface.
+                for text in [
+                    edited.replace("abi_params=[bytes]", "abi_params=[uint256]"),
+                    edited.replace("abi_params=[bytes]", "abi_params=[]"),
+                ] {
+                    let candidate = parse_candidate(&sess, &module, &text).unwrap();
+                    let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                    assert!(crate::analysis::validate_function_at_phase(
+                        &dcx, &module, id, &candidate, crate::MirPhase::Semantic,
+                    ).is_err());
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn candidate_abi_headers_bound_nested_arrays_and_tuples() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, "@module M\nfn @f() { bb0: ret }").unwrap();
+            for (header, leaf, containers) in [
+                ("abi_params", "uint256", ["array<1,", "array<_,", "tuple<"]),
+                ("abi_return_params", "uint256", ["array<1,", "array<_,", "tuple<"]),
+                ("abi_returns", "word", ["array<1,", "memory_array<", "tuple<"]),
+            ] {
+                for container in containers {
+                    for depth in [MAX_ABI_TYPE_DEPTH, MAX_ABI_TYPE_DEPTH + 1, 10_000] {
+                        let ty = format!(
+                            "{}{leaf}{}",
+                            container.repeat(depth - 1),
+                            ">".repeat(depth - 1)
+                        );
+                        let input = format!("fn @f() [{header}=[{ty}, {ty}]] {{ bb0: ret }}");
+                        let result = parse_candidate(&sess, &module, &input);
+                        if depth == MAX_ABI_TYPE_DEPTH {
+                            assert!(
+                                result.is_ok(),
+                                "{header} {container}: {}",
+                                result.unwrap_err()
+                            );
+                        } else {
+                            let error = result.unwrap_err();
+                            assert_data_eq!(
+                                error.lines().next().unwrap(),
+                                str![[r#"error: ABI type nesting limit exceeded"#]]
+                            );
+                        }
+                    }
+                    // Even an unclosed header must stop before recursing through the whole input.
+                    let input = format!("fn @f() [{header}=[{}", container.repeat(10_000));
+                    let error = parse_candidate(&sess, &module, &input).unwrap_err();
+                    assert_data_eq!(
+                        error.lines().next().unwrap(),
+                        str![[r#"error: ABI type nesting limit exceeded"#]]
+                    );
+                }
+            }
+        });
+    }
 }
