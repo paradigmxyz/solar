@@ -4,7 +4,6 @@
 //@ run-call: partialAssignment => 1, 0, 0
 //@ run-call: copy => 5, 6, 8, 6, 9, 0
 
-// ported-from: test/libsolidity/semanticTests/structs/copy_recursive_struct_overlap_partial_assignment.sol
 contract StorageLoadRecursiveFixedArray {
     struct Node {
         Node[2][] pairs;
