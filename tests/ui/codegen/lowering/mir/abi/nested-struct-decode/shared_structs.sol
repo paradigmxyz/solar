@@ -1,9 +1,7 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -Onone -Zdump=mir
-//@[gas] compile-flags: -Ogas -Zdump=mir-final
-//@[size] compile-flags: -Osize -Zdump=mir-final
-//@ compile-flags: --emit=bin
-//@[none] filecheck: --check-prefix=NONE
+//@ codegen-matrix: standard
+//@[gas] compile-flags: -Zdump=mir-final
+//@[size] compile-flags: -Zdump=mir-final
+//@[mir] filecheck: --check-prefix=NONE
 //@[gas] filecheck:
 //@[size] filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""

@@ -252,7 +252,7 @@ impl fmt::Display for AbiParamType {
 /// A nested aggregate that occurs more than once and itself contains an aggregate is printed in
 /// full once as `$N = shape`, where `N` counts such nodes in printing order, and as `$N` after
 /// that. Other nodes print in full each time, which stays linear because only nodes whose
-/// children are scalars or `bytes` repeat.
+/// children are scalars, `bytes`, or empty tuples repeat.
 struct ShapePrinter {
     /// Nodes that get a name, with the number they got when first printed.
     named: FxHashMap<AbiParamTypeRef, Option<usize>>,
@@ -276,9 +276,7 @@ impl ShapePrinter {
         }
         let named = counts
             .into_iter()
-            .filter(|(ty, count)| {
-                *count >= 2 && ty.children().any(|child| child.children().next().is_some())
-            })
+            .filter(|(ty, count)| *count >= 2 && ty.depth() >= 2)
             .map(|(ty, _)| (ty, None))
             .collect();
         Self { named, next: 0 }
@@ -397,22 +395,13 @@ impl AbiParamType {
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub fn is_dynamic(&self) -> bool {
-        match self {
-            Self::Scalar(_) | Self::Enum { .. } => false,
-            Self::Bytes | Self::DynamicArray(_) => true,
-            Self::FixedArray { element, .. } => element.is_dynamic(),
-            Self::Tuple(fields) => fields.iter().any(AbiParamTypeRef::is_dynamic),
-        }
+        matches!(self, Self::Bytes | Self::DynamicArray(_)) || self.has_dynamic_child()
     }
 
     /// Returns whether an aggregate directly contains a dynamic value.
     #[must_use]
     pub fn has_dynamic_child(&self) -> bool {
-        match self {
-            Self::FixedArray { element, .. } | Self::DynamicArray(element) => element.is_dynamic(),
-            Self::Tuple(fields) => fields.iter().any(AbiParamTypeRef::is_dynamic),
-            Self::Scalar(_) | Self::Enum { .. } | Self::Bytes => false,
-        }
+        self.children().any(AbiParamTypeRef::is_dynamic)
     }
 
     /// Returns the size of this value's in-place ABI head.

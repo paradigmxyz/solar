@@ -661,7 +661,7 @@ impl LowerAbiCx {
         decode_functions: &DenseBitSet<FunctionId>,
     ) {
         let mut decode_counts = FxIndexMap::default();
-        let mut memory_type_counts = FxHashMap::default();
+        let mut memory_type_counts = FxIndexMap::default();
         for func_id in decode_functions.iter() {
             let func = module.function(func_id);
             for inst_id in func.instructions() {
@@ -796,7 +796,7 @@ impl LowerAbiCx {
         // Debug revert strings give nested sites their own offset reasons, which only inline
         // decoding reports, so only parameters count there.
         let nested = !self.revert_strings.is_debug();
-        let mut counts = FxHashMap::<AbiParamType, (usize, usize)>::default();
+        let mut counts = FxIndexMap::default();
         for &id in targets {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
@@ -2751,28 +2751,26 @@ fn calldata_type_helper_args(
 /// Adds `occurrences` to the use count of `ty`, saturating at two, and returns the increase, or
 /// `None` when `ty` was already counted and its count did not change.
 fn count_type(
-    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+    counts: &mut FxIndexMap<AbiParamType, usize>,
     ty: &AbiParamType,
     occurrences: usize,
 ) -> Option<usize> {
-    let first = counts.len();
     let (count, new) = match counts.get_mut(ty) {
         Some(count) => (count, false),
-        None => (counts.entry(ty.clone()).or_insert((0, first)), true),
+        None => (counts.entry(ty.clone()).or_default(), true),
     };
-    let previous = count.0;
-    count.0 = previous.saturating_add(occurrences).min(2);
-    (new || count.0 != previous).then(|| count.0 - previous)
+    let previous = *count;
+    *count = previous.saturating_add(occurrences).min(2);
+    (new || *count != previous).then(|| *count - previous)
 }
 
-/// Returns the types counted at least twice, inner types before the types that contain them.
-fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiParamType> {
-    let mut types = counts
-        .into_iter()
-        .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
-        .collect::<Vec<_>>();
-    types.sort_by_key(|(first, ty)| (ty.depth(), *first));
-    types.into_iter().map(|(_, ty)| ty).collect()
+/// Returns the types counted at least twice, inner types before the types that contain them,
+/// and otherwise in the order they were first counted.
+fn repeated_types(counts: FxIndexMap<AbiParamType, usize>) -> Vec<AbiParamType> {
+    let mut types =
+        counts.into_iter().filter_map(|(ty, count)| (count >= 2).then_some(ty)).collect::<Vec<_>>();
+    types.sort_by_key(AbiParamType::depth);
+    types
 }
 
 /// Adds `occurrences` to the use count of every dynamic tuple and dynamic array in `ty`, itself
@@ -2781,7 +2779,7 @@ fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiPar
 fn count_nested_types(
     ty: &AbiParamType,
     occurrences: usize,
-    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+    counts: &mut FxIndexMap<AbiParamType, usize>,
 ) {
     match ty {
         AbiParamType::FixedArray { element, len } if element.is_dynamic() => count_nested_types(
