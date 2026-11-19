@@ -691,9 +691,24 @@ because MIR instructions carry no opcode gas.
 The certificate uses Cancun, a valid internal return address, seven extra
 stack slots, a live FMP slot and word-aligned byte memory within the 64 KiB
 model. It admits up to 30 million entry gas and requires known child code and
-bounded returndata allocation. The successful path ends at the dynamic jump
-back to the caller. The prefix price model still checks no-code transfer and
-insufficient gas before CALL.
+bounded returndata allocation. The prefix price model also checks no-code
+transfer and insufficient gas before CALL.
+
+The optimized EVM IR is matched against the runtime's opcode bytes and resolved
+labels. The named dispatcher entries bind the five caller sites, including
+the `supply` fallthrough and the two shared return destinations. The decoder
+checks which stack words reach the ABI stores. The MIR importer checks the
+void return or both inserts into the typed product in each caller, in both
+snapshots. Three callers return the transferred amount as one word. Its
+identity is checked on the MIR and bytecode call operands. The other word is
+related at the shared live-in boundary.
+
+After a helper success, the proof matches the caller's STOP or two ABI words
+in order, charges the physical return block, and keeps the committed world.
+A helper revert skips publication and uses the owning invocation's entry
+journal with the exact revert bytes. Out-of-gas also rolls back. The theorem
+starts at helper entry with related caller live-in values and the owning
+checkpoint. The work before that cut is exercised by independent replay.
 
 The independent replay preserves the emitted prefix bytes and PUSH widths.
 A trampoline supplies the helper's entry stack and relocates the no-code
@@ -707,7 +722,10 @@ capture reproduces the same ABI and creation and runtime bytecode. The
 continuation replay executes relocated emitted instructions and checks all six
 paths with Lean and the Rust executor. A child that writes storage and then
 reverts leaves the checkpoint unchanged. A successful child that returns false
-also loses its write when the enclosing helper reverts.
+also loses its write when the enclosing helper reverts. The independent ABI
+replays execute the unchanged runtime from each of the five public selectors.
+They check committed storage and logs on success and full rollback on both a
+token revert and a false result.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |

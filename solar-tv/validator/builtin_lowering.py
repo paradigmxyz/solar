@@ -11,7 +11,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, call_tail, dead_ssa, mir_state, native, prune, type_prune
+from . import audit, call_tail, callers, dead_ssa, mir_state, native, prune, type_prune
 from .common import Program, Unsupported
 
 
@@ -285,6 +285,89 @@ def transfer_continuation(body, cut, call, collect, error):
         ],
         "transferFrom revert_error implementation changed",
     )
+
+
+def caller_continuations(bodies, declarations, sites):
+    """Check both MIR caller tails, with the sibling return value live at the cut."""
+    names = {site.name for site in sites}
+    for table, decls in zip(bodies, declarations, strict=True):
+        helper = table["safeTransferFrom"]["id"]
+        called_by = {
+            name
+            for name, body in table.items()
+            if any(
+                row["operation"].get("function") == helper
+                for block in body["blocks"]
+                for row in block["instructions"]
+            )
+        }
+        require(called_by == names, "MIR transferFrom caller set changed")
+        for site in sites:
+            require(
+                f"[selector=0x{site.selector:08x}," in decls[site.name]["text"][0],
+                f"MIR ABI selector changed in {site.name}",
+            )
+            body = table[site.name]
+            calls = [
+                (block, index, row)
+                for block in body["blocks"]
+                for index, row in enumerate(block["instructions"])
+                if row["operation"].get("function") == helper
+            ]
+            require(len(calls) == 1, f"ambiguous MIR transferFrom call in {site.name}")
+            block, index, call = calls[0]
+            operands = call["operation"]["args"]
+            expect(call, operation("call", operands, function=helper))
+            require(
+                [operand["type"] for operand in operands] == [word(160)] * 3 + [word()],
+                f"transferFrom argument types changed in {site.name}",
+            )
+            later = block["instructions"][index + 1 :]
+            if not site.live_words:
+                require(
+                    not body["returns"]
+                    and not later
+                    and block["terminator"] == operation("return"),
+                    f"void MIR continuation changed in {site.name}",
+                )
+                continue
+            ty = {"kind": "product", "fields": [word(), word()]}
+            require(
+                body["returns"] == [ty] and len(later) == 2,
+                "unexpected MIR caller return product",
+            )
+            first, second = later
+            values = [row["operation"]["args"][1] for row in later]
+            amount_index = 1 if site.name == "liquidate" else 0
+            require(
+                values[amount_index] == operands[3]
+                and all(value["type"] == word() for value in values),
+                f"MIR caller did not return the transfer amount in {site.name}",
+            )
+            head = expect(
+                first,
+                operation(
+                    "insert_value",
+                    [{"kind": "undefined", "type": ty}, values[0]],
+                    aggregate_type=ty,
+                    index=0,
+                ),
+                ty,
+            )
+            packed = expect(
+                second,
+                operation(
+                    "insert_value",
+                    [head, values[1]],
+                    aggregate_type=ty,
+                    index=1,
+                ),
+                ty,
+            )
+            require(
+                block["terminator"] == operation("return", [packed]),
+                f"MIR caller returned a different product in {site.name}",
+            )
 
 
 def call_site(before, after, *, error=None):
@@ -625,17 +708,25 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         )
         code = CALL_PROOF
         if final_call:
-            kind = "final-bytecode-call-returndata-lowering"
+            kind = "final-bytecode-caller-continuations"
             boundary = (
                 "shared state at helper entry; one child execution with the bytecode "
                 "CALL budget; typed MIR and physical continuation agree on the copied "
-                "returndata, accepted frame, reverted bytes and remaining gas"
+                "returndata and remaining gas; the five actual caller continuations "
+                "agree on ABI publication or owning-frame rollback"
             )
-            module = "SolarTV.MIR.Transforms.TransferFromReturn"
+            caller_continuations(bodies, declarations, final_call["callers"])
+            module = "SolarTV.MIR.Transforms.TransferFromCallers"
             code = (
                 FINAL_CALL_PROOF.replace("{trace}", final_call["trace"])
                 .replace("{memory}", final_call["memory"])
                 .replace("{tail_prices}", final_call["tail_prices"])
+                .replace(
+                    "{caller_suffixes}", callers.lean_suffixes(final_call["callers"])
+                )
+                .replace(
+                    "{return_addresses}", callers.lean_addresses(final_call["callers"])
+                )
                 .replace(
                     "{extra_stack}",
                     str(final_call["artifact"]["additional_stack_slots"]),
@@ -682,7 +773,7 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
             replay_ir=text,
             selector=function,
             scope="builtin-lowering",
-            gas="exact-call-continuation" if final_call else None,
+            gas="exact-caller-continuation" if final_call else None,
             evm_version=version,
             import_evidence={
                 "kind": kind,
@@ -731,7 +822,7 @@ theorem contextual {Observation : Type} (cfg : Config) (fuel : Nat) (frame : Fra
 FINAL_CALL_PROOF = """
 open SolarTV.MIR.State EvmRules SolarTV.Execution
 open SolarTV.MIR.LowerReturndata SolarTV.MIR.FinalCallBudget SolarTV.MIR.TransferFromFrame
-open SolarTV.MIR.TransferFromReturn
+open SolarTV.MIR.TransferFromReturn SolarTV.MIR.TransferFromCallers
 open SolarTV.EVM.CallBudget (Entry Trace referenceTrace beforeCall)
 def finalTrace : Trace := {trace}
 theorem finalShape : finalTrace = referenceTrace 6 := by decide
@@ -743,12 +834,20 @@ theorem guardShape : importedGuard = guard := rfl
 theorem setupShape : importedSetup = setup := rfl
 def tailPrices : TailPrices := {tail_prices}
 theorem tailShape : tailPrices = referencePrices := by decide
+def callerSuffix : Caller → Suffix
+{caller_suffixes}
+def returnAddress : Caller → Word
+{return_addresses}
+theorem suffixShape (caller : Caller) : callerSuffix caller = reference caller := by
+  cases caller <;> decide
 
 theorem contextual (cfg : Config) (fuel : Nat)
     (evm : EVM.State.Frame) (world : Journal) (args : Inputs)
     (sample available child retained words elapsed : Nat)
-    (stack : ∃ ret rest, evm.stack = ret :: widenBits args.token :: widenBits args.sender ::
+    (caller : Caller) (other : Word) (rest : List Word) (checkpoint : Journal)
+    (stack : evm.stack = returnAddress caller :: widenBits args.token :: widenBits args.sender ::
       widenBits args.receiver :: args.amount :: rest)
+    (liveWords : (callerSuffix caller).publication.words rest = .ok (liveOperands caller args.amount other))
     (_stackRoom : evm.stack.length + {extra_stack} ≤ 1024)
     (_returnDest : evm.stack.head?.any (EVM.State.validJump evm.code) = true)
     (probe : cfg.available.contains 0x3b = true) (gasOp : cfg.available.contains 0x5a = true)
@@ -778,11 +877,16 @@ theorem contextual (cfg : Config) (fuel : Nat)
         (widenBits args.token) (BitVec.ofNat 256 sample) p
       let final := executeCut ext fuel evm.environment (runBytes finalWrites evm world)
         referencePrices (p+160) child retained
-      resumeMir cfg tailPrices frame.memory (invokeAndCollect priced fuel semantic returnDataBytes) = final ∧
-      resumeMir cfg tailPrices frame.memory (invokeAndCollect priced fuel raw (lowered priced)) = final := by
+      mirContinue caller args.amount other checkpoint
+        (resumeMir cfg tailPrices frame.memory (invokeAndCollect priced fuel semantic returnDataBytes)) =
+        byteContinue (callerSuffix caller) rest checkpoint final ∧
+      mirContinue caller args.amount other checkpoint
+        (resumeMir cfg tailPrices frame.memory (invokeAndCollect priced fuel raw (lowered priced))) =
+        byteContinue (callerSuffix caller) rest checkpoint final := by
   rw [guardShape,setupShape]
   obtain ⟨frame,mir,bytes,⟨ready⟩,ha,hi,hg,cursor⟩ := fromEntry cfg evm world args finalTrace finalShape
-    finalWrites finalWritesShape sample available child retained words elapsed stack probe gasOp
+    finalWrites finalWritesShape sample available child retained words elapsed
+    ⟨returnAddress caller,rest,stack⟩ probe gasOp
     (environment.symm ▸ known) codeBound aligned boundedMemory live heap valid reaches
   refine ⟨frame,mir,?_⟩
   dsimp only
@@ -830,22 +934,25 @@ theorem contextual (cfg : Config) (fuel : Nat)
     exact changeRequest cfg frame fuel (widenBits args.token) p _ _ sample fork
       (by simpa only [requestWord] using request) (by rw [sampleWord]; exact Nat.le_refl _)
       (by rw [requestWord]; omega) (by rw [sampleWord]; omega)
-  change
-    (resumeMir cfg referencePrices frame.memory (collectMessage returnDataBytes (invoke priced fuel
-      (messageArguments priced frame (.address 0xf1 true false true false false)
-        [{address},{input},{gas}]))) = _) ∧
-    (resumeMir cfg referencePrices frame.memory (collectMessage (lowered priced) (invoke priced fuel raw)) = _)
-  rw [semanticEq]
-  refine ⟨resumed,?_⟩
-  rw [← resumed,used]
-  cases executed : byteCall ext fuel cfg.environment cut child with
-  | error _ => rfl
-  | ok outcome =>
-    have fits := range outcome executed
-    simp only [collectMessage, Bind.bind, Except.bind, Pure.pure, Except.pure]
-    rw [materialize priced (postCall frame retained outcome) (by
-      change outcome.data.length + 63 < 2^256
-      omega)]
+  unfold invokeAndCollect
+  rw [semanticEq,resumed]
+  have published := resume_eq caller (callerSuffix caller) rest args.amount other checkpoint
+    (executeCut ext fuel cfg.environment (.ok (some cut)) referencePrices (p+160) child retained)
+    (suffixShape caller) liveWords
+  refine ⟨published,?_⟩
+  have loweredEq : collectMessage (lowered priced) (invoke priced fuel raw) =
+      collectMessage returnDataBytes (invoke priced fuel raw) := by
+    rw [used]
+    cases executed : byteCall ext fuel cfg.environment cut child with
+    | error _ => rfl
+    | ok outcome =>
+      have fits := range outcome executed
+      simp only [collectMessage, Bind.bind, Except.bind, Pure.pure, Except.pure]
+      rw [materialize priced (postCall frame retained outcome) (by
+        change outcome.data.length + 63 < 2^256
+        omega)]
+  rw [loweredEq,resumed]
+  exact published
 #print axioms contextual
 """
 

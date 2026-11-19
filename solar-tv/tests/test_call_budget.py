@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import call_budget, call_tail, native
+from validator import call_budget, call_tail, callers, native
 from validator.common import Unsupported
 
 
@@ -32,6 +32,43 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(report["gas_policy"], "exact")
             self.assertEqual(report["function"], "safeTransferFrom")
             self.assertEqual(report["additional_stack_slots"], 7)
+            self.assertEqual(
+                {
+                    site["name"]: (site["return_pc"], site["live_words"], site["gas"])
+                    for site in report["callers"]
+                },
+                {
+                    "supply": (210, [1, 5], 25),
+                    "repay": (210, [1, 5], 25),
+                    "supplyCollateral": (2161, [], 1),
+                    "liquidate": (6252, [5, 2], 28),
+                    "flashLoan": (2161, [], 1),
+                },
+            )
+            self.assertEqual(
+                {
+                    name: evidence["abi_words"]
+                    for name, evidence in report["caller_replays"].items()
+                },
+                {
+                    "supply": [7, 7_000_000],
+                    "repay": [7, 7_000_000],
+                    "supplyCollateral": [],
+                    "liquidate": [8, 7],
+                    "flashLoan": [],
+                },
+            )
+            for name, evidence in report["caller_replays"].items():
+                self.assertEqual(evidence["rollback"], ["revert", "false"])
+                observations = json.loads(
+                    (output / "callers" / f"{name}.json").read_text()
+                )
+                self.assertEqual(len(observations), 3)
+                self.assertTrue(observations[0][-1])
+                self.assertEqual(observations[1][-1], [])
+                self.assertEqual(observations[2][-1], [])
+                self.assertIn(b"transferFrom reverted", bytes(observations[1][1]))
+                self.assertIn(b"transferFrom returned false", bytes(observations[2][1]))
             self.assertEqual(
                 report["tail_fixed_gas"],
                 {
@@ -108,9 +145,9 @@ class CallBudgetTests(unittest.TestCase):
 
             mir = json.loads((output / "mir.json").read_text())
             self.assertEqual(mir["status"], "verified")
-            self.assertEqual(mir["gas_policy"], "exact-call-continuation")
+            self.assertEqual(mir["gas_policy"], "exact-caller-continuation")
             self.assertEqual(
-                mir["region"]["proof"], "final-bytecode-call-returndata-lowering"
+                mir["region"]["proof"], "final-bytecode-caller-continuations"
             )
             self.assertEqual(
                 mir["import_correspondence"][0]["final_bytecode"]["runtime_sha256"],
@@ -148,6 +185,12 @@ class CallBudgetTests(unittest.TestCase):
                 i for i, line in enumerate(lines) if line.startswith("def tailPrices ")
             )
             lines[prices] = lines[prices].replace("137", "136")
+            publication = next(
+                i
+                for i, line in enumerate(lines)
+                if line.startswith("  | .liquidate => ⟨")
+            )
+            lines[publication] = lines[publication].replace(".pair 5 2", ".pair 2 5")
             lines[writes] = lines[writes].replace(".heap 160", ".heap 128")
             lines[setup] = lines[setup].replace(
                 str(call_budget.SELECTOR), str(call_budget.SELECTOR + 1)
@@ -166,6 +209,10 @@ class CallBudgetTests(unittest.TestCase):
             self.assertIn("finalWrites = stores", rejected_proof.stdout)
             self.assertIn("importedSetup = setup", rejected_proof.stdout)
             self.assertIn("tailPrices = referencePrices", rejected_proof.stdout)
+            self.assertIn(
+                "callerSuffix Caller.liquidate = reference Caller.liquidate",
+                rejected_proof.stdout,
+            )
 
             schedule = (output / "scheduled.evmir").read_text()
             disasm = (output / "scheduled.disasm").read_text()
@@ -194,6 +241,40 @@ class CallBudgetTests(unittest.TestCase):
                 Unsupported, "cannot bind a unique final-bytecode"
             ):
                 call_budget.extract_final(prefix, setup, catalog)
+
+            # A valid opcode with a different terminal action breaks the
+            # actual caller PC binding, even when the helper bytes match.
+            finalized = (output / "finalized.evmir").read_text()
+            self.assertEqual(
+                callers.extract(
+                    scheduled=schedule,
+                    finalized=finalized,
+                    decoded=call_budget.decode_runtime(runtime, catalog),
+                    helper=report["entry"],
+                    catalog=catalog,
+                    fork="cancun",
+                )[0].return_pc,
+                210,
+            )
+            wrong_return = bytearray(runtime)
+            supply_pc = report["callers"][0]["return_pc"]
+            end = next(
+                pc
+                for pc, row in call_budget.decode_runtime(runtime, catalog).items()
+                if pc >= supply_pc and row == ("return", None)
+            )
+            wrong_return[end] = 0
+            with self.assertRaisesRegex(
+                Unsupported, "final EVM IR disagrees with bytecode"
+            ):
+                callers.extract(
+                    schedule,
+                    finalized,
+                    call_budget.decode_runtime(wrong_return, catalog),
+                    report["entry"],
+                    catalog,
+                    "cancun",
+                )
 
             # The return-copy certificate also binds the physical allocation.
             wrong_size = bytearray(runtime)

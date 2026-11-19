@@ -1461,7 +1461,7 @@ effects with a shared GAS sample and caller budget at the call boundary.
 Reports state those conditions and identify the certificate. See
 [the proof boundaries](CORRECTNESS.md#remaining-obligations).
 
-### Validating Morpho's final CALL and returndata
+### Validating Morpho's CALL and caller exits
 
 ```sh
 solar-tv/solar-tv call-budget --output target/morpho-call-budget
@@ -1473,16 +1473,25 @@ and exact CALL budget from helper entry, runs the child with that budget, then
 matches the final continuation to both MIR versions. It covers empty and true
 returns, false returns, short or noncanonical ABI data, and child reverts.
 
-The replay runs the emitted CALL and continuation with only local jump
+The proof follows returns into the emitted continuations for `supply`,
+`repay`, `supplyCollateral`, `liquidate` and `flashLoan`. It compares
+their ABI output and remaining gas, and checks that a revert rolls back the
+owning invocation with the exact payload. It starts with the live caller
+values at helper entry.
+
+The helper replay runs the emitted CALL and continuation with only local jump
 destinations relocated. It checks copied memory, revert bytes and the journal.
 In the success/revert pair the token writes a slot before responding. The
 successful call keeps the write and the revert rolls it back. Other pairs
 check empty, malformed, short and false results. The existing gas and dirty
-memory replays are also saved.
+memory replays are also saved. Under `callers/`, the Rust replayer starts
+from all five real ABI selectors and executes the unchanged runtime against
+success, token revert and false-return fixtures. It checks return words,
+storage and log rollback.
 
 Use `--mir-pair BEFORE AFTER` to verify an existing capture. The output
 includes the runtime, the Lean certificates, `mir.json` and the independent
-replays under `continuation/`. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)
+replays under `continuation/` and `callers/`. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)
 
 ### Removing unused MIR type declarations
 

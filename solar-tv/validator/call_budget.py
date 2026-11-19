@@ -6,10 +6,21 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from . import audit, builtin_lowering, call_tail, evaluate, native, prune, regions
+from . import (
+    audit,
+    builtin_lowering,
+    call_tail,
+    caller_replay,
+    callers,
+    evaluate,
+    native,
+    prune,
+    regions,
+)
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Unsupported
 
@@ -305,7 +316,7 @@ def capture(solar, directory, timeout):
                 solar,
                 "--standard-json",
                 "-j1",
-                "-Zdump=evm-ir-runtime-scheduled",
+                "-Zdump=evm-ir-runtime,evm-ir-runtime-scheduled",
                 f"-Zsolar-tv={captures}",
                 "-Zsolar-tv-capture",
             ],
@@ -332,8 +343,11 @@ def capture(solar, directory, timeout):
         evaluate.digest(evaluate.stable(value["contracts"])) == original,
         "scheduled capture changed compiler output",
     )
-    scheduled = dump.split("@module Morpho_runtime\n", 1)[1]
-    scheduled = "@module Morpho_runtime\n" + scheduled.rstrip() + "\n"
+    parts = re.split(r"(?m)^; === .*Morpho \((runtime|scheduled runtime)\) ===\n", dump)
+    require(len(parts) == 5, "missing optimized or scheduled Morpho runtime")
+    modules = {parts[i]: parts[i + 1].rstrip() + "\n" for i in (1, 3)}
+    finalized, scheduled = modules["runtime"], modules["scheduled runtime"]
+    (directory / "finalized.evmir").write_text(finalized)
     path = directory / "scheduled.evmir"
     path.write_text(scheduled)
     assembled = run(
@@ -359,7 +373,7 @@ def capture(solar, directory, timeout):
         ]
     )
     (directory / "runtime.bin").write_text(final.hex() + "\n")
-    return scheduled, assembled.stdout, original, final, mir_pair
+    return scheduled, finalized, assembled.stdout, original, final, mir_pair
 
 
 def prove(scheduled, trace, directory, timeout):
@@ -781,7 +795,7 @@ def main(arguments):
     try:
         directory.mkdir()
         semantics = audit.semantics()
-        scheduled, disassembly, bytecode, final, mir_pair = capture(
+        scheduled, finalized, disassembly, bytecode, final, mir_pair = capture(
             solar, directory, args.timeout
         )
         if args.mir_pair:
@@ -805,6 +819,7 @@ def main(arguments):
         tail = call_tail.extract(
             decoded, location[1] + 1, resume_stack, catalog, VERSION
         )
+        sites = callers.extract(scheduled, finalized, decoded, entry, catalog, VERSION)
         extra_stack = max(prefix_depth, tail.peak_depth) - len(ENTRY)
         prove(scheduled_trace, trace, directory, args.timeout)
         child_samples = witness(final, location, directory, solar, replay, args.timeout)
@@ -826,7 +841,11 @@ def main(arguments):
             replay,
             args.timeout,
         )
+        caller_receipts = caller_replay.replay(
+            final, directory / "callers", solar, replay, args.timeout
+        )
         artifact = {
+            "callers": [asdict(site) for site in sites],
             "runtime_sha256": evaluate.digest(final),
             "entry_pc": location[0],
             "call_pc": location[1],
@@ -841,6 +860,7 @@ def main(arguments):
             args.timeout,
             FUNCTION,
             final_call={
+                "callers": sites,
                 "trace": expression(trace),
                 "memory": memory_expression(effects),
                 "tail_prices": "⟨"
@@ -879,7 +899,9 @@ def main(arguments):
                 "entry": entry,
                 "no_code_exit": failure,
                 "gas_policy": "exact",
-                "scope": "Cancun transferFrom entry through CALL, returndata, and helper exit",
+                "scope": "Cancun transferFrom entry through the five owning caller exits",
+                "callers": artifact["callers"],
+                "caller_replays": caller_receipts,
                 "tail_fixed_gas": dict(zip(call_tail.ROUTES, tail.prices, strict=True)),
                 "returndatacopy_word_gas": tail.copy_gas,
                 "runtime_sha256": evaluate.digest(final),
@@ -909,7 +931,7 @@ def main(arguments):
     ) as error:
         print(f"inconclusive: {error}", file=sys.stderr)
         return 2
-    print(f"verified Morpho {FUNCTION} through CALL and helper exit")
+    print(f"verified Morpho {FUNCTION} through CALL and five caller exits")
     print(
         f"counterexample: child GAS {child_samples[0]} -> {child_samples[1]} (Rust replay matched)"
     )

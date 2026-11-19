@@ -241,7 +241,7 @@ def record(
                     "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
                 ]
             )
-            if program.gas == "exact-call-continuation":
+            if program.gas == "exact-caller-continuation":
                 assumptions.extend(
                     [
                         "final emitted bytes and the MIR snapshots come from the same compiler input and capture",
@@ -251,7 +251,8 @@ def record(
                         "Cancun, at most 30 million entry gas and word-aligned active memory within 64 KiB; the FMP slot is live and the object fits",
                         "the entry stack has a valid return destination and room for the decoded helper's peak temporary depth",
                         "the resolved helper continuation uses decoded opcode prices and memory expansion; MIR has no physical instruction gas",
-                        "execution ends at the internal return or owning-frame revert; the caller's continuation is outside the proof",
+                        "the five named caller suffixes start with matching saved MIR values and physical stack words; revert uses the checkpoint of the owning invocation",
+                        "execution through ABI RETURN, STOP, or owning-frame rollback; caller work before entering the helper is outside the universal proof",
                     ]
                 )
             else:
@@ -266,7 +267,7 @@ def record(
                         "returned byte length plus 63 fits a word; same typed continuation and supplied callees consume equal results",
                     ]
                 )
-            elif program.gas == "exact-call-continuation":
+            elif program.gas == "exact-caller-continuation":
                 assumptions.append(
                     "bounded returndata materialization; same child effects, copied memory, canonical boolean check and helper exit"
                 )
@@ -434,8 +435,8 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": (
-            "exact-call-continuation"
-            if program and program.gas == "exact-call-continuation"
+            "exact-caller-continuation"
+            if program and program.gas == "exact-caller-continuation"
             else "unpriced-structural"
             if program
             and program.scope
