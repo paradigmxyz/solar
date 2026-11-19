@@ -294,6 +294,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         // solc stages the library's deployment address under the contract's location
         // (`ContractCompiler.cpp` L231, L250-251), even though it has no source constructor.
         constructor.declaration_span = contract.span;
+        constructor.exit_span = contract.span;
         let mut builder = FunctionBuilder::new_semantic(&mut constructor);
         builder.replace_source_span(contract.span);
         let address = builder.address();
@@ -377,6 +378,8 @@ pub(super) fn declaration(
     let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = declaration_span(gcx, function);
+    mir.exit_span =
+        function.body.map_or(mir.declaration_span, |body| body.span.with_lo(body.span.hi() - 1));
     mir.debug_identifier = Some(name.name);
     if gcx.sess.opts.unstable.dump.is_some() {
         mir.debug_signature = debug_signature(gcx, function.span);

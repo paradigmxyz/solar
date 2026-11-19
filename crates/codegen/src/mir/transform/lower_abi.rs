@@ -540,7 +540,7 @@ impl LowerAbiCx {
             // shape: it emits the value moves and the jump to the return tag under the statement
             // and packs the return under the function declaration (`appendReturnValuePacker`).
             // Only a wrapper that calls an extracted body has no `return` of its own, so it takes
-            // the declaration.
+            // the closing brace of the body, see `replace_body_with_call`.
             // abi_encode(values) !metadata(return span)
             // returndata(encoded_ptr, encoded_len) !metadata(return span)
             builder.inherit_terminator_debug_context(block_id);
@@ -1247,7 +1247,7 @@ impl LowerAbiCx {
         func.blocks[block].instructions.clear();
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
-        let declaration = func.declaration_span;
+        let (declaration, exit) = (func.declaration_span, func.exit_span);
         let mut builder = FunctionBuilder::new(func);
         // The call maps to the wrapped declaration, as solc jumps into the function under its
         // location setter.
@@ -1258,6 +1258,9 @@ impl LowerAbiCx {
             let call = builder.icall(body_id, args, first);
             let inst = *builder.func().blocks[block].instructions.last().expect("the call");
             Self::widen_word_args(builder.func_mut(), block, inst, word_params);
+            // NOTE: Everything after the call is the epilogue of the wrapper, which maps to the
+            // closing brace of the body, as clang's `FinishFunction(EndLoc)` places the epilogue.
+            builder.replace_source_span(exit);
             values.push(call);
             if !rest.is_empty() {
                 let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
@@ -1280,6 +1283,7 @@ impl LowerAbiCx {
             builder.icall_void(body_id, args);
             let call = *builder.func().blocks[block].instructions.last().expect("the call");
             Self::widen_word_args(builder.func_mut(), block, call, word_params);
+            builder.replace_source_span(exit);
             builder.ret([]);
         }
         // Drop the detached body blocks before lowering their now-orphaned slice projections.

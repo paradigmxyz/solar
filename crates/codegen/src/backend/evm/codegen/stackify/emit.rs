@@ -641,6 +641,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_label(self.function_labels[&callee]);
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
+                // NOTE: The call of a wrapper to its extracted body is the only one that maps to
+                // the whole declaration. The code after it is the epilogue of the wrapper, which
+                // maps to the closing brace, as clang places the epilogue
+                // (`CodeGenFunction::FinishFunction(EndLoc)`), so its return tag does too and the
+                // header is not a stop of the return.
+                if self.capture_debug_info {
+                    let origin = self.asm.debug_origin();
+                    if origin.only_source_span() == Some(func.declaration_span) {
+                        self.asm.set_label_origins(
+                            return_label,
+                            [func.exit_span],
+                            origin.modifier_depth(),
+                        );
+                    }
+                }
             }
             &Step::Publish { callee, arity, params, .. } => {
                 // [result(m-1), ..., result1, result0]
