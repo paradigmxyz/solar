@@ -267,8 +267,8 @@ impl InstructionMetadata {
 
     /// Copies the metadata of an instruction that is cloned with remapped operands: the source
     /// context and the semantic markers, such as `preserves_fmp`. Facts proved from the old
-    /// operands (memory region, storage alias, effect) and analysis results (HIR expression, loop
-    /// depth) are dropped.
+    /// operands (memory region, storage alias, effect), analysis results (HIR expression, loop
+    /// depth) and the epilogue a call returns into are dropped.
     #[must_use]
     pub fn without_operand_facts(&self) -> Self {
         let Self {
@@ -282,6 +282,7 @@ impl InstructionMetadata {
         let mut metadata = Self { debug_loc: debug_loc.clone(), flags: *flags, ..Self::EMPTY };
         metadata.flags.set_memory_region(None);
         metadata.flags.set_effect(None);
+        metadata.flags.clear_returns_to_exit();
         metadata
     }
 
@@ -529,6 +530,10 @@ impl MetadataFlags {
 
     fn set_returns_to_exit(&mut self) {
         self.0 |= Self::RETURNS_TO_EXIT;
+    }
+
+    fn clear_returns_to_exit(&mut self) {
+        self.0 &= !Self::RETURNS_TO_EXIT;
     }
 
     fn displays_source_span(self) -> bool {
