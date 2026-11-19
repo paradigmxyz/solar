@@ -106,13 +106,18 @@ its own semantic rules, so `compare` skips it. ABI agreement does not imply
 runtime equivalence.
 
 AST IDs never match between compilers, so `storage-layout` drops `astId` and
-replaces the ID that ends `t_struct(Name)N`, `t_enum(Name)N`,
-`t_contract(Name)N` and `t_userDefinedValueType(Name)N` with `#`, in the keys
-of `types` and in every `type`, `key`, `value` and `base`, including those of
-struct members. If two IDs of one name meet in one contract's layouts, such as
-two structs `S` from different scopes, the check reports an error naming the
-contract rather than guessing which is which, and still compares the other
-contracts; so does a malformed layout.
+renames `t_struct(Name)N`, `t_enum(Name)N`, `t_contract(Name)N` and
+`t_userDefinedValueType(Name)N` after the label of the `types` entry the ID
+heads, such as `t_struct(struct Tick.Info)`, in the keys of `types` and in
+every `type`, `key`, `value` and `base`, including those of struct members.
+Same-named types from different scopes, such as `Tick.Info` and
+`Position.Info`, stay apart, and a label that differs between compilers shows as
+a difference. An ID with no `types` entry, such as a struct used only in a
+function type, becomes `t_struct(Name)#`. If two IDs of a contract's layouts
+still end up with one name, such as two file-level structs `S` from different
+files, the check reports an error naming the contract rather than guessing
+which is which, and still compares the other contracts; so does a malformed
+layout.
 `storage` and each struct's `members` compare in order; `types` compares as an
 object, so its key order does not matter. Each layout counts as one output for
 the missing and `unsupported` rules below; solc before 0.8.27 emits no
