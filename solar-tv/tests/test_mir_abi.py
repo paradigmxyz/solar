@@ -201,7 +201,7 @@ class MirAbiTests(unittest.TestCase):
                     status=1,
                 )
 
-    def test_packed_alignment_zero_tail_and_word_scratch_boundary(self):
+    def test_packed_alignment_and_word_scratch_boundary(self):
         for parts in (
             "",
             'data hex""',
@@ -220,6 +220,8 @@ class MirAbiTests(unittest.TestCase):
                         state.module(body),
                         "lower-builtins,lower-slices,lower-memory-objects",
                     )
+
+    def test_packed_encoding_does_not_clear_past_its_last_store(self):
         world = storage.fixture()
         world["memory"] = {
             "data": "0x"
@@ -228,11 +230,18 @@ class MirAbiTests(unittest.TestCase):
             ).hex(),
             "size": 256,
         }
-        self.lowered_pair(
-            state.module('v0 = abi_encode_packed (data hex"0102")\nret 0'),
+        before = state.module('v0 = abi_encode_packed (data hex"0102")\nret 0')
+        after = self.lowered_pair(
+            before,
             "lower-builtins,lower-slices,lower-memory-objects",
             world,
         )
+        # The result starts at 128. Its payload store covers 160–191.
+        # A word clear at the end of the payload would also overwrite 192–193.
+        broken = after.replace("    ret 0", "    mstore 162, 0\n    ret 0")
+        result, _ = self.pair(before, broken, fixture=world, status=1)
+        self.assertIn("Live memory contents or active size changed", result.stdout)
+        self.assertIn("Rust interpreter: matched", result.stdout)
 
     def test_recursive_layout_budget_remains_explicit(self):
         layout = "array<1, " * 34 + "uint256" + ">" * 34

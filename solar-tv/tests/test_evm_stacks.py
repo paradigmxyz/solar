@@ -81,14 +81,18 @@ class EvmStackTests(unittest.TestCase):
     def test_almost_full_stack_can_push_and_pop(self):
         self.pair("push 0\npop\nstop", "stop", height=1023)
 
-    def test_compiler_rejects_invalid_stack_snapshots(self):
-        for body, height, diagnostic in [
-            ("pop\nstop", 0, "empty stack"),
-            ("push 0\nstop", 1024, "exceeding the limit"),
-        ]:
-            with self.subTest(height=height):
-                result = self.pair(body, "stop", height=height, status=2)
-                self.assertIn(diagnostic, result.stderr)
+    def test_compiler_rejects_stack_underflow(self):
+        result = self.pair("pop\nstop", "stop", status=2)
+        self.assertIn("empty stack", result.stderr)
+
+    def test_stack_overflow_is_a_counterexample(self):
+        result = self.pair("push 0\nstop", "stop", height=1024, status=1)
+        self.assertIn(
+            "before = exception(stack-overflow)\n  after  = success(empty)",
+            result.stdout,
+        )
+        self.assertIn("Lean kernel: confirmed", result.stdout)
+        self.assertIn("Rust interpreter: matched", result.stdout)
 
     def test_nonempty_return_data_is_observable(self):
         result = self.pair("push 1\npush 0\nreturn", "stop", status=1)

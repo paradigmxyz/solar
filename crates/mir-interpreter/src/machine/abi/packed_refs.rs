@@ -132,11 +132,6 @@ impl Run<'_, '_, '_> {
                 return ControlFlow::Continue(U256::from_be_bytes(keccak256(prefix).0));
             }
         }
-        let aligned = prepared.iter().all(|piece| match piece {
-            Prepared::Static(piece) => piece.bytes.len().is_multiple_of(32),
-            Prepared::Array(_) => true,
-            _ => false,
-        });
         let base = if hash {
             limit(self.memory.load(U256::from(64)))?
         } else {
@@ -188,10 +183,7 @@ impl Run<'_, '_, '_> {
                 }
             }
         }
-        let end = self.packed_static_segment(cursor, &pending)?;
-        if !hash && !aligned {
-            limit(self.memory.store(end, U256::ZERO))?;
-        }
+        self.packed_static_segment(cursor, &pending)?;
         if hash {
             self.burn_words(total)?;
             let bytes = limit(self.memory.read(start, total))?;
