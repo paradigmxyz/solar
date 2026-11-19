@@ -78,4 +78,22 @@ contract C {
     function use_sum(Point memory p) external pure returns (uint256) {
         return sum(p) + 1;
     }
+
+    // The reads of the results of a body that returns a tuple are part of the epilogue too.
+    // CHECK-LABEL: [entry, invoke=pair@
+    // CHECK-SAME: [[#PAIR_LO:]]..[[#PAIR_HI:]]]
+    // CHECK-SAME: !metadata(span=[[#PAIR_LO]]..
+    // CHECK-SAME: [[#PAIR_HI]])
+    // NONE: [continuation] !metadata(span=[[#PAIR_HI - 1]]..
+    // NONE-SAME: [[#PAIR_HI]])
+    // CHECK: return !metadata(span=[[#PAIR_HI - 1]]..
+    // CHECK-SAME: [[#PAIR_HI]], exit=return)
+    function pair(uint256 a) public pure returns (uint256, uint256) {
+        return (a, a + 1);
+    }
+
+    function use_pair(uint256 a) external pure returns (uint256) {
+        (uint256 x,) = pair(a);
+        return x;
+    }
 }

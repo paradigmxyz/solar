@@ -294,7 +294,6 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         // solc stages the library's deployment address under the contract's location
         // (`ContractCompiler.cpp` L231, L250-251), even though it has no source constructor.
         constructor.declaration_span = contract.span;
-        constructor.exit_span = contract.span;
         let mut builder = FunctionBuilder::new_semantic(&mut constructor);
         builder.replace_source_span(contract.span);
         let address = builder.address();

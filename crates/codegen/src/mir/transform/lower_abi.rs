@@ -1255,12 +1255,15 @@ impl LowerAbiCx {
         builder.switch_to_block(block);
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
+            // call = icall body_id, args !metadata(declaration) !returns_to_exit
             let call = builder.icall(body_id, args, first);
             let inst = *builder.func().blocks[block].instructions.last().expect("the call");
             builder.func_mut().inst_mut(inst).metadata.set_returns_to_exit();
             Self::widen_word_args(builder.func_mut(), block, inst, word_params);
             // NOTE: Everything after the call is the epilogue of the wrapper, which maps to the
             // closing brace of the body, as clang's `FinishFunction(EndLoc)` places the epilogue.
+            // results = loads of the extra results !metadata(closing brace)
+            // ret call, results !metadata(closing brace)
             builder.replace_source_span(exit);
             values.push(call);
             if !rest.is_empty() {
@@ -1281,11 +1284,13 @@ impl LowerAbiCx {
             }
             builder.ret(values);
         } else {
+            // icall body_id, args !metadata(declaration) !returns_to_exit
             builder.icall_void(body_id, args);
             let call = *builder.func().blocks[block].instructions.last().expect("the call");
             builder.func_mut().inst_mut(call).metadata.set_returns_to_exit();
             Self::widen_word_args(builder.func_mut(), block, call, word_params);
             builder.replace_source_span(exit);
+            // ret !metadata(closing brace)
             builder.ret([]);
         }
         // Drop the detached body blocks before lowering their now-orphaned slice projections.

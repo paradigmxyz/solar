@@ -647,8 +647,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // header is not a stop of the return. The call itself and the other calls of the
                 // wrapper, such as the argument decoders, keep the declaration.
                 if self.capture_debug_info && func.inst(inst).metadata.returns_to_exit() {
-                    let modifier_depth = self.asm.debug_origin().modifier_depth();
-                    self.asm.set_label_origins(return_label, [func.exit_span], modifier_depth);
+                    self.asm.set_label_origins(return_label, [func.exit_span], 0);
                 }
             }
             &Step::Publish { callee, arity, params, .. } => {
