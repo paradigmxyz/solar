@@ -443,15 +443,16 @@ fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
         let revisions = revisions.map(|list| list.split(',').map(|r| r.trim().to_owned()));
         if let Some(list) = directive.strip_prefix("revisions:") {
             all.extend(list.split_whitespace().map(str::to_owned));
-        } else if directive.starts_with("filecheck:") {
+        } else if directive == "filecheck" || directive.starts_with("filecheck:") {
             match revisions {
                 Some(revisions) => scoped.extend(revisions),
                 None => unscoped = true,
             }
-        } else if directive
-            .strip_prefix("compile-flags:")
-            .is_some_and(|flags| flags.split_whitespace().any(|flag| flag.starts_with("-Zdump=")))
-        {
+        } else if directive.strip_prefix("compile-flags:").is_some_and(|flags| {
+            flags
+                .split_whitespace()
+                .any(|flag| flag.trim_matches(['"', '\'']).starts_with("-Zdump="))
+        }) {
             // `None` dumps in every revision.
             dumps.push(revisions.map(Iterator::collect::<Vec<_>>));
         }
