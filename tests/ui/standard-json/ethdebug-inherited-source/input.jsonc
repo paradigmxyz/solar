@@ -1,4 +1,5 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ normalize-stdout-test: "(?s).+" -> ""
 //@ filecheck:
 // Each instruction names the source file of its own span: `f` is inherited from `A.sol` (ID 0), and
 // the fallback is declared in `B.sol` (ID 1), the file of the contract.

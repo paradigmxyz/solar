@@ -178,7 +178,8 @@ Other directives are `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. See the
   [tester guide](tools/tester/README.md#runtime-directives) for settings.
 - `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`, or on
-  the compiler's output when the test commits no `.stdout`. On a codegen-matrix
+  the compiler's output when the test commits no `.stdout`; such a test also
+  needs `//@ normalize-stdout-test: "(?s).+" -> ""`. On a codegen-matrix
   test it checks only the `mir` revision and revisions that pass `-Zdump=`.
 
 ### FileCheck

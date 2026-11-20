@@ -352,16 +352,6 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if cfg.mode.is_solc() {
         return solc_per_file_config(config, src, path, cfg);
     }
-    // FileCheck checks the output of a test without a committed snapshot, so the snapshot
-    // comparison must not require one.
-    for revision in snapshotless_filecheck_revisions(src, path) {
-        if revision.is_empty() {
-            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
-        } else {
-            let defaults = config.comment_defaults.revisioned.entry(vec![revision]).or_default();
-            defaults.normalize_stdout.push((run_call_stdout_regex().clone().into(), vec![]));
-        }
-    }
     if matches!(cfg.mode, Mode::StandardJson) {
         config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
         config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
@@ -425,69 +415,6 @@ fn is_codegen_matrix(path: &Path) -> bool {
     let mut src = String::new();
     fs::File::open(path).and_then(|mut file| file.read_to_string(&mut src)).is_ok()
         && codegen_matrix::is_standard(&src)
-}
-
-/// Returns the revisions that FileCheck the compiler's output because they commit no `.stdout`.
-/// The empty name stands for a test without revisions.
-fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
-    let is_matrix = codegen_matrix::is_standard(src);
-    let mut all = if is_matrix {
-        codegen_matrix::revisions(src).into_iter().map(str::to_owned).collect()
-    } else {
-        Vec::new()
-    };
-    let mut scoped = Vec::new();
-    let mut unscoped = false;
-    let mut per_bitwidth = false;
-    let mut dumps = Vec::new();
-    for (directive, revisions) in src.lines().filter_map(run_call::parse_directive) {
-        let revisions = revisions.map(|list| list.split(',').map(|r| r.trim().to_owned()));
-        if let Some(list) = directive.strip_prefix("revisions:") {
-            all.extend(list.split_whitespace().map(str::to_owned));
-        } else if directive == "stderr-per-bitwidth" {
-            per_bitwidth = true;
-        } else if directive == "filecheck" || directive.starts_with("filecheck:") {
-            match revisions {
-                Some(revisions) => scoped.extend(revisions),
-                None => unscoped = true,
-            }
-        } else if directive.strip_prefix("compile-flags:").is_some_and(|flags| {
-            flags
-                .split_whitespace()
-                .any(|flag| flag.trim_matches(['"', '\'']).starts_with("-Zdump="))
-        }) {
-            // `None` dumps in every revision.
-            dumps.push(revisions.map(Iterator::collect::<Vec<_>>));
-        }
-    }
-    if all.is_empty() {
-        all.push(String::new());
-    }
-    // The runner reads the snapshot of the host's width only under `stderr-per-bitwidth`.
-    let bitwidth = match (per_bitwidth, cfg!(target_pointer_width = "64")) {
-        (false, _) => "",
-        (true, true) => "64bit.",
-        (true, false) => "32bit.",
-    };
-    let mut checked = scoped;
-    if unscoped {
-        checked.extend(all);
-    }
-    checked.sort();
-    checked.dedup();
-    checked.retain(|revision| {
-        // A matrix revision other than `mir` checks only when it dumps, as in `FileCheck`.
-        let checks = !is_matrix
-            || revision == "mir"
-            || dumps.iter().any(|dump| dump.as_ref().is_none_or(|list| list.contains(revision)));
-        let name = if revision.is_empty() {
-            format!("{bitwidth}stdout")
-        } else {
-            format!("{bitwidth}{revision}.stdout")
-        };
-        checks && !path.with_extension(name).exists()
-    });
-    checked
 }
 
 /// Drops the default `-j1` when the test passes its own thread count.
