@@ -649,6 +649,8 @@ def check(
     final_call=None,
     proof_path=None,
 ):
+    from . import authorization_lowering
+
     texts, models, declarations = load_pair(paths, solar, executable, version, timeout)
     bodies = list(map(functions, models))
     if any(
@@ -667,11 +669,10 @@ def check(
         declarations[0][function]["text"][0] == declarations[1][function]["text"][0],
         "builtin expansion changed the function interface",
     )
-    if any(
-        inst["operation"]["kind"] == "store_storage_bytes"
-        for block in old["blocks"]
-        for inst in block["instructions"]
-    ):
+    operations = [
+        inst["operation"] for block in old["blocks"] for inst in block["instructions"]
+    ]
+    if any(op["kind"] == "store_storage_bytes" for op in operations):
         from . import storage_lowering
 
         require(not final_call, "final bytecode certificate requires a CALL")
@@ -695,6 +696,20 @@ def check(
         )
         callees = []
         code = STORAGE_PROOF
+    elif any(authorization_lowering.is_recovery(op) for op in operations):
+        require(
+            not final_call and version != "amsterdam",
+            "unsupported signing expansion target",
+        )
+        callees = unchanged_callees(function, bodies, declarations)
+        helpers = []
+        kind = "contextual-signing-expansion"
+        boundary = (
+            "identical typed context and immutable binding; exact packed object and "
+            "scratch-word effects; GAS paid and its sample covers the incoming "
+            "message budget; unpriced caller instructions"
+        )
+        code = authorization_lowering.source(old, new)
     else:
         require(version != "amsterdam", "Amsterdam MIR message gas is not modeled")
         callees = unchanged_callees(function, bodies, declarations)
@@ -760,7 +775,9 @@ def check(
                 for inst in block["instructions"]:
                     op = inst["operation"]
                     require(
-                        op["kind"] != "layout",
+                        op["kind"] != "layout"
+                        or kind == "contextual-signing-expansion"
+                        and op["query"] == "immutable_read",
                         "builtin expansion excludes placement observations",
                     )
                     if op["kind"] == "opcode":
@@ -799,6 +816,16 @@ def check(
             "safeTransfer",
             proof_path=transfer,
         )
+        authorization = directory / "MIRAuthorizationWithSig.lean"
+        check(
+            paths,
+            solar,
+            executable,
+            version,
+            timeout,
+            "setAuthorizationWithSig",
+            proof_path=authorization,
+        )
         artifact["abi_entry"] = {
             "scope": "concrete Cancun worlds from ABI dispatch to exit via the helper",
             "reachability": "lean-kernel",
@@ -813,6 +840,10 @@ def check(
             "safe_transfer_call": {
                 "proof": transfer.name,
                 "scope": "local CALL and returndata expansion with a shared incoming budget",
+            },
+            "authorization_with_sig": {
+                "proof": authorization.name,
+                "scope": "local packed envelope and static recovery call with a paid GAS sample",
             },
         }
 

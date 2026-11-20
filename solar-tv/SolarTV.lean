@@ -52,6 +52,8 @@ import SolarTV.MIR.Transforms.LowerReturndata
 import SolarTV.MIR.Transforms.LowerStorageHeader
 import SolarTV.MIR.Transforms.LowerStorageBytes
 import SolarTV.MIR.Transforms.StorageWordLoop
+import SolarTV.MIR.Transforms.LowerPacked
+import SolarTV.MIR.Transforms.LowerStaticWord
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.

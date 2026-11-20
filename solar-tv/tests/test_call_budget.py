@@ -130,11 +130,10 @@ class CallBudgetTests(unittest.TestCase):
                 {"safeTransfer", "safeTransferFrom", "setAuthorizationWithSig"},
             )
             self.assertTrue((output / "entry" / context["proof"]).is_file())
-            self.assertTrue(
-                (
-                    output / "entry" / entry_report["safe_transfer_call"]["proof"]
-                ).is_file()
-            )
+            for name in ("safe_transfer_call", "authorization_with_sig"):
+                self.assertTrue(
+                    (output / "entry" / entry_report[name]["proof"]).is_file()
+                )
             entry = entry_report["paths"]
             self.assertEqual(set(entry), set(report["caller_replays"]))
             for site in report["callers"]:

@@ -271,6 +271,15 @@ def record(
                         "returned byte length plus 63 fits a word; same typed continuation and supplied callees consume equal results",
                     ]
                 )
+            elif program.import_evidence["kind"] == "contextual-signing-expansion":
+                assumptions.extend(
+                    [
+                        "shared immutable binding and defined typed operands in the unchanged MIR context",
+                        "signing envelope preserves the exact writes, active memory and free-memory pointer update",
+                        "STATICCALL uses a paid GAS sample covering its incoming message budget; EIP-150 and available STATICCALL; up to 30 million sample gas",
+                        "local recovery result, scratch memory, returndata, journal and remaining message gas; physical gas before the sample is outside the proof",
+                    ]
+                )
             elif program.gas == "exact-caller-continuation":
                 assumptions.append(
                     "bounded returndata materialization; same child effects, copied memory, canonical boolean check and helper exit"

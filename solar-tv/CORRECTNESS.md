@@ -773,6 +773,18 @@ resume each side at its own residual work fuel. The capture identifies
 replacement bodies. The `safeTransfer` CALL and returndata expansion has
 a separate local certificate with a shared incoming budget.
 
+The `setAuthorizationWithSig` certificate checks the two expansions in the
+actual MIR pair. Its packed object proof preserves the length word, the
+overlapping payload stores, dirty tail bytes, and the free-memory pointer
+update for arbitrary domain and digest words. The STATICCALL proof keeps the
+cleared output word, request, child result, returndata, journal, and remaining
+gas. It requires a paid GAS sample that covers the incoming message budget.
+The checker compares the remaining MIR, including the success and revert
+paths and the immutable read, after contracting the two checked expansions.
+Independent replay compares the original operations with the lowered form at
+a concrete sampled budget. It catches a shifted payload store, a corrupt
+scratch clear, and a request too small to run the recovery precompile.
+
 The CALL debit lemma relates the EVM input and output memory steps to
 MIR's cumulative debit. It covers both unpaid legs, including an input
 that fits the budget and an output that does not. The existing
