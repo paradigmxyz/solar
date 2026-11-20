@@ -237,6 +237,8 @@ fn lower_evm_ir_once(
     let mut program = Program::with_debug_info(capture_debug_info);
     let valid_lent_invokes = module.valid_lent_invokes();
     let mut pending_block_invoke = None;
+    // Whether the block that left `pending_block_invoke` pending is unoptimized.
+    let mut pending_unoptimized = false;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
         let block_modifier_depth = block.instructions.first().map_or_else(
@@ -253,13 +255,18 @@ fn lower_evm_ir_once(
             // NOTE: `-O none` keeps the empty blocks of a function that only tail-calls another,
             // and layout makes them fall through. Their entries then share the first instruction
             // of the chain, which can mark one: the outer entry, the call the caller made.
+            let unoptimized = block.metadata.optimization.unwrap_or(module.optimization).is_none();
             debug_assert!(
                 pending_block_invoke.is_none()
                     || pending_block_invoke == Some(function)
-                    || block.metadata.optimization.unwrap_or(module.optimization).is_none(),
+                    || unoptimized
+                    || pending_unoptimized,
                 "an instruction-free block cannot enter two functions"
             );
-            pending_block_invoke.get_or_insert(function);
+            if pending_block_invoke.is_none() {
+                pending_block_invoke = Some(function);
+                pending_unoptimized = unoptimized;
+            }
         }
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin.
