@@ -1237,14 +1237,20 @@ fn returns_result(
 ) -> bool {
     let mut derived = FxHashSet::default();
     derived.extend(func.inst_result_value(call));
+    // The derived values that hold only a part of the result, as an extracted word does.
+    let mut partial = FxHashSet::default();
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
+            let result = func.inst_result_value(inst);
             // A pointer cast emits no code, so the call stays in tail position past it.
             if let InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) =
                 func.inst(inst).kind
             {
                 if derived.contains(&operand) {
-                    derived.extend(func.inst_result_value(inst));
+                    derived.extend(result);
+                    if partial.contains(&operand) {
+                        partial.extend(result);
+                    }
                 }
                 continue;
             }
@@ -1255,11 +1261,14 @@ fn returns_result(
             };
             // An inserted word makes the aggregate it lands in a projection too.
             if derived.contains(&operand) {
-                derived.extend(func.inst_result_value(inst));
+                derived.extend(result);
+                if matches!(func.inst(inst).kind, InstKind::ExtractValue { .. }) {
+                    partial.extend(result);
+                }
             } else if let InstKind::InsertValue { aggregate, .. } = func.inst(inst).kind
                 && derived.contains(&aggregate)
             {
-                derived.extend(func.inst_result_value(inst));
+                derived.extend(result);
             }
         }
         true
@@ -1283,7 +1292,7 @@ fn returns_result(
                 return if values.is_empty() {
                     func.inst_result_value(call).is_none()
                 } else {
-                    values.iter().all(|value| derived.contains(value))
+                    values.iter().all(|value| derived.contains(value) && !partial.contains(value))
                 };
             }
             _ => return false,
