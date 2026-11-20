@@ -809,7 +809,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     err.emit();
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
                         && sep.sep.is_none()
-                        && self.token.kind == TokenKind::Semi
+                        && matches!(
+                            self.token.kind,
+                            TokenKind::Semi
+                                | TokenKind::CloseDelim(
+                                    Delimiter::Parenthesis | Delimiter::Bracket
+                                )
+                        )
                     {
                         self.bump();
                         continue;

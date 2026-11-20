@@ -1,0 +1,20 @@
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if ()
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if ()
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if ()
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: aborting due to 3 previous errors
+
