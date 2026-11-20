@@ -43,6 +43,23 @@ MIR_UNFOLD = (
     "Bind.bind, Pure.pure, Functor.map, List.mapM.loop, List.mapM, List.foldl, List.getElem?_cons, List.find?_cons"
 )
 
+# A mismatch witness for direct MIR pairs. `tvDiffers` tests every observation
+# field, so it is true exactly when the observations differ, and the lemma turns
+# it into the negated relation. Fields that rarely carry hashes come first.
+MIR_WITNESS = """def tvDiffers (o p : MIR.State.Observation) : Bool :=
+  decide (o.status ≠ p.status) || decide (o.memory ≠ p.memory) || decide (o.data ≠ p.data) ||
+  decide (o.returnData ≠ p.returnData) || decide (o.accounts ≠ p.accounts) ||
+  decide (o.logs ≠ p.logs) || decide (o.warmAddresses ≠ p.warmAddresses) ||
+  decide (o.warmSlots ≠ p.warmSlots) || decide (o.boundaryBudgets ≠ p.boundaryBudgets) ||
+  decide (o.messageGas ≠ p.messageGas) || decide (o.values ≠ p.values)
+theorem tvNotRelated (a b : MIR.State.Run)
+    (h : (match a, b with
+      | .ok x, .ok y => tvDiffers ({observe} x) ({observe} y)
+      | _, _ => true) = true) : ¬ {relation} a b := by
+  intro e
+  cases a <;> cases b <;> simp_all [{relation}, tvDiffers]
+"""
+
 
 def check(
     a: Program,
@@ -235,6 +252,21 @@ def check(
                 if verified
                 else f"example : ¬ ({relation(left, right)}) := by decide +kernel\n"
             )
+            if direct_mir and not verified:
+                # The derived equality compares `values` second, so a returned hash
+                # forces kernel Keccak even when an earlier byte of memory already
+                # differs. Decide the same negation through a complete field test
+                # that leaves `values` for last and stops at the first difference.
+                witness = (
+                    MIR_WITNESS.format(
+                        relation=mir_relation,
+                        observe="MIR.State.observe"
+                        if observes_free
+                        else "MIR.State.observeBelowFree",
+                    )
+                    + f"example : ¬ ({relation(left, right)}) := "
+                    + f"tvNotRelated ({left}) ({right}) (by decide +kernel)\n"
+                )
             observations = lean(
                 witness
                 + f"#eval IO.println ({describe(left)})\n"
