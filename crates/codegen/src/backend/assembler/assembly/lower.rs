@@ -263,7 +263,9 @@ fn lower_evm_ir_once(
                     || pending_unoptimized,
                 "an instruction-free block cannot enter two functions"
             );
-            if pending_block_invoke.is_none() {
+            // A block that other blocks jump to marks its own entry: the code that falls into it
+            // cannot, since the label is where those callers arrive.
+            if pending_block_invoke.is_none() || labels.get(original).copied().flatten().is_some() {
                 pending_block_invoke = Some(function);
                 pending_unoptimized = unoptimized;
             }

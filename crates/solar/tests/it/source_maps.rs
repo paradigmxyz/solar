@@ -348,6 +348,29 @@ fn tail_call_entry_label_maps_to_definition() {
 }
 
 #[test]
+fn shared_callee_label_keeps_its_own_entry() {
+    // `a` falls through into `halt` while `b` jumps to it, so its `JUMPDEST` marks the entry of
+    // `halt`, not of the caller that falls into it.
+    let name = "src/FallthroughEntry.sol:FallthroughEntry";
+    let debug = compile_files(
+        &["src/FallthroughEntry.sol"],
+        "none",
+        "bin,bin-runtime,ethdebug-runtime",
+        &[],
+    );
+    let instructions =
+        debug["contracts"][name]["ethdebug-runtime"]["instructions"].as_array().unwrap();
+    let invoked =
+        |inst: &Value| inst["context"]["invoke"]["identifier"].as_str().map(str::to_owned);
+    assert!(
+        instructions.iter().any(|inst| {
+            inst["operation"]["mnemonic"] == "JUMPDEST" && invoked(inst).as_deref() == Some("halt")
+        }),
+        "the `JUMPDEST` of `halt` must mark its entry"
+    );
+}
+
+#[test]
 fn tail_calls_keep_the_call_location() {
     let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/TailCalls.sol")).unwrap();
     let function = |header: &str| {
