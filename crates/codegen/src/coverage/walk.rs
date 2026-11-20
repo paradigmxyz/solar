@@ -503,12 +503,21 @@ impl<'gcx> Walker<'gcx> {
                 self.dry = false;
                 // Nothing counts the body, so no code takes the count of a gap.
                 self.rec.regions.retain(|region| !matches!(region.kind, RegionKind::Gap(_)));
+                // Two zero counts mark a branch folded, so the other branches read a counter of
+                // the record that no probe increments: they never ran, but count as branches.
+                let next = &mut self.next;
+                let mut never = None;
                 for region in &mut self.rec.regions {
                     match &mut region.kind {
                         RegionKind::Code(count) => *count = Count::Zero,
+                        RegionKind::Branch(Count::Zero, Count::Zero) => {}
                         RegionKind::Branch(holds, fails) => {
-                            *holds = Count::Zero;
-                            *fails = Count::Zero;
+                            let count = never.get_or_insert_with(|| {
+                                *next += 1;
+                                Count::Counter(*next - 1)
+                            });
+                            *holds = count.clone();
+                            *fails = count.clone();
                         }
                         _ => {}
                     }
