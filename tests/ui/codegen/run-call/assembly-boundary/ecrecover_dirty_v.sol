@@ -1,11 +1,13 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: C::direct => 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
 //@ run-call: C::viaReturn => 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
 //@ run-call: C::viaLocal => 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
 
 // `ecrecover` reads `v` as a whole word, so an assembly-assigned `uint8` must be
-// cleaned to its declared width first, as solc does. Each `v` below carries dirty
-// high bits above the valid recovery id 27.
+// cleaned to its declared width first. Each `v` below carries dirty high bits above the
+// valid recovery id 27.
 
 contract C {
     bytes32 constant HASH = 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824;
@@ -26,6 +28,9 @@ contract C {
         return uint160(ecrecover(HASH, v, R, S));
     }
 
+    // CHECK-LABEL: fn @viaReturn{{[( ]}}
+    // CHECK: [[WORD:v[0-9]+]] = icall @dirtyV
+    // CHECK-NEXT: trunc i256 [[WORD]] to i8
     function viaReturn() external pure returns (uint256) {
         return uint160(ecrecover(HASH, dirtyV(), R, S));
     }

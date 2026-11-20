@@ -4,15 +4,16 @@
   literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
 
 ; function test() external pure returns (bool) [selector 0xf8a8fd6d]
-fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test() -> i1 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = icall @check, 1, v0
-    ret v1
+    v1 = icall @check, true, v0
+    v2 = ne v1, 0
+    ret v2
 }
 
 ; function testFlags() external pure returns (bool) [selector 0x74da97f7]
-fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @testFlags() -> i1 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -22,7 +23,8 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
     v5 = and v4, 1
     v6 = eq v5, 1
     v7 = zext i1 v6 to i256
-    ret v7
+    v8 = ne v7, 0
+    ret v8
 }
 
 ; function testTypedConstant() external pure returns (bool) [selector 0x62655512]
@@ -70,81 +72,82 @@ fn @auth() -> ptr<memory> [pure] {
 }
 
 ; function check(bool requireUserVerification, Auth memory auth) internal pure returns (bool result)
-fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
+fn @check(arg0: i1, arg1: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = alloc 64 !metadata(preserves_fmp)
-    mstore v0, 2
-    v1 = ptradd v0, 32
-    mstore v1, 0x4667000000000000000000000000000000000000000000000000000000000000
-    v2 = ptrtoint ptr<memory> arg1 to i256
-    v3 = add v2, 32
-    v4 = mload v3
+    v0 = zext i1 arg0 to i256
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 2
+    v2 = ptradd v1, 32
+    mstore v2, 0x4667000000000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint ptr<memory> arg1 to i256
+    v4 = add v3, 32
     v5 = mload v4
-    v6 = add v4, 32
-    v7 = ptrtoint ptr<memory> arg1 to i256
-    v8 = add v7, 64
-    v9 = mload v8
-    v10 = ptrtoint ptr<memory> arg1 to i256
-    v11 = add v10, 96
-    v12 = mload v11
-    v13 = ptrtoint ptr<memory> v0 to i256
-    v14 = mload v0
-    v15 = add v14, 13
-    v16 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, 0x226368616c6c656e6765223a22
-    v17 = add v15, v9
-    v18 = lt v17, v5
-    v19 = zext i1 v18 to i256
-    v20 = add v6, v9
-    v21 = add v20, v15
-    v22 = mload v21
-    v23 = byte 0, v22
-    v24 = eq v23, 34
-    v25 = zext i1 v24 to i256
-    v26 = and v25, v19
-    v27 = ptrtoint ptr<memory> v0 to i256
-    v28 = add v27, 19
-    v29 = keccak256 v28, v15
-    v30 = add v6, v9
-    v31 = keccak256 v30, v15
-    v32 = eq v31, v29
-    v33 = zext i1 v32 to i256
-    v34 = and v26, v33
-    v35 = add v12, 20
-    v36 = lt v35, v5
-    v37 = zext i1 v36 to i256
-    v38 = or v12, v9
-    v39 = shr v38, 128
-    v40 = lt v39, v37
-    v41 = zext i1 v40 to i256
-    v42 = add v6, v12
-    v43 = mload v42
-    v44 = shr v43, 88
-    v45 = eq v44, 0x2274797065223a22776562617574686e2e67657422
-    v46 = zext i1 v45 to i256
-    v47 = and v46, v41
-    v48 = and v47, v34
-    v49 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v14
-    v50 = ptrtoint ptr<memory> arg1 to i256
-    v51 = mload arg1
-    v52 = mload v51
-    v53 = eq arg0, 0
-    v54 = zext i1 v53 to i256
-    v55 = eq v54, 0
-    v56 = zext i1 v55 to i256
-    v57 = shl v56, 2
-    v58 = or v57, 1
-    v59 = ptrtoint ptr<memory> arg1 to i256
-    v60 = mload arg1
-    v61 = add v60, 33
-    v62 = mload v61
-    v63 = and v62, v58
-    v64 = eq v63, v58
-    v65 = zext i1 v64 to i256
-    v66 = gt v52, 32
-    v67 = zext i1 v66 to i256
-    v68 = and v48, v67
-    v69 = and v68, v65
-    ret v69
+    v6 = mload v5
+    v7 = add v5, 32
+    v8 = ptrtoint ptr<memory> arg1 to i256
+    v9 = add v8, 64
+    v10 = mload v9
+    v11 = ptrtoint ptr<memory> arg1 to i256
+    v12 = add v11, 96
+    v13 = mload v12
+    v14 = ptrtoint ptr<memory> v1 to i256
+    v15 = mload v1
+    v16 = add v15, 13
+    v17 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, 0x226368616c6c656e6765223a22
+    v18 = add v16, v10
+    v19 = lt v18, v6
+    v20 = zext i1 v19 to i256
+    v21 = add v7, v10
+    v22 = add v21, v16
+    v23 = mload v22
+    v24 = byte 0, v23
+    v25 = eq v24, 34
+    v26 = zext i1 v25 to i256
+    v27 = and v26, v20
+    v28 = ptrtoint ptr<memory> v1 to i256
+    v29 = add v28, 19
+    v30 = keccak256 v29, v16
+    v31 = add v7, v10
+    v32 = keccak256 v31, v16
+    v33 = eq v32, v30
+    v34 = zext i1 v33 to i256
+    v35 = and v27, v34
+    v36 = add v13, 20
+    v37 = lt v36, v6
+    v38 = zext i1 v37 to i256
+    v39 = or v13, v10
+    v40 = shr v39, 128
+    v41 = lt v40, v38
+    v42 = zext i1 v41 to i256
+    v43 = add v7, v13
+    v44 = mload v43
+    v45 = shr v44, 88
+    v46 = eq v45, 0x2274797065223a22776562617574686e2e67657422
+    v47 = zext i1 v46 to i256
+    v48 = and v47, v42
+    v49 = and v48, v35
+    v50 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, v15
+    v51 = ptrtoint ptr<memory> arg1 to i256
+    v52 = mload arg1
+    v53 = mload v52
+    v54 = eq v0, 0
+    v55 = zext i1 v54 to i256
+    v56 = eq v55, 0
+    v57 = zext i1 v56 to i256
+    v58 = shl v57, 2
+    v59 = or v58, 1
+    v60 = ptrtoint ptr<memory> arg1 to i256
+    v61 = mload arg1
+    v62 = add v61, 33
+    v63 = mload v62
+    v64 = and v63, v59
+    v65 = eq v64, v59
+    v66 = zext i1 v65 to i256
+    v67 = gt v53, 32
+    v68 = zext i1 v67 to i256
+    v69 = and v49, v68
+    v70 = and v69, v66
+    ret v70
 }

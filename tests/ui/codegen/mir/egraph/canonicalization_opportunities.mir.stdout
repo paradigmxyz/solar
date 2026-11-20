@@ -128,10 +128,11 @@ fn @byteMask(arg0: i256) -> i256 [selector=0x7aeb5711, pure, abi_params=[uint256
 }
 
 ; function booleanBit(bool choice) external pure returns (uint r) [selector 0xbe921bd1]
-fn @booleanBit(arg0: i256) -> i256 [selector=0xbe921bd1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+fn @booleanBit(arg0: i1) -> i256 [selector=0xbe921bd1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = and arg0, 1
-    ret v0
+    v0 = zext i1 arg0 to i256
+    v1 = and v0, 1
+    ret v1
 }
 
 ; function boolExtend(uint x) external pure returns (bool r) [selector 0xadfa22a9]
@@ -228,29 +229,33 @@ fn @zeroSign(arg0: i256) -> i1 [selector=0x7e7e1169, pure, abi_params=[int256], 
 }
 
 ; function boolOr(bool a, bool b) external pure returns (bool r) [selector 0x2fb3474d]
-fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolOr(arg0: i1, arg1: i1) -> i256 [selector=0x2fb3474d, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq arg1, 0
-    v1 = zext i1 v0 to i256
-    v2 = eq arg0, 0
+    v0 = zext i1 arg0 to i256
+    v1 = zext i1 arg1 to i256
+    v2 = eq v1, 0
     v3 = zext i1 v2 to i256
-    v4 = and v3, v1
-    v5 = eq v4, 0
-    v6 = zext i1 v5 to i256
-    ret v6
+    v4 = eq v0, 0
+    v5 = zext i1 v4 to i256
+    v6 = and v5, v3
+    v7 = eq v6, 0
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
 ; function boolAnd(bool a, bool b) external pure returns (bool r) [selector 0xd2a614e6]
-fn @boolAnd(arg0: i256, arg1: i256) -> i256 [selector=0xd2a614e6, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolAnd(arg0: i1, arg1: i1) -> i256 [selector=0xd2a614e6, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq arg1, 0
-    v1 = zext i1 v0 to i256
-    v2 = eq arg0, 0
+    v0 = zext i1 arg0 to i256
+    v1 = zext i1 arg1 to i256
+    v2 = eq v1, 0
     v3 = zext i1 v2 to i256
-    v4 = or v3, v1
-    v5 = eq v4, 0
-    v6 = zext i1 v5 to i256
-    ret v6
+    v4 = eq v0, 0
+    v5 = zext i1 v4 to i256
+    v6 = or v5, v3
+    v7 = eq v6, 0
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
 ; function zeroSelect(bool c, uint x, uint y) external pure returns (bool) [selector 0xcb81f4c1]
@@ -666,22 +671,24 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
 }
 
 ; function booleanZeroFlags(bool a, bool b) external pure returns (uint r) [selector 0x0d2b8dbf]
-fn @booleanZeroFlags(arg0: i256, arg1: i256) -> i256 [selector=0x0d2b8dbf, pure, abi_params=[bool, bool], abi_returns=[word], abi_return_params=[uint256]] {
+fn @booleanZeroFlags(arg0: i1, arg1: i1) -> i256 [selector=0x0d2b8dbf, pure, abi_params=[bool, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = xor arg0, arg1
-    v1 = eq v0, 0
-    v2 = zext i1 v1 to i256
-    v3 = shl v2, 2
-    v4 = or arg0, arg1
-    v5 = eq v4, 0
-    v6 = zext i1 v5 to i256
-    v7 = shl v6, 1
-    v8 = and arg0, arg1
-    v9 = eq v8, 0
-    v10 = zext i1 v9 to i256
-    v11 = or v7, v10
-    v12 = or v11, v3
-    ret v12
+    v0 = zext i1 arg0 to i256
+    v1 = zext i1 arg1 to i256
+    v2 = xor v0, v1
+    v3 = eq v2, 0
+    v4 = zext i1 v3 to i256
+    v5 = shl v4, 2
+    v6 = or v0, v1
+    v7 = eq v6, 0
+    v8 = zext i1 v7 to i256
+    v9 = shl v8, 1
+    v10 = and v0, v1
+    v11 = eq v10, 0
+    v12 = zext i1 v11 to i256
+    v13 = or v9, v12
+    v14 = or v13, v5
+    ret v14
 }
 
 ; function isZeroAddress(address account) external pure returns (bool) [selector 0x18664315]

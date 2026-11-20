@@ -6,7 +6,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));
+            let value = self.builder.add_param(types::TypeLowerer::mir_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -17,6 +17,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     },
                 );
             } else {
+                // The widening belongs to the parameter's declaration.
+                let previous =
+                    self.builder.replace_source_span(self.cx.gcx.hir.variable(param).span);
+                let value = self.materialize_raw_scalar(param, value);
+                self.builder.replace_source_span(previous);
                 self.values.insert(param, value);
             }
         }
@@ -80,14 +85,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             ty
         };
-        let carried = self.lower_typed_expr(initializer, target)?;
+        let value = self.lower_typed_expr(initializer, target)?;
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-            let span = self.cx.gcx.hir.variable(id).span;
-            let value = self.bind_word(id, carried, span)?;
             self.store_immutable_value(id, immutable_id, value);
             Some(())
         } else {
-            let value = carried.clean(self, target);
             self.store_state_variable(id, value, source_ty, initializer.span)
         }
     }
@@ -164,7 +166,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         return Some(this.require_storage_access(argument)?.slot);
                     }
                     let carried = this.lower_typed_expr(argument, parameter_ty)?;
-                    this.bind_word(constructor.parameters[index], carried, argument.span)
+                    this.materialize_call_argument(parameter_ty, carried, argument.span)
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own
@@ -294,8 +296,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                let value = self.binding_word(value, id);
-                values.push(self.bind_word(id, value, self.cx.gcx.hir.variable(id).span)?);
+                values.push(self.returned_value(id, value, self.cx.gcx.hir.variable(id).span)?);
             }
             self.builder.ret(values);
         }

@@ -888,22 +888,33 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 ## Code Generation
 
-### CODEGEN-001: Immutables and tuple conditionals handle dirty bits differently
+### CODEGEN-001: Assembly dirty bits are cleaned when Solidity reads the value
 
 - ID: CODEGEN-001
 - Status: intentional
 - Difference: When inline assembly leaves bits above a variable's type, `solar`
-  cleans the raw bits of an integer or fixed-bytes immutable when it stores
-  the immutable, so `uint8 immutable i = f()` reads back clean at run time
-  where `solc` via-IR keeps them. A `bool` or `address` immutable that the
-  constructor reads back keeps them where `solc` via-IR cleans them. A
-  conditional with tuple branches keeps an invalid enum, contract or
-  user-defined value type in its false branch raw, where `solc` via-IR
-  validates it.
-- Rationale: All three cases need a word that inline assembly made invalid for
-  its type, which the Solidity documentation leaves unspecified.
-- Coverage: the fixtures under `tests/ui/codegen/run-call/dirty-values/`, whose
-  expectations come from `solc --via-ir --optimize`.
+  cleans the value once, where Solidity reads the variable, and where Solidity
+  receives an argument or a result of a call through an internal function
+  pointer that assembly retyped. `solc` via-IR keeps the bits across copies,
+  assignments, internal call, modifier and operator arguments, returns, tuple
+  components, ternary arms, `&&` and `||`, bitwise operators and equal-type
+  conversions, and cleans them at each consumer. Assembly that reads a Solidity
+  copy of such a variable therefore sees clean bits in `solar` and dirty bits in
+  `solc`, and a storage array or `bytes` index, an address operand and an
+  immutable are always clean. An out-of-range enum is checked at the Solidity
+  read that cleans it, not at a later use. Inside an assembly block a variable
+  keeps the word that assembly wrote. A function whose return variable
+  assembly writes returns that raw word, and its caller cleans it where it
+  receives it.
+- Rationale: Every difference needs a word that inline assembly made invalid for
+  its type, which the Solidity documentation leaves unspecified. Cleaning at the
+  boundary lets every other value carry its native width and needs no tracking
+  of which values may be dirty.
+- Coverage: the tests under `tests/ui/codegen/run-call/assembly-boundary/`. The
+  Solady external suite skips `testBrutalizedAddress`, `testBrutalizedBool`,
+  `testBrutalizedBytes1`, `testBrutalizedBytes31`, `testBrutalizedUint248` and
+  `testBrutalizedUint8`: they check that a value an internal function returned
+  still holds the dirty bits assembly left in it.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 

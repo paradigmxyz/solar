@@ -1,0 +1,63 @@
+//@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
+//@ run-call: narrowResult 0x1ff => 0xff
+//@ run-call: narrowArgument 0x1ff => 0xff
+//@ run-call: boolResult 2 => true, 1
+
+// A call through a function pointer that assembly retyped gets a clean value where it receives
+// the callee's result and the callee gets a clean argument, even when the types differ in
+// width.
+contract AssemblyBoundaryRetypedPointer {
+    function narrowResult(uint256 word) external pure returns (uint256) {
+        uint8 result = retypeToNarrowResult(passThrough)(word);
+        return result;
+    }
+
+    function narrowArgument(uint256 word) external pure returns (uint256) {
+        return retypeToNarrowArgument(identity8)(word);
+    }
+
+    function boolResult(uint256 word) external pure returns (bool isTrue, uint256 seen) {
+        bool result = retypeToBoolResult(passThrough)(word);
+        isTrue = result;
+        assembly { seen := result }
+    }
+
+    // The dispatcher masks the word that reaches the `uint8` callee and the one it returns.
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_uint8(
+    // CHECK: and arg1, 255
+    // CHECK: icall @identity8
+    // CHECK: and {{v[0-9]+}}, 255
+    function passThrough(uint256 word) internal pure returns (uint256) {
+        return word;
+    }
+
+    function identity8(uint8 value) internal pure returns (uint256 seen) {
+        assembly { seen := value }
+    }
+
+    function retypeToNarrowResult(function(uint256) internal pure returns (uint256) inFn)
+        internal
+        pure
+        returns (function(uint256) internal pure returns (uint8) outFn)
+    {
+        assembly { outFn := inFn }
+    }
+
+    function retypeToNarrowArgument(function(uint8) internal pure returns (uint256) inFn)
+        internal
+        pure
+        returns (function(uint256) internal pure returns (uint256) outFn)
+    {
+        assembly { outFn := inFn }
+    }
+
+    function retypeToBoolResult(function(uint256) internal pure returns (uint256) inFn)
+        internal
+        pure
+        returns (function(uint256) internal pure returns (bool) outFn)
+    {
+        assembly { outFn := inFn }
+    }
+}

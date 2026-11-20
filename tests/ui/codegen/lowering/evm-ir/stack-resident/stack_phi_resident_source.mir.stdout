@@ -26,34 +26,34 @@ fn @constructor() [constructor] {
 }
 
 ; function run(uint256 length, bool choose) external returns (uint256) [selector 0x0a3395f5]
-fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = sload 1 !metadata(storage=slot(1))
-    v2 = sload 2 !metadata(storage=slot(2))
-    v3 = sload 3 !metadata(storage=slot(3))
-    v4 = sload 4 !metadata(storage=slot(4))
-    v5 = sload 5 !metadata(storage=slot(5))
-    v6 = sload 6 !metadata(storage=slot(6))
-    v7 = sload 7 !metadata(storage=slot(7))
-    v8 = sload 8 !metadata(storage=slot(8))
-    v9 = sload 9 !metadata(storage=slot(9))
-    v10 = sload 10 !metadata(storage=slot(10))
-    v11 = sload 11 !metadata(storage=slot(11))
-    v12 = calldatasize
-    calldatacopy 128, v12, arg0
-    v13 = ne arg1, 0
-    jumpi v13, bb1, bb2
+    v0 = zext i1 arg1 to i256
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = sload 2 !metadata(storage=slot(2))
+    v4 = sload 3 !metadata(storage=slot(3))
+    v5 = sload 4 !metadata(storage=slot(4))
+    v6 = sload 5 !metadata(storage=slot(5))
+    v7 = sload 6 !metadata(storage=slot(6))
+    v8 = sload 7 !metadata(storage=slot(7))
+    v9 = sload 8 !metadata(storage=slot(8))
+    v10 = sload 9 !metadata(storage=slot(9))
+    v11 = sload 10 !metadata(storage=slot(10))
+    v12 = sload 11 !metadata(storage=slot(11))
+    v13 = calldatasize
+    calldatacopy 128, v13, arg0
+    v14 = ne v0, 0
+    jumpi v14, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     log 0, 0
-    v14 = add v0, 7
+    v15 = add v1, 7
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v15 = phi [bb1: v14], [bb2: v0]
-    v16 = add v0, v15
-    v17 = add v16, v1
+    v16 = phi [bb1: v15], [bb2: v1]
+    v17 = add v1, v16
     v18 = add v17, v2
     v19 = add v18, v3
     v20 = add v19, v4
@@ -64,6 +64,7 @@ fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[uint25
     v25 = add v24, v9
     v26 = add v25, v10
     v27 = add v26, v11
-    mstore 0, v27 !metadata(memory=scratch)
+    v28 = add v27, v12
+    mstore 0, v28 !metadata(memory=scratch)
     returndata 0, 32
 }

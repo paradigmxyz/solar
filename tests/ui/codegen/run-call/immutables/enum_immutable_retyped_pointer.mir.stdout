@@ -7,11 +7,16 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
-    v1 = lt v0, 2
+    v1 = lt v0, i8 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    v3 = trunc i256 v0 to i8
-    storeimmutable choice, v3
+    v3 = lt v0, i8 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    storeimmutable choice, v0
+    v5 = lt v0, i8 2
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
     ret
 }
 
@@ -19,11 +24,8 @@ fn @constructor() [constructor] {
 fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable choice
-    v1 = lt v0, i8 2
-    v2 = eq v1, false
-    icall panic_if<0x21>, v2
-    v3 = zext i8 v0 to i256
-    ret v3
+    v1 = zext i8 v0 to i256
+    ret v1
 }
 
 ; function five(uint256) pure returns (uint256)
@@ -32,7 +34,7 @@ fn @five(arg0: i256) -> i256 [pure] {
     ret 5
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -41,7 +43,9 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
-    ret v1
+    v2 = and v1, 255
+    v3 = trunc i256 v2 to i8
+    ret v3
 }
 
 ; === ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:RawEnumImmutable ===
@@ -53,59 +57,21 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
-    v1 = lt v0, 2
+    v1 = lt v0, i8 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    v3 = trunc i256 v0 to i8
-    storeimmutable choice, v3
+    v3 = lt v0, i8 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    storeimmutable choice, v0
+    v5 = lt v0, i8 2
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
     ret
 }
 
 ; function raw() external view returns (uint256 word) [selector 0xc096a632]
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable choice
-    v1 = zext i8 v0 to i256
-    ret v1
-}
-
-; function five(uint256) pure returns (uint256)
-fn @five(arg0: i256) -> i256 [pure] {
-  bb0:
-    ret 5
-}
-
-fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
-  bb0:
-    v0 = eq arg0, 1
-    jumpi v0, bb1, bb2
-  bb2:                                            ; preds = bb0
-    icall panic_if<0x51>, true
-    invalid
-  bb1:                                            ; preds = bb0
-    v1 = icall @five, arg1
-    ret v1
-}
-
-; === ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:WideEnumImmutable ===
-@module WideEnumImmutable
-@immutables
-  choice: uint8
-
-; constructor() [creation entry]
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
-    v1 = lt v0, 2
-    v2 = eq v1, false
-    icall panic_if<0x21>, v2
-    v3 = trunc i256 v0 to i8
-    storeimmutable choice, v3
-    ret
-}
-
-; function read() external view returns (uint256) [selector 0x57de26a4]
-fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable choice
     v1 = lt v0, i8 2
@@ -115,13 +81,13 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     ret v3
 }
 
-; function wide(uint256) pure returns (uint256)
-fn @wide(arg0: i256) -> i256 [pure] {
+; function five(uint256) pure returns (uint256)
+fn @five(arg0: i256) -> i256 [pure] {
   bb0:
-    ret 257
+    ret 5
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -129,8 +95,10 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    v1 = icall @wide, arg1
-    ret v1
+    v1 = icall @five, arg1
+    v2 = and v1, 255
+    v3 = trunc i256 v2 to i8
+    ret v3
 }
 
 ; === ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:RawEnumBase ===
@@ -139,13 +107,18 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
   choice: uint8
 
 ; constructor(Choice value) [creation entry]
-fn @constructor(arg0: i256) [constructor, abi_params=[enum<2, uint8>]] {
+fn @constructor(arg0: i8) [constructor, abi_params=[enum<2, uint8>]] {
   bb0:
-    v0 = lt arg0, 2
+    v0 = lt arg0, i8 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = trunc i256 arg0 to i8
-    storeimmutable choice, v2
+    v2 = lt arg0, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    storeimmutable choice, arg0
+    v4 = lt arg0, i8 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
     ret
 }
 
@@ -153,8 +126,11 @@ fn @constructor(arg0: i256) [constructor, abi_params=[enum<2, uint8>]] {
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable choice
-    v1 = zext i8 v0 to i256
-    ret v1
+    v1 = lt v0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = zext i8 v0 to i256
+    ret v3
 }
 
 ; === ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:RawEnumDerived ===
@@ -166,11 +142,19 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @viaPointer
-    v1 = lt v0, 2
+    v1 = lt v0, i8 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    v3 = trunc i256 v0 to i8
-    storeimmutable choice, v3
+    v3 = lt v0, i8 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    v5 = lt v0, i8 2
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    storeimmutable choice, v0
+    v7 = lt v0, i8 2
+    v8 = eq v7, false
+    icall panic_if<0x21>, v8
     jump bb1
   bb1:                                            ; preds = bb0
     ret
@@ -180,8 +164,11 @@ fn @constructor() [constructor] {
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable choice
-    v1 = zext i8 v0 to i256
-    ret v1
+    v1 = lt v0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = zext i8 v0 to i256
+    ret v3
 }
 
 ; function five(uint256) pure returns (uint256)
@@ -191,13 +178,16 @@ fn @five(arg0: i256) -> i256 [pure] {
 }
 
 ; function viaPointer() pure returns (Choice)
-fn @viaPointer() -> i256 [pure] {
+fn @viaPointer() -> i8 [pure] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
+    v1 = lt v0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
     ret v0
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -206,16 +196,17 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
-    ret v1
+    v2 = and v1, 255
+    v3 = trunc i256 v2 to i8
+    ret v3
 }
 
 ; === ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:Deployer ===
 @module Deployer
 @data
   RawEnumDerived_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:RawEnumDerived"
-  WideEnumImmutable_creation_code_1: creation_code "ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:WideEnumImmutable"
-  RawEnumImmutable_creation_code_2: creation_code "ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:RawEnumImmutable"
-  EnumImmutable_creation_code_3: creation_code "ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:EnumImmutable"
+  RawEnumImmutable_creation_code_1: creation_code "ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:RawEnumImmutable"
+  EnumImmutable_creation_code_2: creation_code "ROOT/tests/ui/codegen/run-call/immutables/enum_immutable_retyped_pointer.sol:EnumImmutable"
 
 ; function createBase() external [selector 0x0c50f290]
 fn @createBase() [selector=0x0c50f290, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -232,27 +223,12 @@ fn @createBase() [selector=0x0c50f290, abi_params=[], abi_returns=[], abi_return
     ret
 }
 
-; function createWide() external [selector 0x8dc48cc1]
-fn @createWide() [selector=0x8dc48cc1, abi_params=[], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    v0 = datasize WideEnumImmutable_creation_code_1
-    v1 = fmp
-    datacopy WideEnumImmutable_creation_code_1, v1, v0
-    v2 = create 0, v1, v0
-    v3 = ne v2, i160 0
-    jumpi v3, bb2, bb1
-  bb1:                                            ; preds = bb0
-    revert_returndata
-  bb2:                                            ; preds = bb0
-    ret
-}
-
 ; function createRaw() external [selector 0x2bdc99da]
 fn @createRaw() [selector=0x2bdc99da, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = datasize RawEnumImmutable_creation_code_2
+    v0 = datasize RawEnumImmutable_creation_code_1
     v1 = fmp
-    datacopy RawEnumImmutable_creation_code_2, v1, v0
+    datacopy RawEnumImmutable_creation_code_1, v1, v0
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
@@ -265,9 +241,9 @@ fn @createRaw() [selector=0x2bdc99da, abi_params=[], abi_returns=[], abi_return_
 ; function create() external [selector 0xefc81a8c]
 fn @create() [selector=0xefc81a8c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = datasize EnumImmutable_creation_code_3
+    v0 = datasize EnumImmutable_creation_code_2
     v1 = fmp
-    datacopy EnumImmutable_creation_code_3, v1, v0
+    datacopy EnumImmutable_creation_code_2, v1, v0
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1

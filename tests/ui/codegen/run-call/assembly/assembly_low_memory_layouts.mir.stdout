@@ -509,7 +509,11 @@ fn @tupleThroughHelper(arg0: i256) -> struct0 [selector=0xb567d612, pure, abi_pa
     v2 = extract_value struct0, v0, 1
     v3 = insert_value struct0, undef struct0, 0, v1
     v4 = insert_value struct0, v3, 1, v2
-    ret v4
+    v5 = extract_value struct0, v4, 0
+    v6 = extract_value struct0, v4, 1
+    v7 = insert_value struct0, undef struct0, 0, v5
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
 }
 
 ; function tupleThroughYul(uint256) external pure returns (uint256 read, uint256 other) [selector 0x2cb8ee56]
@@ -544,7 +548,11 @@ fn @tupleThroughPublic(arg0: i256) -> struct0 [selector=0x6993efc2, pure, abi_pa
     v2 = extract_value struct0, v0, 1
     v3 = insert_value struct0, undef struct0, 0, v1
     v4 = insert_value struct0, v3, 1, v2
-    ret v4
+    v5 = extract_value struct0, v4, 0
+    v6 = extract_value struct0, v4, 1
+    v7 = insert_value struct0, undef struct0, 0, v5
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
 }
 
 ; function publicRead(uint256) public pure returns (uint256 read) [selector 0xd3e4ec77]
@@ -581,11 +589,15 @@ fn @writeThroughPublicPair(arg0: i256) -> struct0 [selector=0x10a87d15, pure, ab
     v0 = icall @tupleReturnPublic, arg0
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    mstore v1, 1
-    v3 = mload v1
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, v2
-    ret v5
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    v5 = extract_value struct0, v4, 0
+    v6 = extract_value struct0, v4, 1
+    mstore v5, 1
+    v7 = mload v5
+    v8 = insert_value struct0, undef struct0, 0, v7
+    v9 = insert_value struct0, v8, 1, v6
+    ret v9
 }
 
 ; function revertAtLoadedOffset(uint256, uint256 write) external pure [selector 0xf3970891]

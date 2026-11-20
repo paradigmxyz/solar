@@ -146,7 +146,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_stmt: Option<&'gcx hir::Stmt<'gcx>>,
     ) -> Option<()> {
         let condition_span = condition.span;
-        let condition = self.operand(condition)?.id();
+        let condition = self.lower_expr(condition)?;
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
@@ -362,7 +362,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
             && function.function_id.is_none()
         {
-            let function_value = self.operand(callee)?.id();
+            let function_value = self.lower_expr(callee)?;
             let (address, selector) = self.split_external_function_pointer(function_value);
             TryTarget {
                 callee: TryCallee::FunctionPointer { address, selector },
@@ -447,7 +447,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
-                TryCallee::Member { receiver, .. } => self.operand(receiver)?.id(),
+                TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
                 TryCallee::LinkedLibrary { address, .. } => address,
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
@@ -702,7 +702,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_yul_word_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<ValueId> {
-        let value = self.operand(expr)?.id();
+        let value = self.lower_expr(expr)?;
         let ty = self
             .cx
             .gcx
@@ -769,10 +769,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &'gcx hir::Expr<'gcx>,
         else_expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
-    ) -> Option<Word> {
+    ) -> Option<ValueId> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
-        let condition = self.operand(condition)?.id();
+        let condition = self.lower_expr(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -782,10 +782,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match (then_branch.terminated, else_branch.terminated) {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
-            _ => Some(self.join_words(
-                &[(then_branch.block, then_branch.value), (else_branch.block, else_branch.value)],
-                ty,
-            )),
+            _ if then_branch.value == else_branch.value => Some(then_branch.value),
+            _ => Some(self.merge_value_phi(vec![
+                (then_branch.block, then_branch.value),
+                (else_branch.block, else_branch.value),
+            ])),
         }
     }
 
@@ -793,10 +794,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
-    ) -> Option<Word> {
+    ) -> Option<ValueId> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
-        let word = self.lower_component(expr)?;
-        self.convert_tuple_component(word, source_ty, ty, expr.span)
+        let value = self.lower_component(expr)?;
+        self.convert_tuple_component(value, source_ty, ty, expr.span)
     }
 
     pub(super) fn lower_logical(
@@ -804,33 +805,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs_expr: &'gcx hir::Expr<'gcx>,
         op: BinOpKind,
         rhs_expr: &'gcx hir::Expr<'gcx>,
-    ) -> Option<Word> {
+    ) -> Option<ValueId> {
         // if && { branch(lhs, rhs, false) }
-        // if || { branch(lhs, lhs, rhs) }
-        // result = phi(rhs_value, short_circuit_value)
-        let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
+        // if || { branch(lhs, true, rhs) }
+        // result = phi(rhs_value, short_circuit_constant)
         let lhs = self.lower_expr(lhs_expr)?;
-        let condition = lhs.clean(self, ty);
         let is_and = op == BinOpKind::And;
-        let short = |this: &mut Self| {
-            if lhs.is_raw() && !is_and {
-                Some(lhs)
-            } else {
-                Some(Word::from_clean(this.builder.imm_bool(!is_and)))
-            }
-        };
         let (then_branch, else_branch) = self.lower_branches(
-            condition,
+            lhs,
             is_and,
-            |this| if is_and { this.lower_expr(rhs_expr) } else { short(this) },
-            |this| if is_and { short(this) } else { this.lower_expr(rhs_expr) },
+            |this| {
+                if is_and { this.lower_expr(rhs_expr) } else { Some(this.builder.imm_bool(true)) }
+            },
+            |this| {
+                if is_and { Some(this.builder.imm_bool(false)) } else { this.lower_expr(rhs_expr) }
+            },
         )?;
         let (rhs, short) =
             if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
-        if rhs.terminated {
+        if rhs.terminated || rhs.value == short.value {
             Some(short.value)
         } else {
-            Some(self.join_words(&[(rhs.block, rhs.value), (short.block, short.value)], ty))
+            Some(self.builder.phi(vec![(rhs.block, rhs.value), (short.block, short.value)]))
         }
     }
 
@@ -840,11 +836,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &'gcx hir::Expr<'gcx>,
         else_expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
-    ) -> Option<Vec<Word>> {
+    ) -> Option<Vec<ValueId>> {
         let TyKind::Tuple(types) = ty.kind else {
             return self.lower_ternary(condition, then_expr, else_expr, ty).map(|word| vec![word]);
         };
-        let condition = self.operand(condition)?.id();
+        let condition = self.lower_expr(condition)?;
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -867,9 +863,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .value
                 .into_iter()
                 .zip(else_branch.value)
-                .zip(types)
-                .map(|((then, else_), &ty)| {
-                    self.join_words(&[(then_branch.block, then), (else_branch.block, else_)], ty)
+                .map(|(then, else_)| {
+                    if then == else_ {
+                        then
+                    } else {
+                        self.merge_value_phi(vec![
+                            (then_branch.block, then),
+                            (else_branch.block, else_),
+                        ])
+                    }
                 })
                 .collect(),
         };
@@ -880,20 +882,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         types: &[Ty<'gcx>],
-    ) -> Option<Vec<Word>> {
+    ) -> Option<Vec<ValueId>> {
         let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
             return None;
         };
-        // A branch whose tuple type differs from the result type converts every component, and a
-        // conversion cleans, as in via-IR.
-        let converts = sources != types;
         self.lower_values(expr)?
             .into_iter()
             .zip(sources)
             .zip(types)
             .map(|((value, &source), &target)| {
-                let value = self.convert_tuple_component(value, source, target, expr.span)?;
-                Some(if converts { Word::from_clean(value.clean(self, target)) } else { value })
+                self.convert_tuple_component(value, source, target, expr.span)
             })
             .collect()
     }

@@ -13,60 +13,62 @@ fn @injectSigned(arg0: i256) -> i256 [pure] {
 }
 
 ; function widenSmall(Small a) internal pure returns (uint256)
-fn @widenSmall(arg0: i256) -> i256 [pure] {
+fn @widenSmall(arg0: i8) -> i256 [pure] {
   bb0:
-    v0 = trunc i256 arg0 to i8
-    v1 = zext i8 v0 to i256
-    ret v1
+    v0 = zext i8 arg0 to i256
+    ret v0
 }
 
 ; function widenSigned(SignedSmall a) internal pure returns (int256)
-fn @widenSigned(arg0: i256) -> i256 [pure] {
+fn @widenSigned(arg0: i8) -> i256 [pure] {
   bb0:
-    v0 = trunc i256 arg0 to i8
-    v1 = sext i8 v0 to i256
-    ret v1
+    v0 = sext i8 arg0 to i256
+    ret v0
 }
 
 ; function viaOperator(uint256 raw, uint256 raw2) external pure returns (bool) [selector 0x8c012361]
 fn @viaOperator(arg0: i256, arg1: i256) -> i1 [selector=0x8c012361, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @inject, arg0
-    v1 = icall @inject, arg1
-    v2 = icall @eqSmall, v0, v1
-    ret v2
+    v1 = trunc i256 v0 to i8
+    v2 = icall @inject, arg1
+    v3 = trunc i256 v2 to i8
+    v4 = icall @eqSmall, v1, v3
+    ret v4
 }
 
 ; function viaCall(uint256 raw, uint256 raw2) external pure returns (bool) [selector 0xb447a4d9]
 fn @viaCall(arg0: i256, arg1: i256) -> i1 [selector=0xb447a4d9, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @inject, arg0
-    v1 = icall @inject, arg1
-    v2 = icall @eqSmall, v0, v1
-    ret v2
+    v1 = trunc i256 v0 to i8
+    v2 = icall @inject, arg1
+    v3 = trunc i256 v2 to i8
+    v4 = icall @eqSmall, v1, v3
+    ret v4
 }
 
 ; function viaWiden(uint256 raw) external pure returns (uint256) [selector 0xb878f209]
 fn @viaWiden(arg0: i256) -> i256 [selector=0xb878f209, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @inject, arg0
-    v1 = icall @widenSmall, v0
-    ret v1
+    v1 = trunc i256 v0 to i8
+    v2 = icall @widenSmall, v1
+    ret v2
 }
 
 ; function viaWidenSigned(uint256 raw) external pure returns (int256) [selector 0xe025fca0]
 fn @viaWidenSigned(arg0: i256) -> i256 [selector=0xe025fca0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = icall @injectSigned, arg0
-    v1 = icall @widenSigned, v0
-    ret v1
+    v1 = trunc i256 v0 to i8
+    v2 = icall @widenSigned, v1
+    ret v2
 }
 
 ; function eqSmall(Small a, Small b) pure returns (bool)
-fn @eqSmall(arg0: i256, arg1: i256) -> i1 [pure] {
+fn @eqSmall(arg0: i8, arg1: i8) -> i1 [pure] {
   bb0:
-    v0 = trunc i256 arg0 to i8
-    v1 = trunc i256 arg1 to i8
-    v2 = eq v0, v1
-    ret v2
+    v0 = eq arg0, arg1
+    ret v0
 }
