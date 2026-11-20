@@ -5,10 +5,13 @@
 //! checks, or external termination remain conservative; lowered multi-return buffer writes also
 //! prevent removal. Run on either representation, sharing cached module summaries. A mark phase
 //! from instructions that must execute and from terminator operands finds the live values in
-//! linear time, so dead chains and dead phi cycles both go. Reachability is computed once.
+//! linear time, so dead chains and dead phi cycles both go. An unused deferred allocation goes too:
+//! it cannot fail, and the backend places it in a static region or with a bump that keeps later
+//! objects at solc's spacing. Assembly can read both, so a module with assembly keeps it.
+//! Reachability is computed once.
 
 use crate::mir::{
-    Callee, Function, InstId, InstKind, Module, Value,
+    AllocationSemantics, Callee, Function, InstId, InstKind, Module, Value,
     analysis::MemoryCallSummaries,
     pass::{MirPass, run_function_pass_with_cfg},
     utils::invalidate_unreachable_blocks,
@@ -34,9 +37,10 @@ impl MirPass for Dce {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let summaries = analyses.call_summaries(module);
+        let keeps_deferred_allocs = module.has_assembly();
         let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
             invalidate_unreachable_blocks(func, analyses.cfg().reachable())
-                + remove_dead_chains(func, &summaries)
+                + remove_dead_chains(func, &summaries, keeps_deferred_allocs)
                 != 0
         });
         // Removing operations and unreachable blocks cannot add call effects.
@@ -49,7 +53,11 @@ impl MirPass for Dce {
     }
 }
 
-fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> usize {
+fn remove_dead_chains(
+    func: &mut Function,
+    summaries: &MemoryCallSummaries,
+    keeps_deferred_allocs: bool,
+) -> usize {
     let mut discardable = DenseBitSet::new_empty(func.num_insts());
     let mut live = DenseBitSet::<InstId>::new_empty(func.num_insts());
     let mut pending = Vec::new();
@@ -57,7 +65,15 @@ fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> u
         let inst = func.inst(inst_id);
         let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
             if summaries.get(*function).is_some_and(|summary| summary.can_discard_call()));
-        if !inst.kind.has_side_effects() || discardable_call {
+        // A deferred allocation never fails, so it has no effect once nothing uses its pointer,
+        // unless assembly can see where the backend places the objects.
+        let deferred_alloc = !keeps_deferred_allocs
+            && matches!(
+                inst.kind,
+                InstKind::Alloc { semantics: AllocationSemantics::INTERNAL, .. }
+            )
+            && inst.metadata.deferred_alloc();
+        if !inst.kind.has_side_effects() || discardable_call || deferred_alloc {
             discardable.insert(inst_id);
         } else if live.insert(inst_id) {
             pending.push(inst_id);

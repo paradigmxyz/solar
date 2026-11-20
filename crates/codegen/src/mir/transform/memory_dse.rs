@@ -2408,8 +2408,8 @@ impl MemoryStoreEliminator {
     /// allocation reaches the objects allocated after it, not the ones before. A write-only
     /// deferred object, which static placement keeps unrelated to the free-memory pointer,
     /// ignores them.
-    /// The allocation stays: later passes size and place it, and the address arithmetic feeding
-    /// the store dies with it.
+    /// The allocation stays, until `dce` finds it unused: later passes size and place it, and the
+    /// address arithmetic feeding the store dies with it.
     ///
     /// Removing a write can lower memory expansion, so functions observing gas keep their stores.
     fn remove_dead_allocation_stores(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
