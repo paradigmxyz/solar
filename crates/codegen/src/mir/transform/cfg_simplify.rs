@@ -1226,8 +1226,9 @@ fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<Functio
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
-/// Returns whether the blocks after `call` only project its result, jump, and return what they
-/// project, and each has no other predecessor, so that all of them merge into the call's block.
+/// Returns whether the blocks after `call` only project its result or cast a pointer, jump, and
+/// return what they project, and each has no other predecessor, so that all of them merge into
+/// the call's block.
 fn returns_result(
     func: &Function,
     source: &crate::mir::BasicBlock,
@@ -1238,6 +1239,10 @@ fn returns_result(
     derived.extend(func.inst_result_value(call));
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
+            // A pointer cast emits no code, so the call stays in tail position past it.
+            if matches!(func.inst(inst).kind, InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_)) {
+                continue;
+            }
             let (InstKind::ExtractValue { aggregate: operand, .. }
             | InstKind::InsertValue { value: operand, .. }) = func.inst(inst).kind
             else {
