@@ -48,10 +48,13 @@
 //! terminators retain the union of their original locations instead. A shared block keeps
 //! `cold_hint` only if every block it replaces has it.
 
-use super::utils::{redirect_edge, redirect_successor_predecessors};
+use super::{
+    egraph::use_counts,
+    utils::{redirect_edge, redirect_successor_predecessors},
+};
 use crate::mir::{
-    BlockId, Builtin, Callee, EdgeAssignment, Function, FunctionId, Immediate, InstId, InstKind,
-    InstructionMetadata, MirType, Module, StructId, Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, EdgeAssignment, EffectKind, Function, FunctionId, Immediate, InstId,
+    InstKind, InstructionMetadata, MirType, Module, OpTraits, StructId, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
@@ -1251,6 +1254,7 @@ fn returns_result(
         _ => 1,
     };
     let result = func.inst_result_value(call);
+    let uses = use_counts(func);
     let result_ty = result.and_then(|result| func.value_ty(result));
     let result_words = result_ty.map(words);
     let result_slice = matches!(result_ty, Some(MirType::Slice(_)));
@@ -1262,6 +1266,14 @@ fn returns_result(
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
             let Some(output) = func.inst_result_value(inst) else { return false };
+            // An environment read that nothing uses emits no code.
+            let def = func.inst(inst).kind.op_def();
+            if def.traits.contains(OpTraits::REMATERIALIZABLE)
+                && def.effect != EffectKind::Pure
+                && uses[output] == 0
+            {
+                continue;
+            }
             match func.inst(inst).kind {
                 // A pointer cast emits no code, so the call stays in tail position past it.
                 InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
