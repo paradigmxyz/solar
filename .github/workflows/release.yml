@@ -270,7 +270,7 @@ jobs:
 
   # Publish the crates once the GitHub release and its binaries exist.
   custom-publish-crates:
-    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease }}
+    if: ${{ startsWith(github.ref_name, 'v') && !fromJson(needs.plan.outputs.val).announcement_is_prerelease }}
     permissions:
       contents: read
       id-token: write

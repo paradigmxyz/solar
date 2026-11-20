@@ -18,7 +18,9 @@ The release workflow publishes with crates.io trusted publishing, so no
 `CARGO_REGISTRY_TOKEN` secret exists. Set this up once:
 
 - [ ] In the repository settings, create the GitHub environment `crates-io`.
-  Optionally restrict it to the `v*` tags or add required reviewers.
+  Limit its deployment branches and tags to the `v*` tag pattern and add a
+  required reviewer. The trust that crates.io gives the workflow follows push
+  access to the repository, so the reviewer is the control on publishing.
 - [ ] For each crate below, open crates.io → the crate → Settings → Trusted
   Publishing → Add → GitHub, and enter: repository owner `paradigmxyz`,
   repository `solar`, workflow filename `release.yml`, environment `crates-io`.
@@ -77,11 +79,13 @@ Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen
 ## Publish
 
 - [ ] The tag's release workflow publishes the crates after it creates the GitHub
-  release (`.github/workflows/publish-crates.yml`, `cargo publish --workspace`
-  with trusted publishing). Check that the `custom-publish-crates` job passed
-  and that every crate shows the new version on crates.io. If it fails, fix the
-  cause and rerun the failed job: it publishes only the crates that are missing.
-  Prerelease tags do not publish crates.
+  release (`.github/workflows/publish-crates.yml`, `cargo publish` with trusted
+  publishing). The job waits for approval of the `crates-io` deployment: approve
+  it only after the GitHub release check above passes. It runs only for stable
+  `v<version>` tags, checks that the tag still points at the commit it built,
+  and publishes only the crates that are missing from crates.io. Check that the
+  `custom-publish-crates` job passed and that every crate shows the new version
+  on crates.io. If it fails, fix the cause and rerun the failed job.
 
 ## Downstream
 

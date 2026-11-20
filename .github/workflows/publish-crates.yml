@@ -25,34 +25,103 @@ jobs:
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          # Pin Aegis instead of installing the latest release in a job that can publish.
+          aegis-version: v0.49.0
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install Rust
         run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
-      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
-        id: auth
-      # `cargo publish --workspace` fails on a version that is already on crates.io, so publish
-      # only the crates that are missing and a failed run can be rerun. Cargo orders the selected
-      # crates by dependency and waits for each to reach the index. The tagged commit already
-      # passed CI and the release build, so skip the verification build.
-      - name: Publish crates
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+      # Everything that can fail or take long runs before the crates.io token exists, because the
+      # token lasts 30 minutes. `cargo publish --workspace` fails on a version that is already on
+      # crates.io, so this step lists the crates that are missing and a failed run can be rerun.
+      - name: Check the release and list missing crates
+        id: plan
+        shell: bash
         run: |
+          user_agent="paradigmxyz/solar release workflow"
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "solar-compiler") | .version')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match solar-compiler $version"
+            exit 1
+          fi
+
+          # The tag must still point at the commit this run built, or a newer run owns the release.
+          refs=$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$GITHUB_REF_NAME" "refs/tags/$GITHUB_REF_NAME^{}")
+          tag_sha=$(printf '%s\n' "$refs" | awk '$2 ~ /\^\{\}$/ { peeled = $1 } $2 !~ /\^\{\}$/ { direct = $1 } END { print (peeled != "" ? peeled : direct) }')
+          if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::tag $GITHUB_REF_NAME points at ${tag_sha:-nothing}, not $GITHUB_SHA"
+            exit 1
+          fi
+
           cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"' > "$RUNNER_TEMP/crates.txt"
-          packages=()
-          while read -r name version; do
-            status=$(curl -sS -o /dev/null -w '%{http_code}' -A "paradigmxyz/solar release workflow" "https://crates.io/api/v1/crates/$name/$version")
+            | jq -r '.packages[] | select(.publish == null or (.publish | index("crates-io") != null)) | "\(.name) \(.version)"' > "$RUNNER_TEMP/crates.txt"
+          if [ ! -s "$RUNNER_TEMP/crates.txt" ]; then
+            echo "::error::cargo metadata listed no publishable crates"
+            exit 1
+          fi
+
+          : > "$RUNNER_TEMP/missing.txt"
+          while read -r name crate_version; do
+            status=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version")
             case "$status" in
-              200) echo "$name@$version is already on crates.io" ;;
-              404) packages+=(-p "$name") ;;
-              *) echo "::error::crates.io answered HTTP $status for $name@$version"; exit 1 ;;
+              200)
+                # A published version must come from this commit, or the release is inconsistent.
+                published_sha=$(curl -fsS --max-time 120 -A "$user_agent" "https://static.crates.io/crates/$name/$name-$crate_version.crate" | tar -xzOf - "$name-$crate_version/.cargo_vcs_info.json" | jq -r '.git.sha1')
+                if [ "$published_sha" != "$GITHUB_SHA" ]; then
+                  echo "::error::$name@$crate_version is on crates.io from $published_sha, not $GITHUB_SHA"
+                  exit 1
+                fi
+                echo "$name@$crate_version is already published from this commit"
+                ;;
+              404) echo "$name" >> "$RUNNER_TEMP/missing.txt" ;;
+              *)
+                echo "::error::crates.io answered HTTP $status for $name@$crate_version"
+                exit 1
+                ;;
             esac
           done < "$RUNNER_TEMP/crates.txt"
-          if [ "${#packages[@]}" -eq 0 ]; then
+
+          if [ ! -s "$RUNNER_TEMP/missing.txt" ]; then
+            echo "missing=false" >> "$GITHUB_OUTPUT"
             echo "Every crate is already published."
             exit 0
           fi
+          echo "missing=true" >> "$GITHUB_OUTPUT"
+
+          # Build the packaged crates, which verifies the archives that will be uploaded.
+          packages=()
+          while read -r name; do packages+=(-p "$name"); done < "$RUNNER_TEMP/missing.txt"
+          cargo package --locked "${packages[@]}"
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        if: steps.plan.outputs.missing == 'true'
+        id: auth
+      # Cargo publishes the selected crates in dependency order and waits for the index. The
+      # archives were built above, so skip the verification build.
+      - name: Publish crates
+        if: steps.plan.outputs.missing == 'true'
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          packages=()
+          while read -r name; do packages+=(-p "$name"); done < "$RUNNER_TEMP/missing.txt"
           cargo publish --locked --no-verify "${packages[@]}"
+      # Cargo can exit 0 when its index wait times out, so check every crate on crates.io.
+      - name: Check that every crate is published
+        if: steps.plan.outputs.missing == 'true'
+        shell: bash
+        run: |
+          user_agent="paradigmxyz/solar release workflow"
+          while read -r name crate_version; do
+            for attempt in $(seq 1 30); do
+              status=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version" || true)
+              [ "$status" = 200 ] && break
+              if [ "$attempt" = 30 ]; then
+                echo "::error::$name@$crate_version is not on crates.io"
+                exit 1
+              fi
+              sleep 10
+            done
+          done < "$RUNNER_TEMP/crates.txt"
