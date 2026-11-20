@@ -1,34 +1,38 @@
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/libraries/library_recursive_interface.sol:LL:CC
    │
 LL │     function memoryParameter(Node memory) public {}
-   ╰╴                             ━━━━
+   │                              ━━━━
+   │
+   ╰ help: pass recursive structs to libraries as storage pointers
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/libraries/library_recursive_interface.sol:LL:CC
    │
 LL │     function memoryReturn() external returns (Node memory) {}
-   ╰╴                                              ━━━━
+   │                                               ━━━━
+   │
+   ╰ help: pass recursive structs to libraries as storage pointers
 
-error: types containing internal function pointers cannot be parameter or return types of public functions
+error[4103]: types containing internal function pointers cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/libraries/library_recursive_interface.sol:LL:CC
    │
 LL │     function recursiveInternal(Bad storage) public {}
    ╰╴                               ━━━
 
-error: types containing internal function pointers cannot be parameter or return types of public functions
+error[4103]: types containing internal function pointers cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/libraries/library_recursive_interface.sol:LL:CC
    │
 LL │     function nestedInternal(Outer storage) external {}
    ╰╴                            ━━━━━
 
-error: types containing internal function pointers cannot be parameter or return types of public functions
+error[4103]: types containing internal function pointers cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/libraries/library_recursive_interface.sol:LL:CC
    │
 LL │     function internalParameter(function() internal) public {}
    ╰╴                               ━━━━━━━━━━━━━━━━━━━
 
-error: types containing internal function pointers cannot be parameter or return types of public functions
+error[4103]: types containing internal function pointers cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/libraries/library_recursive_interface.sol:LL:CC
    │
 LL │     function internalReturn() external returns (function() internal) {}

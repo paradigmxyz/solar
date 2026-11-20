@@ -337,11 +337,12 @@ str_enum! {
         BinRuntime,
         /// Function signature hashes.
         Hashes,
-        /// ETHDebug creation program and source resources.
+        /// ETHDebug creation program, and the compilation record it references.
         Ethdebug,
-        /// ETHDebug runtime program and source resources.
+        /// ETHDebug runtime program, and the compilation record it references.
         EthdebugRuntime,
-        /// ETHDebug source resources without bytecode generation.
+        /// ETHDebug compilation record and resources, which hold the type and pointer tables, without
+        /// bytecode generation.
         EthdebugResources,
         /// Legacy creation source map and source file list.
         Srcmap,

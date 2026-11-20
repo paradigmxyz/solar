@@ -3238,7 +3238,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
         if var.is_immutable() {
             if !ty.is_value_type() {
-                self.dcx().emit_err(var.span, "immutable variables cannot have a non-value type");
+                self.dcx().emit_err_code(
+                    var.span,
+                    error_code!(6377),
+                    "immutable variables cannot have a non-value type",
+                );
             }
             if let TyKind::Fn(f) = ty.kind
                 && f.is_external()

@@ -32,7 +32,7 @@ error: the underlying type of UDVTs must be an elementary value type
 LL │     type U1 is U1;
    ╰╴               ━━
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_types.sol:LL:CC
    │
 LL │     function c(C memory) public {}

@@ -2329,7 +2329,11 @@ fn interface_function_ty_checked<'gcx>(
             let kind = f.description();
             let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
             let span = gcx.hir.variable(var_id).ty.span;
-            result = Err(gcx.dcx().emit_err(span, msg));
+            let mut diag = gcx.dcx().err(msg).code(error_code!(4103)).span(span);
+            if c.kind.is_library() && subject == "recursive types" {
+                diag = diag.help("pass recursive structs to libraries as storage pointers");
+            }
+            result = Err(diag.emit());
         }
     }
     if result.is_err() {
