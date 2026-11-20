@@ -982,7 +982,7 @@ fn storage_size_upper_bound(
 fn ty_storage_size_upper_bound(
     ty: Ty<'_>,
     gcx: Gcx<'_>,
-    struct_sizes: &mut FxHashMap<hir::StructId, Option<U256>>,
+    struct_sizes: &mut FxHashMap<hir::StructId, U256>,
 ) -> Result<Option<U256>, ErrorGuaranteed> {
     match ty.kind {
         TyKind::Elementary(..)
@@ -1011,18 +1011,21 @@ fn ty_storage_size_upper_bound(
                 return Err(guar);
             }
             if let Some(&size) = struct_sizes.get(&struct_id) {
-                return Ok(size);
+                return Ok(Some(size));
             }
-            let mut total_size = Some(U256::ONE);
+            let mut total_size = U256::ONE;
             for t in gcx.struct_field_types(struct_id) {
-                let size_contribution = ty_storage_size_upper_bound(*t, gcx, struct_sizes)?;
-                total_size = total_size.zip(size_contribution).and_then(|(a, b)| a.checked_add(b));
-                if total_size.is_none() {
-                    break;
-                }
+                let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx, struct_sizes)?
+                else {
+                    return Ok(None);
+                };
+                let Some(size) = total_size.checked_add(size_contribution) else {
+                    return Ok(None);
+                };
+                total_size = size;
             }
             struct_sizes.insert(struct_id, total_size);
-            Ok(total_size)
+            Ok(Some(total_size))
         }
         TyKind::Err(guar) => Err(guar),
 
