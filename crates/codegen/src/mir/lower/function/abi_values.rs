@@ -106,11 +106,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind
             && let Some(then_selector) = Self::literal_signature_selector(then_expr)
             && let Some(else_selector) = Self::literal_signature_selector(else_expr)
-            // A select has no path to count.
-            && coverage_map(self.cx.gcx).is_none()
         {
+            // coverage_leaf(condition)
+            // branch(condition, coverage_arm(then), join)
             // selector = select(condition, selector(then), selector(else))
+            let condition_expr = condition;
             let condition = self.operand(condition)?.id();
+            self.coverage(Site::Leaf(Site::expr(condition_expr)));
+            self.coverage_branch(Site::Arm(Site::expr(then_expr)), condition)?;
             let then_selector = self.builder.imm(then_selector);
             let else_selector = self.builder.imm(else_selector);
             let selector = self.builder.select(condition, then_selector, else_selector);

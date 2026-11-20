@@ -132,4 +132,21 @@ contract Counters {
         bytes memory p = abi.encodePacked(x);
         return keccak256(p);
     }
+
+    // A ternary of literal signatures still selects between their selectors, and counts its path
+    // without writing the chosen literal to memory.
+    // CHECK-LABEL: fn @signature(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage 39
+    // CHECK-NEXT: coverage 40
+    // CHECK-NEXT: jumpi arg0, [[TRUE:bb[0-9]+]], [[JOIN:bb[0-9]+]]
+    // CHECK: [[TRUE]]:
+    // CHECK-NEXT: coverage 41
+    // CHECK-NEXT: jump [[JOIN]]
+    // CHECK: [[JOIN]]:
+    // CHECK-NEXT: select arg0
+    // CHECK-NEXT: abi_encode
+    function signature(bool b, uint256 x) external pure returns (bytes memory) {
+        return abi.encodeWithSignature(b ? "f(uint256)" : "g(uint256)", x);
+    }
 }

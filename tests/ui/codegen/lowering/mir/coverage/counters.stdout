@@ -189,3 +189,18 @@ fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256],
     coverage 38
     ret v0
 }
+
+; function signature(bool b, uint256 x) external pure returns (bytes memory) [selector 0x431b4679]
+fn @signature(arg0: i1, arg1: i256) -> ptr<memory> [selector=0x431b4679, pure, abi_params=[bool, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    coverage 39
+    coverage 40
+    jumpi arg0, bb1, bb2
+  bb1:                                            ; preds = bb0
+    coverage 41
+    jump bb2
+  bb2:                                            ; preds = bb0, bb1
+    v0 = select arg0, 0xb3de648b00000000000000000000000000000000000000000000000000000000, 0xe420264a00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [word], object, selector v0, args arg1
+    ret v1
+}
