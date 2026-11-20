@@ -1435,8 +1435,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: reading the source before writing makes every overlap safe,
   including a target that contains its source, the direction that corrupted
   storage in `solc` before 0.8.39, without a runtime overlap check. The
-  growth only shows in assembly that reads the free memory pointer around the
-  copy.
+  growth shows in assembly that reads the free memory pointer around the copy,
+  and as extra memory expansion gas, so a transaction that copies often can
+  run out of gas where `solc` completes.
 - Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`
   and `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol`.
   Twelve upstream tests expect a failure, eleven of the

@@ -1,7 +1,7 @@
 //@ revisions: osaka allow amsterdam
 //@ compile-flags: --emit=bin-runtime
 //@[allow] compile-flags: --allow=5574
-//@[amsterdam] compile-flags: --evm-version amsterdam --allow=5776
+//@[amsterdam] compile-flags: --evm-version amsterdam
 //@ normalize-stdout-test: "(?s).+" -> ""
 //~[osaka]? WARN: contract code size is 24587 bytes and exceeds 24576 bytes
 

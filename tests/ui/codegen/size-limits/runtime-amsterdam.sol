@@ -1,5 +1,5 @@
 //@ revisions: warn allow
-//@[warn] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam --allow=5776,7868
+//@[warn] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam
 //@[allow] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam --allow=5776,7868
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
