@@ -1,0 +1,42 @@
+name: Publish crates
+
+# Publishes every crate to crates.io with trusted publishing (OIDC), without an API token.
+# `release.yml` calls this workflow after it creates the GitHub release, so crates.io must
+# trust `release.yml` (the calling workflow) and the `crates-io` environment.
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-22.04
+    environment: crates-io
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        id: auth
+      # Cargo publishes the crates in dependency order, waits for each one to reach the index, and
+      # skips versions that are already on crates.io, so a failed run can be rerun. The tagged
+      # commit already passed CI and the release build, and the access token lasts 30 minutes, so
+      # skip the verification build.
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --workspace --locked --no-verify

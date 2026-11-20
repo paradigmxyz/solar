@@ -11,6 +11,28 @@ failure there only needs a fix on `main` and a new tag while nothing is on
 `crates.io` yet. This keeps the crates, the tag, and the release binaries on one
 commit.
 
+## One-time setup
+
+The release workflow publishes with crates.io trusted publishing, so no
+`CARGO_REGISTRY_TOKEN` secret exists. Set this up once:
+
+- [ ] In the repository settings, create the GitHub environment `crates-io`.
+  Optionally restrict it to the `v*` tags or add required reviewers.
+- [ ] For each crate below, open crates.io → the crate → Settings → Trusted
+  Publishing → Add → GitHub, and enter: repository owner `paradigmxyz`,
+  repository `solar`, workflow filename `release.yml`, environment `crates-io`.
+  crates.io checks the workflow that the tag push starts (`release.yml`, the
+  caller, from the token's `workflow_ref` claim), not the reusable
+  `publish-crates.yml` that it calls.
+- [ ] A new crate needs one manual first publish with an API token before
+  crates.io accepts a trusted publisher for it. Every crate below is already
+  published.
+
+Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen`,
+`solar-config`, `solar-data-structures`, `solar-evmir`, `solar-evmir-interpreter`,
+`solar-interface`, `solar-ir`, `solar-lint`, `solar-lsp`, `solar-macros`, `solar-mir`,
+`solar-mir-interpreter`, `solar-parse`, `solar-sema`.
+
 ## Requirements
 
 - [cargo-release](https://github.com/crate-ci/cargo-release): `cargo install cargo-release`
@@ -50,7 +72,11 @@ commit.
 
 ## Publish
 
-- [ ] Publish the crates: `cargo release publish --execute [--no-verify]`
+- [ ] The tag's release workflow publishes the crates after it creates the GitHub
+  release (`.github/workflows/publish-crates.yml`, `cargo publish --workspace`
+  with trusted publishing). Check that the `custom-publish-crates` job passed
+  and that every crate shows the new version on crates.io. If it fails, fix the
+  cause and rerun the failed job: it skips versions that are already published.
 
 ## Downstream
 
