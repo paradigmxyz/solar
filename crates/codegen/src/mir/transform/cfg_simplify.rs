@@ -79,9 +79,17 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let call_graph = module
+            .runs_objective(|objective| objective.is_none())
+            .then(|| CallGraphInfo::new(module));
         run_function_pass(module, analyses, |func, analyses| {
-            let keep = analyses.optimization().is_none().then(|| analyses.function());
-            run_to_fixpoint(func, keep)
+            // At `-O none`, the functions that a call can reach again.
+            let keep = (analyses.optimization().is_none())
+                .then(|| {
+                    call_graph.as_ref().map(|graph| graph.recursive_component(analyses.function()))
+                })
+                .flatten();
+            run_to_fixpoint(func, keep.as_ref())
         })
     }
 }
@@ -246,14 +254,14 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
 ///
-/// `keep` is the `-O none` mode, which follows clang's `-O0`, and holds the function: it removes
-/// the unreachable code, the phis, and the blocks that carry no source location of their own, and
-/// leaves every other block and branch alone, so that each source construct keeps its block, its
-/// branch, and its location. It never shares equal blocks, folds a branch from the facts that
-/// reach it or from equal targets, or merges a block that names a construct into another, except
-/// after a call of the function itself, which must stay in tail position: a frame per level would
-/// overflow the EVM stack.
-fn run(func: &mut Function, keep: Option<FunctionId>) -> bool {
+/// `keep` is the `-O none` mode, which follows clang's `-O0`, and holds the function's recursive
+/// component: it removes the unreachable code, the phis, and the blocks that carry no source
+/// location of their own, and leaves every other block and branch alone, so that each source
+/// construct keeps its block, its branch, and its location. It never shares equal blocks, folds a
+/// branch from the facts that reach it or from equal targets, or merges a block that names a
+/// construct into another, except after a call into the function's own recursive component, which
+/// must stay in tail position: a frame per level would overflow the EVM stack.
+fn run(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> bool {
     let keep_locations = keep.is_some();
     let mut changed = simplify_degenerate_terminators(func, keep_locations);
     changed |= merge_blocks(func, keep);
@@ -567,7 +575,7 @@ fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> 
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function, keep: Option<FunctionId>) -> bool {
+fn run_to_fixpoint(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -589,7 +597,7 @@ fn run_to_fixpoint(func: &mut Function, keep: Option<FunctionId>) -> bool {
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function, keep: Option<FunctionId>) -> bool {
+fn merge_blocks(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
         while let Some(target) = can_merge(func, block_id, keep) {
@@ -602,7 +610,11 @@ fn merge_blocks(func: &mut Function, keep: Option<FunctionId>) -> bool {
 
 /// Checks if block_id can be merged with its successor.
 /// Returns the target block if merge is possible.
-fn can_merge(func: &Function, block_id: BlockId, keep: Option<FunctionId>) -> Option<BlockId> {
+fn can_merge(
+    func: &Function,
+    block_id: BlockId,
+    keep: Option<&DenseBitSet<FunctionId>>,
+) -> Option<BlockId> {
     let block = &func.blocks[block_id];
 
     let Terminator::Jump(target) = block.terminator.as_ref()? else {
@@ -623,10 +635,10 @@ fn can_merge(func: &Function, block_id: BlockId, keep: Option<FunctionId>) -> Op
     }
 
     // The merge drops the jump and the target's label.
-    if let Some(function) = keep
+    if let Some(component) = keep
         && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
         && !block.instructions.last().is_some_and(|&inst| {
-            calls_function(func, inst, function) && returns_result(func, inst, *target)
+            calls_function(func, inst, component) && returns_result(func, inst, *target)
         })
     {
         return None;
@@ -1167,9 +1179,9 @@ fn constant(func: &Function, value: ValueId, depth: u32) -> Option<U256> {
     .flatten()
 }
 
-/// Returns whether `inst` is a call of `function`.
-fn calls_function(func: &Function, inst: InstId, function: FunctionId) -> bool {
-    matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if *callee == function)
+/// Returns whether `inst` calls a function of the recursive `component`.
+fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<FunctionId>) -> bool {
+    matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
 /// Returns whether the blocks from `block` on only jump and return the result of `call`, and
