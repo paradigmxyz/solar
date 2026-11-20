@@ -635,13 +635,13 @@ impl<'gcx> Walker<'gcx> {
         let mut skips = Vec::new();
         // The first byte of a run and the end of its last line, with its newline.
         let mut run: Option<(usize, usize)> = None;
-        let mut block_comment = false;
+        let mut open = None;
         let mut offset = 0;
         let mut lines = text.split_inclusive('\n').peekable();
         let mut first = true;
         while let Some(line) = lines.next() {
             let last = lines.peek().is_none();
-            let code = has_code(line, &mut block_comment);
+            let code = has_code(line, &mut open);
             // The lines with the braces of the body hold code.
             if runs && (code || first || last) {
                 if let Some((start, end)) = run.take() {
@@ -1115,36 +1115,47 @@ impl<'gcx> Visit<'gcx> for Walker<'gcx> {
 }
 
 /// Returns whether `line` holds code, which is anything but whitespace and comments. A block
-/// comment that does not end on the line continues on the next, which `block_comment` tracks. The
-/// scan runs to the end of the line, past code, to find the comment that the line opens.
-fn has_code(line: &str, block_comment: &mut bool) -> bool {
+/// comment, or a string literal whose newline is escaped, continues on the next line; `open`
+/// tracks it as `*` or the literal's quote. The scan runs to the end of the line, past code, to
+/// find the comment that the line opens.
+fn has_code(line: &str, open: &mut Option<u8>) -> bool {
     let bytes = line.as_bytes();
     let mut code = false;
     let mut index = 0;
     while index < bytes.len() {
-        if *block_comment {
-            match line[index..].find("*/") {
-                Some(end) => {
-                    index += end + 2;
-                    *block_comment = false;
+        match *open {
+            Some(b'*') => {
+                match line[index..].find("*/") {
+                    Some(end) => {
+                        index += end + 2;
+                        *open = None;
+                    }
+                    None => return code,
                 }
-                None => return code,
+                continue;
             }
-            continue;
+            Some(quote) => {
+                code = true;
+                while index < bytes.len() && bytes[index] != quote {
+                    index += if bytes[index] == b'\\' { 2 } else { 1 };
+                }
+                if index < bytes.len() {
+                    index += 1;
+                    *open = None;
+                }
+                continue;
+            }
+            None => {}
         }
         match bytes[index] {
             b if b.is_ascii_whitespace() => index += 1,
             b'/' if bytes.get(index + 1) == Some(&b'/') => return code,
             b'/' if bytes.get(index + 1) == Some(&b'*') => {
-                *block_comment = true;
+                *open = Some(b'*');
                 index += 2;
             }
             quote @ (b'"' | b'\'') => {
-                code = true;
-                index += 1;
-                while index < bytes.len() && bytes[index] != quote {
-                    index += if bytes[index] == b'\\' { 2 } else { 1 };
-                }
+                *open = Some(quote);
                 index += 1;
             }
             _ => {

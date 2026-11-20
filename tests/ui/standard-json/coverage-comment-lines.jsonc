@@ -13,11 +13,16 @@
 // CHECK-NEXT: 0,
 // CHECK-NEXT: 141,
 // CHECK-NEXT: 1
+// A string literal whose newline is escaped continues on the next line, so a `/*` in it opens no
+// comment and the `return` after it is not skipped.
+// CHECK: "name": "A.sol:S.g()",
+// CHECK-NOT: {{^ *249,$}}
+// CHECK: {{^ *290,$}}
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        uint256 y = x + 1;\n\n        total = y;\n    }\n}\n"
+      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        uint256 y = x + 1;\n\n        total = y;\n    }\n\n    function g() external pure returns (uint256) {\n        string memory s = \"a\\\n/*\";\n        return bytes(s).length;\n    }\n}\n"
     }
   },
   "settings": {
