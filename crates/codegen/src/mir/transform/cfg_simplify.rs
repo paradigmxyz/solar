@@ -1235,19 +1235,9 @@ fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<Functio
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
-/// Returns the value that `value` casts, through pointer casts.
-fn cast_source(func: &Function, mut value: ValueId) -> ValueId {
-    while let Value::Inst(inst) = *func.value(value)
-        && let InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) = func.inst(inst).kind
-    {
-        value = operand;
-    }
-    value
-}
-
-/// Returns whether the blocks after `call` only project its result or cast a pointer, jump, and
-/// return what they project, and each has no other predecessor, so that all of them merge into
-/// the call's block.
+/// Returns whether the blocks after `call` only take its result apart and put it back, cast a
+/// pointer, jump, and return the whole result, and each has no other predecessor, so that all of
+/// them merge into the call's block.
 fn returns_result(
     func: &Function,
     recursion: &Recursion<'_>,
@@ -1255,52 +1245,53 @@ fn returns_result(
     call: InstId,
     target: BlockId,
 ) -> bool {
-    let mut derived = FxHashSet::default();
-    derived.extend(func.inst_result_value(call));
     let words = |ty: MirType| match ty {
         MirType::Struct(id) => recursion.fields[id],
         MirType::Slice(_) => 2,
         _ => 1,
     };
-    let result_words =
-        func.inst_result_value(call).and_then(|result| func.value_ty(result)).map(words);
-    // The derived values that hold only a part of the result, as an extracted word does.
-    let mut partial = FxHashSet::default();
+    let result = func.inst_result_value(call);
+    let result_words = result.and_then(|result| func.value_ty(result)).map(words);
+    // The values that equal the call's result, the field of the result that each other value
+    // holds, and the fields that each unfinished aggregate has back in place.
+    let mut whole = FxHashSet::from_iter(result);
+    let mut fields = FxHashMap::default();
+    let mut built = FxHashMap::<ValueId, FxHashSet<u32>>::default();
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
-            let result = func.inst_result_value(inst);
-            // A pointer cast emits no code, so the call stays in tail position past it.
-            if let InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) =
-                func.inst(inst).kind
-            {
-                if derived.contains(&operand) {
-                    derived.extend(result);
-                    if partial.contains(&operand) {
-                        partial.extend(result);
+            let Some(output) = func.inst_result_value(inst) else { return false };
+            match func.inst(inst).kind {
+                // A pointer cast emits no code, so the call stays in tail position past it.
+                InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
+                    if whole.contains(&operand) {
+                        whole.insert(output);
+                    } else if let Some(&field) = fields.get(&operand) {
+                        fields.insert(output, field);
                     }
                 }
-                continue;
-            }
-            match func.inst(inst).kind {
-                InstKind::ExtractValue { aggregate, .. } if derived.contains(&aggregate) => {
-                    derived.extend(result);
-                    partial.extend(result);
+                InstKind::ExtractValue { aggregate, index, .. } if whole.contains(&aggregate) => {
+                    fields.insert(output, index);
                 }
-                // A word of the result goes back into the field it came from, onto an empty
-                // aggregate of the result's width or one that the earlier words built.
+                // A field of the result goes back into the field it came from.
                 InstKind::InsertValue { ty, aggregate, index, value }
-                    if Some(words(ty)) == result_words
-                        && (matches!(func.value(aggregate), Value::Undef(_))
-                            || derived.contains(&aggregate) && !partial.contains(&aggregate))
-                        && let Value::Inst(word) = *func.value(cast_source(func, value))
-                        && let InstKind::ExtractValue {
-                            aggregate: source, index: field, ..
-                        } = func.inst(word).kind
-                        && field == index
-                        && derived.contains(&source)
-                        && !partial.contains(&source) =>
+                    if Some(words(ty)) == result_words && fields.get(&value) == Some(&index) =>
                 {
-                    derived.extend(result);
+                    let mut back = match func.value(aggregate) {
+                        Value::Undef(_) => FxHashSet::default(),
+                        _ => built.get(&aggregate).cloned().unwrap_or_default(),
+                    };
+                    back.insert(index);
+                    if Some(back.len()) == result_words {
+                        whole.insert(output);
+                    }
+                    built.insert(output, back);
+                }
+                // A slice made again from the two fields of the result.
+                InstKind::MakeSlice { ptr, len, .. }
+                    if fields.get(&ptr) == Some(&MirType::SLICE_PTR_FIELD)
+                        && fields.get(&len) == Some(&MirType::SLICE_LEN_FIELD) =>
+                {
+                    whole.insert(output);
                 }
                 InstKind::ExtractValue { .. } | InstKind::InsertValue { .. } => {}
                 _ => return false,
@@ -1327,7 +1318,7 @@ fn returns_result(
                 return if values.is_empty() {
                     func.inst_result_value(call).is_none()
                 } else {
-                    values.iter().all(|value| derived.contains(value) && !partial.contains(value))
+                    values.iter().all(|value| whole.contains(value))
                 };
             }
             _ => return false,
