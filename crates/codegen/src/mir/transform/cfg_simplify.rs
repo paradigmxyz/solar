@@ -80,8 +80,14 @@ impl MirPass for CfgSimplify {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         // At `-O none`, the functions that a call can reach again, one set per recursive component.
+        // Constant branches fold first, so that a call behind one cannot make functions look
+        // recursive.
         let functions = module.functions.len();
+        let mut folded = false;
         let (components, component_of) = if module.runs_objective(|objective| objective.is_none()) {
+            folded = run_function_pass(module, analyses, |func, analyses| {
+                analyses.optimization().is_none() && fold_constant_branches(func)
+            });
             let call_graph = CallGraphInfo::new(module);
             let mut components = Vec::new();
             let mut component_of = index_vec![None; module.functions.len()];
@@ -98,7 +104,7 @@ impl MirPass for CfgSimplify {
         } else {
             (Vec::new(), IndexVec::new())
         };
-        run_function_pass(module, analyses, |func, analyses| {
+        let changed = run_function_pass(module, analyses, |func, analyses| {
             let keep = analyses.optimization().is_none().then(|| {
                 match component_of.get(analyses.function()).copied().flatten() {
                     Some(component) => components[component].clone(),
@@ -106,7 +112,8 @@ impl MirPass for CfgSimplify {
                 }
             });
             run_to_fixpoint(func, keep.as_ref())
-        })
+        });
+        changed | folded
     }
 }
 
@@ -266,6 +273,15 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
         retain_blocks(func, &order);
     }
     removed
+}
+
+/// Folds the branches on a constant condition and drops the blocks that this leaves unreachable.
+fn fold_constant_branches(func: &mut Function) -> bool {
+    let changed = simplify_degenerate_terminators(func, true);
+    if changed {
+        let _ = remove_unreachable_blocks(func);
+    }
+    changed
 }
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
