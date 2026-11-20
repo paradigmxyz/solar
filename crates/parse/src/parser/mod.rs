@@ -807,9 +807,17 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 Ok(value) => push(self, value),
                 Err(err) if self.can_recover_sequence(ket) => {
                     err.emit();
+                    // In a block, skip a `;` or a stray closing delimiter that does not close
+                    // this block, such as the `)` of `if ()`. Leaving the stray delimiter in
+                    // place would make the enclosing block parse a statement at the same token
+                    // again, which panics with "called unexpected twice on the same token".
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
                         && sep.sep.is_none()
-                        && self.token.kind == TokenKind::Semi
+                        && (self.token.kind == TokenKind::Semi
+                            || matches!(
+                                self.token.kind,
+                                TokenKind::CloseDelim(Delimiter::Parenthesis | Delimiter::Bracket)
+                            ))
                     {
                         self.bump();
                         continue;
