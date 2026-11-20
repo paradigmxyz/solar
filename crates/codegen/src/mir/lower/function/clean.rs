@@ -1,17 +1,20 @@
 //! How Solidity values that inline assembly may have left with bits above their type are cleaned.
 //!
 //! A Solidity value is clean outside inline assembly: every integer, `bool`, address, enum and
-//! fixed-bytes value is exactly the canonical value of its type. Only three places can see bits
+//! fixed-bytes value is exactly the canonical value of its type. Only four places can see bits
 //! above a type, and each cleans them once:
 //!
 //! - A Solidity read of a variable that inline assembly references. Such a variable is a *raw
 //!   carrier*, found by `raw_scalars`, whose value is an `i256` word that assembly reads and writes
 //!   as it is. [`FunctionLowerer::load_variable`] cleans it.
 //! - A typed memory read, [`FunctionLowerer::normalize_memory_scalar`].
+//! - The result of an internal call to a function whose return variable assembly mentions. That
+//!   function returns the raw word, and [`FunctionLowerer::clean_call_result`] cleans it in the
+//!   caller.
 //! - An argument or a result of a call through an internal function pointer that assembly retyped.
 //!   The dispatcher cleans it to the type that receives it.
 //!
-//! Everything else, such as copies, internal calls, returns, tuple components, ternary arms and
+//! Everything else, such as copies, internal call arguments, tuple components, ternary arms and
 //! operators, then carries clean values, so no value needs a flag that says whether it is clean.
 //! Where `solc` via-IR keeps dirty bits across such a copy and cleans them at each consumer, the
 //! compiler has already cleaned them, so assembly that reads a Solidity copy of a dirty variable

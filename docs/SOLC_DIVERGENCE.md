@@ -903,12 +903,18 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `solc`, and a storage array or `bytes` index, an address operand and an
   immutable are always clean. An out-of-range enum is checked at the Solidity
   read that cleans it, not at a later use. Inside an assembly block a variable
-  keeps the word that assembly wrote.
+  keeps the word that assembly wrote. A function whose return variable
+  assembly writes returns that raw word, and its caller cleans it where it
+  receives it.
 - Rationale: Every difference needs a word that inline assembly made invalid for
   its type, which the Solidity documentation leaves unspecified. Cleaning at the
   boundary lets every other value carry its native width and needs no tracking
   of which values may be dirty.
-- Coverage: the tests under `tests/ui/codegen/run-call/assembly-boundary/`.
+- Coverage: the tests under `tests/ui/codegen/run-call/assembly-boundary/`. The
+  Solady external suite skips `testBrutalizedAddress`, `testBrutalizedBool`,
+  `testBrutalizedBytes1`, `testBrutalizedBytes31`, `testBrutalizedUint248` and
+  `testBrutalizedUint8`: they check that a value an internal function returned
+  still holds the dirty bits assembly left in it.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 
