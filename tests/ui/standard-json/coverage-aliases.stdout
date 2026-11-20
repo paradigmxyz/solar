@@ -52,7 +52,7 @@
             ]
           },
           {
-            "name": "A.sol:A.f(address,uint256,bool)",
+            "name": "A.sol:A.f(I,uint256,bool)",
             "hash": "0x4a8cc3e1e5f8e77d",
             "counters": [
               1,

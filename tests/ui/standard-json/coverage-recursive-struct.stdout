@@ -1,0 +1,38 @@
+{
+  "sources": {
+    "T.sol": {
+      "id": 0,
+      "coverage": {
+        "version": 2,
+        "functions": [
+          {
+            "name": "T.sol:L.read(L.Node storage)",
+            "hash": "0x169b834cf8bd0ab1",
+            "counters": [
+              1,
+              1
+            ],
+            "files": [
+              0
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                89,
+                97,
+                5
+              ],
+              [
+                2,
+                0,
+                185,
+                1
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

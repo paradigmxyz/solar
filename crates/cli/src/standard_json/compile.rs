@@ -762,10 +762,12 @@ fn record_name(gcx: Gcx<'_>, source: solar_sema::hir::SourceId, owner: RecordOwn
         RecordOwner::Constants(_) => format!("{path}:<init>"),
         RecordOwner::Function(id) => {
             let function = gcx.hir.function(id);
+            // The library form names structs, enums, and contracts, so it handles recursive
+            // structs and tells apart internal overloads that share an ABI signature.
             let signature = gcx.mk_abi_signature(
                 function.name_or_kind().as_str(),
                 gcx.item_parameter_types(id).iter().copied(),
-                false,
+                true,
             );
             match function.contract {
                 Some(contract) => format!("{path}:{}.{signature}", gcx.hir.contract(contract).name),
