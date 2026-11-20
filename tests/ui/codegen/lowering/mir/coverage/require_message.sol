@@ -26,6 +26,10 @@ enum Kind {
 
 error BadKind(Kind);
 
+type Amount is uint256;
+
+error Rejected(Amount);
+
 contract RequireMessage {
     // CHECK-LABEL: fn @f(
     // CHECK-NEXT: bb0:
@@ -139,6 +143,32 @@ contract RequireMessage {
             kind := raw
         }
         require(ok, BadKind(kind));
+    }
+
+    // A user-defined value type is read without a check.
+    // CHECK-LABEL: fn @amountError(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NOT: jumpi
+    // CHECK: icall require<custom_error [word]>
+    function amountError(bool ok, Amount value) external pure {
+        require(ok, Rejected(value));
+    }
+
+    // The counter's branch leaves the memory return to its first use: the allocation follows it,
+    // as without coverage.
+    // CHECK-LABEL: fn @deferredReturn(
+    // CHECK-NEXT: bb0:
+    // CHECK-NOT: alloc
+    // CHECK: jumpi arg0, [[HELD:bb[0-9]+]],
+    // CHECK: [[HELD]]:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK: icall require<error_string>
+    // CHECK: alloc
+    function deferredReturn(bool ok) external pure returns (uint256[2] memory out) {
+        require(ok, message());
+        out[0] = 1;
     }
 
     // A constant that does not fold panics when it is read, so the counter comes before it.

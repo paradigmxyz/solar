@@ -345,18 +345,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.has_coverage(site) {
             return Some(());
         }
+        // The probe changes no source value, so the diamond is built directly: the general branch
+        // lowering would first initialize deferred bindings, such as memory return values, which
+        // would move their allocations to here in coverage builds only.
+        let hit = self.builder.create_block();
+        let join = self.builder.create_block();
         // branch(holds, hit, join)
         // hit: coverage counter
         //      jump join
-        self.lower_branches(
-            holds,
-            true,
-            |this| {
-                this.coverage(site);
-                Some(())
-            },
-            |_| Some(()),
-        )?;
+        self.builder.branch(holds, hit, join);
+        self.builder.switch_to_block(hit);
+        self.coverage(site);
+        self.builder.jump(join);
+        self.builder.switch_to_block(join);
         Some(())
     }
 

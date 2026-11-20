@@ -1024,7 +1024,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns whether reading `expr` cannot revert: a constant that folds, or a variable of an
     /// unchecked type reached through an identifier and fields of memory structs.
     ///
-    /// Only integers, addresses, booleans, fixed bytes and memory `string`/`bytes` are unchecked:
+    /// Only integers, addresses, booleans, fixed bytes, user-defined value types over them and
+    /// memory `string`/`bytes` are unchecked:
     /// encoding an enum checks its range, loading storage bytes checks their length encoding,
     /// calldata reads check offsets against the calldata size, and arrays and structs may hold
     /// any of these.
@@ -1040,6 +1041,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let unchecked = |ty: Ty<'_>| match ty.kind {
             TyKind::Elementary(ty) => !matches!(ty, ElementaryType::String | ElementaryType::Bytes),
+            TyKind::Udvt(..) => true,
             TyKind::Ref(inner, DataLocation::Memory) => matches!(
                 inner.kind,
                 TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
