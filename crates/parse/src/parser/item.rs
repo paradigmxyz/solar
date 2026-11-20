@@ -41,6 +41,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Stop at a token whose error was already reported, keeping the items so far.
                 Err(err) if self.is_reported_error(&err) => {
                     err.cancel();
+                    let _ = self.eat(end);
                     return Ok(self.alloc_vec(items));
                 }
                 Err(err) => return Err(err),

@@ -60,6 +60,13 @@ contract C {
     //~^ ERROR: structs must have at least one field
 }  //~ ERROR: expected `;`
 
+contract Unfinished {
+    function f(uint256 x, } //~ ERROR: expected one of
+
+contract Later {
+    uint8 value = 300; //~ ERROR: mismatched types
+}
+
 contract D {
     uint stateVar = f(1, ]; //~ ERROR: expected one of
     //~^ ERROR: expected global item
