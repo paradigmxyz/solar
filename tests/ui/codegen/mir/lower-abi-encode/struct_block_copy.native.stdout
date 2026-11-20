@@ -33,20 +33,13 @@ fn @encodeItems() {
   bb11:                                           ; preds = bb0
     v181 = heap_floor !metadata(alloc_ptr)
     v182 = add v181, 128 !metadata(alloc_ptr)
-    v203 = shr v182, 64
-    v183 = lt v182, v181
-    v205 = zext i1 v183 to i256
-    v206 = or v203, v205
-    v185 = ne v206, 0
-    jumpi v185, bb18, bb23
-  bb23:                                           ; preds = bb11
     mstore 64, v182 !metadata(memory=scratch)
     mstore v181, 3
     v194 = add v181, 32
     v197 = add v181, 128
     jump bb1
-  bb1:                                            ; preds = bb2, bb23
-    v195 = phi [bb23: v194], [bb2: v196]
+  bb1:                                            ; preds = bb2, bb11
+    v195 = phi [bb11: v194], [bb2: v196]
     v2 = lt v195, v197
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
@@ -156,6 +149,10 @@ fn @encodeItems() {
     v152 = phi [bb20: v192], [bb21: v170]
     v153 = phi [bb20: v139], [bb21: v151]
     returndata v152, v153
+  bb18 [cold]:                                    ; preds = bb17
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb13:                                           ; preds = bb12
     v78 = mload v76
     mcopy v75, v78, 224 !metadata(memory=heap, disjoint)
@@ -227,10 +224,6 @@ fn @encodeItems() {
     mstore v195, v187
     v196 = add v195, 32
     jump bb1
-  bb18 [cold]:                                    ; preds = bb11, bb17
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb10 [cold]:                                    ; preds = bb0
     revert 0, 0
 }

@@ -175,23 +175,11 @@ fn @tooLong() {
 fn @forged() {
   bb0:
     v12 = heap_floor !metadata(alloc_ptr)
-    v13 = add v12, 64 !metadata(alloc_ptr)
-    v18 = shr v13, 64
-    v14 = lt v13, v12
-    v20 = zext i1 v14 to i256
-    v21 = or v18, v20
-    v16 = ne v21, 0
-    jumpi v16, bb2, bb1
-  bb1:                                            ; preds = bb0
     mstore v12, 1
     v10 = add v12, 31
     v8 = keccak256 v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
-  bb2 [cold]:                                     ; preds = bb0
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

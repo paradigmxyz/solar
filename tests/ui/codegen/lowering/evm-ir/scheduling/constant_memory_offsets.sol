@@ -8,11 +8,13 @@
 // CHECK-NEXT: push 7
 // CHECK-NEXT: push 192
 // CHECK-LABEL: bb6{{( \[[a-z, ]+\])?}}:
-// CHECK: push 7
+// CHECK: push 96
+// CHECK-NEXT: push 128
+// CHECK-NEXT: push 7
 // CHECK-NEXT: push 224
 // CHECK: push 32
 // CHECK-NEXT: add
-// CHECK-NEXT: push 96
+// CHECK-NEXT: keccak256
 
 contract ConstantMemoryOffsets {
     function fixedArray() public pure returns (bytes32 result) {

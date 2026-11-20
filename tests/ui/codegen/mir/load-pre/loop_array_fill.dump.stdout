@@ -185,23 +185,13 @@ fn @lanes() {
     jump bb4
   bb4:                                            ; preds = bb0, bb5, bb6
     v59 = phi [bb0: 0], [bb5: 1], [bb6: v62]
-    v8 = add v59, 1
-    v10 = shl v8, 5
     v85 = heap_floor !metadata(alloc_ptr)
-    v86 = add v85, v10 !metadata(alloc_ptr)
-    v97 = shr v86, 64
-    v87 = lt v86, v85
-    v99 = zext i1 v87 to i256
-    v100 = or v97, v99
-    v89 = ne v100, 0
-    jumpi v89, bb8, bb7
-  bb7:                                            ; preds = bb4
     mstore v85, v59
     v94 = add v85, 32
     jump bb2
-  bb2:                                            ; preds = bb3, bb7
-    v28 = phi [bb7: 0], [bb3: v38]
-    v95 = phi [bb7: v94], [bb3: v96]
+  bb2:                                            ; preds = bb3, bb4
+    v28 = phi [bb4: 0], [bb3: v38]
+    v95 = phi [bb4: v94], [bb3: v96]
     v29 = lt v28, v59
     jumpi v29, bb3, bb1
   bb1:                                            ; preds = bb2
@@ -219,8 +209,4 @@ fn @lanes() {
     v38 = add v28, 1
     v96 = add v95, 32
     jump bb2
-  bb8 [cold]:                                     ; preds = bb4
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
