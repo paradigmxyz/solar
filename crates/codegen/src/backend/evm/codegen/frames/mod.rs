@@ -1006,9 +1006,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     );
                 }
                 end = end.saturating_add(prefix_guards.get(&entry).copied().unwrap_or(0));
+                // A range that ends above half of `MAX_HEAP_FLOOR` runs out of gas when executed,
+                // since memory that large costs more than a transaction has, so it leaves the
+                // base, and with it the heap floor, where it is.
                 if let Some(raised) = ranges[&entry]
                     .iter()
-                    .filter(|&&(start, range_end)| start < end && range_end > base)
+                    .filter(|&&(start, range_end)| {
+                        start < end
+                            && range_end > base
+                            && range_end <= EvmMemoryLayout::MAX_HEAP_FLOOR / 2
+                    })
                     .map(|&(_, range_end)| range_end)
                     .max()
                 {
