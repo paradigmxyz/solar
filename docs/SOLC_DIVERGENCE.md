@@ -58,7 +58,9 @@ selections. `solc` 0.8.39 emits no semantic debug info for the program outputs
 unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
 outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
 `solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
-without `ast-id` in `debugInfo` like `solc`.
+without `ast-id` in `debugInfo` like `solc`. It also emits `ethdebug.compilation`
+whenever any ethdebug output is selected, because every program references it,
+where `solc` emits it only when selected.
 
 Rationale: `solar` builds ethdebug output from its own debug info, which does
 not depend on a Yul IR selection, and an experimental flag would only block
@@ -1422,7 +1424,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Difference: a storage-to-storage copy of a struct or array reads the whole
   source into memory, then writes the target. Two things differ from `solc`
   0.8.39, which copies directly when the operands are disjoint and takes a
-  memory snapshot only when it finds the target inside the source.
+  memory snapshot only when it finds the source inside the target.
   - A copy whose source contains its target, such as
     `root.children[0].children[0] = root` or `root.children.push(root)`,
     succeeds in `solar` and writes the source's old value. `solc` calls this
@@ -1437,7 +1439,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   copy.
 - Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`
   and `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol`.
-  Thirteen upstream tests expect a failure, the
+  Twelve upstream tests expect a failure, eleven of the
   `copy_recursive_struct_*source_contains_target*` tests and
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.

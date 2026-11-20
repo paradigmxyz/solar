@@ -5,8 +5,8 @@
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
 
 // Amsterdam raises the limits to 65536 bytes of runtime code and 131072 of initcode, and warns
-// with codes of its own. The runtime holds a 65600 byte literal, and the constructor a 56000 byte one that costs more
-// than 65170 bytes of code, which together push the initcode past its limit.
+// with codes of its own. The runtime holds a 65600 byte literal, and the constructor a 56000 byte
+// one that costs more than 65170 bytes of code, which together push the initcode past its limit.
 contract Big { //~[amsterdam] WARN: contract code size is
     //~[amsterdam]^ WARN: contract initcode size is
     bytes public stored;
