@@ -32,11 +32,27 @@ jobs:
         run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
       - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
         id: auth
-      # Cargo publishes the crates in dependency order, waits for each one to reach the index, and
-      # skips versions that are already on crates.io, so a failed run can be rerun. The tagged
-      # commit already passed CI and the release build, and the access token lasts 30 minutes, so
-      # skip the verification build.
+      # `cargo publish --workspace` fails on a version that is already on crates.io, so publish
+      # only the crates that are missing and a failed run can be rerun. Cargo orders the selected
+      # crates by dependency and waits for each to reach the index. The tagged commit already
+      # passed CI and the release build, so skip the verification build.
       - name: Publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish --workspace --locked --no-verify
+        run: |
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"' > "$RUNNER_TEMP/crates.txt"
+          packages=()
+          while read -r name version; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' -A "paradigmxyz/solar release workflow" "https://crates.io/api/v1/crates/$name/$version")
+            case "$status" in
+              200) echo "$name@$version is already on crates.io" ;;
+              404) packages+=(-p "$name") ;;
+              *) echo "::error::crates.io answered HTTP $status for $name@$version"; exit 1 ;;
+            esac
+          done < "$RUNNER_TEMP/crates.txt"
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "Every crate is already published."
+            exit 0
+          fi
+          cargo publish --locked --no-verify "${packages[@]}"

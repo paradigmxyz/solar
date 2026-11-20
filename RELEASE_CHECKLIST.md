@@ -9,7 +9,8 @@ changed or not.
 Publish the crates last. Pushing the tag starts the release workflow, and a
 failure there only needs a fix on `main` and a new tag while nothing is on
 `crates.io` yet. This keeps the crates, the tag, and the release binaries on one
-commit.
+commit. Once the publish job has uploaded a crate, rerun it instead of tagging
+again.
 
 ## One-time setup
 
@@ -66,8 +67,9 @@ Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen
 - [ ] `git checkout main` and `git pull`.
 - [ ] Verify `dist plan` is correct.
 - [ ] Tag and push the tag: `cargo release tag --execute` and `cargo release push --execute`.
-- [ ] Wait for the release workflow to publish the GitHub release. If it fails,
-  fix the cause on `main`, delete the remote tag, and tag the fix.
+- [ ] Wait for the release workflow to publish the GitHub release. If it fails
+  before the publish job uploads a crate, fix the cause on `main`, delete the
+  remote tag, and tag the fix.
 - [ ] Check the GitHub release: the notes render, every artifact from `dist plan`
   is attached, and a downloaded binary reports `solar <version>+commit...`
   without `-dev`.
@@ -78,7 +80,8 @@ Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen
   release (`.github/workflows/publish-crates.yml`, `cargo publish --workspace`
   with trusted publishing). Check that the `custom-publish-crates` job passed
   and that every crate shows the new version on crates.io. If it fails, fix the
-  cause and rerun the failed job: it skips versions that are already published.
+  cause and rerun the failed job: it publishes only the crates that are missing.
+  Prerelease tags do not publish crates.
 
 ## Downstream
 
