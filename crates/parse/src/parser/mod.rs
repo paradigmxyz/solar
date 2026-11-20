@@ -470,7 +470,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         match self.expect(TokenKind::Semi) {
             Ok(_) => Ok(()),
             Err(err) if recover => {
-                err.emit();
+                self.emit_recovered(err);
                 Ok(())
             }
             Err(err) => Err(err),

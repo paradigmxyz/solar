@@ -58,6 +58,12 @@ error: expected `while`, found `}`
 LL │         do x; }
    ╰╴              ━ expected `while`
 
+error: expected `;`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         do break }
+   ╰╴                 ━ expected `;`
+
 error: expected one of `)`, literal, or path, found `]`
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
    │
@@ -76,5 +82,5 @@ error: mismatched types
 LL │         uint8 value = 300;
    ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
 
-error: aborting due to 13 previous errors
+error: aborting due to 14 previous errors
 

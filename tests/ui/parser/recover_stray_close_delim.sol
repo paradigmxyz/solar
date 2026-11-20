@@ -43,6 +43,9 @@ contract C {
     function doWithoutWhile() public {
         do x; } //~ ERROR: expected `while`
 
+    function doBreak() public {
+        do break } //~ ERROR: expected `;`
+
     function yul() public {
         assembly {
             pop(] } //~ ERROR: expected one of
