@@ -1,9 +1,11 @@
 //@ compile-flags: -Ogas
 //@ run-call: guarded => 64
 //@ run-call: plain => 0
-// A load of the free memory pointer's slot sees the bump of a deferred allocation that the backend
-// places at run time, so `dce` keeps an unused one in a module that loads the slot. `guarded` reads
-// back from a later object, which makes the backend place its allocations at run time.
+//@ run-call: back => 192
+// Assembly can see where the backend places memory objects, so `dce` keeps an unused deferred
+// allocation in a module with assembly. `guarded` reads back from a later object, which makes the
+// backend place its allocations at run time, and its pointer loads see each bump. `back` reads
+// below an object into the unused one and sees the spacing `solc` gives.
 
 contract DeadDeferredAllocSlotRead {
     struct S {
@@ -39,5 +41,14 @@ contract DeadDeferredAllocSlotRead {
             after_ := mload(0x40)
         }
         d = after_ - before;
+    }
+
+    function back() external pure returns (uint256 e) {
+        S memory dead = S(1, 2);
+        bytes memory buf = new bytes(32);
+        assembly {
+            e := mload(sub(buf, 0x20))
+            e := add(buf, mul(e, 0))
+        }
     }
 }

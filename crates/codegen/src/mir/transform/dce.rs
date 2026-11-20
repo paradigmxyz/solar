@@ -6,14 +6,13 @@
 //! prevent removal. Run on either representation, sharing cached module summaries. A mark phase
 //! from instructions that must execute and from terminator operands finds the live values in
 //! linear time, so dead chains and dead phi cycles both go. An unused deferred allocation goes too:
-//! it cannot fail, and the backend places it in a static region or with a bump. A module that
-//! loads the pointer's slot at a constant address keeps them, since that load sees the bump.
+//! it cannot fail, and the backend places it in a static region or with a bump that keeps later
+//! objects at solc's spacing. Assembly can read both, so a module with assembly keeps it.
 //! Reachability is computed once.
 
 use crate::mir::{
-    AllocationSemantics, Callee, Function, InstId, InstKind, Module, PtrLocation, Value,
+    AllocationSemantics, Callee, Function, InstId, InstKind, Module, Value,
     analysis::MemoryCallSummaries,
-    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_cfg},
     utils::invalidate_unreachable_blocks,
 };
@@ -38,10 +37,10 @@ impl MirPass for Dce {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let summaries = analyses.call_summaries(module);
-        let reads_fmp_slot = module.functions.iter().any(reads_fmp_slot);
+        let keeps_deferred_allocs = module.has_assembly();
         let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
             invalidate_unreachable_blocks(func, analyses.cfg().reachable())
-                + remove_dead_chains(func, &summaries, reads_fmp_slot)
+                + remove_dead_chains(func, &summaries, keeps_deferred_allocs)
                 != 0
         });
         // Removing operations and unreachable blocks cannot add call effects.
@@ -57,7 +56,7 @@ impl MirPass for Dce {
 fn remove_dead_chains(
     func: &mut Function,
     summaries: &MemoryCallSummaries,
-    reads_fmp_slot: bool,
+    keeps_deferred_allocs: bool,
 ) -> usize {
     let mut discardable = DenseBitSet::new_empty(func.num_insts());
     let mut live = DenseBitSet::<InstId>::new_empty(func.num_insts());
@@ -67,8 +66,8 @@ fn remove_dead_chains(
         let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
             if summaries.get(*function).is_some_and(|summary| summary.can_discard_call()));
         // A deferred allocation never fails, so it has no effect once nothing uses its pointer,
-        // unless the backend lowers it to a bump that a raw read of the slot observes.
-        let deferred_alloc = !reads_fmp_slot
+        // unless assembly can see where the backend places the objects.
+        let deferred_alloc = !keeps_deferred_allocs
             && matches!(
                 inst.kind,
                 InstKind::Alloc { semantics: AllocationSemantics::INTERNAL, .. }
@@ -113,14 +112,4 @@ fn remove_dead_chains(
         removed += len - block.instructions.len();
     }
     removed
-}
-
-/// Whether `func` loads the free-memory pointer's slot at its constant address, as assembly does.
-/// The loads that allocation lowering emits carry `alloc_ptr` and do not count.
-fn reads_fmp_slot(func: &Function) -> bool {
-    func.instructions().any(|inst| {
-        matches!(func.inst(inst).kind, InstKind::Load(address, PtrLocation::Memory)
-            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                && !func.inst(inst).metadata.alloc_ptr())
-    })
 }

@@ -1415,25 +1415,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the second store, which adds pass complexity for no ordinary Solidity.
 - Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
 
-### CODEGEN-032: An unused memory object leaves no gap below the next one
-
-- ID: CODEGEN-032
-- Status: intentional
-- Difference: a memory struct or array that nothing reads takes no space in
-  `solar`: its stores and its allocation are removed (`memory-dse`, `dce`). The
-  next object starts where the unused one would have, so in `S memory dead =
-  S(1, 2); bytes memory buf = new bytes(32);` the address of `buf` is `0x80` in
-  `solar` and `0xc0` in `solc`, and assembly that reads back from `buf` with
-  `mload(sub(buf, 0x20))` reads below the heap in `solar` and the unused
-  object's last field in `solc`. A load of the free memory pointer slot keeps
-  the allocation, so the pointer advances as in `solc`.
-- Rationale: only assembly that steps back from an object into one the program
-  never uses reaches it, and `solc` documents no spacing between objects for
-  memory-safe assembly. Keeping the allocation would keep a bump and an
-  overflow test for every unused object.
-- Coverage: `tests/ui/codegen/mir/dce/dead_deferred_alloc_backward_read.sol` and
-  `tests/ui/codegen/mir/dce/dead_deferred_alloc_slot_read.sol`.
-
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.
