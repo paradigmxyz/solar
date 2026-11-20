@@ -20,7 +20,9 @@
 //!
 //! A constant left operand removes the operator: `true && b` is `b`, and `false && b` is the
 //! constant `false`, whose right operand is skipped. A constant decision has no branch, since
-//! lowering folds it.
+//! lowering folds it. A constant right operand stays a condition, since lowering still branches
+//! before it, but both of its counts are zero, which marks it folded, as Clang does: consumers
+//! leave it out of branch and MC/DC coverage.
 
 use super::{
     Count, CoverageMap, Decision, DecisionId, Record, RecordOwner, Region, RegionKind, Scope, Site,
@@ -132,8 +134,9 @@ struct Rec {
 enum Node<'gcx> {
     /// A constant, which lowering folds.
     Const(bool),
-    /// A leaf condition and the counter after its evaluation.
-    Leaf(&'gcx hir::Expr<'gcx>, Count),
+    /// A leaf condition, the counter after its evaluation, and whether it is a constant that
+    /// stays a leaf.
+    Leaf(&'gcx hir::Expr<'gcx>, Count, bool),
     Not(Box<Self>),
     And(Box<Self>, Box<Self>, Operator<'gcx>),
     Or(Box<Self>, Box<Self>, Operator<'gcx>),
@@ -152,7 +155,7 @@ impl Node<'_> {
     fn completed(&self) -> Count {
         match self {
             Self::Const(_) => Count::Zero,
-            Self::Leaf(_, v) => v.clone(),
+            Self::Leaf(_, v, _) => v.clone(),
             Self::Not(node) => node.completed(),
             Self::And(lhs, rhs, op) | Self::Or(lhs, rhs, op) => {
                 lhs.completed().sub(op.r.clone()).add(rhs.completed())
@@ -164,7 +167,7 @@ impl Node<'_> {
     fn cond(&self) -> Cond {
         match self {
             Self::Const(_) => unreachable!("a constant is no condition"),
-            Self::Leaf(expr, _) => Cond::Leaf(Site::key(*expr)),
+            Self::Leaf(expr, _, _) => Cond::Leaf(Site::key(*expr)),
             Self::Not(node) => Cond::Not(Box::new(node.cond())),
             Self::And(lhs, rhs, _) => Cond::And(Box::new(lhs.cond()), Box::new(rhs.cond())),
             Self::Or(lhs, rhs, _) => Cond::Or(Box::new(lhs.cond()), Box::new(rhs.cond())),
@@ -908,7 +911,7 @@ impl<'gcx> Walker<'gcx> {
     fn tree(&mut self, expr: &'gcx hir::Expr<'gcx>, fold: bool) -> Node<'gcx> {
         let expr = expr.peel_parens();
         if let Some(value) = self.constant(expr) {
-            return if fold { Node::Const(value) } else { self.leaf(expr) };
+            return if fold { Node::Const(value) } else { self.leaf(expr, true) };
         }
         match expr.kind {
             ExprKind::Unary(op, inner)
@@ -934,7 +937,7 @@ impl<'gcx> Walker<'gcx> {
                         let operator = Operator { expr, rhs, r };
                         let rhs = match self.tree(rhs, false) {
                             // A right operand that folds because it skips an operand stays a leaf.
-                            Node::Const(_) => self.leaf(rhs.peel_parens()),
+                            Node::Const(_) => self.leaf(rhs.peel_parens(), true),
                             rhs => rhs,
                         };
                         let (lhs, rhs) = (Box::new(lhs), Box::new(rhs));
@@ -946,12 +949,12 @@ impl<'gcx> Walker<'gcx> {
                     }
                 }
             }
-            _ => self.leaf(expr),
+            _ => self.leaf(expr, false),
         }
     }
 
-    fn leaf(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Node<'gcx> {
-        Node::Leaf(expr, self.counter(Site::Leaf(Site::key(expr))))
+    fn leaf(&mut self, expr: &'gcx hir::Expr<'gcx>, constant: bool) -> Node<'gcx> {
+        Node::Leaf(expr, self.counter(Site::Leaf(Site::key(expr))), constant)
     }
 
     fn is_logical(&self, expr: &hir::Expr<'_>) -> bool {
@@ -1033,8 +1036,13 @@ impl<'gcx> Walker<'gcx> {
     fn branches(&mut self, node: &Node<'gcx>, holds: Count, negated: bool, mcdc: Option<&Mcdc>) {
         match node {
             Node::Const(_) => {}
-            Node::Leaf(expr, completed) => {
-                let fails = completed.clone().sub(holds.clone());
+            Node::Leaf(expr, completed, constant) => {
+                let (holds, fails) = if *constant {
+                    (Count::Zero, Count::Zero)
+                } else {
+                    let fails = completed.clone().sub(holds.clone());
+                    (holds, fails)
+                };
                 let kind = match mcdc.and_then(|mcdc| mcdc.0.get(&Site::key(*expr))) {
                     Some(condition) => RegionKind::McdcBranch {
                         holds,
