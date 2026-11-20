@@ -958,6 +958,7 @@ fn storage_size_upper_bound(
     location: DataLocation,
 ) -> Result<Option<U256>, ErrorGuaranteed> {
     let mut total_size = U256::ZERO;
+    let mut struct_sizes = FxHashMap::default();
     for item_id in gcx.hir.contract_item_ids(contract_id) {
         // Skip constant and immutable variables and variables from the other storage space.
         if let hir::Item::Variable(var) = gcx.hir.item(item_id)
@@ -966,7 +967,9 @@ fn storage_size_upper_bound(
                 == (location == DataLocation::Transient)
         {
             let ty = gcx.type_of_item(item_id);
-            let Some(size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
+            let Some(size) = ty_storage_size_upper_bound(ty, gcx, &mut struct_sizes)? else {
+                return Ok(None);
+            };
             let Some(size) = total_size.checked_add(size) else { return Ok(None) };
             total_size = size;
         }
@@ -974,7 +977,13 @@ fn storage_size_upper_bound(
     Ok(Some(total_size))
 }
 
-fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>, ErrorGuaranteed> {
+/// Returns an upper bound on the number of slots `ty` takes. `struct_sizes` holds the bound of each
+/// struct already visited, so a struct that occurs many times is walked once.
+fn ty_storage_size_upper_bound(
+    ty: Ty<'_>,
+    gcx: Gcx<'_>,
+    struct_sizes: &mut FxHashMap<hir::StructId, Option<U256>>,
+) -> Result<Option<U256>, ErrorGuaranteed> {
     match ty.kind {
         TyKind::Elementary(..)
         | TyKind::StringLiteral(..)
@@ -988,10 +997,12 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         | TyKind::Enum(..)
         | TyKind::Fn(..)
         | TyKind::DynArray(..) => Ok(Some(U256::ONE)),
-        TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
+        TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx, struct_sizes),
         TyKind::Array(ty, uint) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
-            let Some(elem_size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
+            let Some(elem_size) = ty_storage_size_upper_bound(ty, gcx, struct_sizes)? else {
+                return Ok(None);
+            };
             Ok(uint.checked_mul(elem_size))
         }
         TyKind::Struct(struct_id) => {
@@ -999,17 +1010,19 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
             if let Recursiveness::Infinite(guar) = gcx.struct_recursiveness(struct_id) {
                 return Err(guar);
             }
-            let mut total_size = U256::ONE;
-            for t in gcx.struct_field_types(struct_id) {
-                let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {
-                    return Ok(None);
-                };
-                let Some(size) = total_size.checked_add(size_contribution) else {
-                    return Ok(None);
-                };
-                total_size = size;
+            if let Some(&size) = struct_sizes.get(&struct_id) {
+                return Ok(size);
             }
-            Ok(Some(total_size))
+            let mut total_size = Some(U256::ONE);
+            for t in gcx.struct_field_types(struct_id) {
+                let size_contribution = ty_storage_size_upper_bound(*t, gcx, struct_sizes)?;
+                total_size = total_size.zip(size_contribution).and_then(|(a, b)| a.checked_add(b));
+                if total_size.is_none() {
+                    break;
+                }
+            }
+            struct_sizes.insert(struct_id, total_size);
+            Ok(total_size)
         }
         TyKind::Err(guar) => Err(guar),
 
