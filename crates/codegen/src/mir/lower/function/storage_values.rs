@@ -1858,15 +1858,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if !visiting.insert(struct_id) {
                     return false;
                 }
-                let contains = self.cx.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
+                self.cx.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
                     self.storage_type_reaches_struct(
                         self.cx.gcx.type_of_item(field.into()),
                         target,
                         visiting,
                     )
-                });
-                visiting.remove(&struct_id);
-                contains
+                })
             }
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
                 self.storage_type_reaches_struct(element, target, visiting)
