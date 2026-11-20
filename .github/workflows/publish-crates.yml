@@ -210,7 +210,13 @@ jobs:
             for sum in $SUMS; do
               if [ "${sum%=*}" = "$crate" ]; then expected=${sum#*=}; fi
             done
-            published=$(curl -fsS --max-time 30 -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version" | jq -r '.version.checksum' || true)
+            # A lookup that fails or returns no checksum is not a wrong archive: retry it.
+            published=""
+            for attempt in $(seq 1 6); do
+              published=$(curl -fsS --max-time 30 -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version" | jq -r '.version.checksum // empty' || true)
+              [ -n "$published" ] && break
+              sleep 10
+            done
             if [ -z "$expected" ] || [ "$published" != "$expected" ]; then
               echo "::error::$crate on crates.io (${published:-missing}) is not the archive built from $GITHUB_SHA (${expected:-unknown})"
               exit 1
