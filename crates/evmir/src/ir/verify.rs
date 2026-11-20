@@ -250,19 +250,23 @@ impl<'a> Verifier<'a> {
     ///
     /// Coverage instrumentation glues the counter push to its probe, `push <id>; coverage`, which
     /// assembly emits as `COVERAGE; PUSHn <id>` so the instrumenting EVM reads the id from the push
-    /// and skips it. Every `coverage` must follow such a push.
+    /// and skips it. Every `coverage` must follow such a push, of a nonzero id: a zero would
+    /// assemble as `PUSH0`, which carries no id.
     fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
         const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.opcode == op::COVERAGE
                 && !index.checked_sub(1).is_some_and(|prev| {
                     let prev = &block.instructions[prev];
-                    prev.keeps_with_next() && prev.concrete_immediate().is_some()
+                    prev.keeps_with_next()
+                        && prev.concrete_immediate().is_some_and(|id| !id.is_zero())
                 })
             {
                 self.error_in_block(
                     block_id,
-                    format_args!("`coverage` must follow a kept immediate push of its counter"),
+                    format_args!(
+                        "`coverage` must follow a kept nonzero immediate push of its counter"
+                    ),
                 );
             }
             if !inst.keeps_with_next() {

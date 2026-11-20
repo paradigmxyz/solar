@@ -1,0 +1,16 @@
+//~? ERROR: EVM IR verification failed: block 0: `coverage` must follow a kept nonzero immediate push of its counter
+//~? ERROR: EVM IR verification failed: block 1: `coverage` must follow a kept nonzero immediate push of its counter
+@module module
+
+// A probe is `push <id>; coverage`, which assembles as `COVERAGE; PUSHn <id>`. The push must be
+// kept with the probe, and its id nonzero, since a zero would assemble as `PUSH0`, which carries
+// no id.
+bb0:
+  push 7
+  coverage
+  stop
+
+bb1:
+  push 0 !meta(keep_with_next)
+  coverage
+  stop
