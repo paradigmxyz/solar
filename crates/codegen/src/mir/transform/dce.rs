@@ -11,7 +11,7 @@
 //! Reachability is computed once.
 
 use crate::mir::{
-    Callee, Function, InstId, InstKind, Module, PtrLocation, Value,
+    AllocationSemantics, Callee, Function, InstId, InstKind, Module, PtrLocation, Value,
     analysis::MemoryCallSummaries,
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_cfg},
@@ -69,7 +69,10 @@ fn remove_dead_chains(
         // A deferred allocation never fails, so it has no effect once nothing uses its pointer,
         // unless the backend lowers it to a bump that a raw read of the slot observes.
         let deferred_alloc = !reads_fmp_slot
-            && matches!(inst.kind, InstKind::Alloc { .. })
+            && matches!(
+                inst.kind,
+                InstKind::Alloc { semantics: AllocationSemantics::INTERNAL, .. }
+            )
             && inst.metadata.deferred_alloc();
         if !inst.kind.has_side_effects() || discardable_call || deferred_alloc {
             discardable.insert(inst_id);
