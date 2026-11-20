@@ -41,10 +41,6 @@ fn @makeStruct() {
     jumpi v8, bb3, bb4
   bb4:                                            ; preds = bb0
     v9 = calldataload 4
-    v13 = heap_floor !metadata(alloc_ptr)
-    v14 = add v13, 64 !metadata(alloc_ptr)
-    mstore 64, v14 !metadata(memory=scratch)
-    v2 = alloc 64 !metadata(deferred_alloc)
     v5 = add v9, 1
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
@@ -320,7 +316,6 @@ fn @pairReturn() {
     v6 = lt v5, 96
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb2
-    v29 = alloc 64 !metadata(deferred_alloc)
     v30 = mload v46
     v36 = add v46, 64
     v37 = mload v36

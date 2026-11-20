@@ -54,7 +54,6 @@ fn @assign() {
     mstore v86, 1
     v84 = add v86, 32
     mstore v84, v98
-    v5 = alloc 64 !metadata(deferred_alloc)
     sstore 0, v97 !metadata(storage=slot(0))
     v14 = sload 1 !metadata(storage=slot(1))
     v15 = gt v14, 1
@@ -136,7 +135,6 @@ fn @push() {
     mstore v95, 1
     v93 = add v95, 32
     mstore v93, v107
-    v5 = alloc 64 !metadata(deferred_alloc)
     v9 = sload 2 !metadata(storage=slot(2))
     v115 = shr v9, 64
     v10 = ne v115, 0
@@ -276,7 +274,6 @@ fn @assignFixed() {
     mstore v88, 1
     v86 = add v88, 32
     mstore v86, v100
-    v5 = alloc 64 !metadata(deferred_alloc)
     sstore 3, v99 !metadata(storage=slot(3))
     v16 = sload 4 !metadata(storage=slot(4))
     v17 = gt v16, 1
