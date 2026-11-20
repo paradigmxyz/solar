@@ -32,6 +32,9 @@ contract EntryHelperFrames {
     function pinned(uint256 x) external pure returns (uint256) {
         uint256[3] memory a = [x, x + 1, x + 2];
         uint256 r = heavyC(x);
+        assembly {
+            if iszero(keccak256(a, 0x60)) { revert(0, 0) }
+        }
         return r + a[0] + a[1] + a[2];
     }
 

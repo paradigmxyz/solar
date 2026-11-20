@@ -25,7 +25,6 @@ fn @combine() {
     jumpi v24, bb3, bb4
   bb4:                                            ; preds = bb0
     v25 = calldataload 4
-    v0 = alloc 96 !metadata(deferred_alloc)
     v44 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v44, v25
     v27 = add v44, 32
