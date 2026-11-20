@@ -2,7 +2,8 @@ name: Publish crates
 
 # Publishes every crate to crates.io with trusted publishing (OIDC), without an API token.
 # `release.yml` calls this workflow after it creates the GitHub release, so crates.io must
-# trust `release.yml` (the calling workflow) and the `crates-io` environment.
+# trust `release.yml` (the calling workflow) and the `crates-io` environment. Only the
+# `publish` job runs in that environment and can request an OIDC token.
 
 permissions: {}
 
@@ -14,14 +15,19 @@ on:
         type: string
 
 jobs:
-  publish:
-    name: Publish to crates.io
+  # Run everything that executes repository code or release artifacts here, in a job that cannot
+  # request an OIDC token, and that has no token yet: the crates.io token lasts 30 minutes.
+  # `cargo publish --workspace` fails on a version that is already on crates.io, so this job
+  # lists the crates that are missing and a failed run can be rerun.
+  check:
+    name: Check the release
     runs-on: ubuntu-22.04
-    environment: crates-io
     timeout-minutes: 60
     permissions:
       contents: read
-      id-token: write
+    outputs:
+      crates: ${{ steps.plan.outputs.crates }}
+      missing: ${{ steps.plan.outputs.missing }}
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -33,9 +39,6 @@ jobs:
           persist-credentials: false
       - name: Install Rust
         run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
-      # Everything that can fail or take long runs before the crates.io token exists, because the
-      # token lasts 30 minutes. `cargo publish --workspace` fails on a version that is already on
-      # crates.io, so this step lists the crates that are missing and a failed run can be rerun.
       - name: Check the release and list missing crates
         id: plan
         shell: bash
@@ -109,33 +112,58 @@ jobs:
             esac
           done < "$RUNNER_TEMP/crates.txt"
 
-          if [ -s "$RUNNER_TEMP/missing.txt" ]; then
-            echo "missing=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "missing=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "crates=$(awk '{ printf "%s%s@%s", sep, $1, $2; sep = " " }' "$RUNNER_TEMP/crates.txt")"
+            echo "missing=$(paste -sd ' ' "$RUNNER_TEMP/missing.txt")"
+          } >> "$GITHUB_OUTPUT"
+          if [ ! -s "$RUNNER_TEMP/missing.txt" ]; then
             echo "Every crate is already published."
           fi
+
+  publish:
+    name: Publish to crates.io
+    needs: check
+    if: ${{ needs.check.outputs.missing != '' }}
+    runs-on: ubuntu-22.04
+    environment: crates-io
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          # Pin Aegis instead of installing the latest release in a job that can publish.
+          aegis-version: v0.49.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
       - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
-        if: steps.plan.outputs.missing == 'true'
         id: auth
       # Cargo publishes the selected crates in dependency order and waits for the index. The
-      # archives were built above, so skip the verification build.
+      # check job built the archives, so skip the verification build.
       - name: Publish crates
-        if: steps.plan.outputs.missing == 'true'
         shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          MISSING: ${{ needs.check.outputs.missing }}
         run: |
           packages=()
-          while read -r name; do packages+=(-p "$name"); done < "$RUNNER_TEMP/missing.txt"
+          for name in $MISSING; do packages+=(-p "$name"); done
           cargo publish --locked --no-verify "${packages[@]}"
       # Cargo can exit 0 when its index wait times out, so check that every crate is in the
       # sparse index, which is where Cargo resolves versions from.
       - name: Check that every crate is published
-        if: steps.plan.outputs.missing == 'true'
         shell: bash
+        env:
+          CRATES: ${{ needs.check.outputs.crates }}
         run: |
-          while read -r name crate_version; do
+          for crate in $CRATES; do
+            name=${crate%@*}
+            crate_version=${crate#*@}
             case ${#name} in
               1 | 2) index_path="${#name}/$name" ;;
               3) index_path="3/${name:0:1}/$name" ;;
@@ -151,4 +179,4 @@ jobs:
               fi
               sleep 10
             done
-          done < "$RUNNER_TEMP/crates.txt"
+          done
