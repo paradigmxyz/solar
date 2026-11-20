@@ -51,7 +51,7 @@
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
     BlockId, Builtin, Callee, EdgeAssignment, Function, FunctionId, Immediate, InstId, InstKind,
-    InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
+    InstructionMetadata, MirType, Module, StructId, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
@@ -64,6 +64,14 @@ use solar_data_structures::{
 };
 use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
+
+/// What `-O none` knows about the recursion that a function sits in.
+struct Recursion<'a> {
+    /// The functions that a call from this function can reach again.
+    component: &'a DenseBitSet<FunctionId>,
+    /// The number of fields of each struct type.
+    fields: &'a IndexVec<StructId, usize>,
+}
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -84,32 +92,36 @@ impl MirPass for CfgSimplify {
         // recursive.
         let functions = module.functions.len();
         let mut folded = false;
-        let (components, component_of) = if module.runs_objective(|objective| objective.is_none()) {
-            folded = run_function_pass(module, analyses, |func, analyses| {
-                analyses.optimization().is_none() && fold_constant_branches(func)
-            });
-            let call_graph = CallGraphInfo::new(module);
-            let mut components = Vec::new();
-            let mut component_of = index_vec![None; module.functions.len()];
-            for id in module.functions.indices() {
-                if component_of[id].is_none() && call_graph.is_recursive(id) {
-                    let component = call_graph.recursive_component(id);
-                    for member in component.iter() {
-                        component_of[member] = Some(components.len());
+        let (components, component_of, fields) =
+            if module.runs_objective(|objective| objective.is_none()) {
+                folded = run_function_pass(module, analyses, |func, analyses| {
+                    analyses.optimization().is_none() && fold_constant_branches(func)
+                });
+                let call_graph = CallGraphInfo::new(module);
+                let mut components = Vec::new();
+                let mut component_of = index_vec![None; module.functions.len()];
+                for id in module.functions.indices() {
+                    if component_of[id].is_none() && call_graph.is_recursive(id) {
+                        let component = call_graph.recursive_component(id);
+                        for member in component.iter() {
+                            component_of[member] = Some(components.len());
+                        }
+                        components.push(component);
                     }
-                    components.push(component);
                 }
-            }
-            (components, component_of)
-        } else {
-            (Vec::new(), IndexVec::new())
-        };
+                let fields = module.struct_types.iter().map(|ty| ty.fields.len()).collect();
+                (components, component_of, fields)
+            } else {
+                (Vec::new(), IndexVec::new(), IndexVec::new())
+            };
+        let none = DenseBitSet::new_empty(functions);
         let changed = run_function_pass(module, analyses, |func, analyses| {
-            let keep = analyses.optimization().is_none().then(|| {
-                match component_of.get(analyses.function()).copied().flatten() {
-                    Some(component) => components[component].clone(),
-                    None => DenseBitSet::new_empty(functions),
-                }
+            let keep = analyses.optimization().is_none().then(|| Recursion {
+                component: match component_of.get(analyses.function()).copied().flatten() {
+                    Some(component) => &components[component],
+                    None => &none,
+                },
+                fields: &fields,
             });
             run_to_fixpoint(func, keep.as_ref())
         });
@@ -293,7 +305,7 @@ fn fold_constant_branches(func: &mut Function) -> bool {
 /// branch from the facts that reach it or from equal targets, or merges a block that names a
 /// construct into another, except after a call into the function's own recursive component, which
 /// must stay in tail position: a frame per level would overflow the EVM stack.
-fn run(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> bool {
+fn run(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
     let keep_locations = keep.is_some();
     let mut changed = simplify_degenerate_terminators(func, keep_locations);
     changed |= merge_blocks(func, keep);
@@ -607,7 +619,7 @@ fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> 
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> bool {
+fn run_to_fixpoint(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -629,7 +641,7 @@ fn run_to_fixpoint(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) 
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> bool {
+fn merge_blocks(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
         while let Some(target) = can_merge(func, block_id, keep) {
@@ -642,11 +654,7 @@ fn merge_blocks(func: &mut Function, keep: Option<&DenseBitSet<FunctionId>>) -> 
 
 /// Checks if block_id can be merged with its successor.
 /// Returns the target block if merge is possible.
-fn can_merge(
-    func: &Function,
-    block_id: BlockId,
-    keep: Option<&DenseBitSet<FunctionId>>,
-) -> Option<BlockId> {
+fn can_merge(func: &Function, block_id: BlockId, keep: Option<&Recursion<'_>>) -> Option<BlockId> {
     let block = &func.blocks[block_id];
 
     let Terminator::Jump(target) = block.terminator.as_ref()? else {
@@ -667,10 +675,11 @@ fn can_merge(
     }
 
     // The merge drops the jump and the target's label.
-    if let Some(component) = keep
+    if let Some(recursion) = keep
         && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
         && !last_call(func, block).is_some_and(|inst| {
-            calls_function(func, inst, component) && returns_result(func, block, inst, *target)
+            calls_function(func, inst, recursion.component)
+                && returns_result(func, recursion, block, inst, *target)
         })
     {
         return None;
@@ -1226,17 +1235,35 @@ fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<Functio
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
+/// Returns the value that `value` casts, through pointer casts.
+fn cast_source(func: &Function, mut value: ValueId) -> ValueId {
+    while let Value::Inst(inst) = *func.value(value)
+        && let InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) = func.inst(inst).kind
+    {
+        value = operand;
+    }
+    value
+}
+
 /// Returns whether the blocks after `call` only project its result or cast a pointer, jump, and
 /// return what they project, and each has no other predecessor, so that all of them merge into
 /// the call's block.
 fn returns_result(
     func: &Function,
+    recursion: &Recursion<'_>,
     source: &crate::mir::BasicBlock,
     call: InstId,
     target: BlockId,
 ) -> bool {
     let mut derived = FxHashSet::default();
     derived.extend(func.inst_result_value(call));
+    let words = |ty: MirType| match ty {
+        MirType::Struct(id) => recursion.fields[id],
+        MirType::Slice(_) => 2,
+        _ => 1,
+    };
+    let result_words =
+        func.inst_result_value(call).and_then(|result| func.value_ty(result)).map(words);
     // The derived values that hold only a part of the result, as an extracted word does.
     let mut partial = FxHashSet::default();
     let mut project = |instructions: &[InstId]| {
@@ -1260,11 +1287,12 @@ fn returns_result(
                     partial.extend(result);
                 }
                 // A word of the result goes back into the field it came from, onto an empty
-                // aggregate or one that the earlier words built.
-                InstKind::InsertValue { aggregate, index, value, .. }
-                    if (matches!(func.value(aggregate), Value::Undef(_))
-                        || derived.contains(&aggregate))
-                        && let Value::Inst(word) = *func.value(value)
+                // aggregate of the result's type or one that the earlier words built.
+                InstKind::InsertValue { ty, aggregate, index, value }
+                    if Some(words(ty)) == result_words
+                        && (matches!(func.value(aggregate), Value::Undef(_))
+                            || derived.contains(&aggregate))
+                        && let Value::Inst(word) = *func.value(cast_source(func, value))
                         && let InstKind::ExtractValue {
                             aggregate: source, index: field, ..
                         } = func.inst(word).kind
