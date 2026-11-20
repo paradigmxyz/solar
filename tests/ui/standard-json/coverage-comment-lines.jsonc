@@ -18,11 +18,15 @@
 // CHECK: "name": "A.sol:S.g()",
 // CHECK-NOT: {{^ *249,$}}
 // CHECK: {{^ *290,$}}
+// A carriage return ends a line comment, as in the lexer, so the `return` after one is not skipped.
+// CHECK: "name": "A.sol:S.c()",
+// CHECK-NOT: {{^ *344,$}}
+// CHECK: {{^ *382,$}}
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        uint256 y = x + 1;\n\n        total = y;\n    }\n\n    function g() external pure returns (uint256) {\n        string memory s = \"a\\\n/*\";\n        return bytes(s).length;\n    }\n}\n"
+      "content": "contract S {\n    uint256 total;\n\n    function f(uint256 x) external {\n        /// comment\n        require(x > 1);\n        uint256 y = x + 1;\n\n        total = y;\n    }\n\n    function g() external pure returns (uint256) {\n        string memory s = \"a\\\n/*\";\n        return bytes(s).length;\n    }\n\n    function c() external pure returns (uint256) {\n        // note\r        return 1;\n    }\n}\n"
     }
   },
   "settings": {

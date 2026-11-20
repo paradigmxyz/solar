@@ -1149,7 +1149,11 @@ fn has_code(line: &str, open: &mut Option<u8>) -> bool {
         }
         match bytes[index] {
             b if b.is_ascii_whitespace() => index += 1,
-            b'/' if bytes.get(index + 1) == Some(&b'/') => return code,
+            // Like the lexer, a carriage return also ends a line comment.
+            b'/' if bytes.get(index + 1) == Some(&b'/') => match line[index..].find('\r') {
+                Some(end) => index += end,
+                None => return code,
+            },
             b'/' if bytes.get(index + 1) == Some(&b'*') => {
                 *open = Some(b'*');
                 index += 2;
