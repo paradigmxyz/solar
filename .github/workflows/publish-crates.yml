@@ -39,6 +39,8 @@ jobs:
       - name: Check the release and list missing crates
         id: plan
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           user_agent="paradigmxyz/solar release workflow"
           version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "solar-compiler") | .version')
@@ -55,6 +57,24 @@ jobs:
             exit 1
           fi
 
+          # The released binary must report this version and commit, and no `-dev` suffix.
+          mkdir "$RUNNER_TEMP/release"
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'solar-x86_64-unknown-linux-gnu.tar.gz' --dir "$RUNNER_TEMP/release"
+          tar -xzf "$RUNNER_TEMP/release/solar-x86_64-unknown-linux-gnu.tar.gz" -C "$RUNNER_TEMP/release"
+          reported=$("$(find "$RUNNER_TEMP/release" -name solar -type f | head -n 1)" --version)
+          first_line=${reported%%$'\n'*}
+          case "$first_line" in
+            "solar $version+commit."*) ;;
+            *)
+              echo "::error::the release binary reports \"$first_line\", not solar $version+commit.*"
+              exit 1
+              ;;
+          esac
+          if ! printf '%s\n' "$reported" | grep -qx "Commit SHA: $GITHUB_SHA"; then
+            echo "::error::the release binary was not built from $GITHUB_SHA"
+            exit 1
+          fi
+
           cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.publish == null or (.publish | index("crates-io") != null)) | "\(.name) \(.version)"' > "$RUNNER_TEMP/crates.txt"
           if [ ! -s "$RUNNER_TEMP/crates.txt" ]; then
@@ -62,15 +82,21 @@ jobs:
             exit 1
           fi
 
+          # Build every packaged crate, which verifies the archives that crates.io would receive.
+          packages=()
+          while read -r name _; do packages+=(-p "$name"); done < "$RUNNER_TEMP/crates.txt"
+          cargo package --locked "${packages[@]}"
+
           : > "$RUNNER_TEMP/missing.txt"
           while read -r name crate_version; do
             status=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version")
             case "$status" in
               200)
-                # A published version must come from this commit, or the release is inconsistent.
-                published_sha=$(curl -fsS --max-time 120 -A "$user_agent" "https://static.crates.io/crates/$name/$name-$crate_version.crate" | tar -xzOf - "$name-$crate_version/.cargo_vcs_info.json" | jq -r '.git.sha1')
-                if [ "$published_sha" != "$GITHUB_SHA" ]; then
-                  echo "::error::$name@$crate_version is on crates.io from $published_sha, not $GITHUB_SHA"
+                # A published version must be this archive, or the release is inconsistent.
+                published=$(curl -fsS --max-time 30 -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version" | jq -r '.version.checksum')
+                built=$(sha256sum "target/package/$name-$crate_version.crate" | cut -d ' ' -f 1)
+                if [ "$published" != "$built" ]; then
+                  echo "::error::$name@$crate_version on crates.io ($published) is not the archive built from $GITHUB_SHA ($built)"
                   exit 1
                 fi
                 echo "$name@$crate_version is already published from this commit"
@@ -83,17 +109,12 @@ jobs:
             esac
           done < "$RUNNER_TEMP/crates.txt"
 
-          if [ ! -s "$RUNNER_TEMP/missing.txt" ]; then
+          if [ -s "$RUNNER_TEMP/missing.txt" ]; then
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          else
             echo "missing=false" >> "$GITHUB_OUTPUT"
             echo "Every crate is already published."
-            exit 0
           fi
-          echo "missing=true" >> "$GITHUB_OUTPUT"
-
-          # Build the packaged crates, which verifies the archives that will be uploaded.
-          packages=()
-          while read -r name; do packages+=(-p "$name"); done < "$RUNNER_TEMP/missing.txt"
-          cargo package --locked "${packages[@]}"
       - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
         if: steps.plan.outputs.missing == 'true'
         id: auth
@@ -108,18 +129,24 @@ jobs:
           packages=()
           while read -r name; do packages+=(-p "$name"); done < "$RUNNER_TEMP/missing.txt"
           cargo publish --locked --no-verify "${packages[@]}"
-      # Cargo can exit 0 when its index wait times out, so check every crate on crates.io.
+      # Cargo can exit 0 when its index wait times out, so check that every crate is in the
+      # sparse index, which is where Cargo resolves versions from.
       - name: Check that every crate is published
         if: steps.plan.outputs.missing == 'true'
         shell: bash
         run: |
-          user_agent="paradigmxyz/solar release workflow"
           while read -r name crate_version; do
+            case ${#name} in
+              1 | 2) index_path="${#name}/$name" ;;
+              3) index_path="3/${name:0:1}/$name" ;;
+              *) index_path="${name:0:2}/${name:2:2}/$name" ;;
+            esac
             for attempt in $(seq 1 30); do
-              status=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version" || true)
-              [ "$status" = 200 ] && break
+              if curl -fsS --max-time 30 "https://index.crates.io/$index_path" | jq -e --arg version "$crate_version" 'select(.vers == $version and .yanked == false)' > /dev/null; then
+                break
+              fi
               if [ "$attempt" = 30 ]; then
-                echo "::error::$name@$crate_version is not on crates.io"
+                echo "::error::$name@$crate_version is not in the crates.io index"
                 exit 1
               fi
               sleep 10
