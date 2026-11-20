@@ -48,6 +48,7 @@ def compile_source(binary, source, mode, ethdebug, directory):
             "evm.bytecode.ethdebug",
             "evm.deployedBytecode.ethdebug",
             "ethdebug.resources",
+            "ethdebug.compilation",
         ]
     request = {
         "language": "Solidity",
@@ -88,6 +89,9 @@ def write_artifacts(output, source, contract, directory, ethdebug):
     if ethdebug:
         write_json(
             directory / "ethdebug_resources.json", output["ethdebug"]["resources"]
+        )
+        write_json(
+            directory / "ethdebug_compilation.json", output["ethdebug"]["compilation"]
         )
         write_json(directory / f"{contract}_ethdebug.json", evm["bytecode"]["ethdebug"])
         write_json(

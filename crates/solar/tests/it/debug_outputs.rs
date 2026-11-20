@@ -139,7 +139,7 @@ fn debug_outputs_match_standard_json() {
         // settings, whereas the CLI uses its defaults without a CBOR trailer.
         // Check references before removing this identity difference.
         let cli_id = &output["ethdebug"]["compilation"]["id"];
-        let standard_id = standard["ethdebug"]["resources"]["compilation"]["id"].clone();
+        let standard_id = standard["ethdebug"]["compilation"]["id"].clone();
         assert!(cli_id.as_str().is_some_and(|id| !id.is_empty()));
         assert!(standard_id.as_str().is_some_and(|id| !id.is_empty()));
         for (name, field) in [("ethdebug", "bytecode"), ("ethdebug-runtime", "deployedBytecode")] {
@@ -148,14 +148,18 @@ fn debug_outputs_match_standard_json() {
             assert_eq!(program["compilation"]["id"], standard_id);
             program["compilation"]["id"] = cli_id.clone();
         }
-        standard["ethdebug"]["resources"]["compilation"]["id"] = cli_id.clone();
+        standard["ethdebug"]["compilation"]["id"] = cli_id.clone();
         let cli = &output["contracts"][CONTRACT];
         let evm = &standard["contracts"][SOURCE]["C"]["evm"];
         assert_eq!(cli["ethdebug"], evm["bytecode"]["ethdebug"], "{mode}");
         assert_eq!(cli["ethdebug-runtime"], evm["deployedBytecode"]["ethdebug"], "{mode}");
         assert_eq!(cli["srcmap"], evm["bytecode"]["sourceMap"], "{mode}");
         assert_eq!(cli["srcmap-runtime"], evm["deployedBytecode"]["sourceMap"], "{mode}");
-        assert_eq!(output["ethdebug"], standard["ethdebug"]["resources"], "{mode}");
+        assert_eq!(
+            output["ethdebug"]["compilation"], standard["ethdebug"]["compilation"],
+            "{mode}"
+        );
+        assert!(output["ethdebug"].get("resources").is_none(), "{mode}");
         let sources = output["sourceList"].as_array().unwrap();
         assert_eq!(sources.len(), 2);
         for (id, source) in sources.iter().enumerate() {
@@ -244,12 +248,16 @@ fn debug_output_directory_and_resources_only() {
     let resources = compile_json(&[SOURCE, "--emit=ethdebug-resources"]);
     assert!(resources.get("contracts").is_none());
     assert!(resources.get("sourceList").is_none());
-    let resources = &resources["ethdebug"];
-    assert_eq!(resources["compilation"]["sources"].as_array().unwrap().len(), 2);
-    assert!(resources["compilation"]["sources"].as_array().unwrap().iter().all(|source| {
+    let ethdebug = &resources["ethdebug"];
+    assert_eq!(ethdebug["compilation"]["sources"].as_array().unwrap().len(), 2);
+    assert!(ethdebug["compilation"]["sources"].as_array().unwrap().iter().all(|source| {
         let path = Path::new(FIXTURES).join(source["path"].as_str().unwrap());
         source["contents"] == RealFileLoader.load_file(&path).unwrap()
     }));
+    let resources = &ethdebug["resources"];
+    assert_eq!(resources["ethdebug"]["schema"], "ethdebug/format/info/resources");
+    assert_eq!(resources["ethdebug"]["version"], "0.1.0-draft.2");
+    assert!(resources.get("compilation").is_none());
     assert!(resources["types"].as_object().unwrap().is_empty());
     assert!(resources["pointers"].as_object().unwrap().is_empty());
 }

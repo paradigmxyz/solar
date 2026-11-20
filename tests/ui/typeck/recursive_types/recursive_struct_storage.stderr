@@ -98,19 +98,19 @@ LL │ ┃         S f;
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     function f(S memory s) public returns (S memory) {
    ╰╴               ━
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     function f(S memory s) public returns (S memory) {
    ╰╴                                           ━
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     function f(S calldata) external {}

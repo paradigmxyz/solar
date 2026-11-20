@@ -99,15 +99,10 @@ bb0:                                              ; runtime dispatch entry + fun
   swap 1
   dup 2
   add
-  dup 1
+  swap 2
+  dup 3
   push 64
   shr
-  dup 3
-  dup 3
-  lt
-  or
-  swap 1
-  swap 3
   or
   push bb12
   jumpi

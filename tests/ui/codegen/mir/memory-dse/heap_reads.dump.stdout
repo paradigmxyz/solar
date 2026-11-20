@@ -86,11 +86,8 @@ fn @load() {
     v51 = heap_floor !metadata(alloc_ptr)
     v52 = add v51, v14 !metadata(alloc_ptr)
     v60 = shr v52, 64
-    v53 = lt v52, v51
-    v62 = zext i1 v53 to i256
-    v63 = or v60, v62
-    v55 = ne v63, 0
-    jumpi v55, bb9, bb8
+    v54 = ne v60, 0
+    jumpi v54, bb9, bb8
   bb8:                                            ; preds = bb2
     mstore v51, v7
     jumpi v3, bb4, bb3
@@ -164,9 +161,7 @@ fn @hashes() {
     v36 = or v72, v52
     v95 = shr v36, 64
     v44 = eq v95, 0
-    v45 = gt v72, 31
-    v46 = and v44, v45
-    jumpi v46, bb6, bb7
+    jumpi v44, bb6, bb7
   bb7:                                            ; preds = bb14
     v79 = add v72, 32
     jump bb1
@@ -226,13 +221,6 @@ fn @wrapped() {
     mstore 0, 7 !metadata(memory=scratch)
     v17 = heap_floor !metadata(alloc_ptr)
     v18 = add v17, 64 !metadata(alloc_ptr)
-    v23 = shr v18, 64
-    v19 = lt v18, v17
-    v25 = zext i1 v19 to i256
-    v26 = or v23, v25
-    v21 = ne v26, 0
-    jumpi v21, bb2, bb1
-  bb1:                                            ; preds = bb0
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = add v17, 32
@@ -244,10 +232,6 @@ fn @wrapped() {
     v12 = mload v15
     mstore 0, v12 !metadata(memory=scratch)
     returndata 0, 32
-  bb2 [cold]:                                     ; preds = bb0
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 ; function below(uint256 scale) external pure returns (uint256 r) [selector 0x8de62f33]
@@ -257,28 +241,17 @@ fn @below() {
     v7 = lt v6, 36
     jumpi v7, bb1, bb2
   bb2:                                            ; preds = bb0
+    v8 = calldataload 4
     mstore 0, 7 !metadata(memory=scratch)
     v10 = heap_floor !metadata(alloc_ptr)
     v11 = add v10, 64 !metadata(alloc_ptr)
-    v17 = shr v11, 64
-    v12 = lt v11, v10
-    v19 = zext i1 v12 to i256
-    v20 = or v17, v19
-    v14 = ne v20, 0
-    jumpi v14, bb4, bb3
-  bb3:                                            ; preds = bb2
-    v16 = calldataload 4
     mstore 64, v11 !metadata(memory=scratch)
     mstore v10, 1
-    v2 = mul v10, v16
+    v2 = mul v10, v8
     v4 = sub v10, v2
     v5 = mload v4
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
-  bb4 [cold]:                                     ; preds = bb2
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

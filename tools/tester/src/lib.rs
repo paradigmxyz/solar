@@ -8,7 +8,8 @@ use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
-    io::{self, IsTerminal, Write},
+    fs,
+    io::{self, IsTerminal, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
@@ -410,6 +411,12 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
 }
 
+fn is_codegen_matrix(path: &Path) -> bool {
+    let mut src = String::new();
+    fs::File::open(path).and_then(|mut file| file.read_to_string(&mut src)).is_ok()
+        && codegen_matrix::is_standard(&src)
+}
+
 /// Drops the default `-j1` when the test passes its own thread count.
 fn retain_requested_threads(config: &mut ui_test::Config, src: &str) {
     if src.lines().any(|line| {
@@ -711,15 +718,17 @@ impl Flag for FileCheck {
         if stdout_path.exists() {
             return run_filecheck(config.status.path(), &self.args, &stdout_path);
         }
-        if !config
+
+        // The codegen matrix dumps MIR only in its `mir` revision; the others emit artifacts.
+        let dumps = config
             .comments()
             .flat_map(|comments| &comments.compile_flags)
-            .any(|flag| flag.starts_with("-Zdump="))
-        {
+            .any(|flag| flag.starts_with("-Zdump="));
+        if config.status.revision() != "mir" && !dumps && is_codegen_matrix(config.status.path()) {
             return Ok(());
         }
 
-        // Runtime checks discard stdout snapshots, but their IR dumps still need FileCheck.
+        // Without a committed snapshot, check the real output.
         let error = |err| command_error("FileCheck".into(), err);
         let mut stdout = tempfile::NamedTempFile::new().map_err(error)?;
         stdout.write_all(&output.stdout).map_err(error)?;

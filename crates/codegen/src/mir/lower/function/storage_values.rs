@@ -1091,8 +1091,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .expect("storage bytes array helper construction cannot fail");
             return Some(helper);
         }
-        if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
-            return self.ensure_storage_struct_array_helper(element, struct_id);
+        if let Some(name) = self.storage_struct_array_helper_name(element) {
+            return self.ensure_storage_struct_array_helper(element, name);
         }
         if matches!(element.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             return None;
@@ -1152,15 +1152,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn ensure_storage_struct_array_helper(
         &mut self,
         element: solar_sema::ty::Ty<'gcx>,
-        struct_id: solar_sema::hir::StructId,
+        name: Symbol,
     ) -> Option<FunctionId> {
-        self.lazy_helper(
-            helper_name(sym::load_storage_struct_array, struct_id.index()),
-            |this, function| {
-                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-                lowerer.lower_storage_struct_array_helper(element)
-            },
-        )
+        self.lazy_helper(name, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            lowerer.lower_storage_struct_array_helper(element)
+        })
+    }
+
+    /// Names the helper for a dynamic array of structs, or of fixed arrays of a recursive struct
+    /// such as `Node[2][]` in `struct Node { Node[2][] pairs; }`. Inlining the latter would recurse
+    /// through `Node` forever, so its helper cuts the cycle like the one for `Node[]`.
+    fn storage_struct_array_helper_name(&self, element: Ty<'gcx>) -> Option<Symbol> {
+        let mut lens = String::new();
+        let mut ty = element.peel_refs();
+        while let TyKind::Array(inner, len) = ty.kind {
+            lens.push_str(&format!("_{len}"));
+            ty = inner.peel_refs();
+        }
+        let TyKind::Struct(struct_id) = ty.kind else { return None };
+        if !lens.is_empty() && !self.storage_struct_is_recursive(struct_id) {
+            return None;
+        }
+        Some(helper_name(sym::load_storage_struct_array, format!("{}{lens}", struct_id.index())))
     }
 
     fn lower_storage_struct_array_helper(&mut self, element: Ty<'gcx>) -> Option<()> {
@@ -1844,15 +1858,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if !visiting.insert(struct_id) {
                     return false;
                 }
-                let contains = self.cx.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
+                self.cx.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
                     self.storage_type_reaches_struct(
                         self.cx.gcx.type_of_item(field.into()),
                         target,
                         visiting,
                     )
-                });
-                visiting.remove(&struct_id);
-                contains
+                })
             }
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
                 self.storage_type_reaches_struct(element, target, visiting)

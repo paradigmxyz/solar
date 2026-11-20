@@ -3,16 +3,19 @@
 use super::{
     data::{
         BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
-        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, MetadataHash,
-        MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
-        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
-        print_standard_json_stats, strip_json_comments,
+        DebugInfoComponent, DebugSettings, EvmOutput, MetadataHash, MetadataSettings, OffsetLength,
+        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
+        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
+        strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
 use crate::{
     bytecode::MaybeHexBytecode,
-    ethdebug::{EthdebugCompilation, make_ethdebug_compilation, make_ethdebug_program},
+    ethdebug::{
+        EthdebugCompilation, EthdebugOutput, EthdebugResources, make_ethdebug_compilation,
+        make_ethdebug_program,
+    },
 };
 use rayon::prelude::*;
 use serde_json::json;
@@ -512,7 +515,7 @@ fn compile(
                 if let Some(compilation) = compilation {
                     let mut ethdebug = EthdebugOutput::default();
                     if global_ethdebug.contains(OutputSelectionFlags::ETHDEBUG_RESOURCES) {
-                        ethdebug.resources = Some(compilation.clone().into_resources());
+                        ethdebug.resources = Some(EthdebugResources::new());
                     }
                     // A program always references its compilation resource. Emit it
                     // even when the caller selected only a per-contract program.

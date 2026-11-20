@@ -322,6 +322,8 @@ struct StructChains {
     direct_depth: Option<u32>,
     /// Whether a chain of any references reaches a cycle.
     reaches_cycle: bool,
+    /// The strongly connected component of the struct in the graph of any references.
+    component: usize,
 }
 
 /// How an internal call resolves in the most-derived contract.
@@ -2183,23 +2185,37 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     Recursiveness::Infinite(gcx.dcx().emit_err_code(gcx.item_span(id), code, msg))
 }
 
+/// Returns the strongly connected component of the given struct in the graph of structs that hold
+/// structs in storage. Structs on one cycle share a component.
+pub fn struct_component(gcx: _, id: hir::StructId) -> usize {
+    gcx.struct_chains(())[id].component
+}
+
 /// Returns the reference chains of every struct.
 fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChains]> {
     type Edges = IndexVec<hir::StructId, SmallVec<[hir::StructId; 2]>>;
 
     /// Returns the number of structs in the longest chain of references from each struct, or
-    /// `None` if the struct reaches a cycle.
-    fn chain_depths(edges: &Edges) -> IndexVec<hir::StructId, Option<u32>> {
+    /// `None` if the struct reaches a cycle, and the component of each struct.
+    fn chain_depths(
+        edges: &Edges,
+    ) -> (IndexVec<hir::StructId, Option<u32>>, IndexVec<hir::StructId, usize>) {
         let mut depths = IndexVec::from_vec(vec![None; edges.len()]);
+        let mut components = IndexVec::from_vec(vec![0; edges.len()]);
         // Components come in reverse topological order, so referenced structs come first.
-        for scc in graph::sccs(edges.len(), |id: hir::StructId| edges[id].iter().copied()) {
+        for (component, scc) in
+            graph::sccs(edges.len(), |id: hir::StructId| edges[id].iter().copied()).iter().enumerate()
+        {
+            for &id in scc {
+                components[id] = component;
+            }
             let id = scc[0];
             if scc.len() == 1 && !edges[id].contains(&id) {
                 depths[id] =
                     edges[id].iter().try_fold(1, |max, &other| Some(max.max(depths[other]? + 1)));
             }
         }
-        depths
+        (depths, components)
     }
 
     let len = gcx.hir.strukt_ids().len();
@@ -2219,9 +2235,15 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
         direct.push(direct_refs);
         any.push(any_refs);
     }
-    let chains = chain_depths(&direct).into_iter().zip(chain_depths(&any)).map(|(direct, any)| {
-        StructChains { direct_depth: direct, reaches_cycle: any.is_none() }
-    });
+    let (direct_depths, _) = chain_depths(&direct);
+    let (any_depths, components) = chain_depths(&any);
+    let chains = direct_depths.into_iter().zip(any_depths).zip(components).map(
+        |((direct, any), component)| StructChains {
+            direct_depth: direct,
+            reaches_cycle: any.is_none(),
+            component,
+        },
+    );
     IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
 }
 
@@ -2329,7 +2351,11 @@ fn interface_function_ty_checked<'gcx>(
             let kind = f.description();
             let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
             let span = gcx.hir.variable(var_id).ty.span;
-            result = Err(gcx.dcx().emit_err(span, msg));
+            let mut diag = gcx.dcx().err(msg).code(error_code!(4103)).span(span);
+            if c.kind.is_library() && subject == "recursive types" {
+                diag = diag.help("pass recursive structs to libraries as storage pointers");
+            }
+            result = Err(diag.emit());
         }
     }
     if result.is_err() {

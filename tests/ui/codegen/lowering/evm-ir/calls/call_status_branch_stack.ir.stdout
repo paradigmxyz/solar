@@ -56,9 +56,6 @@ bb10 [cold]:
   push 28
   revert
 bb7 [entry]:                                      ; function get(uint256 x) external pure returns (Data memory) [selector 0x9507d39a]
-  push 512
-  push 64
-  mstore
   push 1
   push 4
   calldataload

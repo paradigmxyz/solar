@@ -14,13 +14,13 @@ LL │ ┃         A a;
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_function_parameter.sol:LL:CC
    │
 LL │     function c1(C memory) public {}
    ╰╴                ━
 
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_function_parameter.sol:LL:CC
    │
 LL │     function c2() public returns(C memory) {}

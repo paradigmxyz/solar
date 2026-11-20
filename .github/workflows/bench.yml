@@ -20,7 +20,7 @@ on:
       solc_version:
         description: solc release used by the codegen runtime benchmark
         required: true
-        default: 0.8.38
+        default: 0.8.39
         type: string
 
 env:
@@ -29,7 +29,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
   PINNED_SCCACHE_VERSION: v0.19.0
-  SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
+  SOLC_VERSION: ${{ inputs.solc_version || '0.8.39' }}
   # Slang prerelease (NomicFoundation/solx release d95c1150).
   SLANG_RELEASE: d95c1150
   SLANG_ASSET: slang-linux-amd64-gnu-2026-10-29

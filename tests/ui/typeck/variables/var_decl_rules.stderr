@@ -1,10 +1,10 @@
-error: immutable variables cannot have a non-value type
+error[6377]: immutable variables cannot have a non-value type
    ╭▸ ROOT/tests/ui/typeck/variables/var_decl_rules.sol:LL:CC
    │
 LL │     uint[] immutable IMMUT_ARRAY;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: immutable variables cannot have a non-value type
+error[6377]: immutable variables cannot have a non-value type
    ╭▸ ROOT/tests/ui/typeck/variables/var_decl_rules.sol:LL:CC
    │
 LL │     S immutable IMMUT_STRUCT;
@@ -16,7 +16,7 @@ error: immutable variables of external function type are not yet supported
 LL │     function(uint) external immutable IMMUT_EXT_FN;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: immutable variables cannot have a non-value type
+error[6377]: immutable variables cannot have a non-value type
    ╭▸ ROOT/tests/ui/typeck/variables/var_decl_rules.sol:LL:CC
    │
 LL │     WithMapping immutable IMMUT_WITH_MAPPING;
