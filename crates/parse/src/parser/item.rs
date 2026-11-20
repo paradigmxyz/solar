@@ -34,7 +34,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
 
         let mut items = Vec::new();
-        while let Some(item) = self.parse_item()? {
+        loop {
+            let item = match self.parse_item() {
+                Ok(Some(item)) => item,
+                Ok(None) => break,
+                // Stop at a token whose error was already reported, keeping the items so far.
+                Err(err) if self.is_reported_error(&err) => {
+                    err.cancel();
+                    let _ = self.eat(end);
+                    return Ok(self.alloc_vec(items));
+                }
+                Err(err) => return Err(err),
+            };
             if self.in_contract && !item.is_allowed_in_contract() {
                 let msg = format!("{}s are not allowed in contracts", item.description());
                 let (_, note) = get_msg_note(self);
