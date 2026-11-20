@@ -354,8 +354,13 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
     // FileCheck checks the output of a test without a committed snapshot, so the snapshot
     // comparison must not require one.
-    if has_filecheck(src) && !has_committed_stdout(path) {
-        config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+    for revision in snapshotless_filecheck_revisions(src, path) {
+        if revision.is_empty() {
+            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+        } else {
+            let defaults = config.comment_defaults.revisioned.entry(vec![revision]).or_default();
+            defaults.normalize_stdout.push((run_call_stdout_regex().clone().into(), vec![]));
+        }
     }
     if matches!(cfg.mode, Mode::StandardJson) {
         config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
@@ -422,23 +427,41 @@ fn is_codegen_matrix(path: &Path) -> bool {
         && codegen_matrix::is_standard(&src)
 }
 
-fn has_filecheck(src: &str) -> bool {
-    src.lines().any(|line| {
-        let line = line.trim_start();
-        line.starts_with("//@") && line.contains("filecheck:")
-    })
-}
-
-/// Returns whether any revision of the test commits a `.stdout` snapshot.
-fn has_committed_stdout(path: &Path) -> bool {
-    let (Some(dir), Some(stem)) = (path.parent(), path.file_stem().and_then(OsStr::to_str)) else {
-        return false;
+/// Returns the revisions that FileCheck the compiler's output because they commit no `.stdout`.
+/// The empty name stands for a test without revisions.
+fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
+    let mut all = if codegen_matrix::is_standard(src) {
+        codegen_matrix::revisions(src).into_iter().map(str::to_owned).collect()
+    } else {
+        Vec::new()
     };
-    let prefix = format!("{stem}.");
-    fs::read_dir(dir).into_iter().flatten().flatten().any(|entry| {
-        let name = entry.file_name();
-        name.to_str().is_some_and(|name| name.starts_with(&prefix) && name.ends_with(".stdout"))
-    })
+    let mut scoped = Vec::new();
+    let mut unscoped = false;
+    for (directive, revisions) in src.lines().filter_map(run_call::parse_directive) {
+        if let Some(list) = directive.strip_prefix("revisions:") {
+            all.extend(list.split_whitespace().map(str::to_owned));
+        } else if directive.starts_with("filecheck:") {
+            match revisions {
+                Some(revisions) => scoped.extend(revisions.split(',').map(|r| r.trim().to_owned())),
+                None => unscoped = true,
+            }
+        }
+    }
+    if all.is_empty() {
+        all.push(String::new());
+    }
+    let mut checked = scoped;
+    if unscoped {
+        checked.extend(all);
+    }
+    checked.sort();
+    checked.dedup();
+    checked.retain(|revision| {
+        let extension =
+            if revision.is_empty() { "stdout".into() } else { format!("{revision}.stdout") };
+        !path.with_extension(extension).exists()
+    });
+    checked
 }
 
 /// Drops the default `-j1` when the test passes its own thread count.
