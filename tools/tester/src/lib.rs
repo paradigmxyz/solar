@@ -430,21 +430,27 @@ fn is_codegen_matrix(path: &Path) -> bool {
 /// Returns the revisions that FileCheck the compiler's output because they commit no `.stdout`.
 /// The empty name stands for a test without revisions.
 fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
-    let mut all = if codegen_matrix::is_standard(src) {
+    let is_matrix = codegen_matrix::is_standard(src);
+    let mut all = if is_matrix {
         codegen_matrix::revisions(src).into_iter().map(str::to_owned).collect()
     } else {
         Vec::new()
     };
     let mut scoped = Vec::new();
     let mut unscoped = false;
+    let mut dumps = Vec::new();
     for (directive, revisions) in src.lines().filter_map(run_call::parse_directive) {
+        let revisions = revisions.map(|list| list.split(',').map(|r| r.trim().to_owned()));
         if let Some(list) = directive.strip_prefix("revisions:") {
             all.extend(list.split_whitespace().map(str::to_owned));
         } else if directive.starts_with("filecheck:") {
             match revisions {
-                Some(revisions) => scoped.extend(revisions.split(',').map(|r| r.trim().to_owned())),
+                Some(revisions) => scoped.extend(revisions),
                 None => unscoped = true,
             }
+        } else if directive.contains("compile-flags") && directive.contains("-Zdump=") {
+            // `None` dumps in every revision.
+            dumps.push(revisions.map(Iterator::collect::<Vec<_>>));
         }
     }
     if all.is_empty() {
@@ -457,9 +463,19 @@ fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
     checked.sort();
     checked.dedup();
     checked.retain(|revision| {
-        let extension =
-            if revision.is_empty() { "stdout".into() } else { format!("{revision}.stdout") };
-        !path.with_extension(extension).exists()
+        // A matrix revision other than `mir` checks only when it dumps, as in `FileCheck`.
+        let checks = !is_matrix
+            || revision == "mir"
+            || dumps.iter().any(|dump| dump.as_ref().is_none_or(|list| list.contains(revision)));
+        let has_snapshot = ["", "32bit.", "64bit."].iter().any(|bitwidth| {
+            let name = if revision.is_empty() {
+                format!("{bitwidth}stdout")
+            } else {
+                format!("{bitwidth}{revision}.stdout")
+            };
+            path.with_extension(name).exists()
+        });
+        checks && !has_snapshot
     });
     checked
 }
