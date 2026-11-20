@@ -27,6 +27,7 @@ jobs:
       contents: read
     outputs:
       crates: ${{ steps.plan.outputs.crates }}
+      sums: ${{ steps.plan.outputs.sums }}
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -111,7 +112,14 @@ jobs:
             esac
           done < "$RUNNER_TEMP/crates.txt"
 
-          echo "crates=$(awk '{ printf "%s%s@%s", sep, $1, $2; sep = " " }' "$RUNNER_TEMP/crates.txt")" >> "$GITHUB_OUTPUT"
+          sums=()
+          while read -r name crate_version; do
+            sums+=("$name@$crate_version=$(sha256sum "target/package/$name-$crate_version.crate" | cut -d ' ' -f 1)")
+          done < "$RUNNER_TEMP/crates.txt"
+          {
+            echo "crates=$(awk '{ printf "%s%s@%s", sep, $1, $2; sep = " " }' "$RUNNER_TEMP/crates.txt")"
+            echo "sums=${sums[*]}"
+          } >> "$GITHUB_OUTPUT"
           if [ ! -s "$RUNNER_TEMP/missing.txt" ]; then
             echo "Every crate is already published."
           fi
@@ -191,10 +199,22 @@ jobs:
         shell: bash
         env:
           CRATES: ${{ needs.check.outputs.crates }}
+          SUMS: ${{ needs.check.outputs.sums }}
         run: |
+          user_agent="paradigmxyz/solar release workflow"
           for crate in $CRATES; do
             name=${crate%@*}
             crate_version=${crate#*@}
+            # Whoever uploaded the version, it must be the archive that the check job built.
+            expected=""
+            for sum in $SUMS; do
+              if [ "${sum%=*}" = "$crate" ]; then expected=${sum#*=}; fi
+            done
+            published=$(curl -fsS --max-time 30 -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version" | jq -r '.version.checksum' || true)
+            if [ -z "$expected" ] || [ "$published" != "$expected" ]; then
+              echo "::error::$crate on crates.io (${published:-missing}) is not the archive built from $GITHUB_SHA (${expected:-unknown})"
+              exit 1
+            fi
             case ${#name} in
               1 | 2) index_path="${#name}/$name" ;;
               3) index_path="3/${name:0:1}/$name" ;;
