@@ -19,6 +19,22 @@ open EvmRules SolarTV.Execution
 /-- An absent result is caller out-of-gas; evaluator errors remain unsupported. -/
 abbrev MessageStep := Except String (Option (Outcome (Option Word × Frame) × Nat))
 
+def callBudget (cfg : Config) (frame : Frame) (externalConfig : EVM.State.Config)
+    (memory : List Byte) (message : Calls.Message) (opcode resolution : Nat)
+    (gas : Option Word) : Except String (Option (Nat × Nat)) :=
+  match cfg.messageGas with
+  | none => do
+    let gas ← required gas "implicit address-call gas requires caller pricing"
+    pure (some (gas.toNat + if Calls.hasValue message then 2300 else 0,0))
+  | some budgets => do
+    let available ← required budgets[frame.messageGas.length]? "missing MIR caller gas budget"
+    let charge := EVM.State.callBoundaryCharge externalConfig frame.world message opcode resolution
+      (memoryWords frame.memory) (memoryWords memory)
+    if available < charge then pure none else
+      let requested := gas.map BitVec.toNat |>.getD (available-charge)
+      pure ((Calls.forwardGas cfg.fork (available-charge) requested (Calls.hasValue message)).map
+        (fun budget => (budget.supplied,available-charge-budget.charged)))
+
 def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
     (args : List Word) (gas : Option Word) : MessageStep := do
   let externalConfig ← required cfg.externalConfig "missing MIR external execution configuration"
@@ -45,18 +61,7 @@ def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
     let memory ← expand memory outputOffset.toNat outputSize.toNat
     let (code,resolution,world) := EVM.State.executionCode cfg.fork frame.world (destination.setWidth 160)
     let message := ⟨kind,destination.setWidth 160,amount,readBytes memory inputOffset.toNat inputSize.toNat⟩
-    let budget ← match cfg.messageGas with
-      | none => do
-        let gas ← required gas "implicit address-call gas requires caller pricing"
-        pure (some (gas.toNat + if Calls.hasValue message then 2300 else 0,0))
-      | some budgets => do
-        let available ← required budgets[frame.messageGas.length]? "missing MIR caller gas budget"
-        let charge := EVM.State.callBoundaryCharge externalConfig frame.world message opcode resolution
-          (memoryWords frame.memory) (memoryWords memory)
-        if available < charge then pure none else
-          let requested := gas.map BitVec.toNat |>.getD (available-charge)
-          pure ((Calls.forwardGas cfg.fork (available-charge) requested (Calls.hasValue message)).map
-            (fun budget => (budget.supplied,available-charge-budget.charged)))
+    let budget ← callBudget cfg frame externalConfig memory message opcode resolution gas
     let some (supplied,retained) := budget | return none
     let child ← EVM.State.executeCall (EVM.State.run fuel externalConfig) externalConfig world
       cfg.environment message code supplied

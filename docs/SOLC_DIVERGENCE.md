@@ -343,6 +343,42 @@ token.
 
 Coverage: `tests/ui/parser/number_literal_too_large.sol`.
 
+### PARSE-007: Expression trees are limited to 2500 levels
+
+Status: intentional.
+
+Difference: `solc` accepts expressions of any depth when it only analyzes them,
+so `--abi` accepts a chain of 30000 `^` operators. `solar` rejects an
+expression tree deeper than 2500 levels during parsing with `expression is too
+deeply nested`. A level is an operand, an operator in a binary chain, a member
+access, call or index in a postfix chain, a prefix or postfix operator, or a
+parenthesis, and nested expressions add up, so one expression can contain any number of
+shallow operands. Code generation in `solc` does not accept such depth either:
+its legacy code generator fails with `Stack too deep` on a chain of 16
+terms, and `--via-ir --optimize` crashes with a segmentation fault on a
+chain of 10000.
+
+Rationale: every pass that walks an expression recurses once per level, and the
+parser builds these chains in a loop, so the recursion limit does not bound
+them. A chain of about 10000 operators overflows the 8 MiB stack of the main
+thread, which `-j1` uses, in a release build. The limit assumes a stack of at
+least 8 MiB: a thread with 2 MiB overflows on chains near the limit, and the
+wasm build, whose stack is 1 MiB, on chains of about 1200 levels. The limit is
+approximate: wrappers such as parentheses and prefix operators add levels
+without a check, bounded by the recursion limit, so a tree can exceed it by a
+few hundred levels.
+
+Coverage: `tests/ui/parser/expr_depth_limit.sol`,
+`tests/ui/parser/expr_depth_limit_max.sol`,
+`tests/ui/parser/expr_depth_limit_postfix.sol`,
+`tests/ui/parser/expr_depth_limit_nested.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_member.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_max.sol`,
+`tests/ui/parser/expr_depth_limit_decl_max.sol`,
+`tests/ui/parser/expr_depth_limit_reset.sol` and
+`tests/ui/parser/expr_depth_limit_recover.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings
@@ -992,7 +1028,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   call one shared helper, unless a pointer is computed from constants or
   calldata alone, so a memory object that assembly places in that range through
   any other computation can be overwritten by the helper's frame before the
-  copy reads it.
+  copy reads it. Assembly can also step back from the first heap object into the
+  words below it, as far as `0x80` bytes: the compiler keeps room for that step,
+  which lands in the reserved low words under `solc`. A longer step lands in an
+  earlier heap object, or wraps and runs out of gas under `solc`, and the
+  compiler keeps no room for it, so it can land in a frame. A pointer that
+  assembly rounds down with a mask that clears more than a word can fall
+  further back than the compiler keeps room for, which is at most `0x80` bytes.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -1019,19 +1061,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   supplies, or one that a store through a computed address, a copy, or a byte
   store leaves there. A pointer from the heap is proven, also when moved by an
   offset that cannot wrap the address space, or stepped back from by a
-  constant outside a loop. A word that is also read as data, such as one hashed
-  in scratch memory, or loaded and then compared, hashed, encoded, stored, or
-  used as a key, stays in the slot for those reads, and only the pointer reads
-  see the raised value. The raise is `max(word, heap floor)`, where the heap
-  floor is resolved when frames are placed, so a pass that later folds the
-  word, as inlining does for a helper's argument, cannot remove it.
+  constant of at most `0x80` outside a loop. A word that is also read as data,
+  such as one hashed in scratch memory, or loaded and then compared, hashed,
+  encoded, stored, or used as a key, stays in the slot for those reads, and only
+  the pointer reads see the raised value. The raise is `max(word, heap floor)`,
+  where the heap floor is resolved when frames are placed, so a pass that later
+  folds the word, as inlining does for a helper's argument, cannot remove it.
 
   Each entry places its spill slots and frames clear of every fixed memory
   range that the code it runs names, wherever the range lies, when the area,
   its allocations, and its frames would cover it. An entry that runs code
   writing memory at an address computed from calldata, as Seaport lays out a
   basic order's hashes and event data, also keeps them above `0x2080`, unless it
-  places none of them. Other entries keep their memory low unless they share
+  places none of them. An address that a call passes to a parameter, or that a
+  callee returns, counts as computed from calldata when some call or return
+  gives it calldata, but a function's second and later results, which travel in
+  memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
   initial pointer.
 
@@ -1053,10 +1098,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   place, so it keeps the code it had before these rules: it trusts the type of a
   memory reference, a word loaded from a memory object, and a call result as
   heap pointers, and raises only constants and calldata words stored into the
-  free memory pointer slot. Such a block cannot store a low address into an
-  object's field without breaking its promise. An unmarked block that writes no
-  memory (no `mstore`, `mstore8`, copy, or call, and no assignment to a memory
-  reference) breaks no promise either, so it does not count.
+  free memory pointer slot, also when a call passes or returns them, and an
+  external function's integer and calldata reference parameters count as
+  calldata words. Such a
+  block cannot store a low address into an object's field without breaking its
+  promise. An unmarked block that writes no memory (no `mstore`, `mstore8`,
+  copy, or call, and no assignment to a memory reference) breaks no promise
+  either, so it does not count.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,

@@ -16,16 +16,16 @@ from . import evmir, memory, native, regions
 from .common import Inconclusive, Unsupported
 
 
-def certify(program, executable, timeout, *, entry_label, stack_height):
-    catalog = {row["name"]: row for row in native.catalog(executable, timeout)["evmir"]}
+def export(text, entry_label, version, executable, timeout):
+    """Obtain the independent reachable graph without assigning opcode semantics."""
     response = subprocess.run(
         [executable, "--evm-model"],
         input=json.dumps(
             {
                 "version": 1,
-                "text": program.replay_ir,
+                "text": text,
                 "entry": int(entry_label.removeprefix("bb")),
-                "evm_version": program.evm_version,
+                "evm_version": version,
             }
         ),
         text=True,
@@ -47,6 +47,15 @@ def certify(program, executable, timeout, *, entry_label, stack_height):
         or [row["id"] for row in rows] != list(range(len(rows)))
     ):
         raise Unsupported("invalid independent EVM graph indices")
+    return model
+
+
+def certify(program, executable, timeout, *, entry_label, stack_height):
+    catalog = {row["name"]: row for row in native.catalog(executable, timeout)["evmir"]}
+    model = export(
+        program.replay_ir, entry_label, program.evm_version, executable, timeout
+    )
+    rows = model["nodes"]
 
     def target(node, name):
         value = node[name]

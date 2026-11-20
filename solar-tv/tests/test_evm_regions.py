@@ -157,9 +157,9 @@ bb1:
         text = "@module Unrelated\nbb0:\n  jump bb1\nbb1:\n  stop\nbb99:\n  push 0\n  push 0\n  sstore\n  stop\n"
         self.pair(text, text.replace("bb1:\n  stop", "bb1:\n  push 1\n  pop\n  stop"))
 
-    def test_cycles_dynamic_targets_and_gas_are_explicitly_unsupported(self):
+    def test_escaping_labels_and_physical_gas_remain_unsupported(self):
         for body in (
-            "bb0 [stack=1]:\n  jump\n",
+            "bb0:\n  pc\n  pop\n  stop\n",
             "bb0:\n  push bb1\n  push 0\n  mstore\n  stop\nbb1:\n  stop\n",
         ):
             with self.subTest(body=body):

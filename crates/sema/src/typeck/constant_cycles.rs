@@ -24,7 +24,7 @@ use crate::{
     ty::Gcx,
 };
 use solar_data_structures::{
-    Never, graph,
+    graph,
     index::IndexVec,
     map::{FxHashSet, FxIndexMap},
 };
@@ -171,7 +171,7 @@ struct ConstantReferences<'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for ConstantReferences<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

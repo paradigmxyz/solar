@@ -75,6 +75,9 @@ pub struct EvmCodegen<'gcx> {
     spill_slots: FxHashMap<ValueId, u32>,
     /// The spill slot of the body's return address, when it leaves the stack.
     ret_spill_slot: Option<u32>,
+    /// The uses of each value of the body being emitted, counted before stackify rebuilds values.
+    /// Only filled when debug info is captured.
+    use_counts: IndexVec<ValueId, u32>,
     /// Block labels.
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
@@ -200,6 +203,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             asm: Assembler::new(gcx),
             spill_slots: FxHashMap::default(),
             ret_spill_slot: None,
+            use_counts: IndexVec::new(),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
             empty_stop_functions: DenseBitSet::new_empty(0),

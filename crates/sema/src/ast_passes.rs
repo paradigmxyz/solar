@@ -1,7 +1,6 @@
 //! AST-related passes.
 
 use solar_ast::{self as ast, visit::Visit};
-use solar_data_structures::Never;
 use solar_interface::{
     Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
     sym,
@@ -187,7 +186,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         &mut self,
         part: YulForPart,
         block: &'ast ast::yul::Block<'ast>,
-    ) -> ControlFlow<Never> {
+    ) -> ControlFlow<!> {
         let prev = std::mem::replace(&mut self.yul_for_part, part);
         let r = self.visit_yul_block(block);
         self.yul_for_part = prev;
@@ -224,7 +223,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         self.item_span = item.span;

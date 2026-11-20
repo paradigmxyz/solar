@@ -49,9 +49,11 @@ def withMemory (world : Journal) (frame : Frame) (charge offset count : Nat)
     let memory ← expand frame.memory offset count
     continuation {frame with memory, gas := frame.gas - total}
 
-def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
-  if frame.pc ≥ frame.code.length then .ok (.done ⟨.success, [], world, frame.gas, 0⟩) else
-  let opcode := frame.code[frame.pc]?.getD 0 |>.toNat
+def instructionWithImage (cfg : Config) (world : Journal) (frame : Frame)
+    (codeLength : Nat) (opcodeByte : Byte) (immediate : Nat → Word) (jump : Word → Bool)
+    (hash : List Byte → Word := Keccak.hash) : Action :=
+  if frame.pc ≥ codeLength then .ok (.done ⟨.success, [], world, frame.gas, 0⟩) else
+  let opcode := opcodeByte.toNat
   let info := available cfg opcode
   if !info.available then stepFailed world
   -- Amsterdam's environment/memory fragment is admitted independently of the
@@ -73,7 +75,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     if frame.gas < info.base then stepExhausted world else
       .ok (.next world {frame with
         pc := frame.pc + 1 + (opcode - 0x5f)
-        stack := pushValue frame.code frame.pc (opcode - 0x5f) :: frame.stack
+        stack := immediate (opcode - 0x5f) :: frame.stack
         gas := frame.gas - info.base})
   else if 0x80 ≤ opcode ∧ opcode ≤ 0x9f then
     let op := if opcode < 0x90 then EVM.Op.dup ⟨opcode - 0x80, by omega⟩
@@ -96,7 +98,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       else next world {frame with gas := frame.gas - info.base}
         (environmentValue cfg opcode a :: rest)
     | 0x20 => withMemory world frame (info.base + info.dynamic * ((b.toNat + 31) / 32)) a.toNat b.toNat fun frame =>
-          next world frame (Keccak.hash (readBytes frame.memory a.toNat b.toNat) :: rest)
+          next world frame (hash (readBytes frame.memory a.toNat b.toNat) :: rest)
     | 0x30 | 0x32 | 0x33 | 0x34 | 0x36 | 0x38 | 0x3a | 0x3d | 0x47 | 0x58 | 0x59 | 0x5a | 0x5f =>
       if frame.gas < info.base then stepExhausted world else
         let value := match opcode with
@@ -105,7 +107,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
           | 0x33 => frame.environment.caller.setWidth 256
           | 0x34 => frame.environment.value
           | 0x36 => BitVec.ofNat 256 frame.environment.input.length
-          | 0x38 => BitVec.ofNat 256 frame.code.length
+          | 0x38 => BitVec.ofNat 256 codeLength
           | 0x3a => frame.environment.gasPrice
           | 0x3d => BitVec.ofNat 256 frame.returnData.length
           | 0x47 => (account world frame.environment.address).balance
@@ -176,7 +178,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     | 0x56 | 0x57 =>
       if frame.gas < info.base then stepExhausted world
       else if opcode = 0x57 && b == 0 then next world {frame with gas := frame.gas - info.base} rest
-      else if !validJump frame.code a then stepFailed world
+      else if !jump a then stepFailed world
       else .ok (.next world {frame with stack := rest, pc := a.toNat, gas := frame.gas - info.base})
     | 0x5b =>
       if frame.gas < info.base then stepExhausted world
@@ -232,52 +234,58 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
             next {world with logs := world.logs ++ [log]} frame rest
       else .error s!"unmodeled world opcode {opcode}"
 
+def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
+  instructionWithImage cfg world frame frame.code.length (frame.code[frame.pc]?.getD 0)
+    (pushValue frame.code frame.pc) (validJump frame.code)
+
+/-- Resolve a step using the same child evaluator at every message boundary. -/
+def advance (cfg : Config) (execute : ChildExecutor) (signal : Step) :
+    Except String (Result ⊕ (Nat × Journal × Frame)) := do
+  match signal with
+  | .done result => return .inl result
+  | .next world frame => return .inr (0,world,frame)
+  | .call message outOffset outSize requested code world frame =>
+    let checkpoint := warmAddress world message.destination
+    if frame.environment.depth ≥ 1024 ||
+        ((message.kind == .call || message.kind == .callcode) &&
+          (account world frame.environment.address).balance.ult message.value) then
+      -- A rejected value-bearing call returns its unspent stipend too.
+      return .inr (0,checkpoint,{frame with
+        stack := 0 :: frame.stack
+        returnData := []
+        gas := frame.gas + if Calls.hasValue message then 2300 else 0})
+    else
+      match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
+      | none => return .inl ⟨.outOfGas,[],checkpoint,0,0⟩
+      | some budget =>
+        let child ← executeCall execute cfg checkpoint frame.environment message code budget.supplied
+        return .inr (child.work,child.world,{frame with
+          stack := child.value :: frame.stack
+          memory := writeBytes frame.memory outOffset (child.data.take outSize)
+          returnData := child.data
+          gas := frame.gas - budget.charged + child.gas})
+  | .create salt value initcode world frame =>
+    let creator := account world frame.environment.address
+    if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then
+      return .inr (0,world,{frame with stack := 0 :: frame.stack, returnData := []})
+    else
+      let forwarded := if cfg.fork.atLeast .tangerineWhistle then frame.gas - frame.gas / 64 else frame.gas
+      let child ← executeCreation execute cfg world frame.environment salt value initcode forwarded
+      return .inr (child.work,child.world,{frame with
+        stack := child.value :: frame.stack
+        returnData := child.data
+        gas := frame.gas - forwarded + child.gas})
+
 /-- Work fuel bounds the evaluator, not the EVM. Exhaustion is unsupported. -/
-def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
+def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run := do
   match fuel with
   | 0 => .error "world instruction/depth evaluation limit"
-  | fuel + 1 => do
-    let result ← match ← instruction cfg world frame with
-      | .done result => pure result
-      | .next world frame => run fuel cfg world frame
-      | .call message outOffset outSize requested code world frame =>
-        let checkpoint := warmAddress world message.destination
-        if frame.environment.depth ≥ 1024 ||
-            ((message.kind == .call || message.kind == .callcode) &&
-              (account world frame.environment.address).balance.ult message.value) then
-          -- A rejected value-bearing call returns its unspent stipend too.
-          run fuel cfg checkpoint {frame with
-            stack := 0 :: frame.stack
-            returnData := []
-            gas := frame.gas + if Calls.hasValue message then 2300 else 0}
-        else
-          match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
-          | none => exhausted checkpoint
-          | some budget =>
-            let child ← executeCall (run fuel cfg) cfg checkpoint frame.environment message code budget.supplied
-            let committed := child.world
-            let data := child.data
-            let returned := child.gas
-            let copied := data.take outSize
-            let resumed ← run (fuel - child.work) cfg committed {frame with
-              stack := child.value :: frame.stack
-              memory := writeBytes frame.memory outOffset copied
-              returnData := data
-              gas := frame.gas - budget.charged + returned}
-            pure {resumed with work := resumed.work + child.work}
-      | .create salt value initcode world frame =>
-        let creator := account world frame.environment.address
-        if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then
-          run fuel cfg world {frame with stack := 0 :: frame.stack, returnData := []}
-        else
-          let forwarded := if cfg.fork.atLeast .tangerineWhistle then frame.gas - frame.gas / 64 else frame.gas
-          let child ← executeCreation (run fuel cfg) cfg world frame.environment salt value initcode forwarded
-          let resumed ← run (fuel - child.work) cfg child.world {frame with
-            stack := child.value :: frame.stack
-            returnData := child.data
-            gas := frame.gas - forwarded + child.gas}
-          pure {resumed with work := resumed.work + child.work}
-    return {result with work := result.work + 1}
+  | fuel + 1 =>
+    match ← advance cfg (run fuel cfg) (← instruction cfg world frame) with
+    | .inl result => return {result with work := result.work + 1}
+    | .inr (spent,world,frame) =>
+      let result ← run (fuel - spent) cfg world frame
+      return {result with work := result.work + spent + 1}
 termination_by fuel
 decreasing_by all_goals omega
 
@@ -287,12 +295,12 @@ theorem run_next (fuel : Nat) {cfg world frame nextWorld nextFrame}
     run (fuel + 1) cfg world frame = (do
       let result ← run fuel cfg nextWorld nextFrame
       return {result with work := result.work + 1}) := by
-  simp only [run, h, Except.bind, Bind.bind, Except.pure, Pure.pure]
+  simp only [run, h, advance, Except.bind, Bind.bind, Except.pure, Pure.pure, Nat.sub_zero, Nat.add_zero]
 
 theorem run_done (fuel : Nat) {cfg world frame result}
     (h : instruction cfg world frame = .ok (.done result)) :
     run (fuel + 1) cfg world frame = .ok {result with work := result.work + 1} := by
-  simp only [run, h, Except.bind, Bind.bind, Except.pure, Pure.pure]
+  simp only [run, h, advance, Except.bind, Bind.bind, Except.pure, Pure.pure]
 
 theorem run_error (fuel : Nat) {cfg world frame reason}
     (h : instruction cfg world frame = .error reason) :

@@ -82,10 +82,14 @@ before either a proof or a counterexample can be accepted.
 | --- | --- | --- |
 | MIR scalar projection | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | MIR direct source | Void/multiple/aggregate interfaces and acyclic calls; memory/storage effects with a proved defined execution over arbitrary caller state. | All returned leaves, live memory, storage, returndata, access warmth and exact modeled outcomes; abstract MIR is unpriced. |
+| MIR fresh heap | A constant initial allocation lowered to a named heap-floor reservation; the complete single-block SSA body is checked. | Direct-state effects under an explicit placement/FMP producer condition; neither caller initialization nor backend placement is inferred. |
 | MIR compositional effects | Acyclic integer/pointer functions, supplied internal callees, explicit opcode/allocation effects and constructor-range requests. | Equal ordered requests and terminal boundaries for every possible effect result; arbitrary stateful handlers, including failure; scalar steps are unpriced. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 | EVM effectful prefix | A scalar/stack rewrite across memory, hash or log operations and static conditional exits, with an identical remaining suffix. | Every original success preserves the exit, complete stack/world and no less gas, for arbitrary gas-independent effect handlers and shared transfer charges. |
 | EVM post-precompile suffix | A changed tail after an exactly shared prefix, with canonical recovery-precompile calls and GAS reads retained. | All shared prefix halts are identical; successful suffixes preserve their exit and complete stack/world with no less gas. The shared prefix-executor binding remains trusted. |
+| EVM scalar island | An exact-cost stack rewrite between unchanged contexts, including storage sentries, logs and static guards. | All prefix exits, checked stacks and remaining gas are preserved; context-executor bindings remain trusted. |
+| EVM source graph identity | Identical independently exported reachable graphs, including stateful operations and transfer stack checks. | Every initial state and execution bound under shared node handlers; structural evidence, without an opcode-implementation or physical gas/layout proof. |
+| EVM stack layout | Reordered source nodes and changed zero/one-slot transfer checks, with kernel-checked height bounds. | Every initial height, payload and execution bound under shared schema-shaped handlers; unpriced transfers and explicit dynamic-exit boundaries. |
 
 The compiler parser, source normalizer and operation-to-Lean mapping remain
 trusted. Acyclic EVM regions additionally check their imported execution tree
@@ -1181,11 +1185,66 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/cyclic-region/{before,after}.evm
 ```
 
 This example is a real `cfg-simplify` removal of unreachable code. Nonisomorphic
-loops still require an invariant and remain unsupported. Dynamic
-or escaping labels, layout-observing instructions, stateful operations and priced
-gas regions remain unsupported. Memory uses the existing constant-access
+loops still require an invariant and remain unsupported. This direct-interpreter
+route excludes dynamic or escaping labels, layout-observing instructions,
+stateful operations and priced gas regions. Memory uses the existing constant-access
 256-byte projection. No whole-pass or arbitrary-world claim follows from a
 verified region.
+
+### Identical reachable source graphs
+
+An instruction unsupported by the region interpreter need not block a pair
+whose independently exported reachable graphs are exactly identical:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/graph-identity/{before,after}.evmir \
+  --region bb0 --stack-height 0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/graph-identity/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/graph-identity/world.json --gas exact
+```
+
+The example is a real `block-layout` pair. The kernel checks the entry, node
+labels, every operation and operand, terminal, edge and transfer stack-growth
+check. `EVMIR/SourceGraph.lean` proves equality for every initial state and every
+execution bound under the same node interpreter, including early failures and
+stateful cycles. An unchanged context read is retained, never replaced by zero.
+Changed operations, branches or transfer checks require a different proof.
+
+Reports distinguish `universal-source-graph-identity` and `unpriced-structural`
+from the direct interpreter certificates. The Rust parser/CFG normalizer and
+source-data constructor binding remain trusted. This proves structural source
+identity, not a new opcode implementation or physical transfer-pricing theorem.
+Code-image observers and calls remain excluded. Only an unsupported instruction
+selects this fallback; failed import certificates and actual counterexamples
+are never replaced. The broken store has a separate kernel/native scenario
+counterexample. Live pass auditing still leaves emitted bytecode unchanged.
+
+### Stack-safe block layout
+
+Block layout can reorder nodes and add or remove a temporary jump-label push.
+The separate `EVMIR/StackGraph.lean` simulation retains those different stack
+checks and proves them equivalent using a checked upper height at every node:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/stack-layout/{before,after}.evmir \
+  --region bb0
+solar-tv/solar-tv evmir solar-tv/examples/evmir/stack-layout/{after,broken}.evmir \
+  --world solar-tv/examples/evmir/stack-layout/world.json --gas exact
+```
+
+The kernel checks the node mapping, opcode signatures, control edges and local
+height bounds. It quantifies every initial height, including overflow, arbitrary
+live payloads and every execution bound. A caller-supplied `--stack-height`
+cannot establish this result. The payload retains values, memory and account
+state; shared opcode handlers may change it or fail. Binding those handlers'
+height effects to the concrete opcode implementation remains trusted.
+
+Reports name `kernel-checked-schema-stack-layout`, retain the mapping and
+height certificate, and use `unpriced-structural`. Physical jump charges can
+change; this route does not prove gas equality. A raw dynamic `JUMP` is a
+full-payload exit under a shared logical continuation, not a resolved target or
+a proved physical return address. Code-image observers and calls remain
+excluded. Changed operations or unsafe transfer growth remain unsupported.
 
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
@@ -1241,6 +1300,35 @@ The pass hook uses this mode for unknown-height block windows. Capture retains
 its original rejection and region identity; evaluation chooses the proof mode
 **after** sampling. A failed universal proof is unsupported, since a hypothetical
 stack need not be reachable. It never fabricates a compiler counterexample.
+
+### Exact scalar rewrites inside stateful blocks
+
+`--prefix` also checks a scalar island after an unchanged gas-sensitive prefix:
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/interior-cse/{before,after}.evmir \
+  --prefix bb0 --report target/tv-interior.json
+solar-tv/solar-tv evmir solar-tv/examples/evmir/interior-cse/counterexample-{before,broken}.evmir \
+  --world solar-tv/examples/evmir/interior-cse/world.json --gas exact
+```
+
+The reduced WETH example runs storage updates and a static guard before
+`block-cse` replaces a repeated `push 32` with `dup 1`. The checker retains the
+complete shared prefix and suffix, terminal and physical successor. Its
+`universal-exact-scalar-island` certificate proves the middle for every stack
+and gas budget. Prefix exits remain exits; successful prefixes supply their
+actual context, stack, gas and live world. The suffix may observe gas or fail a
+storage sentry, so cheaper rewrites are rejected rather than given a weaker
+gas-insensitivity assumption.
+
+`EVMIR/Suffix.lean` lifts the middle's checked-stack and exact-price proof through
+both shared contexts. Their parser/schema and executor bindings remain trusted;
+this is a local compositional certificate, not full-state importer or physical
+code-placement correspondence. Code-image observers, external calls, broken
+static guards and Amsterdam's two-resource gas remain unsupported. The small
+broken-store example has a kernel-confirmed counterexample matched by Rust
+replay. The full storage/log fixture is also replayed independently, including
+static violations and out-of-gas before the island.
 
 ### Terminal regions with unknown incoming stacks
 
@@ -1330,21 +1418,174 @@ function-pointer dispatchers, backend-memory records, changed surviving bodies
 or globals, and modules without explicit entry points are unsupported. Each
 module is limited to 1 MiB and 128 functions.
 
+### Removing dead SSA definitions in MIR loops
+
+Function checks can prove deletion-only DCE across cyclic CFGs:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/cyclic-dce/{before,after}.mir --function f
+solar-tv/solar-tv mir solar-tv/examples/mir/cyclic-dce/{before,broken}.mir \
+  --function f --world solar-tv/examples/mir/cyclic-dce/world.json
+```
+
+The first pair is real `dce` output. The checker admits total scalar operations,
+slice constructors and well-typed slice projections. The kernel checks exact
+erasure and confirms that retained instructions, phi groups and transfers do
+not read any erased result. A simulation preserves
+live registers and shared state after every block, for every block-transfer
+bound. Loops need no fixed unrolling or termination assumption. Effect handlers
+are arbitrary and may fail immediately. The broken store has matching Lean and
+independent Rust counterexamples.
+
+Reports identify `cyclic-dead-ssa-simulation`, function scope and
+`unpriced-structural`. This is a contextual action-machine certificate, distinct
+from direct typed-interpreter correspondence. The compiler parser/schema export,
+injective local-ID normalization, total-pure classification and action renderer
+remain trusted. Retained callees must be unchanged and cannot re-enter the
+changed function. GAS, code observers, external calls, placement queries and
+backend memory records remain unsupported. Physical scalar gas and its effect
+on SSTORE's gas sentry are outside the claim.
+
+All six previously cycle-rejected DCE pairs in the broader capture set now
+verify. They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and
+three Morpho `extSloads` captures.
+
+### Checking builtin lowering
+
+For the exact storage-byte write and address-call shapes, `--function` checks
+the typed SSA expansion and its required callee bodies before applying the
+Lean state proof. The storage check covers header and extent panics, ordered
+clearing, complete words and dirty partial words within the storage/memory
+model's work limits. The call check preserves the observed CALL and returndata
+effects with a shared GAS sample and caller budget at the call boundary.
+Reports state those conditions and identify the certificate. See
+[the proof boundaries](CORRECTNESS.md#remaining-obligations).
+
+### Validating Morpho's CALL and caller exits
+
+```sh
+solar-tv/solar-tv call-budget --output target/morpho-call-budget
+```
+
+The command captures the `safeTransferFrom` MIR pair and scheduled EVM IR in
+the compilation that emits the runtime. The proof derives the prepared frame
+and exact CALL budget from helper entry, runs the child with that budget, then
+matches the final continuation to both MIR versions. It covers empty and true
+returns, false returns, short or noncanonical ABI data, and child reverts.
+
+The proof follows returns into the emitted continuations for `supply`,
+`repay`, `supplyCollateral`, `liquidate` and `flashLoan`. It compares
+their ABI output and remaining gas, and checks that a revert rolls back the
+owning invocation with the exact payload. It starts with the live caller
+values at helper entry.
+
+The helper replay runs the emitted CALL and continuation with only local jump
+destinations relocated. It checks copied memory, revert bytes and the journal.
+In the success/revert pair the token writes a slot before responding. The
+successful call keeps the write and the revert rolls it back. Other pairs
+check empty, malformed, short and false results. The existing gas and dirty
+memory replays are also saved. Under `callers/`, the Rust replayer starts
+from all five real ABI selectors and executes the unchanged runtime against
+success, token revert and false-return fixtures. It checks return words,
+storage and log rollback.
+
+Add `--check-caller-entry` to certify five complete ABI invocations in Cancun.
+The Lean kernel checks the emitted selector dispatch symbolically for all five
+callers. For zero call value, the matching selector, and sufficient dispatch
+gas, the proof carries arbitrary calldata and the complete journal to the ABI
+decoder. The MIR ABI model separately proves decoding for arbitrary canonical
+head words and callback bytes. The concrete invocation certificates use the
+symbolic dispatch proof to enter the captured ABI body, then validate its
+execution to the helper and exit. Each checks the helper live-ins and
+FMP, then resumes each reached frame through the actual helper and caller
+instructions. The final proof compares terminal status, ABI bytes, accounts
+and logs. MIR uses the gas samples and message budgets from the checked
+bytecode execution. The exact physical gas and refund are separately checked
+against the Rust replay.
+
+The Supply regression reaches the helper with 1,343 gas and exhausts its
+budget in the cold code-size guard. MIR prices the helper prefix from the
+incoming gas, active memory, free memory pointer and account warmth. A
+prefix failure rolls back the invocation without a GAS sample. The kernel
+checks the failure and empty gas ledger against the emitted instruction
+trace, and Rust independently replays the complete ABI call.
+
+Use `--caller-worlds DIR` to supply concrete calldata, accounts, gas and
+child code. Copy the `*.world.json` files saved under `entry/` and edit the
+five inputs. Each file must keep its caller's selector and reach the checked
+helper. The proof covers the supplied invocations. Children that depend on
+the MIR root's runtime code cause an unsupported result.
+
+Short execution segments and reusable bytecode decoding and Keccak proofs
+keep the checks within the per-process memory limit. The saved files under
+`entry/` include the checked segments and independent replays. From this
+directory, recheck all five proofs with the compiled modules on the search path:
+
+```sh
+kernel=/absolute/path/to/call-budget/entry/kernel
+LEAN_PATH="$kernel${LEAN_PATH:+:$LEAN_PATH}" \
+  lake env lean -j1 --memory=2048 "$kernel/MorphoAbiSuite.lean"
+```
+
+Use `--mir-pair BEFORE AFTER` to verify an existing capture. The output
+includes the runtime, the Lean certificates, `mir.json` and the independent
+replays under `continuation/` and `callers/`. [Proof details](CORRECTNESS.md#exact-emitted-call-gas)
+
+### Removing unused MIR type declarations
+
+`--prune` also checks complete named-type table erasure when every function,
+global, phase and retained source line stays unchanged. Both source modules are
+independently parsed and validated, with named types resolved into structural
+parameter, result, operand and operation types. The kernel compares the complete
+resolved function tables and retained text:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/type-pruning/{before,after}.mir --prune
+solar-tv/solar-tv mir solar-tv/examples/mir/type-pruning/{after,broken}.mir \
+  --function f
+```
+
+The first example is real `lower-structs` output. The second has a wrong store,
+with a counterexample checked by Lean and independent Rust replay. Changing
+retained code, globals, phase, declaration order or resolved type identity is
+rejected. Partial type-table rewrites and simultaneous function deletion are
+outside this certificate.
+
+Reports use `resolved-type-table-erasure`, module scope and
+`unpriced-structural`. The theorem quantifies the interpreter, complete state
+and every execution bound. Cycles, calls and GAS nodes remain data; no operation
+is executed or assigned a default value to establish identity. A separate
+`--mir-module-model` source export retains every function, including unreachable
+bodies. It cannot select a function or relax normal replay's GAS restriction.
+The parser/schema exporter and typed constructor renderer remain trusted;
+primitive instruction implementations, physical gas and backend layout are
+not certified. Limits are 128 functions, 512 blocks, 4,096 instructions, 65,536
+type nodes and 64 KiB of exported constant data.
+
+Live audits automatically try this module certificate after a shared-declaration
+change. Unsupported edits still fail the checker; the adapter never drops an
+arbitrary header or phase change. Capture-only records retain their original
+rejection and selection, so the frozen corpus denominator stays unchanged.
+
 ### Allocation prefixes before unchanged cyclic callees
 
 An allocation-coalescing constructor can finish all changed instructions before
 entering an unchanged storage helper. The checker validates that cut rather
 than unrolling the helper's loops. Its byte-memory theorem preserves every
 initialized byte, final allocation cursor and active memory size. Ordered calls
-and their arguments must agree, all supplied bodies must be identical, and the
-continuation cannot call back into the changed constructor. A continuation may
-fail, loop or mutate state; successful termination is never assumed.
+and their arguments must agree. Every reachable callee must be identical, and
+the continuation cannot call back into the changed constructor. A continuation
+may fail, loop or mutate state; successful termination is never assumed.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/coalesce-allocs/{before,after}.mir \
   --function constructor
 solar-tv/solar-tv mir solar-tv/examples/mir/coalesce-allocs/{before,broken}.mir \
   --function constructor --world solar-tv/examples/mir/coalesce-allocs/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/allocation-lowering/{before,after}.mir \
+  --function constructor
+solar-tv/solar-tv mir solar-tv/examples/mir/allocation-lowering/{before,broken}.mir \
+  --function constructor --world solar-tv/examples/mir/allocation-lowering/world.json
 ```
 
 This is explicitly a **conditional prefix certificate**. The allocation
@@ -1354,8 +1595,14 @@ aligned and include that word. The cursor and byte contents remain arbitrary;
 the checker never supplies an initial cursor. Proving every caller establishes
 the contract remains separate work. Only infallible, uninitialized reservations
 and aligned constant word stores inside the current reservation are admitted.
-Intermediate FMP reads, checked/zeroed allocations, changed helpers and changed
-call arguments are rejected.
+`lower-alloc` may replace the first reservation with an uninterrupted
+`mload 64`, pointer cast, constant addition and `mstore 64` sequence. A separate
+kernel lemma in `MIR/Transforms/LowerAllocPrefix.lean` connects that sequence to
+the reservation under the same producer contract, including word nonwrapping
+and active memory. Reports record `lowered_reservations` on each side. Only one
+initial lowered reservation is admitted; intermediate FMP reads, later
+reservations on that side, checked/zeroed allocations, changed helpers and
+changed call arguments are rejected. `heap_floor` is never substituted for FMP.
 
 Reports distinguish `producer-valid-allocation-prefix` from direct interpreter
 proofs and use `unpriced-structural`. The compiler parser/schema export,
@@ -1363,7 +1610,47 @@ SSA-to-byte-memory projection and continuation binding remain trusted. Byte
 writes agree with the shared byte-list memory operation in the active range;
 the kernel also checks FMP read-over-write and disjointness laws. This does not
 certify physical gas, backend placement or full SSA import correspondence. The
-broken initializer has a counterexample checked by Lean and Rust replay.
+broken initializer and wrong lowered FMP store have counterexamples checked by
+Lean and Rust replay.
+
+This is a function-local claim: bodies outside the constructor's transitive
+call graph can change, and reports list them as `unrelated_changed_bodies`.
+They are not certified by this check. Shared declarations, function interfaces
+and table order must still agree; numeric function-pointer dispatchers remain
+unsupported.
+
+### Fresh heap-floor reservations
+
+`lower-alloc` may replace an initial FMP read with `heap_floor`. Those are not
+equivalent over arbitrary caller memory: the named placement must agree with
+the live FMP. The checker exposes that producer obligation and proves the
+complete imported SSA body, including every subsequent write and return:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/fresh-heap/{before,after}.mir \
+  --function name.body
+solar-tv/solar-tv mir solar-tv/examples/mir/fresh-heap/{before,broken}.mir \
+  --function name.body --world solar-tv/examples/mir/fresh-heap/world.json
+```
+
+Reports name `producer-valid-fresh-heap-ssa` with `semantic-effects`. The theorem
+quantifies arbitrary live memory, journal, returndata and context satisfying
+the explicit condition: an aligned named floor of at least 128 equals the word
+at `0x40`, that word is active, and the source reservation fits the interpreter's
+64 KiB memory-work domain. No zeroed heap or particular cursor is supplied.
+Every accepted source extent has valid frames; an impossible work-range
+condition cannot establish a vacuous success.
+
+`MIR/Transforms/FreshHeap.lean` proves the reservation's byte-memory update and
+that an explicit entry write establishes the cursor condition. The pair proof
+runs the actual imported typed SSA functions. It does not summarize their
+suffixes, accept equal model errors or assume that later operations succeed.
+The parser/schema export and typed constructor renderer remain trusted.
+Establishing the condition at every caller and connecting placements to the
+backend remain separate obligations; physical gas is not certified. Tests
+include dirty heaps at several cursors, changed suffixes and returns, missing
+and disagreeing bindings, independent counterexample replay and unchanged
+compiler bytecode.
 
 ### Reproducible real-contract evaluation
 
@@ -1425,11 +1712,17 @@ a broken-width counterexample are in `examples/mir/width-guard/` and
 its concrete fixture never establishes the positive universal result.
 
 After rebasing onto `main`, a fresh 24-check sample starts at 15 verified and
-9 unsupported. Rechecking those frozen pairs with FMP read correspondence
-verifies **16 of 24**, with 8 unsupported, no timeouts and no counterexamples.
-Only Morpho's `lower-alloc` constructor changes status. Check identities and
-compiler-output fingerprints are unchanged. This uses a new compiler/capture
-fingerprint; it is not comparable to the older 17-of-24 selection above.
+9 unsupported. Rechecking those frozen pairs verifies **24 of 24** with
+no unsupported results, errors, timeouts or counterexamples. The final two
+checks cover OpenZeppelin's storage-byte writer and Morpho's CALL and
+returndata lowering. The certificates carry the storage model limits and
+the shared gas-boundary conditions described above. The same sample also
+checks WETH's fresh-heap producer condition and Morpho's resolved function
+graphs after unused type declarations are removed.
+Selected check identities and compiler-output fingerprints are unchanged;
+plain outputs from the updated validation compiler match all three saved
+contract fingerprints. This uses a new
+compiler/capture fingerprint; it is not comparable to the older 17-of-24 selection above.
 See [CORRECTNESS.md](CORRECTNESS.md#remaining-obligations) for the fingerprints.
 
 ```sh

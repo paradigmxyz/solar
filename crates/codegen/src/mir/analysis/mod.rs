@@ -38,7 +38,7 @@ mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod absolute_addresses;
-pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};
+pub(crate) use absolute_addresses::{ModuleAddressInputs, absolute_address_inputs};
 
 mod heap_offsets;
 pub(crate) use heap_offsets::{is_floor_clamp, pointer_bases};

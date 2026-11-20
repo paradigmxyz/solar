@@ -233,6 +233,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     .map(|var| StmtKind::DeclSingle(self.alloc(var)))
             }
             LookAheadInfo::Expression => {
+                self.check_expr_depth()?;
                 let expr = iap.into_expr(self);
                 self.parse_expr_with(expr).map(StmtKind::Expr)
             }
@@ -271,6 +272,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             LookAheadInfo::Expression => {
                 let mut components = SmallVec::<[_; 8]>::new();
                 components.extend(none_elements.into_iter().map(SpannedOption::None));
+                self.check_expr_depth()?;
                 let expr = iap.into_expr(self);
                 components.push(SpannedOption::Some(self.parse_expr_with(expr)?));
                 self.parse_optional_items_seq_required(
@@ -282,6 +284,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     span: lo.to(self.prev_token.span),
                     kind: ExprKind::Tuple(self.alloc_drain(&mut components)),
                 };
+                // The tuple is one level above its components.
+                self.expr_depth += 1;
                 self.parse_expr_with(Some(self.alloc(partially_parsed))).map(StmtKind::Expr)
             }
             LookAheadInfo::IndexAccessStructure => unreachable!(),
@@ -371,6 +375,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
     fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
+        // A statement starts a new expression, and the tuple branch of `parse_simple_stmt_tuple`
+        // continues the depth of its components.
+        self.expr_depth = 0;
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
@@ -419,12 +426,17 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
+        // The path becomes a chain of expressions that `parse_expr_with` extends, so it counts
+        // toward the expression depth. It is checked once it is known to be an expression, since a
+        // type path is not one.
         // Check elementary types first: `[u]fixedMxN` names are also non-reserved identifiers.
         if self.check_elementary_type() {
             let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
             path.push(IapKind::MemberTy(span, kind));
+            self.expr_depth += 1;
         } else if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
+            self.expr_depth += 1;
             while self.eat(TokenKind::Dot) {
                 let id = match self.ident_or_err(true) {
                     Ok(id) => id,
@@ -442,6 +454,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 }
                 self.bump(); // `id`
                 path.push(IapKind::Member(id));
+                self.expr_depth += 1;
             }
         } else {
             return self.unexpected();
@@ -454,6 +467,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         while self.check(TokenKind::OpenDelim(Delimiter::Bracket)) {
             let (span, kind) = self.parse_spanned(Self::parse_expr_index_kind)?;
             path.push(IapKind::Index(span, kind));
+            self.expr_depth += 1;
         }
 
         Ok(IndexAccessedPath { path, n_idents })

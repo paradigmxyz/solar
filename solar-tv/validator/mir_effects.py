@@ -33,6 +33,45 @@ def scalar_width(ty):
     return int(mir_state.width(ty["bits"]))
 
 
+def pure(op, args, bits, definitions):
+    """Render the shared domain of total scalar operations, or retain an effect."""
+    kind = op["kind"]
+    values = [value for value, _ in args]
+    if kind == "low_bits" and op["bits"] != bits:
+        raise Unsupported("effect-tree low-bits representation mismatch")
+    if kind in {"word", "low_bits"}:
+        return f"({values[0]}).setWidth {bits}"
+    if kind == "sign_extend":
+        if op["from"] != args[0][1] or op["to"] != bits:
+            raise Unsupported("effect-tree sign extension representation mismatch")
+        return f"({values[0]}).signExtend {bits}"
+    if kind == "ne":
+        return f"MIR.compare .ne {values[0]} {values[1]}"
+    if kind == "select":
+        return f"MIR.select {values[0]} {values[1]} {values[2]}"
+    if kind == "pointer_add":
+        if bits != 256 or any(width != 256 for _, width in args):
+            raise Unsupported("effect-tree pointer offsets require word carriers")
+        return f"MIR.eval .add {' '.join(values)}"
+    if kind != "opcode" or not definitions[op["name"]]["pure"]:
+        return None
+    name = op["name"]
+    if name in ops.COMPARISONS:
+        return f"MIR.compare .{name} {' '.join(values)}"
+    if name in ops.SHIFTS:
+        # Schema order is amount,value; MIR.shift takes value,amount.
+        return f"MIR.shift .{name} {values[1]} {values[0]}"
+    if name in ops.WORD_BINARY:
+        return f"MIR.wordBinary .{name} {' '.join(values)}"
+    if name in ops.BINARY:
+        return f"MIR.eval .{name} {' '.join(values)}"
+    if name in {"not", "clz"}:
+        return f"MIR.unary .{name} {values[0]}"
+    if name in ops.TERNARY:
+        return f"MIR.ternary .{name} {' '.join(values)}"
+    raise Unsupported(f"unmodeled scalar effect-tree opcode `{name}`")
+
+
 def render(model, definitions):
     functions = {function["id"]: function for function in model["functions"]}
     if len(functions) != len(model["functions"]) or model["entry_id"] not in functions:
@@ -70,43 +109,6 @@ def render(model, definitions):
                 return result
             case _:
                 raise Unsupported("undefined effect-tree operand")
-
-    def pure(op, args, bits):
-        kind = op["kind"]
-        values = [value for value, _ in args]
-        if kind == "low_bits" and op["bits"] != bits:
-            raise Unsupported("effect-tree low-bits representation mismatch")
-        if kind in {"word", "low_bits"}:
-            return f"({values[0]}).setWidth {bits}"
-        if kind == "sign_extend":
-            if op["from"] != args[0][1] or op["to"] != bits:
-                raise Unsupported("effect-tree sign extension representation mismatch")
-            return f"({values[0]}).signExtend {bits}"
-        if kind == "ne":
-            return f"MIR.compare .ne {values[0]} {values[1]}"
-        if kind == "select":
-            return f"MIR.select {values[0]} {values[1]} {values[2]}"
-        if kind == "pointer_add":
-            if bits != 256 or any(width != 256 for _, width in args):
-                raise Unsupported("effect-tree pointer offsets require word carriers")
-            return f"MIR.eval .add {' '.join(values)}"
-        if kind != "opcode" or not definitions[op["name"]]["pure"]:
-            return None
-        name = op["name"]
-        if name in ops.COMPARISONS:
-            return f"MIR.compare .{name} {' '.join(values)}"
-        if name in ops.SHIFTS:
-            # Schema order is amount,value; MIR.shift takes value,amount.
-            return f"MIR.shift .{name} {values[1]} {values[0]}"
-        if name in ops.WORD_BINARY:
-            return f"MIR.wordBinary .{name} {' '.join(values)}"
-        if name in ops.BINARY:
-            return f"MIR.eval .{name} {' '.join(values)}"
-        if name in {"not", "clz"}:
-            return f"MIR.unary .{name} {values[0]}"
-        if name in ops.TERNARY:
-            return f"MIR.ternary .{name} {' '.join(values)}"
-        raise Unsupported(f"unmodeled scalar effect-tree opcode `{name}`")
 
     @bounded
     def enter(function, index, predecessor, locals, arguments, calls, path, returned):
@@ -175,7 +177,7 @@ def render(model, definitions):
                             resume,
                         )
                     )
-                expression = pure(op, args, bits)
+                expression = pure(op, args, bits, definitions)
                 if expression is None:
                     if any(width != 256 for _, width in args):
                         raise Unsupported(
@@ -289,7 +291,7 @@ def render(model, definitions):
                         "effect trees exclude code/gas observers and calls"
                     )
                 if row["pure"]:
-                    pure(op, [("0#256", 256)] * len(op["args"]), 256)
+                    pure(op, [("0#256", 256)] * len(op["args"]), 256, definitions)
             elif op["kind"] == "call":
                 callee = functions.get(op["function"])
                 if callee is None or len(op["args"]) != len(callee["params"]):

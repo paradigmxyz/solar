@@ -241,10 +241,10 @@ enum Step {
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
     Inst(InstId),
-    /// Calls an internal function whose arguments are prepared, from a call in `block`;
+    /// Calls an internal function whose arguments are prepared, for the call `inst` in `block`;
     /// `below` is the caller's stack under the arguments, from the bottom, which the call leaves
     /// as it is.
-    Call { callee: FunctionId, block: BlockId, below: Box<[Slot]> },
+    Call { callee: FunctionId, inst: InstId, block: BlockId, below: Box<[Slot]> },
     /// Stores the extra results below the first result of the call `inst` to the callee's return
     /// area and publishes it as the multi-return buffer.
     Publish { inst: InstId, callee: FunctionId, arity: usize, params: usize },
@@ -303,6 +303,8 @@ struct BlockPlan {
     /// Index of the first step planned for the terminator.
     terminator_start: usize,
     exit: Exit,
+    /// The `eq x, 0` that a branch on `x` computes when it inverts the condition with `ISZERO`.
+    zero_test: Option<InstId>,
 }
 
 /// A word that can leave the stack for memory.

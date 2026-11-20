@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "accounts": [
+    {
+      "address": 65536,
+      "storage": {
+        "0": "0"
+      }
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 import SolarTV.MIR.Transforms.DCE
+import SolarTV.MIR.Transforms.DeadSSA
+import SolarTV.MIR.Transforms.DeadSlice
 import SolarTV.MIR.Transforms.FunctionDCE
 import SolarTV.MIR.Transforms.CoalesceAlloc
 import SolarTV.Correspondence
@@ -10,6 +12,7 @@ import SolarTV.MIR.Transforms.AbiValidation
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
 import SolarTV.MIR.Transforms.RenamePhiPredecessors
 import SolarTV.MIR.Transforms.LowerAlloc
+import SolarTV.MIR.Transforms.LowerAllocPrefix
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 import SolarTV.EVMIR.Transforms.StackPeephole
 import SolarTV.EVMIR.StackSafety
@@ -40,6 +43,15 @@ import SolarTV.MIR.State.Safety
 import SolarTV.MIR.State.Normalize
 import SolarTV.MIR.Effects
 import SolarTV.EVMIR.Effects
+import SolarTV.EVMIR.SourceGraph
+import SolarTV.EVMIR.StackGraph
+import SolarTV.MIR.Transforms.FreshHeap
+import SolarTV.MIR.Transforms.TypeDCE
+import SolarTV.MIR.Transforms.LowerAddressCall
+import SolarTV.MIR.Transforms.LowerReturndata
+import SolarTV.MIR.Transforms.LowerStorageHeader
+import SolarTV.MIR.Transforms.LowerStorageBytes
+import SolarTV.MIR.Transforms.StorageWordLoop
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -286,3 +298,79 @@ import SolarTV.EVMIR.Effects
 /-- info: 'SolarTV.MIR.LowerAlloc.constructor_request' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.LowerAlloc.constructor_request
+
+/-- info: 'SolarTV.MIR.LowerAllocPrefix.contextual' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAllocPrefix.contextual
+
+/-- info: 'SolarTV.EVM.Suffix.scalar_contextual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Suffix.scalar_contextual
+
+/-- info: 'SolarTV.EVM.SourceGraph.identity' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.EVM.SourceGraph.identity
+
+/-- info: 'SolarTV.EVM.StackGraph.contextual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.StackGraph.contextual
+
+/-- info: 'SolarTV.MIR.FreshHeap.reservation' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.reservation
+
+/-- info: 'SolarTV.MIR.FreshHeap.query' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.query
+
+/-- info: 'SolarTV.MIR.FreshHeap.initialized' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.initialized
+
+/-- info: 'SolarTV.MIR.FreshHeap.inhabited' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.FreshHeap.inhabited
+
+/-- info: 'SolarTV.MIR.TypeDCE.certificate' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.MIR.TypeDCE.certificate
+
+/-- info: 'SolarTV.MIR.DeadSSA.simulation' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.DeadSSA.simulation
+
+/-- info: 'SolarTV.MIR.DeadSlice.make' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.DeadSlice.make
+
+/-- info: 'SolarTV.MIR.DeadSlice.extract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.DeadSlice.extract
+
+/-- info: 'SolarTV.MIR.LowerAddressCall.memoryObjectArguments' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAddressCall.memoryObjectArguments
+
+/-- info: 'SolarTV.MIR.LowerAddressCall.forwardSample' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerAddressCall.forwardSample
+
+/-- info: 'SolarTV.MIR.LowerReturndata.materialize' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerReturndata.materialize
+
+/-- info: 'SolarTV.MIR.LowerStorageHeader.decode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerStorageHeader.decode
+
+/-- info: 'SolarTV.MIR.StorageWordLoop.clear_corresponds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.StorageWordLoop.clear_corresponds
+
+/-- info: 'SolarTV.MIR.LowerReturndata.memoryObjectCall' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.LowerReturndata.memoryObjectCall
+
+/-- info: 'SolarTV.MIR.StorageWordLoop.fullWordsThenPartial' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.StorageWordLoop.fullWordsThenPartial

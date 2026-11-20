@@ -43,8 +43,8 @@
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
-    BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata,
-    MirType, Module, Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, EdgeAssignment, Function, FunctionId, Immediate, InstKind,
+    InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
@@ -55,6 +55,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
@@ -756,12 +757,59 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool, on
     if entered {
         merge_forwarder_label(func, block_id, target, only_entry);
     }
+    let assignments = (func.blocks[block_id].terminator_metadata.edge_assignments().iter())
+        .filter(|assignment| assignment.edge.is_none())
+        .cloned()
+        .collect::<Vec<_>>();
+    let dropped_exit =
+        func.blocks[block_id].terminator_metadata.debug_loc_kind() == DebugLocKind::Dropped;
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
-    for pred in predecessors {
+    for &pred in &predecessors {
         redirect_edge(func, pred, block_id, target);
     }
+    if let &[pred] = predecessors.as_slice() {
+        move_edge_assignments(func, pred, target, assignments, dropped_exit);
+    }
     let _ = invalidate_unreachable_block(func, block_id);
+}
+
+/// Moves the assignments recorded on a bypassed forwarder to the edge from `pred` to `target`
+/// that replaces the forwarder, when `pred` was its only predecessor and now enters `target`
+/// once.
+///
+/// NOTE: LLVM has no counterpart: `SimplifyCFG` never moves a location onto an edge, because a
+/// debug location sits on an instruction. The push of a phi operand on the edge materializes the
+/// operand of the assignment the forwarder held, so the edge keeps that assignment's span as a
+/// replacement keeps the location it replaces (LLVM's Preserve rule). The assignment ran in the
+/// forwarder's block, and the forwarder ran exactly when `pred` took the edge into it, so the
+/// assignment runs once per run of the new edge: on `pred`'s jump whenever `pred` runs, on one arm
+/// of its branch when only that arm enters `target`. As with any record on a jump, a check that
+/// splits the block after the assignment and reverts leaves the assignment run without its push.
+/// With several predecessors, or both arms entering `target`, the assignment would run
+/// on more than one edge and any one of them would stand for the others, so it is dropped.
+fn move_edge_assignments(
+    func: &mut Function,
+    pred: BlockId,
+    target: BlockId,
+    assignments: Vec<EdgeAssignment>,
+    dropped_exit: bool,
+) {
+    let block = &mut func.blocks[pred];
+    let edge = match &block.terminator {
+        Some(Terminator::Jump(_)) => None,
+        Some(Terminator::Branch { then_block, else_block, .. })
+            if (*then_block == target) != (*else_block == target) =>
+        {
+            Some(target)
+        }
+        _ => return,
+    };
+    // The jump of the edge replaces the forwarder's jump, so it keeps that jump's lack of a
+    // location.
+    for assignment in assignments {
+        block.terminator_metadata.add_bypassed_assignment(assignment, edge, dropped_exit);
+    }
 }
 
 /// Moves the label origin of a bypassed forwarder to its target.

@@ -4,7 +4,7 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_ast::visit::Visit;
-use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
+use solar_data_structures::{BumpExt, smallvec::SmallVec};
 use solar_interface::Span;
 use std::ops::ControlFlow;
 
@@ -14,6 +14,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let hir_sources = self.sources.iter_enumerated().map(|(id, source)| {
             let mut hir_source = hir::Source {
                 file: source.file.clone(),
+                imported: source.imported,
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
                 usings: &[],
@@ -404,7 +405,7 @@ struct YulFunctionCollector<'a, 'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     // Yul function definitions only appear in statements. Short-circuit expressions.
     #[inline]

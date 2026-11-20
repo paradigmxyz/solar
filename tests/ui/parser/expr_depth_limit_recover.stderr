@@ -1,0 +1,14 @@
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/expr_depth_limit_recover.sol:LL:CC
+   │
+LL │         (-)
+   ╰╴          ━ expected one of 10 possible tokens
+
+error: expression is too deeply nested
+   ╭▸ ROOT/tests/ui/parser/expr_depth_limit_recover.sol:LL:CC
+   │
+LL │ …     .b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b.b
+   ╰╴                                                                                                        ━
+
+error: aborting due to 2 previous errors
+

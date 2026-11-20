@@ -40,7 +40,7 @@ install-updater = false
 # Path that installers should place binaries in
 install-path = ["$XDG_BIN_HOME/", "$XDG_DATA_HOME/../bin", "~/.local/bin"]
 # Pin releases because PGO depends on the matching LLVM profiling tools.
-rust-toolchain-version = "1.98.0"
+rust-toolchain-version = "1.100.0"
 
 [dist.min-glibc-version]
 aarch64-unknown-linux-gnu = "2.34"

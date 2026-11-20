@@ -156,6 +156,46 @@ def record(
                     "no physical gas, code-image or backend placement claim",
                 ]
             )
+        elif program and program.scope == "unused-type-erasure":
+            assumptions.extend(
+                [
+                    "complete canonical module code and declaration order retained; only the entire unused named-type table is erased",
+                    "independently parsed whole modules retain every function and resolve parameter, result, operand and operation types; kernel checks resolved program data and retained source text for equality",
+                    "arbitrary interpreter, complete live state and execution bound; calls, failure and cycles are retained rather than unrolled or assumed successful",
+                    "trusted independent compiler parser/schema export and typed constructor renderer; named references are resolved before constructing the semantic view",
+                    "structural resolved-module identity, not primitive instruction implementations, physical gas or backend layout; normal GAS execution restrictions remain unchanged",
+                ]
+            )
+        elif program and program.scope == "fresh-heap-function":
+            assumptions.extend(
+                [
+                    "conditional direct typed SSA proof of the complete function, including all suffix instructions and returns; model errors on either side prevent verification",
+                    "explicit producer obligation: the named supplied heap floor equals the live FMP word; initial aligned byte memory includes bytes 0x40..0x5f; floor is aligned and at least 128; the source reservation extent fits the 64 KiB work domain",
+                    "arbitrary memory contents, journal, live returndata and execution context satisfying that obligation; no sampled cursor, zeroed heap or synthesized placement",
+                    "trusted compiler parser/schema export and typed SSA constructor renderer; no proof that every caller or the backend establishes the placement/FMP obligation",
+                    "semantic effects only; abstract MIR is unpriced; no physical gas or backend layout claim",
+                ]
+            )
+        elif program and program.scope == "stack-layout":
+            assumptions.extend(
+                [
+                    "independently exported reachable graphs matched under a node renaming; every opcode, operand, terminal and edge retained",
+                    "kernel-checked per-node height bounds from the opcode schema; changed jump stack-growth checks must both be proved safe",
+                    "every initial height, live payload and execution bound under arbitrary shared schema-shaped handlers; early failures and stateful cycles retained; no sampled entry height or world",
+                    "height is architectural state and opcode effects follow schema arities; operand values, memory, accounts and resource state remain in the arbitrary live payload; opcode-handler/height binding remains trusted",
+                    "dynamic JUMP terminals expose the full live payload under a shared logical continuation; no indirect-target reachability or physical return-address correspondence claim",
+                    "transfers are unpriced; source normalizer, raw constructor and schema binding remain trusted; no physical gas, opcode-implementation or backend-layout certificate; code-image observers and calls excluded",
+                ]
+            )
+        elif program and program.scope == "source-identity":
+            assumptions.extend(
+                [
+                    "exact identity of independently exported reachable EVM graphs, including entry, node labels, all operations, terminals, edges and transfer stack-growth checks",
+                    "every initial state and execution bound under arbitrary shared node handlers, including stateful effects, early failures and resource state; no sampled stack, world or successful-execution assumption",
+                    "structural source certificate; Rust parser/CFG normalizer, constructor binding and interpretation of nodes remain trusted; no opcode-implementation or physical transfer-pricing proof",
+                    "code-image observers and calls excluded; logical labels and shared declarations retained; no backend layout, physical gas or whole-pass claim",
+                ]
+            )
         elif program and program.scope == "function-pruning":
             assumptions.extend(
                 [
@@ -194,6 +234,67 @@ def record(
                         "universally quantified shared per-label PUSH/JUMPI charge context; concrete relocation/price correspondence remains trusted",
                     ]
                 )
+        elif program and program.scope == "builtin-lowering":
+            assumptions.extend(
+                [
+                    "selected typed SSA and exact lowering operands, phis and successors checked against the proved expansion",
+                    "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
+                ]
+            )
+            if program.gas == "exact-caller-continuation":
+                assumptions.extend(
+                    [
+                        "final emitted bytes and the MIR snapshots come from the same compiler input and capture",
+                        "shared helper-entry environment, stack arguments, byte memory, journal and returndata; the token's code is available to the MIR model",
+                        "the typed MIR prefix and final-bytecode effects produce equal memory, target, input, journal and returndata at CALL",
+                        "CALL budget derived from the checked byte prefix; the earlier MIR sample clips to the same child gas",
+                        "Cancun, at most 30 million entry gas and word-aligned active memory within 64 KiB; the FMP slot is live and the object fits",
+                        "the entry stack has a valid return destination and room for the decoded helper's peak temporary depth",
+                        "the resolved helper continuation uses decoded opcode prices and memory expansion; MIR has no physical instruction gas",
+                        "the five named caller suffixes start with matching saved MIR values and physical stack words; revert uses the checkpoint of the owning invocation",
+                        "execution through ABI RETURN, STOP, or owning-frame rollback; caller work before entering the helper is outside the universal proof",
+                    ]
+                )
+                if program.import_evidence.get("final_bytecode", {}).get("abi_entry"):
+                    assumptions.append(
+                        "the separate ABI-to-exit certificate connects both MIR bodies and emitted bytecode for five concrete caller worlds"
+                    )
+            else:
+                assumptions.append(
+                    "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim"
+                )
+            if program.import_evidence["kind"] == "contextual-call-returndata-lowering":
+                assumptions.extend(
+                    [
+                        "same GAS producer in an identical prefix; shared sampled gas word and parent CALL budget at the message boundary, with the same child work bound",
+                        "real child execution, gas clipping, failure, return buffer and live memory preserved within the message model",
+                        "returned byte length plus 63 fits a word; same typed continuation and supplied callees consume equal results",
+                    ]
+                )
+            elif program.gas == "exact-caller-continuation":
+                assumptions.append(
+                    "bounded returndata materialization; same child effects, copied memory, canonical boolean check and helper exit"
+                )
+            else:
+                assumptions.extend(
+                    [
+                        "arbitrary storage header, defined object pointer and live memory; ordered writes and scratch hashing, wrapping slot addresses and exact panic payloads",
+                        "at most 2048 words per storage loop and 64 KiB active memory; unsupported states outside the model are excluded",
+                        "enough MIR internal call depth for the introduced nonrecursive clear helper; physical SSTORE gas and sentry outside this certificate",
+                    ]
+                )
+        elif program and program.scope == "dead-ssa":
+            assumptions.extend(
+                [
+                    "deletion-only SSA stuttering simulation; all retained actions, simultaneous phi groups, predecessor identities and transfers preserved",
+                    "erased results are absent from every retained read; only total scalar definitions and typed slice construction/projection can disappear",
+                    "slice construction reads defined pointer and length words without dereferencing; projections preserve the selected field type and address space; explicit undef is excluded",
+                    "every initial register file and shared state, arbitrary failing effect handlers and every logical block-transfer bound; cycles need no fixed unrolling or termination assumption",
+                    "trusted independent compiler parser/schema export, injective local-ID normalization, total-pure classification and action renderer; supplied callees unchanged and cannot re-enter the changed body",
+                    "contextual action-machine proof, not direct typed-interpreter correspondence; equal finite-budget errors are not the verification criterion",
+                    "unpriced scalar work and block transfers; GAS, code observers, external calls and placement queries excluded; SSTORE failures retained but physical gas and the EIP-2200 sentry's scalar-work costs are not certified",
+                ]
+            )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
@@ -214,6 +315,15 @@ def record(
                     "initial memory is aligned and at most 64 KiB; unproved accesses, model errors and work exhaustion cannot verify",
                     "all returned leaves, live memory, persistent/transient storage, access warmth and returndata remain observable",
                     "abstract MIR operations unpriced; no physical gas, backend placement or whole-contract claim",
+                ]
+            )
+        elif program and program.scope == "interior-window":
+            assumptions.extend(
+                [
+                    "independently exported identical complete prefix and suffix, including terminal and physical successor; shared context-executor bindings remain trusted",
+                    "arbitrary prefix exits, storage, logs, memory, gas and live context are retained; no successful-prefix or entry-default assumption",
+                    "scalar island preserves every incoming stack and exact remaining gas, including underflow, overflow and out-of-gas; gas-sensitive storage sentries in the shared context remain observable",
+                    "code-image observers, external calls and Amsterdam two-resource gas excluded; logical local certificate, not full-state importer correspondence or physical code-placement proof",
                 ]
             )
         elif program and program.scope == "prefix-window":
@@ -260,7 +370,14 @@ def record(
         if (
             program
             and program.scope
-            and program.scope not in {"function-pruning", "allocation-prefix"}
+            and program.scope
+            not in {
+                "function-pruning",
+                "unused-type-erasure",
+                "allocation-prefix",
+                "dead-ssa",
+                "builtin-lowering",
+            }
         ):
             assumptions.append(
                 "function-local proof with supplied callees; no whole-pass claim"
@@ -281,7 +398,13 @@ def record(
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "function-pruning",
+                "unused-type-erasure",
+                "dead-ssa",
+                "builtin-lowering",
                 "allocation-prefix",
+                "interior-window",
+                "source-identity",
+                "stack-layout",
             }
             and program.symbolic_mir is None
         ):
@@ -316,12 +439,29 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": (
-            "unpriced-structural"
-            if program and program.scope in {"function-pruning", "allocation-prefix"}
+            "exact-caller-continuation"
+            if program and program.gas == "exact-caller-continuation"
+            else "unpriced-structural"
+            if program
+            and program.scope
+            in {
+                "function-pruning",
+                "unused-type-erasure",
+                "dead-ssa",
+                "builtin-lowering",
+                "allocation-prefix",
+                "source-identity",
+                "stack-layout",
+            }
             else program.gas
             if program
             and program.scope
-            in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
+            in {
+                "prefix-window",
+                "effectful-prefix",
+                "shared-prefix-suffix",
+                "interior-window",
+            }
             else policy
         )
         or (
@@ -367,9 +507,24 @@ def record(
             {
                 "whole_pass": False,
                 "region": {
+                    "kind": "module",
+                    "proof": "resolved-type-table-erasure",
+                    "removed_types": program.import_evidence["removed_types"],
+                    "functions": program.import_evidence["functions"],
+                },
+            }
+            if program and program.scope == "unused-type-erasure"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
                     "kind": "window",
                     "name": program.selector,
-                    "proof": "universal-post-precompile-suffix"
+                    "proof": "universal-exact-scalar-island"
+                    if program.scope == "interior-window"
+                    else "universal-post-precompile-suffix"
                     if program.scope == "shared-prefix-suffix"
                     else "universal-branching-effect-prefix"
                     if program.import_evidence.get("conditional_transfers")
@@ -377,7 +532,24 @@ def record(
                     "stack_height": None,
                 },
             }
-            if program and program.scope in {"effectful-prefix", "shared-prefix-suffix"}
+            if program
+            and program.scope
+            in {"effectful-prefix", "shared-prefix-suffix", "interior-window"}
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "region",
+                    "name": program.selector,
+                    "proof": "kernel-checked-schema-stack-layout"
+                    if program.scope == "stack-layout"
+                    else "universal-source-graph-identity",
+                    "stack_height": None,
+                },
+            }
+            if program and program.scope in {"source-identity", "stack-layout"}
             else {}
         ),
         **(
@@ -391,8 +563,36 @@ def record(
                 "region": {
                     "kind": "function",
                     "name": program.selector,
+                    "proof": program.import_evidence["kind"],
+                },
+            }
+            if program and program.scope == "builtin-lowering"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
+                    "proof": "cyclic-dead-ssa-simulation",
+                    "erased_results": program.import_evidence["erased_results"],
+                    "blocks": program.import_evidence["blocks"],
+                },
+            }
+            if program and program.scope == "dead-ssa"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
                     "proof": "compositional-effect-tree"
                     if program.scope == "effect-tree"
+                    else "producer-valid-fresh-heap-ssa"
+                    if program.scope == "fresh-heap-function"
                     else "universal-caller-state",
                     "work_bounds": [side.symbolic_mir["fuel"] for side in result.pair],
                     "supplied_functions": len(

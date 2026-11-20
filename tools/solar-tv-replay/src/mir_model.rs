@@ -26,6 +26,15 @@ struct Input {
 }
 
 pub(super) fn export() -> Result<Json, String> {
+    export_request(false)
+}
+
+/// Exports resolved data for identity proofs, without claiming any execution is supported.
+pub(super) fn export_module_model() -> Result<Json, String> {
+    export_request(true)
+}
+
+fn export_request(whole_module: bool) -> Result<Json, String> {
     let mut bytes = Vec::new();
     io::stdin().lock().take(2_097_153).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
     if bytes.len() > 2_097_152 {
@@ -34,6 +43,9 @@ pub(super) fn export() -> Result<Json, String> {
     let input: Input = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     if input.version != 1 || input.text.len() > 1_048_576 {
         return Err("unsupported MIR model request".into());
+    }
+    if whole_module && input.function.is_some() {
+        return Err("module identity export does not select a function".into());
     }
     let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
     sess.enter_sequential(|| {
@@ -46,15 +58,17 @@ pub(super) fn export() -> Result<Json, String> {
         if sess.dcx.has_errors().is_err() {
             return Err("invalid MIR model".into());
         }
-        export_module(&module, input.function.as_deref())
+        export_module(&module, input.function.as_deref(), whole_module)
     })
 }
 
-fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
+fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Result<Json, String> {
     if module.backend_memory.is_some() {
         return Err("backend memory records are not direct MIR semantics".into());
     }
-    let (id, body) = if let Some(name) = name {
+    let (id, body) = if whole_module {
+        module.functions.iter_enumerated().next().ok_or("empty MIR module")?
+    } else if let Some(name) = name {
         let mut bodies =
             module.functions.iter_enumerated().filter(|(_, f)| f.name.to_string() == name);
         let selected = bodies.next().ok_or("missing MIR function")?;
@@ -68,6 +82,9 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
     };
     let mut reachable = CallGraphInfo::collect_internal_callees(body, module.functions.len());
     reachable.insert(id);
+    if whole_module {
+        reachable.insert_all();
+    }
     let mut count = reachable.count();
     if count > 128 {
         return Err("MIR model function limit of 128".into());
@@ -158,7 +175,10 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
     for owner in reachable.iter() {
         let f = &module.functions[owner];
         for inst in f.instructions() {
-            if matches!(f.inst(inst).kind.semantics(), Some(Semantics::Opcode("gas", _)))
+            // A structural export retains GAS as data. It never executes it or supplies a
+            // budget. The normal source interpreter keeps its isolated-window restriction.
+            if !whole_module
+                && matches!(f.inst(inst).kind.semantics(), Some(Semantics::Opcode("gas", _)))
                 && (owner != id
                     || module.dispatch_entry() == Some(owner)
                     || f.blocks.len() != 1
@@ -200,7 +220,7 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    Ok(json!({
+    let mut model = json!({
         "version": 1,
         "name": body.name.to_string(),
         "layout_declarations": declarations,
@@ -209,7 +229,11 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
         "params": body.params.iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
         "returns": body.return_components().iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
         "functions": functions,
-    }))
+    });
+    if whole_module {
+        model["structural_module"] = true.into();
+    }
+    Ok(model)
 }
 
 fn export_function(module: &Module, id: usize, function: &Function) -> Result<Json, String> {

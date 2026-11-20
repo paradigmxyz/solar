@@ -540,7 +540,7 @@ impl LowerAbiCx {
             // shape: it emits the value moves and the jump to the return tag under the statement
             // and packs the return under the function declaration (`appendReturnValuePacker`).
             // Only a wrapper that calls an extracted body has no `return` of its own, so it takes
-            // the declaration.
+            // the closing brace of the body, see `replace_body_with_call`.
             // abi_encode(values) !metadata(return span)
             // returndata(encoded_ptr, encoded_len) !metadata(return span)
             builder.inherit_terminator_debug_context(block_id);
@@ -1247,7 +1247,7 @@ impl LowerAbiCx {
         func.blocks[block].instructions.clear();
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
-        let declaration = func.declaration_span;
+        let (declaration, exit) = (func.declaration_span, func.exit_span);
         let mut builder = FunctionBuilder::new(func);
         // The call maps to the wrapped declaration, as solc jumps into the function under its
         // location setter.
@@ -1255,9 +1255,16 @@ impl LowerAbiCx {
         builder.switch_to_block(block);
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
+            // call = icall body_id, args !metadata(declaration) !returns_to_exit
             let call = builder.icall(body_id, args, first);
             let inst = *builder.func().blocks[block].instructions.last().expect("the call");
+            builder.func_mut().inst_mut(inst).metadata.set_returns_to_exit();
             Self::widen_word_args(builder.func_mut(), block, inst, word_params);
+            // NOTE: Everything after the call is the epilogue of the wrapper, which maps to the
+            // closing brace of the body, as clang's `FinishFunction(EndLoc)` places the epilogue.
+            // results = loads of the extra results !metadata(closing brace)
+            // ret call, results !metadata(closing brace)
+            builder.replace_source_span(exit);
             values.push(call);
             if !rest.is_empty() {
                 let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
@@ -1277,9 +1284,13 @@ impl LowerAbiCx {
             }
             builder.ret(values);
         } else {
+            // icall body_id, args !metadata(declaration) !returns_to_exit
             builder.icall_void(body_id, args);
             let call = *builder.func().blocks[block].instructions.last().expect("the call");
+            builder.func_mut().inst_mut(call).metadata.set_returns_to_exit();
             Self::widen_word_args(builder.func_mut(), block, call, word_params);
+            builder.replace_source_span(exit);
+            // ret !metadata(closing brace)
             builder.ret([]);
         }
         // Drop the detached body blocks before lowering their now-orphaned slice projections.

@@ -1,0 +1,199 @@
+- ; === ROOT/tests/ui/codegen/mir/licm/licm_unknown_trip_ranges.mir (before licm) ===
++ ; === ROOT/tests/ui/codegen/mir/licm/licm_unknown_trip_ranges.mir (after licm) ===
+  @module LicmUnknownTripRanges
+  fn @hoist_len_over_element_stores(arg0: i256) {
+    bb0:
++     v4 = add arg0, 32
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v6]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = shl v0, 5
+-     v4 = add arg0, 32
+      v5 = add v4, v3
+      mstore v5, v0
+      v6 = add v0, 1
+      jump bb1
+  }
+  
+  fn @hoist_len_over_byte_stores(arg0: i256) {
+    bb0:
++     v3 = add arg0, 32
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+-     v3 = add arg0, 32
+      v4 = add v3, v0
+      mstore8 v4, 65
+      v5 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_len_over_stores_from_header(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = shl v0, 5
+      v4 = add v3, arg0
+      mstore v4, v0
+      v5 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_len_when_loop_writes_len(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      mstore arg0, v0
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_len_over_quadratic_stores(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v7]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = mul v0, v0
+      v4 = shl v3, 5
+      v5 = add arg0, 32
+      v6 = add v5, v4
+      mstore v6, v0
+      v7 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_len_over_unknown_start(arg0: i256, arg1: i256) {
+    bb0:
++     v5 = add arg0, 32
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v7]
+      v1 = phi [bb0: arg1], [bb2: v8]
+      v2 = mload arg0
+      v3 = lt v0, v2
+      jumpi v3, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v4 = shl v1, 5
+-     v5 = add arg0, 32
+      v6 = add v5, v4
+      mstore v6, v0
+      v7 = add v0, 1
+      v8 = add v1, 1
+      jump bb1
+  }
+  
+  fn @forward_len_from_preheader_store(arg0: i256, arg1: i256) {
+    bb0:
+      mstore arg0, arg1
++     v4 = add arg0, 32
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v6]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = shl v0, 5
+-     v4 = add arg0, 32
+      v5 = add v4, v3
+      mstore v5, v0
+      v6 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_hoisted_len_after_unknown_store(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      mstore arg0, arg1
+      mstore arg2, 7
++     v4 = add arg0, 32
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v6]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = shl v0, 5
+-     v4 = add arg0, 32
+      v5 = add v4, v3
+      mstore v5, v0
+      v6 = add v0, 1
+      jump bb1
+  }
+  
+  fn @reuse_hoisted_len_for_body_read(arg0: i256) {
+    bb0:
++     v5 = add arg0, 32
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v7]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = mload arg0
+      v4 = shl v0, 5
+-     v5 = add arg0, 32
+      v6 = add v5, v4
+      mstore v6, v3
+      v7 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_both_reads_when_loop_writes_len(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = mload arg0
+      v2 = lt v0, v1
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = mload arg0
+      mstore arg0, v3
+      v4 = add v0, 1
+      jump bb1
+  }
+  

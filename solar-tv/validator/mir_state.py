@@ -464,6 +464,13 @@ def operation(value, definitions):
     return "none", expression, args
 
 
+def instruction(value, definitions):
+    result = "none" if value["result"] is None else f"some {number(value['result'])}"
+    ty = ".word 0" if value["type"] is None else value_type(value["type"])
+    opcode, op, args = operation(value["operation"], definitions)
+    return f"⟨({result}),({ty}),({opcode}),({op}),{operands(args)}⟩"
+
+
 def block(value, definitions):
     phis = []
     for phi in value["phis"]:
@@ -473,12 +480,7 @@ def block(value, definitions):
             + "]"
         )
         phis.append(f"⟨{number(phi['result'])},({value_type(phi['type'])}),{arms}⟩")
-    instructions = []
-    for inst in value["instructions"]:
-        result = "none" if inst["result"] is None else f"some {number(inst['result'])}"
-        ty = ".word 0" if inst["type"] is None else value_type(inst["type"])
-        opcode, op, args = operation(inst["operation"], definitions)
-        instructions.append(f"⟨({result}),({ty}),({opcode}),({op}),{operands(args)}⟩")
+    instructions = [instruction(inst, definitions) for inst in value["instructions"]]
     term = value["terminator"]
     kind = term["kind"]
     if kind in {"stop", "invalid"}:

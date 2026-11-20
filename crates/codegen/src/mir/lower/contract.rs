@@ -2,10 +2,7 @@
 
 use super::{function, storage::StorageLayout};
 use solar_config::OptimizationMode;
-use solar_data_structures::{
-    Never,
-    map::{FxHashMap, FxHashSet, FxIndexSet},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx, InlineTag,
@@ -324,7 +321,7 @@ fn shared_string_literals(
     }
 
     impl<'hir> Visit<'hir> for Counter<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             &self.gcx.hir
@@ -380,6 +377,8 @@ pub(super) fn declaration(
     let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = declaration_span(gcx, function);
+    mir.exit_span =
+        function.body.map_or(mir.declaration_span, |body| body.span.with_lo(body.span.hi() - 1));
     mir.debug_identifier = Some(name.name);
     if gcx.sess.opts.unstable.dump.is_some() {
         mir.debug_signature = debug_signature(gcx, function.span);

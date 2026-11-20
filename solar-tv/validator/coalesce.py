@@ -2,7 +2,8 @@
 
 The independent schema export supplies SSA operands. Only uninitialized,
 infallible, word-aligned reservations and constant word initializers are admitted
-before the cut. Calls and all their cyclic bodies remain in the source, unchanged.
+before the cut. Reachable calls and their cyclic bodies remain unchanged.
+Unreachable bodies are outside this function-local certificate.
 The byte-memory proof assumes the allocation producer's well-formed, nonwrapping
 cursor contract; it never chooses a cursor or assumes callees terminate.
 """
@@ -69,7 +70,17 @@ def project(model):
             return locals[value["index"]]
         raise Unsupported("allocation cut has an unknown SSA operand")
 
-    for inst in body["instructions"]:
+    instructions = body["instructions"]
+    lowered = 0
+    if instructions and instructions[0]["operation"].get("name") == "mload":
+        # Match the entire initial bump, not arbitrary loads or stores to 0x40.
+        # The kernel bridge requires the same explicit producer contract as alloc.
+        size, locals = lowered_reservation(instructions[:4])
+        plan.append(("reserve", size))
+        reserved = size
+        lowered = 1
+        instructions = instructions[4:]
+    for inst in instructions:
         op = inst["operation"]
         args = [operand(value) for value in op["args"]]
         result = None
@@ -84,7 +95,8 @@ def project(model):
             raise Unsupported("allocation cut changed an instruction after a call")
         if op["kind"] == "allocate":
             if (
-                op["checked"]
+                lowered
+                or op["checked"]
                 or op["zeroed"]
                 or len(args) != 1
                 or args[0][0] != "constant"
@@ -140,7 +152,13 @@ def project(model):
         raise Unsupported(
             "allocation cut requires a reserved prefix and call continuation"
         )
-    return {"plan": plan, "calls": calls, "guard": guard, "extent": reserved}
+    return {
+        "plan": plan,
+        "calls": calls,
+        "guard": guard,
+        "extent": reserved,
+        "lowered_reservations": lowered,
+    }
 
 
 def check(paths, solar, replay, version, timeout, function):
@@ -193,8 +211,8 @@ def check(paths, solar, replay, version, timeout, function):
         raise Unsupported("allocation cut changed the selected interface")
     if not re.search(r"(?:\[|,\s*)constructor(?:,|\])", before[function]["text"][0]):
         raise Unsupported("allocation cut requires a constructor entry")
-    if any(before[name] != after[name] for name in before if name != function):
-        raise Unsupported("allocation cut changed a supplied callee or another body")
+    if any(before[name]["text"][0] != after[name]["text"][0] for name in before):
+        raise Unsupported("allocation cut changed a supplied function interface")
     if list(before) != list(after):
         raise Unsupported("allocation cut changed numeric call identities")
     pending = list(before[function]["targets"])
@@ -209,12 +227,24 @@ def check(paths, solar, replay, version, timeout, function):
             continue
         if name not in before:
             raise Unsupported("allocation cut continuation has an unknown target")
+        if before[name] != after[name]:
+            raise Unsupported("allocation cut changed a reachable callee")
         visited.add(name)
         pending.extend(before[name]["targets"])
+    # Only this constructor is certified. Other runtime bodies may be lowered
+    # by the same pass, but may not enter its closed, unchanged call suffix.
+    unrelated_changes = [
+        name
+        for name in before
+        if name != function and name not in visited and before[name] != after[name]
+    ]
     a, b = projections
     if a["guard"] != b["guard"] or a["calls"] != b["calls"]:
         raise Unsupported("allocation cut changed its guard or call continuation")
-    if a["plan"] == b["plan"]:
+    if (
+        a["plan"] == b["plan"]
+        and a["lowered_reservations"] == b["lowered_reservations"]
+    ):
         raise Unsupported("allocation cut requires a changed reservation prefix")
 
     def plan(value):
@@ -232,6 +262,21 @@ def check(paths, solar, replay, version, timeout, function):
     code = PRELUDE + "set_option maxHeartbeats 1000000\n"
     code += f"def before : List MIR.CoalesceAlloc.Step := {plan(a['plan'])}\n"
     code += f"def after : List MIR.CoalesceAlloc.Step := {plan(b['plan'])}\n"
+    for side, projection in zip(("before", "after"), projections, strict=True):
+        if projection["lowered_reservations"]:
+            size = projection["plan"][0][1]
+            tail = plan(projection["plan"][1:])
+            source = f"MIR.CoalesceAlloc.run base {tail} (MIR.LowerAllocPrefix.loweredReserve {size} state)"
+            bridge = f"by\n  unfold {side}_source\n  rw [MIR.LowerAllocPrefix.reservation base {size} state (by simpa [{side}, MIR.CoalesceAlloc.extent] using valid)]\n  rfl"
+        else:
+            source = f"MIR.CoalesceAlloc.run base {side} state"
+            bridge = "by rfl"
+        code += f"""
+def {side}_source (base : Nat) (state : MIR.CoalesceAlloc.Result) := {source}
+theorem {side}_bridge (base : Nat) (state : MIR.CoalesceAlloc.Result)
+ (valid : MIR.CoalesceAlloc.ProducerContract base (MIR.CoalesceAlloc.extent {side}) state) :
+ {side}_source base state = MIR.CoalesceAlloc.run base {side} state := {bridge}
+"""
     code += """
 theorem extent : MIR.CoalesceAlloc.extent before = MIR.CoalesceAlloc.extent after := by decide
 theorem data : MIR.CoalesceAlloc.stores before = MIR.CoalesceAlloc.stores after := by decide
@@ -240,9 +285,10 @@ theorem right_valid : MIR.CoalesceAlloc.wellFormed 0 after = true := by decide
 theorem contextual {α : Sort _} (base : Nat) (state : MIR.CoalesceAlloc.Result)
  (valid : MIR.CoalesceAlloc.ProducerContract base (MIR.CoalesceAlloc.extent before) state)
  (continuation : MIR.CoalesceAlloc.Result → α) :
- continuation (MIR.CoalesceAlloc.run base before state) =
- continuation (MIR.CoalesceAlloc.run base after state) :=
- MIR.CoalesceAlloc.contextual before after base state valid.1 valid.2.2.2.1 (by decide) (by decide) extent data continuation
+ continuation (before_source base state) = continuation (after_source base state) := by
+ rw [before_bridge base state valid,
+     after_bridge base state (by simpa [← extent] using valid)]
+ exact MIR.CoalesceAlloc.contextual before after base state valid.1 valid.2.2.2.1 (by decide) (by decide) extent data continuation
 #print axioms contextual
 """
     build = build_model(timeout)
@@ -280,6 +326,9 @@ theorem contextual {α : Sort _} (base : Nat) (state : MIR.CoalesceAlloc.Result)
                 "reserved_bytes": projection["extent"],
                 "plan": projection["plan"],
                 "calls": projection["calls"],
+                "lowered_reservations": projection["lowered_reservations"],
+                "unchanged_callees": sorted(visited),
+                "unrelated_changed_bodies": unrelated_changes,
                 "boundary": "trusted compiler parser/schema export and SSA-to-byte-memory projection; primitive allocation producer contract and continuation binding remain trusted; no physical gas or backend layout claim",
             },
         )
@@ -288,3 +337,48 @@ theorem contextual {α : Sort _} (base : Nat) (state : MIR.CoalesceAlloc.Result)
     return audit.Result(
         "verified", stdout="verified\n", program=programs[0], pair=programs
     )
+
+
+def lowered_reservation(instructions):
+    """Recognize one initial, uninterrupted FMP reservation at full word width."""
+    if len(instructions) != 4:
+        raise Unsupported("allocation cut requires a complete initial FMP bump")
+    load, cast, add, store = instructions
+    word = {"bits": 256, "kind": "word", "name": "i256"}
+    pointer = {
+        "bits": 256,
+        "kind": "pointer",
+        "location": "memory",
+        "name": "ptr<memory>",
+    }
+
+    def constant(value):
+        return {"kind": "constant", "type": word, "value": str(value)}
+
+    def local(inst):
+        return {"kind": "local", "type": inst["type"], "index": inst["result"]}
+
+    args = add["operation"].get("args", [])
+    if len(args) != 2 or args[1].get("kind") != "constant":
+        raise Unsupported("allocation cut requires a constant FMP increment")
+    size = int(args[1]["value"], 0)
+    if (
+        not 0 < size <= 65536
+        or size % 32
+        or [inst["type"] for inst in instructions] != [word, pointer, word, None]
+        or any(inst["result"] is None for inst in instructions[:3])
+        or store["result"] is not None
+        or load["operation"]
+        != {"kind": "opcode", "name": "mload", "args": [constant(64)]}
+        or cast["operation"] != {"kind": "word", "args": [local(load)]}
+        or add["operation"]
+        != {"kind": "opcode", "name": "add", "args": [local(load), constant(size)]}
+        or store["operation"]
+        != {"kind": "opcode", "name": "mstore", "args": [constant(64), local(add)]}
+    ):
+        raise Unsupported("allocation cut requires an exact initial FMP bump")
+    return size, {
+        load["result"]: ("pointer", 0),
+        cast["result"]: ("pointer", 0),
+        add["result"]: ("pointer", size),
+    }

@@ -41,12 +41,15 @@ UNFOLD = (
 )
 
 
-def run(args: list, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+def run(
+    args: list, cwd: Path, timeout: int, *, env: dict | None = None
+) -> subprocess.CompletedProcess:
     # Lake spawns Lean. A timeout must reap the entire invocation, not leave the
     # prover consuming CPU after the driver has reported an inconclusive result.
     with subprocess.Popen(
         args,
         cwd=cwd,
+        env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -143,6 +146,8 @@ def load(
         try:
             program = evm_region.translate(projection, region, stack_height)
         except Unsupported as error:
+            if str(error).startswith("unmodeled EVM IR instruction: "):
+                raise evm_region.UnmodeledInstruction(str(error)) from None
             if (
                 stack_height is None
                 or str(error) != "cyclic EVM regions require loop invariants"
@@ -253,7 +258,7 @@ def definition(name: str, program: Program) -> str:
     return declaration.replace("__IMPORT__", name)
 
 
-def build_model(timeout: int) -> subprocess.CompletedProcess:
+def build_model(timeout: int, module: str = "SolarTV") -> subprocess.CompletedProcess:
     # Multiple compiler workers can enter on a cold Lake cache. Only the build
     # needs exclusion; independent pair proofs can run in parallel afterward.
     if os.name == "nt":
@@ -264,14 +269,14 @@ def build_model(timeout: int) -> subprocess.CompletedProcess:
         with (cache / "solar-tv.lock").open("a+b") as lock:
             lock.seek(0)
             msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
-            return run(["lake", "build", "SolarTV"], ROOT, timeout)
+            return run(["lake", "build", module], ROOT, timeout)
 
     import fcntl
 
     # Share the dependency's build lock with the existing EVM rule prover.
     with (ROOT.parent / "scripts/evm-rules/lean/lakefile.toml").open("rb") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        return run(["lake", "build", "SolarTV"], ROOT, timeout)
+        return run(["lake", "build", module], ROOT, timeout)
 
 
 def check(
@@ -617,6 +622,10 @@ def check(
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "call-budget":
+        from . import call_budget
+
+        return call_budget.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "summarize":
         return audit.summarize(sys.argv[2:])
     parser = argparse.ArgumentParser(
@@ -673,7 +682,7 @@ def main() -> int:
     selection.add_argument(
         "--prune",
         action="store_true",
-        help="prove deletion-only rooted MIR function tables",
+        help="prove unreachable-function or unused-type erasure in MIR modules",
     )
     parser.add_argument(
         "--stack-height",
@@ -745,7 +754,11 @@ def main() -> int:
             from . import prune
 
             result = prune.check(
-                (args.before, args.after), solar, version, args.timeout
+                (args.before, args.after),
+                solar,
+                version,
+                args.timeout,
+                executable=rust_replay,
             )
             programs = list(result.pair)
         elif args.prefix:
@@ -783,28 +796,62 @@ def main() -> int:
                     for path in (args.before, args.after)
                 ]
             except Unsupported as error:
-                # An unchanged cyclic call suffix does not need unrolling when
-                # a producer-valid allocation prefix has a contextual proof.
-                # Keep the original rejection if the exact cut is not admitted.
                 if (
-                    args.ir == "mir"
-                    and args.function
+                    args.ir == "evmir"
+                    and args.region
                     and not args.world
                     and not args.gas
-                    and str(error) == "symbolic MIR cycles require an invariant"
+                    and isinstance(error, evm_region.UnmodeledInstruction)
                 ):
-                    from . import coalesce
+                    from . import source_identity
 
+                    # Identical independently parsed source graphs admit a
+                    # separate structural proof. Never replace a failed import
+                    # certificate or an actual counterexample with this route.
                     try:
-                        result = coalesce.check(
+                        result = source_identity.check(
                             (args.before, args.after),
                             solar,
                             rust_replay,
                             version,
                             args.timeout,
-                            args.function,
+                            args.region,
                         )
                     except Unsupported:
+                        raise error from None
+                    programs = list(result.pair)
+                elif (
+                    args.ir == "mir"
+                    and args.function
+                    and not args.world
+                    and not args.gas
+                    and str(error)
+                    in {
+                        "symbolic MIR cycles require an invariant",
+                        "MIR source: GAS requires an isolated opcode window",
+                    }
+                ):
+                    from . import builtin_lowering, coalesce, dead_ssa
+
+                    validators = (
+                        (coalesce, dead_ssa, builtin_lowering)
+                        if str(error) == "symbolic MIR cycles require an invariant"
+                        else (builtin_lowering,)
+                    )
+                    for validator in validators:
+                        try:
+                            result = validator.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.function,
+                            )
+                        except Unsupported:
+                            continue
+                        break
+                    else:
                         raise error from None
                     programs = list(result.pair)
                 # Scalar windows lack caller/calldata context and dynamic-return
@@ -898,7 +945,12 @@ def main() -> int:
                 args.prefix
                 or result.program
                 and result.program.scope
-                in {"prefix-window", "effectful-prefix", "shared-prefix-suffix"}
+                in {
+                    "prefix-window",
+                    "effectful-prefix",
+                    "shared-prefix-suffix",
+                    "interior-window",
+                }
             ):
                 shared = result.program and result.program.import_evidence.get(
                     "shared_prologue_operations"
@@ -914,6 +966,8 @@ def main() -> int:
                     if result.program and result.program.scope == "effectful-prefix"
                     else "universal-memory-prefix"
                     if shared
+                    else "universal-exact-scalar-island"
+                    if result.program and result.program.scope == "interior-window"
                     else "universal-stack-prefix"
                 )
                 if args.stack_height is not None:
@@ -926,6 +980,18 @@ def main() -> int:
                 record["region"]["blocks_after"] = list(
                     regions.blocks(programs[1].canonical_ir)
                 )
+                if result.program and result.program.scope in {
+                    "source-identity",
+                    "stack-layout",
+                }:
+                    record["region"]["proof"] = (
+                        "kernel-checked-schema-stack-layout"
+                        if result.program.scope == "stack-layout"
+                        else "universal-source-graph-identity"
+                    )
+                    record["region"]["stack_height"] = None
+                    if args.stack_height is not None:
+                        record["region"]["requested_stack_height"] = args.stack_height
         if args.report:
             audit.write(args.report, record)
     except OSError as error:

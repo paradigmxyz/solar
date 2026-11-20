@@ -82,7 +82,7 @@ def declarations(text):
     return header, functions
 
 
-def check(paths, solar, version, timeout):
+def check(paths, solar, version, timeout, *, executable=None):
     from .check import PRELUDE, ROOT, build_model, run
 
     texts, tables = [], []
@@ -106,7 +106,15 @@ def check(paths, solar, version, timeout):
         tables.append(declarations(result.stdout))
     (old_header, before), (new_header, after) = tables
     if old_header != new_header:
-        raise Unsupported("function pruning changed shared declarations or phase")
+        if "@types" not in old_header:
+            raise Unsupported("function pruning changed shared declarations or phase")
+        from . import native, type_prune
+
+        # A different module declaration table needs a separate proof. Never
+        # drop an arbitrary header, phase change or changed executable body.
+        return type_prune.check(
+            texts, version, timeout, executable or native.default(solar)
+        )
     removed = sorted(before.keys() - after.keys())
     if not removed or after.keys() - before.keys():
         raise Unsupported("function pruning requires deletion-only table changes")

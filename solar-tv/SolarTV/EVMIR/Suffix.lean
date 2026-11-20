@@ -13,6 +13,11 @@ The prefix-executor binding remains trusted. The importer excludes code-image
 observers, relocations and arbitrary external calls. Calls are limited to the
 always-active recovery precompile with a proved constant target. This is a
 logical local certificate, not a physical code-placement or bytecode proof.
+
+An exact scalar island can also have a shared suffix. Equal checked-stack
+behavior and exact scalar prices preserve both surrounding executors, even
+when a storage sentry or GAS observer is present. This route excludes external
+calls and keeps its context-executor bindings explicit.
 -/
 
 namespace SolarTV.EVM.Suffix
@@ -80,5 +85,41 @@ theorem recovery_target (gas : EvmRules.Word) (stack : Stack) :
 
 theorem recovery_active (fork : Fork) : State.precompile fork 1 = true := by
   simp [State.precompile]
+
+/-- The complete exported suffix, including its transfer and physical successor. -/
+structure Tail where
+  instructions : List String
+  terminal : String
+  following : Option Nat
+  deriving DecidableEq
+
+/-- A scalar island between two exactly shared contexts. The prefix may stop
+before reaching the island, and the suffix may observe gas or fail a storage
+gas sentry. Neither context is executed with invented stack/world defaults. -/
+def scalar {World Halt : Type} (executePrefix : List String → PrefixResult World Halt)
+    (executeSuffix : Tail → Context → Stack → Nat → World → Halt)
+    (fault : Halt) (fork : Fork) (common : List String) (tail : Tail) (ops : List EVM.Op) : Halt :=
+  match executePrefix common with
+  | .stopped result => result
+  | .next ctx stack gas world =>
+    match Prefix.charged ctx fork ops stack gas with
+    | none => fault
+    | some (next,remaining) => executeSuffix tail ctx next remaining world
+
+/-- Equal stack behavior and exact cost preserve both surrounding contexts,
+for every prefix outcome, incoming world and gas budget. Their source binding
+remains trusted, just as for the existing post-precompile suffix certificate. -/
+theorem scalar_contextual {World Halt : Type} (executePrefix : List String → PrefixResult World Halt)
+    (executeSuffix : Tail → Context → Stack → Nat → World → Halt)
+    (fault : Halt) (fork : Fork) (common : List String) (tail : Tail) (before after : List EVM.Op)
+    (same : ∀ ctx stack, Prefix.run ctx before stack = Prefix.run ctx after stack)
+    (priced : Prefix.cost fork before = Prefix.cost fork after) :
+    scalar executePrefix executeSuffix fault fork common tail before =
+      scalar executePrefix executeSuffix fault fork common tail after := by
+  cases initial : executePrefix common with
+  | stopped result => simp [scalar,initial]
+  | next ctx stack gas world =>
+    simp only [scalar,initial]
+    rw [Prefix.equivalent ctx fork before after (same ctx) priced stack gas]
 
 end SolarTV.EVM.Suffix

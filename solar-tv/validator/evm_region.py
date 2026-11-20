@@ -16,6 +16,10 @@ from .common import Program, Unsupported
 UNFOLD = "EVM.Region.execute, EVM.Region.instructions"
 
 
+class UnmodeledInstruction(Unsupported):
+    """An instruction failed projection before any import certificate ran."""
+
+
 def translate(text: str, entry: str, height: int | None) -> Program:
     bodies = regions.blocks(text)
     if entry not in bodies or height is not None and not 0 <= height <= 1024:

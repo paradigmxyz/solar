@@ -378,7 +378,7 @@ pub(super) struct PlannerBase {
     projections: FxHashMap<InstId, SmallVec<[Option<ValueId>; 4]>>,
     publish: DenseBitSet<InstId>,
     tail_calls: FxHashMap<BlockId, InstId>,
-    conditions: FxHashMap<BlockId, (ValueId, bool)>,
+    conditions: FxHashMap<BlockId, (ValueId, bool, Option<InstId>)>,
     executions: IndexVec<BlockId, u32>,
     backedges: FxHashSet<(BlockId, BlockId)>,
     forward_preds: IndexVec<BlockId, u32>,
@@ -418,9 +418,9 @@ pub(super) struct Planner<'a> {
     projections: &'a FxHashMap<InstId, SmallVec<[Option<ValueId>; 4]>>,
     /// Multi-word calls that store their extra results to the multi-return buffer.
     publish: &'a DenseBitSet<InstId>,
-    /// Branch conditions with their single-use zero tests peeled off, and whether that
-    /// inverts the branch.
-    conditions: &'a FxHashMap<BlockId, (ValueId, bool)>,
+    /// Branch conditions with their single-use zero tests peeled off, whether that inverts the
+    /// branch, and the innermost peeled `eq`, which an `ISZERO` of the condition computes.
+    conditions: &'a FxHashMap<BlockId, (ValueId, bool, Option<InstId>)>,
     /// The constants retained by this trial, with the blocks that first materialize them.
     constant_defs: Vec<(BlockId, ValueId)>,
     /// The blocks in which each retained constant is kept on the stack. The constant is pushed
@@ -605,6 +605,7 @@ impl PlannerBase {
             let Some(Terminator::Branch { condition, .. }) = &block.terminator else { continue };
             let mut condition = *condition;
             let mut inverted = false;
+            let mut zero_test = None;
             while use_counts[condition] == 1
                 && !remat.contains(condition)
                 && let Value::Inst(def) = *func.value(condition)
@@ -613,12 +614,15 @@ impl PlannerBase {
                 && let Some(input) =
                     Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
             {
-                inverted ^= matches!(kind, InstKind::Eq(..));
+                if matches!(kind, InstKind::Eq(..)) {
+                    inverted = !inverted;
+                    zero_test = Some(def);
+                }
                 skipped.insert(def);
                 condition = input;
             }
             if condition != block.terminator.as_ref().unwrap().operands()[0] {
-                conditions.insert(block_id, (condition, inverted));
+                conditions.insert(block_id, (condition, inverted, zero_test));
             }
         }
 
@@ -926,7 +930,9 @@ impl<'a> Planner<'a> {
             let terminator_start = sim.steps.len();
             let exit = self.plan_terminator(&mut sim, block)?;
             self.charge(&sim, block);
-            self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
+            let zero_test = self.conditions.get(&block).and_then(|&(.., zero_test)| zero_test);
+            self.blocks[block] =
+                Some(BlockPlan { steps: sim.steps, terminator_start, exit, zero_test });
         }
         Ok(())
     }
@@ -1195,7 +1201,7 @@ impl<'a> Planner<'a> {
             // Mirrors `block_uses`, but for the operands the code reads from the stack.
             let reads = match &func.blocks[held].terminator {
                 Some(Terminator::Branch { condition, .. }) => {
-                    self.conditions.get(&held).map_or(*condition, |&(condition, _)| condition)
+                    self.conditions.get(&held).map_or(*condition, |&(condition, ..)| condition)
                         == value
                 }
                 Some(Terminator::Return { .. }) if let Some(call) = tail_call => {
@@ -2539,7 +2545,7 @@ impl<'a> Planner<'a> {
         }
         match &func.blocks[block].terminator {
             Some(Terminator::Branch { condition, .. }) => {
-                add(self.conditions.get(&block).map_or(*condition, |&(condition, _)| condition));
+                add(self.conditions.get(&block).map_or(*condition, |&(condition, ..)| condition));
             }
             Some(Terminator::Return { .. }) if let Some(call) = tail_call => {
                 icall(&func.inst(call).kind).unwrap().1.iter().copied().for_each(add);
@@ -2587,7 +2593,7 @@ impl<'a> Planner<'a> {
             let ops: Operands = args.iter().rev().copied().collect();
             self.prepare(sim, &ops, &dying)?;
             let base = sim.height() - args.len();
-            sim.steps.push(Step::Call { callee, block, below: sim.stack[..base].into() });
+            sim.steps.push(Step::Call { callee, inst, block, below: sim.stack[..base].into() });
             sim.cost += StackCosts::INTERNAL_CALL;
             sim.stack.truncate(base);
             let arity = self.info.returns[callee];
@@ -2833,8 +2839,8 @@ impl<'a> Planner<'a> {
             }
             Terminator::Branch { condition, then_block, else_block } => {
                 // jumpi (eq x, 0), a, b -> jumpi x, b, a
-                let (condition, inverted) =
-                    self.conditions.get(&block).copied().unwrap_or((*condition, false));
+                let (condition, inverted, _) =
+                    self.conditions.get(&block).copied().unwrap_or((*condition, false, None));
                 let (then_block, else_block) =
                     if inverted { (*else_block, *then_block) } else { (*then_block, *else_block) };
                 self.plan_branch(sim, block, condition, then_block, else_block)
@@ -3278,8 +3284,8 @@ impl<'a> Planner<'a> {
                 self.shuffle(sim, &with_return_address(values))
             }
             Some(Terminator::Branch { condition, .. }) => {
-                let (condition, _) =
-                    self.conditions.get(&block).copied().unwrap_or((*condition, false));
+                let (condition, ..) =
+                    self.conditions.get(&block).copied().unwrap_or((*condition, false, None));
                 self.prepare(sim, &[condition], &dying)
             }
             Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
@@ -3614,7 +3620,8 @@ impl<'a> Planner<'a> {
         else {
             return None;
         };
-        let condition = self.conditions.get(&block).map_or(*condition, |&(condition, _)| condition);
+        let condition =
+            self.conditions.get(&block).map_or(*condition, |&(condition, ..)| condition);
         let fixed = |succ: BlockId| self.layouts[succ].is_some() && !self.floating.contains(succ);
         if fixed(*then_block) || fixed(*else_block) || self.use_counts[condition] != 1 {
             return None;

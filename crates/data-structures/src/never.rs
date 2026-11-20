@@ -1,23 +1,5 @@
-/// Hack to access the never type on stable.
-#[cfg(not(feature = "nightly"))]
-#[doc(hidden)]
-#[allow(unnameable_types)]
-pub trait GetReturnType {
-    type ReturnType;
-}
-
-#[cfg(not(feature = "nightly"))]
-#[doc(hidden)]
-impl<T> GetReturnType for fn() -> T {
-    type ReturnType = T;
-}
-
 /// The [`!` (never)](primitive@never) type.
-#[cfg(not(feature = "nightly"))]
-pub type Never = <fn() -> ! as GetReturnType>::ReturnType;
-
-/// The [`!` (never)](primitive@never) type.
-#[cfg(feature = "nightly")]
+#[doc(hidden)]
 pub type Never = !;
 
 #[cfg(test)]
@@ -30,7 +12,6 @@ mod tests {
 
     #[test]
     fn test_never_returns() {
-        #[cfg(feature = "nightly")]
         fn test1<F: Fn() -> !>(f: F) {
             let _ = f;
         }
@@ -38,7 +19,6 @@ mod tests {
             let _ = f;
         }
 
-        #[cfg(feature = "nightly")]
         test1(never_returns);
         test2(never_returns);
     }

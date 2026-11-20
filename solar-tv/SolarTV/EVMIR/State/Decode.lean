@@ -19,15 +19,19 @@ def pureOp : Nat → Option EVM.Op
   | 0x1d => some .sar | 0x1e => some .clz
   | _ => none
 
+def pushWidth (opcode : Nat) : Nat :=
+  if 0x60 ≤ opcode ∧ opcode ≤ 0x7f then opcode - 0x5f else 0
+
+def scanJumps : Nat → Nat → List Byte → List Nat
+  | fuel+1, pc, byte :: rest =>
+    let byte := byte.toNat
+    let skip := pushWidth byte
+    let remaining := scanJumps fuel (pc+1+skip) (rest.drop skip)
+    if byte = 0x5b then pc :: remaining else remaining
+  | _, _, _ => []
+
 def jumpDestinations (fuel : Nat) (code : List Byte) (pc : Nat := 0) : List Nat :=
-  match fuel with
-  | 0 => []
-  | fuel + 1 =>
-    if pc ≥ code.length then [] else
-      let byte := code[pc]?.getD 0 |>.toNat
-      let next := pc + 1 + if 0x60 ≤ byte ∧ byte ≤ 0x7f then byte - 0x5f else 0
-      let rest := jumpDestinations fuel code next
-      if byte = 0x5b then pc :: rest else rest
+  scanJumps fuel pc (code.drop pc)
 
 def validJump (code : List Byte) (target : Word) : Bool :=
   (jumpDestinations code.length code).contains target.toNat

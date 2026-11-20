@@ -34,6 +34,7 @@ def load_rules(path):
         if (
             not isinstance(rule, dict)
             or set(rule) != {"comparator", "version", "policy", "difference", "reason"}
+            or not isinstance(rule["comparator"], str)
             or rule["comparator"] not in compare.COMPARATORS
             or rule["policy"] not in ("exact", "interface")
             or type(rule["version"]) is not int
@@ -164,7 +165,7 @@ def compare_pair(left, right, selected, policy, ast_rules=()):
         return [
             {
                 "comparator": kind,
-                "version": compare.VERSION,
+                "version": compare.COMPARATORS.get(kind, compare.VERSION),
                 "policy": policy,
                 "status": "error",
                 "differences": [],

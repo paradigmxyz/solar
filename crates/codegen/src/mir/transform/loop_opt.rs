@@ -20,6 +20,12 @@
 //! size) stay in loops that call or create, and nothing moves out of a loop that reads the
 //! remaining gas. Frame loads and the free memory pointer never move.
 //!
+//! In gas mode, a loop without a computable trip count counts as running
+//! `2^MAX_TRIP_COUNT_BITS` times, so scalar evolution still bounds its affine offsets, far below
+//! a wrap of the address space.
+//! A load hoisted behind a store of the same word in the preheader reads the stored value, and
+//! a load of the same word left in the loop reads the hoisted one.
+//!
 //! Profitability. An instruction is a hoisting root when its estimated per-iteration saving
 //! reaches the pass threshold, or when it is the invariant base of an affine address the loop
 //! reads or writes. In gas mode, pure word arithmetic that executes on every iteration is a
@@ -477,6 +483,7 @@ impl LoopOptimizer {
         let ordered = self.topological_sort_instructions(func, selected, visiting);
 
         let hoisted_loc = terminator_debug_context(func, preheader, DebugLocKind::Dropped);
+        let mut moved = Vec::new();
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
@@ -485,9 +492,83 @@ impl LoopOptimizer {
                 func.blocks[block].instructions.retain(|&id| id != inst_id);
                 func.inst_mut(inst_id).metadata.preserve_debug_loc(&hoisted_loc);
                 func.blocks[preheader].instructions.push(inst_id);
+                moved.push(inst_id);
                 self.hoisted += 1;
             }
         }
+        self.reuse_hoisted_loads(func, loop_data, preheader, &moved);
+    }
+
+    /// Replaces each hoisted load with the word the preheader just stored there, when nothing
+    /// writes memory in between, and each load that stayed in the loop with a hoisted load of
+    /// the same address: no loop instruction writes that word, so all read one value, and the
+    /// hoisted read already ran.
+    fn reuse_hoisted_loads(
+        &self,
+        func: &mut Function,
+        loop_data: &Loop,
+        preheader: BlockId,
+        moved: &[InstId],
+    ) {
+        let mut values = FxHashMap::default();
+        let mut replacements = FxHashMap::default();
+        let mut dead = FxHashSet::default();
+        for &inst_id in moved {
+            if let InstKind::Load(addr, PtrLocation::Memory) = func.inst(inst_id).kind
+                && let Some(result) = func.inst_result_value(inst_id)
+            {
+                // mstore a, s; ...; r = mload a  =>  uses of r become s
+                let stored = self.preheader_stored_word(func, preheader, inst_id, addr);
+                if let Some(stored) =
+                    stored.filter(|&word| func.value_ty(word) == func.value_ty(result))
+                {
+                    replacements.insert(result, stored);
+                    dead.insert(inst_id);
+                }
+                values.entry(addr).or_insert(replacements.get(&result).copied().unwrap_or(result));
+            }
+        }
+        for block_id in &loop_data.blocks {
+            for &inst_id in &func.blocks[block_id].instructions {
+                // h = mload a (hoisted); ...; t = mload a  =>  uses of t become h
+                if let InstKind::Load(addr, PtrLocation::Memory) = func.inst(inst_id).kind
+                    && let Some(&value) = values.get(&addr)
+                    && let Some(twin) = func.inst_result_value(inst_id)
+                    && func.value_ty(twin) == func.value_ty(value)
+                {
+                    replacements.insert(twin, value);
+                    dead.insert(inst_id);
+                }
+            }
+        }
+        func.replace_uses_canonicalized(&replacements);
+        for block_id in loop_data.blocks.iter().chain([preheader]) {
+            func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        }
+    }
+
+    /// The word the last memory write before `load` in the preheader stored to `addr`, if that
+    /// write is to exactly `addr`.
+    fn preheader_stored_word(
+        &self,
+        func: &Function,
+        preheader: BlockId,
+        load: InstId,
+        addr: ValueId,
+    ) -> Option<ValueId> {
+        let insts = &func.blocks[preheader].instructions;
+        let position = insts.iter().position(|&id| id == load)?;
+        for &inst_id in insts[..position].iter().rev() {
+            if let InstKind::Store(store_addr, word, PtrLocation::Memory) = func.inst(inst_id).kind
+                && store_addr == addr
+            {
+                return Some(word);
+            }
+            if self.alias.instruction_mod_ref(func, inst_id).writes_space(AddressSpace::Memory) {
+                return None;
+            }
+        }
+        None
     }
 
     fn collect_hoist_closure(
@@ -895,7 +976,15 @@ impl LoopOptimizer {
         let mut start = expr.constant;
         let mut end = expr.constant;
         if !expr.terms.is_empty() {
-            let trip_count = i128::from(loop_data.trip_count?);
+            // A loop without a computable trip count still runs at most
+            // `2^MAX_TRIP_COUNT_BITS` times, so the counter stays near its start and ranges on
+            // the same base meet only where their offset intervals overlap. Only gas mode
+            // takes it: a size build pays a `pop` after the loop for each word it carries.
+            let trip_count = if self.hoist_cheap {
+                loop_data.trip_count.map_or(1 << Target::MAX_TRIP_COUNT_BITS, i128::from)
+            } else {
+                i128::from(loop_data.trip_count?)
+            };
             if trip_count == 0 {
                 return None;
             }

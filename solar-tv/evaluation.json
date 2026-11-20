@@ -20,7 +20,8 @@
       "archive": "testdata/projects/morpho-blue-1.0.0.json.gz",
       "sha256": "00c2209827e5d5c705847cccdbb10e36101b2d800f2cb30fe3ee5773dcc26a00",
       "source": "src/Morpho.sol",
-      "contract": "Morpho"
+      "contract": "Morpho",
+      "final_call": "safeTransferFrom"
     }
   ]
 }

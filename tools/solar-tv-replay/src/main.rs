@@ -58,6 +58,14 @@ fn main() {
         println!("{output}");
         return;
     }
+    if std::env::args().nth(1).as_deref() == Some("--mir-module-model") {
+        let output = match mir_model::export_module_model() {
+            Ok(model) => json!({"version":1,"status":"ok","model":model}),
+            Err(reason) => json!({"version":1,"status":"unsupported","reason":reason}),
+        };
+        println!("{output}");
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--precompiles") {
         let output = match precompile::replay() {
             Ok(observations) => json!({"version": 1, "status": "ok", "observations": observations}),

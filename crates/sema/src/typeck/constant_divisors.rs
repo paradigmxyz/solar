@@ -20,7 +20,6 @@ use crate::{
     ty::Gcx,
     typeck::{Unit, par_visit_items},
 };
-use solar_data_structures::Never;
 use solar_interface::error_code;
 use std::ops::ControlFlow;
 
@@ -54,7 +53,7 @@ impl Checker<'_> {
 }
 
 impl<'gcx> Visit<'gcx> for Checker<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

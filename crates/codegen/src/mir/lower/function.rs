@@ -114,7 +114,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
-    let declaration_span = mir.declaration_span;
+    let (declaration_span, exit_span) = (mir.declaration_span, mir.exit_span);
     if !expose_selector {
         mir.selector = None;
     }
@@ -181,8 +181,11 @@ pub(super) fn lower(
         lowerer.lower_function_body(hir_function.modifiers, body, hir_function.span)?;
     }
     if !lowerer.is_terminated() {
-        // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(declaration_span);
+        // NOTE: solc maps this exit to the function definition (`ContractCompiler.cpp:619`). A
+        // debugger then stops on the header again after the last statement, so like a clang
+        // epilogue the exit maps to the closing brace of the body.
+        // ret named_returns !metadata(closing brace)
+        lowerer.builder.replace_source_span(exit_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
@@ -1369,7 +1372,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
-                let previous_span = builder.replace_source_span(gcx.hir.function(function_id).span);
                 let call_arguments = arguments
                     .iter()
                     .copied()
@@ -1440,7 +1442,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     };
                     builder.ret([result]);
                 }
-                builder.replace_source_span(previous_span);
                 builder.switch_to_block(next_block);
             }
 

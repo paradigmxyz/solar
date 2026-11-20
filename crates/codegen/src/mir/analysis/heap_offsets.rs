@@ -13,8 +13,9 @@
 //! so a `ptradd` keeps its pointer, and `lower-memory-objects` marks the additions it makes for
 //! them.
 //!
-//! Stepping back from a pointer by a constant stays above the heap prefix the frames reserve, but
-//! a loop that steps back on every iteration walks down through the frames without limit.
+//! Stepping back from a pointer by a constant of at most the start of the heap stays above the heap
+//! prefix the frames reserve, but a loop that steps back on every iteration walks down through the
+//! frames without limit.
 
 use crate::mir::{ArithmeticKind, CheckedOp, Function, InstKind, Value, ValueId};
 use smallvec::SmallVec;
@@ -45,8 +46,11 @@ pub(crate) fn pointer_bases(
             }
         }
         InstKind::PtrAdd(base, _) => bases.push(base),
+        // A step back from a step back is not trusted: the heap prefix guard judges the sum of the
+        // steps, which can pass `max_step_back` where each step does not.
         InstKind::Sub(base, delta)
             if func.value_u64(delta).is_some_and(|step| step <= max_step_back)
+                && !is_step_back(func, base)
                 && !steps_back_in_loop(func, value) =>
         {
             bases.push(base);
@@ -54,6 +58,51 @@ pub(crate) fn pointer_bases(
         _ => {}
     }
     bases
+}
+
+/// Whether `value`, or an operand that it adds, rounds, merges or casts, subtracts a constant or
+/// adds one that wraps, as a step back.
+fn is_step_back(func: &Function, value: ValueId) -> bool {
+    let mut seen = DenseBitSet::new_empty(func.num_values());
+    let mut pending = vec![value];
+    let mut budget = OFFSET_BOUND_STEPS;
+    while let Some(next) = pending.pop() {
+        if !seen.insert(next) {
+            continue;
+        }
+        budget -= 1;
+        if budget == 0 {
+            return true;
+        }
+        let Value::Inst(inst) = func.value(next) else { continue };
+        match &func.inst(*inst).kind {
+            InstKind::Sub(_, delta) if func.value_u256(*delta).is_some() => return true,
+            InstKind::Add(a, b)
+                if [a, b]
+                    .into_iter()
+                    .any(|word| func.value_u256(*word).is_some_and(|word| word.bit(255))) =>
+            {
+                return true;
+            }
+            // A forward step or a rounding keeps a step back below it, which can pass
+            // `max_step_back` with the step that is subtracted from the result.
+            InstKind::Add(a, b)
+            | InstKind::And(a, b)
+            | InstKind::Mul(a, b)
+            | InstKind::Shl(a, b)
+            | InstKind::Shr(a, b)
+            | InstKind::Div(a, b) => pending.extend([*a, *b]),
+            InstKind::PtrToInt(base, _) | InstKind::IntToPtr(base) | InstKind::PtrAdd(base, _) => {
+                pending.push(*base);
+            }
+            InstKind::Phi(incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
+            InstKind::Select(_, then_value, else_value) => {
+                pending.extend([*then_value, *else_value]);
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// Whether `offset` is a word that cannot wrap a pointer around the address space.
@@ -205,4 +254,41 @@ pub(crate) fn is_floor_clamp(
     let Value::Inst(cond) = func.value(cond) else { return false };
     matches!(func.inst(*cond).kind, InstKind::Lt(word, floor)
         if is_floor(floor) && is_floor(then_value) && word == else_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{FunctionBuilder, MirType};
+    use alloy_primitives::U256;
+    use solar_interface::Ident;
+
+    #[test]
+    fn a_step_back_from_a_merged_step_back_is_not_trusted() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        let base = builder.fmp();
+        let cond = builder.imm(1);
+        let (near, far) = (builder.imm(0x40), builder.imm(0x60));
+        let offset = builder.add_param(MirType::I256);
+        // merged = select(cond, base - 0x40, base - 0x60)
+        // again = merged - 0x60
+        // sum = (base - 0x40) + arg0
+        // sum_again = sum - 0x60
+        let first = builder.sub(base, near);
+        let second = builder.sub(base, far);
+        let merged = builder.select(cond, first, second);
+        let again = builder.sub(merged, far);
+        let sum = builder.add(first, offset);
+        let sum_again = builder.sub(sum, far);
+        // rounded = (base - 0x40) & ~0x1f
+        // rounded_again = rounded - 0x60
+        let mask = builder.imm(!U256::from(0x1f));
+        let rounded = builder.and(first, mask);
+        let rounded_again = builder.sub(rounded, far);
+        assert_eq!(pointer_bases(&function, first, 0x80).len(), 1);
+        assert!(pointer_bases(&function, rounded_again, 0x80).is_empty());
+        assert!(pointer_bases(&function, again, 0x80).is_empty());
+        assert!(pointer_bases(&function, sum_again, 0x80).is_empty());
+    }
 }

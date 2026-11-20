@@ -824,8 +824,8 @@ A block header may end in `!metadata(span=10..20)`, written `bb3 [cold] !metadat
 It is the origin of the block's label, the source location of the `JUMPDEST` that marks the block,
 as solc gives a tag the location active where the tag is placed. Lowering sets it when it places a
 block: the function definition for the entry block, the declaration of a fallback or receive function
-for its route, and the enclosing statement for the else and end blocks of an `if` and the header and
-exit of a loop. Text prints it under the same rule as an
+for its route, and the enclosing statement for the else block of an `if` and the header and exit of a
+loop. The end block of a source `if` has none, like the jumps out of its arms. Text prints it under the same rule as an
 instruction's span, so lowered MIR dumps do not show it. A pass that keeps a block keeps its label,
 one that merges the block into its predecessor drops it, and one that bypasses an empty block
 (`jump-threading`, `cfg-simplify`) or replaces a duplicate function body merges that block's label

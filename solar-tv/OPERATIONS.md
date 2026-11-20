@@ -22,6 +22,19 @@ preserves that meaning, independent replay covers it, and boundary tests pass.
 Naming it, returning an arbitrary value, trusting a successful external call, or
 treating an effect as a no-op does not implement it.
 
+Source-graph identity certificates do not increase these operation counts. They
+retain identical operations under shared node semantics, without inventing
+values or discarding effects. They do not enable rewrites of an unsupported
+operation or establish physical transfer prices.
+
+Cyclic MIR DCE has a separate contextual action-machine simulation. It can
+erase unused total scalar or slice definitions. Every retained operation,
+simultaneous phi group and transfer stays exact, with
+arbitrary shared state and failing handlers. The theorem covers every logical
+block-transfer bound. Physical gas, termination, the parser and the action
+renderer are outside the claim. Six real DCE captures verify under this
+certificate. The frozen sample stays at 22/24.
+
 ## Implemented fragment
 
 All 26 pure EVM word operations are modeled, including zero division, signed
@@ -210,9 +223,25 @@ Acyclic multi-block EVM regions now follow changed successors and shared tails
 through terminal outcomes, with symbolic live-in stacks and memory. Internal
 labels and stack layouts need not correspond. Pure cyclic regions with equal
 independently exported source graphs also admit an all-execution-bounds proof.
-General loop invariants, dynamic/escaping labels, priced region transfers and
-stateful region operations remain unsupported. See
+General loop invariants, resolved dynamic targets, priced region transfers and
+stateful instruction rewrites remain unsupported. Reordered graphs also admit
+a kernel-checked mapping with opcode-schema height bounds: changed transfer
+growth checks must be proved safe for every incoming stack. Payloads and
+execution bounds remain arbitrary; physical transfer pricing and the concrete
+opcode-handler embedding remain outside this certificate. Raw dynamic jumps
+may serve only as observed full-payload exits under a shared logical
+continuation, without resolving their targets or proving physical return
+addresses. Escaping labels and code-image observers remain unsupported.
+Identical independently exported stateful graphs have a separate structural
+certificate for every execution bound; opcode and physical-layout bindings
+remain trusted. See
 the [region examples](README.md#multi-block-evm-ir-regions).
+
+Complete unused MIR type-table erasure also has a module-level structural
+certificate. It checks independently resolved typed data for every retained
+function and preserves globals, phase and source text. This does not relax
+normal GAS execution or prove primitive instruction implementations; see
+the [type-pruning example](README.md#removing-unused-mir-type-declarations).
 
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
    Derive general MIR message budgets from priced execution rather than supplied
@@ -223,8 +252,11 @@ the [region examples](README.md#multi-block-evm-ir-regions).
    from complete-entry execution to arbitrary local windows.
 4. Extend the per-import correspondence certificates beyond acyclic EVM regions
    and acyclic typed scalar MIR. Connect explicit placement assumptions to
-   actual backend layout decisions. Direct MIR semantics and independent replay
-   do not by themselves prove those decisions correct.
+   actual backend layout decisions. Fresh-heap direct SSA proofs now preserve
+   complete bodies under a named placement/FMP producer condition, with proved
+   explicit initialization and non-vacuity. Establishing that condition at
+   every caller remains open. Direct MIR semantics and independent replay do
+   not by themselves prove backend decisions correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.
 

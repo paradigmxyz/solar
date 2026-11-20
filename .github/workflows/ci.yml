@@ -153,7 +153,7 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.98" # MSRV
+            rust: "1.100" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
           # Run both nightly configurations in parallel.

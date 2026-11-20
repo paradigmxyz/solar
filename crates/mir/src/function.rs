@@ -28,6 +28,9 @@ pub struct Function {
     pub name_span: Span,
     /// Source span of the complete function declaration.
     pub declaration_span: Span,
+    /// Source span where the function exits after its last statement: the closing brace of its
+    /// body, or the declaration when it has no body.
+    pub exit_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub debug_identifier: Option<Symbol>,
     /// Source signature for the text dumps, set only when a dump is requested. It never affects
@@ -92,6 +95,7 @@ impl Function {
             name: MangledSymbol::new(name.name),
             name_span: name.span,
             declaration_span: name.span,
+            exit_span: name.span,
             debug_identifier: None,
             debug_signature: None,
             selector: None,

@@ -13,7 +13,7 @@ use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::Span;
-use solar_ir::link::LibraryId;
+use solar_ir::{debug::DebugLocKind, link::LibraryId};
 
 pub trait ToUint {
     fn to_uint(self) -> U256;
@@ -157,6 +157,19 @@ impl<'a> FunctionBuilder<'a> {
         previous
     }
 
+    /// Drops the location of newly emitted instructions, as LLVM's `Instruction::dropLocation`,
+    /// and returns the context to give back to [`Self::restore_debug_context`].
+    pub fn drop_debug_loc(&mut self) -> InstructionMetadata {
+        let previous = self.current_debug_context.clone();
+        self.current_debug_context.drop_debug_loc(DebugLocKind::Dropped);
+        previous
+    }
+
+    /// Restores a context returned by [`Self::drop_debug_loc`].
+    pub fn restore_debug_context(&mut self, context: InstructionMetadata) {
+        self.current_debug_context = context;
+    }
+
     /// Replaces the modifier nesting depth attached to newly emitted instructions.
     pub fn replace_modifier_depth(&mut self, depth: u32) -> u32 {
         let previous = self.current_debug_context.modifier_depth();
@@ -181,7 +194,7 @@ impl<'a> FunctionBuilder<'a> {
     ) {
         let block = &mut self.func.blocks[block];
         if matches!(block.terminator, Some(Terminator::Jump(_))) {
-            block.terminator_metadata.add_edge_assignment(value, origin);
+            block.terminator_metadata.add_edge_assignment(value, origin, None);
         }
     }
 

@@ -64,7 +64,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install Rust
-        run: rustup update "1.98.0" --no-self-update && rustup default "1.98.0"
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
@@ -130,7 +130,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install Rust
-        run: rustup update "1.98.0" --no-self-update && rustup default "1.98.0"
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
       - name: Install cached dist
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
@@ -192,7 +192,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install Rust
-        run: rustup update "1.98.0" --no-self-update && rustup default "1.98.0"
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
       - name: Install cached dist
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
