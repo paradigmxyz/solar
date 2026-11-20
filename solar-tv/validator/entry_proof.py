@@ -3,9 +3,16 @@
 import json
 import os
 from functools import partial
+from itertools import batched, chain
 from textwrap import indent
 
-from . import decoder_proof, dispatch_proof, market_proof
+from . import (
+    collateral_mir,
+    collateral_proof,
+    decoder_proof,
+    dispatch_proof,
+    market_proof,
+)
 from .callers import require
 from .check import ROOT, run
 
@@ -377,6 +384,36 @@ def certify_market(prove, decoded, market, decoder, route, pc, snapshot, timeout
     return name
 
 
+def certify_collateral(prove, prefix, market, decoder, route, helper, plan, timeout):
+    path, mir = plan
+    batches = chain(
+        batched(collateral_proof.fragments(path, market, decoder, route, helper), 9),
+        ((fragment,) for fragment in collateral_mir.fragments(decoder, mir)),
+    )
+    imports = (prefix, "SolarTV.MIR.Transforms.TransferFromCollateral")
+    for index, fragment in enumerate(batches):
+        name = f"{prefix}Collateral{index}"
+        body = "".join(fragment)
+        source = (
+            import_modules(imports)
+            + HEADER
+            + "open MIR.TransferFromABI MIR.TransferFromMarket MIR.TransferFromCollateral MIR.State\n"
+            + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
+            + body
+        )
+        output = success(prove(name, source, timeout, module=True), name)
+        check_axioms(output.splitlines(), body.count("#print axioms"))
+        imports = (name,)
+    return {
+        "proof": f"kernel/{name}.lean",
+        "load_pc": path.load_pc,
+        "store_pc": path.store_pc,
+        "pc": path.pc,
+        "steps": len(path.steps),
+        "fixed_gas": path.gas,
+    }
+
+
 def certify(
     directory,
     site,
@@ -388,6 +425,7 @@ def certify(
     concrete,
     market,
     market_snapshot,
+    collateral,
     runtime_size,
     timeout,
 ):
@@ -411,6 +449,13 @@ def certify(
         )
         if market_snapshot is not None:
             prefix_steps += len(market.instructions)
+    written = (
+        certify_collateral(
+            prove, prefix, market, decoder, route, pc, collateral, timeout
+        )
+        if collateral is not None
+        else None
+    )
     layers = (
         ("physical", "ByteCut", "ByteCut", 2048 - prefix_steps),
         ("before", "Except String MirCursor", "MirCut", 1024),
@@ -493,6 +538,8 @@ theorem after_live :
                 "gas": market.guard.gas,
             },
         }
+    if written is not None:
+        evidence["collateral_write"] = written
     return evidence
 
 

@@ -267,12 +267,20 @@ theorem ltSize (size n : Nat) (small : size < 2^256) (bounds : n ≤ size) :
     Evm.lt (BitVec.ofNat 256 size) (BitVec.ofNat 256 n) = 0 := by
   simp [Evm.lt,BitVec.ult_eq_decide,wordSize _ small,wordSize n (by omega),Nat.not_lt_of_ge bounds]
 
-theorem addressShift (word : Word) (canonical : word.toNat < 2^160) :
-    Evm.shr 160 word = 0 := by
-  change word >>> 160 = 0
+theorem shrFits (word : Word) (width : Nat) (within : width < 256)
+    (fits : word.toNat < 2^width) : Evm.shr (BitVec.ofNat 256 width) word = 0 := by
+  have small : width < 2^256 := by omega
+  have count : (BitVec.ofNat 256 width).toNat = width := Nat.mod_eq_of_lt small
+  have ult : (BitVec.ofNat 256 width).ult 256 = true := by
+    simp [BitVec.ult_eq_decide,count,within]
+  rw [Evm.shr, ult, Bool.cond_true, BitVec.ushiftRight_eq', count]
   apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_ushiftRight,Nat.shiftRight_eq_div_pow,Nat.div_eq_of_lt canonical]
+  rw [BitVec.toNat_ushiftRight,Nat.shiftRight_eq_div_pow,Nat.div_eq_of_lt fits]
   rfl
+
+theorem addressShift (word : Word) (canonical : word.toNat < 2^160) :
+    Evm.shr 160 word = 0 :=
+  shrFits word 160 (by decide) canonical
 
 theorem fitsSlice (word : Word) (size : Nat) (small : size < 2^256)
     (bounds : word.toNat ≤ size) : Evm.gt word (BitVec.ofNat 256 size) = 0 := by

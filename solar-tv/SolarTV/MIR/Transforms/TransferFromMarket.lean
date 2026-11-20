@@ -92,37 +92,45 @@ theorem readMarketStorage (cfg : MIR.State.Config) (frame : MIR.State.Frame) (ke
 def marketMemory (market : List Word) : List Byte :=
   wordArena ([marketHash market,3,288,0] ++ market)
 
-theorem mapMarket (cfg : MIR.State.Config) (frame : MIR.State.Frame)
-    (market : List Word) (size : market.length = 5)
-    (memory : frame.memory = wordArena ([0,0,288,0] ++ market)) :
-    MIR.State.operation cfg frame (.slot .mapping) [marketHash market,3] =
-      MIR.State.value {frame with memory := marketMemory market} (mappingHash market) := by
-  let words : List Word := [0,0,288,0] ++ market
+theorem mapArena (cfg : MIR.State.Config) (frame : MIR.State.Frame)
+    (old0 old1 key slot : Word) (tail : List Word)
+    (small : 32 * (old0 :: old1 :: tail).length ≤ 65536)
+    (memory : frame.memory = wordArena (old0 :: old1 :: tail)) :
+    MIR.State.operation cfg frame (.slot .mapping) [key,slot] =
+      MIR.State.value {frame with memory := wordArena (key :: slot :: tail)}
+        (Keccak.hash (wordArena [key,slot])) := by
+  let words : List Word := old0 :: old1 :: tail
   have within : 0 + 2 ≤ words.length := by simp [words]
   have active : expand (wordArena words) 0 64 = .ok (wordArena words) :=
-    expandArenaRange words 0 2 within (by simp [words,size])
-  have length : (wordArena words).length = 288 := by simp [words,size]
-  have bytes : (wordBytes (marketHash market) ++ wordBytes 3).length ≤ (wordArena words).length := by
-    simp [length]
-  have written : writeBytes (wordArena words) 0 (wordBytes (marketHash market) ++ wordBytes 3) =
-      marketMemory market := by
+    expandArenaRange words 0 2 within small
+  have bytes : (wordBytes key ++ wordBytes slot).length ≤ (wordArena words).length := by
+    simp [words]
+    omega
+  have written : writeBytes (wordArena words) 0 (wordBytes key ++ wordBytes slot) =
+      wordArena (key :: slot :: tail) := by
     unfold writeBytes
     simp only [Nat.sub_zero]
     rw [List.take_of_length_le bytes]
     simp only [List.take_zero,List.nil_append,
       List.length_append,wordBytes_length,Nat.reduceAdd,Nat.zero_add]
     rw [show (64 : Nat) = 32*2 by rfl, dropArena]
-    unfold marketMemory
     rfl
-  have mapped : MIR.State.fixedSlot frame [marketHash market,3] =
-      .ok (mappingHash market,{frame with memory := marketMemory market}) := by
+  have mapped : MIR.State.fixedSlot frame [key,slot] =
+      .ok (Keccak.hash (wordArena [key,slot]),{frame with memory := wordArena (key :: slot :: tail)}) := by
     simp only [MIR.State.fixedSlot,List.flatMap_cons,List.flatMap_nil,List.append_nil,
       List.length_append,wordBytes_length]
     change (expand frame.memory 0 64 >>= fun arena => Except.ok
-      (mappingHash market,{frame with memory := writeBytes arena 0 (wordBytes (marketHash market) ++ wordBytes 3)})) = _
+      (Keccak.hash (wordArena [key,slot]),{frame with memory := writeBytes arena 0 (wordBytes key ++ wordBytes slot)})) = _
     rw [memory,active]
-    exact congrArg (fun arena => Except.ok (mappingHash market,{frame with memory := arena})) written
+    exact congrArg (fun arena => Except.ok (Keccak.hash (wordArena [key,slot]),{frame with memory := arena})) written
   simp only [MIR.State.operation,mapped,Bind.bind,Except.bind]
+
+theorem mapMarket (cfg : MIR.State.Config) (frame : MIR.State.Frame)
+    (market : List Word) (size : market.length = 5)
+    (memory : frame.memory = wordArena ([0,0,288,0] ++ market)) :
+    MIR.State.operation cfg frame (.slot .mapping) [marketHash market,3] =
+      MIR.State.value {frame with memory := marketMemory market} (mappingHash market) :=
+  mapArena cfg frame 0 0 (marketHash market) 3 (288 :: 0 :: market) (by simp [size]) memory
 
 def mirStart (entry : Nat) (journal : Journal) (market : List Word)
     (rest : List MIR.State.Value) : MIR.State.Machine :=

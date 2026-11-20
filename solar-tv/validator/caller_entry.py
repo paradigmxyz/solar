@@ -5,6 +5,8 @@ from pathlib import Path
 
 from . import (
     caller_replay,
+    collateral_mir,
+    collateral_proof,
     decoder_proof,
     dispatch_proof,
     entry_proof,
@@ -270,7 +272,7 @@ def check(
     directory.mkdir()
     built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
-    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromMarket")
+    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromCollateral")
     require(not built.returncode, built.stdout + built.stderr)
     kernel = directory / "kernel"
     kernel.mkdir()
@@ -320,6 +322,14 @@ def check(
             else None
         )
         concrete = decoder.accepts(state["calldata"])
+        collateral = (
+            (
+                collateral_proof.plan(runtime, observed["pcs"], catalog, market),
+                collateral_mir.plan(tables, catalog, market),
+            )
+            if site.name == "supplyCollateral"
+            else None
+        )
         market_snapshot = None
         if concrete:
             reached = replay(state, decoder.pc, executable, timeout)
@@ -394,6 +404,7 @@ def check(
             concrete,
             market,
             market_snapshot,
+            collateral,
             len(runtime),
             timeout,
         )

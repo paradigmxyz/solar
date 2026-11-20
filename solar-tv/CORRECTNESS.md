@@ -749,6 +749,19 @@ branch on the same low 128 bits. Independent bytecode replay covers a zero
 word, a nonzero high half with a zero low half, a nonzero low half, and the
 gas required to reach the successor.
 
+SupplyCollateral carries this symbolic certificate through the first
+position update for canonical calldata, a created market, a nonzero
+amount and owner, and a collateral sum that fits in 128 bits. The emitted
+path checks both nested mapping hashes, the original and current slot
+values used for pricing, the SSTORE gas sentry, the signed refund, and the
+exact post-store stack and memory. Both captured MIR bodies execute the
+narrowing call and checked packed update and agree with the physical
+memory and journal aside from the EVM's metering refund. Rust replay
+checks cold and warm reads, fresh and nonzero slots, overflow, and a
+one-gas-short store. It also checks the actual callback's forwarded gas
+and that a reverted callback restores the position and discards the log.
+The symbolic certificate ends at the first store.
+
 The concrete ABI-to-exit certificates compose both segments for the
 supplied input, resume with the exact residual gas, and then
 prove reachability in the emitted runtime and both captured MIR bodies.

@@ -910,6 +910,111 @@ end {namespace}
                     state["gas"] - index,
                     executable,
                 )
+            if name == "supplyCollateral":
+                self.check_collateral_write(
+                    kernel, path, state, state["gas"] - index, executable
+                )
+
+    def check_collateral_write(self, kernel, path, state, decode_gas, executable):
+        proof = path["collateral_write"]
+        self.assertTrue((kernel / Path(proof["proof"]).name).is_file())
+        market = path["market_read"]
+        state = {**state, "gas": 300_000, "warm_slots": []}
+        owner = int(state["address"])
+        market_cut = caller_entry.replay(state, market["load_pc"], executable, 30)
+        market_key = market_cut["stack"][0]
+
+        def with_position(
+            value, position_key=None, warm=False, child=b"\x5a\x5f\x55\x00"
+        ):
+            slots = [[market_key, "1"]]
+            if position_key is not None:
+                slots.append([position_key, str(value)])
+            return {
+                **state,
+                "warm_slots": [(str(owner), position_key)] if warm else [],
+                "accounts": [
+                    {**account, "storage": slots}
+                    if int(account["address"]) == owner
+                    else {**account, "code": list(child)}
+                    if int(account["address"]) == caller_replay.CALLER
+                    else {**account, "code": list(bytes.fromhex("60015f5260205ff3"))}
+                    if int(account["address"]) == caller_replay.TOKEN
+                    else account
+                    for account in state["accounts"]
+                ],
+            }
+
+        def storage(receipt, address=owner):
+            account = next(
+                account for account in receipt[4] if int(account[0]) == address
+            )
+            return dict(account[4])
+
+        load = caller_entry.replay(with_position(0), proof["load_pc"], executable, 30)
+        position_key = load["stack"][0]
+        assets = int.from_bytes(bytes(state["calldata"][164:196]), "big")
+        static_gas = (
+            decode_gas
+            + market["gas_before_load"]
+            + market["guard"]["gas"]
+            + proof["fixed_gas"]
+        )
+        for read_fee, write_fee, old in (
+            (2100, 20000, 0),
+            (100, 2900, (29 << 128) | 0xDEADBEEF),
+        ):
+            warmed = read_fee == 100
+            fixture = with_position(old, position_key, warmed)
+            gas = static_gas + 2100 + read_fee + write_fee
+            keyed = {**fixture, "gas": gas}
+            old_high, old_low = divmod(old, 1 << 128)
+            packed = ((old_high + assets) << 128) | old_low
+            before = caller_entry.replay(keyed, proof["store_pc"], executable, 30)
+            self.assertEqual(before["stack"][:2], [position_key, str(packed)])
+            self.assertEqual(before["gas"], write_fee)
+            after = caller_entry.replay(keyed, proof["pc"], executable, 30)
+            self.assertEqual(after["stack"], before["stack"][2:])
+            self.assertEqual(after["memory"], before["memory"])
+            self.assertEqual(after["gas"], 0)
+            unpaid = caller_entry.replay(
+                {**keyed, "gas": gas - 1}, None, executable, 30
+            )
+            self.assertEqual(unpaid[0], "out-of-gas")
+            self.assertEqual(int(storage(unpaid).get(position_key, "0")), old)
+            success = caller_entry.replay(fixture, None, executable, 30)
+            self.assertEqual(success[0], "success")
+            self.assertEqual(int(storage(success)[position_key]), packed)
+            self.assertEqual(len(success[5]), 1)
+            helper = caller_entry.replay(fixture, path["pc"], executable, 30)
+            (budget,) = helper["budgets"]
+            # EXTCODESIZE warms the zero-value CALL, whose input is already in memory.
+            left = budget - 100
+            forwarded = left - left // 64
+            child_gas = int(storage(success, caller_replay.CALLER)["0"])
+            self.assertEqual(child_gas, forwarded - 2)
+            failed = caller_entry.replay(
+                with_position(
+                    old, position_key, warmed, bytes.fromhex("60015f526004601cfd")
+                ),
+                None,
+                executable,
+                30,
+            )
+            self.assertEqual(failed[0], "revert")
+            self.assertEqual(bytes(failed[1]), b"\x00\x00\x00\x01")
+            self.assertEqual(int(storage(failed).get(position_key, "0")), old)
+            self.assertEqual(failed[5], [])
+
+        high = ((1 << 128) - 1) << 128
+        overflow = caller_entry.replay(
+            with_position(high, position_key), None, executable, 30
+        )
+        self.assertEqual(overflow[0], "revert")
+        self.assertEqual(
+            bytes(overflow[1]), bytes.fromhex("4e487b71") + caller_replay.word(0x11)
+        )
+        self.assertEqual(int(storage(overflow)[position_key]), high)
 
     def check_symbolic_market(
         self, kernel, namespace, decoder_module, market, state, decode_gas, executable
