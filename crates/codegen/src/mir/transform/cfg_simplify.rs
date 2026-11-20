@@ -653,7 +653,7 @@ fn can_merge(
     // The merge drops the jump and the target's label.
     if let Some(component) = keep
         && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
-        && !block.instructions.last().is_some_and(|&inst| {
+        && !last_call(func, block).is_some_and(|inst| {
             calls_function(func, inst, component) && returns_result(func, inst, *target)
         })
     {
@@ -1195,6 +1195,16 @@ fn constant(func: &Function, value: ValueId, depth: u32) -> Option<U256> {
     .flatten()
 }
 
+/// Returns the last call in `block`, after which only the projections of its results can follow.
+fn last_call(func: &Function, block: &crate::mir::BasicBlock) -> Option<InstId> {
+    block
+        .instructions
+        .iter()
+        .rev()
+        .copied()
+        .find(|&inst| matches!(func.inst(inst).kind, InstKind::ICall { .. }))
+}
+
 /// Returns whether `inst` calls a function of the recursive `component`.
 fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<FunctionId>) -> bool {
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
@@ -1206,7 +1216,13 @@ fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
     let result = func.inst_result_value(call);
     for _ in 0..func.blocks.len() {
         let data = &func.blocks[block];
-        if !data.instructions.is_empty() {
+        // Rebuilding the call's aggregate result emits no code.
+        if !data.instructions.iter().all(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::InsertValue { .. } | InstKind::ExtractValue { .. }
+            )
+        }) {
             return false;
         }
         match &data.terminator {
@@ -1214,10 +1230,14 @@ fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
                 block = *next
             }
             Some(Terminator::Return { values }) => {
-                return match result {
-                    Some(result) => values.as_slice() == [result],
-                    None => values.is_empty(),
-                };
+                // A call with several results returns them through its projections, or as one
+                // aggregate.
+                return values.len() > 1
+                    || matches!(func.inst(call).result_ty, Some(MirType::Struct(_)))
+                    || match result {
+                        Some(result) => values.as_slice() == [result],
+                        None => values.is_empty(),
+                    };
             }
             _ => return false,
         }
