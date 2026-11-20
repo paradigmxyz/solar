@@ -223,6 +223,9 @@ pub(crate) fn make_ethdebug_compilation(
     if gcx.sess.opts.unstable.instrument_coverage {
         append_length_prefixed(&mut identity, "instrument-coverage");
     }
+    if gcx.sess.opts.unstable.coverage_mcdc {
+        append_length_prefixed(&mut identity, "coverage-mcdc");
+    }
     append_length_prefixed(&mut identity, &version);
     append_length_prefixed(&mut identity, &sources.len().to_string());
     for source in &sources {
