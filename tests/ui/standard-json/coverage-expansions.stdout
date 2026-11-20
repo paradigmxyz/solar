@@ -278,13 +278,19 @@
           },
           {
             "name": "A.sol:E.unused(uint256)",
-            "hash": "0x7d2c52710e564153",
+            "hash": "0x0a65d3129ee5c09a",
             "counters": [
               21,
-              1
+              0
             ],
             "files": [
               0
+            ],
+            "expressions": [
+              [
+                0,
+                0
+              ]
             ],
             "regions": [
               [
@@ -299,8 +305,8 @@
                 0,
                 254,
                 5,
-                85,
-                85
+                2,
+                2
               ],
               [
                 0,

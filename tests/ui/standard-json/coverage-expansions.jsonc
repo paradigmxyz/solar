@@ -48,12 +48,18 @@
 // CHECK-NEXT: ],
 // A modifier that nothing invokes keeps the regions of its body, counted zero, so its lines show
 // as missed: the body, the branch of the `require` condition, and the placeholder. Two zero counts
-// would mark the branch folded, so both sides read the one counter of the record, which no probe
-// increments: `85` is counter 21.
+// would mark the branch folded, so both sides count `0 - 0`, expression 0, encoded `2`, and the
+// record still owns no counters.
 // CHECK: "name": "A.sol:E.unused(uint256)",
 // CHECK: "counters": [
 // CHECK-NEXT: 21,
-// CHECK-NEXT: 1
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK: "expressions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0
+// CHECK-NEXT: ]
 // CHECK-NEXT: ],
 // CHECK: "regions": [
 // CHECK-NEXT: [
@@ -68,8 +74,8 @@
 // CHECK-NEXT: 0,
 // CHECK-NEXT: {{[0-9]+}},
 // CHECK-NEXT: {{[0-9]+}},
-// CHECK-NEXT: 85,
-// CHECK-NEXT: 85
+// CHECK-NEXT: 2,
+// CHECK-NEXT: 2
 // CHECK-NEXT: ],
 {
   "language": "Solidity",

@@ -503,21 +503,21 @@ impl<'gcx> Walker<'gcx> {
                 self.dry = false;
                 // Nothing counts the body, so no code takes the count of a gap.
                 self.rec.regions.retain(|region| !matches!(region.kind, RegionKind::Gap(_)));
-                // Two zero counts mark a branch folded, so the other branches read a counter of
-                // the record that no probe increments: they never ran, but count as branches.
-                let next = &mut self.next;
-                let mut never = None;
+                // Two zero counts mark a branch folded, so the other branches count `0 - 0`: they
+                // never ran, but count as branches, and the record owns no counters, which keeps
+                // it summed with the records of builds that invoke the modifier.
+                let never = Count::Sub(Box::new([Count::Zero, Count::Zero]));
                 for region in &mut self.rec.regions {
                     match &mut region.kind {
                         RegionKind::Code(count) => *count = Count::Zero,
-                        RegionKind::Branch(Count::Zero, Count::Zero) => {}
-                        RegionKind::Branch(holds, fails) => {
-                            let count = never.get_or_insert_with(|| {
-                                *next += 1;
-                                Count::Counter(*next - 1)
-                            });
-                            *holds = count.clone();
-                            *fails = count.clone();
+                        RegionKind::Branch(Count::Zero, Count::Zero)
+                        | RegionKind::McdcBranch {
+                            holds: Count::Zero, fails: Count::Zero, ..
+                        } => {}
+                        RegionKind::Branch(holds, fails)
+                        | RegionKind::McdcBranch { holds, fails, .. } => {
+                            *holds = never.clone();
+                            *fails = never.clone();
                         }
                         _ => {}
                     }
@@ -592,7 +592,10 @@ impl<'gcx> Walker<'gcx> {
     fn has_regions(&mut self, f: impl FnOnce(&mut Self)) -> bool {
         let len = self.rec.regions.len();
         let dry = mem::replace(&mut self.dry, true);
+        // The real walk adds the MC/DC decisions and their notes.
+        let next_decision = self.next_decision.take();
         f(self);
+        self.next_decision = next_decision;
         self.dry = dry;
         let found = self.rec.regions.len() > len;
         self.rec.regions.truncate(len);
@@ -999,8 +1002,11 @@ impl<'gcx> Walker<'gcx> {
 
     /// Gives the decision of `root` MC/DC probes and a region, when it has two or more conditions
     /// and few enough test vectors.
+    ///
+    /// The decision of a modifier that nothing invokes has no probes and sums no expansions, so
+    /// none of its test vectors ran.
     fn mcdc(&mut self, root: &Node<'gcx>) -> Option<Mcdc> {
-        let id = self.next_decision.filter(|_| !self.dry)?;
+        let id = self.next_decision?;
         let (Node::And(_, _, op) | Node::Or(_, _, op)) = root else { return None };
         let Some(graph) = mcdc::graph(&root.cond()) else {
             self.gcx
@@ -1010,25 +1016,30 @@ impl<'gcx> Walker<'gcx> {
                 .emit();
             return None;
         };
-        if id >= 1 << 21 {
-            return None;
-        }
-        self.next_decision = Some(id + 1);
-        // COVERAGE; PUSH4 1<operation:2><decision:21><weight:8>
-        let probe = |operation: u32, weight: u32| 1 << 31 | operation << 29 | id << 8 | weight;
-        let key = Site::expr(op.expr);
-        self.sites.insert((self.scope, Site::McdcBegin(key)), probe(0, 0));
-        self.sites.insert((self.scope, Site::McdcEnd(key)), probe(2, 0));
-        let mut conditions = FxHashMap::default();
-        for (leaf, condition) in graph.iter() {
-            if condition.weight > 0 {
-                self.sites.insert((self.scope, Site::McdcAdd(leaf)), probe(1, condition.weight));
+        let decision = if self.dry {
+            DecisionId::Expansions(Vec::new())
+        } else {
+            if id >= 1 << 21 {
+                return None;
             }
-            conditions.insert(leaf, condition);
-        }
+            self.next_decision = Some(id + 1);
+            // COVERAGE; PUSH4 1<operation:2><decision:21><weight:8>
+            let probe = |operation: u32, weight: u32| 1 << 31 | operation << 29 | id << 8 | weight;
+            let key = Site::expr(op.expr);
+            self.sites.insert((self.scope, Site::McdcBegin(key)), probe(0, 0));
+            self.sites.insert((self.scope, Site::McdcEnd(key)), probe(2, 0));
+            for (leaf, condition) in graph.iter() {
+                if condition.weight > 0 {
+                    self.sites
+                        .insert((self.scope, Site::McdcAdd(leaf)), probe(1, condition.weight));
+                }
+            }
+            DecisionId::Probe(id)
+        };
+        let conditions = graph.iter().collect();
         let index = self.rec.decisions.len() as u32;
         self.rec.decisions.push(Decision {
-            id: DecisionId::Probe(id),
+            id: decision,
             conditions: graph.conditions() as u32,
             vectors: graph.vectors,
         });
