@@ -1291,7 +1291,7 @@ fn returns_result(
                 InstKind::InsertValue { ty, aggregate, index, value }
                     if Some(words(ty)) == result_words
                         && (matches!(func.value(aggregate), Value::Undef(_))
-                            || derived.contains(&aggregate))
+                            || derived.contains(&aggregate) && !partial.contains(&aggregate))
                         && let Value::Inst(word) = *func.value(cast_source(func, value))
                         && let InstKind::ExtractValue {
                             aggregate: source, index: field, ..
