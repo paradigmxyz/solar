@@ -21,6 +21,15 @@ contract C {
         } while (true);
     }
 
+    function orphanElse() public {
+        if () {} else {} //~ ERROR: expected one of
+        //~^ ERROR: expected one of
+    }
+
+    function later() public {
+        uint8 value = 300; //~ ERROR: mismatched types
+    }
+
     function bracket() public {
         while (true) {
             if (] //~ ERROR: expected one of

@@ -8,7 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
-    error_code,
+    error_code, kw,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -809,13 +809,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     err.emit();
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
                         && sep.sep.is_none()
-                        && matches!(
+                        && (matches!(
                             self.token.kind,
                             TokenKind::Semi
                                 | TokenKind::CloseDelim(
                                     Delimiter::Parenthesis | Delimiter::Bracket
                                 )
-                        )
+                        ) || self.token.is_keyword(kw::Else))
                     {
                         self.bump();
                         continue;
@@ -858,7 +858,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 || matches!(
                     self.token.kind,
                     TokenKind::Semi | TokenKind::Eof | TokenKind::CloseDelim(_)
-                ))
+                )
+                || (ket == TokenKind::CloseDelim(Delimiter::Brace)
+                    && self.token.is_keyword(kw::Else)))
     }
 
     /// Advance the parser by one token.

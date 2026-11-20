@@ -16,11 +16,29 @@ error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elemen
 LL │             if ()
    ╰╴                ━ expected one of 10 possible tokens
 
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         if () {} else {}
+   ╰╴            ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `assembly`, `break`, `continue`, `delete`, `do`, `emit`, `for`, `if`, `new`, `payable`, `return`, `revert`, `throw`, `try`, `type`, `unchecked`, `while`, `{`, `}`, elementary type name, identifier, or literal, found keyword `else`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         if () {} else {}
+   ╰╴                 ━━━━ expected one of 25 possible tokens
+
 error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
    │
 LL │             if (]
    ╰╴                ━ expected one of 10 possible tokens
 
-error: aborting due to 4 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         uint8 value = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 7 previous errors
 
