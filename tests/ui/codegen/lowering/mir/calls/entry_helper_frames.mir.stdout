@@ -28,35 +28,24 @@ fn @pinned(arg0: i256) -> i256 [selector=0x63b6014a, pure, abi_params=[uint256],
     v4 = ptradd v0, 64
     mstore v4, v3
     v5 = icall @heavyC, arg0
-    v6 = ptrtoint ptr<memory> v0 to i256
-    v7 = keccak256 v6, 96
-    v8 = eq v7, 0
-    v9 = zext i1 v8 to i256
-    v10 = ne v9, 0
-    jumpi v10, bb1, bb2
-  bb2:                                            ; preds = bb0
-    jump bb3
-  bb3:                                            ; preds = bb2
-    v11 = lt 0, 3
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = mload v0
-    v14 = checked_add uint256, v5, v13
-    v15 = lt 1, 3
+    v6 = lt 0, 3
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = mload v0
+    v9 = checked_add uint256, v5, v8
+    v10 = lt 1, 3
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 32
+    v13 = mload v12
+    v14 = checked_add uint256, v9, v13
+    v15 = lt 2, 3
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = ptradd v0, 32
+    v17 = ptradd v0, 64
     v18 = mload v17
     v19 = checked_add uint256, v14, v18
-    v20 = lt 2, 3
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = ptradd v0, 64
-    v23 = mload v22
-    v24 = checked_add uint256, v19, v23
-    ret v24
-  bb1:                                            ; preds = bb0
-    revert 0, 0
+    ret v19
 }
 
 ; function addressed(uint256 p, uint256 x) external pure returns (uint256 r) [selector 0x6d166a3e]
