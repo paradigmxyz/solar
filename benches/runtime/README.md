@@ -36,9 +36,9 @@ drops compile times from any run.
 below 200 runs and for gas from 200, so `--optimizer-runs 1` makes a size benchmark (`--gas` then
 runs on the size-optimized code).
 
-`--gas-kinds` (needs `--gas`) traces every gas transaction with `debug_traceTransaction`, so the
-node must be anvil (tested with 1.8.6); CI passes it. Each gas result
-then also records:
+`--gas-kinds` (needs `--gas`) traces every gas transaction with `debug_traceTransaction`.
+The node needs JavaScript transaction tracer support. The Python CI job tests this
+with Anvil 1.8.6. Each gas result then also records:
 
 - `execution_gas`: gas of the executed steps before the refund, without the transaction's
   intrinsic gas. Receipt gas is the calldata floor (EIP-7623) on calls with little execution, which

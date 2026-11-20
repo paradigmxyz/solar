@@ -258,6 +258,10 @@ jobs:
             lean-v2-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Lean
         run: bash .github/scripts/install_lean.sh
+      - name: Install Foundry for gas trace tests
+        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: v1.8.6
       - name: Python checks and tests
         run: bash scripts/check-python.sh
 

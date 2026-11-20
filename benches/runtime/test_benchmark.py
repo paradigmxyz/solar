@@ -1791,6 +1791,7 @@ class GasKindsTests(unittest.TestCase):
             (43354, self.trace(rootSpent=22000), "", "root frame spent 22000"),
             (43354, self.trace(firstGas=-1), "", "malformed gas trace"),
             (43354, {"kinds": {}}, "", "malformed gas trace"),
+            (43354, {}, "", benchmark.EMPTY_JS_TRACE),
             (43354, None, "rpc down", "rpc down"),
         ):
             with self.subTest(message=message):
@@ -1952,6 +1953,24 @@ class GasKindsTests(unittest.TestCase):
         self.assertEqual(error, "")
         assert gas is not None
         kinds, error = benchmark.trace_gas_kinds(tx_hash, gas, rpc_url)
+        if error == benchmark.EMPTY_JS_TRACE:
+            # Older Anvil builds answer custom transaction tracers with a
+            # no-op frame. Probe independently so a broken gas tracer on a
+            # capable build still fails this test.
+            probe, probe_error = benchmark.rpc_request(
+                "debug_traceTransaction",
+                (
+                    tx_hash,
+                    {
+                        "tracer": "{fault:function(){},result:function(){return {ok:true}}}"
+                    },
+                ),
+                rpc_url,
+            )
+            if probe == {} and not probe_error:
+                self.skipTest(
+                    "installed Anvil does not run JavaScript transaction tracers"
+                )
         self.assertEqual(error, "")
         assert kinds is not None
         self.assertFalse(kinds["calldata_floor"])
