@@ -2,6 +2,10 @@
 //@ filecheck: --implicit-check-not=invoke
 // CHECK-LABEL: "bytecode": {
 // CHECK-NEXT: "ethdebug": {
+// CHECK: "schema": "ethdebug/format/program"
+// CHECK: "version": "0.1.0-draft.2"
+// CHECK: "type": "compilation"
+// CHECK: "type": "source"
 // CHECK: "environment": "create"
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK-NEXT: "ethdebug": {
@@ -20,12 +24,14 @@
 // CHECK-NEXT: "length": 5
 // CHECK: "return": {}
 // CHECK-LABEL: "resources": {
-// CHECK: "name": "solar"
-// CHECK: "path": "A.sol"
-// CHECK: "language": "Solidity"
+// CHECK: "schema": "ethdebug/format/info/resources"
+// CHECK: "version": "0.1.0-draft.2"
 // CHECK-LABEL: "types": {}
 // CHECK-LABEL: "pointers": {}
 // CHECK-LABEL: "compilation": {
+// CHECK: "name": "solar"
+// CHECK: "path": "A.sol"
+// CHECK: "language": "Solidity"
 {
   "language": "Solidity",
   "sources": {

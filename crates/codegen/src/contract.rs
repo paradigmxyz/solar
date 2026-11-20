@@ -886,8 +886,9 @@ fn dumps_scheduled_evm_ir(gcx: Gcx<'_>) -> bool {
 }
 
 /// Warns, with solc's codes, when bytecode exceeds the size limits of the target EVM version:
-/// EIP-170's on deployed code and EIP-3860's on initcode. `contract` is the Solidity contract the
-/// bytecode compiles, if any; the warnings then point at it and suggest how to shrink it.
+/// EIP-170's on deployed code and EIP-3860's on initcode, or EIP-7954's on both from Amsterdam,
+/// which have their own codes. `contract` is the Solidity contract the bytecode compiles, if any;
+/// the warnings then point at it and suggest how to shrink it.
 pub(crate) fn warn_code_size_limits(
     gcx: Gcx<'_>,
     contract: Option<ContractId>,
@@ -901,11 +902,15 @@ pub(crate) fn warn_code_size_limits(
     if let Some(limit) = evm_version.runtime_code_size_limit()
         && runtime > limit
     {
-        let fork = if amsterdam { EvmVersion::Amsterdam } else { EvmVersion::SpuriousDragon };
+        let (fork, code) = if amsterdam {
+            (EvmVersion::Amsterdam, error_code!(5776))
+        } else {
+            (EvmVersion::SpuriousDragon, error_code!(5574))
+        };
         let mut diag = gcx
             .dcx()
             .warn(format!("contract code size is {runtime} bytes and exceeds {limit} bytes"))
-            .code(error_code!(5574))
+            .code(code)
             .note(format!("the limit was introduced in {fork}"))
             .note("this contract may not be deployable on Mainnet");
         if let Some(span) = span {
@@ -916,11 +921,15 @@ pub(crate) fn warn_code_size_limits(
     if let Some(limit) = evm_version.initcode_size_limit()
         && deployment > limit
     {
-        let fork = if amsterdam { EvmVersion::Amsterdam } else { EvmVersion::Shanghai };
+        let (fork, code) = if amsterdam {
+            (EvmVersion::Amsterdam, error_code!(7868))
+        } else {
+            (EvmVersion::Shanghai, error_code!(3860))
+        };
         let mut diag = gcx
             .dcx()
             .warn(format!("contract initcode size is {deployment} bytes and exceeds {limit} bytes"))
-            .code(error_code!(3860))
+            .code(code)
             .note(format!("the limit was introduced in {fork}"))
             .note("this contract may not be deployable on Mainnet");
         if let Some(span) = span {
