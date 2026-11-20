@@ -4,6 +4,8 @@ bb0:                                              ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
+  jump bb1
+bb1:
   push 0
   calldataload
   push 224
@@ -11,18 +13,34 @@ bb0:                                              ; runtime dispatch entry
   dup 1
   push 0x57de26a4
   eq
-  push bb5
+  push bb3
   jumpi
   dup 1
   push 0xf8bad2c3
   eq
-  push bb6
+  push bb2
   jumpi
   jump bb4
 bb4 [cold]:
   push 0
   push 0
   revert
+bb2:
+  jump bb6
+bb6 [entry]:                                      ; function readRaw() external view returns (address) [selector 0xf8bad2c3]
+  push_immutable 7, 32
+  push 0
+  not
+  push 96
+  shr
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3:
+  jump bb5
 bb5 [entry]:                                      ; function read() external view returns (uint8, int16, bytes3, address, uint, Tiny, bool) [selector 0x57de26a4]
   push_immutable 0, 1
   push_immutable 1, 2
@@ -62,16 +80,4 @@ bb5 [entry]:                                      ; function read() external vie
   mstore
   push 224
   push 128
-  return
-bb6 [entry]:                                      ; function readRaw() external view returns (address) [selector 0xf8bad2c3]
-  push_immutable 7, 32
-  push 0
-  not
-  push 96
-  shr
-  and
-  push 0
-  mstore
-  push 32
-  push 0
   return

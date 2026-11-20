@@ -21,9 +21,8 @@ fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, 
     v8 = zext i160 v13 to i256
     ret v8
   bb1 [cold]:                                     ; preds = bb0
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    icall @panic_error_0x11
+    invalid
 }
 
 ; function flat(StaticPair calldata pair) external pure returns (uint256) [selector 0x73a9ddca]
@@ -78,9 +77,8 @@ fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=
   bb2:                                            ; preds = bb0
     ret v30
   bb1 [cold]:                                     ; preds = bb0
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    icall @panic_error_0x11
+    invalid
 }
 
 ; function signedWords(SignedList calldata input) external pure returns (uint256) [selector 0x69491962]
@@ -125,9 +123,8 @@ fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_p
   bb2:                                            ; preds = bb0
     ret v30
   bb1 [cold]:                                     ; preds = bb0
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    icall @panic_error_0x11
+    invalid
 }
 
 ; function nestedWords(NestedList calldata input) external pure returns (uint256) [selector 0x0b0be15f]
@@ -229,6 +226,12 @@ fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_p
   bb2:                                            ; preds = bb0
     ret v78
   bb1 [cold]:                                     ; preds = bb0
+    icall @panic_error_0x11
+    invalid
+}
+
+fn @panic_error_0x11() {
+  bb0 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

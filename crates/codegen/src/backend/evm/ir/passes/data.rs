@@ -23,6 +23,8 @@
 //! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
 //! when a zero word store clears the last word first, if that is cheaper.
 //!
+//! At `-O none` no run is replaced, since a copy would merge the origins of its stores.
+//!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
 //! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
 //! deployment code and constructor arguments follow it, which they find by subtracting its address
@@ -348,6 +350,10 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
             continue;
         };
         let target = block.target(gcx, module.optimization, module.code_follows);
+        // At `-O none` each store keeps its own instruction and origin, as in clang's `-O0`.
+        if target.optimization().is_none() {
+            continue;
+        }
         let mut start = 0;
         while start <= last_store {
             let Some((data, mut rewrite)) =

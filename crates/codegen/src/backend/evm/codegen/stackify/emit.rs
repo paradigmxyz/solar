@@ -302,10 +302,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.block_labels.insert(block, label);
         }
 
-        // A block that only jumps on is never emitted; edges into it go to its final target.
+        // A block that only jumps on is never emitted; edges into it go to its final target. At
+        // `-O none` every block stays, as in clang's `-O0`.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
-            if block != BlockId::ENTRY
+            if !self.optimization.is_none()
+                && block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit

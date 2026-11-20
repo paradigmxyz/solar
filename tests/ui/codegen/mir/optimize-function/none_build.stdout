@@ -152,52 +152,54 @@ fn @slow() {
   bb0:
     v25 = calldatasize
     v26 = lt v25, 36
-    jump bb9
-  bb9:                                            ; preds = bb0
+    jump bb12
+  bb12:                                           ; preds = bb0
     v27 = icall @decode_calldata_slice, 4
     v28 = calldataload v27
     v29 = add v27, 32
     jump bb1
-  bb1:                                            ; preds = bb9
+  bb1:                                            ; preds = bb12
     jump bb2
-  bb2:                                            ; preds = bb1, bb8
-    v1 = phi [bb1: 0], [bb8: v39]
-    v2 = phi [bb1: 0], [bb8: v23]
+  bb2:                                            ; preds = bb1, bb11
+    v1 = phi [bb1: 0], [bb11: v39]
+    v2 = phi [bb1: 0], [bb11: v23]
     v3 = lt v2, 4
-    jumpi v3, bb3, bb4
-  bb4:                                            ; preds = bb2
-    v36 = and v1, 0xffffffff
+    jumpi v3, bb5, bb6
+  bb6:                                            ; preds = bb2
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v33 = and v1, 0xffffffff
     mstore 0, v1
     returndata 0, 32
-  bb3:                                            ; preds = bb2
-    v33 = and v1, 0xffffffff
-    v34 = shl v33, 8
-    v35 = and v34, 0xffffffff
+  bb5:                                            ; preds = bb2
+    v34 = and v1, 0xffffffff
+    v35 = shl v34, 8
+    v36 = and v35, 0xffffffff
     v7 = lt v2, v28
     v8 = eq v7, false
-    jumpi v8, bb5, bb6
-  bb6:                                            ; preds = bb3
+    jumpi v8, bb8, bb9
+  bb9:                                            ; preds = bb5
     v12 = add v29, v2
     v13 = calldataload v12
     v14 = byte 0, v13
     v15 = shl v14, 248
     v16 = shr v15, 248
     v37 = and v16, 255
-    v38 = or v35, v37
+    v38 = or v36, v37
     v39 = and v38, 0xffffffff
+    jump bb7
+  bb7:                                            ; preds = bb9
+    jump bb4
+  bb4:                                            ; preds = bb7
     v23 = add v2, 1
     v24 = lt v23, v2
-    jumpi v24, bb7, bb8
-  bb8:                                            ; preds = bb6
+    jumpi v24, bb10, bb11
+  bb11:                                           ; preds = bb4
     jump bb2
-  bb7 [cold]:                                     ; preds = bb6
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb5 [cold]:                                     ; preds = bb3
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+  bb10:                                           ; preds = bb4
+    tail_call @panic_error_0x11
+  bb8:                                            ; preds = bb5
+    tail_call @panic_error_0x32
 }
 
 ; function fast(bytes calldata data) external pure returns (uint32 value) [selector 0xe256fef5]
@@ -244,6 +246,20 @@ fn @fast() [optimize=gas] {
     jump bb3
   bb3 [cold]:                                     ; preds = bb2, bb4
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @panic_error_0x32() {
+  bb0 [cold]:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @panic_error_0x11() {
+  bb0 [cold]:
+    mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
