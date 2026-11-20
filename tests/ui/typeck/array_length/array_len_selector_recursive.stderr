@@ -1,4 +1,4 @@
-error: recursive types cannot be parameter or return types of public functions
+error[4103]: recursive types cannot be parameter or return types of public functions
    ╭▸ ROOT/tests/ui/typeck/array_length/array_len_selector_recursive.sol:LL:CC
    │
 LL │     function f(A calldata) external;

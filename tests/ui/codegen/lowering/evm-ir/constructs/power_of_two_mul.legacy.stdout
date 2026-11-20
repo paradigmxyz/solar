@@ -144,13 +144,9 @@ bb26 [entry]:                                     ; function at(uint256[] memory
   dup 2
   add
   swap 2
-  dup 2
-  dup 4
-  lt
   push 0xffffffffffffffff
-  dup 5
+  dup 4
   gt
-  or
   or
   push bb32
   jumpi

@@ -2,14 +2,20 @@
   "contracts": {
     "ROOT/tests/ui/cli/debug_outputs.sol:C": {
       "ethdebug-runtime": {
+        "ethdebug": {
+          "schema": "ethdebug/format/program",
+          "version": "0.1.0-draft.2"
+        },
         "compilation": {
-          "id": "solar-COMPILATION_ID"
+          "id": "solar-COMPILATION_ID",
+          "type": "compilation"
         },
         "contract": {
           "name": "C",
           "definition": {
             "source": {
-              "id": 0
+              "id": 0,
+              "type": "source"
             },
             "range": {
               "offset": 375,
@@ -27,7 +33,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -47,7 +54,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -64,7 +72,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -81,7 +90,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -98,7 +108,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -118,7 +129,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -135,7 +147,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -152,7 +165,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -172,7 +186,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -189,7 +204,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -209,7 +225,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -226,7 +243,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -243,18 +261,20 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
-                  "offset": 392,
-                  "length": 24
+                  "offset": 415,
+                  "length": 1
                 }
               },
               "invoke": {
                 "identifier": "f",
                 "declaration": {
                   "source": {
-                    "id": 0
+                    "id": 0,
+                    "type": "source"
                   },
                   "range": {
                     "offset": 392,
@@ -274,7 +294,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -291,7 +312,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -308,7 +330,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -325,7 +348,8 @@
             "context": {
               "code": {
                 "source": {
-                  "id": 0
+                  "id": 0,
+                  "type": "source"
                 },
                 "range": {
                   "offset": 375,
@@ -353,9 +377,7 @@
           "language": "Solidity"
         }
       ]
-    },
-    "types": {},
-    "pointers": {}
+    }
   },
   "version": "SOLC_VERSION+commit.00000000.solar.VERSION"
 }

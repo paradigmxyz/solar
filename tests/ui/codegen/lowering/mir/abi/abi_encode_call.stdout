@@ -47,27 +47,11 @@ fn @asValue() {
     mstore v50, v60
     v15 = add v50, 32
     mstore v15, v6
-    v17 = lt v55, 32
-    jumpi v17, bb3, bb4
-  bb4:                                            ; preds = bb2
     v41 = add v48, 68
     mstore v41, 0
     v52 = sub v55, 32
     mstore v52, 32
-    jump bb5
-  bb3:                                            ; preds = bb2
-    v57 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v20 = add v57, 32
-    mstore v57, 32
-    v26 = add v20, 32
-    v27 = add v20, 96
-    mstore v27, 0
-    mstore v20, 68
-    mcopy v26, v48, 68 !metadata(disjoint)
-    jump bb5
-  bb5:                                            ; preds = bb3, bb4
-    v44 = phi [bb3: v57], [bb4: v52]
-    returndata v44, 160
+    returndata v52, 160
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

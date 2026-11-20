@@ -2,7 +2,7 @@
 
 use crate::{
     bytecode::MaybeHexBytecode,
-    ethdebug::{EthdebugCompilation, EthdebugProgram, EthdebugResources},
+    ethdebug::{EthdebugOutput, EthdebugProgram},
 };
 use alloy_primitives::Address;
 use rayon::prelude::*;
@@ -427,14 +427,6 @@ pub(super) struct BytecodeOutput {
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'a>>,
-}
-
-#[derive(Debug, Default, Serialize)]
-pub(super) struct EthdebugOutput {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) resources: Option<EthdebugResources>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) compilation: Option<EthdebugCompilation>,
 }
 
 #[derive(Debug, Serialize)]

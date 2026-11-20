@@ -26,7 +26,7 @@
           },
           "deployedBytecode": {
             "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
-            "sourceMap": "262:21:0:-:0;;;;;;;;;;;;20:238;;;;;;;-1:-1:-1;180:9:0;;;209;;;20:238;;;;;;;-1:-1:-1;;;"
+            "sourceMap": "262:21:0:-:0;;;;;;;;;;;;20:238;;;;;131:111;;-1:-1:-1;180:9:0;;;209;;;257:1;;;;;;;-1:-1:-1;;;"
           }
         }
       },
@@ -35,14 +35,20 @@
           "bytecode": {
             "object": "34600d5760328060115f395ff35b5f5ffd34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
             "ethdebug": {
+              "ethdebug": {
+                "schema": "ethdebug/format/program",
+                "version": "0.1.0-draft.2"
+              },
               "compilation": {
-                "id": "solar-COMPILATION_ID"
+                "id": "solar-COMPILATION_ID",
+                "type": "compilation"
               },
               "contract": {
                 "name": "B",
                 "definition": {
                   "source": {
-                    "id": 0
+                    "id": 0,
+                    "type": "source"
                   },
                   "range": {
                     "offset": 284,
@@ -60,7 +66,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -80,7 +87,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -97,7 +105,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -117,7 +126,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -134,7 +144,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -154,7 +165,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -171,7 +183,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -188,7 +201,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -205,7 +219,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -222,7 +237,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -239,7 +255,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -256,7 +273,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -273,7 +291,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -290,7 +309,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -305,14 +325,20 @@
           "deployedBytecode": {
             "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
             "ethdebug": {
+              "ethdebug": {
+                "schema": "ethdebug/format/program",
+                "version": "0.1.0-draft.2"
+              },
               "compilation": {
-                "id": "solar-COMPILATION_ID"
+                "id": "solar-COMPILATION_ID",
+                "type": "compilation"
               },
               "contract": {
                 "name": "B",
                 "definition": {
                   "source": {
-                    "id": 0
+                    "id": 0,
+                    "type": "source"
                   },
                   "range": {
                     "offset": 284,
@@ -330,7 +356,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -350,7 +377,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -367,7 +395,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -384,7 +413,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -401,7 +431,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -421,7 +452,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -438,7 +470,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -455,7 +488,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -475,7 +509,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -492,7 +527,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -512,7 +548,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -529,7 +566,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 284,
@@ -549,7 +587,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 20,
@@ -560,7 +599,8 @@
                       "identifier": "previous",
                       "declaration": {
                         "source": {
-                          "id": 0
+                          "id": 0,
+                          "type": "source"
                         },
                         "range": {
                           "offset": 20,
@@ -579,7 +619,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 20,
@@ -596,7 +637,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 20,
@@ -616,7 +658,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 20,
@@ -633,7 +676,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 20,
@@ -653,11 +697,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 131,
+                        "length": 111
                       }
                     }
                   }
@@ -670,11 +715,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 131,
+                        "length": 111
                       }
                     }
                   }
@@ -689,7 +735,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 131,
@@ -700,7 +747,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 206,
@@ -719,7 +767,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 180,
@@ -736,7 +785,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 180,
@@ -753,7 +803,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 180,
@@ -770,7 +821,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 209,
@@ -790,7 +842,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 209,
@@ -807,7 +860,8 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
                         "offset": 209,
@@ -827,11 +881,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     }
                   }
@@ -844,11 +899,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     }
                   }
@@ -861,11 +917,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     }
                   }
@@ -878,11 +935,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     }
                   }
@@ -898,11 +956,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     }
                   }
@@ -915,11 +974,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     }
                   }
@@ -932,11 +992,12 @@
                   "context": {
                     "code": {
                       "source": {
-                        "id": 0
+                        "id": 0,
+                        "type": "source"
                       },
                       "range": {
-                        "offset": 20,
-                        "length": 238
+                        "offset": 257,
+                        "length": 1
                       }
                     },
                     "return": {}
@@ -952,7 +1013,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 284,
@@ -963,7 +1025,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 20,
@@ -984,7 +1047,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 284,
@@ -995,7 +1059,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 20,
@@ -1016,7 +1081,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 284,
@@ -1027,7 +1093,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 20,
@@ -1048,7 +1115,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 284,
@@ -1059,7 +1127,8 @@
                       {
                         "code": {
                           "source": {
-                            "id": 0
+                            "id": 0,
+                            "type": "source"
                           },
                           "range": {
                             "offset": 20,

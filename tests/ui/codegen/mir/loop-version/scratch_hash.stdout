@@ -39,11 +39,8 @@ fn @level() {
     v37 = heap_floor !metadata(alloc_ptr)
     v38 = add v37, v12 !metadata(alloc_ptr)
     v47 = shr v38, 64
-    v39 = lt v38, v37
-    v49 = zext i1 v39 to i256
-    v50 = or v47, v49
-    v52 = or v45, v50
-    v44 = ne v52, 0
+    v49 = or v45, v47
+    v44 = ne v49, 0
     jumpi v44, bb3, bb5
   bb5:                                            ; preds = bb2
     mstore 64, v38 !metadata(memory=scratch)

@@ -8,7 +8,6 @@ use serde::Deserialize;
 use solar_interface::{
     Ident, Span, Symbol,
     data_structures::{
-        Never,
         index::IndexVec,
         map::{FxHashMap, FxHashSet},
         newtype_index,
@@ -2108,7 +2107,7 @@ impl<'gcx> YulVariableCollector<'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for YulVariableCollector<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -2237,7 +2236,7 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -2453,7 +2452,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -2557,7 +2556,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         receiver: &'gcx hir::Expr<'gcx>,
         ident: Ident,
         kind: DocumentHighlightKind,
-    ) -> ControlFlow<Never> {
+    ) -> ControlFlow<!> {
         self.visit_expr(receiver)?;
         self.tables.builtins.record(self.gcx, self.locations, expr, ident.span);
         let targets = self.symbol_ids_for_expr(expr);
@@ -2565,7 +2564,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         ControlFlow::Continue(())
     }
 
-    fn visit_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
+    fn visit_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<!> {
         match expr.kind {
             hir::ExprKind::Ident(resolutions) => {
                 self.visit_ident_reference(expr, resolutions, DocumentHighlightKind::WRITE);
@@ -2705,7 +2704,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

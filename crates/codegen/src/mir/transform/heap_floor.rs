@@ -115,7 +115,7 @@ use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
     InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
     RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
-    analysis::{AddressInput, absolute_address_inputs, pointer_bases},
+    analysis::{ModuleAddressInputs, absolute_address_inputs, pointer_bases},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::IndexLists,
@@ -192,7 +192,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                     && if module.has_unsafe_assembly() {
                         may_be_low(func, uses.heap_addresses(func_id), value, 0)
                     } else {
-                        uses.address_inputs(func_id)[value] != AddressInput::Other
+                        uses.address_inputs()[func_id][value].may_be_absolute()
                     }
                 {
                     let reads = uses.reads_after(func_id, block, index + 1);
@@ -1096,8 +1096,8 @@ struct PointerUses<'a> {
     shallowest: usize,
     /// The call sites of each function, built on first use.
     call_sites: Option<IndexVec<FunctionId, Vec<CallSite>>>,
-    /// Which values of each function come from constants and calldata alone, built on first use.
-    address_inputs: FxHashMap<FunctionId, IndexVec<ValueId, AddressInput>>,
+    /// What the values of each function are computed from, built on first use.
+    address_inputs: Option<ModuleAddressInputs>,
     /// The words each function computes from heap pointers, built on first use.
     heap_addresses: Option<IndexVec<FunctionId, DenseBitSet<ValueId>>>,
     /// The values of each function's parameters, built on first use.
@@ -1128,7 +1128,7 @@ impl<'a> PointerUses<'a> {
             following: FxHashMap::default(),
             shallowest: usize::MAX,
             call_sites: None,
-            address_inputs: FxHashMap::default(),
+            address_inputs: None,
             heap_addresses: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
@@ -1140,12 +1140,10 @@ impl<'a> PointerUses<'a> {
         }
     }
 
-    /// Returns which values of `func_id` come from constants and calldata alone.
-    fn address_inputs(&mut self, func_id: FunctionId) -> &IndexVec<ValueId, AddressInput> {
+    /// Returns what the values of each function are computed from.
+    fn address_inputs(&mut self) -> &ModuleAddressInputs {
         let module = self.module;
-        self.address_inputs
-            .entry(func_id)
-            .or_insert_with(|| absolute_address_inputs(&module.functions[func_id]))
+        self.address_inputs.get_or_insert_with(|| absolute_address_inputs(module))
     }
 
     /// Returns how the word that the instruction before `start` leaves in the slot can be read,

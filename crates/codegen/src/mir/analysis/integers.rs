@@ -33,6 +33,16 @@ pub(crate) fn integer_mask(bits: u32) -> U256 {
     U256::MAX >> (256 - bits)
 }
 
+/// The range of `heap_floor`. Codegen rejects a fixed memory end plus heap guard above
+/// [`EvmMemoryLayout::MAX_HEAP_FLOOR`] (`2^62`). A constructor adds its argument blob to that end,
+/// which must be copied to memory before MIR executes, so the blob fits in `2^61` bytes (more
+/// costs more gas than a transaction has), and rounds up to a word: the floor stays below `2^63`.
+/// A constant allocation size then bumps it without wrapping. This bounds the compiler's floor,
+/// not a free-memory-pointer slot that assembly writes.
+pub(crate) fn heap_floor_bounds() -> (U256, U256) {
+    (U256::from(EvmMemoryLayout::HEAP_START), U256::from(EvmMemoryLayout::MAX_HEAP_FLOOR) << 1)
+}
+
 pub(crate) fn unsigned_bounds(func: &Function, value: ValueId) -> (U256, U256) {
     bounds_with(func, value, 8, &mut 64, &|_| None)
 }
@@ -58,11 +68,7 @@ fn bounds_with(
     let Value::Inst(id) = func.value(value) else { return full };
     let mut bounds = |value| bounds_with(func, value, depth, budget, known);
     match &func.inst(*id).kind {
-        // Runtime floors fit in u64. `emit_constructor_heap_start` computes
-        // align32(fixed_end + args_size) + heap_guard: three u64 values and at most 31 bytes
-        // of padding fit in 66 bits. The argument copy must succeed before MIR executes.
-        // This bounds the compiler's floor, not a free-memory-pointer slot that assembly writes.
-        InstKind::HeapFloor => (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66)),
+        InstKind::HeapFloor => heap_floor_bounds(),
         InstKind::Zext(value) | InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
             bounds(*value)
         }

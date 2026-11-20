@@ -1,11 +1,11 @@
 //! Type-directed HIR to MIR and ABI shape conversion.
 
 use crate::mir::{
-    AbiParamType, AbiType, AbiWordValidator, MemoryObjectKind, MemoryObjectLayout, MirType,
-    PtrLocation, ValueLayout,
+    AbiParamType, AbiParamTypeRef, AbiType, AbiWordValidator, MemoryObjectKind, MemoryObjectLayout,
+    MirType, PtrLocation, ValueLayout,
 };
 use solar_ast::{DataLocation, TypeSize};
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{
     Gcx,
     hir::{ElementaryType, StructId},
@@ -16,11 +16,13 @@ use solar_sema::{
 pub(super) struct TypeLowerer<'gcx> {
     gcx: Gcx<'gcx>,
     seen_structs: FxHashSet<StructId>,
+    /// ABI input shapes already built, so that every occurrence of a type shares one node.
+    abi_param_types: FxHashMap<(Ty<'gcx>, DataLocation), Option<AbiParamTypeRef>>,
 }
 
 impl<'gcx> TypeLowerer<'gcx> {
     pub(super) fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, seen_structs: FxHashSet::default() }
+        Self { gcx, seen_structs: FxHashSet::default(), abi_param_types: FxHashMap::default() }
     }
 
     pub(super) fn mir_type(ty: Ty<'_>) -> MirType {
@@ -74,7 +76,7 @@ impl<'gcx> TypeLowerer<'gcx> {
     /// Builds the ABI input shape for a function parameter.
     pub(super) fn abi_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         self.seen_structs.clear();
-        self.abi_param_type_inner(ty, ty.loc().unwrap_or(DataLocation::Memory))
+        self.abi_param_node(ty, ty.loc().unwrap_or(DataLocation::Memory)).map(|ty| (*ty).clone())
     }
 
     /// Builds the ABI output shape for a function return value.
@@ -158,6 +160,17 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
+    /// Returns the shared ABI input shape of `ty`. It does not depend on the structs being
+    /// visited: a type that reaches one of them lies on a cycle and has no shape either way.
+    fn abi_param_node(&mut self, ty: Ty<'gcx>, location: DataLocation) -> Option<AbiParamTypeRef> {
+        if let Some(node) = self.abi_param_types.get(&(ty, location)) {
+            return node.clone();
+        }
+        let node = self.abi_param_type_inner(ty, location).map(AbiParamTypeRef::new);
+        self.abi_param_types.insert((ty, location), node.clone());
+        node
+    }
+
     fn abi_param_type_inner(
         &mut self,
         ty: Ty<'gcx>,
@@ -175,23 +188,14 @@ impl<'gcx> TypeLowerer<'gcx> {
                 ty: Self::value_layout(ty),
                 variants: self.gcx.hir.enumm(id).variants.len() as u64,
             },
-            TyKind::DynArray(element) | TyKind::Slice(element) => {
-                AbiParamType::DynamicArray(Box::new(
-                    self.abi_param_type_inner(
-                        element.with_loc_if_ref(self.gcx, location),
-                        location,
-                    )?,
-                ))
-            }
-            TyKind::Array(element, len) => {
-                AbiParamType::FixedArray {
-                    element: Box::new(self.abi_param_type_inner(
-                        element.with_loc_if_ref(self.gcx, location),
-                        location,
-                    )?),
-                    len: u64::try_from(len).ok()?,
-                }
-            }
+            TyKind::DynArray(element) | TyKind::Slice(element) => AbiParamType::DynamicArray(
+                self.abi_param_node(element.with_loc_if_ref(self.gcx, location), location)?,
+            ),
+            TyKind::Array(element, len) => AbiParamType::FixedArray {
+                element: self
+                    .abi_param_node(element.with_loc_if_ref(self.gcx, location), location)?,
+                len: u64::try_from(len).ok()?,
+            },
             TyKind::Struct(id) => {
                 if !self.seen_structs.insert(id) {
                     return None;
@@ -204,10 +208,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     .iter()
                     .map(|&field| {
                         let field_ty = self.gcx.type_of_item(field.into());
-                        self.abi_param_type_inner(
-                            field_ty.with_loc_if_ref(self.gcx, location),
-                            location,
-                        )
+                        self.abi_param_node(field_ty.with_loc_if_ref(self.gcx, location), location)
                     })
                     .collect::<Option<Vec<_>>>()?;
                 self.seen_structs.remove(&id);
@@ -267,7 +268,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                         element: Box::new(abi_element),
                         location: Self::abi_slice_location(ty),
                     },
-                    AbiParamType::DynamicArray(Box::new(param_element)),
+                    AbiParamType::DynamicArray(AbiParamTypeRef::new(param_element)),
                 )
             }
             TyKind::Slice(element) => {
@@ -275,7 +276,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     element.with_loc_if_ref(self.gcx, location),
                     location,
                 )?;
-                (abi_element, AbiParamType::DynamicArray(Box::new(param_element)))
+                (abi_element, AbiParamType::DynamicArray(AbiParamTypeRef::new(param_element)))
             }
             TyKind::Array(element, len) => {
                 let (abi_element, param_element) = self.abi_return_shapes_inner(
@@ -289,7 +290,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                         block_copy: Self::copies_as_block(element),
                     },
                     AbiParamType::FixedArray {
-                        element: Box::new(param_element),
+                        element: AbiParamTypeRef::new(param_element),
                         len: u64::try_from(len).ok()?,
                     },
                 )
@@ -315,7 +316,9 @@ impl<'gcx> TypeLowerer<'gcx> {
                 let (abi_fields, param_fields): (Vec<_>, Vec<_>) = fields.into_iter().unzip();
                 (
                     AbiType::Tuple(abi_fields.into_boxed_slice()),
-                    AbiParamType::Tuple(param_fields.into_boxed_slice()),
+                    AbiParamType::Tuple(
+                        param_fields.into_iter().map(AbiParamTypeRef::new).collect(),
+                    ),
                 )
             }
             TyKind::Udvt(underlying, _) => {

@@ -678,13 +678,8 @@ bb74 [continuation]:
   add
   push 160
   add
-  dup 1
-  push 160
-  gt
-  swap 1
   push 64
   shr
-  or
   push bb23
   jumpi
   swap 1

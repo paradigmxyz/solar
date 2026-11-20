@@ -177,7 +177,10 @@ Other directives are `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   call through the MIR or EVM IR interpreter and name the function by signature
   and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. See the
   [tester guide](tools/tester/README.md#runtime-directives) for settings.
-- `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`.
+- `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`, or on
+  the compiler's output when the test commits no `.stdout`; such a test also
+  needs `//@ normalize-stdout-test: "(?s).+" -> ""`. On a codegen-matrix
+  test it checks only the `mir` revision and revisions that pass `-Zdump=`.
 
 ### FileCheck
 
@@ -304,7 +307,7 @@ directives or at the top. To update the tracked solc version, follow
   `crates/interface/src/symbol.rs`.
 - Allocate AST nodes in the arena; write in place where possible, else use the
   helpers in `crates/data-structures/src/bump_ext.rs`.
-- In visitors, use `type BreakValue = Never` when the visitor never breaks, and
+- In visitors, use `type BreakValue = !` when the visitor never breaks, and
   call `walk_*` from every overridden `visit_*` to continue traversal.
 
 ### IR construction and rewrites

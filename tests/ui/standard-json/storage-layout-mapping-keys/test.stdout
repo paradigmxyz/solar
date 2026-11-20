@@ -1,0 +1,148 @@
+{
+  "sources": {
+    "keys.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "keys.sol": {
+      "MappingKeys": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 1,
+              "contract": "keys.sol:MappingKeys",
+              "label": "byString",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_mapping(t_string_memory_ptr,t_address)"
+            },
+            {
+              "astId": 2,
+              "contract": "keys.sol:MappingKeys",
+              "label": "byBytes",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_mapping(t_bytes_memory_ptr,t_uint256)"
+            },
+            {
+              "astId": 3,
+              "contract": "keys.sol:MappingKeys",
+              "label": "nested",
+              "offset": 0,
+              "slot": "2",
+              "type": "t_mapping(t_string_memory_ptr,t_mapping(t_bytes_memory_ptr,t_uint256))"
+            },
+            {
+              "astId": 4,
+              "contract": "keys.sol:MappingKeys",
+              "label": "s",
+              "offset": 0,
+              "slot": "3",
+              "type": "t_struct(S)8_storage"
+            },
+            {
+              "astId": 5,
+              "contract": "keys.sol:MappingKeys",
+              "label": "arr",
+              "offset": 0,
+              "slot": "4",
+              "type": "t_array(t_mapping(t_string_memory_ptr,t_uint256))dyn_storage"
+            },
+            {
+              "astId": 6,
+              "contract": "keys.sol:MappingKeys",
+              "label": "byValue",
+              "offset": 0,
+              "slot": "5",
+              "type": "t_mapping(t_bytes32,t_uint256)"
+            }
+          ],
+          "types": {
+            "t_mapping(t_string_memory_ptr,t_address)": {
+              "encoding": "mapping",
+              "label": "mapping(string => address)",
+              "numberOfBytes": "32",
+              "key": "t_string_memory_ptr",
+              "value": "t_address"
+            },
+            "t_string_memory_ptr": {
+              "encoding": "bytes",
+              "label": "string",
+              "numberOfBytes": "32"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_mapping(t_bytes_memory_ptr,t_uint256)": {
+              "encoding": "mapping",
+              "label": "mapping(bytes => uint256)",
+              "numberOfBytes": "32",
+              "key": "t_bytes_memory_ptr",
+              "value": "t_uint256"
+            },
+            "t_bytes_memory_ptr": {
+              "encoding": "bytes",
+              "label": "bytes",
+              "numberOfBytes": "32"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_mapping(t_string_memory_ptr,t_mapping(t_bytes_memory_ptr,t_uint256))": {
+              "encoding": "mapping",
+              "label": "mapping(string => mapping(bytes => uint256))",
+              "numberOfBytes": "32",
+              "key": "t_string_memory_ptr",
+              "value": "t_mapping(t_bytes_memory_ptr,t_uint256)"
+            },
+            "t_struct(S)8_storage": {
+              "encoding": "inplace",
+              "label": "struct MappingKeys.S",
+              "numberOfBytes": "32",
+              "members": [
+                {
+                  "astId": 7,
+                  "contract": "keys.sol:MappingKeys",
+                  "label": "m",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_mapping(t_string_memory_ptr,t_uint256)"
+                }
+              ]
+            },
+            "t_mapping(t_string_memory_ptr,t_uint256)": {
+              "encoding": "mapping",
+              "label": "mapping(string => uint256)",
+              "numberOfBytes": "32",
+              "key": "t_string_memory_ptr",
+              "value": "t_uint256"
+            },
+            "t_array(t_mapping(t_string_memory_ptr,t_uint256))dyn_storage": {
+              "encoding": "dynamic_array",
+              "label": "mapping(string => uint256)[]",
+              "numberOfBytes": "32",
+              "base": "t_mapping(t_string_memory_ptr,t_uint256)"
+            },
+            "t_mapping(t_bytes32,t_uint256)": {
+              "encoding": "mapping",
+              "label": "mapping(bytes32 => uint256)",
+              "numberOfBytes": "32",
+              "key": "t_bytes32",
+              "value": "t_uint256"
+            },
+            "t_bytes32": {
+              "encoding": "inplace",
+              "label": "bytes32",
+              "numberOfBytes": "32"
+            }
+          }
+        }
+      }
+    }
+  }
+}

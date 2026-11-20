@@ -308,6 +308,7 @@ struct StorageBuilder<'gcx> {
     locations: FxHashMap<VariableId, StorageLocation>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
+    struct_slots: RefCell<FxHashMap<StructId, U256>>,
     storage_cursor: StorageCursor,
     transient_cursor: StorageCursor,
 }
@@ -386,6 +387,7 @@ impl<'gcx> StorageBuilder<'gcx> {
             locations: FxHashMap::default(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
+            struct_slots: RefCell::new(FxHashMap::default()),
             storage_cursor: StorageCursor::new(base_slot, false),
             transient_cursor: StorageCursor::new(U256::ZERO, true),
         }
@@ -492,7 +494,13 @@ impl<'gcx> StorageBuilder<'gcx> {
     fn storage_slots_inner(&self, ty: Ty<'gcx>, span: Span) -> Option<U256> {
         match ty.peel_refs().kind {
             TyKind::Struct(id) => {
-                self.sequence_slots(self.struct_field_types(id).iter().copied(), span)
+                if let Some(&slots) = self.struct_slots.borrow().get(&id) {
+                    return Some(slots);
+                }
+                let slots =
+                    self.sequence_slots(self.struct_field_types(id).iter().copied(), span)?;
+                self.struct_slots.borrow_mut().insert(id, slots);
+                Some(slots)
             }
             TyKind::Array(element, len) => {
                 if let Some((size, _)) = self.packed_encoding(element)

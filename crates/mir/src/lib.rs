@@ -29,7 +29,7 @@ pub use types::{
 mod abi;
 pub use abi::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator,
+    AbiParamTypeRef, AbiType, AbiWordValidator,
 };
 
 mod packed;

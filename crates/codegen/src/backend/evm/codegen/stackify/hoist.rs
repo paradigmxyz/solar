@@ -174,7 +174,8 @@ impl Hoister<'_> {
         let steps = std::mem::take(&mut block.steps);
         let split = block.terminator_start;
         // The emitter gives the code before the first `Begin` of the body the origin of
-        // that instruction, or the terminator's when there is none.
+        // that instruction, or the terminator's when there is none, or the call's when the
+        // terminator is a tail call.
         let start_origin = steps[..split]
             .iter()
             .find_map(|step| match *step {
@@ -268,7 +269,9 @@ impl Hoister<'_> {
                 InstKind::Coverage(_) => (0, 0, true),
                 ref kind => unreachable!("instruction `{}` has no stack effect", kind.mnemonic()),
             },
-            Step::Call(callee) => (self.info.params[callee], self.info.returns[callee], true),
+            Step::Call { callee, .. } => {
+                (self.info.params[callee], self.info.returns[callee], true)
+            }
             Step::Publish { arity, .. } => (arity, 1, true),
         }
     }

@@ -1,5 +1,4 @@
 use crate::LintContext;
-use solar_interface::data_structures::Never;
 use solar_sema::{Gcx, hir};
 use std::ops::ControlFlow;
 
@@ -126,7 +125,7 @@ impl<'s, 'gcx> hir::Visit<'gcx> for LateLintVisitor<'_, 's, 'gcx>
 where
     's: 'gcx,
 {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

@@ -9,7 +9,6 @@ use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
-    Never,
     bit_set::GrowableBitSet,
     map::{FxHashMap, FxIndexMap},
     parallel,
@@ -959,6 +958,7 @@ fn storage_size_upper_bound(
     location: DataLocation,
 ) -> Result<Option<U256>, ErrorGuaranteed> {
     let mut total_size = U256::ZERO;
+    let mut struct_sizes = FxHashMap::default();
     for item_id in gcx.hir.contract_item_ids(contract_id) {
         // Skip constant and immutable variables and variables from the other storage space.
         if let hir::Item::Variable(var) = gcx.hir.item(item_id)
@@ -967,7 +967,9 @@ fn storage_size_upper_bound(
                 == (location == DataLocation::Transient)
         {
             let ty = gcx.type_of_item(item_id);
-            let Some(size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
+            let Some(size) = ty_storage_size_upper_bound(ty, gcx, &mut struct_sizes)? else {
+                return Ok(None);
+            };
             let Some(size) = total_size.checked_add(size) else { return Ok(None) };
             total_size = size;
         }
@@ -975,7 +977,13 @@ fn storage_size_upper_bound(
     Ok(Some(total_size))
 }
 
-fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>, ErrorGuaranteed> {
+/// Returns an upper bound on the number of slots `ty` takes. `struct_sizes` holds the bound of each
+/// struct already visited, so a struct that occurs many times is walked once.
+fn ty_storage_size_upper_bound(
+    ty: Ty<'_>,
+    gcx: Gcx<'_>,
+    struct_sizes: &mut FxHashMap<hir::StructId, U256>,
+) -> Result<Option<U256>, ErrorGuaranteed> {
     match ty.kind {
         TyKind::Elementary(..)
         | TyKind::StringLiteral(..)
@@ -989,10 +997,12 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         | TyKind::Enum(..)
         | TyKind::Fn(..)
         | TyKind::DynArray(..) => Ok(Some(U256::ONE)),
-        TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
+        TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx, struct_sizes),
         TyKind::Array(ty, uint) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
-            let Some(elem_size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
+            let Some(elem_size) = ty_storage_size_upper_bound(ty, gcx, struct_sizes)? else {
+                return Ok(None);
+            };
             Ok(uint.checked_mul(elem_size))
         }
         TyKind::Struct(struct_id) => {
@@ -1000,9 +1010,13 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
             if let Recursiveness::Infinite(guar) = gcx.struct_recursiveness(struct_id) {
                 return Err(guar);
             }
+            if let Some(&size) = struct_sizes.get(&struct_id) {
+                return Ok(Some(size));
+            }
             let mut total_size = U256::ONE;
             for t in gcx.struct_field_types(struct_id) {
-                let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {
+                let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx, struct_sizes)?
+                else {
                     return Ok(None);
                 };
                 let Some(size) = total_size.checked_add(size_contribution) else {
@@ -1010,6 +1024,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
                 };
                 total_size = size;
             }
+            struct_sizes.insert(struct_id, total_size);
             Ok(Some(total_size))
         }
         TyKind::Err(guar) => Err(guar),
@@ -1052,7 +1067,7 @@ impl<'gcx> BreakContinueChecker<'gcx> {
 }
 
 impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -1224,7 +1239,6 @@ fn check_error_selector_collisions(gcx: Gcx<'_>) {
 mod tests {
     use super::*;
     use crate::{Compiler, builtins::Builtin, hir::ExprKind};
-    use solar_data_structures::Never;
     use solar_interface::{Session, config::CompileOpts};
     use std::path::PathBuf;
 
@@ -1316,7 +1330,7 @@ contract C {
     }
 
     impl<'hir> Visit<'hir> for CallExprs<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             self.hir
@@ -1336,7 +1350,7 @@ contract C {
     }
 
     impl<'hir> Visit<'hir> for Exprs<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             self.hir

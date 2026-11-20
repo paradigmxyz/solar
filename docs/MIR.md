@@ -74,7 +74,11 @@ convert these carriers to their native types. ABI and memory layout metadata
 retain signedness and storage widths independently of SSA types. Layout
 metadata spells scalars with Solidity names, `uintN`, `intN`, `bool`, `address`,
 `bytesN`, and `function`, as in `checked_add int64`, `abi_params=[uint8]`, or
-an `@immutables` entry `owner: address`; only SSA types use `iN`.
+an `@immutables` entry `owner: address`; only SSA types use `iN`. An ABI input
+layout names each nested shape that it repeats and that itself holds an
+aggregate where the shape first occurs, and refers to that name after it, as in
+`abi_decode [tuple<$0 = tuple<array<_, uint256>>, $0>]`, so the text grows with
+the number of distinct shapes rather than with the paths through them.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
@@ -818,8 +822,8 @@ A block header may end in `!metadata(span=10..20)`, written `bb3 [cold] !metadat
 It is the origin of the block's label, the source location of the `JUMPDEST` that marks the block,
 as solc gives a tag the location active where the tag is placed. Lowering sets it when it places a
 block: the function definition for the entry block, the declaration of a fallback or receive function
-for its route, and the enclosing statement for the else and end blocks of an `if` and the header and
-exit of a loop. Text prints it under the same rule as an
+for its route, and the enclosing statement for the else block of an `if` and the header and exit of a
+loop. The end block of a source `if` has none, like the jumps out of its arms. Text prints it under the same rule as an
 instruction's span, so lowered MIR dumps do not show it. A pass that keeps a block keeps its label,
 one that merges the block into its predecessor drops it, and one that bypasses an empty block
 (`jump-threading`, `cfg-simplify`) or replaces a duplicate function body merges that block's label

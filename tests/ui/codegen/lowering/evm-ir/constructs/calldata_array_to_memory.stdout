@@ -219,7 +219,7 @@ bb18 [entry]:                                     ; function viaAssign(uint256[]
   push 0
   return
 bb23 [entry]:                                     ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag) external pure returns (uint256) [selector 0x3ce9e381]
-  push 224
+  push 128
   push 64
   mstore
   push 100

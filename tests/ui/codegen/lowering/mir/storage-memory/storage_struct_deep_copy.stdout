@@ -39,27 +39,19 @@ fn @assign() {
     v96 = ne v95, 0
     jumpi v96, bb8, bb9
   bb9:                                            ; preds = bb0
-    v86 = heap_floor !metadata(alloc_ptr)
-    v87 = add v86, 64 !metadata(alloc_ptr)
-    v101 = shr v87, 64
-    v88 = lt v87, v86
-    v103 = zext i1 v88 to i256
-    v104 = or v101, v103
-    v90 = ne v104, 0
-    jumpi v90, bb11, bb10
-  bb10:                                           ; preds = bb9
     v98 = calldataload 36
     v97 = calldataload 4
+    v86 = heap_floor !metadata(alloc_ptr)
+    v87 = add v86, 64 !metadata(alloc_ptr)
     mstore 64, v87 !metadata(memory=scratch)
     mstore v86, 1
     v84 = add v86, 32
     mstore v84, v98
-    v5 = alloc 64 !metadata(deferred_alloc)
     sstore 0, v97 !metadata(storage=slot(0))
     v14 = sload 1 !metadata(storage=slot(1))
     v15 = gt v14, 1
     jumpi v15, bb1, bb2
-  bb1:                                            ; preds = bb10
+  bb1:                                            ; preds = bb9
     v21 = shr v14, 3
     v22 = and v14, 7
     v23 = ne v22, 0
@@ -72,7 +64,7 @@ fn @assign() {
     v68 = phi [bb1: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf7], [bb7: v71]
     v69 = lt v67, v25
     jumpi v69, bb7, bb2
-  bb2:                                            ; preds = bb6, bb10
+  bb2:                                            ; preds = bb6, bb9
     sstore 1, 1 !metadata(storage=slot(1))
     mstore 0, 1 !metadata(memory=scratch)
     jump bb3
@@ -98,10 +90,6 @@ fn @assign() {
     v70 = add v67, 1
     v71 = add v68, 1
     jump bb6
-  bb11 [cold]:                                    ; preds = bb9
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb8 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
@@ -122,26 +110,18 @@ fn @push() {
     v105 = ne v104, 0
     jumpi v105, bb10, bb11
   bb11:                                           ; preds = bb0
+    v107 = calldataload 36
     v95 = heap_floor !metadata(alloc_ptr)
     v96 = add v95, 64 !metadata(alloc_ptr)
-    v110 = shr v96, 64
-    v97 = lt v96, v95
-    v112 = zext i1 v97 to i256
-    v113 = or v110, v112
-    v99 = ne v113, 0
-    jumpi v99, bb6, bb12
-  bb12:                                           ; preds = bb11
-    v107 = calldataload 36
     mstore 64, v96 !metadata(memory=scratch)
     mstore v95, 1
     v93 = add v95, 32
     mstore v93, v107
-    v5 = alloc 64 !metadata(deferred_alloc)
     v9 = sload 2 !metadata(storage=slot(2))
-    v115 = shr v9, 64
-    v10 = ne v115, 0
+    v110 = shr v9, 64
+    v10 = ne v110, 0
     jumpi v10, bb6, bb7
-  bb7:                                            ; preds = bb12
+  bb7:                                            ; preds = bb11
     v106 = calldataload 4
     v11 = add v9, 1
     mstore 0, 2 !metadata(memory=scratch)
@@ -195,7 +175,7 @@ fn @push() {
     v77 = add v74, 1
     v78 = add v75, 1
     jump bb8
-  bb6 [cold]:                                     ; preds = bb11, bb12
+  bb6 [cold]:                                     ; preds = bb11
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -261,27 +241,19 @@ fn @assignFixed() {
     v98 = ne v97, 0
     jumpi v98, bb8, bb9
   bb9:                                            ; preds = bb0
-    v88 = heap_floor !metadata(alloc_ptr)
-    v89 = add v88, 64 !metadata(alloc_ptr)
-    v103 = shr v89, 64
-    v90 = lt v89, v88
-    v105 = zext i1 v90 to i256
-    v106 = or v103, v105
-    v92 = ne v106, 0
-    jumpi v92, bb11, bb10
-  bb10:                                           ; preds = bb9
     v100 = calldataload 36
     v99 = calldataload 4
+    v88 = heap_floor !metadata(alloc_ptr)
+    v89 = add v88, 64 !metadata(alloc_ptr)
     mstore 64, v89 !metadata(memory=scratch)
     mstore v88, 1
     v86 = add v88, 32
     mstore v86, v100
-    v5 = alloc 64 !metadata(deferred_alloc)
     sstore 3, v99 !metadata(storage=slot(3))
     v16 = sload 4 !metadata(storage=slot(4))
     v17 = gt v16, 1
     jumpi v17, bb1, bb2
-  bb1:                                            ; preds = bb10
+  bb1:                                            ; preds = bb9
     v23 = shr v16, 3
     v24 = and v16, 7
     v25 = ne v24, 0
@@ -294,7 +266,7 @@ fn @assignFixed() {
     v70 = phi [bb1: 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19c], [bb7: v73]
     v71 = lt v69, v27
     jumpi v71, bb7, bb2
-  bb2:                                            ; preds = bb6, bb10
+  bb2:                                            ; preds = bb6, bb9
     sstore 4, 1 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
     jump bb3
@@ -320,10 +292,6 @@ fn @assignFixed() {
     v72 = add v69, 1
     v73 = add v70, 1
     jump bb6
-  bb11 [cold]:                                    ; preds = bb9
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb8 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

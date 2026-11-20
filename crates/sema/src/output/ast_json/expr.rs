@@ -30,7 +30,7 @@ use crate::{
 use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DocComments, ElementaryType, LitKind, StrKind};
-use solar_data_structures::{Never, map::FxHashSet};
+use solar_data_structures::map::FxHashSet;
 use solar_interface::{Ident, Span, SpannedOption, kw};
 use std::ops::ControlFlow;
 
@@ -542,13 +542,13 @@ impl Writes<'_> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for Writes<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
     }
 
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<!> {
         match expr.kind {
             hir::ExprKind::Assign(lhs, ..) | hir::ExprKind::Delete(lhs) => self.note(lhs),
             hir::ExprKind::Unary(op, inner) if op.kind.has_side_effects() => self.note(inner),

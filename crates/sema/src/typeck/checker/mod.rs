@@ -13,7 +13,6 @@ use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{
-    Never,
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
     pluralize,
@@ -3239,7 +3238,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
         if var.is_immutable() {
             if !ty.is_value_type() {
-                self.dcx().emit_err(var.span, "immutable variables cannot have a non-value type");
+                self.dcx().emit_err_code(
+                    var.span,
+                    error_code!(6377),
+                    "immutable variables cannot have a non-value type",
+                );
             }
             if let TyKind::Fn(f) = ty.kind
                 && f.is_external()
@@ -3907,7 +3910,7 @@ impl<'gcx> TypeChecker<'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

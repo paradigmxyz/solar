@@ -20,15 +20,16 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, Builtin, CallOutput, CallPolicy, Callee, CheckedOp, Function,
-        FunctionAttributes, Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op,
-        Terminator, ValueId, analysis::AddressSpace, immutable::immutable_push_type_size,
-        memory::EvmMemoryLayout,
+        AbiLayout, AbiParamType, AbiParamTypeRef, AbiType, BlockId, Builtin, CallOutput,
+        CallPolicy, Callee, CheckedOp, Function, FunctionAttributes, Hotness, ImmutableEncoding,
+        InstId, InstKind, MirType, Module, Op, Terminator, ValueId, analysis::AddressSpace,
+        immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode, Tune};
+use solar_data_structures::map::FxHashMap;
 use solar_evmir::gas::since;
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
@@ -219,6 +220,17 @@ impl Target {
     /// [`Tune::Jit`]: a JIT keeps a 256-bit word in four registers, and a loop that carries more
     /// spills them to the stack on every iteration, as an unrolled sum over an array did.
     pub(crate) const JIT_MAX_UNROLLED_LOOP_WORDS: usize = 3;
+
+    /// Bytes each node of an ABI type adds to its inline decoder under the gas objective, counting
+    /// a byte string, which checks and copies its data, as two nodes: one more `-Ogas` calldata
+    /// decode of a `uint256[]`, two nodes, adds 86 bytes, and one of a
+    /// `(address, uint256, bytes)[]`, six nodes, adds 237.
+    const ABI_DECODE_NODE_BYTES: u64 = 40;
+    /// The most bytes the repeated inline copies of one ABI decoder may add under the gas
+    /// objective, a small module's worth. Below it each copy saves the call of a shared helper;
+    /// above it a type that repeats a dynamic member at every level of a tree would double its
+    /// code with each level.
+    const MAX_ABI_DECODE_COPY_BYTES: u64 = Self::SMALL_CODE_BYTES;
 
     /// The model of the session's EVM version and optimizer runs for code optimized for
     /// `optimization`, resolved by [`OptimizationMode::select`] after any
@@ -1711,6 +1723,20 @@ impl Target {
         let after = self.opcodes(&[op::DUP1, op::NOT, op::SWAP1, op::SUB]);
         self.dominates(after, before)
     }
+
+    /// Whether `copies` inline copies of the decoder of `ty` share one helper instead. The size
+    /// objective and `-O none` share any repeated decoder. The gas objective keeps the copies
+    /// inline, each saving a call, until the bytes of the copies beyond the first pass
+    /// [`Self::MAX_ABI_DECODE_COPY_BYTES`].
+    pub(crate) fn shares_abi_decoder(&self, ty: &AbiParamType, copies: usize) -> bool {
+        let extra = (copies as u64).saturating_sub(1);
+        copies >= 2
+            && (!self.optimization.is_gas()
+                || extra
+                    .saturating_mul(abi_param_type_nodes(ty))
+                    .saturating_mul(Self::ABI_DECODE_NODE_BYTES)
+                    > Self::MAX_ABI_DECODE_COPY_BYTES)
+    }
 }
 
 /// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
@@ -1735,10 +1761,30 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
     layout.types.iter().map(abi_type_expansion).sum()
 }
 
+/// Returns the number of nodes in `ty`, counting a byte string as two, which sizes its inline
+/// decoder. Each shared node is counted along every path to it, but walked once.
+fn abi_param_type_nodes(ty: &AbiParamType) -> u64 {
+    fn count<'a>(ty: &'a AbiParamType, memo: &mut FxHashMap<&'a AbiParamTypeRef, u64>) -> u64 {
+        let own = if matches!(ty, AbiParamType::Bytes) { 2 } else { 1 };
+        ty.children().fold(own, |sum, child| {
+            let nodes = match memo.get(child) {
+                Some(&nodes) => nodes,
+                None => {
+                    let nodes = count(child, memo);
+                    memo.insert(child, nodes);
+                    nodes
+                }
+            };
+            sum.saturating_add(nodes)
+        })
+    }
+    count(ty, &mut FxHashMap::default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{ExtCallKind, Immediate, Instruction, PtrLocation, Value};
+    use crate::mir::{ExtCallKind, Immediate, Instruction, PtrLocation, Value, ValueLayout};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -2720,5 +2766,36 @@ mod tests {
             target.terminator_estimate(&Terminator::Return { values: smallvec::smallvec![] }),
             target.internal_return(0, 0)
         );
+    }
+
+    #[test]
+    fn abi_decoders_share_by_copy_bytes() {
+        let word = || AbiParamType::Scalar(ValueLayout::Address);
+        let node = AbiParamTypeRef::new;
+        let array = AbiParamType::DynamicArray(node(word()));
+        let call = AbiParamType::DynamicArray(node(AbiParamType::Tuple(
+            [node(word()), node(word()), node(AbiParamType::Bytes)].into(),
+        )));
+        // `struct S { T a; T b; }` over `struct T { uint256[] a; }`, nested ten times: 4,095 nodes.
+        let mut tree = AbiParamType::Tuple([node(array.clone())].into());
+        for _ in 0..10 {
+            let inner = node(tree);
+            tree = AbiParamType::Tuple([inner.clone(), inner].into());
+        }
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // Two copies of a `uint256[]` or of a `Call[]` decoder add 80 and 240 bytes.
+        assert!(!gas.shares_abi_decoder(&array, 2));
+        assert!(!gas.shares_abi_decoder(&call, 2));
+        // Two copies of the tree add 163,800 bytes.
+        assert!(gas.shares_abi_decoder(&tree, 2));
+        assert!(!gas.shares_abi_decoder(&tree, 1));
+        // 51 extra copies of a `uint256[]` decoder add 4,080 bytes, 52 add 4,160.
+        assert!(!gas.shares_abi_decoder(&array, 52));
+        assert!(gas.shares_abi_decoder(&array, 53));
+        for optimization in [OptimizationMode::Size, OptimizationMode::None] {
+            let target = Target::with(EvmVersion::Cancun, optimization, 200);
+            assert!(target.shares_abi_decoder(&array, 2));
+            assert!(!target.shares_abi_decoder(&tree, 1));
+        }
     }
 }

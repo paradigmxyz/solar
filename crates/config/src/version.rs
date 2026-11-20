@@ -11,7 +11,7 @@ pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
 #[cfg(feature = "version")]
 pub const SOLAR_VERSION: &str = env!("SOLAR_VERSION");
 
-/// The solc-compatible version: `0.8.38+commit.d9f23fbe.solar.0.3.0`.
+/// The solc-compatible version: `0.8.39+commit.d9f23fbe.solar.0.3.0`.
 ///
 /// Its semver core is the emulated solc version, so tools that gate on solc versions keep working,
 /// and its build metadata names the Solar build. Metadata and verifiers use this form.

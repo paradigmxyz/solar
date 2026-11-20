@@ -1,0 +1,262 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=licm
+//@[size] compile-flags: -Osize -Zmir-pipeline=licm
+//@[gas] filecheck: --enable-var-scope --check-prefixes=CHECK,GAS
+//@[size] filecheck: --enable-var-scope --check-prefixes=CHECK,SIZE
+@module LicmUnknownTripRanges
+
+// No loop runs more than `2^64` times, so even with an unknown trip count an element index
+// stays above the length word of the array it indexes. Size builds do not take the bound: the
+// hoisted word costs a `pop` after the loop.
+// CHECK-LABEL: @hoist_len_over_element_stores
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: - [[LEN]] = mload arg0
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
+fn @hoist_len_over_element_stores(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = shl v0, 5
+    v5 = add arg0, 32
+    v6 = add v5, v4
+    mstore v6, v0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// Byte stores from the first element on stay above the length word too.
+// CHECK-LABEL: @hoist_len_over_byte_stores
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: - [[LEN]] = mload arg0
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
+fn @hoist_len_over_byte_stores(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = add arg0, 32
+    v6 = add v5, v0
+    mstore8 v6, 65
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// The first iteration of a store from the object's start rewrites the length word.
+// CHECK-LABEL: @keep_len_over_stores_from_header
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload arg0
+fn @keep_len_over_stores_from_header(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = shl v0, 5
+    v6 = add arg0, v4
+    mstore v6, v0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// A loop that stores to the length word keeps its read.
+// CHECK-LABEL: @keep_len_when_loop_writes_len
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload arg0
+fn @keep_len_when_loop_writes_len(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    mstore arg0, v0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// A quadratic index has no affine range.
+// CHECK-LABEL: @keep_len_over_quadratic_stores
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload arg0
+fn @keep_len_over_quadratic_stores(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = mul v0, v0
+    v5 = shl v4, 5
+    v6 = add arg0, 32
+    v7 = add v6, v5
+    mstore v7, v0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// An index that starts at an unknown value can wrap onto the length word.
+// CHECK-LABEL: @keep_len_over_unknown_start
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload arg0
+fn @keep_len_over_unknown_start(arg0: i256, arg1: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v8 = phi [bb0: arg1], [bb2: v9]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = shl v8, 5
+    v6 = add arg0, 32
+    v7 = add v6, v4
+    mstore v7, v0
+    v3 = add v0, 1
+    v9 = add v8, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// The hoisted read takes the length word the preheader just stored.
+// CHECK-LABEL: @forward_len_from_preheader_store
+// GAS: - [[LEN:v[0-9]+]] = mload arg0
+// GAS-NEXT: - [[CMP:v[0-9]+]] = lt {{v[0-9]+}}, [[LEN]]
+// GAS-NEXT: + [[CMP]] = lt {{v[0-9]+}}, arg1
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
+fn @forward_len_from_preheader_store(arg0: i256, arg1: i256) {
+  bb0:
+    mstore arg0, arg1
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = shl v0, 5
+    v5 = add arg0, 32
+    v6 = add v5, v4
+    mstore v6, v0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// A store that may alias the word between the length store and the read blocks the forward.
+// CHECK-LABEL: @keep_hoisted_len_after_unknown_store
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: lt {{v[0-9]+}}, [[LEN]]
+// SIZE: bb1:
+// SIZE-NEXT: {{v[0-9]+}} = phi
+// SIZE-NEXT: {{v[0-9]+}} = mload arg0
+fn @keep_hoisted_len_after_unknown_store(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    mstore arg0, arg1
+    mstore arg2, 7
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = shl v0, 5
+    v5 = add arg0, 32
+    v6 = add v5, v4
+    mstore v6, v0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// A second read of the word in a block that does not dominate the exit reuses the hoisted one.
+// GAS-LABEL: @reuse_hoisted_len_for_body_read
+// GAS: + [[LEN:v[0-9]+]] = mload arg0
+// GAS: - [[LEN]] = mload arg0
+// GAS: - [[TWIN:v[0-9]+]] = mload arg0
+// GAS: - mstore {{v[0-9]+}}, [[TWIN]]
+// GAS-NEXT: + mstore {{v[0-9]+}}, [[LEN]]
+fn @reuse_hoisted_len_for_body_read(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v8 = mload arg0
+    v4 = shl v0, 5
+    v5 = add arg0, 32
+    v6 = add v5, v4
+    mstore v6, v8
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// Both reads stay when the loop may write the word.
+// CHECK-LABEL: @keep_both_reads_when_loop_writes_len
+// CHECK: bb1:
+// CHECK-NEXT: {{v[0-9]+}} = phi
+// CHECK-NEXT: {{v[0-9]+}} = mload arg0
+// CHECK: bb2:
+// CHECK: {{v[0-9]+}} = mload arg0
+fn @keep_both_reads_when_loop_writes_len(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = mload arg0
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v8 = mload arg0
+    mstore arg0, v8
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}

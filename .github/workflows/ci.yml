@@ -16,7 +16,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
   PINNED_SCCACHE_VERSION: v0.19.0
-  SOLC_VERSION: 0.8.38
+  SOLC_VERSION: 0.8.39
   FANDANGO_VERSION: 1.1.1
 
 jobs:
@@ -90,7 +90,7 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.98" # MSRV
+            rust: "1.100" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
           # Run both nightly configurations in parallel.

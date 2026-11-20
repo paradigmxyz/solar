@@ -54,11 +54,13 @@ Status: intentional.
 
 Difference: `solar` always emits full ethdebug output for the
 `evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
-selections. `solc` 0.8.38 emits no semantic debug info for the program outputs
+selections. `solc` 0.8.39 emits no semantic debug info for the program outputs
 unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
 outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
 `solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
-without `ast-id` in `debugInfo` like `solc`.
+without `ast-id` in `debugInfo` like `solc`. It also emits `ethdebug.compilation`
+whenever any ethdebug output is selected, because every program references it,
+where `solc` emits it only when selected.
 
 Rationale: `solar` builds ethdebug output from its own debug info, which does
 not depend on a Yul IR selection, and an experimental flag would only block
@@ -73,7 +75,7 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 Status: intentional.
 
 Difference: contract metadata names the compiler as
-`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+`"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
 emulated solc version, then the Solar commit and version as build metadata.
@@ -343,6 +345,42 @@ token.
 
 Coverage: `tests/ui/parser/number_literal_too_large.sol`.
 
+### PARSE-007: Expression trees are limited to 2500 levels
+
+Status: intentional.
+
+Difference: `solc` accepts expressions of any depth when it only analyzes them,
+so `--abi` accepts a chain of 30000 `^` operators. `solar` rejects an
+expression tree deeper than 2500 levels during parsing with `expression is too
+deeply nested`. A level is an operand, an operator in a binary chain, a member
+access, call or index in a postfix chain, a prefix or postfix operator, or a
+parenthesis, and nested expressions add up, so one expression can contain any number of
+shallow operands. Code generation in `solc` does not accept such depth either:
+its legacy code generator fails with `Stack too deep` on a chain of 16
+terms, and `--via-ir --optimize` crashes with a segmentation fault on a
+chain of 10000.
+
+Rationale: every pass that walks an expression recurses once per level, and the
+parser builds these chains in a loop, so the recursion limit does not bound
+them. A chain of about 10000 operators overflows the 8 MiB stack of the main
+thread, which `-j1` uses, in a release build. The limit assumes a stack of at
+least 8 MiB: a thread with 2 MiB overflows on chains near the limit, and the
+wasm build, whose stack is 1 MiB, on chains of about 1200 levels. The limit is
+approximate: wrappers such as parentheses and prefix operators add levels
+without a check, bounded by the recursion limit, so a tree can exceed it by a
+few hundred levels.
+
+Coverage: `tests/ui/parser/expr_depth_limit.sol`,
+`tests/ui/parser/expr_depth_limit_max.sol`,
+`tests/ui/parser/expr_depth_limit_postfix.sol`,
+`tests/ui/parser/expr_depth_limit_nested.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_member.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_max.sol`,
+`tests/ui/parser/expr_depth_limit_decl_max.sol`,
+`tests/ui/parser/expr_depth_limit_reset.sol` and
+`tests/ui/parser/expr_depth_limit_recover.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings
@@ -490,10 +528,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.8.39 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.38. These results hold with optimization enabled or
+error in solc 0.8.39. These results hold with optimization enabled or
 disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -664,7 +702,7 @@ struct's head counts all its members together. The check covers calldata
 variables; parameters of constructors, events, errors and external function
 types; parameters and returns of public and external functions; arguments of
 `abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
-types. `solc` 0.8.38 checks only constructor and public callable parameters
+types. `solc` 0.8.39 checks only constructor and public callable parameters
 against calldata, and sizes structs one member at a time, so it accepts, for
 example, an external function that takes a calldata struct with two
 `uint256[134217727]` members.
@@ -992,7 +1030,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   call one shared helper, unless a pointer is computed from constants or
   calldata alone, so a memory object that assembly places in that range through
   any other computation can be overwritten by the helper's frame before the
-  copy reads it.
+  copy reads it. Assembly can also step back from the first heap object into the
+  words below it, as far as `0x80` bytes: the compiler keeps room for that step,
+  which lands in the reserved low words under `solc`. A longer step lands in an
+  earlier heap object, or wraps and runs out of gas under `solc`, and the
+  compiler keeps no room for it, so it can land in a frame. A pointer that
+  assembly rounds down with a mask that clears more than a word can fall
+  further back than the compiler keeps room for, which is at most `0x80` bytes.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -1019,19 +1063,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   supplies, or one that a store through a computed address, a copy, or a byte
   store leaves there. A pointer from the heap is proven, also when moved by an
   offset that cannot wrap the address space, or stepped back from by a
-  constant outside a loop. A word that is also read as data, such as one hashed
-  in scratch memory, or loaded and then compared, hashed, encoded, stored, or
-  used as a key, stays in the slot for those reads, and only the pointer reads
-  see the raised value. The raise is `max(word, heap floor)`, where the heap
-  floor is resolved when frames are placed, so a pass that later folds the
-  word, as inlining does for a helper's argument, cannot remove it.
+  constant of at most `0x80` outside a loop. A word that is also read as data,
+  such as one hashed in scratch memory, or loaded and then compared, hashed,
+  encoded, stored, or used as a key, stays in the slot for those reads, and only
+  the pointer reads see the raised value. The raise is `max(word, heap floor)`,
+  where the heap floor is resolved when frames are placed, so a pass that later
+  folds the word, as inlining does for a helper's argument, cannot remove it.
 
   Each entry places its spill slots and frames clear of every fixed memory
   range that the code it runs names, wherever the range lies, when the area,
   its allocations, and its frames would cover it. An entry that runs code
   writing memory at an address computed from calldata, as Seaport lays out a
   basic order's hashes and event data, also keeps them above `0x2080`, unless it
-  places none of them. Other entries keep their memory low unless they share
+  places none of them. An address that a call passes to a parameter, or that a
+  callee returns, counts as computed from calldata when some call or return
+  gives it calldata, but a function's second and later results, which travel in
+  memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
   initial pointer.
 
@@ -1053,10 +1100,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   place, so it keeps the code it had before these rules: it trusts the type of a
   memory reference, a word loaded from a memory object, and a call result as
   heap pointers, and raises only constants and calldata words stored into the
-  free memory pointer slot. Such a block cannot store a low address into an
-  object's field without breaking its promise. An unmarked block that writes no
-  memory (no `mstore`, `mstore8`, copy, or call, and no assignment to a memory
-  reference) breaks no promise either, so it does not count.
+  free memory pointer slot, also when a call passes or returns them, and an
+  external function's integer and calldata reference parameters count as
+  calldata words. Such a
+  block cannot store a low address into an object's field without breaking its
+  promise. An unmarked block that writes no memory (no `mstore`, `mstore8`,
+  copy, or call, and no assignment to a memory reference) breaks no promise
+  either, so it does not count.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
@@ -1366,6 +1416,34 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the slot onto itself from a real pointer read means tracking the word through
   the second store, which adds pass complexity for no ordinary Solidity.
 - Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
+
+### CODEGEN-031: Storage copies of structs and arrays snapshot the source in memory
+
+- ID: CODEGEN-031
+- Status: intentional
+- Difference: a storage-to-storage copy of a struct or array reads the whole
+  source into memory, then writes the target. Two things differ from `solc`
+  0.8.39, which copies directly when the operands are disjoint and takes a
+  memory snapshot only when it finds the source inside the target.
+  - A copy whose source contains its target, such as
+    `root.children[0].children[0] = root` or `root.children.push(root)`,
+    succeeds in `solar` and writes the source's old value. `solc` calls this
+    direction undefined and its tests expect the call to fail.
+  - Every such copy, recursive or not, advances the free memory pointer by the
+    size of the snapshot. `solc` leaves it unchanged for disjoint operands and
+    rewinds it after a snapshot.
+- Rationale: reading the source before writing makes every overlap safe,
+  including a target that contains its source, the direction that corrupted
+  storage in `solc` before 0.8.39, without a runtime overlap check. The
+  growth shows in assembly that reads the free memory pointer around the copy,
+  and as extra memory expansion gas, so a transaction that copies often can
+  run out of gas where `solc` completes.
+- Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`
+  and `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol`.
+  Twelve upstream tests expect a failure, eleven of the
+  `copy_recursive_struct_*source_contains_target*` tests and
+  `copy_recursive_struct_overlap_push_self_parent`, and
+  `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
 ### TYPECK-026: `@inheritdoc` references
 
