@@ -8,7 +8,8 @@ use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
-    io::{self, IsTerminal, Write},
+    fs,
+    io::{self, IsTerminal, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
@@ -351,6 +352,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if cfg.mode.is_solc() {
         return solc_per_file_config(config, src, path, cfg);
     }
+    // FileCheck checks the output of a test without a committed snapshot, so the snapshot
+    // comparison must not require one.
+    if has_filecheck(src) && !has_committed_stdout(path) {
+        config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+    }
     if matches!(cfg.mode, Mode::StandardJson) {
         config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
         config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
@@ -408,6 +414,31 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }) {
         config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
     }
+}
+
+fn is_codegen_matrix(path: &Path) -> bool {
+    let mut src = String::new();
+    fs::File::open(path).and_then(|mut file| file.read_to_string(&mut src)).is_ok()
+        && codegen_matrix::is_standard(&src)
+}
+
+fn has_filecheck(src: &str) -> bool {
+    src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("filecheck:")
+    })
+}
+
+/// Returns whether any revision of the test commits a `.stdout` snapshot.
+fn has_committed_stdout(path: &Path) -> bool {
+    let (Some(dir), Some(stem)) = (path.parent(), path.file_stem().and_then(OsStr::to_str)) else {
+        return false;
+    };
+    let prefix = format!("{stem}.");
+    fs::read_dir(dir).into_iter().flatten().flatten().any(|entry| {
+        let name = entry.file_name();
+        name.to_str().is_some_and(|name| name.starts_with(&prefix) && name.ends_with(".stdout"))
+    })
 }
 
 /// Drops the default `-j1` when the test passes its own thread count.
@@ -711,15 +742,17 @@ impl Flag for FileCheck {
         if stdout_path.exists() {
             return run_filecheck(config.status.path(), &self.args, &stdout_path);
         }
-        if !config
+
+        // The codegen matrix dumps MIR only in its `mir` revision; the others emit artifacts.
+        let dumps = config
             .comments()
             .flat_map(|comments| &comments.compile_flags)
-            .any(|flag| flag.starts_with("-Zdump="))
-        {
+            .any(|flag| flag.starts_with("-Zdump="));
+        if config.status.revision() != "mir" && !dumps && is_codegen_matrix(config.status.path()) {
             return Ok(());
         }
 
-        // Runtime checks discard stdout snapshots, but their IR dumps still need FileCheck.
+        // Without a committed snapshot, check the real output.
         let error = |err| command_error("FileCheck".into(), err);
         let mut stdout = tempfile::NamedTempFile::new().map_err(error)?;
         stdout.write_all(&output.stdout).map_err(error)?;

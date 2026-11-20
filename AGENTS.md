@@ -177,7 +177,9 @@ Other directives are `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   call through the MIR or EVM IR interpreter and name the function by signature
   and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. See the
   [tester guide](tools/tester/README.md#runtime-directives) for settings.
-- `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`.
+- `//@ filecheck: ARGS` runs LLVM FileCheck with `ARGS` on the `.stdout`, or on
+  the compiler's output when the test commits no `.stdout`. On a codegen-matrix
+  test it checks only the `mir` revision and revisions that pass `-Zdump=`.
 
 ### FileCheck
 
