@@ -1,14 +1,14 @@
 ; === ROOT/tests/ui/codegen/debug-info/function_comments.sol:C (creation) ===
 @module C_deployment
 @data
-  C_runtime_code_0: hex"36600557005b5f3560e01c80632ddbd13a146067578063771602f7146075578063b20e7344146098578063c47dcaa41461013f578063cf6459ff1461010557346101ab57608060405260046101815b81156101a457600182036001831061023f57610191604e565b346101af575f545f5260205ff35b346101c957604436106101c55760043560243581019081106101b3575f5260205ff35b6080604052346101f557602436106101f1576004358060c45f5491820191821061021b57905f555f5490565b9060cb604e565b81019081106101df577f000000000000000000000000000000000000000000000000000000000000000081019081106101cd575f5260205ff35b6080604052346101fd57602436106101f9576040516040810160405260078152602001662f2f202028207b60c81b90526004355f5260205ff35b60806040523461020557602436106102015760405160408101604052600f81526020016e6f6e6520202020202020202074776f60881b90526004355f5260205ff35b5f54908101908110610209575f55005b8281028115918104909314171561022d57565b9050600190565b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd"
+  C_runtime_code_0: hex"36600557005b5f3560e01c80632ddbd13a14610133578063771602f714610110578063b20e73441460e3578063c47dcaa41460a1578063cf6459ff14606757346101ad57608060405260046101835b81156101a657600182036001831061024157610193604e565b6080604052346101ff57602436106101fb576040516040810160405260078152602001662f2f202028207b60c81b90526004355f5260205ff35b60806040523461020757602436106102035760405160408101604052600f81526020016e6f6e6520202020202020202074776f60881b90526004355f5260205ff35b6080604052346101f757602436106101f357600435806101415f5491820191821061021d57905f555f5490565b346101cb57604436106101c75760043560243581019081106101b5575f5260205ff35b346101b1575f545f5260205ff35b90610149604e565b81019081106101e1577f000000000000000000000000000000000000000000000000000000000000000081019081106101cf575f5260205ff35b5f5490810190811061020b575f55005b8281028115918104909314171561022f57565b9050600190565b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd"
 
-bb0:                                              ; constructor(uint256 start) [creation entry]
-  push_data C_runtime_code_0+593
+bb0:
+  push_data C_runtime_code_0+595
   codesize
   sub
   dup 1
-  push_data C_runtime_code_0+593
+  push_data C_runtime_code_0+595
   push 224
   codecopy
   push 224
@@ -20,12 +20,16 @@ bb0:                                              ; constructor(uint256 start) [
   and
   push 64
   mstore
+  jump bb9
+bb9:                                              ; constructor(uint256 start) [creation entry]
   callvalue
   push bb17
   jumpi
+  jump bb10
+bb10:
   push 224
   push 224
-  push_data C_runtime_code_0+593
+  push_data C_runtime_code_0+595
   codesize
   sub
   add
@@ -35,7 +39,11 @@ bb0:                                              ; constructor(uint256 start) [
   gt
   push bb16
   jumpi
+  jump bb11
+bb11:
   mload
+  jump bb12
+bb12:
   push 5
   push 0
   sstore
@@ -47,6 +55,8 @@ bb1 [ret=0, inputs=2, outputs=1]:                 ; function fact(uint256 n) int
   iszero
   push bb8
   jumpi
+  jump bb2
+bb2:
   push 1
   dup 3
   sub
@@ -55,6 +65,8 @@ bb1 [ret=0, inputs=2, outputs=1]:                 ; function fact(uint256 n) int
   lt
   push bb7
   jumpi
+  jump bb3
+bb3:
   push bb4
   jump bb1
 bb4 [continuation]:
@@ -73,6 +85,8 @@ bb4 [continuation]:
   iszero
   push bb6
   jumpi
+  jump bb5
+bb5:
   jump
 bb8:
   swap 1
@@ -88,18 +102,22 @@ bb13 [continuation]:
   lt
   push bb15
   jumpi
+  jump bb14
+bb14:
   push 0
   sstore
   push 192
   mstore
-  push 593
+  jump bb18
+bb18:
+  push 595
   dup 1
   push_data C_runtime_code_0
   push 224
   codecopy
   push 192
   mload
-  push 438
+  push 564
   mstore
   push 224
   return
@@ -143,12 +161,16 @@ bb17 [cold]:
   revert
 ; === ROOT/tests/ui/codegen/debug-info/function_comments.sol:C (runtime) ===
 @module C_runtime
-bb0:                                              ; runtime dispatch entry + receive() external payable [receive]
+bb0:                                              ; runtime dispatch entry
   calldatasize
   push bb2
   jumpi
+  jump bb1
+bb1:
+  jump bb50
+bb50 [entry]:                                     ; receive() external payable [receive]
   stop
-bb2:                                              ; fallback() external [fallback]
+bb2:
   push 0
   calldataload
   push 224
@@ -156,31 +178,37 @@ bb2:                                              ; fallback() external [fallbac
   dup 1
   push 0x2ddbd13a
   eq
-  push bb11
+  push bb7
   jumpi
   dup 1
   push 0x771602f7
   eq
-  push bb14
+  push bb6
   jumpi
   dup 1
   push 0xb20e7344
   eq
-  push bb22
+  push bb5
   jumpi
   dup 1
   push 0xc47dcaa4
   eq
-  push bb42
+  push bb4
   jumpi
   dup 1
   push 0xcf6459ff
   eq
-  push bb34
+  push bb3
   jumpi
+  jump bb8
+bb8:
   callvalue
   push bb10
   jumpi
+  jump bb9
+bb9:
+  jump bb51
+bb51 [entry]:                                     ; fallback() external [fallback]
   push 128
   push 64
   mstore
@@ -192,6 +220,8 @@ bb58 [ret=0, inputs=2, outputs=1]:                ; function fact(uint256 n) int
   iszero
   push bb65
   jumpi
+  jump bb59
+bb59:
   push 1
   dup 3
   sub
@@ -200,102 +230,12 @@ bb58 [ret=0, inputs=2, outputs=1]:                ; function fact(uint256 n) int
   lt
   push bb64
   jumpi
+  jump bb60
+bb60:
   push bb61
   jump bb58
-bb11 [entry]:                                     ; getter for `uint256 public total` [selector 0x2ddbd13a]
-  callvalue
-  push bb13
-  jumpi
-  push 0
-  sload
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb14 [entry]:                                     ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
-  callvalue
-  push bb21
-  jumpi
-  push 68
-  calldatasize
-  lt
-  push bb20
-  jumpi
-  push 4
-  calldataload
-  push 36
-  calldataload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb19
-  jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb22 [entry]:                                     ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344] + function bump(uint256 x) internal returns (uint256)
-  push 128
-  push 64
-  mstore
-  callvalue
-  push bb33
-  jumpi
-  push 36
-  calldatasize
-  lt
-  push bb32
-  jumpi
-  push 4
-  calldataload
-  dup 1
-  push bb26
-  push 0
-  sload
-  swap 2
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  push bb57
-  jumpi
-  swap 1
-  push 0
-  sstore
-  push 0
-  sload
-  swap 1
-  jump
-bb26 [continuation]:
-  swap 1
-  push bb27
-  jump bb58
-bb27 [continuation]:
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb31
-  jumpi
-  push_immutable 0, 32
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb30
-  jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return
+bb3:
+  jump bb34
 bb34 [entry]:                                     ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
   push 128
   push 64
@@ -303,11 +243,17 @@ bb34 [entry]:                                     ; function tag(uint256 x) exte
   callvalue
   push bb41
   jumpi
+  jump bb35
+bb35:
   push 36
   calldatasize
   lt
   push bb40
   jumpi
+  jump bb36
+bb36:
+  jump bb37
+bb37:
   push 64
   mload
   push 64
@@ -325,6 +271,10 @@ bb34 [entry]:                                     ; function tag(uint256 x) exte
   shl
   swap 1
   mstore
+  jump bb38
+bb38:
+  jump bb39
+bb39:
   push 4
   calldataload
   push 0
@@ -332,6 +282,8 @@ bb34 [entry]:                                     ; function tag(uint256 x) exte
   push 32
   push 0
   return
+bb4:
+  jump bb42
 bb42 [entry]:                                     ; function wrapped(uint256 x) external pure tagged("one \         two") returns (uint256) [selector 0xc47dcaa4]
   push 128
   push 64
@@ -339,11 +291,17 @@ bb42 [entry]:                                     ; function wrapped(uint256 x) 
   callvalue
   push bb49
   jumpi
+  jump bb43
+bb43:
   push 36
   calldatasize
   lt
   push bb48
   jumpi
+  jump bb44
+bb44:
+  jump bb45
+bb45:
   push 64
   mload
   push 64
@@ -361,8 +319,136 @@ bb42 [entry]:                                     ; function wrapped(uint256 x) 
   shl
   swap 1
   mstore
+  jump bb46
+bb46:
+  jump bb47
+bb47:
   push 4
   calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb5:
+  jump bb22
+bb22 [entry]:                                     ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344]
+  push 128
+  push 64
+  mstore
+  callvalue
+  push bb33
+  jumpi
+  jump bb23
+bb23:
+  push 36
+  calldatasize
+  lt
+  push bb32
+  jumpi
+  jump bb24
+bb24:
+  push 4
+  calldataload
+  jump bb25
+bb25:
+  dup 1
+  push bb26
+  jump bb55
+bb55 [ret=0, inputs=2, outputs=1]:                ; function bump(uint256 x) internal returns (uint256)
+  push 0
+  sload
+  swap 2
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb57
+  jumpi
+  jump bb56
+bb56:
+  swap 1
+  push 0
+  sstore
+  push 0
+  sload
+  swap 1
+  jump
+bb6:
+  jump bb14
+bb14 [entry]:                                     ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
+  callvalue
+  push bb21
+  jumpi
+  jump bb15
+bb15:
+  push 68
+  calldatasize
+  lt
+  push bb20
+  jumpi
+  jump bb16
+bb16:
+  push 4
+  calldataload
+  jump bb17
+bb17:
+  push 36
+  calldataload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb19
+  jumpi
+  jump bb18
+bb18:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb7:
+  jump bb11
+bb11 [entry]:                                     ; getter for `uint256 public total` [selector 0x2ddbd13a]
+  callvalue
+  push bb13
+  jumpi
+  jump bb12
+bb12:
+  push 0
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb26 [continuation]:
+  swap 1
+  push bb27
+  jump bb58
+bb27 [continuation]:
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb31
+  jumpi
+  jump bb28
+bb28:
+  push_immutable 0, 32
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb30
+  jumpi
+  jump bb29
+bb29:
   push 0
   mstore
   push 32
@@ -379,6 +465,8 @@ bb52 [continuation]:
   lt
   push bb54
   jumpi
+  jump bb53
+bb53:
   push 0
   sstore
   stop
@@ -398,6 +486,8 @@ bb61 [continuation]:
   iszero
   push bb63
   jumpi
+  jump bb62
+bb62:
   jump
 bb65:
   swap 1

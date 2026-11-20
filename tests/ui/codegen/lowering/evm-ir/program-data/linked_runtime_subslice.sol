@@ -15,8 +15,8 @@ contract Child {
 // optimizer allows data subslices.
 // NONE-LABEL: @module Factory_runtime
 // NONE: Child_runtime_code_1: hex
-// NONE: push_data Child_creation_code_0
-// NONE: push_data Child_runtime_code_1
+// NONE-DAG: push_data Child_creation_code_0
+// NONE-DAG: push_data Child_runtime_code_1
 // GAS-LABEL: @module Factory_runtime
 // GAS: push_data Child_creation_code_0+{{[0-9]+}}
 // GAS-NOT: Child_runtime_code

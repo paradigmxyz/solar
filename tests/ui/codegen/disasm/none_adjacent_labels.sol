@@ -1,11 +1,11 @@
 //@ compile-flags: -O none -Zdump=disasm-runtime
 //@ filecheck:
 
-// `-O none` runs the first EVM IR `cfg-simplify`, which drops the empty blocks that fall through
-// to their target. Without it each of them would leave a label and a `JUMPDEST` right before the
-// target's own, two adjacent `JUMPDEST`s.
+// `-O none` follows clang's `-O0`: its EVM IR `cfg-simplify` keeps the empty blocks that fall
+// through to their target, so each of them leaves a label and a `JUMPDEST` right before the
+// target's own, two adjacent `JUMPDEST`s, instead of dropping a block that may name a construct.
 contract NoneAdjacentLabels {
-    // CHECK-NOT: {{JUMPDEST[[:space:]]+; bb[0-9]+[[:space:]]+JUMPDEST}}
+    // CHECK: {{JUMPDEST[[:space:]]+; bb[0-9]+[[:space:]]+JUMPDEST}}
     function pick(bool c) external pure returns (bytes memory) {
         return bytes(c ? hex"abab" : hex"cdcd");
     }
