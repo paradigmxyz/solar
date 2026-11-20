@@ -103,6 +103,21 @@ contract RequireMessage {
         require(ok, Bad(item));
     }
 
+    Item stored;
+
+    // Loading storage bytes checks their length encoding, so the counter comes before them.
+    // CHECK-LABEL: fn @storageField(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: jumpi arg0, [[HELD:bb[0-9]+]],
+    // CHECK: [[HELD]]:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK: load_storage_bytes
+    function storageField(bool ok) external view {
+        require(ok, stored.reason);
+    }
+
     // A constant that does not fold panics when it is read, so the counter comes before it.
     // CHECK-LABEL: fn @overflow(
     // CHECK-NEXT: bb0:
