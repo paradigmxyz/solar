@@ -1,0 +1,37 @@
+//@ filecheck: --match-full-lines
+// A constant right operand stays a condition, since lowering still branches before it, but both
+// counts of its branch region are zero, as Clang marks a folded condition, so consumers leave it
+// out of branch and MC/DC coverage. The code region of `true`, then its branch region,
+// `[6, 0, 104, 4, 0, 0, 2, -1, -1]`.
+// CHECK: 104,
+// CHECK: 104,
+// CHECK-NEXT: 4,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 2,
+// CHECK-NEXT: -1,
+// CHECK-NEXT: -1
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract M {\n    function f(bool a, bool b) external pure returns (uint256 r) {\n        if (a && !(b && true)) {\n            r = 1;\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage",
+        "coverage-mcdc"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+//@ filecheck:
+// Regions are arrays, `[kind, file, start, length, ...counts]`, and a count is a tagged integer:
+// `1` for a counter and `2` for the difference of an expression, in the low two bits.
+// CHECK: "coverage": {
+// CHECK-NEXT: "version": 2,
+// CHECK-NEXT: "functions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "name": "A.sol:A.f(uint256)",
+// CHECK-NEXT: "hash": "0x{{[0-9a-f]+}}",
+// CHECK-NEXT: "counters": [
+// CHECK-NEXT: 1,
+// CHECK-NEXT: 6
+// CHECK-NEXT: ],
+// CHECK-NEXT: "files": [
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK-NEXT: "expressions": [
+// The function body counts its entry, and the `if` condition counts its true and false sides.
+// CHECK: "regions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 17,
+// CHECK-NEXT: 121,
+// CHECK-NEXT: 5
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 4,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 85,
+// CHECK-NEXT: 5,
+// CHECK-NEXT: 13,
+// CHECK-NEXT: 2
+// CHECK-NEXT: ],
+// CHECK: "name": "A.sol:free(bool,bool)",
+// CHECK: "counters": [
+// CHECK-NEXT: 7,
+// CHECK-NEXT: 6
+// Each COVERAGE probe precedes the counter push it skips. The condition `x > 1` shares the count of
+// the function entry, so its counter `2` has no probe.
+// CHECK: COVERAGE PUSH1 0x1 PUSH1 0x1 DUP2 GT PUSH1 0x{{[0-9A-F]+}} JUMPI COVERAGE PUSH1 0x4
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {\n    function f(uint256 x) external pure returns (uint256) {\n        if (x > 1) return x;\n        return x == 0 ? 1 : 2;\n    }\n}\n\nfunction free(bool a, bool b) pure returns (bool) {\n    require(a || b);\n    return a;\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": ["instrument-coverage"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": ["evm.deployedBytecode.opcodes"]
+      }
+    }
+  }
+}

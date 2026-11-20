@@ -264,6 +264,9 @@ impl Hoister<'_> {
                 | InstKind::ConstructorArgsEnd
                 | InstKind::InternalFrameAddr(_)
                 | InstKind::HeapFloor => (0, 1, false),
+                // A coverage probe emits `push id; coverage`, which leaves the stack unchanged, and
+                // must stay where it is, so code may not move across it.
+                InstKind::Coverage(_) => (0, 0, true),
                 ref kind => unreachable!("instruction `{}` has no stack effect", kind.mnemonic()),
             },
             Step::Call { callee, .. } => {

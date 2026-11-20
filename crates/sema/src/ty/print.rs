@@ -9,7 +9,7 @@ use std::fmt;
 
 impl<'gcx> Gcx<'gcx> {
     /// Formats the ABI signature of a function in the form `{name}({tys},*)`.
-    pub(super) fn mk_abi_signature(
+    pub fn mk_abi_signature(
         self,
         name: &str,
         tys: impl IntoIterator<Item = Ty<'gcx>>,

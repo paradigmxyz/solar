@@ -1,0 +1,28 @@
+//@ filecheck:
+// A record of a function with a recursive struct parameter names the struct.
+// CHECK: "name": "T.sol:L.read(L.Node storage)",
+{
+  "language": "Solidity",
+  "sources": {
+    "T.sol": {
+      "content": "library L {\n    struct Node {\n        uint256 value;\n        Node[] children;\n    }\n\n    function read(Node storage node) public view returns (uint256) {\n        return node.value;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "": [
+          "coverage"
+        ]
+      }
+    }
+  }
+}

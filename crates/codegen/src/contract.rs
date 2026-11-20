@@ -53,6 +53,11 @@ pub struct ContractArtifact {
     /// The [`RuntimeDataFn`] values of this contract and the contracts it embeds in the runtime
     /// bytecode, in ascending order.
     pub runtime_trailers: Vec<Trailer>,
+    /// The coverage counters dropped from the deployment bytecode, as `[dropped, kept]`: the
+    /// dropped counter has the hits of the kept one. Only a coverage build has any.
+    pub deployment_coverage_aliases: Vec<[u32; 2]>,
+    /// The coverage counters dropped from the runtime bytecode, as `[dropped, kept]`.
+    pub runtime_coverage_aliases: Vec<[u32; 2]>,
     /// Captured MIR, built under `-O none` without an explicit pipeline, and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -819,6 +824,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         );
         let runtime_link_references =
             collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
+        let runtime_coverage_aliases =
+            crate::coverage::aliases_in_code(&module.coverage_aliases, &artifact.runtime);
+        let deployment_coverage_aliases = crate::coverage::aliases_in_code(
+            &module.coverage_aliases,
+            artifact.deployment.strip_suffix(&artifact.runtime[..]).unwrap_or(&artifact.deployment),
+        );
         let final_mir = (capture_mir && dumps_final_mir(gcx)).then(|| {
             let mut snapshot = module.clone();
             snapshot.backend_memory = artifact.backend_memory.clone();
@@ -834,6 +845,8 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_link_references,
             deployment_trailers: artifact.deployment_trailers,
             runtime_trailers: artifact.runtime_trailers,
+            deployment_coverage_aliases,
+            runtime_coverage_aliases,
             mir,
             final_mir,
             deployment_evm_ir: artifact.deployment_evm_ir,

@@ -1,0 +1,14 @@
+//@ compile-flags: --emit=bin-runtime
+//~? WARN: `push` in block 1 grows the EVM stack to 1025 words
+@module module
+
+// The instrumenting EVM skips a probe's counter push, so a probe at 1024 words fits, and only a
+// real push past it overflows.
+bb0 [stack=1024]:
+  push 7 !meta(keep_with_next)
+  coverage
+  stop
+
+bb1 [stack=1024]:
+  push 1
+  stop

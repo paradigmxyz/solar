@@ -298,6 +298,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.unchecked = unchecked;
             lowerer.builder.replace_source_span(initializer.span);
+            lowerer.coverage(Site::Init(Site::key(gcx.hir.variable(id))));
             let value = lowerer.lower_typed_expr(initializer, ty)?.clean(&mut lowerer, ty);
             lowerer.builder.set_return_type(mir_ty);
             lowerer.builder.ret([value]);

@@ -1,0 +1,70 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0,
+      "coverage": {
+        "version": 2,
+        "functions": [
+          {
+            "name": "A.sol:Y.f(uint256)",
+            "hash": "0xa82775b9af57ca69",
+            "counters": [
+              1,
+              1
+            ],
+            "files": [
+              0
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                17,
+                185,
+                5
+              ],
+              [
+                2,
+                0,
+                164,
+                1
+              ],
+              [
+                2,
+                0,
+                201,
+                1
+              ]
+            ]
+          },
+          {
+            "name": "A.sol:Y.g(uint256)",
+            "hash": "0xe5b700f0d4933c1e",
+            "counters": [
+              2,
+              1
+            ],
+            "files": [
+              0
+            ],
+            "regions": [
+              [
+                0,
+                0,
+                106,
+                57,
+                9
+              ],
+              [
+                2,
+                0,
+                162,
+                1
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+//@ filecheck:
+// A decision with more than 256 test vectors keeps plain branch regions and has no MC/DC probes
+// or region. `(a || b) && (c || d)` doubles its vectors with each pair, so 8 pairs have 511.
+// CHECK: "message": "decision has too many test vectors for MC/DC, so it only has branches",
+// CHECK-NOT: "decisions"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Limit {\n    function f(bool a0, bool b0, bool a1, bool b1, bool a2, bool b2, bool a3, bool b3, bool a4, bool b4, bool a5, bool b5, bool a6, bool b6, bool a7, bool b7) external pure returns (bool) {\n        return (a0 || b0) && (a1 || b1) && (a2 || b2) && (a3 || b3) && (a4 || b4) && (a5 || b5) && (a6 || b6) && (a7 || b7);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage",
+        "coverage-mcdc"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

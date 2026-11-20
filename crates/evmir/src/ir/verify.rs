@@ -247,9 +247,28 @@ impl<'a> Verifier<'a> {
     /// `sub`, and a glued `sub` by the call opcode itself. Anything else carrying the flag has no
     /// rule to check it and is rejected, which keeps a new use of the flag from passing
     /// verification unverified.
+    ///
+    /// Coverage instrumentation glues the counter push to its probe, `push <id>; coverage`, which
+    /// assembly emits as `COVERAGE; PUSHn <id>` so the instrumenting EVM reads the id from the push
+    /// and skips it. Every `coverage` must follow such a push, of a nonzero id: a zero would
+    /// assemble as `PUSH0`, which carries no id.
     fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
         const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
         for (index, inst) in block.instructions.iter().enumerate() {
+            if inst.opcode == op::COVERAGE
+                && !index.checked_sub(1).is_some_and(|prev| {
+                    let prev = &block.instructions[prev];
+                    prev.keeps_with_next()
+                        && prev.concrete_immediate().is_some_and(|id| !id.is_zero())
+                })
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`coverage` must follow a kept nonzero immediate push of its counter"
+                    ),
+                );
+            }
             if !inst.keeps_with_next() {
                 continue;
             }
@@ -268,6 +287,8 @@ impl<'a> Verifier<'a> {
                 op::GAS => "a `sub` kept with the call",
                 op::SUB if CALLS.contains(&next.opcode) => continue,
                 op::SUB => "a call",
+                _ if inst.concrete_immediate().is_some() && next.opcode == op::COVERAGE => continue,
+                _ if inst.concrete_immediate().is_some() => "`coverage`",
                 _ => {
                     self.error_in_block(
                         block_id,
@@ -559,7 +580,14 @@ impl<'a> Verifier<'a> {
                     let effect = inst.stack_effect();
                     self.apply_effect(reported, block_id, inst.mnemonic(), effect, &mut stack)?;
                 }
-                note_overflow(&mut overflow, inst.mnemonic(), stack);
+                // The instrumenting EVM skips the counter push of a probe.
+                let counter = block
+                    .instructions
+                    .get(index + 1)
+                    .is_some_and(|next| next.opcode == op::COVERAGE && inst.keeps_with_next());
+                if !counter {
+                    note_overflow(&mut overflow, inst.mnemonic(), stack);
+                }
                 if inst.opcode == op::JUMPI
                     && let Some(target) = branch_target(block, index)
                 {
@@ -1076,7 +1104,21 @@ fn reach_blocks(module: &Module, sink: impl Fn(&Block) -> bool) -> DenseBitSet<B
 /// Returns the block that the `JUMPI` at `at` branches to, when the instruction before it pushes
 /// one.
 fn branch_target(block: &Block, at: usize) -> Option<BlockId> {
-    at.checked_sub(1).and_then(|previous| block.instructions[previous].pushed_block())
+    let mut previous = at.checked_sub(1)?;
+    // A coverage probe, `push <id>; coverage`, changes no stack, so the target is pushed before it.
+    while block.instructions[previous].opcode == op::COVERAGE {
+        previous = previous.checked_sub(2)?;
+    }
+    block.instructions[previous].pushed_block()
+}
+
+/// Returns the instruction that runs after the one at `at`, past coverage probes.
+fn next_after_probes(block: &Block, at: usize) -> Option<&Instruction> {
+    let mut next = at + 1;
+    while block.instructions.get(next + 1).is_some_and(|inst| inst.opcode == op::COVERAGE) {
+        next += 2;
+    }
+    block.instructions.get(next)
 }
 
 /// Returns whether `block` can end in a jump or a branch through a stack value.
@@ -1101,9 +1143,7 @@ fn unmodeled_pushes(module: &Module, flows: &IndexVec<BlockId, LabelFlow>) -> Ve
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(target) = inst.pushed_block()
-                && !block
-                    .instructions
-                    .get(at + 1)
+                && !next_after_probes(block, at)
                     .is_some_and(|next| matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI)))
                 && !flows[block_id].accounted.contains(&at)
             {

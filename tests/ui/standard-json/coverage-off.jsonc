@@ -1,0 +1,31 @@
+//@ filecheck:
+// An item that is off has no record, and a function that is on in a contract that is off has one.
+// The initializer of the contract that is off has none either.
+// CHECK: "name": "A.sol:T.shown(uint256)",
+// CHECK-NOT: "name": "A.sol:T.hidden(uint256)",
+// CHECK: "name": "A.sol:Off.restored()",
+// CHECK-NOT: "name": "A.sol:Off.inherited()",
+// CHECK-NOT: <init>
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract T {\n    /// @custom:solar-coverage off\n    function hidden(uint256 a) external pure returns (bool) {\n        return a > 1 && a < 9;\n    }\n\n    function shown(uint256 a) external pure returns (bool) {\n        return a > 1 && a < 9;\n    }\n}\n\n/// @custom:solar-coverage off\ncontract Off {\n    uint256 a = block.number > 1 ? 1 : 2;\n\n    /// @custom:solar-coverage on\n    function restored() external pure returns (uint256) {\n        return 1;\n    }\n\n    function inherited() external pure returns (uint256) {\n        return 1;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

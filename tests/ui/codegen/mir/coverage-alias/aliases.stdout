@@ -1,0 +1,58 @@
+- ; === ROOT/tests/ui/codegen/mir/coverage-alias/aliases.mir (before coverage-alias) ===
++ ; === ROOT/tests/ui/codegen/mir/coverage-alias/aliases.mir (after coverage-alias) ===
+  @module CoverageAlias
+  fn @callee() {
+    bb0:
+      ret
+  }
+  
+  fn @several(arg0: i1) {
+    bb0:
+      coverage 1
+-     coverage 2
+      coverage 3
+      jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      stop
+    bb1:                                            ; preds = bb0
+      coverage 1
+-     coverage 2
+      stop
+  }
+  
+  fn @copy_plain() {
+    bb0:
+      coverage 4
+      coverage 5
+      stop
+  }
+  
+  fn @copy_call() {
+    bb0:
+      coverage 4
+      icall @callee
+      coverage 5
+      stop
+  }
+  
+  fn @static_context() {
+    bb0:
+      coverage 6
+      sstore 0, 1
+      coverage 7
+      stop
+  }
+  
+  fn @twice(arg0: i1) {
+    bb0:
+      coverage 8
+      coverage 9
+      coverage 9
+      jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      stop
+    bb1:                                            ; preds = bb0
+      coverage 8
+      stop
+  }
+  

@@ -1,0 +1,6 @@
+error: EVM IR verification failed: block 0: `coverage` must follow a kept nonzero immediate push of its counter
+
+error: EVM IR verification failed: block 1: `coverage` must follow a kept nonzero immediate push of its counter
+
+error: aborting due to 2 previous errors
+

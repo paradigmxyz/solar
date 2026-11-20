@@ -1,0 +1,16 @@
+//~? ERROR: EVM IR verification failed: block 1: `pop` on an empty stack
+@module module
+
+// A probe between the pushed target and its `jumpi` changes no stack, so the branch is still a
+// direct edge: `bb1` is entered empty, and its `pop` underflows.
+bb0:
+  push 1
+  push bb1
+  push 7 !meta(keep_with_next)
+  coverage
+  jumpi
+  stop
+
+bb1:
+  pop
+  stop

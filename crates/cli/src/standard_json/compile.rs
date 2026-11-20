@@ -3,10 +3,10 @@
 use super::{
     data::{
         BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
-        DebugInfoComponent, DebugSettings, EvmOutput, MetadataHash, MetadataSettings, OffsetLength,
-        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
-        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
-        strip_json_comments,
+        CoverageRecordOutput, DebugInfoComponent, DebugSettings, DecisionCoverageOutput, EvmOutput,
+        MetadataHash, MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags,
+        ReadCallbackResult, Settings, SourceCoverageOutput, SourceOutput, StandardJsonReadCallback,
+        optimizer_settings, print_standard_json_stats, strip_json_comments,
     },
     metadata::{Metadata, source_name},
 };
@@ -19,12 +19,15 @@ use crate::{
 };
 use rayon::prelude::*;
 use serde_json::json;
-use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
+use solar_codegen::{
+    ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
+    coverage::{CoverageMap, DecisionId, RecordOwner},
+};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode, RevertStrings, UnstableOpts,
 };
-use solar_data_structures::map::{FxHashMap, FxIndexMap};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexMap};
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
@@ -465,6 +468,18 @@ fn compile(
 
                 gcx.dcx().has_errors()?;
 
+                if let Some(coverage) = solar_codegen::coverage::coverage_map(gcx)
+                    && let Some(sources) = &mut output.sources
+                {
+                    let mut names = FxHashSet::default();
+                    for id in gcx.hir.source_ids() {
+                        if let Some(source) = sources.get_mut(&source_name(gcx, id)) {
+                            source.coverage =
+                                Some(source_coverage_output(gcx, coverage, id, &mut names));
+                        }
+                    }
+                }
+
                 let global_ethdebug = output_selection.global();
                 let ethdebug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
@@ -681,10 +696,85 @@ fn source_outputs_from_compiler<'a, 'gcx>(
         .map(|(id, source)| {
             (
                 source.file.name.display().to_string(),
-                SourceOutput { id: id.index() as u32, ast: None },
+                SourceOutput { id: id.index() as u32, ast: None, coverage: None },
             )
         })
         .collect()
+}
+
+/// Returns the coverage map of the source `id`.
+fn source_coverage_output(
+    gcx: Gcx<'_>,
+    coverage: &CoverageMap,
+    id: solar_sema::hir::SourceId,
+    names: &mut FxHashSet<String>,
+) -> SourceCoverageOutput {
+    let functions = coverage
+        .source(id)
+        .records
+        .iter()
+        .map(|record| {
+            let mut name = record_name(gcx, id, record.owner);
+            if !names.insert(name.clone()) {
+                // Yul functions of different blocks can share a name.
+                let start = record.regions.first().map_or(0, |region| region.span.lo().0);
+                name = format!("{name}@{start}");
+                names.insert(name.clone());
+            }
+            let encoded = record.encode(gcx);
+            CoverageRecordOutput {
+                name,
+                hash: format!("{:#018x}", encoded.hash),
+                counters: record.counters,
+                files: record.files.iter().map(|file| file.index() as u32).collect(),
+                expressions: encoded.expressions,
+                regions: encoded.regions,
+                decisions: record
+                    .decisions
+                    .iter()
+                    .map(|decision| DecisionCoverageOutput {
+                        id: match decision.id {
+                            DecisionId::Probe(id) => Some(id),
+                            DecisionId::Expansions(_) => None,
+                        },
+                        expansions: match &decision.id {
+                            DecisionId::Probe(_) => None,
+                            DecisionId::Expansions(ids) => Some(ids.clone()),
+                        },
+                        conditions: decision.conditions,
+                        vectors: decision.vectors.clone(),
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
+    SourceCoverageOutput { version: 2, functions }
+}
+
+/// Returns the PGO name of a record: the source path, the contract, and the function with its
+/// parameter types.
+fn record_name(gcx: Gcx<'_>, source: solar_sema::hir::SourceId, owner: RecordOwner) -> String {
+    let path = source_name(gcx, source);
+    match owner {
+        RecordOwner::Init(contract) => {
+            format!("{path}:{}.<init>", gcx.hir.contract(contract).name)
+        }
+        RecordOwner::Constants(_) => format!("{path}:<init>"),
+        RecordOwner::Function(id) => {
+            let function = gcx.hir.function(id);
+            // The library form names structs, enums, and contracts, so it handles recursive
+            // structs and tells apart internal overloads that share an ABI signature.
+            let signature = gcx.mk_abi_signature(
+                function.name_or_kind().as_str(),
+                gcx.item_parameter_types(id).iter().copied(),
+                true,
+            );
+            match function.contract {
+                Some(contract) => format!("{path}:{}.{signature}", gcx.hir.contract(contract).name),
+                None => format!("{path}:{signature}"),
+            }
+        }
+    }
 }
 
 fn make_contract_output<'gcx>(
@@ -738,7 +828,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::BYTECODE_ETHDEBUG
-        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA;
+        | OutputSelectionFlags::BYTECODE_CBOR_AUXDATA
+        | OutputSelectionFlags::BYTECODE_COVERAGE_ALIASES;
     if output_selection.intersects(bytecode_outputs) {
         evm.bytecode = Some(make_bytecode_output(
             gcx,
@@ -756,7 +847,8 @@ fn make_contract_output<'gcx>(
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA;
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_CBOR_AUXDATA
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_COVERAGE_ALIASES;
     if output_selection.intersects(deployed_bytecode_outputs) {
         evm.deployed_bytecode = Some(make_bytecode_output(
             gcx,
@@ -804,6 +896,11 @@ fn make_bytecode_output(
     } else {
         OutputSelectionFlags::BYTECODE_SOURCE_MAP
     };
+    let coverage_aliases_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_COVERAGE_ALIASES
+    } else {
+        OutputSelectionFlags::BYTECODE_COVERAGE_ALIASES
+    };
     let ethdebug_flag = if deployed {
         OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
     } else {
@@ -833,6 +930,7 @@ fn make_bytecode_output(
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
             bytecode.map_or(&[], |bytecode| bytecode.as_ref()),
             gcx.sess.opts.evm_version,
+            gcx.sess.opts.unstable.instrument_coverage,
         ));
     }
     if output_selection.contains(source_map_flag) {
@@ -870,6 +968,17 @@ fn make_bytecode_output(
             }
         }
         output.cbor_auxdata = Some(by_contract);
+    }
+    if gcx.sess.opts.unstable.instrument_coverage
+        && output_selection.contains(coverage_aliases_flag)
+    {
+        output.coverage_aliases = Some(artifact.map_or_else(Vec::new, |artifact| {
+            if deployed {
+                artifact.runtime_coverage_aliases.clone()
+            } else {
+                artifact.deployment_coverage_aliases.clone()
+            }
+        }));
     }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {

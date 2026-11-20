@@ -238,7 +238,16 @@ impl Session {
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result = result.and(self.validate_language());
         result = result.and(self.validate_base_path());
+        result = result.and(self.validate_coverage());
         result
+    }
+
+    fn validate_coverage(&self) -> crate::Result<()> {
+        let unstable = &self.opts.unstable;
+        if unstable.coverage_mcdc && !unstable.instrument_coverage {
+            return Err(self.dcx.err("`-Zcoverage-mcdc` requires `-Zinstrument-coverage`").emit());
+        }
+        Ok(())
     }
 
     fn validate_language(&self) -> crate::Result<()> {

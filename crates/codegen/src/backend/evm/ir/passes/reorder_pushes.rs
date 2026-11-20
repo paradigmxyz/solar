@@ -199,10 +199,12 @@ fn update_expressions(
     }
     let inputs = usize::from(effect.inputs);
     if inputs == 0 {
+        // A glued push, such as a coverage counter, must stay before its opcode, so never move it.
+        let is_push = inst.is_encoded_push() && !inst.keeps_with_next();
         expressions.push(Expression {
             start: node,
-            immediate_recipe: inst.is_encoded_push(),
-            movable: inst.is_encoded_push() || inst.as_evm_opcode() == Some(op::CALLDATASIZE),
+            immediate_recipe: is_push,
+            movable: is_push || inst.as_evm_opcode() == Some(op::CALLDATASIZE),
         });
         return;
     }

@@ -1,0 +1,38 @@
+//@ revisions: plain coverage
+//@ compile-flags: -Zevm-ir-pipeline=default -O none -Zdump=disasm-runtime
+//@[plain] filecheck: --check-prefixes=CHECK,PLAIN
+//@[coverage] compile-flags: -Zinstrument-coverage
+//@[coverage] filecheck: --check-prefixes=CHECK,COVERAGE
+
+// `0xc2` is the coverage probe only in an instrumented build; elsewhere it is an unknown byte,
+// such as one of the program data appended here. Assembly emits the probe before its counter push,
+// which the instrumenting EVM reads and skips.
+@module coverage_byte
+@data
+  literal_0: hex"c2"
+
+// CHECK-LABEL: ; === coverage_byte (runtime) ===
+// A probe before a jump does not hide the pushed target from the disassembly, which resolves the
+// jump past the probe.
+// COVERAGE: PUSH1 [[TARGET:0x[0-9a-f]+]] ; bb0
+// COVERAGE-NEXT: COVERAGE
+// COVERAGE-NEXT: PUSH1 0x07
+// COVERAGE-NEXT: JUMP{{$}}
+// COVERAGE-NEXT: ; bb0
+// COVERAGE-NEXT: JUMPDEST
+// CHECK: RETURN
+// PLAIN-NEXT: UNKNOWN 0xc2
+// COVERAGE-NEXT: COVERAGE
+bb0:
+  push bb1
+  push 7 !meta(keep_with_next)
+  coverage
+  jump
+bb1:
+  push 1
+  push_data literal_0
+  push 0
+  codecopy
+  push 1
+  push 0
+  return

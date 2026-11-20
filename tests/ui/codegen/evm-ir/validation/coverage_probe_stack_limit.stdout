@@ -1,0 +1,12 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/coverage_probe_stack_limit.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/coverage_probe_stack_limit.evmir (after none) ===
+  @module module
+  bb0 [stack=1024]:
+    push 7 !metadata(keep_with_next)
+    coverage
+    stop
+  bb1 [stack=1024]:
+    push 1
+    stop
+  
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/validation/coverage_probe_stack_limit.evmir:module":{"bin-runtime":"c26007006001"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}

@@ -1,0 +1,2 @@
+error: `-Zcoverage-mcdc` requires `-Zinstrument-coverage`
+

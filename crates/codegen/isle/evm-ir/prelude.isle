@@ -144,6 +144,7 @@
 (extern const $LOG2 u8)
 (extern const $LOG3 u8)
 (extern const $LOG4 u8)
+(extern const $COVERAGE u8)
 (extern const $DUPN u8)
 (extern const $SWAPN u8)
 (extern const $EXCHANGE u8)

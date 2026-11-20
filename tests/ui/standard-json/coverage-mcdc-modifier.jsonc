@@ -1,0 +1,70 @@
+//@ filecheck:
+// `llvm-cov` sums the branches of a record and of its expansions, so the expansions carry none: the
+// record of a modifier keeps the branch regions and the MC/DC regions of its body, counted over all
+// its expansions, and one code region over its header. Its decision lists the IDs of the decision
+// in each expansion, `f` and `g`, whose test vectors share one structure. The records of `f` and
+// `g` have no decisions.
+// CHECK: "name": "A.sol:M.both(uint256,bool)",
+// CHECK: "decisions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "expansions": [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 1
+// CHECK-NEXT: ],
+// CHECK-NEXT: "conditions": 2,
+// CHECK: "name": "A.sol:M.f(uint256,bool)",
+// CHECK-NOT: "decisions"
+// CHECK: "name": "A.sol:M.g(uint256,bool)",
+// CHECK-NOT: "decisions"
+// A modifier that nothing invokes owns no counters either. Its decision sums no expansions, so
+// none of its vectors ran, and its conditions count `0 - 0`, expression 0, whose two zeros never
+// ran but are not folded, as two zero counts would be.
+// CHECK: "name": "A.sol:M.unused(uint256,bool)",
+// CHECK: "counters": [
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: 0
+// CHECK-NEXT: ],
+// CHECK: "expressions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0
+// CHECK-NEXT: ]
+// CHECK-NEXT: ],
+// CHECK: 272,
+// CHECK-NEXT: 10,
+// CHECK-NEXT: 0
+// CHECK: 272,
+// CHECK-NEXT: 5,
+// CHECK-NEXT: 2,
+// CHECK-NEXT: 2,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: -1,
+// CHECK-NEXT: 1
+// CHECK: "decisions": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "expansions": [],
+// CHECK-NEXT: "conditions": 2,
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract M {\n    modifier both(uint256 a, bool b) {\n        require(a > 1 && b);\n        _;\n    }\n\n    function f(uint256 x, bool b) external both(x, b) {}\n\n    function g(uint256 x, bool b) external both(x, b) {}\n\n    modifier unused(uint256 a, bool b) {\n        require(a > 1 && b);\n        _;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage",
+        "coverage-mcdc"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

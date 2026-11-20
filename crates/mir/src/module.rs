@@ -19,8 +19,14 @@ use solar_ir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
 use std::{borrow::Cow, fmt, sync::Arc};
 
 /// Returns whether pass managers should validate IR after each pass.
+///
+/// Coverage builds always validate, including in release, so the glued `push; coverage` pair that
+/// passes must preserve is checked where it matters; such builds are not performance-critical.
 pub fn should_validate_ir(sess: &Session) -> bool {
-    sess.opts.unstable.validate_ir.unwrap_or(cfg!(debug_assertions))
+    sess.opts
+        .unstable
+        .validate_ir
+        .unwrap_or(cfg!(debug_assertions) || sess.opts.unstable.instrument_coverage)
 }
 
 /// A named immutable declared by a MIR module.
@@ -152,6 +158,9 @@ pub struct Module {
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
     pub tagged_inline_growth: usize,
+    /// The coverage counters `coverage-alias` dropped, as pairs of a dropped counter and the kept
+    /// counter that has its hits.
+    pub coverage_aliases: Vec<[u32; 2]>,
 }
 
 impl Module {
@@ -224,6 +233,7 @@ impl Module {
             lowered_checked: false,
             optimization: OptimizationMode::default(),
             tagged_inline_growth: 0,
+            coverage_aliases: Vec::new(),
         }
     }
 

@@ -264,6 +264,13 @@ pub(crate) fn make_ethdebug_compilation(
             gcx.sess.opts.unstable.tune, gcx.sess.opts.unstable.pack_wide_jump_tables,
         ),
     );
+    // Only coverage builds add a field, so other compilation IDs stay the same.
+    if gcx.sess.opts.unstable.instrument_coverage {
+        append_length_prefixed(&mut identity, "instrument-coverage");
+    }
+    if gcx.sess.opts.unstable.coverage_mcdc {
+        append_length_prefixed(&mut identity, "coverage-mcdc");
+    }
     append_length_prefixed(&mut identity, &version);
     append_length_prefixed(&mut identity, &sources.len().to_string());
     for source in &sources {

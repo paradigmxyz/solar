@@ -9,9 +9,12 @@ use std::{
 };
 
 /// Disassembles EVM bytecode into one opcode per line and labels reachable jump destinations.
-pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
+///
+/// `COVERAGE` is decoded only when `instrument_coverage` is set; otherwise `0xc2` is an unknown
+/// byte, as in any other EVM.
+pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion, instrument_coverage: bool) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
-    let instructions = instructions(bytecode, evm_version).collect::<Vec<_>>();
+    let instructions = instructions(bytecode, evm_version, instrument_coverage).collect::<Vec<_>>();
     let labels = reachable_jumpdest_labels(&instructions, evm_version);
 
     for (index, instruction) in instructions.iter().enumerate() {
@@ -49,9 +52,8 @@ pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
             }
         }
         if is_push(instruction)
-            && instructions
-                .get(index + 1)
-                .is_some_and(|next| matches!(next.opcode, op::JUMP | op::JUMPI))
+            && next_op(&instructions, index)
+                .is_some_and(|next| matches!(instructions[next].opcode, op::JUMP | op::JUMPI))
         {
             if let Some(label) = pushed_offset(instruction).and_then(|offset| labels.get(&offset)) {
                 write!(output, " ; bb{label}").unwrap();
@@ -59,7 +61,8 @@ pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
                 output.push_str(" ; unknown");
             }
         } else if matches!(instruction.opcode, op::JUMP | op::JUMPI)
-            && !index.checked_sub(1).is_some_and(|previous| is_push(&instructions[previous]))
+            && !previous_op(&instructions, index)
+                .is_some_and(|previous| is_push(&instructions[previous]))
         {
             output.push_str(" ; unknown");
         }
@@ -137,7 +140,7 @@ fn add_jump_successors(
     pending: &mut VecDeque<usize>,
     all_jumpdests_pending: &mut bool,
 ) {
-    if let Some(previous) = index.checked_sub(1)
+    if let Some(previous) = previous_op(instructions, index)
         && is_push(&instructions[previous])
     {
         if let Some(target) = pushed_offset(&instructions[previous])
@@ -170,15 +173,43 @@ fn pushed_offset(instruction: &DecodedInstruction<'_>) -> Option<usize> {
     }
 }
 
+/// Returns the index of the instruction that runs before the one at `index`, past coverage probes,
+/// which change no stack.
+fn previous_op(instructions: &[DecodedInstruction<'_>], index: usize) -> Option<usize> {
+    let mut previous = index.checked_sub(1)?;
+    while instructions[previous].coverage_counter {
+        previous = previous.checked_sub(2)?;
+    }
+    Some(previous)
+}
+
+/// Returns the index of the instruction that runs after the one at `index`, past coverage probes.
+fn next_op(instructions: &[DecodedInstruction<'_>], index: usize) -> Option<usize> {
+    let mut next = index + 1;
+    while instructions.get(next + 1).is_some_and(|counter| counter.coverage_counter) {
+        next += 2;
+    }
+    (next < instructions.len()).then_some(next)
+}
+
+/// Returns whether the instruction pushes a value. A coverage probe's counter push never runs.
 fn is_push(instruction: &DecodedInstruction<'_>) -> bool {
-    instruction.opcode == op::PUSH0 || instruction.push_width != 0
+    !instruction.coverage_counter
+        && (instruction.opcode == op::PUSH0 || instruction.push_width != 0)
 }
 
 /// Disassembles EVM bytecode in the format used by solc's Standard JSON output.
-pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> String {
+///
+/// `COVERAGE` is decoded only when `instrument_coverage` is set; otherwise `0xC2` prints as an
+/// unknown byte, as solc prints it.
+pub fn disassemble_standard_json(
+    bytecode: &[u8],
+    evm_version: EvmVersion,
+    instrument_coverage: bool,
+) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
 
-    for instruction in instructions(bytecode, evm_version) {
+    for instruction in instructions(bytecode, evm_version, instrument_coverage) {
         if instruction.push_width != 0 {
             let width = instruction.push_width;
             write!(output, "PUSH{width} 0x").unwrap();
@@ -249,6 +280,8 @@ struct DecodedInstruction<'a> {
     push_width: u8,
     data: &'a [u8],
     kind: DecodedOpcode,
+    /// Whether this is the counter push of a `COVERAGE` probe, which the probe skips.
+    coverage_counter: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -262,8 +295,10 @@ enum DecodedOpcode {
 fn instructions(
     bytecode: &[u8],
     evm_version: EvmVersion,
+    instrument_coverage: bool,
 ) -> impl Iterator<Item = DecodedInstruction<'_>> {
     let mut offset = 0;
+    let mut after_coverage = false;
     std::iter::from_fn(move || {
         let instruction_offset = offset;
         let &opcode = bytecode.get(offset)?;
@@ -272,6 +307,7 @@ fn instructions(
         let push_width =
             if (op::PUSH1..=op::PUSH32).contains(&opcode) { opcode - op::PUSH1 + 1 } else { 0 };
         let kind = if (opcode == op::SLOTNUM && !evm_version.has_slot_num())
+            || (opcode == op::COVERAGE && !instrument_coverage)
             || (matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
                 && !evm_version.has_extended_stack_ops())
         {
@@ -298,7 +334,16 @@ fn instructions(
             .min(bytecode.len());
         let data = &bytecode[offset..end];
         offset = end;
-        Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data, kind })
+        let coverage_counter = after_coverage && push_width != 0;
+        after_coverage = opcode == op::COVERAGE && matches!(kind, DecodedOpcode::Opcode);
+        Some(DecodedInstruction {
+            offset: instruction_offset,
+            opcode,
+            push_width,
+            data,
+            kind,
+            coverage_counter,
+        })
     })
 }
 
