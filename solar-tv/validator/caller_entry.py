@@ -314,7 +314,7 @@ def check(
                 decoder,
                 observed["pcs"],
                 catalog,
-                market_proof.mir_results(tables, site.name),
+                market_proof.mir_markets(tables, site.name, catalog),
             )
             if site.name != "flashLoan"
             else None

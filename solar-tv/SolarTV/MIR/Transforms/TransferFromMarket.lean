@@ -17,6 +17,44 @@ def mappingHash (market : List Word) : Word :=
 def marketKey (market : List Word) : Word :=
   mappingHash market + 2
 
+/-- The high half of the market word carries a different field. -/
+abbrev marketMissing (loaded : Word) : Prop :=
+  loaded.setWidth 128 = 0
+
+def marketGuardFlag (loaded : Word) : Word :=
+  if marketMissing loaded then 1 else 0
+
+theorem marketMask (loaded : Word) :
+    Evm.and (BitVec.ofNat 256 (2^128-1)) loaded = (loaded.setWidth 128).setWidth 256 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [Evm.and, BitVec.toNat_and, Nat.and_comm, show
+    (BitVec.ofNat 256 (2^128-1)).toNat = 2^128-1 by decide, Nat.and_two_pow_sub_one_eq_mod,
+    BitVec.toNat_setWidth, BitVec.toNat_setWidth]
+  exact (Nat.mod_eq_of_lt
+    (Nat.lt_trans (Nat.mod_lt _ (by decide : 0 < 2^128)) (by decide : 2^128 < 2^256))).symm
+
+theorem marketWidenedZero (loaded : Word) :
+    (loaded.setWidth 128).setWidth 256 = 0 ↔ marketMissing loaded := by
+  unfold marketMissing
+  rw [← BitVec.toNat_inj, ← BitVec.toNat_inj (x := loaded.setWidth 128)]
+  rw [BitVec.toNat_setWidth,
+    Nat.mod_eq_of_lt (Nat.lt_trans (loaded.setWidth 128).isLt (by decide : 2^128 < 2^256))]
+  rfl
+
+theorem maskGuard (loaded : Word) :
+    Evm.iszero (Evm.and (BitVec.ofNat 256 (2^128-1)) loaded) =
+      marketGuardFlag loaded := by
+  rw [marketMask]
+  simp only [Evm.iszero, beq_iff_eq, marketWidenedZero, marketGuardFlag, Bool.cond_eq_ite]
+
+theorem marketScalar (loaded : Word) :
+    (MIR.State.Scalar.ofWord 128 ((loaded.setWidth 128).setWidth 256)).word =
+      (loaded.setWidth 128).setWidth 256 := by
+  change MIR.State.widenBits (MIR.State.wordBits 128
+    (MIR.State.widenBits (loaded.setWidth 128))) = _
+  rw [MIR.State.wordBits_widenBits _ _ (by decide)]
+  rfl
+
 theorem arenaCharge (words : List Word) (index count : Nat)
     (within : index + count ≤ words.length) :
     EVM.State.memoryCharge (wordArena words) (32*index) (32*count) = 0 := by
@@ -93,21 +131,34 @@ def mirStart (entry : Nat) (journal : Journal) (market : List Word)
 
 /-- Count reached MIR transitions without assigning physical gas to SSA instructions. -/
 def mirStepsFrom (cfg : MIR.State.Config) (functions : MIR.State.Functions)
-    (machine : MIR.State.Machine) :=
+    (machine : MIR.State.Machine) (steps : Nat := 10) (fuel : Nat := 1024) :
+    Except String (Unit ⊕ MIR.State.Machine) :=
   Trace.segment (S := MIR.State.Machine) (R := Unit) (fun fuel machine => do
     match ← MIR.State.transition fuel cfg functions machine with
     | .next _ after => return .inr after
-    | .finished _ => .error "MIR stopped before market read") 10 1024
-    machine
+    | .finished _ => .error "MIR stopped before the market checkpoint") steps fuel machine
+
+theorem mirStepsContinue {cfg : MIR.State.Config} {functions : MIR.State.Functions}
+    {initial reached : MIR.State.Machine} (first rest fuel : Nat)
+    (checked : mirStepsFrom cfg functions initial first fuel = .ok (.inr reached)) :
+    mirStepsFrom cfg functions initial (first + rest) fuel =
+      mirStepsFrom cfg functions reached rest (fuel - first) := by
+  unfold mirStepsFrom at checked ⊢
+  exact Trace.segment_continue first rest fuel checked
 
 def mirSteps (cfg : MIR.State.Config) (functions : MIR.State.Functions) (entry : Nat)
-    (journal : Journal) (market : List Word) (rest : List MIR.State.Value) :=
-  mirStepsFrom cfg functions (mirStart entry journal market rest)
+    (journal : Journal) (market : List Word) (rest : List MIR.State.Value) (steps : Nat := 10) :=
+  mirStepsFrom cfg functions (mirStart entry journal market rest) steps
 
 def mirObservation (result : Nat) (outcome : Unit ⊕ MIR.State.Machine) :
     Except String (Word × List Byte × Journal) := do
   let .inr next := outcome | .error "MIR stopped before market read"
   let value ← MIR.State.read next.frame ⟨.local result,.word 256⟩
   return (value,next.frame.memory,next.frame.world)
+
+def mirGuardObservation (outcome : Unit ⊕ MIR.State.Machine) :
+    Except String (Nat × List Byte × Journal) := do
+  let .inr next := outcome | .error "MIR stopped before the market branch"
+  return (next.cursor.block,next.frame.memory,next.frame.world)
 
 end SolarTV.MIR.TransferFromMarket

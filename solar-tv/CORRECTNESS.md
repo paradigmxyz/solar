@@ -742,6 +742,13 @@ the slot-warming update. An underpaid read halts without warming the
 slot. Rust replay varies the market input, storage value and warmth and
 checks the exact gas boundary.
 
+The market guard certificate continues from that read through the emitted
+mask, stack shuffles and branch, with the exact stack and gas at either
+successor. Both MIR versions continue from their checked SSA frame and
+branch on the same low 128 bits. Independent bytecode replay covers a zero
+word, a nonzero high half with a zero low half, a nonzero low half, and the
+gas required to reach the successor.
+
 The concrete ABI-to-exit certificates compose both segments for the
 supplied input, resume with the exact residual gas, and then
 prove reachability in the emitted runtime and both captured MIR bodies.

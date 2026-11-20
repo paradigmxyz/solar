@@ -370,10 +370,10 @@ def certify_market(prove, decoded, market, decoder, route, pc, snapshot, timeout
         + HEADER
         + "set_option linter.unusedSimpArgs false\n"
         + market_proof.source(market, decoder, route, pc, snapshot)
-        + market_proof.mir_source(decoder, market.mir_results)
+        + market_proof.mir_source(decoder, market.mir)
     )
     output = success(prove(name, source, timeout, module=True), name)
-    check_axioms(output.splitlines(), 4)
+    check_axioms(output.splitlines(), 7)
     return name
 
 
@@ -486,6 +486,12 @@ theorem after_live :
             "steps": len(market.instructions),
             "gas_before_load": market.gas_before_load,
             "applied": market_snapshot is not None,
+            "guard": {
+                "pc": market.guard.instructions[-1].pc,
+                "present": market.guard.present,
+                "missing": market.guard.missing,
+                "gas": market.guard.gas,
+            },
         }
     return evidence
 

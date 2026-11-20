@@ -948,6 +948,49 @@ end {namespace}
                 caller_entry.replay(underpaid, None, executable, 30)[0], "out-of-gas"
             )
 
+        guard = market["guard"]
+        guard_cuts = []
+        for loaded, successor in (
+            (0, "missing"),
+            (1 << 128, "missing"),
+            (value, "present"),
+        ):
+            guarded = {
+                **state,
+                "accounts": [
+                    {**account, "storage": [[str(key), str(loaded)]]}
+                    if int(account["address"]) == owner
+                    else account
+                    for account in accounts
+                ],
+                "warm_slots": [(str(owner), str(key))],
+                "gas": load_gas + 100 + guard["gas"],
+            }
+            cut = caller_entry.replay(guarded, guard[successor], executable, 30)
+            self.assertEqual(cut["pcs"][-1], guard["pc"])
+            self.assertEqual(cut["gas"], 0)
+            self.assertEqual(cut["memory"], before["memory"])
+            guard_cuts.append((loaded, guard[successor], cut))
+            underpaid = {**guarded, "gas": guarded["gas"] - 1}
+            self.assertEqual(
+                caller_entry.replay(underpaid, None, executable, 30)[0], "out-of-gas"
+            )
+            if successor == "missing":
+                funded = {**guarded, "gas": guarded["gas"] + 1_000}
+                rejected = caller_entry.replay(funded, None, executable, 30)
+                self.assertEqual(rejected[0], "revert")
+                self.assertIn(b"market not created", bytes(rejected[1]))
+
+        guard_checks = "".join(
+            f"""
+theorem guardVariant{index} :
+    let cut := (marketGuardCut changedEnv warm 0 {loaded}).frame
+    (cut.pc,cut.gas,cut.stack) = ({pc},{cut["gas"]},{list(map(int, cut["stack"]))}) := by
+  simp only [marketGuardCut,decoderFrame,sameId]
+  decide +kernel
+"""
+            for index, (loaded, pc, cut) in enumerate(guard_cuts)
+        )
         source = f"""import {module}
 import {decoder_module}Variant
 {entry_proof.HEADER}
@@ -984,7 +1027,7 @@ theorem readVariantMemory :
   change MIR.TransferFromABI.wordArena ([marketId changedEnv,3,288,0] ++ argumentWords changedEnv) = _
   rw [sameId,MIR.TransferFromABI.wordArena_append,marketInput]
   decide +kernel
-end {namespace}
+{guard_checks}end {namespace}
 """
         result = entry_proof.lean(kernel, module + "Variant", source, 60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

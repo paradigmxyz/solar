@@ -38,6 +38,36 @@ theorem segment_next {step : Step S R} (width fuel : Nat) {state next : S}
     segment step (width+1) (fuel+1) state = result := by
   simpa only [segment, Nat.add_sub_cancel, Nat.succ_ne_zero, ite_false, head, Bind.bind, Except.bind] using rest
 
+theorem segment_continue {step : Step S R} (first rest fuel : Nat) {state next : S}
+    (checked : segment step first fuel state = .ok (.inr next)) :
+    segment step (first + rest) fuel state = segment step rest (fuel-first) next := by
+  induction first generalizing fuel state with
+  | zero =>
+    cases checked
+    simp
+  | succ first ih =>
+    cases fuel with
+    | zero =>
+      unfold segment at checked
+      cases action : step 0 state with
+      | error _ => simp [action, Bind.bind, Except.bind] at checked
+      | ok signal =>
+        cases signal <;> simp [action, Bind.bind, Except.bind, Pure.pure, Except.pure] at checked
+    | succ fuel =>
+      unfold segment at checked
+      cases action : step fuel state with
+      | error _ => simp [action, Bind.bind, Except.bind] at checked
+      | ok signal =>
+        cases signal with
+        | inl result => simp [action, Bind.bind, Except.bind, Pure.pure, Except.pure] at checked
+        | inr successor =>
+          simp only [Nat.add_sub_cancel, action, Bind.bind, Except.bind,
+            Nat.succ_ne_zero, ite_false] at checked
+          rw [show first + 1 + rest = (first + rest) + 1 by omega]
+          simp only [segment, Nat.sub_zero, action, Bind.bind, Except.bind,
+            Nat.succ_ne_zero, ite_false, Nat.succ_sub_succ_eq_sub]
+          exact ih fuel checked
+
 theorem run_segment {step : Step S R} (width fuel : Nat) (state : S) (endState : R ⊕ S)
     (checked : segment step width fuel state = .ok endState) :
     run step fuel state = resume step (fuel-width) endState := by
