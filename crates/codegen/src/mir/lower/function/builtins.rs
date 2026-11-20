@@ -569,7 +569,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(message) = message else {
                     let is_false = self.builder.eq_zero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);
-                    self.coverage(taken);
+                    if !early {
+                        self.coverage(taken);
+                    }
                     return Some(());
                 };
                 // require condition, evaluated_payload

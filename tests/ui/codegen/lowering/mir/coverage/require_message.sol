@@ -1,5 +1,8 @@
+//@revisions: default strip
 //@compile-flags: -O none -Zinstrument-coverage -Zdump=mir
-//@filecheck: --enable-var-scope
+//@[strip] compile-flags: --revert-strings strip
+//@[default] filecheck: --enable-var-scope
+//@[strip] filecheck: --enable-var-scope --check-prefix=STRIP
 
 // A `require` counts its condition when it holds before its message runs when the message may
 // revert while it is evaluated, which is no failure of the condition. A message that cannot, a
@@ -81,5 +84,36 @@ contract RequireMessage {
     // CHECK-NEXT: jumpi arg0, [[HELD:bb[0-9]+]],
     function overflow(bool ok) external pure {
         require(ok, E(OVERFLOW));
+    }
+
+    function message() internal pure returns (string memory) {
+        return "x";
+    }
+
+    // The condition counts once when it holds, also when the stripped message keeps only its call.
+    // CHECK-LABEL: fn @call(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: jumpi arg0, [[HELD:bb[0-9]+]],
+    // CHECK: [[HELD]]:
+    // CHECK-NEXT: coverage [[TAKEN:[0-9]+]]
+    // CHECK-NOT: coverage [[TAKEN]]{{$}}
+    // CHECK: icall require<error_string>
+    // CHECK-NOT: coverage [[TAKEN]]{{$}}
+    // CHECK: ret
+    // STRIP-LABEL: fn @call(
+    // STRIP-NEXT: bb0:
+    // STRIP-NEXT: coverage {{[0-9]+}}
+    // STRIP-NEXT: coverage {{[0-9]+}}
+    // STRIP-NEXT: jumpi arg0, [[HELD:bb[0-9]+]],
+    // STRIP: [[HELD]]:
+    // STRIP-NEXT: coverage [[TAKEN:[0-9]+]]
+    // STRIP-NOT: coverage [[TAKEN]]{{$}}
+    // STRIP: icall revert_if
+    // STRIP-NOT: coverage [[TAKEN]]{{$}}
+    // STRIP: ret
+    function call(bool ok) external pure {
+        require(ok, message());
     }
 }
