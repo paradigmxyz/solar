@@ -1172,7 +1172,8 @@ fn calls_function(func: &Function, inst: InstId, function: FunctionId) -> bool {
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if *callee == function)
 }
 
-/// Returns whether the blocks from `block` on only jump and return the result of `call`.
+/// Returns whether the blocks from `block` on only jump and return the result of `call`, and
+/// each has no other predecessor, so that all of them merge into the call's block.
 fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
     let result = func.inst_result_value(call);
     for _ in 0..func.blocks.len() {
@@ -1181,7 +1182,9 @@ fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
             return false;
         }
         match &data.terminator {
-            Some(Terminator::Jump(next)) => block = *next,
+            Some(Terminator::Jump(next)) if func.blocks[*next].predecessors.len() == 1 => {
+                block = *next
+            }
             Some(Terminator::Return { values }) => {
                 return match result {
                     Some(result) => values.as_slice() == [result],
