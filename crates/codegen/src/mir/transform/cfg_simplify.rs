@@ -1240,7 +1240,12 @@ fn returns_result(
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
             // A pointer cast emits no code, so the call stays in tail position past it.
-            if matches!(func.inst(inst).kind, InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_)) {
+            if let InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) =
+                func.inst(inst).kind
+            {
+                if derived.contains(&operand) {
+                    derived.extend(func.inst_result_value(inst));
+                }
                 continue;
             }
             let (InstKind::ExtractValue { aggregate: operand, .. }
