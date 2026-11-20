@@ -1317,7 +1317,7 @@ fn returns_result(
                         whole.insert(output);
                     }
                 }
-                InstKind::InsertValue { .. } => {}
+                InstKind::InsertValue { .. } | InstKind::MakeSlice { .. } => {}
                 _ => return false,
             }
         }
