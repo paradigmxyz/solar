@@ -54,7 +54,7 @@ Status: intentional.
 
 Difference: `solar` always emits full ethdebug output for the
 `evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
-selections. `solc` 0.8.38 emits no semantic debug info for the program outputs
+selections. `solc` 0.8.39 emits no semantic debug info for the program outputs
 unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
 outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
 `solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
@@ -73,7 +73,7 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 Status: intentional.
 
 Difference: contract metadata names the compiler as
-`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+`"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
 emulated solc version, then the Solar commit and version as build metadata.
@@ -526,10 +526,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.8.39 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.38. These results hold with optimization enabled or
+error in solc 0.8.39. These results hold with optimization enabled or
 disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -700,7 +700,7 @@ struct's head counts all its members together. The check covers calldata
 variables; parameters of constructors, events, errors and external function
 types; parameters and returns of public and external functions; arguments of
 `abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
-types. `solc` 0.8.38 checks only constructor and public callable parameters
+types. `solc` 0.8.39 checks only constructor and public callable parameters
 against calldata, and sizes structs one member at a time, so it accepts, for
 example, an external function that takes a calldata struct with two
 `uint256[134217727]` members.
@@ -1414,6 +1414,33 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the slot onto itself from a real pointer read means tracking the word through
   the second store, which adds pass complexity for no ordinary Solidity.
 - Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
+
+### CODEGEN-031: Storage copies of structs and arrays snapshot the source in memory
+
+- ID: CODEGEN-031
+- Status: intentional
+- Difference: a storage-to-storage copy of a struct or array reads the whole
+  source into memory, then writes the target. Two things differ from `solc`
+  0.8.39, which copies directly when the operands are disjoint and takes a
+  memory snapshot only when it finds the target inside the source.
+  - A copy whose source contains its target, such as
+    `root.children[0].children[0] = root` or `root.children.push(root)`,
+    succeeds in `solar` and writes the source's old value. `solc` calls this
+    direction undefined and its tests expect the call to fail.
+  - Every such copy, recursive or not, advances the free memory pointer by the
+    size of the snapshot. `solc` leaves it unchanged for disjoint operands and
+    rewinds it after a snapshot.
+- Rationale: reading the source before writing makes every overlap safe,
+  including a target that contains its source, the direction that corrupted
+  storage in `solc` before 0.8.39, without a runtime overlap check. The
+  growth only shows in assembly that reads the free memory pointer around the
+  copy.
+- Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`
+  and `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol`.
+  Thirteen upstream tests expect a failure, the
+  `copy_recursive_struct_*source_contains_target*` tests and
+  `copy_recursive_struct_overlap_push_self_parent`, and
+  `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
 ### TYPECK-026: `@inheritdoc` references
 

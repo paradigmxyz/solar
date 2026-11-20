@@ -1,0 +1,29 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// Each instruction names the source file of its own span: `f` is inherited from `A.sol` (ID 0), and
+// `g` is declared in `B.sol` (ID 1), the file of the contract.
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "id": 1
+// CHECK: "id": 0
+// CHECK-NEXT: "type": "source"
+// CHECK: "offset": 60
+// CHECK-NEXT: "length": 10
+// CHECK: "id": 1
+// CHECK-NEXT: "type": "source"
+// CHECK: "offset": 81
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Base { function f() internal pure returns (uint) { return 11; } }"
+    },
+    "B.sol": {
+      "content": "import \"A.sol\"; contract C is Base { function g() external pure returns (uint) { return f(); } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "B.sol": {"C": ["evm.deployedBytecode.ethdebug"]}
+    }
+  }
+}

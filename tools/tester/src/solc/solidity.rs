@@ -97,6 +97,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "fixed_point_add"
         | "fixed_point_compound_add"
         | "free_function_4"
+        | "type_structure_fixed_point"
     ) {
         return Err("manually skipped");
     };

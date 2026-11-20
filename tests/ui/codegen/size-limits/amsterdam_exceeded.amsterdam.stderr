@@ -1,0 +1,28 @@
+warning[5776]: contract code size is <SIZE> bytes and exceeds 65536 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/amsterdam_exceeded.sol:LL:CC
+   │
+LL │ ┏ contract Big {
+LL │ ┃
+LL │ ┃     bytes public stored;
+   ‡ ┃
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in amsterdam
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[7868]: contract initcode size is <SIZE> bytes and exceeds 131072 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/amsterdam_exceeded.sol:LL:CC
+   │
+LL │ ┏ contract Big {
+LL │ ┃
+LL │ ┃     bytes public stored;
+   ‡ ┃
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in amsterdam
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
