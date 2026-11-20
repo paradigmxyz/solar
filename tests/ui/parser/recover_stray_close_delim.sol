@@ -55,4 +55,7 @@ contract C {
     function later() public {
         uint8 value = 300; //~ ERROR: mismatched types
     }
-}
+
+    struct S { uint[ } //~ ERROR: expected one of
+    //~^ ERROR: structs must have at least one field
+}  //~ ERROR: expected `;`

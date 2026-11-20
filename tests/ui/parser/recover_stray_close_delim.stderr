@@ -70,6 +70,27 @@ error: expected one of `)`, literal, or path, found `]`
 LL │             pop(] }
    ╰╴                ━ expected one of `)`, literal, or path
 
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     struct S { uint[ }
+   ╰╴                     ━ expected one of 10 possible tokens
+
+error: expected `;`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     struct S { uint[ }
+   │                       ─ expected `;`
+LL │
+LL │ }
+   ╰╴━ unexpected token
+
+error: structs must have at least one field
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     struct S { uint[ }
+   ╰╴           ━
+
 error: wrong argument count for function call: 0 arguments given but expected 1
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
    │
@@ -82,5 +103,5 @@ error: mismatched types
 LL │         uint8 value = 300;
    ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
 
-error: aborting due to 14 previous errors
+error: aborting due to 17 previous errors
 
