@@ -438,11 +438,14 @@ fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
     };
     let mut scoped = Vec::new();
     let mut unscoped = false;
+    let mut per_bitwidth = false;
     let mut dumps = Vec::new();
     for (directive, revisions) in src.lines().filter_map(run_call::parse_directive) {
         let revisions = revisions.map(|list| list.split(',').map(|r| r.trim().to_owned()));
         if let Some(list) = directive.strip_prefix("revisions:") {
             all.extend(list.split_whitespace().map(str::to_owned));
+        } else if directive == "stderr-per-bitwidth" {
+            per_bitwidth = true;
         } else if directive == "filecheck" || directive.starts_with("filecheck:") {
             match revisions {
                 Some(revisions) => scoped.extend(revisions),
@@ -460,6 +463,12 @@ fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
     if all.is_empty() {
         all.push(String::new());
     }
+    // The runner reads the snapshot of the host's width only under `stderr-per-bitwidth`.
+    let bitwidth = match (per_bitwidth, cfg!(target_pointer_width = "64")) {
+        (false, _) => "",
+        (true, true) => "64bit.",
+        (true, false) => "32bit.",
+    };
     let mut checked = scoped;
     if unscoped {
         checked.extend(all);
@@ -471,15 +480,12 @@ fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
         let checks = !is_matrix
             || revision == "mir"
             || dumps.iter().any(|dump| dump.as_ref().is_none_or(|list| list.contains(revision)));
-        let has_snapshot = ["", "32bit.", "64bit."].iter().any(|bitwidth| {
-            let name = if revision.is_empty() {
-                format!("{bitwidth}stdout")
-            } else {
-                format!("{bitwidth}{revision}.stdout")
-            };
-            path.with_extension(name).exists()
-        });
-        checks && !has_snapshot
+        let name = if revision.is_empty() {
+            format!("{bitwidth}stdout")
+        } else {
+            format!("{bitwidth}{revision}.stdout")
+        };
+        checks && !path.with_extension(name).exists()
     });
     checked
 }
