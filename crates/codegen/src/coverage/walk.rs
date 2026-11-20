@@ -304,8 +304,8 @@ impl<'gcx> Walker<'gcx> {
         }
     }
 
-    /// Returns the position after the `)` that follows `from`, past whitespace and comments, if the
-    /// text up to `limit` has one.
+    /// Returns the position after the `)` that follows `from`, past whitespace, comments and the
+    /// second `;` of a `for` header without an update, if the text up to `limit` has one.
     fn after_paren(&self, from: BytePos, limit: BytePos) -> Option<BytePos> {
         let files = self.gcx.sess.source_map().files();
         let text = files.span_to_snippet(Span::new(from, limit)).ok()?;
@@ -313,7 +313,10 @@ impl<'gcx> Walker<'gcx> {
         loop {
             rest = rest.trim_start();
             if let Some(comment) = rest.strip_prefix("//") {
-                rest = comment.split_once('\n').map_or("", |(_, rest)| rest);
+                // Like the lexer, a line comment ends at a line feed or a carriage return.
+                rest = comment.find(['\n', '\r']).map_or("", |end| &comment[end..]);
+            } else if let Some(after) = rest.strip_prefix(';') {
+                rest = after;
             } else if let Some(comment) = rest.strip_prefix("/*") {
                 rest = comment.split_once("*/")?.1;
             } else {

@@ -18,11 +18,18 @@
 // CHECK-NEXT: 13,
 // CHECK: {{^ *360,$}}
 // CHECK-NEXT: 13,
+// The header of a `for` without an update ends after its second `;`, and a line comment in a
+// header ends at a carriage return, as in the lexer, so both bodies have their gaps.
+// CHECK: "name": "A.sol:H.noUpdate(uint256,bool)",
+// CHECK: {{^ *507,$}}
+// CHECK-NEXT: 13,
+// CHECK: {{^ *551,$}}
+// CHECK-NEXT: 13,
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract H {\n    function h(uint256 v) public pure returns (uint256) {\n        if (v == 1)\n            return 5;\n        if (v == 0) v = 3;\n        else v = 4;\n        return v;\n    }\n\n    function loops(uint256 n) public pure returns (uint256 r) {\n        while (n > 100)\n            n--;\n        for (uint256 i = 0; i < n; i++)\n            r += i;\n        do\n            r++;\n        while (r < 3);\n    }\n}\n"
+      "content": "contract H {\n    function h(uint256 v) public pure returns (uint256) {\n        if (v == 1)\n            return 5;\n        if (v == 0) v = 3;\n        else v = 4;\n        return v;\n    }\n\n    function loops(uint256 n) public pure returns (uint256 r) {\n        while (n > 100)\n            n--;\n        for (uint256 i = 0; i < n; i++)\n            r += i;\n        do\n            r++;\n        while (r < 3);\n    }\n\n    function noUpdate(uint256 n, bool take) public pure returns (uint256) {\n        for (; n != 0;)\n            --n;\n        if (take // note\r)\n            return 1;\n        return n;\n    }\n}\n"
     }
   },
   "settings": {
