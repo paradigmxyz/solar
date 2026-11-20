@@ -2,11 +2,7 @@
 
 use super::{function, storage::StorageLayout};
 use solar_config::OptimizationMode;
-use solar_data_structures::{
-    graph,
-    index::IndexVec,
-    map::{FxHashMap, FxHashSet, FxIndexSet},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx, InlineTag,
@@ -419,15 +415,13 @@ pub(super) fn declaration(
 /// same on every path and is computed once.
 struct StorageBytes<'gcx> {
     gcx: Gcx<'gcx>,
-    /// The component of each struct in the graph of structs stored in structs, built on first use.
-    components: Option<IndexVec<hir::StructId, usize>>,
     visiting: FxHashSet<hir::StructId>,
     counts: FxHashMap<hir::StructId, usize>,
 }
 
 impl<'gcx> StorageBytes<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, components: None, visiting: FxHashSet::default(), counts: FxHashMap::default() }
+        Self { gcx, visiting: FxHashSet::default(), counts: FxHashMap::default() }
     }
 
     /// Returns the saturated count of `ty`, reached from a struct in component `parent`, if any.
@@ -437,7 +431,7 @@ impl<'gcx> StorageBytes<'gcx> {
             TyKind::Array(element, _) | TyKind::DynArray(element) => self.count(element, parent),
             TyKind::Mapping(_, value) => self.count(value, parent),
             TyKind::Struct(id) => {
-                let component = self.components()[id];
+                let component = self.gcx.struct_component(id);
                 let from_outside = parent != Some(component);
                 if from_outside && let Some(&count) = self.counts.get(&id) {
                     return count;
@@ -461,36 +455,6 @@ impl<'gcx> StorageBytes<'gcx> {
             }
             _ => 0,
         }
-    }
-
-    fn components(&mut self) -> &IndexVec<hir::StructId, usize> {
-        self.components.get_or_insert_with(|| {
-            let gcx = self.gcx;
-            let mut components = IndexVec::from_vec(vec![0; gcx.hir.strukt_ids().len()]);
-            let edges = |id: hir::StructId| {
-                let mut structs = Vec::new();
-                for &field in gcx.hir.strukt(id).fields {
-                    stored_structs(gcx.type_of_item(field.into()), &mut structs);
-                }
-                structs
-            };
-            for (component, ids) in graph::sccs(components.len(), edges).into_iter().enumerate() {
-                for id in ids {
-                    components[id] = component;
-                }
-            }
-            components
-        })
-    }
-}
-
-/// Pushes the structs that a value of type `ty` holds in storage.
-fn stored_structs(ty: solar_sema::ty::Ty<'_>, structs: &mut Vec<hir::StructId>) {
-    match ty.peel_refs().kind {
-        TyKind::Array(element, _) | TyKind::DynArray(element) => stored_structs(element, structs),
-        TyKind::Mapping(_, value) => stored_structs(value, structs),
-        TyKind::Struct(id) => structs.push(id),
-        _ => {}
     }
 }
 
