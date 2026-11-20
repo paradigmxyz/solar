@@ -6,10 +6,30 @@ import re
 import unittest
 from collections import Counter, defaultdict
 
-from .artifacts import contract_outputs
+from .artifacts import STORAGE_LAYOUTS, contract_outputs
 
 VERSION = 1
-COMPARATORS = ("abi", "methods", "userdoc", "devdoc", "ast")
+STORAGE_LAYOUT_VERSION = 2
+# Each comparator's rule version, which expectations must match.
+COMPARATORS = {
+    "abi": VERSION,
+    "methods": VERSION,
+    "userdoc": VERSION,
+    "devdoc": VERSION,
+    "ast": VERSION,
+    "storage-layout": STORAGE_LAYOUT_VERSION,
+}
+# A user-defined type's kind, name and AST ID, as in `t_struct(S)12_storage`.
+STORAGE_TYPE_ID = re.compile(
+    r"(t_(?:struct|enum|contract|userDefinedValueType))(\([^)]*\))(\d+)"
+)
+# A type label such as `struct Tick.Info`; others could forge type ID syntax.
+STORAGE_TYPE_LABEL = re.compile(r"[\w$. ]+")
+# A user-defined type without an AST ID, which compilers never emit.
+STORAGE_TYPE_WITHOUT_ID = re.compile(
+    r"t_(?:struct|enum|contract|userDefinedValueType)\([^)]*\)(?!\d)"
+)
+STORAGE_TYPE_FIELDS = {"type", "key", "value", "base"}
 AST_RULE_VERSION = 1
 AST_SAMPLES = 20
 # Fields holding node IDs, as one ID or a list of them. `exportedSymbols` maps
@@ -187,10 +207,123 @@ def abi_entries(abi, policy):
     }
 
 
-def artifact(output, comparator, policy):
+def storage_layouts(layouts, where):
+    """Drop AST IDs from a contract's storage layouts, keyed by output name.
+
+    `t_struct(Info)3` becomes `t_struct(Info){struct Tick.Info}`, with the label
+    of the `types` entry that the ID heads, so same-named types from different
+    scopes stay apart. An ID with no entry keeps its bare name,
+    `t_struct(Info)#`. IDs of one layout that share a name are numbered, `#1`,
+    `#2`, in the order a walk of its storage entries and the types they use
+    first reaches them, so equal layouts agree whatever their IDs. An ID the
+    walk does not reach keeps its plain name, which is an error if another ID
+    has it too.
+    """
+    seen_labels = {}
+    result = {}
+    for key, layout in layouts.items():
+        labels = {}
+        types = layout.get("types") if isinstance(layout, dict) else None
+        for type_id, entry in (types if isinstance(types, dict) else {}).items():
+            match = STORAGE_TYPE_ID.match(type_id)
+            label = entry.get("label") if isinstance(entry, dict) else None
+            if match and isinstance(label, str):
+                if not STORAGE_TYPE_LABEL.fullmatch(label):
+                    raise ValueError(f"malformed type label {label!r} in {where}")
+                name = labels[match[0]] = f"{match[1]}{match[2]}{{{label}}}"
+                if (other := seen_labels.setdefault(match[0], name)) != name:
+                    raise ValueError(f"{where}: {match[0]} is both {other} and {name}")
+
+        # Each ID with its bare name, in first-use order.
+        order = {}
+        if isinstance(layout, dict):
+            storage_type_ids(layout.get("storage"), types, set(), order)
+        groups = defaultdict(list)
+        for raw, bare in order.items():
+            groups[labels.get(raw, bare)].append(raw)
+        names = dict(labels)
+        for name, raws in groups.items():
+            if len(raws) > 1:
+                names.update((raw, f"{name}#{n}") for n, raw in enumerate(raws, 1))
+        result[key] = storage_layout(layout, f"{where} {key}", names)
+        taken = {}
+        for raw, name in sorted(names.items()):
+            if (other := taken.setdefault(name, raw)) != raw:
+                raise ValueError(f"{where}: {other} and {raw} both become {name}")
+    return result
+
+
+def storage_type_ids(variables, types, seen, order):
+    """Record the IDs that variables use, depth first, skipping malformed parts."""
+    for variable in variables if isinstance(variables, list) else ():
+        type_id = variable.get("type") if isinstance(variable, dict) else None
+        if not isinstance(type_id, str) or type_id in seen:
+            continue
+        seen.add(type_id)
+        for match in STORAGE_TYPE_ID.finditer(type_id):
+            order.setdefault(match[0], match[1] + match[2])
+        entry = types.get(type_id) if isinstance(types, dict) else None
+        if isinstance(entry, dict):
+            fields = [{"type": entry.get(f)} for f in ("key", "value", "base")]
+            storage_type_ids(fields, types, seen, order)
+            storage_type_ids(entry.get("members"), types, seen, order)
+
+
+def storage_layout(layout, where, names):
+    """Rename user-defined types by `names`, adding bare names, and drop `astId`."""
+    malformed = ValueError(f"malformed storage layout in {where}")
+    if (
+        not isinstance(layout, dict)
+        or not isinstance(layout.get("storage"), list)
+        or not isinstance(layout.get("types"), (dict, type(None)))
+    ):
+        raise malformed
+
+    def strip(match):
+        return names.setdefault(match[0], f"{match[1]}{match[2]}#")
+
+    def rename_type(type_id):
+        if not isinstance(type_id, str) or STORAGE_TYPE_WITHOUT_ID.search(type_id):
+            raise malformed
+        return STORAGE_TYPE_ID.sub(strip, type_id)
+
+    def rename(key, value):
+        if isinstance(value, list):
+            # Only `storage` and `members` hold lists, of variables.
+            if not all(
+                isinstance(v, dict) and isinstance(v.get("type"), str) for v in value
+            ):
+                raise malformed
+            return [rename(None, v) for v in value]
+        if isinstance(value, dict) and key == "types":
+            if not all(isinstance(v, dict) for v in value.values()):
+                raise malformed
+            # Distinct keys stay distinct: `storage_layouts` rejects two IDs with one name.
+            return {rename_type(k): rename(k, v) for k, v in value.items()}
+        if isinstance(value, dict):
+            return {k: rename(k, v) for k, v in value.items() if k != "astId"}
+        if key in STORAGE_TYPE_FIELDS:
+            return rename_type(value)
+        return value
+
+    return rename(None, layout)
+
+
+def has_transient(output):
+    return any(
+        isinstance(contract, dict)
+        and contract.get("transientStorageLayout") is not None
+        for group in contract_outputs(output).values()
+        if isinstance(group, dict)
+        for contract in group.values()
+    )
+
+
+def artifact(output, comparator, policy, empty_transient=False):
     contracts = contract_outputs(output)
     result = {}
     missing = set()
+    errors = {}
     for path, group in contracts.items():
         if not isinstance(group, dict) or not group:
             raise ValueError("malformed contract outputs")
@@ -198,6 +331,31 @@ def artifact(output, comparator, policy):
         for name, contract in group.items():
             if not isinstance(contract, dict):
                 raise ValueError("malformed contract artifact")
+            if comparator == "storage-layout":
+                layouts = result[path][name] = {}
+                present = {}
+                for key in STORAGE_LAYOUTS:
+                    value = contract.get(key)
+                    if (
+                        value is None
+                        and key == "transientStorageLayout"
+                        and empty_transient
+                    ):
+                        value = {"storage": [], "types": None}
+                    if value is None:
+                        missing.add((path, name, key))
+                        layouts[key] = {"available": False}
+                    else:
+                        present[key] = value
+                # A bad contract fails the check but leaves other contracts compared.
+                try:
+                    for key, value in storage_layouts(
+                        present, f"{path}:{name}"
+                    ).items():
+                        layouts[key] = {"available": True, "value": value}
+                except ValueError as error:
+                    errors[path, name] = str(error)
+                continue
             if comparator == "methods":
                 evm = contract.get("evm", {})
                 if not isinstance(evm, dict):
@@ -223,7 +381,7 @@ def artifact(output, comparator, policy):
                 if comparator == "methods":
                     value = {key: selector.lower() for key, selector in value.items()}
                 result[path][name] = {"available": True, "value": value}
-    return result, missing
+    return result, missing, errors
 
 
 def ast_children(value, path):
@@ -488,26 +646,52 @@ class AstSummary:
 def compare_outputs(left, right, comparator="abi", policy="interface", rules=()):
     if comparator not in COMPARATORS or policy not in {"exact", "interface"}:
         raise ValueError("unknown comparator or ABI policy")
+    version = COMPARATORS[comparator]
     try:
         if comparator == "ast":
             return {**compare_ast(left, right, rules), "policy": policy}
-        a, missing_a = artifact(left, comparator, policy)
-        b, missing_b = artifact(right, comparator, policy)
+        # Solc before 0.8.27 emits no transient layouts, so a reference without
+        # any counts them as empty when the candidate has some.
+        empty_transient = (
+            comparator == "storage-layout"
+            and not has_transient(left)
+            and has_transient(right)
+        )
+        a, missing_a, errors_a = artifact(left, comparator, policy, empty_transient)
+        b, missing_b, errors_b = artifact(right, comparator, policy)
+        # Only the error reports a contract that failed on either side.
+        for path, name in errors_a.keys() | errors_b.keys():
+            for side in (a, b):
+                if (group := side.get(path)) is not None:
+                    group.pop(name, None)
+                    if not group:
+                        del side[path]
         diff = differences(a, b, "/contracts")
+        errors = [f"left: {e}" for e in errors_a.values()]
+        errors += [f"right: {e}" for e in errors_b.values()]
         status = (
-            "unsupported" if missing_a & missing_b else "different" if diff else "equal"
+            "error"
+            if errors
+            else "unsupported"
+            if missing_a & missing_b
+            else "different"
+            if diff
+            else "equal"
         )
         return {
             "comparator": comparator,
-            "version": VERSION,
+            "version": version,
             "policy": policy,
             "status": status,
             "differences": diff,
+            **({"error": "\n".join(errors)} if errors else {}),
         }
-    except (ValueError, KeyError, TypeError) as error:
+    # Every comparator walks the outputs recursively, so absurdly deep JSON can
+    # overflow the stack; report that as an error instead of aborting the run.
+    except (ValueError, KeyError, TypeError, RecursionError) as error:
         return {
             "comparator": comparator,
-            "version": VERSION,
+            "version": version,
             "policy": policy,
             "status": "error",
             "differences": [],
@@ -666,7 +850,7 @@ class Tests(unittest.TestCase):
 
     def test_json_and_missing_outputs(self):
         left = self.output()
-        for comparator in COMPARATORS[:-1]:
+        for comparator in ("abi", "methods", "userdoc", "devdoc"):
             with self.subTest(comparator=comparator):
                 self.assertEqual(
                     compare_outputs(left, left, comparator)["status"], "equal"
@@ -724,6 +908,315 @@ class Tests(unittest.TestCase):
         report = {"results": [compare_outputs(left, left)]}
         expectations(report, [rule])
         self.assertEqual(report["unused_expectations"], [0])
+
+    def storage_output(self, base=0, key="t_string_memory_ptr"):
+        struct = f"t_struct(S){base + 1}_storage"
+        mapping = f"t_mapping({key},{struct})"
+        array = f"t_array(t_contract(D){base + 2})dyn_storage"
+        udvt = f"t_userDefinedValueType(U){base + 3}"
+
+        def entry(label, slot, ty):
+            return {
+                "astId": base + 10 + int(slot),
+                "contract": "C.sol:C",
+                "label": label,
+                "offset": 0,
+                "slot": slot,
+                "type": ty,
+            }
+
+        types = {
+            mapping: {
+                "encoding": "mapping",
+                "key": key,
+                "label": "mapping(string => struct C.S)",
+                "numberOfBytes": "32",
+                "value": struct,
+            },
+            struct: {
+                "encoding": "inplace",
+                "label": "struct C.S",
+                "members": [
+                    entry("u", "0", udvt),
+                    entry("e", "1", f"t_enum(E){base + 4}"),
+                ],
+                "numberOfBytes": "64",
+            },
+            array: {
+                "base": f"t_contract(D){base + 2}",
+                "encoding": "dynamic_array",
+                "label": "contract D[]",
+                "numberOfBytes": "32",
+            },
+        }
+        layout = {
+            "storage": [entry("m", "0", mapping), entry("a", "1", array)],
+            # Key order carries no meaning.
+            "types": dict(reversed(types.items())) if base else types,
+        }
+        transient = {"storage": [entry("t", "0", udvt)], "types": {udvt: {}}}
+        contract = {"storageLayout": layout, "transientStorageLayout": transient}
+        return {"contracts": {"C.sol": {"C": contract}}}
+
+    def test_storage_layout_ast_ids(self):
+        left = self.storage_output()
+        result = compare_outputs(left, self.storage_output(100), "storage-layout")
+        self.assertEqual(result["status"], "equal")
+        self.assertEqual(result["version"], STORAGE_LAYOUT_VERSION)
+        right = self.storage_output(100)
+        right["contracts"]["C.sol"]["C"]["storageLayout"]["storage"].reverse()
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "different")
+        right = self.storage_output(100, key="t_string")
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "different")
+        path = "/contracts/C.sol/C/storageLayout/value"
+        self.assertIn(
+            {
+                "path": path + "/storage/0/type",
+                "kind": "value",
+                "left": "t_mapping(t_string_memory_ptr,t_struct(S){struct C.S}_storage)",
+                "right": "t_mapping(t_string,t_struct(S){struct C.S}_storage)",
+            },
+            result["differences"],
+        )
+        rule = {key: result[key] for key in ("comparator", "version", "policy")}
+        rules = [
+            {**rule, "difference": d, "reason": "x"} for d in result["differences"]
+        ]
+        report = {"results": [result]}
+        expectations(report, rules)
+        self.assertFalse(report["failed"])
+
+    def test_storage_layout_same_names(self):
+        def output(tick, position, swap=False):
+            def struct(scope, member):
+                return {
+                    "encoding": "inplace",
+                    "label": f"struct {scope}.Info",
+                    "members": [{"label": member, "slot": "0", "type": "t_uint256"}],
+                    "numberOfBytes": "32",
+                }
+
+            ticks, positions = (position, tick) if swap else (tick, position)
+            storage = [
+                {
+                    "label": "ticks",
+                    "slot": "0",
+                    "type": f"t_struct(Info){ticks}_storage",
+                },
+                {
+                    "label": "f",
+                    "slot": "1",
+                    "type": f"t_function_internal_nonpayable(t_struct(Info){tick}_memory_ptr)returns()",
+                },
+                {
+                    "label": "positions",
+                    "slot": "2",
+                    "type": f"t_struct(Info){positions}_storage",
+                },
+            ]
+            types = {
+                f"t_struct(Info){tick}_storage": struct("Tick", "a"),
+                f"t_struct(Info){position}_storage": struct("Position", "b"),
+            }
+            layout = {"storage": storage, "types": types}
+            contract = {"storageLayout": layout, "transientStorageLayout": None}
+            return {"contracts": {"P.sol": {"P": contract}}}
+
+        result = compare_outputs(output(3, 11), output(40, 12), "storage-layout")
+        self.assertEqual(result["status"], "unsupported")
+        self.assertEqual(result["differences"], [])
+        renamed = json.dumps(output(40, 12)).replace("(Info)40", "(Other)40")
+        result = compare_outputs(output(3, 11), json.loads(renamed), "storage-layout")
+        self.assertNotEqual(result["differences"], [])
+        result = compare_outputs(output(3, 11), output(40, 12, True), "storage-layout")
+        self.assertIn(
+            {
+                "path": "/contracts/P.sol/P/storageLayout/value/storage/0/type",
+                "kind": "value",
+                "left": "t_struct(Info){struct Tick.Info}_storage",
+                "right": "t_struct(Info){struct Position.Info}_storage",
+            },
+            result["differences"],
+        )
+
+    def test_storage_layout_name_collision(self):
+        left = self.storage_output()
+        layout = left["contracts"]["C.sol"]["C"]["storageLayout"]
+        # A `struct S` that no variable uses has no place in the walk.
+        layout["types"]["t_struct(S)7_storage"] = layout["types"][
+            "t_struct(S)1_storage"
+        ]
+        right = self.storage_output()
+        for output in (left, right):
+            output["contracts"]["D.sol"] = copy.deepcopy(right["contracts"]["C.sol"])
+        right["contracts"]["D.sol"]["C"]["storageLayout"]["storage"].pop()
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "error")
+        self.assertIn(
+            "left: C.sol:C: t_struct(S)1 and t_struct(S)7 both become"
+            " t_struct(S){struct C.S}",
+            result["error"],
+        )
+        self.assertEqual(
+            [d["path"] for d in result["differences"]],
+            ["/contracts/D.sol/C/storageLayout/value/storage/1"],
+        )
+        del right["contracts"]["C.sol"]
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(
+            [d["path"] for d in result["differences"]],
+            ["/contracts/D.sol/C/storageLayout/value/storage/1"],
+        )
+
+    def test_storage_layout_shared_names(self):
+        # Solc 0.8.38 layouts of structs used only in function types, and of two
+        # file-level `struct S` from different files.
+        def output(ids=(3, 7, 39, 43), swap=False):
+            tick, position = (
+                f"t_function_internal_nonpayable(t_struct(Info){i}_memory_ptr)returns()"
+                for i in ids[:2]
+            )
+            a, b = (f"t_struct(S){i}_storage" for i in ids[2:])
+
+            def struct(member):
+                members = [{"label": member, "slot": "0", "type": "t_uint256"}]
+                return {"label": "struct S", "members": members}
+
+            def contract(order, types):
+                order = order[::-1] if swap else order
+                storage = [
+                    {"label": label, "slot": "0", "type": ty}
+                    for label, ty in zip("xy", order)
+                ]
+                layout = {"storage": storage, "types": types}
+                transient = {"storage": [], "types": None}
+                return {
+                    "C": {"storageLayout": layout, "transientStorageLayout": transient}
+                }
+
+            return {
+                "contracts": {
+                    "fn.sol": contract(
+                        [tick, position],
+                        {
+                            tick: {"label": "function (struct Tick.Info)"},
+                            position: {"label": "function (struct Position.Info)"},
+                        },
+                    ),
+                    "two.sol": contract([a, b], {a: struct("a"), b: struct("b")}),
+                }
+            }
+
+        result = compare_outputs(output(), output(), "storage-layout")
+        self.assertEqual(result["status"], "equal")
+        result = compare_outputs(output(), output((70, 30, 90, 50)), "storage-layout")
+        self.assertEqual(result["status"], "equal")
+        result = compare_outputs(output(), output(swap=True), "storage-layout")
+        self.assertEqual(
+            [(d["path"].split("/value/")[1], d["left"]) for d in result["differences"]],
+            [
+                (
+                    "types/t_function_internal_nonpayable(t_struct(Info)#1_memory_ptr)returns()/label",
+                    "function (struct Tick.Info)",
+                ),
+                (
+                    "types/t_function_internal_nonpayable(t_struct(Info)#2_memory_ptr)returns()/label",
+                    "function (struct Position.Info)",
+                ),
+                ("types/t_struct(S){struct S}#1_storage/members/0/label", "a"),
+                ("types/t_struct(S){struct S}#2_storage/members/0/label", "b"),
+            ],
+        )
+        # Each layout numbers its own IDs.
+        left = output()
+        contract = left["contracts"]["two.sol"]["C"]
+        layout = contract["storageLayout"]
+        y = layout["storage"].pop()
+        types = {y["type"]: layout["types"].pop(y["type"])}
+        contract["transientStorageLayout"] = {"storage": [y], "types": types}
+        right = output()
+        right["contracts"]["two.sol"]["C"]["storageLayout"] = layout
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(
+            {d["path"].split("/")[4] for d in result["differences"]},
+            {"transientStorageLayout"},
+        )
+
+    def test_storage_layout_malformed_or_ambiguous(self):
+        def hash_key(c):
+            types = c["storageLayout"]["types"]
+            types["t_struct(S){struct C.S}_storage"] = types["t_struct(S)1_storage"]
+
+        def forged_label(c):
+            types = c["storageLayout"]["types"]
+            types["t_struct(S)1_storage"]["label"] = "struct C.S}_storage,t_struct(T){T"
+
+        def two_labels(c):
+            types = c["storageLayout"]["types"]
+            types["t_struct(S)1_storage_ptr"] = {**types["t_struct(S)1_storage"]}
+            types["t_struct(S)1_storage_ptr"]["label"] = "struct D.S"
+
+        def normalized_row(c):
+            c["storageLayout"]["storage"][0]["type"] = "t_struct(S){struct C.S}_storage"
+
+        for edit, message in [
+            (hash_key, "malformed"),
+            (normalized_row, "malformed"),
+            (forged_label, "malformed type label"),
+            (two_labels, "C.sol:C: t_struct(S)1 is both"),
+            (lambda c: c["storageLayout"]["storage"].append(None), "malformed"),
+            (lambda c: c["storageLayout"]["types"].update(x=None), "malformed"),
+            (lambda c: c["storageLayout"]["storage"][0].update(type=1), "malformed"),
+        ]:
+            with self.subTest(message):
+                output = self.storage_output()
+                edit(output["contracts"]["C.sol"]["C"])
+                result = compare_outputs(
+                    self.storage_output(), output, "storage-layout"
+                )
+                self.assertEqual(result["status"], "error")
+                self.assertIn("right: " + message, result["error"])
+
+    def test_deep_output_is_an_error(self):
+        output = self.storage_output()
+        deep = {}
+        for _ in range(10_000):
+            deep = {"x": deep}
+        output["contracts"]["C.sol"]["C"]["storageLayout"]["types"]["x"] = deep
+        result = compare_outputs(self.storage_output(), output, "storage-layout")
+        self.assertEqual(result["status"], "error")
+
+    def test_storage_layout_missing(self):
+        left = self.storage_output()
+        left["contracts"]["D.sol"] = copy.deepcopy(left["contracts"]["C.sol"])
+        right = copy.deepcopy(left)
+        del right["contracts"]["C.sol"]["C"]["transientStorageLayout"]
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "different")
+        self.assertEqual(
+            [d["path"] for d in result["differences"]],
+            [
+                "/contracts/C.sol/C/transientStorageLayout/available",
+                "/contracts/C.sol/C/transientStorageLayout/value",
+            ],
+        )
+        result = compare_outputs(right, right, "storage-layout")
+        self.assertEqual(result["status"], "unsupported")
+        empty = {"storage": [], "types": None}
+        left["contracts"]["C.sol"]["C"]["transientStorageLayout"] = empty
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "different")
+        # Solc before 0.8.27 emits no transient layouts at all.
+        del right["contracts"]["D.sol"]["C"]["transientStorageLayout"]
+        result = compare_outputs(left, right, "storage-layout")
+        self.assertEqual(result["status"], "different")
+        left["contracts"]["D.sol"]["C"]["transientStorageLayout"] = empty
+        result = compare_outputs(right, left, "storage-layout")
+        self.assertEqual(result["status"], "equal")
+        result = compare_outputs(right, right, "storage-layout")
+        self.assertEqual(result["status"], "unsupported")
 
     def ast_output(self, renumber=False):
         names = [

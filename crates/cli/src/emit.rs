@@ -1,7 +1,8 @@
 use crate::{
     bytecode::MaybeHexBytecode,
     ethdebug::{
-        EthdebugProgram, EthdebugResources, make_ethdebug_compilation, make_ethdebug_program,
+        EthdebugOutput, EthdebugProgram, EthdebugResources, make_ethdebug_compilation,
+        make_ethdebug_program,
     },
     source_map::SourceMapEncoder,
 };
@@ -36,7 +37,7 @@ struct CombinedJson<'a, 'gcx> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     sources: BTreeMap<String, CombinedJsonSource<'a, 'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ethdebug: Option<EthdebugResources>,
+    ethdebug: Option<EthdebugOutput>,
     version: &'static str,
 }
 
@@ -552,8 +553,11 @@ fn emit_combined_json(
         }
     }
 
-    // Every emitted program references this resource, including its source contents.
-    output.ethdebug = compilation.map(|compilation| compilation.into_resources());
+    // Every emitted program references the compilation, including its source contents.
+    output.ethdebug = compilation.map(|compilation| EthdebugOutput {
+        resources: emit_ethdebug_resources.then(EthdebugResources::new),
+        compilation: Some(compilation),
+    });
     let write = || {
         write_output_json(gcx, &output, codegen_requested || emit_ast || output.ethdebug.is_some())
     };

@@ -29,6 +29,9 @@ contract CoalesceAllocsFixture {
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {
         Outer memory outer = Outer(Inner(x, 1), Inner(2, x), 3);
+        assembly {
+            if iszero(keccak256(outer, 0x60)) { revert(0, 0) }
+        }
         return outer.first.lo + outer.second.hi + outer.tag;
     }
 }

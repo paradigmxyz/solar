@@ -279,11 +279,8 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v35 = heap_floor !metadata(alloc_ptr)
     v36 = add v35, v14 !metadata(alloc_ptr)
     v47 = shr v36, 64
-    v37 = lt v36, v35
-    v49 = zext i1 v37 to i256
-    v50 = or v47, v49
-    v39 = ne v50, 0
-    jumpi v39, bb9, bb8
+    v38 = ne v47, 0
+    jumpi v38, bb9, bb8
   bb8:                                            ; preds = bb2
     mstore v35, v7
     jumpi v3, bb4, bb3

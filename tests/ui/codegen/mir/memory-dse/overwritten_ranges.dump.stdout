@@ -69,29 +69,17 @@ fn @allocated() {
     v10 = lt v9, 68
     jumpi v10, bb1, bb2
   bb2:                                            ; preds = bb0
+    v11 = calldataload 4
+    v12 = calldataload 36
     v28 = heap_floor !metadata(alloc_ptr)
-    v29 = add v28, 96 !metadata(alloc_ptr)
-    v36 = shr v29, 64
-    v30 = lt v29, v28
-    v38 = zext i1 v30 to i256
-    v39 = or v36, v38
-    v32 = ne v39, 0
-    jumpi v32, bb4, bb3
-  bb3:                                            ; preds = bb2
-    v35 = calldataload 36
-    v34 = calldataload 4
     mstore v28, 2
     v22 = add v28, 32
-    mstore v22, v34
+    mstore v22, v11
     v24 = add v28, 64
-    mstore v24, v35
+    mstore v24, v12
     v26 = sub v28, 32
     mstore v26, 32
     returndata v26, 128
-  bb4 [cold]:                                     ; preds = bb2
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

@@ -101,16 +101,9 @@ fn @wordsForward() {
     v20 = lt v19, 36
     jumpi v20, bb1, bb2
   bb2:                                            ; preds = bb0
+    v21 = calldataload 4
     v42 = heap_floor !metadata(alloc_ptr)
     v43 = add v42, 128 !metadata(alloc_ptr)
-    v49 = shr v43, 64
-    v44 = lt v43, v42
-    v51 = zext i1 v44 to i256
-    v52 = or v49, v51
-    v46 = ne v52, 0
-    jumpi v46, bb4, bb3
-  bb3:                                            ; preds = bb2
-    v48 = calldataload 4
     mstore 64, v43 !metadata(memory=scratch)
     mstore v42, 3
     v31 = add v42, 32
@@ -123,17 +116,13 @@ fn @wordsForward() {
     mstore v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v17 = sub v42, v41
     v18 = shr v17, 5
-    icall @_copyWords, v41, v42, v18, 1, v48
+    icall @_copyWords, v41, v42, v18, 1, v21
     v25 = mload v42
     v26 = shl v25, 5
     v37 = sub v42, 32
     mstore v37, 32
     v28 = add v26, 64
     returndata v37, v28
-  bb4 [cold]:                                     ; preds = bb2
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

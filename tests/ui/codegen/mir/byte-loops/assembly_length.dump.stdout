@@ -311,13 +311,6 @@ fn @grownPast() {
   bb0:
     v83 = heap_floor !metadata(alloc_ptr)
     v84 = add v83, 64 !metadata(alloc_ptr)
-    v89 = shr v84, 64
-    v85 = lt v84, v83
-    v91 = zext i1 v85 to i256
-    v92 = or v89, v91
-    v87 = ne v92, 0
-    jumpi v87, bb10, bb9
-  bb9:                                            ; preds = bb0
     mstore 64, v84 !metadata(memory=scratch)
     mstore v83, 1
     v82 = icall @alloc, 96
@@ -336,15 +329,15 @@ fn @grownPast() {
     v45 = lt v65, v4
     v48 = or v41, v45
     jumpi v48, bb1, bb4
-  bb4:                                            ; preds = bb9
+  bb4:                                            ; preds = bb0
     v55 = mload v82
     v56 = lt v55, 64
     jumpi v56, bb5, bb8
   bb8:                                            ; preds = bb4
     mcopy v67, v65, 64
     jump bb2
-  bb1:                                            ; preds = bb7, bb9
-    v10 = phi [bb9: 0], [bb7: v27]
+  bb1:                                            ; preds = bb0, bb7
+    v10 = phi [bb0: 0], [bb7: v27]
     v11 = lt v10, 64
     jumpi v11, bb3, bb2
   bb2:                                            ; preds = bb1, bb8
@@ -375,10 +368,6 @@ fn @grownPast() {
     mstore8 v75, v19
     v27 = add v10, 1
     jump bb1
-  bb10 [cold]:                                    ; preds = bb0
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 ; function _dirty() private pure

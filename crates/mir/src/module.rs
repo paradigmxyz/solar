@@ -131,6 +131,12 @@ pub struct Module {
     /// Textual MIR may hold raw memory operations, so it counts as unsafe. Lowering Solidity
     /// clears the bit and sets it again for every assembly block that lacks the promise.
     unsafe_assembly: bool,
+    /// Whether the module may contain inline assembly, which can read where the backend places
+    /// memory objects.
+    ///
+    /// Textual MIR may hold raw memory operations, so it counts as having assembly. Lowering
+    /// Solidity clears the bit and sets it again for every assembly block.
+    assembly: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
@@ -211,6 +217,7 @@ impl Module {
             is_interface: false,
             is_library: false,
             unsafe_assembly: true,
+            assembly: true,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
             backend_memory: None,
@@ -229,6 +236,17 @@ impl Module {
     /// Records whether the module may contain inline assembly that does not promise memory safety.
     pub fn set_unsafe_assembly(&mut self, unsafe_assembly: bool) {
         self.unsafe_assembly = unsafe_assembly;
+    }
+
+    /// Returns whether the module may contain inline assembly.
+    #[must_use]
+    pub const fn has_assembly(&self) -> bool {
+        self.assembly
+    }
+
+    /// Records whether the module may contain inline assembly.
+    pub fn set_assembly(&mut self, assembly: bool) {
+        self.assembly = assembly;
     }
 
     /// Returns the objective `func`'s code is optimized for: its own tag's, else the contract's.

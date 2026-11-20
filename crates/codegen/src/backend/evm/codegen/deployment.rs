@@ -543,7 +543,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.constructor_fixed_memory_end(module.immutable_count(), constructor_spill_size);
             // The helpers' fixed frames follow the constructor's spill area.
             let fixed_memory_end = self.place_constructor_static_frames(module, spill_end);
-            if fixed_memory_end.checked_add(heap_guard).is_none() {
+            if fixed_memory_end
+                .checked_add(heap_guard)
+                .is_none_or(|end| end > EvmMemoryLayout::MAX_HEAP_FLOOR)
+            {
                 self.gcx.dcx().emit_err(
                     ctor.name_span,
                     "constructor heap prefix exceeds the addressable memory range",

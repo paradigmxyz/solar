@@ -77,11 +77,8 @@ fn @pickDown() {
     v49 = heap_floor !metadata(alloc_ptr)
     v50 = add v49, v31 !metadata(alloc_ptr)
     v61 = shr v50, 64
-    v51 = lt v50, v49
-    v63 = zext i1 v51 to i256
-    v64 = or v61, v63
-    v66 = or v59, v64
-    v57 = ne v66, 0
+    v63 = or v59, v61
+    v57 = ne v63, 0
     jumpi v57, bb8, bb10
   bb10:                                           ; preds = bb7
     mstore 64, v50 !metadata(memory=scratch)

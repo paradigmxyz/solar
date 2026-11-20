@@ -355,6 +355,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                 // rest = mload(buffer + field_offset)
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     let function = *function;
+                    let returns_to_exit = builder.func().inst(id).metadata.returns_to_exit();
                     if fields.is_none() && !args.iter().any(|arg| aggregates.contains_key(arg)) {
                         return false;
                     }
@@ -375,6 +376,18 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                         builder.icall_void(function, args);
                     } else {
                         outputs.push(builder.icall(function, args, types[0]));
+                        if returns_to_exit {
+                            // The call keeps its origin, and the reads of its results are part of
+                            // the epilogue it returns into, as in `replace_body_with_call`.
+                            let current = builder.current_block();
+                            let call = *builder.func().blocks[current]
+                                .instructions
+                                .last()
+                                .expect("the call");
+                            builder.func_mut().inst_mut(call).metadata.set_returns_to_exit();
+                            let exit = builder.func().exit_span;
+                            builder.replace_source_span(exit);
+                        }
                         if fields.len() > 1 {
                             let base =
                                 builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);

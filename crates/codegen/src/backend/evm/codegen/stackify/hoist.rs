@@ -266,7 +266,9 @@ impl Hoister<'_> {
                 | InstKind::HeapFloor => (0, 1, false),
                 ref kind => unreachable!("instruction `{}` has no stack effect", kind.mnemonic()),
             },
-            Step::Call(callee) => (self.info.params[callee], self.info.returns[callee], true),
+            Step::Call { callee, .. } => {
+                (self.info.params[callee], self.info.returns[callee], true)
+            }
             Step::Publish { arity, .. } => (arity, 1, true),
         }
     }

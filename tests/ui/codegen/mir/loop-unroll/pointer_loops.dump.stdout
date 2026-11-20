@@ -179,11 +179,8 @@ fn @sumWords() {
     v44 = heap_floor !metadata(alloc_ptr)
     v45 = add v44, v29 !metadata(alloc_ptr)
     v70 = shr v45, 64
-    v46 = lt v45, v44
-    v72 = zext i1 v46 to i256
-    v73 = or v70, v72
-    v75 = or v68, v73
-    v67 = ne v75, 0
+    v72 = or v68, v70
+    v67 = ne v72, 0
     jumpi v67, bb6, bb8
   bb8:                                            ; preds = bb5
     mstore 64, v45 !metadata(memory=scratch)

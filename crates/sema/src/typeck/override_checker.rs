@@ -1221,7 +1221,11 @@ pub(crate) fn base_override_functions<'gcx>(
     let Some(contract_id) = proxy.contract(gcx) else { return &[] };
     let signature = override_signature(gcx, proxy);
     let inherited = inherited_override_functions(gcx, contract_id, signature);
-    gcx.bump().alloc_from_iter(inherited.into_iter().filter(|base| !base.is_variable()))
+    // A diamond reaches the same base through several paths; solc keeps a set.
+    let mut seen = FxHashSet::default();
+    gcx.bump().alloc_from_iter(
+        inherited.into_iter().filter(|&base| !base.is_variable() && seen.insert(base)),
+    )
 }
 
 fn capitalize(s: &str) -> String {

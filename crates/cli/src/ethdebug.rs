@@ -16,9 +16,42 @@ enum EthdebugId {
     Text(String),
 }
 
+/// The version of the ethdebug/format specification the outputs follow.
+const ETHDEBUG_SPECIFICATION_VERSION: &str = "0.1.0-draft.2";
+
+#[derive(Clone, Debug, Serialize)]
+struct EthdebugStamp {
+    schema: &'static str,
+    version: &'static str,
+}
+
+impl EthdebugStamp {
+    const fn new(schema: &'static str) -> Self {
+        Self { schema, version: ETHDEBUG_SPECIFICATION_VERSION }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum EthdebugReferenceType {
+    Compilation,
+    Source,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct EthdebugReference {
     id: EthdebugId,
+    r#type: EthdebugReferenceType,
+}
+
+impl EthdebugReference {
+    fn source(id: u32) -> Self {
+        Self { id: EthdebugId::Number(id), r#type: EthdebugReferenceType::Source }
+    }
+
+    fn compilation(id: &str) -> Self {
+        Self { id: EthdebugId::Text(id.to_owned()), r#type: EthdebugReferenceType::Compilation }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -105,6 +138,7 @@ enum EthdebugEnvironment {
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct EthdebugProgram {
+    ethdebug: EthdebugStamp,
     compilation: EthdebugReference,
     contract: EthdebugContract,
     environment: EthdebugEnvironment,
@@ -134,9 +168,18 @@ pub(crate) struct EthdebugCompilation {
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct EthdebugResources {
-    compilation: EthdebugCompilation,
+    ethdebug: EthdebugStamp,
     types: Map<String, Value>,
     pointers: Map<String, Value>,
+}
+
+/// The global ethdebug outputs, shared by the CLI and Standard JSON.
+#[derive(Debug, Default, Serialize)]
+pub(crate) struct EthdebugOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) resources: Option<EthdebugResources>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) compilation: Option<EthdebugCompilation>,
 }
 
 impl EthdebugCompilation {
@@ -144,10 +187,12 @@ impl EthdebugCompilation {
         let EthdebugId::Text(id) = &self.id else { unreachable!() };
         id
     }
+}
 
-    pub(crate) fn into_resources(self) -> EthdebugResources {
-        EthdebugResources {
-            compilation: self,
+impl EthdebugResources {
+    pub(crate) fn new() -> Self {
+        Self {
+            ethdebug: EthdebugStamp::new("ethdebug/format/info/resources"),
             types: Default::default(),
             pointers: Default::default(),
         }
@@ -301,13 +346,12 @@ pub(crate) fn make_ethdebug_program(
         .collect();
 
     Some(EthdebugProgram {
-        compilation: EthdebugReference { id: EthdebugId::Text(compilation_id.to_owned()) },
+        ethdebug: EthdebugStamp::new("ethdebug/format/program"),
+        compilation: EthdebugReference::compilation(compilation_id),
         contract: EthdebugContract {
             name: contract.name.to_string(),
             definition: EthdebugSourceRange {
-                source: EthdebugReference {
-                    id: EthdebugId::Number(contract.source.index() as u32),
-                },
+                source: EthdebugReference::source(contract.source.index() as u32),
                 range: definition_range,
             },
         },
@@ -410,7 +454,7 @@ fn make_ethdebug_source_range(
     let source = gcx.sess.source_map().span_to_source(span).ok()?;
     let source_id = *source_ids.get(&source.file.start_pos.0)?;
     Some(EthdebugSourceRange {
-        source: EthdebugReference { id: EthdebugId::Number(source_id) },
+        source: EthdebugReference::source(source_id),
         range: Some(EthdebugRange {
             offset: source.data.start,
             length: source.data.end - source.data.start,

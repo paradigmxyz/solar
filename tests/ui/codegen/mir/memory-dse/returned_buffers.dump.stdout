@@ -159,11 +159,8 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory] {
     v76 = heap_floor !metadata(alloc_ptr)
     v77 = add v76, v9 !metadata(alloc_ptr)
     v87 = shr v77, 64
-    v78 = lt v77, v76
-    v89 = zext i1 v78 to i256
-    v90 = or v87, v89
-    v80 = ne v90, 0
-    jumpi v80, bb13, bb12
+    v79 = ne v87, 0
+    jumpi v79, bb13, bb12
   bb12:                                           ; preds = bb8
     mstore 64, v77 !metadata(memory=scratch)
     v82 = calldatasize

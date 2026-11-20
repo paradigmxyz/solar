@@ -25,6 +25,8 @@ precise-builds = true
 build-local-artifacts = false
 # Supply the release archives to cargo-dist.
 local-artifacts-jobs = ["./build-release-binaries"]
+# Publish every crate to crates.io once the GitHub release exists.
+post-announce-jobs = ["./publish-crates"]
 # Features to pass to cargo build
 features = ["cli", "asm", "mimalloc"]
 # Whether dist should create a Github Release or use an existing draft
