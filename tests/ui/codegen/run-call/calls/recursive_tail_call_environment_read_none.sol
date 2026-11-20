@@ -14,6 +14,7 @@ contract RecursiveTailCallEnvironmentRead {
                 pop(calldatasize())
                 pop(caller())
             }
+            uint256(uint176(uint160(msg.sender))); //~ WARN: statement has no effect
             break;
         }
         return r;

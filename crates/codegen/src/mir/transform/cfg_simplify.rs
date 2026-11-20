@@ -1238,17 +1238,40 @@ fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<Functio
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
-/// Returns whether `inst` reads the environment through a nullary opcode, as `calldatasize` does.
-fn is_environment_read(func: &Function, inst: InstId) -> bool {
-    let def = func.inst(inst).kind.op_def();
+/// Returns whether `kind` is an environment read through a nullary opcode, as `calldatasize` is,
+/// or widens one, possibly through several zero extensions.
+fn reads_environment<'a>(func: &'a Function, mut kind: &'a InstKind) -> bool {
+    while let InstKind::Zext(operand) = *kind {
+        let Value::Inst(inner) = *func.value(operand) else { return false };
+        kind = &func.inst(inner).kind;
+    }
+    let def = kind.op_def();
     def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
 }
 
-/// Returns whether `inst` widens an environment read and nothing uses the result.
-fn is_unused_widening(func: &Function, inst: InstId, uses: &IndexVec<ValueId, u32>) -> bool {
-    matches!(func.inst(inst).kind, InstKind::Zext(operand)
-        if matches!(*func.value(operand), Value::Inst(read) if is_environment_read(func, read))
-            && func.inst_result_value(inst).is_some_and(|output| uses[output] == 0))
+/// Returns the environment reads that nothing uses, and the widenings through which only they are
+/// used, none of which emits code.
+fn unused_reads(func: &Function) -> DenseBitSet<InstId> {
+    let uses = use_counts(func);
+    let mut dead = DenseBitSet::new_empty(func.num_insts());
+    let mut dead_uses = FxHashMap::<ValueId, u32>::default();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for inst in func.instructions() {
+            let kind = &func.inst(inst).kind;
+            if dead.contains(inst) || !reads_environment(func, kind) {
+                continue;
+            }
+            let Some(output) = func.inst_result_value(inst) else { continue };
+            if uses[output] == dead_uses.get(&output).copied().unwrap_or(0) {
+                dead.insert(inst);
+                kind.visit_operands(|operand| *dead_uses.entry(operand).or_default() += 1);
+                changed = true;
+            }
+        }
+    }
+    dead
 }
 
 /// Returns whether the blocks after `call` only take its result apart and put it back, cast a
@@ -1267,17 +1290,7 @@ fn returns_result(
         _ => 1,
     };
     let result = func.inst_result_value(call);
-    let uses = use_counts(func);
-    let mut widenings = FxHashMap::<ValueId, u32>::default();
-    for inst in func.instructions() {
-        if let InstKind::Zext(operand) = func.inst(inst).kind
-            && let Value::Inst(read) = *func.value(operand)
-            && is_environment_read(func, read)
-            && func.inst_result_value(inst).is_some_and(|output| uses[output] == 0)
-        {
-            *widenings.entry(operand).or_default() += 1;
-        }
-    }
+    let dead = unused_reads(func);
     let result_ty = result.and_then(|result| func.value_ty(result));
     let result_words = result_ty.map(words);
     let result_slice = matches!(result_ty, Some(MirType::Slice(_)));
@@ -1290,9 +1303,7 @@ fn returns_result(
         for &inst in instructions {
             let Some(output) = func.inst_result_value(inst) else { return false };
             // An environment read that only unused widenings use emits no code, nor do they.
-            if uses[output] == widenings.get(&output).copied().unwrap_or(0)
-                && (is_environment_read(func, inst) || is_unused_widening(func, inst, &uses))
-            {
+            if dead.contains(inst) {
                 continue;
             }
             match func.inst(inst).kind {

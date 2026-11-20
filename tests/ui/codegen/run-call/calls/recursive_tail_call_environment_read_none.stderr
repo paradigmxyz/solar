@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/calls/recursive_tail_call_environment_read_none.sol:LL:CC
+   │
+LL │             uint256(uint176(uint160(msg.sender)));
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
