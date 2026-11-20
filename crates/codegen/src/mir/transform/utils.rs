@@ -209,10 +209,11 @@ pub(super) fn terminator_debug_context(
     context
 }
 
-/// Returns the functions that revert with each of `codes`, creating those the module lacks.
+/// Creates the functions that revert with each of `codes`.
 ///
 /// A check at `-O none` calls one of them instead of carrying its own payload: the call site keeps
 /// the check's location, as an overflow check in clang's `-O0` calls one shared panic function.
+/// Each call creates its own, since a name cannot tell them from a user's function.
 pub(super) fn panic_helpers(
     module: &mut Module,
     codes: impl IntoIterator<Item = PanicCode>,
@@ -220,21 +221,14 @@ pub(super) fn panic_helpers(
     let mut helpers = FxHashMap::default();
     for code in codes {
         let name = Symbol::intern(&format!("panic_error_{:#04x}", code as u8));
-        let existing =
-            module.functions.iter_enumerated().find(|(_, func)| func.name.symbol == name);
-        let helper = if let Some((id, _)) = existing {
-            id
-        } else {
-            let mut function = Function::new(Ident::with_dummy_span(name));
-            let mut builder = FunctionBuilder::new(&mut function);
-            let mut context = InstructionMetadata::EMPTY.clone();
-            context.drop_debug_loc(DebugLocKind::CompilerGenerated);
-            builder.set_debug_context(&context);
-            // revert_scratch(Panic.selector, [code])
-            builder.panic(code);
-            module.add_function(function)
-        };
-        helpers.insert(code, helper);
+        let mut function = Function::new(Ident::with_dummy_span(name));
+        let mut builder = FunctionBuilder::new(&mut function);
+        let mut context = InstructionMetadata::EMPTY.clone();
+        context.drop_debug_loc(DebugLocKind::CompilerGenerated);
+        builder.set_debug_context(&context);
+        // revert_scratch(Panic.selector, [code])
+        builder.panic(code);
+        helpers.insert(code, module.add_function(function));
     }
     helpers
 }
