@@ -85,6 +85,20 @@ LL │
 LL │ }
    ╰╴━ unexpected token
 
+error: expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     uint stateVar = f(1, ];
+   ╰╴                         ━ expected one of 11 possible tokens
+
+error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     uint stateVar = f(1, ];
+   │                          ━
+   │
+   ╰ note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
+
 error: structs must have at least one field
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
    │
@@ -103,5 +117,5 @@ error: mismatched types
 LL │         uint8 value = 300;
    ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
 
-error: aborting due to 17 previous errors
+error: aborting due to 19 previous errors
 

@@ -879,15 +879,20 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Emits an error that a sequence recovers from, unless it already emitted the same error.
     fn emit_recovered(&mut self, err: PErr<'sess>) {
+        if self.is_reported_error(&err) {
+            return err.cancel();
+        }
         if let Some((diag, emitted)) = &mut self.last_unexpected_error
             && *diag == *err
         {
-            if *emitted {
-                return err.cancel();
-            }
             *emitted = true;
         }
         err.emit();
+    }
+
+    /// Returns `true` if `err` replays the last unexpected-token error, which was already emitted.
+    fn is_reported_error(&self, err: &PErr<'sess>) -> bool {
+        matches!(&self.last_unexpected_error, Some((diag, true)) if *diag == **err)
     }
 
     fn can_recover_sequence(&self, ket: TokenKind) -> bool {

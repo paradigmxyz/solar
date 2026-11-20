@@ -59,3 +59,8 @@ contract C {
     struct S { uint[ } //~ ERROR: expected one of
     //~^ ERROR: structs must have at least one field
 }  //~ ERROR: expected `;`
+
+contract D {
+    uint stateVar = f(1, ]; //~ ERROR: expected one of
+    //~^ ERROR: expected global item
+}
