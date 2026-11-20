@@ -1238,6 +1238,19 @@ fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<Functio
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
+/// Returns whether `inst` reads the environment through a nullary opcode, as `calldatasize` does.
+fn is_environment_read(func: &Function, inst: InstId) -> bool {
+    let def = func.inst(inst).kind.op_def();
+    def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
+}
+
+/// Returns whether `inst` widens an environment read and nothing uses the result.
+fn is_unused_widening(func: &Function, inst: InstId, uses: &IndexVec<ValueId, u32>) -> bool {
+    matches!(func.inst(inst).kind, InstKind::Zext(operand)
+        if matches!(*func.value(operand), Value::Inst(read) if is_environment_read(func, read))
+            && func.inst_result_value(inst).is_some_and(|output| uses[output] == 0))
+}
+
 /// Returns whether the blocks after `call` only take its result apart and put it back, cast a
 /// pointer, jump, and return the whole result, and each has no other predecessor, so that all of
 /// them merge into the call's block.
@@ -1255,6 +1268,16 @@ fn returns_result(
     };
     let result = func.inst_result_value(call);
     let uses = use_counts(func);
+    let mut widenings = FxHashMap::<ValueId, u32>::default();
+    for inst in func.instructions() {
+        if let InstKind::Zext(operand) = func.inst(inst).kind
+            && let Value::Inst(read) = *func.value(operand)
+            && is_environment_read(func, read)
+            && func.inst_result_value(inst).is_some_and(|output| uses[output] == 0)
+        {
+            *widenings.entry(operand).or_default() += 1;
+        }
+    }
     let result_ty = result.and_then(|result| func.value_ty(result));
     let result_words = result_ty.map(words);
     let result_slice = matches!(result_ty, Some(MirType::Slice(_)));
@@ -1266,11 +1289,9 @@ fn returns_result(
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
             let Some(output) = func.inst_result_value(inst) else { return false };
-            // An environment read that nothing uses emits no code.
-            let def = func.inst(inst).kind.op_def();
-            if def.traits.contains(OpTraits::REMATERIALIZABLE)
-                && def.effect != EffectKind::Pure
-                && uses[output] == 0
+            // An environment read that only unused widenings use emits no code, nor do they.
+            if uses[output] == widenings.get(&output).copied().unwrap_or(0)
+                && (is_environment_read(func, inst) || is_unused_widening(func, inst, &uses))
             {
                 continue;
             }
