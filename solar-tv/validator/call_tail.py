@@ -202,6 +202,14 @@ def extract(decoded, start, stack, catalog, fork):
     )
 
 
+def check_no_code_exit(decoded, start, catalog, fork):
+    routes, *_ = paths(decoded, start, (), catalog, fork)
+    require(
+        routes == {(): (error_stores(b"no code"), ("revert", 28, 100), 60)},
+        "different no-code error handler or fixed gas",
+    )
+
+
 def replay_image(code, decoded, location, tail):
     """Keep the decoded helper instructions and relocate only local destinations."""
     entry, call, branch, failure, _ = location

@@ -1,4 +1,4 @@
-"""Check the emitted recovery boundary and a reentrant MIR getter."""
+"""Check emitted Morpho message boundaries and reentrant execution."""
 
 import json
 import sys
@@ -111,6 +111,90 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
         broken = {**state, "accounts": [{**state["accounts"][0], "code": altered}]}
         rejected = caller_entry.replay(broken, site.call + 1, self.replay, 30)
         self.assertEqual(rejected["stack"][0], "0")
+
+    def test_authorization_reentry_commits_and_rolls_back(self):
+        site = recovery_boundary.find(self.decoded)
+        _, models, _ = builtin_lowering.load_pair(
+            self.mir_pair, SOLAR, self.replay, "cancun", 45
+        )
+        tables = list(map(builtin_lowering.functions, models))
+        # A fixed signature for the pinned Morpho domain and this authorization.
+        # The token submits it with a nested CALL during transferFrom.
+        calldata = bytes.fromhex("8069218f") + b"".join(
+            map(
+                caller_replay.word,
+                (
+                    0x7E5F4552091A69125D5DFCB7B8C2659029395BDF,
+                    0x20000,
+                    1,
+                    0,
+                    10**10,
+                    28,
+                    0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+                    0x4F8C8CC2DF646C47881F49253C98A3A39F6F5A0C95C2ACD55B5204AA5CAF5828,
+                ),
+            )
+        )
+        fixture = caller_entry.default_fixture("supplyCollateral", SOLAR, 30)
+        for accepted in (True, False):
+            with self.subTest(accepted=accepted):
+                # Copy the appended calldata, call Morpho, save its success
+                # flag to token storage, and return the ERC-20 boolean.
+                token = (
+                    bytearray.fromhex("61010460005f395f5f6101045f5f62")
+                    + caller_replay.MORPHO.to_bytes(3, "big")
+                    + bytes.fromhex(f"5af15f5560{int(accepted):02x}5f5260205ff3")
+                )
+                token[4] = len(token)
+                fixture["accounts"][1]["code"] = "0x" + (token + calldata).hex()
+                state = self.fixture(f"authorization-nested-{accepted}", fixture)
+                if accepted:
+                    recovery_boundary.certify(
+                        self.directory,
+                        site,
+                        state,
+                        SOLAR,
+                        self.replay,
+                        45,
+                        tables=tables,
+                    )
+                observed = caller_entry.replay(state, None, self.replay, 45)
+                self.assertEqual(observed[0], "success" if accepted else "revert")
+                slots = {int(account[0]): dict(account[4]) for account in observed[4]}
+                self.assertEqual(
+                    slots[caller_replay.TOKEN].get("0"), "1" if accepted else None
+                )
+                # The success path commits the nonce and authorization. The
+                # final transferFrom failure rolls them and all three logs back.
+                self.assertEqual(len(slots[caller_replay.MORPHO]), 6 if accepted else 4)
+                self.assertEqual(len(observed[5]), 3 if accepted else 0)
+                result = entry_proof.lean(
+                    self.directory,
+                    "ReplayAuthorization",
+                    recovery_boundary.replay_source(state),
+                    45,
+                )
+                self.assertEqual(
+                    result.returncode, 0, result.stdout[:1000] + result.stderr
+                )
+                checked = json.loads(result.stdout)
+                self.assertEqual(checked[:2], [observed, observed])
+                if accepted:
+                    self.assertEqual(checked[2][0], "success")
+                    self.assertNotEqual(checked[2], observed)
+                    altered = list(self.runtime)
+                    altered[site.gas] = 0x5F
+                    root = next(
+                        account
+                        for account in state["accounts"]
+                        if account["address"] == state["address"]
+                    )
+                    root["code"] = altered
+                    broken = caller_entry.replay(state, None, self.replay, 45)
+                    slots = {int(account[0]): dict(account[4]) for account in broken[4]}
+                    self.assertEqual(broken[0], "success")
+                    self.assertEqual(slots[caller_replay.TOKEN], {})
+                    self.assertEqual(len(broken[5]), 1)
 
     def test_reentrant_owner_matches_native_execution(self):
         rows = owner_reentry.steps(self.runtime, self.decoded, self.catalog)

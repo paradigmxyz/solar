@@ -273,10 +273,14 @@ example : (paidHelperBudget (helperCallPrice mirCfg afterFunctions physicalCut a
 example :
     byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [102] ∧ byteTailCut.unpaidCall = none :=
   by decide +kernel
+example : helperSamples mirCfg beforeFunctions physicalCut beforeCut = [102] :=
+  before_samples.trans (by decide +kernel)
+example : helperSamples mirCfg afterFunctions physicalCut afterCut = [102] :=
+  after_samples.trans (by decide +kernel)
 example : beforeTailCut.gas = 0 :=
-  (before_paid_exit_gas (by decide +kernel)).trans bytecode_gas
+  (congrArg EVM.State.Observation.gas before_observation).trans bytecode_gas
 example : afterTailCut.gas = 0 :=
-  (after_paid_exit_gas (by decide +kernel)).trans bytecode_gas
+  (congrArg EVM.State.Observation.gas after_observation).trans bytecode_gas
 #print axioms supply_paid_call
 """
             proved = entry_proof.lean(kernel, "SupplyPaidCall", pricing, 60)
@@ -416,9 +420,8 @@ example : afterTailCut.gas = 0 :=
                 + """
 def throughHelper : EVM.State.Run := do
   let cut ← priced
-  let physical ← runByteExit tvWorldConfig 1024 cut
   let entered ← before cut
-  let result ← runMirExit mirCfg beforeFunctions .supply 1024 cut physical entered
+  let result ← runMirExit mirCfg beforeFunctions .supply 1024 cut entered
   return finishByte checkpoint result
 #eval IO.println (EVM.State.describe tvWorldConfig .effects throughHelper)
 """
@@ -484,7 +487,7 @@ def checkGas (gas : Nat) : Except String Lean.Json := do
   let unpaid := unpaidHelperBudget (helperCallPrice mirCfg beforeFunctions cut entered)
   let physical := EVM.State.describe tvWorldConfig .exact (.ok (finishByte checkpoint terminal.result))
   let mir := EVM.State.describe tvWorldConfig .exact
-    ((runMirExit mirCfg beforeFunctions .supply 1024 cut terminal entered).map (finishByte checkpoint))
+    ((runMirExit mirCfg beforeFunctions .supply 1024 cut entered).map (finishByte checkpoint))
   return Lean.Json.arr #[Lean.toJson terminal.samples, Lean.toJson terminal.budgets,
     Lean.toJson terminal.unpaidCall, Lean.toJson unpaid, Lean.toJson physical, Lean.toJson mir]
 
@@ -609,6 +612,39 @@ def printGas (gas : Nat) : IO Unit :=
             for check, expected in zip(
                 check_gas(empty, [low, high]), observations, strict=True
             ):
+                self.assertEqual(
+                    list(map(json.loads, check[-2:])), [expected, expected]
+                )
+
+            # The token with no code reaches a different revert handler.
+            # Probe its entry independently before testing the exact gas edge.
+            no_code = state | {
+                "accounts": [
+                    account | {"code": []}
+                    if int(account["address"]) == caller_replay.TOKEN
+                    else account
+                    for account in state["accounts"]
+                ],
+            }
+            error_entry = caller_entry.replay(
+                no_code, report["no_code_pc"], executable, 30
+            )
+            self.assertGreaterEqual(len(error_entry["memory"]), 128)
+            threshold = no_code["gas"] - error_entry["gas"] + 60
+            amounts = [threshold - 1, threshold, threshold + 1]
+            failed = [
+                caller_entry.replay(no_code | {"gas": amount}, None, executable, 30)
+                for amount in amounts
+            ]
+            self.assertEqual(
+                [row[0] for row in failed], ["out-of-gas", "revert", "revert"]
+            )
+            self.assertEqual([row[2] for row in failed], [0, 0, 1])
+            self.assertIn(b"no code", bytes(failed[-1][1]))
+            for check, expected in zip(
+                check_gas(no_code, amounts), failed, strict=True
+            ):
+                self.assertEqual(check[:4], [[], [], None, None])
                 self.assertEqual(
                     list(map(json.loads, check[-2:])), [expected, expected]
                 )

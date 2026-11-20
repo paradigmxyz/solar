@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from . import entry_proof, native, world
+from . import authorization_lowering, entry_proof, native, world
 from .callers import require
 from .check import build_model
 
@@ -32,6 +32,7 @@ def find(decoded):
 def source(site, configuration, base):
     return f"""import EntryImage
 import {MODULE}
+import SolarTV.EVMIR.State.Reentry
 {entry_proof.HEADER}
 open SolarTV.EVM.MessageBoundary
 open MIR.StaticCallCut (project priced)
@@ -93,12 +94,151 @@ theorem contextual (cfg : MIR.State.Config) (work : Nat)
     scratch input active readAddress readSlice available fork rfl bound environment (by decide)
     paid boundedGas cleared memory inputOk outputOk
 
+def callConfig (frame : EVM.State.Frame) : MIR.State.Config :=
+  {{fork := .cancun, environment := frame.environment, available := [0xfa],
+    externalConfig := some tvWorldConfig, context := tvWorldConfig.block, entry := false}}
+
+def typedFrame (journal : Execution.Journal) (frame : EVM.State.Frame)
+    (offset length : Word) : MIR.State.Frame :=
+  ⟨journal,frame.memory,[.aggregate [.scalar ⟨256,offset⟩,.scalar ⟨256,length⟩]],
+    [],frame.returnData,0,0,[]⟩
+
+def addressOperand : MIR.State.Operand := ⟨.constant ⟨160,1⟩,.word 160⟩
+def sliceOperand : MIR.State.Operand := ⟨.argument 0,.slice 0⟩
+
+def recoveryMessage (lowered : Bool) (work : Nat) (frame : EVM.State.Frame)
+    (mir : MIR.State.Frame) (offset length : Word) : MIR.State.MessageStep :=
+  let cfg := priced (callConfig frame) mir frame
+  if lowered then MIR.LowerStaticWord.lowered cfg work mir 1 offset length
+  else MIR.LowerReturndata.invoke cfg work
+    (MIR.State.messageArguments cfg mir (.address 0xfa false false true true true)
+      [addressOperand,sliceOperand])
+
+theorem lowered_eq (work : Nat) (frame : EVM.State.Frame) (journal : Execution.Journal)
+    (offset length : Word) (paid : 2 ≤ frame.gas) (bound : frame.gas-2 ≤ 30000000) :
+    recoveryMessage true work frame (typedFrame journal frame offset length) offset length =
+    recoveryMessage false work frame (typedFrame journal frame offset length) offset length := by
+  symm
+  unfold recoveryMessage
+  apply MIR.LowerStaticWord.staticWord (pointer := ⟨256,offset⟩) (length := ⟨256,length⟩)
+    (gasBefore := frame.gas) (budget := frame.gas-2) (budgets := [frame.gas-2])
+  all_goals first | rfl | exact paid | exact Nat.le_refl _ | exact bound
+
+def route (lowered : Bool) : EVM.State.Reentry.Route := fun work _ journal frame => do
+  let remainingWork+2 := work | none
+  if frame.code ≠ code.bytes ∨ frame.pc ≠ samplePC then none else
+  let 1 :: offset :: length :: 0 :: 32 :: rest := frame.stack | none
+  if rest.length+6 > 1024 then none
+  else if frame.gas < 2 then some (.ok ⟨.outOfGas,[],journal,0,1⟩)
+  else if frame.gas-2 > 30000000 then none
+  else
+    let .ok scratch := Execution.expand frame.memory 0 32 | none
+    if scratch ≠ frame.memory ∨
+        Execution.writeBytes scratch 0 (Execution.wordBytes 0) ≠ frame.memory then none else
+    let .ok input := Execution.expand frame.memory offset.toNat length.toNat | none
+    let .ok _ := Execution.expand input 0 32 | none
+    let mir := typedFrame journal frame offset length
+    some (MIR.StaticCallCut.resume tvWorldConfig remainingWork frame journal rest
+      (recoveryMessage lowered remainingWork frame mir offset length))
+
+theorem typedContinuation (remainingWork : Nat) (journal : Execution.Journal) (frame : EVM.State.Frame)
+    (offset length : Word) (rest : List Word) (input active : List Execution.Byte)
+    (image : frame.code = code.bytes) (pc : frame.pc = samplePC)
+    (stack : frame.stack = 1 :: offset :: length :: 0 :: 32 :: rest)
+    (space : rest.length+6 ≤ 1024)
+    (paid : 2 ≤ frame.gas) (gasBound : frame.gas-2 ≤ 30000000)
+    (expanded : Execution.expand frame.memory 0 32 = .ok frame.memory)
+    (clear : Execution.writeBytes frame.memory 0 (Execution.wordBytes 0) = frame.memory)
+    (inputOk : Execution.expand frame.memory offset.toNat length.toNat = .ok input)
+    (outputOk : Execution.expand input 0 32 = .ok active) :
+    MIR.StaticCallCut.resume tvWorldConfig remainingWork frame journal rest
+      (recoveryMessage false remainingWork frame (typedFrame journal frame offset length) offset length) =
+      EVM.State.run (remainingWork+2) tvWorldConfig journal frame := by
+  let mir := typedFrame journal frame offset length
+  have linked := contextual (callConfig frame) remainingWork mir frame rest addressOperand sliceOperand
+    ⟨256,offset⟩ ⟨256,length⟩ frame.memory input active image pc stack space rfl rfl rfl rfl rfl rfl
+    paid gasBound expanded clear.symm inputOk outputOk
+  change project mir _ = recoveryMessage false remainingWork frame mir offset length at linked
+  rw [← linked]
+  obtain ⟨sample,call⟩ := executed journal frame offset length rest image pc stack space
+  simp only [Nat.not_lt.mpr paid, ite_false] at sample
+  have gas : (BitVec.ofNat 256 (frame.gas-2)).toNat = frame.gas-2 := by
+    simp [Nat.mod_eq_of_lt (by omega : frame.gas-2 < 2^256)]
+  rw [gas] at call
+  exact MIR.StaticCallCut.resume_eq tvWorldConfig remainingWork frame mir rest 1 offset length rfl sample call
+
+theorem routeSound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (route lowered) := by
+  intro work execute _ journal frame result chosen
+  cases work with
+  | zero => simp [route] at chosen
+  | succ remainingWork =>
+    simp only [route] at chosen
+    split at chosen
+    · contradiction
+    rename_i located
+    have location : frame.code = code.bytes ∧ frame.pc = samplePC := by simpa using located
+    split at chosen
+    · rename_i offset length rest stack
+      split at chosen
+      · contradiction
+      rename_i fits
+      have space : rest.length+6 ≤ 1024 := by omega
+      split at chosen
+      · rename_i low
+        have gas := (executed journal frame offset length rest location.1 location.2 stack space).1
+        simp only [low, ite_true] at gas
+        cases chosen
+        exact (EVM.State.run_done (remainingWork+1) gas).symm
+      rename_i enough
+      have paid : 2 ≤ frame.gas := by omega
+      split at chosen
+      · contradiction
+      rename_i bound
+      have gasBound : frame.gas-2 ≤ 30000000 := by omega
+      split at chosen
+      · rename_i scratch expanded
+        split at chosen
+        · contradiction
+        rename_i memory
+        have ready : scratch = frame.memory ∧
+            Execution.writeBytes scratch 0 (Execution.wordBytes 0) = frame.memory :=
+          by simpa using memory
+        rw [ready.1] at expanded
+        have clear := ready.2
+        rw [ready.1] at clear
+        split at chosen
+        · rename_i input inputOk
+          split at chosen
+          · rename_i active outputOk
+            cases chosen
+            cases lowered
+            · exact typedContinuation remainingWork journal frame offset length rest input active
+                location.1 location.2 stack space paid gasBound expanded clear inputOk outputOk
+            · rw [lowered_eq remainingWork frame journal offset length paid gasBound]
+              exact typedContinuation remainingWork journal frame offset length rest input active
+                location.1 location.2 stack space paid gasBound expanded clear inputOk outputOk
+          · contradiction
+        · contradiction
+      · contradiction
+    · contradiction
+
+theorem nested (work : Nat) (journal : Execution.Journal) (frame : EVM.State.Frame) :
+    EVM.State.Reentry.executeWith tvWorldConfig (route false) work journal frame =
+    EVM.State.Reentry.executeWith tvWorldConfig (route true) work journal frame := by
+  rw [EVM.State.Reentry.execute_correspondence _ _ (routeSound false),
+    EVM.State.Reentry.execute_correspondence _ _ (routeSound true)]
+
 #print axioms executed
 #print axioms contextual
+#print axioms nested
 """
 
 
-def certify(directory, site, fixture, solar, executable, timeout):
+def certify(directory, site, fixture, solar, executable, timeout, *, tables=None):
+    if tables is not None:
+        authorization_lowering.source(
+            *(table["setAuthorizationWithSig"] for table in tables)
+        )
     built = build_model(timeout, MODULE)
     entry_proof.success(built, MODULE)
     configuration = world.configuration(solar, "cancun", fixture, timeout, executable)
@@ -108,13 +248,41 @@ def certify(directory, site, fixture, solar, executable, timeout):
         if row["opcode"] == 0xFA
     )
     checked = entry_proof.lean(
-        directory, NAME, source(site, configuration, base), timeout
+        directory, NAME, source(site, configuration, base), timeout, module=True
     )
     output = entry_proof.success(checked, NAME)
-    entry_proof.check_axioms(output.splitlines(), 2)
+    entry_proof.check_axioms(output.splitlines(), 3)
     return {
         "proof": f"kernel/{NAME}.lean",
         "gas_pc": site.gas,
         "call_pc": site.call,
-        "scope": "matched physical and MIR frames from emitted GAS through STATICCALL",
+        "scope": "nested before/after MIR recovery through the emitted STATICCALL continuation",
     }
+
+
+def replay_source(state):
+    root = state["address"]
+    seed = {
+        **state,
+        "accounts": [
+            {**account, "code": []} if account["address"] == root else account
+            for account in state["accounts"]
+        ],
+    }
+    warm = ", ".join(world.warm_addresses(state, "cancun"))
+    slots = ", ".join(f"({owner},{key})" for owner, key in state["warm_slots"])
+    return f"""import {NAME}
+open SolarTV EvmRules EVM.State.Reentry
+def accounts : List Execution.Account :=
+  ({world.accounts_expression(seed)} : List Execution.Account).map fun account =>
+    if account.address = {root} then {{account with code := code.bytes}} else account
+def checkpoint : Execution.Journal := ⟨accounts,accounts,[{warm}],[{slots}],[],0⟩
+def start : EVM.State.Frame :=
+  ⟨{world.environment_expression(state)},code.bytes,0,[],[],[],{state["gas"]}⟩
+def replay (pick : Route) : String :=
+  EVM.State.describe tvWorldConfig .exact (executeWith tvWorldConfig pick 2048 checkpoint start)
+def broken : Route := fun work execute journal frame =>
+  (route true work execute journal frame).map (Except.map fun result =>
+    {{result with stop := .reverted, data := [], «world» := journal}})
+#eval IO.println ("[" ++ replay (route false) ++ "," ++ replay (route true) ++ "," ++ replay broken ++ "]")
+"""

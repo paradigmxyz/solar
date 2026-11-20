@@ -562,9 +562,9 @@ def byteTailWith (hash : List Execution.Byte → Word) := chunkedByteExitStep tv
     for label in ("before", "after"):
         source += f"""
 def {label}Body : CallerBody := ⟨{label}Functions,{label}Entry,{label}Helper,{label}Returned⟩
-def {label}TailStart := mirExitStart mirCfg {label}Functions physicalCut {label}Cut byteTailCut
+def {label}TailStart := mirExitStart mirCfg {label}Functions physicalCut {label}Cut
 def {label}TailWith (hash : List Execution.Byte → Word) :=
-  mirExitStep mirCfg {label}Functions caller (physicalCut.budgets ++ byteTailCut.budgets)
+  mirExitStep mirCfg {label}Functions caller (mirExitBudgets mirCfg {label}Functions physicalCut {label}Cut)
     (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut) hash
 """
     success(prove(mir, source, timeout, module=True), mir)
@@ -607,7 +607,7 @@ theorem bytecode_exit : runByteExit tvWorldConfig 1024 physicalCut = .ok byteTai
   exact byteTailReached
 
 def physicalResult := finishByte checkpoint byteTailCut.result
-def result := EVM.State.observe tvWorldConfig .effects physicalResult
+def result := abiObservation tvWorldConfig physicalResult
 theorem bytecode_gas : physicalResult.gas = {observed[2]} := by decide +kernel
 theorem bytecode_refund : physicalResult.world.refund = ({observed[3]}) := by decide +kernel
 #print axioms bytecode_gas
@@ -651,18 +651,22 @@ theorem {label}_fmp :
             + HEADER
             + f"""
 theorem {label}_exit :
-    runMirExit mirCfg {label}Functions caller 1024 physicalCut byteTailCut {label}Cut = .ok {label}TailCut := by
+    runMirExit mirCfg {label}Functions caller 1024 physicalCut {label}Cut = .ok {label}TailCut := by
   unfold runMirExit
   rw [←{mir_memo}.hashChecked_eq]
   exact {label}TailReached
 
-theorem {label}_effects :
-    EVM.State.observe tvWorldConfig .effects (finishByte checkpoint {label}TailCut) = result :=
+theorem {label}_observation :
+    abiObservation tvWorldConfig (finishByte checkpoint {label}TailCut) = result :=
   by decide +kernel
 
 theorem {label}_pre_sample :
     preSampleExhausted mirCfg {label}Functions physicalCut {label}Cut = true →
       byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [] ∧ byteTailCut.budgets = [] :=
+  by decide +kernel
+
+theorem {label}_samples :
+    helperSamples mirCfg {label}Functions physicalCut {label}Cut = byteTailCut.samples :=
   by decide +kernel
 
 theorem {label}_unpaid_call :
@@ -675,15 +679,11 @@ theorem {label}_paid_call :
       byteTailCut.budgets :=
   by decide +kernel
 
-theorem {label}_paid_exit_gas :
-    byteTailCut.budgets ≠ [] → {label}TailCut.gas = physicalResult.gas :=
-  by decide +kernel
-
 theorem {label}_from_abi :
     fromAbi tvWorldConfig mirCfg initial {pc} selector caller {label}Body 2048 1024 1024 false = .ok result :=
   (fromAbi_mir tvWorldConfig mirCfg initial {pc} selector caller {label}Body 2048 1024 1024
-    physicalCut byteTailCut {label}Cut {label}TailCut bytecode_reaches bytecode_exit
-    {label}_reaches {label}_exit).trans (congrArg Except.ok {label}_effects)
+    physicalCut {label}Cut {label}TailCut bytecode_reaches
+    {label}_reaches {label}_exit).trans (congrArg Except.ok {label}_observation)
 """
         )
         success(prove(link, source, timeout, module=True), link)

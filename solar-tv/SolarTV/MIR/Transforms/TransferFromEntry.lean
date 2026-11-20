@@ -344,10 +344,16 @@ private def helperPricing (cfg : MIR.State.Config) (functions : Functions)
     world.warmAddresses.contains address, !(account world address).code.isEmpty⟩
   return (callee,priced)
 
+/-- The no-code branch builds Error("no code") in bytes 0 through 127.
+Its fixed cost is checked against the emitted branch and shared revert body. -/
+def noCodeCharge (entry : EVM.CallBudget.Entry) : Nat :=
+  60 + EVM.State.memoryCost (max entry.words 4) - EVM.State.memoryCost entry.words
+
 def preSampleExhausted (cfg : MIR.State.Config) (functions : Functions)
     (physical : ByteCut) (cut : MirCut) : Bool :=
   (helperPricing cfg functions physical cut).any fun (_,entry) =>
-    entry.gas < EVM.CallBudget.sampleCharge entry 6
+    let need := EVM.CallBudget.sampleCharge entry 6
+    entry.gas < need + (if entry.hasCode then 0 else noCodeCharge entry)
 
 structure HelperCallPrice where
   callee : Nat
@@ -370,10 +376,24 @@ def unpaidHelperBudget (price : Option HelperCallPrice) : Option Nat :=
 def paidHelperBudget (price : Option HelperCallPrice) : Option Nat :=
   (price.filter (·.paid)).map (·.gas)
 
+/-- The MIR GAS operation consumes the balance before paying two gas. -/
+def helperSamples (cfg : MIR.State.Config) (functions : Functions)
+    (physical : ByteCut) (cut : MirCut) : List Nat :=
+  (helperCallPrice cfg functions physical cut).toList.map (·.gas + 2)
+
+def mirExitBudgets (cfg : MIR.State.Config) (functions : Functions) (physical : ByteCut)
+    (cut : MirCut) : List Nat :=
+  physical.budgets ++ (paidHelperBudget (helperCallPrice cfg functions physical cut)).toList
+
 def mirExitStart (cfg : MIR.State.Config) (functions : Functions) (physical : ByteCut)
-    (cut : MirCut) (priced : ByteExit) : Except String MirCursor :=
-  .ok ⟨⟨cut.cursor,[],cut.frame⟩,cut.samples ++ priced.samples,
-    preSampleExhausted cfg functions physical cut,none⟩
+    (cut : MirCut) : Except String MirCursor := do
+  let some (_,entry) := helperPricing cfg functions physical cut
+    | .error "cannot price the MIR helper at this entry"
+  let exitGas := match EVM.CallBudget.reference entry 6 with
+    | .noCode gas => EVM.CallBudget.charged gas (noCodeCharge entry)
+    | _ => none
+  .ok ⟨⟨cut.cursor,[],cut.frame⟩,cut.samples ++ helperSamples cfg functions physical cut,
+    preSampleExhausted cfg functions physical cut,exitGas⟩
 
 private def priceContinuation (caller : Caller) (inst : Instruction) (parent : Frame) :
     Except String (Option Nat) := do
@@ -430,10 +450,10 @@ def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (caller : Calle
       return .inl ⟨stop,data,result.world,state.exitGas.getD 0,0⟩
 
 def runMirExit (cfg : MIR.State.Config) (functions : Functions) (caller : Caller) (fuel : Nat)
-    (physical : ByteCut) (priced : ByteExit) (cut : MirCut) : EVM.State.Run :=
-  Trace.run (mirExitStep cfg functions caller (physical.budgets ++ priced.budgets)
+    (physical : ByteCut) (cut : MirCut) : EVM.State.Run :=
+  Trace.run (mirExitStep cfg functions caller (mirExitBudgets cfg functions physical cut)
     (helperCallPrice cfg functions physical cut)) fuel
-    (mirExitStart cfg functions physical cut priced)
+    (mirExitStart cfg functions physical cut)
 
 structure CallerBody where
   functions : Functions
@@ -441,19 +461,23 @@ structure CallerBody where
   helper : Nat
   returned : List Operand
 
+/-- Full ABI effects and exact remaining gas. Transaction refunds on these
+paths still come from the physical storage trace. -/
+def abiObservation (cfg : EVM.State.Config) (result : EVM.State.Result) : EVM.State.Observation :=
+  {EVM.State.observe cfg .effects result with gas := result.gas}
+
 /-- One observation for a complete ABI invocation through the certified helper
-cut. The MIR runs use the same calldata, journal and physical call ledger.
-Private memory is local to each execution and is discarded on exit. -/
+cut. MIR uses the physical prefix gas and prices the helper and its return
+from the checked schedule. Private memory is local to each execution and is discarded on exit. -/
 def fromAbi (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
     (pc : Nat) (selector : Word) (caller : Caller) (body : CallerBody)
     (byteFuel mirFuel exitFuel : Nat) (physical : Bool) : Except String EVM.State.Observation := do
   let cut ← runBytes pc byteFuel cfg initial
-  let priced ← runByteExit cfg exitFuel cut
-  let result ← if physical then pure priced.result else do
+  let result ← if physical then (·.result) <$> runByteExit cfg exitFuel cut else do
     let mirCut ← mirPrefix mirCfg body.functions body.entry body.helper body.returned
       selector caller initial.world cut mirFuel
-    runMirExit mirCfg body.functions caller exitFuel cut priced mirCut
-  return EVM.State.observe cfg .effects (finishByte initial.world result)
+    runMirExit mirCfg body.functions caller exitFuel cut mirCut
+  return abiObservation cfg (finishByte initial.world result)
 
 theorem fromAbi_byte (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
     (pc : Nat) (selector : Word) (caller : Caller) (body : CallerBody)
@@ -461,21 +485,21 @@ theorem fromAbi_byte (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initi
     (enters : runBytes pc byteFuel cfg initial = .ok cut)
     (resume : runByteExit cfg exitFuel cut = .ok terminal) :
     fromAbi cfg mirCfg initial pc selector caller body byteFuel mirFuel exitFuel true =
-      .ok (EVM.State.observe cfg .effects (finishByte initial.world terminal.result)) := by
-  simp [fromAbi, enters, resume, Bind.bind, Except.bind, Pure.pure, Except.pure]
+      .ok (abiObservation cfg (finishByte initial.world terminal.result)) := by
+  simp [fromAbi, enters, resume, Bind.bind, Except.bind, Pure.pure, Except.pure,
+    Functor.map, Except.map]
 
 theorem fromAbi_mir (cfg : EVM.State.Config) (mirCfg : MIR.State.Config) (initial : ByteCut)
     (pc : Nat) (selector : Word) (caller : Caller) (body : CallerBody)
-    (byteFuel mirFuel exitFuel : Nat) (cut : ByteCut) (priced : ByteExit) (mirCut : MirCut)
+    (byteFuel mirFuel exitFuel : Nat) (cut : ByteCut) (mirCut : MirCut)
     (terminal : EVM.State.Result)
     (enters : runBytes pc byteFuel cfg initial = .ok cut)
-    (byteResume : runByteExit cfg exitFuel cut = .ok priced)
     (mirPrefix : TransferFromEntry.mirPrefix mirCfg body.functions body.entry body.helper body.returned
       selector caller initial.world cut mirFuel = .ok mirCut)
-    (mirResume : runMirExit mirCfg body.functions caller exitFuel cut priced mirCut = .ok terminal) :
+    (mirResume : runMirExit mirCfg body.functions caller exitFuel cut mirCut = .ok terminal) :
     fromAbi cfg mirCfg initial pc selector caller body byteFuel mirFuel exitFuel false =
-      .ok (EVM.State.observe cfg .effects (finishByte initial.world terminal)) := by
-  simp [fromAbi, enters, byteResume, mirPrefix, mirResume, Bind.bind, Except.bind, Pure.pure, Except.pure]
+      .ok (abiObservation cfg (finishByte initial.world terminal)) := by
+  simp [fromAbi, enters, mirPrefix, mirResume, Bind.bind, Except.bind, Pure.pure, Except.pure]
 
 structure Invocation where
   cfg : EVM.State.Config

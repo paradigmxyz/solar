@@ -791,8 +791,14 @@ two gas and pushes its remaining balance directly into STATICCALL. Given the
 matched scratch memory, calldata slice, stack arguments and journal at that
 cut, the kernel derives the MIR message budget from the frame. It compares
 both memory debits, the EIP-150 split, the child result, unused gas and work.
-Native replay checks exhaustion at GAS and at STATICCALL. Replacing GAS with
-PUSH0 changes the returned status word. Pricing before this cut remains open.
+The recursive evaluator can substitute either captured recovery expansion at
+this boundary. A kernel-checked continuation reconstructs the physical frame
+from the typed result and the untouched stack, including exact remaining gas
+and work. Independent replay runs a signed authorization reentered by the
+token during transferFrom. It checks that the nonce, authorization and logs
+commit on success and roll back on an outer revert. Replacing GAS with PUSH0
+makes recovery fail and changes the committed effects. The surrounding
+authorization code still executes as bytecode.
 
 The reentry certificate executes Morpho's emitted dispatcher and substitutes
 the actual captured `owner()` MIR at the checked getter PC. Both typed bodies
@@ -802,8 +808,8 @@ remaining gas and work. The recursive driver proves that this substitution
 preserves the entire EVM result across nested calls and continuations.
 Independent replay covers a token that reenters the getter, retains its
 result on success and loses its write on the outer revert. Other selectors
-execute with the bytecode interpreter. Typed correspondence for reentrant
-writes or reentry into the changed bodies remains open.
+without certified regions execute with the bytecode interpreter. Whole-body
+typed correspondence for reentrant writes remains open.
 
 The CALL debit lemma relates the EVM input and output memory steps to
 MIR's cumulative debit. It covers both unpaid legs, including an input
@@ -821,20 +827,21 @@ Each execution resumes with its own reached memory and journal, so the proof
 carries the actual writes
 from the prefix into the suffix. On success it compares the ABI publication,
 committed accounts and logs. On revert it compares the payload and rollback
-to the owning checkpoint. The bytecode result provides both the prefix and
-suffix GAS samples and the prefix's call budgets for the MIR executions.
-At the helper cut the checked Cancun schedule prices the guard, argument
-setup and both paid and unpaid CALLs. MIR uses its own token, warmth, code
+to the owning checkpoint. The bytecode prefix supplies gas at the cut and
+the prefix's message budgets. The MIR suffix derives its GAS sample and
+CALL budget from the checked Cancun schedule. The kernel compares those
+values with the emitted suffix trace. MIR uses its own token, warmth, code
 presence and FMP together with the physical entry gas and active memory.
-The empty token-code path prices only the guard at this boundary. The
-kernel checks a predicted early exhaustion against the emitted trace and
-its sample and call ledgers. On a paid CALL, the MIR executable child
+The empty token-code path also prices the emitted error handler and its
+scratch memory expansion. The kernel checks predicted early exhaustion
+against the emitted trace and its sample and call ledgers. On a paid CALL, the MIR executable child
 result supplies returned gas, return data and the active parent memory.
 The six checked helper continuation prices and the caller's published
 return cost jointly determine whether the parent exhausts its budget and
 how much gas remains on an affordable exit. The kernel checks that result
 against the emitted trace through the exact ABI exit. The complete ABI proof
-also checks the published bytes, effects and rollback on both IRs.
+compares exact exit gas, published bytes, committed effects and rollback.
+The independent replay checks the physical refund.
 
 `MorphoAbiSuite.lean` assembles separate certificates for the five callers.
 Each certificate composes short transitions over complete states. The

@@ -162,4 +162,103 @@ theorem recovery (cfg : Config) (ext : EVM.State.Config) (fuel : Nat)
     rest 1 offset.word length.word input active fork extFork bound environment rfl known limit
     inputOk outputOk
 
+/-- Reassemble the live physical continuation from the typed result and the
+untouched stack. A failed caller charge stops the frame before any child. -/
+def resume (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame)
+    (world : Journal) (rest : List Word) (message : MessageStep) : EVM.State.Run := do
+  match ← message with
+  | none => return ⟨.outOfGas,[],world,0,2⟩
+  | some (.returned (some flag,mir),work) =>
+    let gas ← required mir.messageGas.getLast? "missing recovery continuation gas"
+    let result ← EVM.State.run (fuel-work) cfg mir.world
+      {frame with
+        pc := frame.pc+2, stack := flag :: rest
+        memory := mir.memory, returnData := mir.returnData, gas := gas}
+    return {result with work := result.work + work + 2}
+  | _ => .error "unexpected typed recovery result"
+
+theorem resume_eq (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame)
+    (mir : Frame) (rest : List Word) (target offset length : Word)
+    (fork : cfg.fork = .cancun)
+    (sample : EVM.State.instruction cfg mir.world frame =
+      .ok (.next mir.world (EVM.MessageBoundary.afterGas frame)))
+    (action : EVM.State.instruction cfg mir.world (EVM.MessageBoundary.afterGas frame) =
+      EVM.MessageBoundary.staticAction cfg mir.world (EVM.MessageBoundary.afterGas frame)
+        (frame.gas-2) target offset length 0 32 rest) :
+    resume cfg fuel frame mir.world rest (project mir (do
+      let signal ← EVM.State.instruction cfg mir.world (EVM.MessageBoundary.afterGas frame)
+      EVM.State.advance cfg (EVM.State.run fuel cfg) signal)) =
+    EVM.State.run (fuel+2) cfg mir.world frame := by
+  rw [EVM.State.run_next (fuel+1) sample]
+  rw [EVM.State.run]
+  simp only [action]
+  let atGas := EVM.MessageBoundary.afterGas frame
+  let dest := target.setWidth 160
+  let execution := EVM.State.executionCode cfg.fork mir.world dest
+  let code := execution.1
+  let resolution := execution.2.1
+  let entered := execution.2.2
+  let charge := EVM.State.callBoundaryCharge cfg mir.world
+    ⟨.staticcall,dest,0,[]⟩ 0xfa resolution 0 0
+  let first := charge + EVM.State.memoryCharge frame.memory offset.toNat length.toNat
+  have callShape : EVM.MessageBoundary.staticAction cfg mir.world (EVM.MessageBoundary.afterGas frame) (frame.gas-2)
+      target offset length 0 32 rest =
+      (if cfg.unknownCode == some code.address then .error "MIR root runtime code is unknown"
+      else if atGas.gas < first then EVM.State.stepExhausted mir.world else do
+        let input ← expand frame.memory offset.toNat length.toNat
+        let second := EVM.State.memoryCharge input 0 32
+        if atGas.gas-first < second then EVM.State.stepExhausted mir.world else do
+          let active ← expand input 0 32
+          return .call ⟨.staticcall,dest,0,readBytes active offset.toNat length.toNat⟩
+            0 32 (frame.gas-2) code entered
+            {frame with pc := frame.pc+2, stack := rest, memory := active,
+                        gas := atGas.gas-first-second}) := by
+    simp [EVM.MessageBoundary.staticAction, EVM.State.withMemory, EVM.MessageBoundary.afterGas,
+      atGas, code, resolution, entered, execution, dest, first, charge, Nat.add_assoc,
+      Bind.bind, Except.bind, Pure.pure, Except.pure]
+  change resume cfg fuel frame mir.world rest (project mir (do
+      let signal ← EVM.MessageBoundary.staticAction cfg mir.world (EVM.MessageBoundary.afterGas frame) (frame.gas-2)
+        target offset length 0 32 rest
+      EVM.State.advance cfg (EVM.State.run fuel cfg) signal)) = _
+  simp only [callShape]
+  simp only [Bind.bind, Except.bind, Pure.pure, Except.pure]
+  by_cases known : (cfg.unknownCode == some code.address) = true
+  · simp [known, resume, project, Bind.bind, Except.bind]
+  simp only [known]
+  by_cases paid : atGas.gas < first
+  · simp [paid, resume, project, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure]
+  simp only [paid, ite_false]
+  cases expand frame.memory offset.toNat length.toNat with
+  | error err => simp [resume, project, Bind.bind, Except.bind]
+  | ok input =>
+    by_cases outputPaid : atGas.gas-first < EVM.State.memoryCharge input 0 32
+    · simp [outputPaid, resume, project, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure]
+    simp only [outputPaid, ite_false]
+    cases expand input 0 32 with
+    | error err => simp [resume, project, Bind.bind, Except.bind]
+    | ok active =>
+      let message : Calls.Message := ⟨.staticcall,dest,0,readBytes active offset.toNat length.toNat⟩
+      let gas := atGas.gas-first-EVM.State.memoryCharge input 0 32
+      let requested := frame.gas-2
+      let supplied := min requested (gas-gas/64)
+      have cap : Calls.forwardGas cfg.fork gas requested false = some ⟨supplied,supplied⟩ := by
+        simp [fork, Calls.forwardGas, Fork.atLeast, Fork.ordinal, supplied]
+      have noValue : Calls.hasValue message = false := rfl
+      by_cases depth : 1024 ≤ frame.environment.depth
+      · simp [EVM.State.advance, depth, Calls.hasValue, resume, project, required,
+          Bind.bind, Except.bind, Pure.pure, Except.pure]
+        cases EVM.State.run fuel cfg (warmAddress entered dest) _ <;> rfl
+      · have cap' : Calls.forwardGas cfg.fork (atGas.gas-first-EVM.State.memoryCharge input 0 32)
+            (frame.gas-2) false = some ⟨supplied,supplied⟩ := cap
+        simp only [EVM.State.advance, depth, decide_false, Bool.false_eq_true, ite_false,
+          show (Calls.Kind.staticcall == .call) = false from rfl,
+          show (Calls.Kind.staticcall == .callcode) = false from rfl,
+          Bool.or_false, Bool.false_and, show Calls.hasValue
+            ⟨.staticcall,dest,0,readBytes active offset.toNat length.toNat⟩ = false from noValue,
+          cap', Bind.bind, Except.bind, Pure.pure, Except.pure]
+        cases EVM.State.executeCall (EVM.State.run fuel cfg) cfg (warmAddress entered dest)
+          frame.environment message code supplied <;>
+          simp [resume, project, required, Bind.bind, Except.bind, Pure.pure, Except.pure]
+        split <;> simp_all
+
 end SolarTV.MIR.StaticCallCut

@@ -307,7 +307,7 @@ def check(
             config = world.configuration(solar, FORK, state, timeout, executable)
             boundaries = {
                 "recovery_boundary": recovery_boundary.certify(
-                    kernel, recovery, state, solar, executable, timeout
+                    kernel, recovery, state, solar, executable, timeout, tables=tables
                 ),
                 "reentrant_owner": owner_reentry.certify(
                     kernel, owner, config, tables, names, timeout
