@@ -79,16 +79,32 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let call_graph = module
-            .runs_objective(|objective| objective.is_none())
-            .then(|| CallGraphInfo::new(module));
+        // At `-O none`, the functions that a call can reach again, one set per recursive component.
+        let functions = module.functions.len();
+        let (components, component_of) = if module.runs_objective(|objective| objective.is_none()) {
+            let call_graph = CallGraphInfo::new(module);
+            let mut components = Vec::new();
+            let mut component_of = index_vec![None; module.functions.len()];
+            for id in module.functions.indices() {
+                if component_of[id].is_none() && call_graph.is_recursive(id) {
+                    let component = call_graph.recursive_component(id);
+                    for member in component.iter() {
+                        component_of[member] = Some(components.len());
+                    }
+                    components.push(component);
+                }
+            }
+            (components, component_of)
+        } else {
+            (Vec::new(), IndexVec::new())
+        };
         run_function_pass(module, analyses, |func, analyses| {
-            // At `-O none`, the functions that a call can reach again.
-            let keep = (analyses.optimization().is_none())
-                .then(|| {
-                    call_graph.as_ref().map(|graph| graph.recursive_component(analyses.function()))
-                })
-                .flatten();
+            let keep = analyses.optimization().is_none().then(|| {
+                match component_of.get(analyses.function()).copied().flatten() {
+                    Some(component) => components[component].clone(),
+                    None => DenseBitSet::new_empty(functions),
+                }
+            });
             run_to_fixpoint(func, keep.as_ref())
         })
     }
