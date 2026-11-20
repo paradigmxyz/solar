@@ -3,7 +3,7 @@
 //@[size] run-call: run 1 => 112251006636738356412528838120051654405700337221568568889046144637683131196577
 //@[none] compile-flags: -O none
 //@[none] normalize-stdout-test: "(?s).+" -> ""
-//~[none]? WARN: `dup` in block 127 grows the EVM stack to 1025 words
+//~[none]? WARN: `dup` in block 129 grows the EVM stack to 1025 words
 
 // A chain of 120 internal calls, each keeping some of its eight arguments on
 // the stack across the call. Kept words add up across the chain. Size builds

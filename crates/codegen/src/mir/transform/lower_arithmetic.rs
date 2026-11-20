@@ -15,7 +15,7 @@ use crate::mir::{
     ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
     analysis::integers::integer_mask,
     pass::{MirPass, run_function_pass},
-    transform::utils::expand_block,
+    transform::utils::{expand_block, panic_helpers},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -35,6 +35,33 @@ impl MirPass for LowerArithmetic {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // At `-O none` each check calls the function that reverts with its panic code.
+        let mut codes = Vec::new();
+        for func in &module.functions {
+            if !module.objective_of(func).is_none() {
+                continue;
+            }
+            for id in func.instructions() {
+                let InstKind::CheckedBinary { op, arithmetic, .. } = func.inst(id).kind else {
+                    continue;
+                };
+                let zero = matches!(op, CheckedOp::Div | CheckedOp::WrappingDiv | CheckedOp::Rem);
+                let overflow = match op {
+                    CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul | CheckedOp::Pow => true,
+                    CheckedOp::Div => matches!(arithmetic, ArithmeticKind::Signed(_)),
+                    CheckedOp::WrappingDiv | CheckedOp::Rem => false,
+                };
+                for (needed, code) in [
+                    (zero, PanicCode::DivisionByZero),
+                    (overflow, PanicCode::ArithmeticOverflowUnderflow),
+                ] {
+                    if needed && !codes.contains(&code) {
+                        codes.push(code);
+                    }
+                }
+            }
+        }
+        let helpers = panic_helpers(module, codes);
         run_function_pass(module, analyses, |func, analyses| {
             if !func
                 .instructions()
@@ -51,8 +78,14 @@ impl MirPass for LowerArithmetic {
                 {
                     continue;
                 }
+                let unoptimized = analyses.optimization().is_none();
                 let mut builder = FunctionBuilder::new(func)
-                    .with_shared_reverts(!analyses.optimization().is_none());
+                    .with_shared_reverts(!unoptimized)
+                    .with_panic_helpers(if unoptimized {
+                        helpers.clone()
+                    } else {
+                        Default::default()
+                    });
                 expand_block(&mut builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind

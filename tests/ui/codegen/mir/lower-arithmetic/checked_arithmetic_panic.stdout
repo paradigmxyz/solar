@@ -65,10 +65,10 @@ fn @div_zero(arg0: i256, arg1: i256) -> i256 [selector=0xf37348f3, pure, abi_par
 fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:                                            ; preds = bb0, bb7
-    v1 = phi [bb0: 1], [bb7: v17]
-    v2 = phi [bb0: arg0], [bb7: v19]
-    v3 = phi [bb0: arg1], [bb7: v18]
+  bb1:                                            ; preds = bb0, bb6
+    v1 = phi [bb0: 1], [bb6: v17]
+    v2 = phi [bb0: arg0], [bb6: v19]
+    v3 = phi [bb0: arg1], [bb6: v18]
     v4 = gt v3, 0
     jumpi v4, bb2, bb3
   bb3:                                            ; preds = bb1
@@ -100,14 +100,10 @@ fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[
     v26 = gt v18, 0
     v27 = and v26, v25
     v28 = zext i1 v27 to i256
-    jumpi v27, bb6, bb7
-  bb7:                                            ; preds = bb5
+    jumpi v27, bb4, bb6
+  bb6:                                            ; preds = bb5
     jump bb1
-  bb6 [cold]:                                     ; preds = bb5
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb4 [cold]:                                     ; preds = bb2
+  bb4 [cold]:                                     ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

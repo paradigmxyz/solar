@@ -21,13 +21,14 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MAX_SCRATCH_ERROR_WORDS, MirType, Module,
+    FunctionId, InstKind, InstructionMetadata, MAX_SCRATCH_ERROR_WORDS, MirType, Module, PanicCode,
     PhaseCategory, PtrLocation, RequireKind, RevertKind, RevertPayload,
     lower::{DataDest, copy_data_to_memory},
     pass::MirPass,
-    transform::utils::expand_block,
+    transform::utils::{expand_block, panic_helpers},
 };
 use alloy_primitives::U256;
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::sync::Arc;
@@ -70,12 +71,31 @@ impl MirPass for LowerChecks {
             }
         }
         let helper = helper_context.map(|context| create_short_string_helper(module, &context));
+        // At `-O none` each check calls the function that reverts with its panic code.
+        let mut codes = Vec::new();
+        for function in &module.functions {
+            if !module.objective_of(function).is_none() {
+                continue;
+            }
+            for id in function.instructions() {
+                if let InstKind::ICall {
+                    function:
+                        Callee::Builtin(Builtin::Check { failure: RevertKind::Panic(code), .. }),
+                    ..
+                } = &function.inst(id).kind
+                    && !codes.contains(code)
+                {
+                    codes.push(*code);
+                }
+            }
+        }
+        let helpers = panic_helpers(module, codes);
         let mut changed = false;
         // Long strings intern their data in the module while a function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);
         for function in &mut functions {
             let optimized = !module.objective_of(function).is_none();
-            changed |= lower_function(gcx, module, function, helper, optimized);
+            changed |= lower_function(gcx, module, function, helper, optimized, &helpers);
         }
         module.functions = functions;
         changed
@@ -88,6 +108,7 @@ fn lower_function(
     func: &mut Function,
     helper: Option<FunctionId>,
     optimize: bool,
+    helpers: &FxHashMap<PanicCode, FunctionId>,
 ) -> bool {
     if !func.instructions().any(|id| is_check(&func.inst(id).kind)) {
         return false;
@@ -95,7 +116,8 @@ fn lower_function(
     let blocks = func.blocks.indices();
     let mut builder = FunctionBuilder::new(func)
         .with_revert_strings(gcx.sess.opts.revert_strings)
-        .with_shared_reverts(optimize);
+        .with_shared_reverts(optimize)
+        .with_panic_helpers(if optimize { Default::default() } else { helpers.clone() });
     for block in blocks {
         if !builder.func().blocks[block]
             .instructions
