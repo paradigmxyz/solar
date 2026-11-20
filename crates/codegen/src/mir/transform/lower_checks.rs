@@ -1,7 +1,8 @@
 //! Expand semantic conditional checks before revert outlining and arithmetic expansion.
 //!
 //! Each check splits its block at the original execution point and branches to a typed panic or
-//! revert payload. Checks in one function share payload blocks, merging their debug origins.
+//! revert payload. Checks in one optimized function share payload blocks, merging their debug
+//! origins; at `-O none` each keeps its own.
 //! Surviving instructions and the original terminator move to the continuation; successor phi
 //! predecessors update locally. The session's revert-string mode selects debug payloads without
 //! changing when argument evaluation or the check occurs. Require payloads read their evaluated
@@ -92,7 +93,9 @@ fn lower_function(
         return false;
     }
     let blocks = func.blocks.indices();
-    let mut builder = FunctionBuilder::new(func).with_revert_strings(gcx.sess.opts.revert_strings);
+    let mut builder = FunctionBuilder::new(func)
+        .with_revert_strings(gcx.sess.opts.revert_strings)
+        .with_shared_reverts(optimize);
     for block in blocks {
         if !builder.func().blocks[block]
             .instructions

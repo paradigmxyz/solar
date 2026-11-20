@@ -23,6 +23,9 @@
 //! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
 //! when a zero word store clears the last word first, if that is cheaper.
 //!
+//! At `-O none` a run is replaced only if all its instructions have the same source origin, since
+//! the copy would merge different ones.
+//!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
 //! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
 //! deployment code and constructor arguments follow it, which they find by subtracting its address
@@ -356,12 +359,26 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
                 start += 1;
                 continue;
             };
+            // At `-O none` a copy replaces stores of one origin only, so no store loses its own, as
+            // in clang's `-O0`.
+            if target.optimization().is_none()
+                && !same_origins(&block.instructions[rewrite.start..rewrite.end])
+            {
+                start += 1;
+                continue;
+            }
             rewrite.repeats = !block.runs_once();
             start = rewrite.end;
             groups.entry(data).or_default().push(rewrite);
         }
     }
     groups
+}
+
+/// Returns whether every instruction has the source origins of the first.
+fn same_origins(instructions: &[Instruction]) -> bool {
+    let (first, rest) = instructions.split_first().expect("a run has instructions");
+    rest.iter().all(|inst| inst.metadata.source_spans().eq(first.metadata.source_spans()))
 }
 
 /// Finds the literal-store run that starts at `start`. A later start that writes the same bytes

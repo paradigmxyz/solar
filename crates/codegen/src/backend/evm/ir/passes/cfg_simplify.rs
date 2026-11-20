@@ -16,6 +16,10 @@
 //! instructions are considered; no instructions are duplicated and protected boundaries stay
 //! intact.
 //!
+//! At `-O none` the pass follows clang's `-O0`: it keeps every branch, shares no equal halting
+//! blocks, and bypasses or merges a block only when the labels and jumps it removes carry no source
+//! location, so every source construct keeps its block and its location.
+//!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. The `jumpi` keeps its origin and the removed
 //! jump and pushed label take theirs with them. It excludes glued instructions. Keeping this after
@@ -77,6 +81,7 @@ use crate::backend::evm::{
     },
     op,
 };
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -380,9 +385,18 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
+/// Returns whether the block's code is not optimized, so it keeps its branches and the locations
+/// of its labels and jumps.
+fn keeps_locations(optimization: OptimizationMode, block: &Block) -> bool {
+    block.metadata.optimization.unwrap_or(optimization).is_none()
+}
+
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block_id in module.blocks.indices() {
+        if keeps_locations(module.optimization, &module.blocks[block_id]) {
+            continue;
+        }
         // A branch whose edges reach equal halting blocks runs the same code either way: fold it
         // into the else edge, whose code the taken copy's paths then share.
         if let Some(Terminator { kind: TerminatorKind::JumpI { then_block, else_block }, .. }) =
@@ -480,6 +494,9 @@ fn redirect_jump_thunks(
             None => {
                 if let Some(terminator) = &block.terminator
                     && let TerminatorKind::Jump(next) = terminator.kind
+                    && !(keeps_locations(module.optimization, block)
+                        && (block.label_metadata.has_source_spans()
+                            || terminator.metadata.has_source_spans()))
                 {
                     thunks
                         .insert(block_id, Thunk { next, entered: None, exit: Metadata::default() });
@@ -732,6 +749,16 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
+                break;
+            }
+            // The merge drops the jump and the label of the target.
+            if keeps_locations(module.optimization, &module.blocks[predecessor])
+                && (module.blocks[predecessor]
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|jump| jump.metadata.has_source_spans())
+                    || module.blocks[target].label_metadata.has_source_spans())
+            {
                 break;
             }
 

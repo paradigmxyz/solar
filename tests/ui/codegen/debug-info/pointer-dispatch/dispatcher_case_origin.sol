@@ -39,10 +39,14 @@ contract C {
 // CHECK: ; internal_dispatcher_p_uint256_r_uint256 (synthesized)
 // CHECK-NOT: span=[[TARGET]]
 // CHECK: bb{{[0-9]+}}:
+// CHECK-NEXT: swap 1 !metadata(compiler_generated)
+// CHECK-NEXT: push {{bb[0-9]+}} !metadata(compiler_generated)
 // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
 // CHECK-NOT: span=[[TARGET]]
 // CHECK: ; internal_dispatcher_asm_p_bytes32_r_bytes32 (synthesized)
 // CHECK-NOT: span=[[TARGET]]
 // CHECK: bb{{[0-9]+}}:
+// CHECK-NEXT: swap 1 !metadata(compiler_generated)
+// CHECK-NEXT: push {{bb[0-9]+}} !metadata(compiler_generated)
 // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(compiler_generated)
 // CHECK-NOT: span=[[TARGET]]

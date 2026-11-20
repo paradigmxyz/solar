@@ -76,6 +76,8 @@ pub struct FunctionBuilder<'a> {
     current_block: BlockId,
     /// Revert blocks shared within this function.
     revert_blocks: RevertBlocks,
+    /// Whether checks of one failure share a revert block, which merges their origins.
+    share_reverts: bool,
     /// Source context attached to instructions emitted in the current lowering scope.
     current_debug_context: InstructionMetadata,
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
@@ -106,6 +108,7 @@ impl<'a> FunctionBuilder<'a> {
             func,
             current_block: BlockId::ENTRY,
             revert_blocks: RevertBlocks::default(),
+            share_reverts: true,
             current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
             semantic: false,
@@ -139,6 +142,12 @@ impl<'a> FunctionBuilder<'a> {
     /// instead of empty data.
     pub fn with_revert_strings(mut self, revert_strings: RevertStrings) -> Self {
         self.revert_strings = revert_strings;
+        self
+    }
+
+    /// Gives every check its own revert block when `share` is false, so each keeps its own origin.
+    pub fn with_shared_reverts(mut self, share: bool) -> Self {
+        self.share_reverts = share;
         self
     }
 
@@ -550,6 +559,9 @@ impl<'a> FunctionBuilder<'a> {
             }
             kind => kind,
         };
+        if !self.share_reverts {
+            return (self.create_block(), true);
+        }
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
             // Shared revert body !metadata(origins of all failed checks, none if one has none)
             for index in 0..self.func.blocks[block].instructions.len() {

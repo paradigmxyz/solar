@@ -309,6 +309,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit
+                && !(self.optimization.is_none()
+                    && (func.blocks[block].label_metadata.names_source()
+                        || func.blocks[block].terminator_metadata.names_source()))
             {
                 for _ in 0..plan.blocks.len() {
                     match plan.blocks[target].as_ref().map(|plan| (&plan.steps, &plan.exit)) {

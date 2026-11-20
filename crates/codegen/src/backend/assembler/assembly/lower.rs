@@ -250,11 +250,10 @@ fn lower_evm_ir_once(
         let lent =
             valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
         if let Some(function) = block.metadata.function_invoke.or(lent) {
-            debug_assert!(
-                pending_block_invoke.is_none() || pending_block_invoke == Some(function),
-                "an instruction-free block cannot enter two functions"
-            );
-            pending_block_invoke = Some(function);
+            // NOTE: `-O none` keeps the empty blocks of a function that only tail-calls another,
+            // and layout makes them fall through. Their entries then share the first instruction
+            // of the chain, which can mark one: the outer entry, the call the caller made.
+            pending_block_invoke.get_or_insert(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin.

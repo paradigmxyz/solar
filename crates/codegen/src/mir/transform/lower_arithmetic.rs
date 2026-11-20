@@ -35,7 +35,7 @@ impl MirPass for LowerArithmetic {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
             if !func
                 .instructions()
                 .any(|id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
@@ -51,7 +51,8 @@ impl MirPass for LowerArithmetic {
                 {
                     continue;
                 }
-                let mut builder = FunctionBuilder::new(func);
+                let mut builder = FunctionBuilder::new(func)
+                    .with_shared_reverts(!analyses.optimization().is_none());
                 expand_block(&mut builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind

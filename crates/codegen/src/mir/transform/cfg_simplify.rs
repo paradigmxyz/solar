@@ -18,6 +18,13 @@
 //! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
 //! preserve stack lifetimes.
 //!
+//! ## `-O none`
+//! A function that is not optimized follows clang's `-O0`: each source construct keeps its block,
+//! its branch, and its location. The pass folds only a branch on a constant, removes unreachable
+//! blocks and trivial phis, and bypasses or merges a block only if the labels and jumps it drops
+//! name no source construct. It does not share equal terminal blocks, merge blocks that name a
+//! construct, or fold a branch from equal targets or from the condition of a dominating branch.
+//!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
@@ -72,7 +79,9 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| simplify_function(func))
+        run_function_pass(module, analyses, |func, analyses| {
+            run_to_fixpoint(func, analyses.optimization().is_none())
+        })
     }
 }
 
@@ -91,7 +100,7 @@ impl MirPass for BranchSimplify {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = simplify_degenerate_terminators(func);
+            let changed = simplify_degenerate_terminators(func, false);
             if changed {
                 let _ = remove_unreachable_blocks(func);
             }
@@ -102,7 +111,7 @@ impl MirPass for BranchSimplify {
 
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
-    run_to_fixpoint(func)
+    run_to_fixpoint(func, false)
 }
 
 /// Function pass that only replaces trivial phis by their unique incoming value.
@@ -235,11 +244,19 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 }
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
-fn run(func: &mut Function) -> bool {
-    let mut changed = simplify_degenerate_terminators(func);
-    changed |= merge_blocks(func);
-    changed |= eliminate_empty_blocks(func);
-    changed |= deduplicate_terminal_blocks(func);
+///
+/// `keep_locations` is the `-O none` mode, which follows clang's `-O0`: it removes the
+/// unreachable code, the phis, and the blocks that carry no source location of their own, and
+/// leaves every other block and branch alone, so that each source construct keeps its block, its
+/// branch, and its location. It never shares equal blocks, folds a branch from the facts that
+/// reach it or from equal targets, or merges a block that names a construct into another.
+fn run(func: &mut Function, keep_locations: bool) -> bool {
+    let mut changed = simplify_degenerate_terminators(func, keep_locations);
+    changed |= merge_blocks(func, keep_locations);
+    changed |= eliminate_empty_blocks(func, keep_locations);
+    if !keep_locations {
+        changed |= deduplicate_terminal_blocks(func);
+    }
     changed |= simplify_trivial_phis(func);
     changed
 }
@@ -463,12 +480,14 @@ fn trivial_phi_replacement(
     incoming_values.all(|value| value == phi_value || value == first).then_some(first)
 }
 
-fn simplify_degenerate_terminators(func: &mut Function) -> bool {
+fn simplify_degenerate_terminators(func: &mut Function, keep_locations: bool) -> bool {
     let mut changed = false;
     for block_id in func.blocks.indices() {
         let Some(term) = &func.blocks[block_id].terminator else { continue };
-        let terminator = if let Some(target) = known_branch_target(func, block_id) {
+        let terminator = if let Some(target) = known_branch_target(func, block_id, keep_locations) {
             Terminator::Jump(target)
+        } else if keep_locations {
+            continue;
         } else {
             match term {
                 Terminator::Branch { then_block, else_block, .. } if then_block == else_block => {
@@ -501,7 +520,7 @@ fn simplify_degenerate_terminators(func: &mut Function) -> bool {
     changed
 }
 
-fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
+fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> Option<BlockId> {
     let Terminator::Branch { condition, then_block, else_block } =
         func.blocks[block].terminator.as_ref()?
     else {
@@ -509,6 +528,8 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
     };
     let taken = if let Some(value) = func.value_u256(*condition) {
         !value.is_zero()
+    } else if constant_only {
+        return None;
     } else {
         let definition = match func.value(*condition) {
             Value::Inst(id) => Some(*id),
@@ -542,7 +563,7 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function) -> bool {
+fn run_to_fixpoint(func: &mut Function, keep_locations: bool) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -554,7 +575,7 @@ fn run_to_fixpoint(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    while run(func) {
+    while run(func, keep_locations) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)
@@ -564,10 +585,10 @@ fn run_to_fixpoint(func: &mut Function) -> bool {
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function) -> bool {
+fn merge_blocks(func: &mut Function, keep_locations: bool) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
-        while let Some(target) = can_merge(func, block_id) {
+        while let Some(target) = can_merge(func, block_id, keep_locations) {
             do_merge(func, block_id, target);
             merged = true;
         }
@@ -577,7 +598,7 @@ fn merge_blocks(func: &mut Function) -> bool {
 
 /// Checks if block_id can be merged with its successor.
 /// Returns the target block if merge is possible.
-fn can_merge(func: &Function, block_id: BlockId) -> Option<BlockId> {
+fn can_merge(func: &Function, block_id: BlockId, keep_locations: bool) -> Option<BlockId> {
     let block = &func.blocks[block_id];
 
     let Terminator::Jump(target) = block.terminator.as_ref()? else {
@@ -594,6 +615,13 @@ fn can_merge(func: &Function, block_id: BlockId) -> Option<BlockId> {
     }
 
     if target_block.predecessors[0] != block_id {
+        return None;
+    }
+
+    // The merge drops the jump and the target's label.
+    if keep_locations
+        && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
+    {
         return None;
     }
 
@@ -653,7 +681,7 @@ fn fold_target_phis_for_merge(
 }
 
 /// Eliminates empty blocks that only contain an unconditional jump.
-fn eliminate_empty_blocks(func: &mut Function) -> bool {
+fn eliminate_empty_blocks(func: &mut Function, keep_locations: bool) -> bool {
     // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
     // changes neither reachability nor dominance among the other blocks, so one snapshot
     // answers every round; the eliminated block is never a forwarder again.
@@ -667,6 +695,9 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
         for block_id in func.blocks.indices() {
             if empty_forwarder_target(func, block_id).is_none()
                 || (func.blocks[block_id].predecessors.is_empty() && cfg().is_reachable(block_id))
+                || (keep_locations
+                    && (func.blocks[block_id].terminator_metadata.names_source()
+                        || func.blocks[block_id].label_metadata.names_source()))
             {
                 continue;
             }
