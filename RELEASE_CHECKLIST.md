@@ -21,9 +21,11 @@ The release workflow publishes with crates.io trusted publishing, so no
 - [ ] For each crate below, open crates.io → the crate → Settings → Trusted
   Publishing → Add → GitHub, and enter: repository owner `paradigmxyz`,
   repository `solar`, workflow filename `release.yml`, environment `crates-io`.
-  crates.io checks the workflow that the tag push starts (`release.yml`, the
-  caller, from the token's `workflow_ref` claim), not the reusable
-  `publish-crates.yml` that it calls.
+  crates.io matches the `workflow_ref` claim of the OIDC token, which names the
+  top-level workflow that the tag push starts (`release.yml`), even though the
+  publish job is the reusable `publish-crates.yml`; do not enter
+  `publish-crates.yml`. The publish job runs in the `crates-io` environment, so
+  the environment must match exactly.
 - [ ] A new crate needs one manual first publish with an API token before
   crates.io accepts a trusted publisher for it. Every crate below is already
   published.
