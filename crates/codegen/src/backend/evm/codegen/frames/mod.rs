@@ -802,12 +802,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .max(static_end)
                     .checked_add(reachable_heap_prefix_guards.get(&entry).copied().unwrap_or(0))
                     .expect("runtime heap prefix overflow");
-                (
-                    entry,
-                    floor
-                        .max(low_memory_end)
-                        .max(heap_alloc_ends.get(&entry).copied().unwrap_or(0)),
-                )
+                let floor = floor
+                    .max(low_memory_end)
+                    .max(heap_alloc_ends.get(&entry).copied().unwrap_or(0));
+                if floor > EvmMemoryLayout::MAX_HEAP_FLOOR {
+                    gcx.dcx().emit_err(
+                        module.functions[entry].name_span,
+                        "runtime heap prefix exceeds the addressable memory range",
+                    );
+                }
+                (entry, floor)
             })
             .collect();
         // The entries that run a function with a heap floor share one initial pointer, the highest

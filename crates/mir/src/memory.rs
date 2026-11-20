@@ -28,6 +28,9 @@ impl EvmMemoryLayout {
     pub const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub const MAX_ALLOCATION_END: u64 = u64::MAX;
+    /// Highest fixed memory end plus heap guard that a floor may start from, so that adding the
+    /// constructor's argument blob to it still leaves the floor below `2^63`.
+    pub const MAX_HEAP_FLOOR: u64 = 1 << 62;
     /// Largest zero fill of untouched memory that may be dropped. Expanding memory to four times
     /// this size costs about 34 million gas, so a larger fill is what makes an allocation of that
     /// size run out of gas, and it stays.

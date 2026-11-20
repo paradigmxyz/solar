@@ -59,11 +59,8 @@ fn @pairs() {
     v80 = heap_floor !metadata(alloc_ptr)
     v81 = add v80, v46 !metadata(alloc_ptr)
     v101 = shr v81, 64
-    v82 = lt v81, v80
-    v103 = zext i1 v82 to i256
-    v104 = or v101, v103
-    v106 = or v99, v104
-    v98 = ne v106, 0
+    v103 = or v99, v101
+    v98 = ne v103, 0
     jumpi v98, bb8, bb13
   bb13:                                           ; preds = bb7
     mstore 64, v81 !metadata(memory=scratch)

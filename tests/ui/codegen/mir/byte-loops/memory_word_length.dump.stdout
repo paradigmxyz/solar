@@ -26,25 +26,14 @@ fn @copy() {
   bb17:                                           ; preds = bb0
     v128 = heap_floor !metadata(alloc_ptr)
     v129 = add v128, 96 !metadata(alloc_ptr)
-    v145 = shr v129, 64
-    v130 = lt v129, v128
-    v147 = zext i1 v130 to i256
-    v148 = or v145, v147
-    v132 = ne v148, 0
-    jumpi v132, bb19, bb18
-  bb18:                                           ; preds = bb17
     mstore 64, v129 !metadata(memory=scratch)
     mstore v128, 2
     v135 = add v129, 96
-    v150 = shr v135, 64
-    v137 = ne v150, 0
-    jumpi v137, bb19, bb20
-  bb20:                                           ; preds = bb18
     mstore 64, v135 !metadata(memory=scratch)
     v2 = mload v128
     v3 = ne v2, 0
     jumpi v3, bb7, bb6
-  bb7:                                            ; preds = bb20
+  bb7:                                            ; preds = bb17
     v110 = add v128, 32
     mstore v110, 11
     v7 = gt v2, 1
@@ -135,7 +124,7 @@ fn @copy() {
     v36 = mload v129
     v37 = ne v36, 0
     jumpi v37, bb9, bb6
-  bb6 [cold]:                                     ; preds = bb2, bb5, bb7, bb14, bb15, bb20
+  bb6 [cold]:                                     ; preds = bb2, bb5, bb7, bb14, bb15, bb17
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -144,10 +133,6 @@ fn @copy() {
     v40 = mload v114
     mstore 0, v40 !metadata(memory=scratch)
     returndata 0, 32
-  bb19 [cold]:                                    ; preds = bb17, bb18
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb16 [cold]:                                    ; preds = bb0
     revert 0, 0
 }

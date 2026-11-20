@@ -36,20 +36,13 @@ fn @lots() {
   bb10:                                           ; preds = bb0
     v168 = heap_floor !metadata(alloc_ptr)
     v169 = add v168, 96 !metadata(alloc_ptr)
-    v192 = shr v169, 64
-    v170 = lt v169, v168
-    v194 = zext i1 v170 to i256
-    v195 = or v192, v194
-    v172 = ne v195, 0
-    jumpi v172, bb17, bb22
-  bb22:                                           ; preds = bb10
     mstore 64, v169 !metadata(memory=scratch)
     mstore v168, 2
     v181 = add v168, 32
     v184 = add v168, 96
     jump bb1
-  bb1:                                            ; preds = bb2, bb22
-    v182 = phi [bb22: v181], [bb2: v183]
+  bb1:                                            ; preds = bb2, bb10
+    v182 = phi [bb10: v181], [bb2: v183]
     v2 = lt v182, v184
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
@@ -132,6 +125,10 @@ fn @lots() {
     v143 = phi [bb19: v179], [bb20: v159]
     v144 = phi [bb19: v130], [bb20: v142]
     returndata v143, v144
+  bb17 [cold]:                                    ; preds = bb13
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb12:                                           ; preds = bb11
     v84 = mload v82
     mcopy v81, v84, 224 !metadata(memory=heap, disjoint)
@@ -209,10 +206,6 @@ fn @lots() {
     mstore v182, v174
     v183 = add v182, 32
     jump bb1
-  bb17 [cold]:                                    ; preds = bb10, bb13
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb9 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
