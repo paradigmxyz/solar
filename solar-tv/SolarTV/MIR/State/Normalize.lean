@@ -87,6 +87,13 @@ simproc_decl reduceRun (run _ _ _ _) := fun expression => do
   unless (← getNatValue? (← withTransparency .default (whnf position[1]!))).isSome do return .continue
   unless (← getNatValue? (← withTransparency .default (whnf position[2]!))).isSome do return .continue
   let step ← mkAppM ``transition #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
+  -- `mkAppM` leaves the `hash` optParam unapplied, so the step would be a
+  -- function and never reach a known constructor below. Apply its default.
+  let step ← match ← inferType step with
+    | .forallE _ domain _ _ => pure (match domain.getOptParamDefault? with
+        | some value => mkApp step value
+        | none => step)
+    | _ => pure step
   -- A known constructor needs only definitional equality. This avoids unfolding
   -- instruction/type matches under the transition's unapplied continuations.
   let head ← withTransparency .default (whnf step)
