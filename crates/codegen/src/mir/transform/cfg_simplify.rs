@@ -1254,21 +1254,27 @@ fn returns_result(
                 }
                 continue;
             }
-            let (InstKind::ExtractValue { aggregate: operand, .. }
-            | InstKind::InsertValue { value: operand, .. }) = func.inst(inst).kind
-            else {
-                return false;
-            };
-            // An inserted word makes the aggregate it lands in a projection too.
-            if derived.contains(&operand) {
-                derived.extend(result);
-                if matches!(func.inst(inst).kind, InstKind::ExtractValue { .. }) {
+            match func.inst(inst).kind {
+                InstKind::ExtractValue { aggregate, .. } if derived.contains(&aggregate) => {
+                    derived.extend(result);
                     partial.extend(result);
                 }
-            } else if let InstKind::InsertValue { aggregate, .. } = func.inst(inst).kind
-                && derived.contains(&aggregate)
-            {
-                derived.extend(result);
+                // A word of the result goes back into the field it came from, onto an empty
+                // aggregate or one that the earlier words built.
+                InstKind::InsertValue { aggregate, index, value, .. }
+                    if (matches!(func.value(aggregate), Value::Undef(_))
+                        || derived.contains(&aggregate))
+                        && let Value::Inst(word) = *func.value(value)
+                        && let InstKind::ExtractValue {
+                            aggregate: source, index: field, ..
+                        } = func.inst(word).kind
+                        && field == index
+                        && derived.contains(&source) =>
+                {
+                    derived.extend(result);
+                }
+                InstKind::ExtractValue { .. } | InstKind::InsertValue { .. } => {}
+                _ => return false,
             }
         }
         true
