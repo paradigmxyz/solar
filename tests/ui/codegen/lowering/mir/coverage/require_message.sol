@@ -76,6 +76,19 @@ contract RequireMessage {
         require(ok, item.reason);
     }
 
+    // A calldata field checks its offset when it is read, so the counter comes before it.
+    // CHECK-LABEL: fn @calldataField(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: jumpi arg{{[0-9]+}}, [[HELD:bb[0-9]+]],
+    // CHECK: [[HELD]]:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK: icall require<error_string>
+    function calldataField(Item calldata item, bool ok) external pure {
+        require(ok, item.reason);
+    }
+
     // A constant that does not fold panics when it is read, so the counter comes before it.
     // CHECK-LABEL: fn @overflow(
     // CHECK-NEXT: bb0:
