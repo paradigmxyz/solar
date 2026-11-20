@@ -750,7 +750,9 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
                 break;
             }
-            if keeps_locations(module.optimization, &module.blocks[predecessor]) {
+            if keeps_locations(module.optimization, &module.blocks[predecessor])
+                || keeps_locations(module.optimization, &module.blocks[target])
+            {
                 break;
             }
 

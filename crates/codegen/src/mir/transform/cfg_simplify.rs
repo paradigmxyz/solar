@@ -50,7 +50,7 @@
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
-    BlockId, Builtin, Callee, EdgeAssignment, Function, FunctionId, Immediate, InstKind,
+    BlockId, Builtin, Callee, EdgeAssignment, Function, FunctionId, Immediate, InstId, InstKind,
     InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
@@ -80,7 +80,8 @@ impl MirPass for CfgSimplify {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            run_to_fixpoint(func, analyses.optimization().is_none())
+            let keep = analyses.optimization().is_none().then(|| analyses.function());
+            run_to_fixpoint(func, keep)
         })
     }
 }
@@ -111,7 +112,7 @@ impl MirPass for BranchSimplify {
 
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
-    run_to_fixpoint(func, false)
+    run_to_fixpoint(func, None)
 }
 
 /// Function pass that only replaces trivial phis by their unique incoming value.
@@ -245,14 +246,17 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
 ///
-/// `keep_locations` is the `-O none` mode, which follows clang's `-O0`: it removes the
-/// unreachable code, the phis, and the blocks that carry no source location of their own, and
+/// `keep` is the `-O none` mode, which follows clang's `-O0`, and holds the function: it removes
+/// the unreachable code, the phis, and the blocks that carry no source location of their own, and
 /// leaves every other block and branch alone, so that each source construct keeps its block, its
 /// branch, and its location. It never shares equal blocks, folds a branch from the facts that
-/// reach it or from equal targets, or merges a block that names a construct into another.
-fn run(func: &mut Function, keep_locations: bool) -> bool {
+/// reach it or from equal targets, or merges a block that names a construct into another, except
+/// after a call of the function itself, which must stay in tail position: a frame per level would
+/// overflow the EVM stack.
+fn run(func: &mut Function, keep: Option<FunctionId>) -> bool {
+    let keep_locations = keep.is_some();
     let mut changed = simplify_degenerate_terminators(func, keep_locations);
-    changed |= merge_blocks(func, keep_locations);
+    changed |= merge_blocks(func, keep);
     changed |= eliminate_empty_blocks(func, keep_locations);
     if !keep_locations {
         changed |= deduplicate_terminal_blocks(func);
@@ -563,7 +567,7 @@ fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> 
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function, keep_locations: bool) -> bool {
+fn run_to_fixpoint(func: &mut Function, keep: Option<FunctionId>) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -575,7 +579,7 @@ fn run_to_fixpoint(func: &mut Function, keep_locations: bool) -> bool {
     }
 
     let mut changed = false;
-    while run(func, keep_locations) {
+    while run(func, keep) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)
@@ -585,10 +589,10 @@ fn run_to_fixpoint(func: &mut Function, keep_locations: bool) -> bool {
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function, keep_locations: bool) -> bool {
+fn merge_blocks(func: &mut Function, keep: Option<FunctionId>) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
-        while let Some(target) = can_merge(func, block_id, keep_locations) {
+        while let Some(target) = can_merge(func, block_id, keep) {
             do_merge(func, block_id, target);
             merged = true;
         }
@@ -598,7 +602,7 @@ fn merge_blocks(func: &mut Function, keep_locations: bool) -> bool {
 
 /// Checks if block_id can be merged with its successor.
 /// Returns the target block if merge is possible.
-fn can_merge(func: &Function, block_id: BlockId, keep_locations: bool) -> Option<BlockId> {
+fn can_merge(func: &Function, block_id: BlockId, keep: Option<FunctionId>) -> Option<BlockId> {
     let block = &func.blocks[block_id];
 
     let Terminator::Jump(target) = block.terminator.as_ref()? else {
@@ -619,8 +623,9 @@ fn can_merge(func: &Function, block_id: BlockId, keep_locations: bool) -> Option
     }
 
     // The merge drops the jump and the target's label.
-    if keep_locations
+    if let Some(function) = keep
         && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
+        && !block.instructions.last().is_some_and(|&inst| calls_function(func, inst, function))
     {
         return None;
     }
@@ -1158,4 +1163,9 @@ fn constant(func: &Function, value: ValueId, depth: u32) -> Option<U256> {
     })
     .ok()
     .flatten()
+}
+
+/// Returns whether `inst` is a call of `function`.
+fn calls_function(func: &Function, inst: InstId, function: FunctionId) -> bool {
+    matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if *callee == function)
 }
