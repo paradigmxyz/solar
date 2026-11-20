@@ -17,10 +17,11 @@ contract CoalesceAllocsFixture {
         uint256 tag;
     }
 
-    // The dynamic child allocations stay separate. The deferred outer allocation that nothing
-    // reads is removed.
+    // The deferred outer allocation must not coalesce with its dynamic child
+    // allocations.
     // CHECK-LABEL: fn @combine
     // CHECK: [[X:v[0-9]+]] = calldataload 4
+    // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc 96
     // CHECK: [[FIRST:v[0-9]+]] = mload 64
     // CHECK: mstore [[FIRST]], [[X]]
     // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
@@ -28,6 +29,9 @@ contract CoalesceAllocsFixture {
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {
         Outer memory outer = Outer(Inner(x, 1), Inner(2, x), 3);
+        assembly {
+            if iszero(keccak256(outer, 0x60)) { revert(0, 0) }
+        }
         return outer.first.lo + outer.second.hi + outer.tag;
     }
 }

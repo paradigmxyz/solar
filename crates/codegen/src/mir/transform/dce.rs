@@ -6,8 +6,9 @@
 //! prevent removal. Run on either representation, sharing cached module summaries. A mark phase
 //! from instructions that must execute and from terminator operands finds the live values in
 //! linear time, so dead chains and dead phi cycles both go. An unused deferred allocation goes too:
-//! the backend places it statically, so it bumps nothing and cannot fail. Reachability is computed
-//! once.
+//! it cannot fail, and the backend places it in a static region or with a bump that nothing
+//! observes once the pointer is unused; later heap objects may move down by its size.
+//! Reachability is computed once.
 
 use crate::mir::{
     Callee, Function, InstId, InstKind, Module, Value,
@@ -59,8 +60,7 @@ fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> u
         let inst = func.inst(inst_id);
         let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
             if summaries.get(*function).is_some_and(|summary| summary.can_discard_call()));
-        // A deferred allocation reserves a static region and never fails, so it has no effect once
-        // nothing uses its pointer.
+        // A deferred allocation never fails, so it has no effect once nothing uses its pointer.
         let deferred_alloc =
             matches!(inst.kind, InstKind::Alloc { .. }) && inst.metadata.deferred_alloc();
         if !inst.kind.has_side_effects() || discardable_call || deferred_alloc {
