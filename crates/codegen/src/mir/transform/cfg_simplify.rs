@@ -60,7 +60,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
@@ -654,7 +654,7 @@ fn can_merge(
     if let Some(component) = keep
         && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
         && !last_call(func, block).is_some_and(|inst| {
-            calls_function(func, inst, component) && returns_result(func, inst, *target)
+            calls_function(func, inst, component) && returns_result(func, block, inst, *target)
         })
     {
         return None;
@@ -1210,19 +1210,43 @@ fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<Functio
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
 }
 
-/// Returns whether the blocks from `block` on only jump and return the result of `call`, and
-/// each has no other predecessor, so that all of them merge into the call's block.
-fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
-    let result = func.inst_result_value(call);
+/// Returns whether the blocks after `call` only project its result, jump, and return what they
+/// project, and each has no other predecessor, so that all of them merge into the call's block.
+fn returns_result(
+    func: &Function,
+    source: &crate::mir::BasicBlock,
+    call: InstId,
+    target: BlockId,
+) -> bool {
+    let mut derived = FxHashSet::default();
+    derived.extend(func.inst_result_value(call));
+    let mut project = |instructions: &[InstId]| {
+        for &inst in instructions {
+            let (InstKind::ExtractValue { aggregate: operand, .. }
+            | InstKind::InsertValue { value: operand, .. }) = func.inst(inst).kind
+            else {
+                return false;
+            };
+            // An inserted word makes the aggregate it lands in a projection too.
+            if derived.contains(&operand) {
+                derived.extend(func.inst_result_value(inst));
+            } else if let InstKind::InsertValue { aggregate, .. } = func.inst(inst).kind
+                && derived.contains(&aggregate)
+            {
+                derived.extend(func.inst_result_value(inst));
+            }
+        }
+        true
+    };
+    let at = source.instructions.iter().position(|&inst| inst == call).expect("call in block");
+    // Only the projections of the result follow the call in its block.
+    if !project(&source.instructions[at + 1..]) {
+        return false;
+    }
+    let mut block = target;
     for _ in 0..func.blocks.len() {
         let data = &func.blocks[block];
-        // Rebuilding the call's aggregate result emits no code.
-        if !data.instructions.iter().all(|&inst| {
-            matches!(
-                func.inst(inst).kind,
-                InstKind::InsertValue { .. } | InstKind::ExtractValue { .. }
-            )
-        }) {
+        if !project(&data.instructions) {
             return false;
         }
         match &data.terminator {
@@ -1230,14 +1254,11 @@ fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
                 block = *next
             }
             Some(Terminator::Return { values }) => {
-                // A call with several results returns them through its projections, or as one
-                // aggregate.
-                return values.len() > 1
-                    || matches!(func.inst(call).result_ty, Some(MirType::Struct(_)))
-                    || match result {
-                        Some(result) => values.as_slice() == [result],
-                        None => values.is_empty(),
-                    };
+                return if values.is_empty() {
+                    func.inst_result_value(call).is_none()
+                } else {
+                    values.iter().all(|value| derived.contains(value))
+                };
             }
             _ => return false,
         }
