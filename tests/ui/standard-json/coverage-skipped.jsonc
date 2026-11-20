@@ -3,7 +3,9 @@
 // counters: the `then` block of `if (false)`, the `else` operand `2` of `true ? x : 2`, and the
 // right operand and the `then` statement of `false && a`. The right operand `b` of `true || b` is
 // skipped, and the `then` statement runs as often as the statement. A constant has no branch
-// region.
+// region. The operand that a constant condition selects has no counter and counts as the code
+// around it, since lowering may fold it, as it folds `true ? "a" : "b"` in a `require` or `revert`
+// message to bytes; `"b"` is skipped.
 // CHECK: "name": "A.sol:S.f(bool,bool,uint256)",
 // CHECK: {{^ *2,$}}
 // CHECK-NEXT: 0,
@@ -25,11 +27,21 @@
 // CHECK-NEXT: 0,
 // CHECK-NEXT: 220,
 // CHECK-NEXT: 1
+// CHECK: "name": "A.sol:S.h(bool)",
+// CHECK-NOT: {{^ *303,$}}
+// CHECK: {{^ *309,$}}
+// CHECK-NEXT: {{^ *3$}}
+// CHECK-NEXT: ]
+// CHECK: "name": "A.sol:S.k(bool)",
+// CHECK-NOT: {{^ *391,$}}
+// CHECK: {{^ *397,$}}
+// CHECK-NEXT: {{^ *3$}}
+// CHECK-NEXT: ]
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract S {\n    function f(bool a, bool b, uint256 x) external pure returns (uint256 r) {\n        if (false) {\n            r = 1;\n        }\n        r += true ? x : 2;\n        if (false && a) r += 1;\n        if (true || b) r += 2;\n    }\n}\n"
+      "content": "contract S {\n    function f(bool a, bool b, uint256 x) external pure returns (uint256 r) {\n        if (false) {\n            r = 1;\n        }\n        r += true ? x : 2;\n        if (false && a) r += 1;\n        if (true || b) r += 2;\n    }\n\n    function h(bool c) external pure {\n        require(c, true ? \"a\" : \"b\");\n    }\n\n    function k(bool c) external pure {\n        if (!c) revert(true ? \"a\" : \"b\");\n    }\n}\n"
     }
   },
   "settings": {

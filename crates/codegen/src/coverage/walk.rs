@@ -878,6 +878,13 @@ impl<'gcx> Walker<'gcx> {
         let _ = Visit::visit_expr(self, expr);
     }
 
+    /// Runs `f` inside a code region of `count`.
+    fn within(&mut self, count: Count, f: impl FnOnce(&mut Self)) {
+        self.rec.enclosing.push(count);
+        f(self);
+        self.rec.enclosing.pop();
+    }
+
     /// Returns the constant a boolean expression folds to.
     fn constant(&self, expr: &hir::Expr<'_>) -> Option<bool> {
         self.gcx
@@ -1030,13 +1037,13 @@ impl<'gcx> Walker<'gcx> {
             Node::And(lhs, rhs, op) => {
                 self.branches(lhs, op.r.clone(), mcdc);
                 self.region(op.rhs.span, RegionKind::Code(op.r.clone()));
-                self.branches(rhs, holds, mcdc);
+                self.within(op.r.clone(), |this| this.branches(rhs, holds, mcdc));
             }
             Node::Or(lhs, rhs, op) => {
                 let lhs_holds = lhs.completed().sub(op.r.clone());
                 self.branches(lhs, lhs_holds.clone(), mcdc);
                 self.region(op.rhs.span, RegionKind::Code(op.r.clone()));
-                self.branches(rhs, holds.sub(lhs_holds), mcdc);
+                self.within(op.r.clone(), |this| this.branches(rhs, holds.sub(lhs_holds), mcdc));
             }
         }
     }
@@ -1049,17 +1056,17 @@ impl<'gcx> Walker<'gcx> {
     ) {
         match self.decision(cond, Site::Arm(Site::expr(then_expr))) {
             Outcome::Branch { completed, taken } => {
+                let remaining = completed.sub(taken.clone());
                 self.region(then_expr.span, RegionKind::Code(taken.clone()));
-                self.region(else_expr.span, RegionKind::Code(completed.sub(taken)));
-                self.expr(then_expr);
-                self.expr(else_expr);
+                self.region(else_expr.span, RegionKind::Code(remaining.clone()));
+                self.within(taken, |this| this.expr(then_expr));
+                self.within(remaining, |this| this.expr(else_expr));
             }
-            // The path taken counts for itself, as a constant condition has no count to share.
+            // The path taken runs as often as the code around it, since lowering may fold it into
+            // a value, such as the bytes of a revert message, and leave no probe.
             Outcome::Folded(holds) => {
                 let (live, dead) =
                     if holds { (then_expr, else_expr) } else { (else_expr, then_expr) };
-                let count = self.counter(Site::Arm(Site::expr(live)));
-                self.region(live.span, RegionKind::Code(count));
                 self.skipped(dead.span);
                 self.expr(live);
             }
