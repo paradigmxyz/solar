@@ -482,9 +482,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub keep_asts: bool,
 
-    /// Instrument generated code with coverage counters. Each counter is a `PUSHn <id>; 0xC2`
-    /// probe, which only coverage tools such as Foundry execute; the Standard JSON output maps
-    /// counters to functions, statements, and branches in each source's `coverage`.
+    /// Instrument generated code with coverage counters. Each counter is a `0xC2; PUSHn <id>`
+    /// probe, which only coverage tools such as Foundry execute: they read the ID from the push
+    /// and skip it. The Standard JSON output maps counters to functions, statements, and branches
+    /// in each source's `coverage`.
     #[cfg_attr(feature = "clap", arg(long))]
     pub instrument_coverage: bool,
 
