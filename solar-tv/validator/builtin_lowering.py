@@ -638,7 +638,17 @@ def prove(code, timeout, module="SolarTV", proof_path=None):
     )
 
 
-def check(paths, solar, executable, version, timeout, function, *, final_call=None):
+def check(
+    paths,
+    solar,
+    executable,
+    version,
+    timeout,
+    function,
+    *,
+    final_call=None,
+    proof_path=None,
+):
     texts, models, declarations = load_pair(paths, solar, executable, version, timeout)
     bodies = list(map(functions, models))
     if any(
@@ -762,13 +772,13 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
                             ),
                             "builtin expansion needs available opcodes independent of the code image",
                         )
-    prove(code, timeout, module, final_call["proof"] if final_call else None)
+    prove(code, timeout, module, final_call["proof"] if final_call else proof_path)
     if final_call and final_call.get("caller_entry"):
         from . import caller_entry
 
         runtime, directory, worlds = final_call["caller_entry"]
         artifact = final_call["artifact"]
-        paths, suite = caller_entry.check(
+        entry_paths, suite, context = caller_entry.check(
             runtime,
             artifact["entry_pc"],
             final_call["callers"],
@@ -779,6 +789,16 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
             timeout,
             worlds,
         )
+        transfer = directory / "MIRSafeTransfer.lean"
+        check(
+            paths,
+            solar,
+            executable,
+            version,
+            timeout,
+            "safeTransfer",
+            proof_path=transfer,
+        )
         artifact["abi_entry"] = {
             "scope": "concrete Cancun worlds from ABI dispatch to exit via the helper",
             "reachability": "lean-kernel",
@@ -787,8 +807,13 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
             "end_to_end": "lean-kernel",
             "independent_replay": "lean-and-rust-replay",
             "snapshot_live_ins": "lean-kernel",
-            "paths": paths,
+            "paths": entry_paths,
             "proof": suite,
+            "shared_mir_context": context,
+            "safe_transfer_call": {
+                "proof": transfer.name,
+                "scope": "local CALL and returndata expansion with a shared incoming budget",
+            },
         }
 
     pair = tuple(

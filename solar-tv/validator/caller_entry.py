@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from . import (
+    caller_context,
     caller_replay,
     collateral_mir,
     collateral_proof,
@@ -290,6 +291,9 @@ def check(
     catalog = {
         row["opcode"]: row for row in native.catalog(executable, timeout)["evmir"]
     }
+    context = caller_context.certify(
+        kernel, tables, sites, {row["name"]: row for row in catalog.values()}, timeout
+    )
     for site in sites:
         state = fixtures(runtime, site, directory, solar, timeout, worlds)
         observed = replay(state, helper_pc, executable, timeout)
@@ -421,4 +425,4 @@ def check(
             "gas": observed["gas"],
             "steps": len(observed["pcs"]),
         }
-    return evidence, entry_proof.certify_suite(kernel, evidence, timeout)
+    return evidence, entry_proof.certify_suite(kernel, evidence, timeout), context

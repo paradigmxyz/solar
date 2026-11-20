@@ -762,6 +762,24 @@ one-gas-short store. It also checks the actual callback's forwarded gas
 and that a reverted callback restores the position and discards the log.
 The symbolic certificate ends at the first store.
 
+`MorphoCallContext.lean` checks the full captured MIR tables in one proof
+for all five callers. Each unchanged body is equal and every replacement
+retains its call signature and return-buffer identity. The shared
+interpreter runs to the first replacement or a terminal result, carrying
+the complete machine and residual work fuel. The composition theorem
+has an explicit obligation at that cut. Checked local segments can
+resume each side at its own residual work fuel. The capture identifies
+`safeTransferFrom`, `safeTransfer`, and `setAuthorizationWithSig` as the
+replacement bodies. The `safeTransfer` CALL and returndata expansion has
+a separate local certificate with a shared incoming budget.
+
+The CALL debit lemma relates the EVM input and output memory steps to
+MIR's cumulative debit. It covers both unpaid legs, including an input
+that fits the budget and an output that does not. The existing
+`safeTransferFrom` proof instantiates it using the active memory derived
+from the emitted setup. Other incoming budgets and the continuation
+obligations at reachable replacements remain to be discharged.
+
 The concrete ABI-to-exit certificates compose both segments for the
 supplied input, resume with the exact residual gas, and then
 prove reachability in the emitted runtime and both captured MIR bodies.

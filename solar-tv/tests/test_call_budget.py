@@ -16,6 +16,7 @@ from validator import (
     builtin_lowering,
     call_budget,
     call_tail,
+    caller_context,
     caller_entry,
     caller_replay,
     callers,
@@ -123,6 +124,17 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(entry_report["snapshot_live_ins"], "lean-kernel")
             self.assertEqual(entry_report["end_to_end"], "lean-kernel")
             self.assertTrue((output / "entry" / entry_report["proof"]).is_file())
+            context = entry_report["shared_mir_context"]
+            self.assertEqual(
+                set(context["replacements"]),
+                {"safeTransfer", "safeTransferFrom", "setAuthorizationWithSig"},
+            )
+            self.assertTrue((output / "entry" / context["proof"]).is_file())
+            self.assertTrue(
+                (
+                    output / "entry" / entry_report["safe_transfer_call"]["proof"]
+                ).is_file()
+            )
             entry = entry_report["paths"]
             self.assertEqual(set(entry), set(report["caller_replays"]))
             for site in report["callers"]:
@@ -369,12 +381,28 @@ example : afterTailCut.gas = 0 :=
                 "cancun",
                 30,
             )
+            tables = list(map(builtin_lowering.functions, models))
+            sites = [callers.Site(**row) for row in report["callers"]]
+            invalid = {
+                **tables[1],
+                "safeTransfer": {
+                    **tables[1]["safeTransfer"],
+                    "returns": [builtin_lowering.word()],
+                },
+            }
+            catalog = {op["name"]: op for op in native.catalog(executable, 30)["evmir"]}
+            mismatch, _ = caller_context.source([tables[0], invalid], sites, catalog)
+            rejected_context = entry_proof.lean(
+                Path(work), "ChangedCallSignature", mismatch, 60
+            )
+            self.assertNotEqual(rejected_context.returncode, 0)
+            self.assertIn("signature", rejected_context.stdout)
             source = caller_entry.replay_source(
                 state,
                 runtime,
                 report["entry_pc"],
                 callers.Site(**report["callers"][0]),
-                list(map(builtin_lowering.functions, models)),
+                tables,
                 SOLAR,
                 executable,
                 30,

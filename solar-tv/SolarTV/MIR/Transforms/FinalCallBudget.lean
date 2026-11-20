@@ -1,5 +1,6 @@
 import SolarTV.MIR.Transforms.LowerReturndata
 import SolarTV.EVMIR.Transforms.CallBudget
+import SolarTV.MIR.Transforms.CallDebit
 
 /-! Relate a priced final-bytecode CALL to the captured MIR cut. The incoming
 gas is that of the internal helper. TransferFromFrame relates the shared
@@ -105,37 +106,42 @@ theorem samples (trace : Trace) (shape : trace = referenceTrace 6)
 /-- At the corresponding prepared MIR frame the guard has warmed the token,
 and the encoded object covers the CALL's whole input. There is no delegation
 charge in Cancun, no output expansion, and no value stipend. -/
-theorem preparedPrice (trace : Trace) (shape : trace = referenceTrace 6)
+private theorem preparedPrice (trace : Trace) (shape : trace = referenceTrace 6)
     (entry : Entry) (heap : 128 ≤ entry.fmp) (limit : entry.gas ≤ 30000000)
     (sample available child retained words : Nat)
     (reaches : EVM.CallBudget.run trace entry = .call sample available child retained words)
-    (cfg : Config) (fork : cfg.fork = .cancun) (frame prepared : Frame)
+    (cfg : Config) (fork : cfg.fork = .cancun) (frame : Frame)
     (ext : EVM.State.Config) (extFork : ext.fork = .cancun)
-    (journal : Journal) (target : Address) (input memory : List Byte)
-    (warm : prepared.world = warmAddress journal target)
-    (sameIndex : prepared.messageGas.length = frame.messageGas.length)
-    (sameWords : memoryWords memory = memoryWords prepared.memory) :
-    callBudget (withBudget cfg frame sample) prepared ext memory ⟨.call,target,0,input⟩
-      0xf1 (EVM.State.executionCode cfg.fork prepared.world target).2.1
+    (journal : Journal) (target : Address) (input : List Byte) (offset : Nat)
+    (warm : frame.world = warmAddress journal target)
+    (payload : expand frame.memory offset 100 = .ok frame.memory)
+    (noOutput : expand frame.memory 0 0 = .ok frame.memory) :
+    callBudget (withBudget cfg frame sample) frame ext frame.memory ⟨.call,target,0,input⟩
+      0xf1 (EVM.State.executionCode cfg.fork frame.world target).2.1
       (some (BitVec.ofNat 256 sample)) = .ok (some (child,retained)) := by
   obtain ⟨sampled,availableEq,_,paid,net,_⟩ :=
     samples trace shape entry heap sample available child retained words 0 reaches (Nat.zero_le _)
   have sampleWord : (BitVec.ofNat 256 sample).toNat = sample := by
     simp [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : sample < 2^256)]
-  have resolution : (EVM.State.executionCode .cancun prepared.world target).2.1 = 0 := by
+  have resolution : (EVM.State.executionCode cfg.fork frame.world target).2.1 = 0 := by
+    rw [fork]
     simp [EVM.State.executionCode, EVM.State.delegationTarget, Fork.atLeast, Fork.ordinal]
-  have fee : EVM.State.callBoundaryCharge ext prepared.world ⟨.call,target,0,input⟩
-      0xf1 0 (memoryWords prepared.memory) (memoryWords memory) = 100 := by
-    rw [sameWords,warm]
-    exact EVM.CallBudget.warmCall ext journal target input _ extFork
+  have fee : EVM.State.callBoundaryCharge ext frame.world ⟨.call,target,0,input⟩
+      0xf1 0 0 0 = 100 := by
+    rw [warm]
+    exact EVM.CallBudget.warmCall ext journal target input 0 extFork
   have cap := EVM.CallBudget.earlierRequest entry 6 sample available child retained words
     (beforeCall entry 6) ((EVM.CallBudget.exact entry heap 6).symm.trans (shape ▸ reaches))
     (Nat.le_refl _)
   rw [← sampled,availableEq] at cap
   rw [availableEq] at net
-  simp only [callBudget, withBudget, sameIndex, budgetEntry, required, Bind.bind, Except.bind,
-    fork, resolution, fee, Nat.not_lt.mpr paid, ite_false, Option.map_some, Option.getD_some,
-    sampleWord]
+  rw [resolution, CallDebit.budget_eq (withBudget cfg frame sample) ext frame
+    ⟨.call,target,0,input⟩ 0xf1 0 frame.memory frame.memory offset 100 0 0 _
+    (BitVec.ofNat 256 sample) sample rfl (budgetEntry frame sample) (fork.trans extFork.symm)
+    payload noOutput]
+  simp only [fee, CallDebit.memoryCharge_zero _ _ _ payload,
+    CallDebit.memoryCharge_zero _ _ _ noOutput, Nat.add_zero, EVM.CallBudget.charged,
+    paid, ite_true, Nat.sub_zero, Option.bind_some, extFork, sampleWord]
   change Except.ok ((Calls.forwardGas .cancun (sample-100) sample false).map
     (fun b => (b.supplied,sample-100-b.charged))) = _
   simp [cap, net]
@@ -229,7 +235,8 @@ theorem readyPrice (trace : Trace) (shape : trace = referenceTrace 6)
   have zeroNat : (0 : Word).toNat = 0 := rfl
   simp only [lengthNat, zeroNat, payload, noOutput]
   exact preparedPrice trace shape entry heap limit sample available child retained words reaches
-    cfg fork frame frame ext extFork ready.journal (target.setWidth 160)
-    (readBytes frame.memory (object+32).toNat 100) frame.memory ready.warm rfl rfl
+    cfg fork frame ext extFork ready.journal (target.setWidth 160)
+    (readBytes frame.memory (object+32).toNat 100) (object+32).toNat
+    ready.warm payload noOutput
 
 end SolarTV.MIR.FinalCallBudget
