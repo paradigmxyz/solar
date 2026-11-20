@@ -580,7 +580,14 @@ impl<'a> Verifier<'a> {
                     let effect = inst.stack_effect();
                     self.apply_effect(reported, block_id, inst.mnemonic(), effect, &mut stack)?;
                 }
-                note_overflow(&mut overflow, inst.mnemonic(), stack);
+                // The instrumenting EVM skips the counter push of a probe.
+                let counter = block
+                    .instructions
+                    .get(index + 1)
+                    .is_some_and(|next| next.opcode == op::COVERAGE && inst.keeps_with_next());
+                if !counter {
+                    note_overflow(&mut overflow, inst.mnemonic(), stack);
+                }
                 if inst.opcode == op::JUMPI
                     && let Some(target) = branch_target(block, index)
                 {
@@ -1097,7 +1104,21 @@ fn reach_blocks(module: &Module, sink: impl Fn(&Block) -> bool) -> DenseBitSet<B
 /// Returns the block that the `JUMPI` at `at` branches to, when the instruction before it pushes
 /// one.
 fn branch_target(block: &Block, at: usize) -> Option<BlockId> {
-    at.checked_sub(1).and_then(|previous| block.instructions[previous].pushed_block())
+    let mut previous = at.checked_sub(1)?;
+    // A coverage probe, `push <id>; coverage`, changes no stack, so the target is pushed before it.
+    while block.instructions[previous].opcode == op::COVERAGE {
+        previous = previous.checked_sub(2)?;
+    }
+    block.instructions[previous].pushed_block()
+}
+
+/// Returns the instruction that runs after the one at `at`, past coverage probes.
+fn next_after_probes(block: &Block, at: usize) -> Option<&Instruction> {
+    let mut next = at + 1;
+    while block.instructions.get(next + 1).is_some_and(|inst| inst.opcode == op::COVERAGE) {
+        next += 2;
+    }
+    block.instructions.get(next)
 }
 
 /// Returns whether `block` can end in a jump or a branch through a stack value.
@@ -1122,9 +1143,7 @@ fn unmodeled_pushes(module: &Module, flows: &IndexVec<BlockId, LabelFlow>) -> Ve
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(target) = inst.pushed_block()
-                && !block
-                    .instructions
-                    .get(at + 1)
+                && !next_after_probes(block, at)
                     .is_some_and(|next| matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI)))
                 && !flows[block_id].accounted.contains(&at)
             {
