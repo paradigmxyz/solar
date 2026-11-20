@@ -40,7 +40,7 @@ pub(crate) fn integer_mask(bits: u32) -> U256 {
 /// A constant allocation size then bumps it without wrapping. This bounds the compiler's floor,
 /// not a free-memory-pointer slot that assembly writes.
 pub(crate) fn heap_floor_bounds() -> (U256, U256) {
-    (U256::from(EvmMemoryLayout::HEAP_START), U256::ONE << 63)
+    (U256::from(EvmMemoryLayout::HEAP_START), U256::from(EvmMemoryLayout::MAX_HEAP_FLOOR) << 1)
 }
 
 pub(crate) fn unsigned_bounds(func: &Function, value: ValueId) -> (U256, U256) {

@@ -4,7 +4,7 @@
 //@[run] compile-flags: -Ogas
 //@[run] run-call: copy => 304
 //@[run] run-call: keep 4 => 5
-//@[run] run-call-fail: grow 0xffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[run] run-call-fail: grow 0xffffffffffffffff => Panic(0x41)
 // An allocation that starts at the heap floor and has a constant size cannot overflow the 64-bit
 // allocation limit, since codegen keeps the floor far below `2^64`. The copy of a storage struct
 // reads its source into an allocation that lowering turns into plain loads and stores, and the
