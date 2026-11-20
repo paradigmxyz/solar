@@ -40,6 +40,13 @@
 //! no counter sits on the edge and the code needs no extra jump. A condition that reverts takes
 //! neither side.
 //!
+//! A `!` over an `&&` or `||` inside a decision moves down to the leaves, as `!(a && b)` is
+//! `!a || !b`, which keeps the order of evaluation. A leaf under an odd number of them is a
+//! negated condition, which holds when its expression is false, so its branch region counts the
+//! times the expression was false as true. LLVM takes the value of the last condition evaluated
+//! as the outcome of an MC/DC decision, and this keeps that value the outcome. A leading `!` is
+//! not part of the decision, which starts at the first `&&` or `||`.
+//!
 //! # Modifiers
 //!
 //! Each invocation of a modifier lowers the body once more, so it has counters of its own, inside
@@ -85,8 +92,9 @@
 //! probe, `COVERAGE; PUSH4 <probe>` with bit 31 of the probe set. Bits 30 and 29 are the operation,
 //! `0` to begin, `1` to add, and `2` to end the decision; bits 28 to 8 are its ID, and bits 7 to 0
 //! the weight an add carries. A decision begins before its first condition, adds the weight of each
-//! condition that holds, and ends once its value is known, so the sum of the weights is the index
-//! of the test vector the run took.
+//! leaf that is true, and ends once its value is known, so the sum of the weights is the index of
+//! the test vector the run took. The true edge of a condition carries the weight, and the false
+//! edge of a negated one.
 //!
 //! Sites are keyed by the address of their HIR node, which lowering reaches through the same arena
 //! references. A counter whose site lowering never reaches stays at zero, as for code that is

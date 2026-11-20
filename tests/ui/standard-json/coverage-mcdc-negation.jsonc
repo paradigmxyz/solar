@@ -1,0 +1,89 @@
+//@ filecheck: --match-full-lines
+// LLVM takes the value of the last condition evaluated as the outcome of an MC/DC decision, so a
+// `!` over an `&&` or `||` moves down to the leaves: `a && !(b && c)` is `a && (!b || !c)`. A
+// negated condition leads on as its negation does, and its branch region counts the times its
+// expression was false as true, with `R`, the counter of the right operand `c`, as how often `b`
+// was true. A `!` on a leaf is part of the leaf, so `!b` in `a && !b` is a plain condition.
+// CHECK-LABEL: "name": "A.sol:M.leaf(bool,bool)",
+// The code region of `!b`, then its branch region, `[6, 0, 100, 2, true, false, 1, -1, -1]`.
+// CHECK: 100,
+// CHECK: 100,
+// CHECK-NEXT: 2,
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: 1,
+// CHECK-NEXT: -1,
+// CHECK-NEXT: -1
+// CHECK: "vectors": [
+// CHECK-NEXT: "F-F",
+// CHECK-NEXT: "TFF",
+// CHECK-NEXT: "TTT"
+// CHECK-NEXT: ]
+// CHECK-LABEL: "name": "A.sol:M.group(bool,bool,bool)",
+// CHECK: "expressions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: {{[0-9]+}}
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: [[VB:[0-9]+]],
+// CHECK-NEXT: [[R:[0-9]+]]
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: [[VB]],
+// CHECK-NEXT: 6
+// CHECK-NEXT: ],
+// The branch region of `b`, which holds when `b` is false and then ends the decision, and goes on
+// to `!c` when `b` is true: `[6, 0, 240, 1, V(b) - R, V(b) - (V(b) - R), 1, 2, -1]`, where `6` is
+// expression 1 and `10` expression 2.
+// CHECK: 240,
+// CHECK-NEXT: 1,
+// CHECK-NEXT: 6,
+// CHECK-NEXT: 10,
+// CHECK-NEXT: 1,
+// CHECK-NEXT: 2,
+// CHECK-NEXT: -1
+// The code region of `c`, which counts `R`, then its branch region, which ends the decision either
+// way.
+// CHECK: 245,
+// CHECK-NEXT: 1,
+// CHECK-NEXT: [[R]]
+// CHECK: 245,
+// CHECK-NEXT: 1,
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: {{[0-9]+}},
+// CHECK-NEXT: 2,
+// CHECK-NEXT: -1,
+// CHECK-NEXT: -1
+// Each outcome is the value of the last condition: `!b` adds nothing when it holds, and `b` adds
+// 1 on the path to `!c`.
+// CHECK: "vectors": [
+// CHECK-NEXT: "F--F",
+// CHECK-NEXT: "TT-T",
+// CHECK-NEXT: "TFTT",
+// CHECK-NEXT: "TFFF"
+// CHECK-NEXT: ]
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract M {\n    function leaf(bool a, bool b) external pure returns (uint256 r) {\n        if (a && !b) {\n            r = 1;\n        }\n    }\n\n    function group(bool a, bool b, bool c) external pure returns (uint256 r) {\n        if (a && !(b && c)) {\n            r = 1;\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage",
+        "coverage-mcdc"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

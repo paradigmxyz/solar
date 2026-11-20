@@ -4,9 +4,17 @@
 //! the order the source evaluates them, leads on to the next condition or ends the decision with
 //! an outcome, depending on its own outcome. A path through the graph is one test vector, and
 //! Ball–Larus numbering gives each path a number below the count of paths without a table of
-//! them: the false edge of a condition adds 0 and the true edge adds the paths of the false
-//! edge's target, so the numbers along a path sum to its index. The true edge is the only one
-//! that needs a probe.
+//! them: one edge of a condition adds 0 and the other adds the paths of the first edge's target,
+//! so the numbers along a path sum to its index. Only the edge that adds needs a probe.
+//!
+//! LLVM's regions give each condition the IDs of the conditions its outcomes lead to, or `-1`,
+//! and take the value of the last condition evaluated as the outcome of the decision. So no `!`
+//! may sit between a condition and the decision: the graph pushes each `!` down to the leaves,
+//! as `!(x && y)` is `!x || !y`, `!(x || y)` is `!x && !y`, and `!!x` is `x`, which keeps the
+//! order of evaluation and the short circuits. A leaf under an odd number of `!` is a negated
+//! condition: it holds when its expression is false. The probe of a leaf sits where its
+//! expression is true, so that edge is the one that adds: the true edge of a condition, and the
+//! false edge of a negated one.
 //!
 //! A decision with more test vectors than [`MAX_VECTORS`] gets no MC/DC probes.
 
@@ -44,9 +52,12 @@ impl Next {
 #[derive(Clone, Copy)]
 struct Edges {
     leaf: usize,
+    /// Whether the condition holds when its leaf is false.
+    negated: bool,
     when_false: Next,
     when_true: Next,
-    /// The paths that start at the target of the false edge, which the true edge adds.
+    /// The paths that start at the target of the edge where the leaf is false, which the edge
+    /// where it is true adds.
     weight: usize,
 }
 
@@ -62,7 +73,7 @@ pub(super) struct Condition {
     pub(super) id: u32,
     pub(super) false_next: i32,
     pub(super) true_next: i32,
-    /// The index the true outcome adds.
+    /// The index the leaf adds when it is true.
     pub(super) weight: u32,
 }
 
@@ -94,13 +105,14 @@ pub(super) fn graph(root: &Cond) -> Option<Graph> {
     let mut edges = vec![
         Edges {
             leaf: 0,
+            negated: false,
             when_false: Next::Outcome(false),
             when_true: Next::Outcome(true),
             weight: 0
         };
         leaves.len()
     ];
-    build(root, Next::Outcome(true), Next::Outcome(false), &index, &mut edges);
+    build(root, Next::Outcome(true), Next::Outcome(false), false, &index, &mut edges);
 
     // A condition leads only to later conditions, so number the paths from the last.
     let mut paths = vec![0; edges.len()];
@@ -109,8 +121,11 @@ pub(super) fn graph(root: &Cond) -> Option<Graph> {
             Next::Cond(next) => paths[next],
             Next::Outcome(_) => 1,
         };
-        let weight = count(edges[cond].when_false);
-        paths[cond] = (weight + count(edges[cond].when_true)).min(MAX_VECTORS + 1);
+        let Edges { negated, when_false, when_true, .. } = edges[cond];
+        let (leaf_false, leaf_true) =
+            if negated { (when_true, when_false) } else { (when_false, when_true) };
+        let weight = count(leaf_false);
+        paths[cond] = (weight + count(leaf_true)).min(MAX_VECTORS + 1);
         edges[cond].weight = weight;
     }
     if paths[0] > MAX_VECTORS {
@@ -134,29 +149,32 @@ fn collect(cond: &Cond, leaves: &mut Vec<usize>) {
     }
 }
 
-/// Wires `cond`, whose evaluation ends in `when_true` or `when_false`, and returns where it
-/// starts.
+/// Wires `cond`, whose evaluation goes on to `when_true` when it is true and to `when_false`
+/// when it is false, under an odd number of `!` if `negated`, and returns where it starts.
 fn build(
     cond: &Cond,
     when_true: Next,
     when_false: Next,
+    negated: bool,
     index: &FxHashMap<usize, usize>,
     edges: &mut [Edges],
 ) -> Next {
     match cond {
         Cond::Leaf(leaf) => {
             let cond = index[leaf];
-            edges[cond] = Edges { leaf: *leaf, when_false, when_true, weight: 0 };
+            let (when_true, when_false) =
+                if negated { (when_false, when_true) } else { (when_true, when_false) };
+            edges[cond] = Edges { leaf: *leaf, negated, when_false, when_true, weight: 0 };
             Next::Cond(cond)
         }
-        Cond::Not(cond) => build(cond, when_false, when_true, index, edges),
+        Cond::Not(cond) => build(cond, when_false, when_true, !negated, index, edges),
         Cond::And(lhs, rhs) => {
-            let rhs = build(rhs, when_true, when_false, index, edges);
-            build(lhs, rhs, when_false, index, edges)
+            let rhs = build(rhs, when_true, when_false, negated, index, edges);
+            build(lhs, rhs, when_false, negated, index, edges)
         }
         Cond::Or(lhs, rhs) => {
-            let rhs = build(rhs, when_true, when_false, index, edges);
-            build(lhs, when_true, rhs, index, edges)
+            let rhs = build(rhs, when_true, when_false, negated, index, edges);
+            build(lhs, when_true, rhs, negated, index, edges)
         }
     }
 }
@@ -177,10 +195,12 @@ fn vector(
         }
         Next::Cond(cond) => {
             let edge = edges[cond];
+            let (true_weight, false_weight) =
+                if edge.negated { (0, edge.weight) } else { (edge.weight, 0) };
             state[cond] = 'T';
-            vector(edges, edge.when_true, index + edge.weight, state, vectors);
+            vector(edges, edge.when_true, index + true_weight, state, vectors);
             state[cond] = 'F';
-            vector(edges, edge.when_false, index, state, vectors);
+            vector(edges, edge.when_false, index + false_weight, state, vectors);
             state[cond] = '-';
         }
     }

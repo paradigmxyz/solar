@@ -15,7 +15,8 @@
 //! operand of `&&` the true count of the `&&`, and of the right operand of `||` the true count of
 //! the `||` minus that of its left operand, which is the completions of the left operand minus
 //! `R`. The false count of a leaf is its completions minus its true count, so a leaf that reverts
-//! takes neither side.
+//! takes neither side. Under a `!` the roles swap: the true count of the subtree is how often it
+//! was false, and `!(a && b)` counts like `!a || !b`.
 //!
 //! A constant left operand removes the operator: `true && b` is `b`, and `false && b` is the
 //! constant `false`, whose right operand is skipped. A constant decision has no branch, since
@@ -971,22 +972,23 @@ impl<'gcx> Walker<'gcx> {
         }
         let taken = self.counter(consumer);
         let completed = tree.completed();
-        let mcdc = self.mcdc(&tree);
-        self.branches(&tree, taken.clone(), mcdc.as_ref());
+        // The decision ends where its value is known, which a leading `!` does not change, so it
+        // starts at the first `&&` or `||`, and its conditions are those of that operator.
+        let mut root = &tree;
+        let mut holds = taken.clone();
+        while let Node::Not(node) = root {
+            holds = node.completed().sub(holds);
+            root = node;
+        }
+        let mcdc = self.mcdc(root);
+        self.branches(root, holds, false, mcdc.as_ref());
         Outcome::Branch { completed, taken }
     }
 
-    /// Gives the decision of `tree` MC/DC probes and a region, when it has two or more conditions
+    /// Gives the decision of `root` MC/DC probes and a region, when it has two or more conditions
     /// and few enough test vectors.
-    ///
-    /// The decision ends where its value is known, which a leading `!` does not change, so it
-    /// starts at the first `&&` or `||`.
-    fn mcdc(&mut self, tree: &Node<'gcx>) -> Option<Mcdc> {
+    fn mcdc(&mut self, root: &Node<'gcx>) -> Option<Mcdc> {
         let id = self.next_decision.filter(|_| !self.dry)?;
-        let mut root = tree;
-        while let Node::Not(node) = root {
-            root = node;
-        }
         let (Node::And(_, _, op) | Node::Or(_, _, op)) = root else { return None };
         let Some(graph) = mcdc::graph(&root.cond()) else {
             self.gcx
@@ -1022,8 +1024,13 @@ impl<'gcx> Walker<'gcx> {
         Some(Mcdc(conditions))
     }
 
-    /// Adds the branch regions of the leaves of `node`, which holds `holds` times.
-    fn branches(&mut self, node: &Node<'gcx>, holds: Count, mcdc: Option<&Mcdc>) {
+    /// Adds the branch regions of the leaves of `node`, which holds `holds` times, or fails
+    /// `holds` times if `negated`.
+    ///
+    /// A `!` over an `&&` or `||` negates the conditions under it, as `!(a && b)` is `!a || !b`,
+    /// so a negated leaf holds when its expression is false. Its true count is how often the
+    /// expression was false, which keeps the counts of a condition those of its MC/DC outcomes.
+    fn branches(&mut self, node: &Node<'gcx>, holds: Count, negated: bool, mcdc: Option<&Mcdc>) {
         match node {
             Node::Const(_) => {}
             Node::Leaf(expr, completed) => {
@@ -1041,17 +1048,25 @@ impl<'gcx> Walker<'gcx> {
                 self.region(expr.span, kind);
                 self.expr(expr);
             }
-            Node::Not(node) => self.branches(node, node.completed().sub(holds), mcdc),
-            Node::And(lhs, rhs, op) => {
-                self.branches(lhs, op.r.clone(), mcdc);
+            Node::Not(node) => self.branches(node, holds, !negated, mcdc),
+            // `a && b`, or `a || b` under a `!`, which is `!a && !b`: the left condition holds on
+            // the way to the right operand.
+            Node::And(lhs, rhs, op) | Node::Or(lhs, rhs, op)
+                if matches!(node, Node::And(..)) != negated =>
+            {
+                self.branches(lhs, op.r.clone(), negated, mcdc);
                 self.region(op.rhs.span, RegionKind::Code(op.r.clone()));
-                self.within(op.r.clone(), |this| this.branches(rhs, holds, mcdc));
+                self.within(op.r.clone(), |this| this.branches(rhs, holds, negated, mcdc));
             }
-            Node::Or(lhs, rhs, op) => {
+            // `a || b`, or `a && b` under a `!`, which is `!a || !b`: the left condition holds
+            // when it skips the right operand.
+            Node::And(lhs, rhs, op) | Node::Or(lhs, rhs, op) => {
                 let lhs_holds = lhs.completed().sub(op.r.clone());
-                self.branches(lhs, lhs_holds.clone(), mcdc);
+                self.branches(lhs, lhs_holds.clone(), negated, mcdc);
                 self.region(op.rhs.span, RegionKind::Code(op.r.clone()));
-                self.within(op.r.clone(), |this| this.branches(rhs, holds.sub(lhs_holds), mcdc));
+                self.within(op.r.clone(), |this| {
+                    this.branches(rhs, holds.sub(lhs_holds), negated, mcdc)
+                });
             }
         }
     }
