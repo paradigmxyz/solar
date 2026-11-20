@@ -1,6 +1,6 @@
-//@ filecheck:
-// CHECK: @module
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: assignIntoSelf => 7, 1, 5, 11, 7, 1
 //@ run-call: pushSelf => 2, 7, 1
 
@@ -22,6 +22,9 @@ contract RecursiveStructSourceContainsTarget {
         root.children[0].children[0].balance = 11;
     }
 
+    // CHECK-LABEL: fn @assignIntoSelf()
+    // CHECK: icall @load_storage_struct_array_
+    // CHECK: icall @store_recursive_storage_
     function assignIntoSelf()
         external
         returns (
@@ -44,6 +47,9 @@ contract RecursiveStructSourceContainsTarget {
         rootChildCount = root.children.length;
     }
 
+    // CHECK-LABEL: fn @pushSelf()
+    // CHECK: icall @load_storage_struct_array_
+    // CHECK: icall @store_recursive_storage_
     function pushSelf() external returns (uint256 childCount, uint256 pushedBalance, uint256 pushedChildCount) {
         setUp();
         root.children.push(root);
