@@ -23,6 +23,14 @@ enum TupleAssignmentRhs<'gcx> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<ValueId>> {
         let expr = expr.peel_parens();
+        // The expression's code maps to the expression, not to the statement that holds it.
+        let previous = self.builder.replace_source_span(expr.span);
+        let result = self.lower_values_inner(expr);
+        self.builder.replace_source_span(previous);
+        result
+    }
+
+    fn lower_values_inner(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<ValueId>> {
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
             self.lower_discarded_expr(expr)?;
             return Some(Vec::new());
@@ -262,13 +270,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if values.len() != elements.iter().flatten().count() {
                 return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
             }
+            // The call returns `(bool, bytes memory)`: a storage `bytes` target must copy the
+            // memory value, not store it as a slot.
+            let Some(TyKind::Tuple(source_types)) =
+                self.cx.gcx.type_of_expr(rhs.id).map(|ty| ty.kind)
+            else {
+                return self.cx.report_unsupported(rhs.span, "low-level call result types");
+            };
             return self.store_tuple_values(
                 elements
                     .iter()
-                    .flatten()
-                    .copied()
+                    .zip(source_types)
+                    .filter_map(|(element, &source_ty)| element.map(|element| (element, source_ty)))
                     .zip(values)
-                    .map(|(element, value)| (element, value, None)),
+                    .map(|((element, source_ty), value)| (element, value, Some(source_ty))),
             );
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {

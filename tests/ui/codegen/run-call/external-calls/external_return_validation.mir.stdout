@@ -417,13 +417,10 @@ fn @dirtyEnumStorage() -> i256 [selector=0x7f3d1a0c, abi_params=[], abi_returns=
     v4 = lt i8 2, i8 2
     v5 = eq v4, false
     icall panic_if<0x21>, v5
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v8 = or v7, 2
-    sstore 0, v8 !metadata(storage=slot(0))
-    v9 = lt i8 2, i8 2
-    v10 = eq v9, false
-    icall panic_if<0x21>, v10
+    sstore 0, 2 !metadata(storage=slot(0))
+    v6 = lt i8 2, i8 2
+    v7 = eq v6, false
+    icall panic_if<0x21>, v7
     ret 1
 }
 

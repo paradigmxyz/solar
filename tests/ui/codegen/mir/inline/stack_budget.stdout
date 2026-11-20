@@ -106,3 +106,60 @@
 +     jump bb3
   }
   
+  ; selector 0x01020307
+  fn @straight_line_high_pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x01020307] {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: arg0], [bb2: v14]
+-     v1 = icall @same_word, v0, arg1
++     jump bb5
++   bb5:                                            ; preds = bb1
++     v15 = xor v0, arg1
++     v16 = and v15, 0xffffffffffffffffffffffff
++     v17 = eq v16, 0
++     jump bb4
++   bb4:                                            ; preds = bb5
++     v18 = phi [bb5: v17]
+      v2 = icall @guarded_word, v0, arg2
+-     v3 = and v1, v2
++     v3 = and v2, v18
+      jumpi v3, bb3, bb2
+-   bb2:                                            ; preds = bb1
++   bb2:                                            ; preds = bb4
+      v4 = add v0, arg2
+      v5 = add v4, arg3
+      v6 = add v5, arg4
+      v7 = add v6, arg5
+      v8 = add v7, arg6
+      v9 = add v8, arg7
+      v10 = add v9, arg8
+      v11 = add v10, arg9
+      v12 = add v11, arg10
+      v13 = add v12, arg11
+      v14 = add v13, arg12
+      jump bb1
+-   bb3:                                            ; preds = bb1
++   bb3:                                            ; preds = bb4
+      ret v0
+- }
+- 
+- fn @same_word(arg0: i256, arg1: i256) -> i1 {
+-   bb0:
+-     v0 = xor arg0, arg1
+-     v1 = and v0, 0xffffffffffffffffffffffff
+-     v2 = eq v1, 0
+-     ret v2
+  }
+  
+  fn @guarded_word(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg1, arg0
+      jumpi v0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      v1 = lt arg0, arg1
+      ret v1
+    bb1 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  

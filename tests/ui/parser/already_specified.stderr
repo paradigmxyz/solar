@@ -96,7 +96,7 @@ LL │ ┃     private
    ‡ ┃
 LL │ ┃     override
 LL │ ┃     x = 0;
-   ╰╴┗━━━━━━━━━━┛
+   ╰╴┗━━━━━━━━━┛
 
 error: aborting due to 13 previous errors
 

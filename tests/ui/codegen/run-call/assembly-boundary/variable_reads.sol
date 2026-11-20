@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: assemblyKeepsWord => 0x1ff, 0x1ff
 //@ run-call: copy => 0xff
 //@ run-call: assignment => 0xff
@@ -36,6 +38,8 @@ contract AssemblyBoundaryVariableReads {
         }
     }
 
+    // CHECK-LABEL: fn @copy{{[( ]}}
+    // CHECK: ret 255
     function copy() external pure returns (uint256 seen) {
         uint8 value;
         assembly { value := 0x1ff }
@@ -57,6 +61,9 @@ contract AssemblyBoundaryVariableReads {
         return bits(value);
     }
 
+    // CHECK-LABEL: fn @internalReturn{{[( ]}}
+    // CHECK: [[WORD:v[0-9]+]] = icall @dirty
+    // CHECK-NEXT: trunc i256 [[WORD]] to i8
     function internalReturn() external pure returns (uint256 seen) {
         uint8 value = dirty();
         assembly { seen := value }
@@ -93,6 +100,8 @@ contract AssemblyBoundaryVariableReads {
         return copied;
     }
 
+    // CHECK-LABEL: fn @boolTest{{[( ]}}
+    // CHECK: ne 2, 0
     function boolTest() external pure returns (bool isTrue, uint256 seen) {
         bool value;
         assembly { value := 2 }

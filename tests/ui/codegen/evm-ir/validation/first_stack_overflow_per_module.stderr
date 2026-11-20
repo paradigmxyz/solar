@@ -1,0 +1,4 @@
+warning[0068]: `dup` in block 0 grows the EVM stack to 1025 words
+   │
+   ╰ note: the code overflows the EVM's 1024-word stack at runtime
+

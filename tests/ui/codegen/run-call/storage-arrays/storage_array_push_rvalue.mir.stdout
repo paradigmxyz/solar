@@ -268,19 +268,14 @@ fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=
     icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot 6
-    v5 = div v1, 1
-    v6 = add v4, v5
-    v7 = mod v1, 1
-    v8 = mul v7, 20
+    v5 = add v4, v1
     sstore 6, v3 !metadata(storage=slot(6))
-    v9 = sload v6 !metadata(storage=symbolic(v6))
-    v10 = mul v8, 8
-    v11 = shr v9, v10
-    v12 = trunc i256 v11 to i160
-    v13 = sload 6 !metadata(storage=slot(6))
-    v14 = insert_value struct5, undef struct5, 0, v12
-    v15 = insert_value struct5, v14, 1, v13
-    ret v15
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = trunc i256 v6 to i160
+    v8 = sload 6 !metadata(storage=slot(6))
+    v9 = insert_value struct5, undef struct5, 0, v7
+    v10 = insert_value struct5, v9, 1, v8
+    ret v10
 }
 
 ; function unwrapRvalue(uint256 dirty) external returns (uint64, uint64, uint256) [selector 0x39669bbc]

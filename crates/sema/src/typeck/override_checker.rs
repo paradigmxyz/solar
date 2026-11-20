@@ -22,10 +22,11 @@ use solar_ast::{FunctionKind, StateMutability, Visibility};
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
     map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{
-    Ident, Span,
+    Ident, Span, Symbol,
     diagnostics::{Applicability, DiagCtxt},
     error_code,
 };
@@ -36,10 +37,17 @@ pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     checker.check();
 }
 
+/// Returns `true` if the contract implements every function it declares or inherits.
+pub(crate) fn is_fully_implemented(gcx: Gcx<'_>, contract_id: ContractId) -> bool {
+    OverrideChecker::new(gcx, contract_id).unimplemented_functions().is_empty()
+}
+
 type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
 
 pub(crate) struct OverrideIndex<'gcx> {
     by_signature: InheritedFunctions<'gcx>,
+    /// The indices in `by_signature` of the signatures each contract defines, in ascending order.
+    contract_signatures: IndexVec<ContractId, Vec<u32>>,
     by_name: FxHashMap<Ident, Vec<OverrideProxy>>,
     unimplemented_functions: Vec<FunctionId>,
 }
@@ -65,6 +73,14 @@ impl OverrideProxy {
 
     fn name(self, gcx: Gcx<'_>) -> Option<Ident> {
         gcx.item_name_opt(self.into_item_id())
+    }
+
+    /// Returns the name, or the kind of a function without one, such as `fallback`.
+    fn name_or_kind(self, gcx: Gcx<'_>) -> Symbol {
+        match self {
+            Self::Function(id) => gcx.hir.function(id).name_or_kind(),
+            Self::Variable(id) => gcx.hir.variable(id).name.unwrap().name,
+        }
     }
 
     fn into_item_id(self) -> hir::ItemId {
@@ -443,7 +459,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 error_code!(4520),
                 format!(
                     "duplicate contract found in override list of `{}`",
-                    overriding.name(self.gcx).unwrap()
+                    overriding.name_or_kind(self.gcx)
                 ),
             );
         }
@@ -917,21 +933,16 @@ impl<'gcx> OverrideChecker<'gcx> {
         diag.emit();
     }
 
-    fn check_abstract_definitions(&self) {
+    /// Returns the functions of the linearized bases that the contract does not implement, and
+    /// the bases that declare them.
+    fn unimplemented_functions(&self) -> Vec<(OverrideProxy, ContractId)> {
         let contract = self.contract();
-
-        if contract.is_abstract() || contract.kind.is_interface() {
-            return;
-        }
-
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
         for &f_id in &override_index(self.gcx).unimplemented_functions {
             let f = self.gcx.hir.function(f_id);
             let Some(base_id) = f.contract else { continue };
-            if f.kind.is_constructor()
-                || f.name.is_none()
-                || !contract.linearized_bases.contains(&base_id)
+            if f.kind.is_constructor() || f.is_yul || !contract.linearized_bases.contains(&base_id)
             {
                 continue;
             }
@@ -941,7 +952,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let impl_base = self.gcx.hir.contract(impl_base_id);
                 impl_base.functions().any(|impl_f_id| {
                     let impl_f = self.gcx.hir.function(impl_f_id);
-                    if impl_f.body.is_none() || impl_f.name.is_none() {
+                    if impl_f.body.is_none() {
                         return false;
                     }
                     let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
@@ -953,6 +964,17 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
         }
 
+        unimplemented
+    }
+
+    fn check_abstract_definitions(&self) {
+        let contract = self.contract();
+
+        if contract.is_abstract() || contract.kind.is_interface() {
+            return;
+        }
+
+        let unimplemented = self.unimplemented_functions();
         let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
             let sig = self.signature(proxy);
@@ -971,7 +993,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 format!(
                     "unimplemented {} `{}` defined in `{}`",
                     proxy.ast_node_name(self.gcx),
-                    proxy.name(self.gcx).unwrap(),
+                    proxy.name_or_kind(self.gcx),
                     base_name
                 ),
             );
@@ -995,6 +1017,8 @@ impl<'gcx> OverrideChecker<'gcx> {
 fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
     gcx.override_index.get_or_init(|| {
         let mut by_signature = InheritedFunctions::default();
+        let mut contract_signatures =
+            IndexVec::from_vec(vec![Vec::new(); gcx.hir.contract_ids().len()]);
         let mut by_name = FxHashMap::default();
         let mut unimplemented_functions = Vec::new();
 
@@ -1007,7 +1031,11 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
-            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            let entry = by_signature.entry(override_signature(gcx, proxy));
+            if let Some(contract) = f.contract {
+                contract_signatures[contract].push(entry.index() as u32);
+            }
+            entry.or_insert_with(Vec::new).push(proxy);
             if let Some(name) = proxy.name(gcx) {
                 by_name.entry(name).or_insert_with(Vec::new).push(proxy);
             }
@@ -1019,11 +1047,20 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
                 continue;
             }
             let proxy = OverrideProxy::Variable(v_id);
-            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            let entry = by_signature.entry(override_signature(gcx, proxy));
+            if let Some(contract) = v.contract {
+                contract_signatures[contract].push(entry.index() as u32);
+            }
+            entry.or_insert_with(Vec::new).push(proxy);
             by_name.entry(proxy.name(gcx).unwrap()).or_insert_with(Vec::new).push(proxy);
         }
 
-        OverrideIndex { by_signature, by_name, unimplemented_functions }
+        for signatures in contract_signatures.iter_mut() {
+            signatures.sort_unstable();
+            signatures.dedup();
+        }
+
+        OverrideIndex { by_signature, contract_signatures, by_name, unimplemented_functions }
     })
 }
 
@@ -1138,8 +1175,24 @@ fn compute_inherited_functions<'gcx>(
             ancestry
         })
         .collect::<Vec<_>>();
+    // Only signatures defined in some base can have a visible definition. Visit them in index
+    // order, so the result keeps the order of a walk over the whole index.
+    let index = override_index(gcx);
+    let mut seen = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+    let mut signatures = Vec::new();
+    for ancestry in &direct_base_ancestries {
+        for base_id in ancestry.iter() {
+            if !seen.insert(base_id) {
+                continue;
+            }
+            signatures.extend_from_slice(&index.contract_signatures[base_id]);
+        }
+    }
+    signatures.sort_unstable();
+    signatures.dedup();
     let mut result: InheritedFunctions<'gcx> = FxIndexMap::default();
-    for (&signature, candidates) in &override_index(gcx).by_signature {
+    for i in signatures {
+        let (&signature, candidates) = index.by_signature.get_index(i as usize).unwrap();
         let definitions = visible_definitions(gcx, candidates, &direct_base_ancestries);
         if definitions.len() > 1 {
             result.insert(signature, definitions);
@@ -1168,7 +1221,11 @@ pub(crate) fn base_override_functions<'gcx>(
     let Some(contract_id) = proxy.contract(gcx) else { return &[] };
     let signature = override_signature(gcx, proxy);
     let inherited = inherited_override_functions(gcx, contract_id, signature);
-    gcx.bump().alloc_from_iter(inherited.into_iter().filter(|base| !base.is_variable()))
+    // A diamond reaches the same base through several paths; solc keeps a set.
+    let mut seen = FxHashSet::default();
+    gcx.bump().alloc_from_iter(
+        inherited.into_iter().filter(|&base| !base.is_variable() && seen.insert(base)),
+    )
 }
 
 fn capitalize(s: &str) -> String {

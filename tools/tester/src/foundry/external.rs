@@ -565,24 +565,7 @@ pub fn run_external_suite(solar: &Path) {
             continue;
         }
         println!("\n### [{}] {}", project.name, project.notes);
-        let dir = match &project.source {
-            ProjectSource::Local(path) => {
-                assert!(
-                    path.is_dir(),
-                    "[{}] local manifest path does not exist: {}",
-                    project.name,
-                    path.display()
-                );
-                path.clone()
-            }
-            ProjectSource::Fetch { repo, rev } => match ensure_checkout(&project.name, repo, rev) {
-                Ok(dir) => dir,
-                Err(reason) => {
-                    eprintln!("[{}] SKIPPED (fetch): {reason}", project.name);
-                    continue;
-                }
-            },
-        };
+        let Some(dir) = project_dir(project) else { continue };
         if let Err(reason) = apply_test_fixes(project, &dir) {
             eprintln!("[{}] test preparation failed: {reason}", project.name);
             failures.push(project.name.clone());
@@ -594,6 +577,61 @@ pub fn run_external_suite(solar: &Path) {
         }
     }
     assert!(failures.is_empty(), "External Foundry projects failed: {}", failures.join(", "));
+}
+
+/// Resolves a project's checkout, fetching it if needed. A failed fetch skips the project, so
+/// offline runs degrade instead of failing.
+fn project_dir(project: &ResolvedProject) -> Option<PathBuf> {
+    match &project.source {
+        ProjectSource::Local(path) => {
+            assert!(
+                path.is_dir(),
+                "[{}] local manifest path does not exist: {}",
+                project.name,
+                path.display()
+            );
+            Some(path.clone())
+        }
+        ProjectSource::Fetch { repo, rev } => match ensure_checkout(&project.name, repo, rev) {
+            Ok(dir) => Some(dir),
+            Err(reason) => {
+                eprintln!("[{}] SKIPPED (fetch): {reason}", project.name);
+                None
+            }
+        },
+    }
+}
+
+/// Prepares the projects the coverage mode measures: the one named `selected`, or every project
+/// that runs tests. Panics on an unknown name or a failed test fix.
+pub(super) fn coverage_projects(selected: Option<&str>) -> Vec<TestConfig> {
+    let projects = resolve_projects();
+    if let Some(selected) = selected
+        && !projects.iter().any(|project| project.name == selected)
+    {
+        panic!(
+            "unknown project `{selected}`; known external projects: {}",
+            projects.iter().map(|project| project.name.as_str()).collect::<Vec<_>>().join(", ")
+        );
+    }
+
+    let mut configs = Vec::new();
+    for project in &projects {
+        if selected.is_some_and(|selected| selected != project.name) {
+            continue;
+        }
+        if project.mode == ExternalMode::Build {
+            eprintln!("[{}] SKIPPED (coverage): the project runs no tests", project.name);
+            continue;
+        }
+        println!("\n### [{}] {}", project.name, project.notes);
+        let Some(dir) = project_dir(project) else { continue };
+        if let Err(reason) = apply_test_fixes(project, &dir) {
+            panic!("[{}] test preparation failed: {reason}", project.name);
+        }
+        configs.push(project.test_config(dir));
+    }
+    configs
 }
 
 /// A test-only correction applied to both compiler legs at the pinned revision.

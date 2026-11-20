@@ -20,14 +20,16 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
-        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
-        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
+        AbiLayout, AbiParamType, AbiParamTypeRef, AbiType, BlockId, Builtin, CallOutput,
+        CallPolicy, Callee, CheckedOp, Function, FunctionAttributes, Hotness, ImmutableEncoding,
+        InstId, InstKind, MirType, Module, Op, Terminator, ValueId, analysis::AddressSpace,
+        immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode, Tune};
+use solar_data_structures::map::FxHashMap;
 use solar_evmir::gas::since;
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
@@ -219,6 +221,17 @@ impl Target {
     /// spills them to the stack on every iteration, as an unrolled sum over an array did.
     pub(crate) const JIT_MAX_UNROLLED_LOOP_WORDS: usize = 3;
 
+    /// Bytes each node of an ABI type adds to its inline decoder under the gas objective, counting
+    /// a byte string, which checks and copies its data, as two nodes: one more `-Ogas` calldata
+    /// decode of a `uint256[]`, two nodes, adds 86 bytes, and one of a
+    /// `(address, uint256, bytes)[]`, six nodes, adds 237.
+    const ABI_DECODE_NODE_BYTES: u64 = 40;
+    /// The most bytes the repeated inline copies of one ABI decoder may add under the gas
+    /// objective, a small module's worth. Below it each copy saves the call of a shared helper;
+    /// above it a type that repeats a dynamic member at every level of a tree would double its
+    /// code with each level.
+    const MAX_ABI_DECODE_COPY_BYTES: u64 = Self::SMALL_CODE_BYTES;
+
     /// The model of the session's EVM version and optimizer runs for code optimized for
     /// `optimization`, resolved by [`OptimizationMode::select`] after any
     /// `@custom:solar-optimize` tag.
@@ -305,6 +318,17 @@ impl Target {
             removed_bytes
         };
         !self.optimization.is_none() && added_bytes <= allowed
+    }
+
+    /// Live words a caller may hold across an inlined body plus the body's own peak:
+    /// [`Self::SIZE_INLINE_STACK_BUDGET`] under the size objective,
+    /// [`Self::INLINE_STACK_BUDGET`] otherwise.
+    pub(crate) const fn inline_stack_budget(&self) -> usize {
+        if self.optimization.is_size() {
+            Self::SIZE_INLINE_STACK_BUDGET
+        } else {
+            Self::INLINE_STACK_BUDGET
+        }
     }
 
     /// Whether the model prices creation code, which only the gas objective does.
@@ -529,13 +553,14 @@ impl Target {
 
     /// Whether a width test, that a word fits in `bits` bits when `fits` and that it does not
     /// otherwise, is the shift `x >> bits` against zero rather than the comparison with its limit
-    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` reads the word of a test of the other sense
-    /// for free, and a `value` pays for its zero test: an `ISZERO` to turn the word into a fit, or
-    /// [`Self::ne_zero`] to turn it into a boolean. The comparison pays the push of its limit, as
-    /// the compact-push pass leaves it, which grows with `bits`. The shift wins when it is no
-    /// dearer in bytes and gas and cheaper in one; equal prices keep the comparison. A shift that
-    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
-    /// Without shifts only the comparison exists.
+    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` that jumps when the word is nonzero reads it
+    /// for free: one that jumps when the test holds, for a test that the word does not fit, and
+    /// one that jumps when it fails, for a fits test. Any other read pays for its zero test: an
+    /// `ISZERO` to turn the word into a fit, or [`Self::ne_zero`] to turn it into a boolean. The
+    /// comparison pays the push of its limit, as the compact-push pass leaves it, which grows with
+    /// `bits`. The shift wins when it is no dearer in bytes and gas and cheaper in one; equal
+    /// prices keep the comparison. A shift that saves bytes and costs gas is taken as a compact
+    /// recipe is, by [`Self::compacts_immediate`]. Without shifts only the comparison exists.
     pub(crate) fn shifts_bits_test(
         &self,
         bits: u32,
@@ -547,12 +572,13 @@ impl Target {
             return false;
         }
         let zero_tests = match (fits, branch) {
-            (false, true) => Cost::ZERO,
-            (true, _) => self.opcode(op::ISZERO),
+            (_, true) => Cost::ZERO,
+            (true, false) => self.opcode(op::ISZERO),
             (false, false) => self.ne_zero().0,
         };
         let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
-        let compare = if fits {
+        // A branch that jumps when a fits test fails inverts the comparison to `x > 2^bits - 1`.
+        let compare = if fits && !branch {
             self.emitted_push(U256::ONE << bits, in_loop) + self.opcode(op::LT)
         } else {
             self.emitted_push((U256::ONE << bits) - U256::ONE, in_loop) + self.opcode(op::GT)
@@ -807,7 +833,12 @@ impl Target {
 
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
-        let kind = &func.inst(inst).kind;
+        self.kind_estimate(func, &func.inst(inst).kind)
+    }
+
+    /// Estimated code of an operation on values of `func`, whether it is in the function yet or
+    /// not: the operation and the pushes of its immediate operands.
+    pub(crate) fn kind_estimate(&self, func: &Function, kind: &InstKind) -> Cost {
         let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
@@ -1370,8 +1401,14 @@ impl Target {
     /// the sixteen words a `DUP` or `SWAP` reaches, leaving headroom for operand staging. A
     /// hot-leaf clone inside a loop body also keeps the loop's carried words resident through
     /// every join it adds; at ten words, two of the Base64 decoder's four lookups stayed calls
-    /// that drained every carried word, and twelve took 15% off decoding.
+    /// that drained every carried word, and twelve took 15% off decoding. A single-block clone
+    /// never reaches deeper than its call, so the inline loop exempts it.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
+    /// [`Self::INLINE_STACK_BUDGET`] under the size objective: fourteen words, still two short
+    /// of the sixteen a `DUP` or `SWAP` reaches. A size build pays for a call's protocol in
+    /// bytes at every site and for a spill only where it occurs. At fourteen words the project
+    /// corpus's `-Osize` bytecode shrank by 0.02%, and no contract grew by more than 0.5%.
+    pub(crate) const SIZE_INLINE_STACK_BUDGET: usize = 14;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
     /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
     /// leaves the block's own temporaries room.
@@ -1504,13 +1541,6 @@ impl Target {
                 function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
                 ..
             } => Cost::new(32, 9),
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160),
-                ..
-            } => Cost::new(800, 64),
-            InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
-                Cost::new(900, 100)
-            }
             InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
                 Cost::new(24, 8)
             }
@@ -1529,13 +1559,11 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::AddressCall { .. } => Cost::new(720, 12),
+            InstKind::ExtCall { policy, address, .. } => {
+                self.extcall(*policy, func.extcall_clears_word(*address))
+            }
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
-            }
-            InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
-            InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
-                Cost::new(740, 20)
             }
             InstKind::Call { .. }
             | InstKind::CallCode { .. }
@@ -1602,6 +1630,17 @@ impl Target {
     /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
     pub(crate) fn select_stack_ops(&self) -> Cost {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
+
+    /// Estimated code of an `extcall`, as `lower-builtins` expands it, excluding the staging
+    /// of its input: the call with its gas and ranges, and for a word output the clear that the
+    /// expansion emits first when `clears_word` says so.
+    pub(crate) fn extcall(&self, policy: CallPolicy, clears_word: bool) -> Cost {
+        let mut cost = Cost::new(720, 12);
+        if policy.output == CallOutput::Word && clears_word {
+            cost += self.push(U256::ZERO).times(2) + self.opcode(op::MSTORE);
+        }
+        cost
     }
 
     /// Estimated code of an operation that hashes a storage slot, as the opcode sequence
@@ -1680,6 +1719,20 @@ impl Target {
         let after = self.opcodes(&[op::DUP1, op::NOT, op::SWAP1, op::SUB]);
         self.dominates(after, before)
     }
+
+    /// Whether `copies` inline copies of the decoder of `ty` share one helper instead. The size
+    /// objective and `-O none` share any repeated decoder. The gas objective keeps the copies
+    /// inline, each saving a call, until the bytes of the copies beyond the first pass
+    /// [`Self::MAX_ABI_DECODE_COPY_BYTES`].
+    pub(crate) fn shares_abi_decoder(&self, ty: &AbiParamType, copies: usize) -> bool {
+        let extra = (copies as u64).saturating_sub(1);
+        copies >= 2
+            && (!self.optimization.is_gas()
+                || extra
+                    .saturating_mul(abi_param_type_nodes(ty))
+                    .saturating_mul(Self::ABI_DECODE_NODE_BYTES)
+                    > Self::MAX_ABI_DECODE_COPY_BYTES)
+    }
 }
 
 /// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
@@ -1704,10 +1757,30 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
     layout.types.iter().map(abi_type_expansion).sum()
 }
 
+/// Returns the number of nodes in `ty`, counting a byte string as two, which sizes its inline
+/// decoder. Each shared node is counted along every path to it, but walked once.
+fn abi_param_type_nodes(ty: &AbiParamType) -> u64 {
+    fn count<'a>(ty: &'a AbiParamType, memo: &mut FxHashMap<&'a AbiParamTypeRef, u64>) -> u64 {
+        let own = if matches!(ty, AbiParamType::Bytes) { 2 } else { 1 };
+        ty.children().fold(own, |sum, child| {
+            let nodes = match memo.get(child) {
+                Some(&nodes) => nodes,
+                None => {
+                    let nodes = count(child, memo);
+                    memo.insert(child, nodes);
+                    nodes
+                }
+            };
+            sum.saturating_add(nodes)
+        })
+    }
+    count(ty, &mut FxHashMap::default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Immediate, Instruction, PtrLocation, Value};
+    use crate::mir::{ExtCallKind, Immediate, Instruction, PtrLocation, Value, ValueLayout};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1832,6 +1905,26 @@ mod tests {
     }
 
     #[test]
+    fn address_calls_price_their_policy() {
+        let target = Target::with(
+            EvmVersion::Cancun,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let price = |output, clears_word| {
+            target.extcall(CallPolicy { kind: ExtCallKind::Static, output }, clears_word)
+        };
+        let call = price(CallOutput::None, false);
+        assert_eq!(call, Cost::new(720, 12));
+        // A word output that a callee may leave short is zeroed before the call.
+        assert_eq!(price(CallOutput::Word, false), call);
+        assert_eq!(
+            price(CallOutput::Word, true),
+            call + target.push(U256::ZERO).times(2) + target.opcode(op::MSTORE)
+        );
+    }
+
+    #[test]
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.select_stack_ops(), Cost::new(6, 2).with_steps(2));
@@ -1851,6 +1944,12 @@ mod tests {
         // A limit as short as the shift's own push keeps the comparison on equal prices.
         assert!(!gas.shifts_bits_test(8, false, true, false));
         assert!(!gas.shifts_bits_test(1, true, false, false));
+        // A branch that jumps when `x < 2^16` fails reads `x >> 16` for free, a byte shorter than
+        // the inverted `x > 0xffff`; as a value, the shift's `ISZERO` makes it dearer than
+        // `x < 0x10000`. At `2^8` the inverted limit is a `PUSH1` and ties.
+        assert!(gas.shifts_bits_test(16, true, true, false));
+        assert!(!gas.shifts_bits_test(16, true, false, false));
+        assert!(!gas.shifts_bits_test(8, true, true, false));
         // Without shifts only the comparison exists.
         let legacy = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
         assert!(!legacy.shifts_bits_test(64, false, true, false));
@@ -2611,6 +2710,7 @@ mod tests {
         let reach = usize::from(op::DUP16 - op::DUP1) + 1;
         for budget in [
             Target::INLINE_STACK_BUDGET,
+            Target::SIZE_INLINE_STACK_BUDGET,
             Target::DIRECT_REUSE_LIVE_BUDGET,
             Target::LOOP_CARRY_BUDGET,
             Target::SHALLOW_CARRIED_WORDS,
@@ -2659,5 +2759,36 @@ mod tests {
             target.terminator_estimate(&Terminator::Return { values: smallvec::smallvec![] }),
             target.internal_return(0, 0)
         );
+    }
+
+    #[test]
+    fn abi_decoders_share_by_copy_bytes() {
+        let word = || AbiParamType::Scalar(ValueLayout::Address);
+        let node = AbiParamTypeRef::new;
+        let array = AbiParamType::DynamicArray(node(word()));
+        let call = AbiParamType::DynamicArray(node(AbiParamType::Tuple(
+            [node(word()), node(word()), node(AbiParamType::Bytes)].into(),
+        )));
+        // `struct S { T a; T b; }` over `struct T { uint256[] a; }`, nested ten times: 4,095 nodes.
+        let mut tree = AbiParamType::Tuple([node(array.clone())].into());
+        for _ in 0..10 {
+            let inner = node(tree);
+            tree = AbiParamType::Tuple([inner.clone(), inner].into());
+        }
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // Two copies of a `uint256[]` or of a `Call[]` decoder add 80 and 240 bytes.
+        assert!(!gas.shares_abi_decoder(&array, 2));
+        assert!(!gas.shares_abi_decoder(&call, 2));
+        // Two copies of the tree add 163,800 bytes.
+        assert!(gas.shares_abi_decoder(&tree, 2));
+        assert!(!gas.shares_abi_decoder(&tree, 1));
+        // 51 extra copies of a `uint256[]` decoder add 4,080 bytes, 52 add 4,160.
+        assert!(!gas.shares_abi_decoder(&array, 52));
+        assert!(gas.shares_abi_decoder(&array, 53));
+        for optimization in [OptimizationMode::Size, OptimizationMode::None] {
+            let target = Target::with(EvmVersion::Cancun, optimization, 200);
+            assert!(target.shares_abi_decoder(&array, 2));
+            assert!(!target.shares_abi_decoder(&tree, 1));
+        }
     }
 }

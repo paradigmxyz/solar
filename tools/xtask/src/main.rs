@@ -27,12 +27,17 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            if test_name.as_deref() == Some("foundry-external") {
-                // Release: external projects are compile-heavy.
+            // Release: these modes are compile-heavy.
+            let local_only = match test_name.as_deref() {
+                Some("foundry-external") => Some("foundry::external"),
+                Some("foundry-coverage") => Some("foundry::coverage"),
+                _ => None,
+            };
+            if let Some(filter) = local_only {
                 let mut cmd = cmd!(sh, "cargo nextest run --release");
                 cmd = cmd
                     .args(FOUNDRY_FLAGS)
-                    .arg("foundry::external")
+                    .arg(filter)
                     .arg("--run-ignored=only")
                     .arg("--no-capture");
                 if let Some(project) = rest.first() {

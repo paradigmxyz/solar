@@ -158,7 +158,7 @@ fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, pure, abi_params=[uint
 fn @pair.2() -> struct0 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = sub v0, 160
+    v1 = sub v0, 128
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, 7
     ret v3
@@ -218,7 +218,7 @@ fn @build(arg0: i256) -> i256 [pure] {
     v0 = alloc zeroed checked 64
     mstore v0, 32
     v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = sub v1, 160
+    v2 = sub v1, 128
     mstore v2, 0xdeadbeef
     ret arg0
 }
@@ -243,7 +243,7 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
     v4 = alloc zeroed checked 64
     mstore v4, 32
     v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = sub v5, 288
+    v6 = sub v5, 128
     mstore v6, 0xdeadbeef
     ret arg0
   bb1:                                            ; preds = bb0

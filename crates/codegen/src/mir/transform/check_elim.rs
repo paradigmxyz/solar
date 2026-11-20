@@ -36,7 +36,9 @@
 //! `checked_binary` operations become plain ones the same way: a sum or product the operand
 //! ranges keep within the type, a difference whose operands are ordered, and a quotient or
 //! remainder by a divisor above zero.
-//! Opcode result widths also bound environment values, including returndata lengths.
+//! Opcode result widths also bound environment values, including returndata lengths. The heap floor
+//! lies below `2^63`, so the bump of an allocation at the floor by a constant size cannot pass the
+//! allocation limit, and the overflow test of an allocation that lowering left dead goes with it.
 //!
 //! The same edge facts propagate equalities, as GVN's `propagateEquality` does: where a unique
 //! predecessor proves `x == C` for an immediate `C` (the true edge of `eq x, C`, the false edge of
@@ -213,7 +215,7 @@ use crate::{
         MirType, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CfgInfo,
-            integers::{integer_bits, integer_mask, integer_max},
+            integers::{heap_floor_bounds, integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
         pass::{
@@ -2428,6 +2430,10 @@ impl<'a> CheckEliminator<'a> {
                 // Sign extension preserves nonnegative values; other signs remain unknown.
                 if source.hi < (U256::ONE << (from_bits - 1)) { source } else { Range::FULL }
             }
+            InstKind::HeapFloor => {
+                let (lo, hi) = heap_floor_bounds();
+                Range::new(lo, hi)
+            }
             InstKind::LoadImmutable(id) => self
                 .immutable_ranges
                 .and_then(|ranges| ranges.get(&id))
@@ -2558,6 +2564,13 @@ impl<'a> CheckEliminator<'a> {
             }
             // `byte` extracts one byte and yields zero past the word.
             InstKind::Byte(..) => Range::new(U256::ZERO, U256::from(255)),
+            // The count of leading zeros falls as the operand grows, and is the whole width
+            // for zero.
+            InstKind::Clz(a) if integer_bits(func, a) == bits => {
+                let ra = self.range_of(func, a, depth);
+                let zeros = |value: U256| U256::from(bits as usize - value.bit_len());
+                Range::new(zeros(ra.hi), zeros(ra.lo))
+            }
             InstKind::Not(a) => {
                 let ra = self.range_of(func, a, depth);
                 Range::new(ra.hi ^ full.hi, ra.lo ^ full.hi)

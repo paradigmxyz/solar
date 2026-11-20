@@ -54,11 +54,13 @@ Status: intentional.
 
 Difference: `solar` always emits full ethdebug output for the
 `evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
-selections. `solc` 0.8.38 emits no semantic debug info for the program outputs
+selections. `solc` 0.8.39 emits no semantic debug info for the program outputs
 unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
 outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
 `solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
-without `ast-id` in `debugInfo` like `solc`.
+without `ast-id` in `debugInfo` like `solc`. It also emits `ethdebug.compilation`
+whenever any ethdebug output is selected, because every program references it,
+where `solc` emits it only when selected.
 
 Rationale: `solar` builds ethdebug output from its own debug info, which does
 not depend on a Yul IR selection, and an experimental flag would only block
@@ -73,7 +75,7 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 Status: intentional.
 
 Difference: contract metadata names the compiler as
-`"compiler": {"name": "solar", "version": "0.8.38+commit.d9f23fbe.solar.0.3.0"}`,
+`"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
 emulated solc version, then the Solar commit and version as build metadata.
@@ -343,6 +345,42 @@ token.
 
 Coverage: `tests/ui/parser/number_literal_too_large.sol`.
 
+### PARSE-007: Expression trees are limited to 2500 levels
+
+Status: intentional.
+
+Difference: `solc` accepts expressions of any depth when it only analyzes them,
+so `--abi` accepts a chain of 30000 `^` operators. `solar` rejects an
+expression tree deeper than 2500 levels during parsing with `expression is too
+deeply nested`. A level is an operand, an operator in a binary chain, a member
+access, call or index in a postfix chain, a prefix or postfix operator, or a
+parenthesis, and nested expressions add up, so one expression can contain any number of
+shallow operands. Code generation in `solc` does not accept such depth either:
+its legacy code generator fails with `Stack too deep` on a chain of 16
+terms, and `--via-ir --optimize` crashes with a segmentation fault on a
+chain of 10000.
+
+Rationale: every pass that walks an expression recurses once per level, and the
+parser builds these chains in a loop, so the recursion limit does not bound
+them. A chain of about 10000 operators overflows the 8 MiB stack of the main
+thread, which `-j1` uses, in a release build. The limit assumes a stack of at
+least 8 MiB: a thread with 2 MiB overflows on chains near the limit, and the
+wasm build, whose stack is 1 MiB, on chains of about 1200 levels. The limit is
+approximate: wrappers such as parentheses and prefix operators add levels
+without a check, bounded by the recursion limit, so a tree can exceed it by a
+few hundred levels.
+
+Coverage: `tests/ui/parser/expr_depth_limit.sol`,
+`tests/ui/parser/expr_depth_limit_max.sol`,
+`tests/ui/parser/expr_depth_limit_postfix.sol`,
+`tests/ui/parser/expr_depth_limit_nested.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_member.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_index_binary.sol`,
+`tests/ui/parser/expr_depth_limit_stmt_max.sol`,
+`tests/ui/parser/expr_depth_limit_decl_max.sol`,
+`tests/ui/parser/expr_depth_limit_reset.sol` and
+`tests/ui/parser/expr_depth_limit_recover.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings
@@ -490,10 +528,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.8.39 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.38. These results hold with optimization enabled or
+error in solc 0.8.39. These results hold with optimization enabled or
 disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -544,6 +582,74 @@ Rationale: `solar` does not track which sources were input files, which `solc`
 needs to number its AST.
 
 Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
+
+### TYPECK-025: AST JSON
+
+Status: parity debt for the types of a few expressions; intentional for the
+rest.
+
+Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
+Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
+`solc`: items take the IDs that `immutableReferences`, the storage layout and
+ETHDebug report, source units and imports follow them, and every other node
+takes the next free ID. `internalFunctionIDs` numbers the functions that
+function values reach by source name and position, as `solc` numbers its nodes.
+`solar` reads `contractDependencies`, `usedEvents` and `usedErrors` from the call graph used for
+code generation. The source index in a `src` and the `id` of a source follow the
+order of the sources after sorting them by their imports, where `solc` sorts them
+by name, and the IDs of the nodes that are no items depend on the order in which
+the sources are written.
+
+The attributes of expressions come from the type checker, and differ in these
+cases:
+
+- a builtin function that is the component of a tuple, such as `abi.encode` in
+  `(abi.encode, 2)`, has the kind `internal` and no call options, and
+  `abi.decode` there keeps its parameters, where `solc` gives the kind of the
+  builtin and `function () pure`;
+- `isPure` of `type(L.E)`, `type(L.E).min` and `type(L.E).max` is `true` for an
+  enum `E` that a library or contract `L` declares, where `solc` has `false` for
+  the name `L.E`, which lowering reduces to the type;
+- `solc` types `require` and the functions attached to a type from the call, which
+  `solar` rebuilds from the arguments and the declared receiver;
+- before Byzantium, only the call of an external function with one dynamically
+  encoded return value gets the inaccessible dynamic type; a tuple of returns
+  and a bare `call` keep the types of their components;
+- the names before the last one in the callee of `emit` and `revert`, and in the
+  argument of `type(...)`, take their resolution from name resolution alone.
+
+With `settings.stopAfter` of `parsing`, `solar` writes the parsed AST like `solc`: the nodes
+have no IDs of declarations, types, resolutions or scopes. It also does so for
+`lowering`, which `solc` rejects, since type checking has not run. With `parsing`, an
+import of a file that `solar` cannot read is a warning, where `solc` has no diagnostic, and
+the import keeps its `absolutePath` and has no `sourceUnit`, as in `solc`. A source with a
+construct that the parser of `solar` rejects but `solc` checks only in analysis, such as a
+fixed-point type, a nesting beyond the recursion limit, a `constant` variable without a value
+or an `external` modifier in a place where it is not allowed, fails with an error, where
+`solc` still returns the AST of the source.
+
+Rationale: IDs must agree across the outputs of one compilation, not with
+`solc`. Consumers that look up declarations by ID do not need `solc`'s
+numbering, and the differences of the types do not change what an expression
+refers to.
+
+Coverage: `tests/ui/standard-json/ast/test.jsonc`,
+`tests/ui/standard-json/ast-attached/test.jsonc`,
+`tests/ui/standard-json/ast-enum-values/test.jsonc`,
+`tests/ui/standard-json/ast-ids/test.jsonc`,
+`tests/ui/standard-json/ast-immutables/test.jsonc`,
+`tests/ui/standard-json/ast-import-aliases/test.jsonc`,
+`tests/ui/standard-json/ast-inaccessible/test.jsonc`,
+`tests/ui/standard-json/ast-internal-function-ids/test.jsonc`,
+`tests/ui/standard-json/ast-is-pure/test.jsonc`,
+`tests/ui/standard-json/ast-license/test.jsonc`,
+`tests/ui/standard-json/ast-parse-only/test.jsonc`,
+`tests/ui/standard-json/ast-parse-only-imports/test.jsonc`,
+`tests/ui/standard-json/ast-spans/test.jsonc`,
+`tests/ui/standard-json/ast-tuples/test.jsonc`,
+`tests/ui/standard-json/ast-yul/test.jsonc`,
+`tests/ui/standard-json/ast-yul-hosts/test.jsonc` and
+`tests/ui/cli/emit_ast.sol`.
 
 ### TYPECK-011: Module-typed conditionals
 
@@ -596,7 +702,7 @@ struct's head counts all its members together. The check covers calldata
 variables; parameters of constructors, events, errors and external function
 types; parameters and returns of public and external functions; arguments of
 `abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
-types. `solc` 0.8.38 checks only constructor and public callable parameters
+types. `solc` 0.8.39 checks only constructor and public callable parameters
 against calldata, and sizes structs one member at a time, so it accepts, for
 example, an external function that takes a calldata struct with two
 `uint256[134217727]` members.
@@ -738,6 +844,26 @@ Rationale: a literal that is not 40 digits long is a number, and `solar`
 has no reason to guess that the author meant an address.
 
 Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
+
+### TYPECK-027: NatSpec errors are warnings
+
+Status: intentional; parity debt where the checks differ.
+
+Difference: `solc` rejects invalid NatSpec with errors, such as 3881 for a
+`@param` tag that names a parameter the item does not have, 2604 and 5856 for
+`@return` tags, 6546 for a tag the item does not allow, and 4682, 5142 and
+9397 for `@inheritdoc` (TYPECK-026 covers its references). Where `solar` runs
+the same check, it reports a warning with the same code. Not every check
+matches yet: for example, a misplaced `@return` can warn 2604 instead of 6546,
+a bare `@custom` warns 6546 instead of 6564, and a `@param` tag without a
+description, which `solc` rejects with 9942, passes silently. Of the NatSpec
+tag checks, only `@custom:solar-` tags (TYPECK-022) raise errors.
+
+Rationale: a documentation mistake should not fail a build
+([#1281](https://github.com/paradigmxyz/solar/pull/1281)).
+
+Coverage: `tests/ui/natspec/tag_sema.sol` and
+`tests/ui/natspec/tag_returns.sol`.
 
 ## Contract-Level Checks
 
@@ -909,7 +1035,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   call one shared helper, unless a pointer is computed from constants or
   calldata alone, so a memory object that assembly places in that range through
   any other computation can be overwritten by the helper's frame before the
-  copy reads it.
+  copy reads it. Assembly can also step back from the first heap object into the
+  words below it, as far as `0x80` bytes: the compiler keeps room for that step,
+  which lands in the reserved low words under `solc`. A longer step lands in an
+  earlier heap object, or wraps and runs out of gas under `solc`, and the
+  compiler keeps no room for it, so it can land in a frame. A pointer that
+  assembly rounds down with a mask that clears more than a word can fall
+  further back than the compiler keeps room for, which is at most `0x80` bytes.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -936,19 +1068,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   supplies, or one that a store through a computed address, a copy, or a byte
   store leaves there. A pointer from the heap is proven, also when moved by an
   offset that cannot wrap the address space, or stepped back from by a
-  constant outside a loop. A word that is also read as data, such as one hashed
-  in scratch memory, or loaded and then compared, hashed, encoded, stored, or
-  used as a key, stays in the slot for those reads, and only the pointer reads
-  see the raised value. The raise is `max(word, heap floor)`, where the heap
-  floor is resolved when frames are placed, so a pass that later folds the
-  word, as inlining does for a helper's argument, cannot remove it.
+  constant of at most `0x80` outside a loop. A word that is also read as data,
+  such as one hashed in scratch memory, or loaded and then compared, hashed,
+  encoded, stored, or used as a key, stays in the slot for those reads, and only
+  the pointer reads see the raised value. The raise is `max(word, heap floor)`,
+  where the heap floor is resolved when frames are placed, so a pass that later
+  folds the word, as inlining does for a helper's argument, cannot remove it.
 
   Each entry places its spill slots and frames clear of every fixed memory
   range that the code it runs names, wherever the range lies, when the area,
   its allocations, and its frames would cover it. An entry that runs code
   writing memory at an address computed from calldata, as Seaport lays out a
   basic order's hashes and event data, also keeps them above `0x2080`, unless it
-  places none of them. Other entries keep their memory low unless they share
+  places none of them. An address that a call passes to a parameter, or that a
+  callee returns, counts as computed from calldata when some call or return
+  gives it calldata, but a function's second and later results, which travel in
+  memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
   initial pointer.
 
@@ -970,10 +1105,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   place, so it keeps the code it had before these rules: it trusts the type of a
   memory reference, a word loaded from a memory object, and a call result as
   heap pointers, and raises only constants and calldata words stored into the
-  free memory pointer slot. Such a block cannot store a low address into an
-  object's field without breaking its promise. An unmarked block that writes no
-  memory (no `mstore`, `mstore8`, copy, or call, and no assignment to a memory
-  reference) breaks no promise either, so it does not count.
+  free memory pointer slot, also when a call passes or returns them, and an
+  external function's integer and calldata reference parameters count as
+  calldata words. Such a
+  block cannot store a low address into an object's field without breaking its
+  promise. An unmarked block that writes no memory (no `mstore`, `mstore8`,
+  copy, or call, and no assignment to a memory reference) breaks no promise
+  either, so it does not count.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
@@ -1055,3 +1193,282 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-014: Oversized calldata slice copies revert empty
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: copying a calldata slice to memory reverts with empty data in
+  `solar` and with `Panic(0x41)` in `solc` when inline assembly set its length
+  to `2**64` or more, or to a length just below that, within the free memory
+  pointer plus 63 bytes of `2**64`, where the allocation no longer fits.
+- Rationale: only assembly can build such a slice, and the call reverts either
+  way. Panicking first means checking the allocation size before the range
+  check, which adds a branch to every such copy; measured, it grew two runtime
+  corpus cases by 2 to 7 bytes.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_slice_huge_length_copy.sol`.
+
+### CODEGEN-015: A dirty later argument reverts before an earlier allocation panic
+
+- ID: CODEGEN-015
+- Status: intentional
+- Difference: for `f(uint256[] memory, uint8)` called with an array length of
+  `2**59` and a dirty `uint8` word, `solar` reverts with empty data and `solc`
+  with `Panic(0x41)`. The entry prologue validates all scalar head words before
+  it decodes a memory argument.
+- Rationale: only malformed calldata reaches it, and the call reverts either
+  way. Matching the order would mean decoding each memory argument before the
+  later scalar checks, which complicates the prologue.
+- Coverage: `tests/ui/codegen/run-call/abi-decode/abi_argument_check_order.sol`.
+
+### CODEGEN-019: Implicit memory defaults of absurdly large fields panic
+
+- ID: CODEGEN-019
+- Status: intentional
+- Difference: reading a default element of a memory struct whose static field
+  needs `2**32` words (`2**37` bytes) or more reverts with `Panic(0x41)` or
+  runs out of gas in `solar`. `solc` via-IR returns zero, with or without the
+  optimizer. Its zero value of a static array calls
+  `allocate_and_zero_memory_array(unsigned(length))`, which casts the length
+  to 32 bits (`libsolidity/codegen/YulUtilFunctions.cpp:4362` in
+  `testdata/solidity`): below `2**32` words both compilers allocate the array,
+  and from `2**32` words up the length wraps, so only `solc` reads zero.
+  Fields up to `2**16` words return zero in both, and fields from `2**17` to
+  `2**31` words run out of gas in both.
+- Rationale: no contract can allocate such a type. Matching `solc` would need
+  the zero defaults to be read without backing memory, which adds compiler
+  complexity for a size nothing can use.
+- Coverage: `tests/ui/codegen/run-call/memory/memory_default_oversized_field.sol`.
+
+### CODEGEN-020: A call with empty returndata moves the free memory pointer
+
+- ID: CODEGEN-020
+- Status: intentional
+- Difference: after a low-level call whose returndata is empty, `solar` moves
+  the free memory pointer by 32 bytes. `solc` points the empty result at the
+  zero slot and leaves the pointer in place. Only inline assembly that reads
+  `mload(0x40)` sees the pointer itself, and results are the same. In a loop
+  the memory grows by 32 bytes per call, which adds memory gas, but 20,000 such
+  calls in one transaction still cost less with `solar`: 14.4M gas against
+  15.8M.
+- Rationale: matching `solc` made the minimal-proxy benchmark 21 bytes bigger
+  and 19 gas dearer per call.
+- Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`.
+
+### CODEGEN-021: Internal function pointers stored through an unnamed slot with another function type panic
+
+- ID: CODEGEN-021
+- Status: intentional
+- Difference: calling an internal function pointer that assembly stored into a
+  variable of a different function type panics with `Panic(0x51)` in `solar`
+  when the store goes through a slot the assembly block does not name, such as
+  `sstore(0, raw)`. `solc` calls the function. A pointer of the variable's own
+  type stored the same way works in both. Naming the variable with
+  `sstore(stored.slot, raw)` does not compile on this build: the compiler stops
+  with an MIR validation error.
+- Rationale: Solidity cannot express that type punning, so only assembly
+  reaches it, and recognising the pointer behind a literal or computed slot
+  needs the compiler to track it through the slot store, which adds compiler
+  complexity.
+- Coverage: `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_store.sol`
+  and `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_same_type.sol`.
+
+### CODEGEN-022: Loading a dirty storage enum panics at the load
+
+- ID: CODEGEN-022
+- Status: intentional
+- Difference: reading an out-of-range enum value from storage into a local
+  panics with `Panic(0x21)` at the load in `solar`. `solc` via-IR panics only
+  where the value is used, so it returns normally when the local is unused.
+  Copying an enum array, or a struct holding one, from storage to storage
+  panics the same way in `solar`, while `solc` copies the slots and returns.
+- Rationale: only assembly or a broken storage layout writes such a value, and
+  moving the check to each use cost about a thousand lines of compiler code.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
+
+### CODEGEN-023: A forged nested calldata offset reverts a storage copy or revert reason
+
+- ID: CODEGEN-023
+- Status: intentional
+- Difference: assigning a `bytes` or `string` calldata value to storage, pushing
+  it onto a storage array, or using it as a `require` or `revert` reason
+  reverts with empty data in `solar` when its nested ABI offset is `2**255`.
+  Assigning or pushing a calldata array, or assigning a calldata struct, does
+  the same when a negative nested offset wraps its pointer above calldata, such
+  as `-0xa4` for `a[0]` of a `uint256[][]`. `solc` stores an empty value or
+  reverts with `Error("")`. Both reject the same input when the value is copied
+  to memory.
+- Rationale: only malformed calldata reaches it, and `solar` is the stricter
+  of the two. These consumers share the copy to memory that rejects the
+  address; telling them apart would thread a flag through every consumer for
+  input that no ABI encoder produces.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_nested_high_offset_storage.sol`.
+
+### CODEGEN-024: A wrapping array range runs out of gas instead of panicking
+
+- ID: CODEGEN-024
+- Status: intentional
+- Difference: copying a calldata array to memory when inline assembly gave it
+  a start and a length whose sum wraps past `2**256` runs out of gas in
+  `solar`. `solc` reverts with `Panic(0x41)` at the allocation.
+- Rationale: only assembly builds such a slice, and the call fails either way.
+  Rejecting a wrapping sum would add two instructions to every calldata range
+  check, which also guards ordinary decoding.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_array_wrapping_range.sol`.
+
+### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
+
+- ID: CODEGEN-025
+- Status: intentional
+- Difference: after assembly writes dirty bits into the unused high bits of a
+  slot that holds one value narrower than a word, assigning to that value
+  keeps the bits in `solc`, because `solc` updates the field in place.
+  `solar` writes the whole word and clears them. This covers a state variable
+  or struct field alone in its slot, a mapping value, the only element of a
+  one-element array such as `uint8[1]`, and an element of an array whose
+  elements fill more than half a slot, such as an `address[]`.
+  Loads mask the value either way. A value that shares its slot keeps its
+  neighbors in both compilers.
+- Rationale: the padding belongs to no other value, so the whole-word store
+  needs no `SLOAD` and no mask constant, and is smaller and cheaper than
+  matching `solc`.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
+  `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
+
+### CODEGEN-026: The heap floor misses slot reads at addresses lowering does not fold
+
+- ID: CODEGEN-026
+- Status: intentional
+- Difference: the `heap-floor` pass recognizes a read of the free memory
+  pointer slot only when lowering has folded its address to `0x40`. A load at
+  an address it does not fold, such as `exp(0x40, 1)`, is a data read at a
+  computed address, as any address known only at runtime must be, so a forged
+  pointer stays unraised. With `mstore(0x00, 0x1111)` and `mstore(0x40, 0)`,
+  returning 32 bytes at `mload(0x40)` gives zero in `solar` (CODEGEN-010) and
+  `0x1111` in `solc`, while the same at `mload(exp(0x40, 1))` gives `0x1111` in
+  both. The next allocation at the unraised pointer can then overwrite
+  compiler frames.
+- Rationale: only assembly that forges the pointer and spells the slot address
+  indirectly reaches it. Proving every such expression equal to `0x40` would
+  need value tracking in a pass that runs before the optimizer folds them.
+- Coverage: `tests/ui/codegen/run-call/assembly/heap_floor_slot_spelling.sol`.
+
+### CODEGEN-027: A returned calldata word array does not check an assembly-set length
+
+- ID: CODEGEN-027
+- Status: parity debt
+- Difference: after `p.length := n` in assembly, with `n` such that
+  `n * 32` wraps to zero, such as `2**251`, `solc` reverts when it returns the
+  calldata array `p` of full words, because it loops over every element and
+  runs out of gas. `solar` copies the wrapped size, so the call succeeds with
+  the offset and length words and no elements. Arrays of narrow words and of
+  composite elements revert as in `solc`. A length that ABI decoding or slicing
+  produced cannot reach this, because both check it.
+- Rationale: a length check on every returned full-word array costs code in
+  programs that cannot reach the case.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_word_array_length_return.sol`.
+
+### CODEGEN-028: `abi.encode` of a forged huge calldata array reverts with a panic
+
+- ID: CODEGEN-028
+- Status: parity debt
+- Difference: after `p.length := 2**250` in assembly on a calldata array of
+  two-word structs, `abi.encode(p)` reverts with `Panic(0x41)` in `solar`,
+  because the size of the result buffer is too large to allocate. `solc` runs
+  out of gas in the encoding loop and reverts with empty data.
+- Rationale: the allocation check reports the oversized buffer before any
+  element is encoded, and the case needs assembly-forged lengths.
+- Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.
+
+### CODEGEN-029: Memory `bytes` may carry nonzero bytes past their length
+
+- ID: CODEGEN-029
+- Status: intentional
+- Difference: the bytes between the end of a memory `bytes` or `string` object
+  and the next word boundary are not cleared when the object comes from
+  `abi.decode` of calldata, memory or returndata (including the value an
+  external call returns and a `catch Error(string)` reason), or from
+  `abi.encodePacked`, `bytes.concat` or `string.concat` with a result longer
+  than 32 bytes and not a multiple of 32. They hold whatever the input or the
+  free memory held. `solc` writes zeros there, except for a `catch Error(string)`
+  reason, which keeps the padding of the revert data. Only inline assembly that
+  reads the padding sees the difference: `return`, `revert` or `log` data that
+  covers the rounded length, `keccak256` over it, `call` or `staticcall` input
+  of that length, and `mcopy` of whole words.
+- Rationale: clearing the padding adds a store to every such `abi.decode` and
+  non-word-aligned `abi.encodePacked`, which grows the bytecode and costs gas.
+  Every Solidity use of the object reads or copies only its length, masks the
+  rest, or writes its own zeros: external return, `revert` data, `abi.encode`,
+  `abi.encodePacked`, `abi.encodeCall`, events (data and indexed topic),
+  `keccak256`, `bytes.concat`, `string.concat`, conversion to `bytesN`, indexing,
+  storage copies, `push` and external calls that pass the object on. The padding
+  of an external function parameter, of `new bytes(n)` and of a packed result of
+  at most 32 bytes is still zero.
+- Coverage: `tests/ui/codegen/run-call/bytes-padding/` runs each of these
+  sources against each Solidity and assembly use over dirty padding, and
+  `tests/foundry/bytes-padding-logs/` covers events.
+
+### CODEGEN-030: A self-store of the free memory pointer slot raises the stored word
+
+- ID: CODEGEN-030
+- Status: intentional
+- Difference: after `mstore(0x40, 3)` and `mstore(0x40, mload(0x40))`, a later
+  data read of the slot, such as `return(0x40, 0x20)`, returns the initial free
+  memory pointer (`0x80`) in `solar` and `3` in `solc`. The `heap-floor` pass
+  counts the load as a pointer read, because the loaded word becomes the pointer
+  again, so it raises the first store (CODEGEN-010).
+- Rationale: only assembly that forges the pointer reaches it. Telling a copy of
+  the slot onto itself from a real pointer read means tracking the word through
+  the second store, which adds pass complexity for no ordinary Solidity.
+- Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
+
+### CODEGEN-031: Storage copies of structs and arrays snapshot the source in memory
+
+- ID: CODEGEN-031
+- Status: intentional
+- Difference: a storage-to-storage copy of a struct or array reads the whole
+  source into memory, then writes the target. Two things differ from `solc`
+  0.8.39, which copies directly when the operands are disjoint and takes a
+  memory snapshot only when it finds the source inside the target.
+  - A copy whose source contains its target, such as
+    `root.children[0].children[0] = root` or `root.children.push(root)`,
+    succeeds in `solar` and writes the source's old value. `solc` calls this
+    direction undefined and its tests expect the call to fail.
+  - Every such copy, recursive or not, advances the free memory pointer by the
+    size of the snapshot. `solc` leaves it unchanged for disjoint operands and
+    rewinds it after a snapshot.
+- Rationale: reading the source before writing makes every overlap safe,
+  including a target that contains its source, the direction that corrupted
+  storage in `solc` before 0.8.39, without a runtime overlap check. The
+  growth shows in assembly that reads the free memory pointer around the copy,
+  and as extra memory expansion gas, so a transaction that copies often can
+  run out of gas where `solc` completes.
+- Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`
+  and `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol`.
+  Twelve upstream tests expect a failure, eleven of the
+  `copy_recursive_struct_*source_contains_target*` tests and
+  `copy_recursive_struct_overlap_push_self_parent`, and
+  `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
+
+### TYPECK-026: `@inheritdoc` references
+
+Status: intentional.
+
+Difference: `solar` reads the first word of an `@inheritdoc` tag as a path,
+such as `M.Base` through an import namespace, and resolves it from the source
+scope. `solc` resolves it from the scope of the documented function, so a
+parameter named `M` shadows the namespace, and reads the rest of the tag,
+including continuation lines, as part of the reference. `solar` ignores text
+after the first word, so `@inheritdoc Base and more text` inherits from `Base`.
+Every reference that names no contract, such as an empty reference, `Base.`,
+an overloaded function or a struct, warns 9397. `solc` reports 1933, 5967,
+1430 or 9397 as errors.
+
+Rationale: resolving a qualified path is needed for valid code. Matching
+`solc` on shadowed, malformed or trailing text would need a second parse of
+the tag and a scope walk, and only changes which invalid documentation is
+reported.
+
+Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
+`tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.
+

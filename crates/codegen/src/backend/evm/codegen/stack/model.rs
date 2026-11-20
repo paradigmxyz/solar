@@ -3,8 +3,6 @@
 use crate::{backend::evm::op::StackOp, mir::ValueId};
 use smallvec::SmallVec;
 
-pub(crate) use crate::backend::evm::op::MAX_STACK_DEPTH;
-
 /// A symbolic EVM stack, top first.
 #[derive(Clone, Debug)]
 pub(crate) struct StackModel(SmallVec<[ValueId; 16]>);

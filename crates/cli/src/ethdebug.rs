@@ -16,9 +16,42 @@ enum EthdebugId {
     Text(String),
 }
 
+/// The version of the ethdebug/format specification the outputs follow.
+const ETHDEBUG_SPECIFICATION_VERSION: &str = "0.1.0-draft.2";
+
+#[derive(Clone, Debug, Serialize)]
+struct EthdebugStamp {
+    schema: &'static str,
+    version: &'static str,
+}
+
+impl EthdebugStamp {
+    const fn new(schema: &'static str) -> Self {
+        Self { schema, version: ETHDEBUG_SPECIFICATION_VERSION }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum EthdebugReferenceType {
+    Compilation,
+    Source,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct EthdebugReference {
     id: EthdebugId,
+    r#type: EthdebugReferenceType,
+}
+
+impl EthdebugReference {
+    fn source(id: u32) -> Self {
+        Self { id: EthdebugId::Number(id), r#type: EthdebugReferenceType::Source }
+    }
+
+    fn compilation(id: &str) -> Self {
+        Self { id: EthdebugId::Text(id.to_owned()), r#type: EthdebugReferenceType::Compilation }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -40,7 +73,8 @@ struct EthdebugFunctionInvoke {
     identifier: Option<String>,
     declaration: EthdebugSourceRange,
     jump: bool,
-    target: EthdebugInvocationTarget,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target: Option<EthdebugInvocationTarget>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -104,6 +138,7 @@ enum EthdebugEnvironment {
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct EthdebugProgram {
+    ethdebug: EthdebugStamp,
     compilation: EthdebugReference,
     contract: EthdebugContract,
     environment: EthdebugEnvironment,
@@ -133,9 +168,18 @@ pub(crate) struct EthdebugCompilation {
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct EthdebugResources {
-    compilation: EthdebugCompilation,
+    ethdebug: EthdebugStamp,
     types: Map<String, Value>,
     pointers: Map<String, Value>,
+}
+
+/// The global ethdebug outputs, shared by the CLI and Standard JSON.
+#[derive(Debug, Default, Serialize)]
+pub(crate) struct EthdebugOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) resources: Option<EthdebugResources>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) compilation: Option<EthdebugCompilation>,
 }
 
 impl EthdebugCompilation {
@@ -143,10 +187,12 @@ impl EthdebugCompilation {
         let EthdebugId::Text(id) = &self.id else { unreachable!() };
         id
     }
+}
 
-    pub(crate) fn into_resources(self) -> EthdebugResources {
-        EthdebugResources {
-            compilation: self,
+impl EthdebugResources {
+    pub(crate) fn new() -> Self {
+        Self {
+            ethdebug: EthdebugStamp::new("ethdebug/format/info/resources"),
             types: Default::default(),
             pointers: Default::default(),
         }
@@ -276,7 +322,6 @@ pub(crate) fn make_ethdebug_program(
         .ok()
         .map(|range| EthdebugRange { offset: range.start, length: range.end - range.start });
 
-    let mut previous = None;
     let instructions = debug_info
         .instructions(bytecode)
         .map(|instruction| {
@@ -291,9 +336,7 @@ pub(crate) fn make_ethdebug_program(
                 .map(|argument| format!("0x{}", alloy_primitives::hex::display(argument)))
                 .into_iter()
                 .collect();
-            let context =
-                make_ethdebug_context(gcx, &source_ids, bytecode, previous.as_ref(), &instruction);
-            previous = Some(instruction);
+            let context = make_ethdebug_context(gcx, &source_ids, &instruction);
             EthdebugInstruction {
                 offset: instruction.offset as usize,
                 operation: EthdebugOperation { mnemonic, arguments },
@@ -303,13 +346,12 @@ pub(crate) fn make_ethdebug_program(
         .collect();
 
     Some(EthdebugProgram {
-        compilation: EthdebugReference { id: EthdebugId::Text(compilation_id.to_owned()) },
+        ethdebug: EthdebugStamp::new("ethdebug/format/program"),
+        compilation: EthdebugReference::compilation(compilation_id),
         contract: EthdebugContract {
             name: contract.name.to_string(),
             definition: EthdebugSourceRange {
-                source: EthdebugReference {
-                    id: EthdebugId::Number(contract.source.index() as u32),
-                },
+                source: EthdebugReference::source(contract.source.index() as u32),
                 range: definition_range,
             },
         },
@@ -331,8 +373,6 @@ fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction<'_>) -> 
 fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction<'_>>,
     instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugContext> {
     let location = instruction.location;
@@ -357,9 +397,9 @@ fn make_ethdebug_context(
         _ if location.all_source_spans => (None, Vec::new(), contexts),
         _ => (None, contexts, Vec::new()),
     };
-    let invoke = location.function_invoke.and_then(|function| {
-        make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
-    });
+    let invoke = location
+        .function_invoke
+        .and_then(|function| make_ethdebug_function_invoke(gcx, source_ids, function, instruction));
     let (r#return, revert) = match (location.function_exit, instruction.opcode) {
         (Some(DebugFunctionExit::Return), 0x00 | 0x56 | 0x57 | 0xf3) => {
             (Some(EthdebugFunctionExit {}), None)
@@ -383,18 +423,20 @@ fn make_ethdebug_context(
 fn make_ethdebug_function_invoke(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction<'_>>,
     function: DebugFunction,
     instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugFunctionInvoke> {
-    // NOTE: Constructors, entry labels, dynamic jumps, and optimized fallthroughs
-    // are not statically identified internal calls. Leave their invocation
-    // unknown rather than inventing a jump target or changing executable code.
-    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)?;
-    let target = EthdebugInvocationTarget {
-        pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
-    };
+    // The event marks the first instruction of the callee: its entry `JUMPDEST`, which is where
+    // the ethdebug format places an internal call's `invoke`.
+    // NOTE: Code that nothing jumps into, such as an inlined body or a constructor without
+    // helpers, starts at another instruction, and there is no jump target to point at.
+    let target = (instruction.opcode == op::JUMPDEST).then_some(EthdebugInvocationTarget {
+        pointer: EthdebugCodePointer {
+            location: "code",
+            offset: instruction.offset as usize,
+            length: 1,
+        },
+    });
     Some(EthdebugFunctionInvoke {
         identifier: (function.identifier != solar_interface::sym::_anonymous)
             .then(|| function.identifier.to_string()),
@@ -412,7 +454,7 @@ fn make_ethdebug_source_range(
     let source = gcx.sess.source_map().span_to_source(span).ok()?;
     let source_id = *source_ids.get(&source.file.start_pos.0)?;
     Some(EthdebugSourceRange {
-        source: EthdebugReference { id: EthdebugId::Number(source_id) },
+        source: EthdebugReference::source(source_id),
         range: Some(EthdebugRange {
             offset: source.data.start,
             length: source.data.end - source.data.start,

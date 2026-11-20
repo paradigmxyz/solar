@@ -27,11 +27,8 @@ fn @copyHigh() {
     v89 = heap_floor !metadata(alloc_ptr)
     v90 = add v89, v6 !metadata(alloc_ptr)
     v98 = shr v90, 64
-    v91 = lt v90, v89
-    v100 = zext i1 v91 to i256
-    v101 = or v98, v100
-    v93 = ne v101, 0
-    jumpi v93, bb9, bb8
+    v92 = ne v98, 0
+    jumpi v92, bb9, bb8
   bb8:                                            ; preds = bb0
     calldatacopy v89, v0, v6
     mstore v89, v60

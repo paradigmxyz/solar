@@ -2,7 +2,8 @@
 @module MergedOrigins
 
 // The `MCOPY` computes the results of every instruction of the run, so each instruction of the
-// replacement carries all their origins. The function events of the run are dropped.
+// replacement carries all their origins. The function entry of the run moves to the first
+// instruction of the replacement.
 bb0:
   push 128 !metadata(span=1..2)
   mload !metadata(span=3..4)

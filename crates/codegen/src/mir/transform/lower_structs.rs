@@ -105,6 +105,8 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
         // Types no value or signature uses.
         let changed = !module.struct_types.is_empty();
         module.struct_types.clear();
+        // No function body changes.
+        analyses.preserve_local_summaries();
         return Ok(changed);
     }
     if module.functions.iter().any(|func| {
@@ -253,22 +255,27 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
         starts.push(params.next_idx());
         params.extend(layouts.flatten(&ty).iter().copied());
     }
-    if func.params.iter().any(|ty| matches!(ty, MirType::Struct(_))) {
-        func.set_params(params);
-    }
     // aggregate_arg -> (field_arg0, ..., field_argN)
-    for value in values {
-        if let Value::Arg(index) = *func.value(value)
-            && let Some(&start) = starts.get(index)
-        {
-            if let Some(fields) = aggregates.get(&value) {
+    // An argument value that keeps no parameter, a struct or one the body no longer reads, becomes
+    // undefined: its old index may name another parameter or none.
+    if func.params.iter().any(|ty| matches!(ty, MirType::Struct(_))) {
+        let old_params = func.params.clone();
+        func.set_params(params);
+        for index in 0..func.num_values() {
+            let value = ValueId::from_usize(index);
+            let Value::Arg(arg) = *func.value(value) else { continue };
+            let Some(&start) = starts.get(arg) else { continue };
+            *func.value_mut(value) = if let Some(fields) = aggregates.get(&value) {
                 for (offset, &field) in fields.iter().enumerate() {
                     let arg = func.alloc_arg(ArgIdx::new(start.index() + offset));
                     replacements.insert(field, arg);
                 }
+                Value::Undef(old_params[arg])
+            } else if values.binary_search(&value).is_ok() {
+                Value::Arg(start)
             } else {
-                *func.value_mut(value) = Value::Arg(start);
-            }
+                Value::Undef(old_params[arg])
+            };
         }
     }
     // result: aggregate -> result: leaf, or no result with return_abi = [leaf0, ..., leafN]
@@ -348,6 +355,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                 // rest = mload(buffer + field_offset)
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     let function = *function;
+                    let returns_to_exit = builder.func().inst(id).metadata.returns_to_exit();
                     if fields.is_none() && !args.iter().any(|arg| aggregates.contains_key(arg)) {
                         return false;
                     }
@@ -368,6 +376,18 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                         builder.icall_void(function, args);
                     } else {
                         outputs.push(builder.icall(function, args, types[0]));
+                        if returns_to_exit {
+                            // The call keeps its origin, and the reads of its results are part of
+                            // the epilogue it returns into, as in `replace_body_with_call`.
+                            let current = builder.current_block();
+                            let call = *builder.func().blocks[current]
+                                .instructions
+                                .last()
+                                .expect("the call");
+                            builder.func_mut().inst_mut(call).metadata.set_returns_to_exit();
+                            let exit = builder.func().exit_span;
+                            builder.replace_source_span(exit);
+                        }
                         if fields.len() > 1 {
                             let base =
                                 builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);

@@ -7,17 +7,17 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
-    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
-    MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module, PackedArraySource,
-    PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId,
-    memory::EvmMemoryLayout,
+    AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail, CheckedOp,
+    DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    InstructionMetadata, LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType,
+    Module, PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason,
+    Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
@@ -111,7 +111,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
-    let declaration_span = mir.declaration_span;
+    let (declaration_span, exit_span) = (mir.declaration_span, mir.exit_span);
     if !expose_selector {
         mir.selector = None;
     }
@@ -178,8 +178,11 @@ pub(super) fn lower(
         lowerer.lower_function_body(hir_function.modifiers, body, hir_function.span)?;
     }
     if !lowerer.is_terminated() {
-        // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(declaration_span);
+        // NOTE: solc maps this exit to the function definition (`ContractCompiler.cpp:619`). A
+        // debugger then stops on the header again after the last statement, so like a clang
+        // epilogue the exit maps to the closing brace of the body.
+        // ret named_returns !metadata(closing brace)
+        lowerer.builder.replace_source_span(exit_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
@@ -216,6 +219,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
+    /// The last assignment to each local in each block, as its value and source context, for the
+    /// phis that merge the local ([`Self::record_edge_assignment`]).
+    assignments: FxHashMap<(VariableId, BlockId), (ValueId, InstructionMetadata)>,
     /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
     /// range check.
     unchecked_calldata_slices: FxHashSet<ValueId>,
@@ -552,6 +558,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
+            assignments: FxHashMap::default(),
             unchecked_calldata_slices: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
@@ -908,6 +915,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 if let Some(value) = self.lower_internal_function_value(expr) {
                     return Some(value);
+                }
+                // A library name in inline assembly is the library's address.
+                if self.in_inline_assembly
+                    && let Some(hir::Res::Item(hir::ItemId::Contract(id))) =
+                        self.cx.gcx.resolved_expr(expr)
+                    && self.cx.gcx.hir.contract(id).kind.is_library()
+                {
+                    // address = library_address L
+                    // word = zext i160 address to i256
+                    let address = self.library_contract_address(id);
+                    return Some(self.builder.cast_word(address));
                 }
                 let id = self.cx.gcx.resolved_variable(expr)?;
                 let value = self.load_variable(id, expr.span)?;
@@ -1300,7 +1318,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
-                let previous_span = builder.replace_source_span(gcx.hir.function(function_id).span);
                 let call_arguments = arguments
                     .iter()
                     .copied()
@@ -1360,7 +1377,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     };
                     builder.ret([result]);
                 }
-                builder.replace_source_span(previous_span);
                 builder.switch_to_block(next_block);
             }
 

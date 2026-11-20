@@ -30,7 +30,6 @@
 
 use super::*;
 use smallvec::SmallVec;
-use solar_data_structures::Never;
 use solar_sema::hir::Visit;
 use std::ops::ControlFlow;
 
@@ -338,13 +337,13 @@ fn can_hold_function_pointer(ty: Ty<'_>) -> bool {
 }
 
 impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
     }
 
-    fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Never> {
+    fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<!> {
         if !self.visited.insert(id) {
             return ControlFlow::Continue(());
         }
@@ -355,7 +354,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         result
     }
 
-    fn visit_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) -> ControlFlow<Never> {
+    fn visit_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) -> ControlFlow<!> {
         if let hir::ItemId::Contract(base) = modifier.id
             && let Some(constructor) = self.gcx.hir.contract(base).ctor
         {
@@ -372,14 +371,14 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         self.walk_modifier(modifier)
     }
 
-    fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Never> {
+    fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<!> {
         if let Some(expr) = self.gcx.hir.variable(id).initializer {
             self.connect(&[id], expr);
         }
         self.walk_nested_var(id)
     }
 
-    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Never> {
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<!> {
         let previous = self.assembly;
         match stmt.kind {
             StmtKind::AssemblyBlock(..) => self.assembly = true,
@@ -394,7 +393,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         result
     }
 
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<!> {
         if self.assembly {
             if matches!(expr.kind, ExprKind::Ident(_))
                 && let Some(hir::Res::Item(hir::ItemId::Variable(id))) =

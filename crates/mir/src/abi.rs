@@ -2,7 +2,12 @@
 
 use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
-use std::{fmt, sync::Arc};
+use solar_data_structures::map::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::{
+    fmt,
+    hash::{BuildHasher, Hash, Hasher},
+    sync::Arc,
+};
 
 /// An interned ABI tuple layout.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -66,19 +71,24 @@ pub enum AbiParamLocation {
 
 impl fmt::Display for AbiParamLayout {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut printer = ShapePrinter::new(&self.types);
         write!(f, "[")?;
         for (index, ty) in self.types.iter().enumerate() {
             if index != 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{ty}")?;
+            printer.write(f, ty)?;
         }
         write!(f, "]")
     }
 }
 
 /// ABI input shape with scalar type information for decoding.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+///
+/// Nested shapes are shared [`AbiParamTypeRef`] nodes, so a struct that holds several copies of
+/// another struct refers to one node for it instead of owning a copy each.
+#[allow(clippy::derived_hash_with_manual_eq, reason = "equality only memoizes the derived one")]
+#[derive(Clone, Debug, Eq, Hash)]
 pub enum AbiParamType {
     /// A scalar encoded as one word.
     Scalar(ValueLayout),
@@ -92,41 +102,250 @@ pub enum AbiParamType {
     /// A dynamic byte string.
     Bytes,
     /// A dynamic array.
-    DynamicArray(Box<Self>),
+    DynamicArray(AbiParamTypeRef),
     /// A fixed-size array.
     FixedArray {
         /// Array element layout.
-        element: Box<Self>,
+        element: AbiParamTypeRef,
         /// Number of elements.
         len: u64,
     },
     /// A struct or tuple.
-    Tuple(Box<[Self]>),
+    Tuple(Box<[AbiParamTypeRef]>),
+}
+
+/// Compares two shapes, remembering the pairs of distinct nodes already found equal so that a
+/// node reached along many paths is compared once.
+fn shapes_equal(a: &AbiParamType, b: &AbiParamType, equal: &mut NodePairs) -> bool {
+    match (a, b) {
+        (AbiParamType::Scalar(a), AbiParamType::Scalar(b)) => a == b,
+        (
+            AbiParamType::Enum { ty: a, variants: a_variants },
+            AbiParamType::Enum { ty: b, variants: b_variants },
+        ) => a == b && a_variants == b_variants,
+        (AbiParamType::Bytes, AbiParamType::Bytes) => true,
+        (AbiParamType::DynamicArray(a), AbiParamType::DynamicArray(b)) => nodes_equal(a, b, equal),
+        (
+            AbiParamType::FixedArray { element: a, len: a_len },
+            AbiParamType::FixedArray { element: b, len: b_len },
+        ) => a_len == b_len && nodes_equal(a, b, equal),
+        (AbiParamType::Tuple(a), AbiParamType::Tuple(b)) => {
+            a.len() == b.len() && a.iter().zip(b).all(|(a, b)| nodes_equal(a, b, equal))
+        }
+        _ => false,
+    }
+}
+
+/// Pairs of distinct nodes found equal during one comparison.
+type NodePairs = FxHashSet<(*const AbiParamTypeNode, *const AbiParamTypeNode)>;
+
+/// Compares two nodes like [`shapes_equal`], deciding at once when they are the same node or
+/// their hashes differ.
+fn nodes_equal(a: &AbiParamTypeRef, b: &AbiParamTypeRef, equal: &mut NodePairs) -> bool {
+    if Arc::ptr_eq(&a.0, &b.0) {
+        return true;
+    }
+    if a.0.hash != b.0.hash {
+        return false;
+    }
+    let key = (Arc::as_ptr(&a.0), Arc::as_ptr(&b.0));
+    if equal.contains(&key) {
+        return true;
+    }
+    let result = shapes_equal(&a.0.ty, &b.0.ty, equal);
+    if result {
+        equal.insert(key);
+    }
+    result
+}
+
+impl PartialEq for AbiParamType {
+    fn eq(&self, other: &Self) -> bool {
+        shapes_equal(self, other, &mut FxHashSet::default())
+    }
+}
+
+/// A shared node of an [`AbiParamType`] shape.
+///
+/// Clones share the node, which caches its hash, whether it is dynamic, its head size, and its
+/// depth, so building, hashing, and comparing a shape take time linear in its distinct nodes
+/// rather than in the paths through them.
+#[derive(Clone)]
+pub struct AbiParamTypeRef(Arc<AbiParamTypeNode>);
+
+struct AbiParamTypeNode {
+    ty: AbiParamType,
+    hash: u64,
+    is_dynamic: bool,
+    head_size: Option<u64>,
+    depth: usize,
+}
+
+impl AbiParamTypeRef {
+    /// Creates a shared node for `ty`.
+    #[must_use]
+    pub fn new(ty: AbiParamType) -> Self {
+        let hash = FxBuildHasher.hash_one(&ty);
+        let is_dynamic = ty.is_dynamic();
+        let head_size = ty.checked_head_size();
+        let depth = ty.depth();
+        Self(Arc::new(AbiParamTypeNode { ty, hash, is_dynamic, head_size, depth }))
+    }
+
+    /// Returns whether the ABI value occupies an offset in its containing head.
+    #[must_use]
+    pub fn is_dynamic(&self) -> bool {
+        self.0.is_dynamic
+    }
+
+    /// Returns the static head size, or `None` when the shape exceeds the
+    /// representable ABI layout range.
+    #[must_use]
+    pub fn checked_head_size(&self) -> Option<u64> {
+        self.0.head_size
+    }
+
+    /// Returns the nesting depth: zero for a scalar or `bytes`, one more than the deepest child
+    /// for an aggregate.
+    #[must_use]
+    pub fn depth(&self) -> usize {
+        self.0.depth
+    }
+}
+
+impl std::ops::Deref for AbiParamTypeRef {
+    type Target = AbiParamType;
+
+    fn deref(&self) -> &AbiParamType {
+        &self.0.ty
+    }
+}
+
+impl PartialEq for AbiParamTypeRef {
+    fn eq(&self, other: &Self) -> bool {
+        nodes_equal(self, other, &mut FxHashSet::default())
+    }
+}
+
+impl Eq for AbiParamTypeRef {}
+
+impl Hash for AbiParamTypeRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0.hash);
+    }
+}
+
+impl fmt::Debug for AbiParamTypeRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0.ty, f)
+    }
 }
 
 impl fmt::Display for AbiParamType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Scalar(ty) => write!(f, "{ty}"),
-            Self::Enum { ty, variants } => write!(f, "enum<{variants}, {ty}>"),
-            Self::Bytes => f.write_str("bytes"),
-            Self::DynamicArray(element) => write!(f, "array<_, {element}>"),
-            Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
-            Self::Tuple(fields) => {
-                write!(f, "tuple<")?;
-                for (index, ty) in fields.iter().enumerate() {
-                    if index != 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{ty}")?;
+        ShapePrinter::new(std::slice::from_ref(self)).write(f, self)
+    }
+}
+
+/// Prints ABI input shapes in time linear in their distinct nodes.
+///
+/// A nested aggregate that occurs more than once and itself contains an aggregate is printed in
+/// full once as `$N = shape`, where `N` counts such nodes in printing order, and as `$N` after
+/// that. Other nodes print in full each time, which stays linear because only nodes whose
+/// children are scalars, `bytes`, or empty tuples repeat.
+struct ShapePrinter {
+    /// Nodes that get a name, with the number they got when first printed.
+    named: FxHashMap<AbiParamTypeRef, Option<usize>>,
+    next: usize,
+}
+
+impl ShapePrinter {
+    fn new(types: &[AbiParamType]) -> Self {
+        fn count(ty: &AbiParamType, counts: &mut FxHashMap<AbiParamTypeRef, usize>) {
+            for child in ty.children() {
+                let seen = counts.entry(child.clone()).or_insert(0);
+                *seen += 1;
+                if *seen == 1 {
+                    count(child, counts);
                 }
-                write!(f, ">")
             }
         }
+        let mut counts = FxHashMap::default();
+        for ty in types {
+            count(ty, &mut counts);
+        }
+        let named = counts
+            .into_iter()
+            .filter(|(ty, count)| *count >= 2 && ty.depth() >= 2)
+            .map(|(ty, _)| (ty, None))
+            .collect();
+        Self { named, next: 0 }
+    }
+
+    fn write(&mut self, f: &mut fmt::Formatter<'_>, ty: &AbiParamType) -> fmt::Result {
+        match ty {
+            AbiParamType::Scalar(ty) => write!(f, "{ty}"),
+            AbiParamType::Enum { ty, variants } => write!(f, "enum<{variants}, {ty}>"),
+            AbiParamType::Bytes => f.write_str("bytes"),
+            AbiParamType::DynamicArray(element) => {
+                f.write_str("array<_, ")?;
+                self.write_node(f, element)?;
+                f.write_str(">")
+            }
+            AbiParamType::FixedArray { element, len } => {
+                write!(f, "array<{len}, ")?;
+                self.write_node(f, element)?;
+                f.write_str(">")
+            }
+            AbiParamType::Tuple(fields) => {
+                f.write_str("tuple<")?;
+                for (index, field) in fields.iter().enumerate() {
+                    if index != 0 {
+                        f.write_str(", ")?;
+                    }
+                    self.write_node(f, field)?;
+                }
+                f.write_str(">")
+            }
+        }
+    }
+
+    fn write_node(&mut self, f: &mut fmt::Formatter<'_>, node: &AbiParamTypeRef) -> fmt::Result {
+        let Some(name) = self.named.get_mut(node) else { return self.write(f, node) };
+        if let Some(name) = name {
+            return write!(f, "${name}");
+        }
+        let index = self.next;
+        *name = Some(index);
+        self.next += 1;
+        write!(f, "${index} = ")?;
+        self.write(f, node)
     }
 }
 
 impl AbiParamType {
+    /// Returns the nested shapes: an array's element or a tuple's fields.
+    pub fn children(&self) -> impl Iterator<Item = &AbiParamTypeRef> {
+        match self {
+            Self::DynamicArray(element) | Self::FixedArray { element, .. } => {
+                std::slice::from_ref(element)
+            }
+            Self::Tuple(fields) => fields,
+            Self::Scalar(_) | Self::Enum { .. } | Self::Bytes => &[],
+        }
+        .iter()
+    }
+
+    /// Returns the nesting depth: zero for a scalar or `bytes`, one more than the deepest child
+    /// for an aggregate.
+    #[must_use]
+    pub fn depth(&self) -> usize {
+        match self {
+            Self::Scalar(_) | Self::Enum { .. } | Self::Bytes => 0,
+            _ => self.children().map(AbiParamTypeRef::depth).max().unwrap_or_default() + 1,
+        }
+    }
+
     /// Returns whether ABI return encoding must canonicalize a value in this shape.
     #[must_use]
     pub fn needs_return_cleanup(&self) -> bool {
@@ -141,7 +360,7 @@ impl AbiParamType {
             Self::FixedArray { element, .. } | Self::DynamicArray(element) => {
                 element.needs_return_cleanup()
             }
-            Self::Tuple(fields) => fields.iter().any(Self::needs_return_cleanup),
+            Self::Tuple(fields) => fields.iter().any(|field| field.needs_return_cleanup()),
         }
     }
 
@@ -176,22 +395,13 @@ impl AbiParamType {
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub fn is_dynamic(&self) -> bool {
-        match self {
-            Self::Scalar(_) | Self::Enum { .. } => false,
-            Self::Bytes | Self::DynamicArray(_) => true,
-            Self::FixedArray { element, .. } => element.is_dynamic(),
-            Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),
-        }
+        matches!(self, Self::Bytes | Self::DynamicArray(_)) || self.has_dynamic_child()
     }
 
     /// Returns whether an aggregate directly contains a dynamic value.
     #[must_use]
     pub fn has_dynamic_child(&self) -> bool {
-        match self {
-            Self::FixedArray { element, .. } | Self::DynamicArray(element) => element.is_dynamic(),
-            Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),
-            Self::Scalar(_) | Self::Enum { .. } | Self::Bytes => false,
-        }
+        self.children().any(AbiParamTypeRef::is_dynamic)
     }
 
     /// Returns the size of this value's in-place ABI head.
@@ -224,19 +434,6 @@ impl AbiParamType {
                 .iter()
                 .try_fold(0u64, |size, field| size.checked_add(field.checked_head_size()?)),
             _ => Some(32),
-        }
-    }
-
-    /// Returns the calldata element size of a dynamically sized value: one byte for `bytes`, the
-    /// element head size for arrays, and `None` for every other shape.
-    #[must_use]
-    pub fn calldata_stride(&self) -> Option<u64> {
-        match self {
-            Self::Bytes => Some(1),
-            Self::DynamicArray(element) => {
-                Some(element.checked_head_size().expect("ABI head size exceeds u64 range"))
-            }
-            _ => None,
         }
     }
 }

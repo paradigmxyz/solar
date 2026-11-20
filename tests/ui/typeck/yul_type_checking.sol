@@ -171,7 +171,7 @@ contract C {
             helper := 1 //~ ERROR: only local variables can be assigned to in inline assembly
             //~^ ERROR: expression has to be an lvalue
 
-            pop(Other) //~ ERROR: mismatched types
+            pop(Other) //~ ERROR: expected a library
 
             Other := 1 //~ ERROR: only local variables can be assigned to in inline assembly
             //~^ ERROR: expression has to be an lvalue

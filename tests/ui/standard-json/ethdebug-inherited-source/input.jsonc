@@ -1,0 +1,47 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
+// Each instruction names the source file of its own span: `f` is inherited from `A.sol` (ID 0), and
+// the fallback is declared in `B.sol` (ID 1), the file of the contract.
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "mnemonic": "SSTORE"
+// CHECK-NEXT: },
+// CHECK-NEXT: "context": {
+// CHECK-NEXT: "code": {
+// CHECK-NEXT: "source": {
+// CHECK-NEXT: "id": 0,
+// CHECK-NEXT: "type": "source"
+// CHECK-NEXT: },
+// CHECK-NEXT: "range": {
+// CHECK-NEXT: "offset": 57,
+// CHECK-NEXT: "length": 6
+// CHECK: "mnemonic": "STOP"
+// CHECK-NEXT: },
+// CHECK-NEXT: "context": {
+// CHECK-NEXT: "code": {
+// CHECK-NEXT: "source": {
+// CHECK-NEXT: "id": 1,
+// CHECK-NEXT: "type": "source"
+// CHECK-NEXT: },
+// CHECK-NEXT: "range": {
+// CHECK-NEXT: "offset": 64,
+// CHECK-NEXT: "length": 1
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "abstract contract Base { uint x; function f() internal { x = 11; } }"
+    },
+    "B.sol": {
+      "content": "import \"A.sol\"; contract C is Base { fallback() external { f(); } }"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true
+    },
+    "outputSelection": {
+      "B.sol": {"C": ["evm.deployedBytecode.ethdebug"]}
+    }
+  }
+}

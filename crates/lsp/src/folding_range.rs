@@ -3,11 +3,7 @@
 use crate::utils::{checked_span_range, parse_recovering};
 use crop::Rope;
 use lsp_types::{FoldingRange, FoldingRangeKind, Position};
-use solar_interface::{
-    Span,
-    data_structures::{Never, map::FxHashMap},
-    source_map::SourceFile,
-};
+use solar_interface::{Span, data_structures::map::FxHashMap, source_map::SourceFile};
 use solar_parse::{
     Cursor,
     ast::{self, token::Delimiter, visit::Visit},
@@ -764,7 +760,7 @@ impl<'a> AstRangeCollector<'a> {
 }
 
 impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         if item.name().is_some() || matches!(item.kind, ast::ItemKind::Function(_)) {

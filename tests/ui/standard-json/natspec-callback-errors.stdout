@@ -1,0 +1,46 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    },
+    "G.sol": {
+      "id": 1
+    },
+    "Z.sol": {
+      "id": 2
+    },
+    "Y.sol": {
+      "id": 3
+    },
+    "M.sol": {
+      "id": 4
+    }
+  },
+  "contracts": {
+    "M.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "errors": {
+            "F(uint256)": [
+              {
+                "notice": "from G"
+              },
+              {
+                "notice": "from Y"
+              },
+              {
+                "notice": "from Z"
+              },
+              {
+                "notice": "from A"
+              }
+            ]
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}

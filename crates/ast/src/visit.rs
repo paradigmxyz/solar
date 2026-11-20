@@ -10,7 +10,7 @@ declare_visitors! {
     pub trait Visit VisitMut <'ast> {
         /// The value returned when breaking from the traversal.
         ///
-        /// This can be [`Never`](solar_data_structures::Never) to indicate that the traversal
+        /// This can be [`!`](primitive@never) to indicate that the traversal
         /// should never break.
         type BreakValue;
 
@@ -129,7 +129,7 @@ declare_visitors! {
             let ItemEnum { name, variants } = enum_;
             self.visit_ident #_mut(name)?;
             for variant in variants.iter #_mut() {
-                self.visit_ident #_mut(variant)?;
+                self.visit_ident #_mut(&#mut variant.name)?;
             }
             ControlFlow::Continue(())
         }

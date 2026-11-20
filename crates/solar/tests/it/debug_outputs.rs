@@ -139,7 +139,7 @@ fn debug_outputs_match_standard_json() {
         // settings, whereas the CLI uses its defaults without a CBOR trailer.
         // Check references before removing this identity difference.
         let cli_id = &output["ethdebug"]["compilation"]["id"];
-        let standard_id = standard["ethdebug"]["resources"]["compilation"]["id"].clone();
+        let standard_id = standard["ethdebug"]["compilation"]["id"].clone();
         assert!(cli_id.as_str().is_some_and(|id| !id.is_empty()));
         assert!(standard_id.as_str().is_some_and(|id| !id.is_empty()));
         for (name, field) in [("ethdebug", "bytecode"), ("ethdebug-runtime", "deployedBytecode")] {
@@ -148,14 +148,18 @@ fn debug_outputs_match_standard_json() {
             assert_eq!(program["compilation"]["id"], standard_id);
             program["compilation"]["id"] = cli_id.clone();
         }
-        standard["ethdebug"]["resources"]["compilation"]["id"] = cli_id.clone();
+        standard["ethdebug"]["compilation"]["id"] = cli_id.clone();
         let cli = &output["contracts"][CONTRACT];
         let evm = &standard["contracts"][SOURCE]["C"]["evm"];
         assert_eq!(cli["ethdebug"], evm["bytecode"]["ethdebug"], "{mode}");
         assert_eq!(cli["ethdebug-runtime"], evm["deployedBytecode"]["ethdebug"], "{mode}");
         assert_eq!(cli["srcmap"], evm["bytecode"]["sourceMap"], "{mode}");
         assert_eq!(cli["srcmap-runtime"], evm["deployedBytecode"]["sourceMap"], "{mode}");
-        assert_eq!(output["ethdebug"], standard["ethdebug"]["resources"], "{mode}");
+        assert_eq!(
+            output["ethdebug"]["compilation"], standard["ethdebug"]["compilation"],
+            "{mode}"
+        );
+        assert!(output["ethdebug"].get("resources").is_none(), "{mode}");
         let sources = output["sourceList"].as_array().unwrap();
         assert_eq!(sources.len(), 2);
         for (id, source) in sources.iter().enumerate() {
@@ -175,6 +179,40 @@ fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
 #[test]
 fn sunk_phi_expression_debug_outputs_are_bytecode_neutral() {
     assert_debug_outputs_are_bytecode_neutral("phi_sink.sol");
+}
+
+#[test]
+fn remat_read_origin_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/stackify/remat_read_origin.sol",
+    );
+}
+#[test]
+fn iszero_origin_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/stackify_iszero_origin.sol",
+    );
+}
+
+#[test]
+fn if_exit_fall_edge_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/if-exit/if_exit_fall_edge.sol",
+    );
+}
+
+#[test]
+fn if_exit_materialized_jump_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/if-exit/if_exit_materialized_jump.sol",
+    );
+}
+
+#[test]
+fn place_reads_origin_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/debug-info/place-reads/sunk_read_origin.sol",
+    );
 }
 
 fn assert_debug_outputs_are_bytecode_neutral(source: &str) {
@@ -210,12 +248,16 @@ fn debug_output_directory_and_resources_only() {
     let resources = compile_json(&[SOURCE, "--emit=ethdebug-resources"]);
     assert!(resources.get("contracts").is_none());
     assert!(resources.get("sourceList").is_none());
-    let resources = &resources["ethdebug"];
-    assert_eq!(resources["compilation"]["sources"].as_array().unwrap().len(), 2);
-    assert!(resources["compilation"]["sources"].as_array().unwrap().iter().all(|source| {
+    let ethdebug = &resources["ethdebug"];
+    assert_eq!(ethdebug["compilation"]["sources"].as_array().unwrap().len(), 2);
+    assert!(ethdebug["compilation"]["sources"].as_array().unwrap().iter().all(|source| {
         let path = Path::new(FIXTURES).join(source["path"].as_str().unwrap());
         source["contents"] == RealFileLoader.load_file(&path).unwrap()
     }));
+    let resources = &ethdebug["resources"];
+    assert_eq!(resources["ethdebug"]["schema"], "ethdebug/format/info/resources");
+    assert_eq!(resources["ethdebug"]["version"], "0.1.0-draft.2");
+    assert!(resources.get("compilation").is_none());
     assert!(resources["types"].as_object().unwrap().is_empty());
     assert!(resources["pointers"].as_object().unwrap().is_empty());
 }
@@ -355,7 +397,7 @@ fn debug_activations_require_real_transfers() {
             let mut jump = "-";
             let mut internal_returns = 0;
             let mut returns = 0;
-            for (index, (instruction, entry)) in instructions.iter().zip(entries).enumerate() {
+            for (instruction, entry) in instructions.iter().zip(entries) {
                 let opcode = instruction["operation"]["mnemonic"].as_str().unwrap();
                 if let Some(marker) = entry.split(':').nth(3).filter(|marker| !marker.is_empty()) {
                     jump = marker;
@@ -366,21 +408,17 @@ fn debug_activations_require_real_transfers() {
                 internal_returns += usize::from(jump == "o");
                 let context = &instruction["context"];
                 if let Some(invoke) = context.get("invoke") {
-                    assert!(matches!(opcode, "JUMP" | "JUMPI"), "{invoke}");
                     assert_eq!(invoke["jump"], true);
-                    let pointer = &invoke["target"]["pointer"];
-                    assert_eq!(pointer["location"], "code");
-                    assert_eq!(pointer["length"], 1);
-                    let target = pointer["offset"].as_u64().expect("required internal jump target");
-                    assert!(instructions.iter().any(|inst| {
-                        inst["offset"] == target && inst["operation"]["mnemonic"] == "JUMPDEST"
-                    }));
-                    let argument =
-                        instructions[index - 1]["operation"]["arguments"][0].as_str().unwrap();
-                    assert_eq!(
-                        u64::from_str_radix(argument.strip_prefix("0x").unwrap(), 16).unwrap(),
-                        target
-                    );
+                    // The callee's first instruction holds the entry; only a `JUMPDEST` is a
+                    // jump target.
+                    if opcode == "JUMPDEST" {
+                        let pointer = &invoke["target"]["pointer"];
+                        assert_eq!(pointer["location"], "code");
+                        assert_eq!(pointer["length"], 1);
+                        assert_eq!(pointer["offset"], instruction["offset"]);
+                    } else {
+                        assert!(invoke.get("target").is_none(), "{invoke}");
+                    }
                 }
                 if context.get("return").is_some() {
                     returns += 1;

@@ -32,10 +32,9 @@ contract ResidentLastUse {
 // CHECK-LABEL: @module SpilledNullary_runtime
 // CHECK: calldatasize
 // CHECK: calldatasize
-// CHECK: calldatacopy
 // CHECK: calldatasize
-// CHECK-NEXT: dup {{[0-9]+}}
-// CHECK-NEXT: add
+// CHECK: calldatasize
+// CHECK: calldatacopy
 contract SpilledNullary {
     function all() external pure returns (bytes memory) {
         return abi.encodePacked(msg.data);

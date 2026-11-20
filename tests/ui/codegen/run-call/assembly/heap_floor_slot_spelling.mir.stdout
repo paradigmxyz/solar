@@ -1,0 +1,20 @@
+; === ROOT/tests/ui/codegen/run-call/assembly/heap_floor_slot_spelling.sol:C ===
+@module C
+; function plain(uint256 n) external pure returns (uint256) [selector 0x11546183]
+fn @plain(arg0: i256) -> i256 [selector=0x11546183, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 0, 0x1111 !metadata(memory=scratch)
+    mstore 64, arg0 !metadata(memory=scratch)
+    v0 = mload 64 !metadata(memory=scratch)
+    returndata v0, 32
+}
+
+; function spelled(uint256 n) external pure returns (uint256) [selector 0xd6fdd402]
+fn @spelled(arg0: i256) -> i256 [selector=0xd6fdd402, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 0, 0x1111 !metadata(memory=scratch)
+    mstore 64, arg0 !metadata(memory=scratch)
+    v0 = exp 64, 1
+    v1 = mload v0
+    returndata v1, 32
+}

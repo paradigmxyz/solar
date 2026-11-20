@@ -1,0 +1,32 @@
+; === ROOT/tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol:C ===
+@module C
+; function noop() external [selector 0x5dfc2e4a]
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function run() external returns (uint256) [selector 0xc0406226]
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = address
+    v3 = gas
+    v4 = extcall v2, v0, gas v3
+    v5 = icall returndata_bytes<>
+    jumpi v4, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v6 = mload v5
+    v7 = eq v6, 0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v8 = phi [bb1: v7], [bb2: false]
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = mload 64 !metadata(memory=scratch)
+    v11 = checked_sub uint256, v10, v1
+    ret v11
+}

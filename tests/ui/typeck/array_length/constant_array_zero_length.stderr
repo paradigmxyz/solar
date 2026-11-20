@@ -2,7 +2,7 @@ error[9259]: only constants of value type and byte array type are implemented
    ╭▸ ROOT/tests/ui/typeck/array_length/constant_array_zero_length.sol:LL:CC
    │
 LL │     uint[0] constant A = A;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
 error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/array_length/constant_array_zero_length.sol:LL:CC
@@ -14,7 +14,7 @@ error[9259]: only constants of value type and byte array type are implemented
    ╭▸ ROOT/tests/ui/typeck/array_length/constant_array_zero_length.sol:LL:CC
    │
 LL │     uint[0][2] constant B = B;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/array_length/constant_array_zero_length.sol:LL:CC
@@ -26,7 +26,7 @@ error[9259]: only constants of value type and byte array type are implemented
    ╭▸ ROOT/tests/ui/typeck/array_length/constant_array_zero_length.sol:LL:CC
    │
 LL │     uint[2][0] constant D = D;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/array_length/constant_array_zero_length.sol:LL:CC

@@ -36,7 +36,6 @@ fn @tokenId() {
     v35 = or v34, v6
     jumpi v35, bb1, bb2
   bb2:                                            ; preds = bb0
-    v7 = alloc 128 !metadata(deferred_alloc)
     v8 = calldataload v26
     mstore 0, v8
     returndata 0, 32

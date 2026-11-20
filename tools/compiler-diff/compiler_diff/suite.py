@@ -56,7 +56,8 @@ def fixture(path, root, format, *, text=None):
         text = path.read_text(encoding="utf-8")
     sources = {}
     metadata = {"settings": {}, "expectations": "", "external_sources": {}}
-    name = path.name
+    name = path.relative_to(root).as_posix() if format == "solidity" else path.name
+    base = root if format == "solidity" else path.parent
     lines = []
     phase = "source"
     opened = False
@@ -140,7 +141,7 @@ def fixture(path, root, format, *, text=None):
             )
             if resolved in sources:
                 continue
-            external = (path.parent / resolved).resolve()
+            external = (base / resolved).resolve()
             if Path(resolved).is_absolute() or not external.is_relative_to(root):
                 raise ValueError(f"import escapes import directory: {resolved}")
             if not external.is_file():
@@ -343,6 +344,17 @@ class Tests(unittest.TestCase):
             path.write_text('import "../outside.sol"; contract C {}')
             with self.assertRaisesRegex(ValueError, "escapes"):
                 fixture(path, root, "solidity")
+
+    def test_solidity_format_names_sources_relative_to_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "src").mkdir()
+            (root / "test").mkdir()
+            (root / "src" / "ERC20.sol").write_text("contract ERC20 {}\n")
+            path = root / "test" / "ERC20.t.sol"
+            path.write_text('import "../src/ERC20.sol"; contract T is ERC20 {}\n')
+            sources, _ = fixture(path, root, "solidity")
+            self.assertEqual(set(sources), {"src/ERC20.sol", "test/ERC20.t.sol"})
 
     def test_settings_are_not_silently_dropped(self):
         with self.assertRaisesRegex(ValueError, "unsupported test setting"):

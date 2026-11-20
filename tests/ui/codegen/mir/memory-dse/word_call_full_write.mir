@@ -1,0 +1,28 @@
+//@ compile-flags: -Zmir-pipeline=memory-dse
+//@ filecheck:
+@module WordCallFullWrite
+
+// A call with a word output writes the whole scratch word: a hash precompile returns 32 bytes,
+// and the expansion zeroes the word before any other callee, which may return less. The store
+// before either call is dead.
+// CHECK-LABEL: fn @hash
+// CHECK-NOT: {{^[ +].*}}mstore 0, 7
+// CHECK: extcall static word i160 2
+fn @hash(arg0: i160) -> i1 {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    v0 = extcall static word i160 2, gas 50000
+    mstore 0, 9 !metadata(memory=scratch)
+    ret v0
+}
+
+// CHECK-LABEL: fn @unknown
+// CHECK-NOT: {{^[ +].*}}mstore 0, 7
+// CHECK: extcall static word arg0
+fn @unknown(arg0: i160) -> i1 {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    v0 = extcall static word arg0, gas 50000
+    mstore 0, 9 !metadata(memory=scratch)
+    ret v0
+}

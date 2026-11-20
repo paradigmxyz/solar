@@ -1,0 +1,92 @@
+; === ROOT/tests/ui/codegen/lowering/mir/calls/low_level_call_tuple_storage.sol:LowLevelCallTupleStorage ===
+@module LowLevelCallTupleStorage
+; getter for `bool public ok` [selector 0xd909b403]
+fn @ok() -> i1 [selector=0xd909b403, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    ret v2
+}
+
+; getter for `bytes public result` [selector 0x65372147]
+fn @result() -> ptr<memory> [selector=0x65372147, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = load_storage_bytes 1
+    ret v0
+}
+
+; function callStored(address target, bytes calldata data) external [selector 0x20edd1cd]
+fn @callStored(arg0: i160, arg1: slice<calldata>) [selector=0x20edd1cd, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    v1 = extract_value slice<calldata>, arg1, 0
+    v2 = extract_value slice<calldata>, arg1, 1
+    v3 = fmp
+    calldatacopy v3, v1, v2 !metadata(memory=heap)
+    v4 = make_memory_slice v3, v2
+    v5 = extcall arg0, v4, gas v0
+    v6 = icall returndata_bytes<>
+    icall @store_storage_bytes, 1, v6
+    v7 = zext i1 v5 to i256
+    v8 = and v7, 255
+    sstore 0, v8 !metadata(storage=slot(0))
+    ret
+}
+
+; function callSkippingSuccess(address target, bytes calldata data) external [selector 0x34406687]
+fn @callSkippingSuccess(arg0: i160, arg1: slice<calldata>) [selector=0x34406687, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    v1 = extract_value slice<calldata>, arg1, 0
+    v2 = extract_value slice<calldata>, arg1, 1
+    v3 = fmp
+    calldatacopy v3, v1, v2 !metadata(memory=heap)
+    v4 = make_memory_slice v3, v2
+    v5 = extcall arg0, v4, gas v0
+    v6 = icall returndata_bytes<>
+    icall @store_storage_bytes, 1, v6
+    ret
+}
+
+; function staticCallStored(address target, bytes calldata data) external [selector 0x13fe480f]
+fn @staticCallStored(arg0: i160, arg1: slice<calldata>) [selector=0x13fe480f, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    v1 = extract_value slice<calldata>, arg1, 0
+    v2 = extract_value slice<calldata>, arg1, 1
+    v3 = fmp
+    calldatacopy v3, v1, v2 !metadata(memory=heap)
+    v4 = make_memory_slice v3, v2
+    v5 = extcall static arg0, v4, gas v0
+    v6 = icall returndata_bytes<>
+    icall @store_storage_bytes, 1, v6
+    v7 = zext i1 v5 to i256
+    v8 = and v7, 255
+    sstore 0, v8 !metadata(storage=slot(0))
+    ret
+}
+
+; function delegateCallStored(address target, bytes calldata data) external [selector 0x60b2db80]
+fn @delegateCallStored(arg0: i160, arg1: slice<calldata>) [selector=0x60b2db80, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gas
+    v1 = extract_value slice<calldata>, arg1, 0
+    v2 = extract_value slice<calldata>, arg1, 1
+    v3 = fmp
+    calldatacopy v3, v1, v2 !metadata(memory=heap)
+    v4 = make_memory_slice v3, v2
+    v5 = extcall delegate arg0, v4, gas v0
+    v6 = icall returndata_bytes<>
+    icall @store_storage_bytes, 1, v6
+    v7 = zext i1 v5 to i256
+    v8 = and v7, 255
+    sstore 0, v8 !metadata(storage=slot(0))
+    ret
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}

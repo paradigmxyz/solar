@@ -1,0 +1,43 @@
+//@ compile-flags: -Zmir-pipeline=word-sequence,lower-evm-shaped
+@module BooleanSelectNarrowArithmetic
+
+// A recipe for a select of booleans spells its arithmetic as bitwise operations, because `lowered`
+// MIR rejects narrow arithmetic.
+fn @all_ones_left(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = select arg0, true, arg1
+    ret v0
+}
+
+fn @all_ones_right(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = select arg0, arg1, true
+    ret v0
+}
+
+fn @zero_left(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = select arg0, false, arg1
+    ret v0
+}
+
+fn @zero_right(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = select arg0, arg1, false
+    ret v0
+}
+
+fn @constants(arg0: i1) -> i1 {
+  bb0:
+    v0 = select arg0, true, false
+    ret v0
+}
+
+// A boolean `not` is `xor` with true.
+fn @not_arms(arg0: i1, arg1: i1, arg2: i1) -> i1 {
+  bb0:
+    v0 = not arg1
+    v1 = not arg2
+    v2 = select arg0, v0, v1
+    ret v2
+}

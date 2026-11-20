@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@ compile-flags: --allow=9207 --allow=5878
 //@ run-call: references; value=5 => 5, 0
 //@ run-call: receiverEffects => 9
 //@ run-call: tupleEffects => 2

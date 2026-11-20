@@ -144,10 +144,9 @@ bb19 [loop]:
   eq
   push bb22
   jumpi
-  push 0x10000000000000000
-  dup 2
-  lt
-  iszero
+  dup 1
+  push 64
+  shr
   push bb23
   jumpi
   push 31
@@ -516,17 +515,16 @@ bb71 [continuation]:
   push 0
   keccak256
   add
-  dup 1
+  push 255
+  dup 2
   sload
-  swap 2
+  swap 3
   push 31
   and
   push 31
   sub
   push 3
   shl
-  push 255
-  swap 1
   shl
   not
   swap 1
@@ -680,13 +678,8 @@ bb74 [continuation]:
   add
   push 160
   add
-  dup 1
-  push 160
-  gt
-  swap 1
   push 64
   shr
-  or
   push bb23
   jumpi
   swap 1
@@ -703,9 +696,7 @@ bb74 [continuation]:
   push 255
   not
   and
-  push 32
-  dup 4
-  add
+  push 192
   mstore
   pop
   jump bb67

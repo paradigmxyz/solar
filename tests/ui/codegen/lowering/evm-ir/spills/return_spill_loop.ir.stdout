@@ -1,8 +1,5 @@
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/return_spill_loop.sol:ReturnCopy (runtime) ===
 @module ReturnCopy_runtime
-@data
-  literal_0: hex"2233"
-
 bb0:                                              ; runtime dispatch entry
   callvalue
   push bb6
@@ -14,12 +11,12 @@ bb0:                                              ; runtime dispatch entry
   dup 1
   push 0x194e10ce
   eq
-  push bb22
+  push bb20
   jumpi
   dup 1
   push 0x5a2aaa96
   eq
-  push bb30
+  push bb28
   jumpi
   dup 1
   push 0xdb082440
@@ -29,20 +26,17 @@ bb0:                                              ; runtime dispatch entry
   dup 1
   push 0xf770a1a3
   eq
-  push bb17
+  push bb15
   jumpi
   jump bb6
 bb6 [cold]:
   push 0
   push 0
   revert
-bb15 [cold]:
-  push 65
-  jump bb49
-bb14 [cold]:
+bb13 [cold]:
   push 50
-  jump bb49
-bb49 [cold]:
+  jump bb51
+bb51 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -57,19 +51,9 @@ bb7 [entry]:                                      ; function probe(uint256 seed)
   lt
   push bb6
   jumpi
+  push 34
   push 160
-  push 64
-  dup 2
-  add
-  dup 1
-  push 64
-  shr
-  dup 3
-  dup 3
-  lt
-  or
-  push bb15
-  jumpi
+  push 224
   push 64
   mstore
   push 3
@@ -79,21 +63,17 @@ bb7 [entry]:                                      ; function probe(uint256 seed)
   push 4
   calldataload
   and
-  push 32
-  dup 3
-  add
+  push 192
   mstore8
-  push 2
-  push_data literal_0
-  push 33
-  dup 4
-  add
-  codecopy
-  push 34
-  swap 1
-  push bb10
-  jump bb39
-bb39 [ret=0, inputs=3, outputs=1]:                ; function copy(bytes memory input, uint256 marker) internal pure returns (bytes memory out)
+  dup 2
+  push 193
+  mstore8
+  push 51
+  push 194
+  mstore8
+  push bb9
+  jump bb37
+bb37 [ret=0, inputs=3, outputs=1]:                ; function copy(bytes memory input, uint256 marker) internal pure returns (bytes memory out)
   push 64
   mload
   push 160
@@ -123,13 +103,13 @@ bb39 [ret=0, inputs=3, outputs=1]:                ; function copy(bytes memory i
   swap 3
   swap 4
   swap 6
-  jump bb40
-bb40 [loop]:
+  jump bb38
+bb38 [loop]:
   dup 4
   dup 2
   lt
   iszero
-  push bb45
+  push bb43
   jumpi
   dup 1
   mload
@@ -138,7 +118,7 @@ bb40 [loop]:
   byte
   dup 5
   eq
-  push bb43
+  push bb41
   jumpi
   dup 2
   dup 4
@@ -146,13 +126,13 @@ bb40 [loop]:
   mstore
   push 1
   add
-  jump bb40
-bb10 [continuation]:
+  jump bb38
+bb9 [continuation]:
   dup 1
   mload
   dup 1
   iszero
-  push bb14
+  push bb13
   jumpi
   push 32
   dup 3
@@ -163,7 +143,7 @@ bb10 [continuation]:
   push 2
   dup 3
   lt
-  push bb14
+  push bb13
   jumpi
   push 33
   dup 4
@@ -174,7 +154,7 @@ bb10 [continuation]:
   swap 2
   push 3
   gt
-  push bb14
+  push bb13
   jumpi
   swap 2
   push 34
@@ -192,11 +172,10 @@ bb10 [continuation]:
   push 96
   push 0
   return
-bb17 [entry]:                                     ; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
+bb15 [entry]:                                     ; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
+  push 34
   push 160
-  push 64
-  dup 2
-  add
+  push 224
   push 64
   mstore
   push 3
@@ -205,25 +184,21 @@ bb17 [entry]:                                     ; function doubleProbe() exter
   push 0x222233
   push 232
   shl
-  push 32
-  dup 3
-  add
+  push 192
   mstore
-  push 34
-  swap 1
-  push bb18
-  jump bb39
-bb18 [continuation]:
+  push bb16
+  jump bb37
+bb16 [continuation]:
   push 221
   swap 1
-  push bb19
-  jump bb39
-bb19 [continuation]:
+  push bb17
+  jump bb37
+bb17 [continuation]:
   dup 1
   mload
   push 2
   gt
-  push bb14
+  push bb13
   jumpi
   push 33
   add
@@ -235,7 +210,7 @@ bb19 [continuation]:
   push 32
   push 0
   return
-bb22 [entry]:                                     ; function run(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x194e10ce]
+bb20 [entry]:                                     ; function run(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x194e10ce]
   push 68
   calldatasize
   lt
@@ -243,9 +218,9 @@ bb22 [entry]:                                     ; function run(bytes memory in
   jumpi
   push 36
   calldataload
-  push bb24
-  jump bb46
-bb46 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthesized)
+  push bb22
+  jump bb44
+bb44 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthesized)
   push 4
   calldatasize
   push 36
@@ -286,7 +261,7 @@ bb46 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthe
   swap 1
   swap 2
   or
-  push bb15
+  push bb48
   jumpi
   push 64
   mstore
@@ -310,10 +285,10 @@ bb46 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthe
   calldatacopy
   swap 1
   jump
-bb24 [continuation]:
-  push bb50
-  jump bb39
-bb30 [entry]:                                     ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
+bb22 [continuation]:
+  push bb52
+  jump bb37
+bb28 [entry]:                                     ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
   push 68
   calldatasize
   lt
@@ -322,12 +297,12 @@ bb30 [entry]:                                     ; function twice(bytes memory 
   push 36
   calldataload
   dup 1
-  push bb32
-  jump bb46
-bb32 [continuation]:
-  push bb24
-  jump bb39
-bb43 [loop]:
+  push bb30
+  jump bb44
+bb30 [continuation]:
+  push bb22
+  jump bb37
+bb41 [loop]:
   not
   dup 2
   dup 4
@@ -338,14 +313,14 @@ bb43 [loop]:
   dup 4
   dup 2
   lt
-  push bb40
+  push bb38
   jumpi
   swap 3
   pop
   pop
   pop
-  jump bb44
-bb44:
+  jump bb42
+bb42:
   swap 2
   swap 1
   swap 2
@@ -368,13 +343,16 @@ bb44:
   mstore
   swap 1
   jump
-bb45:
+bb43:
   swap 3
   pop
   pop
   pop
-  jump bb44
-bb48 [continuation]:
+  jump bb42
+bb48 [cold]:
+  push 65
+  jump bb51
+bb50 [continuation]:
   push 64
   mload
   push 32
@@ -416,7 +394,7 @@ bb48 [continuation]:
   sub
   swap 1
   return
-bb50 [continuation]:
+bb52 [continuation]:
   push 64
   mload
   push 160
@@ -434,7 +412,7 @@ bb50 [continuation]:
   push 32
   dup 2
   lt
-  push bb48
+  push bb50
   jumpi
   dup 1
   mload

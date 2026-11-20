@@ -35,12 +35,12 @@
 
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
-    AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BackendMemory, BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
-    Value, ValueId,
+    AbiParamTypeRef, AbiType, AllocationFailure, AllocationInitialization, AllocationSemantics,
+    BackendMemory, BlockId, CallOutput, CallPolicy, DataId, DataRef, DataSize, Disambiguator,
+    EffectKind, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
+    HirExprId, Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
+    LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
+    StorageAlias, StructId, StructType, Terminator, Value, ValueId,
 };
 use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use smallvec::SmallVec;
@@ -1131,12 +1131,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
+    /// Parses an ABI input layout: `[type, type, ...]`. A nested shape that the layout repeats
+    /// may be named at its first occurrence, `$N = shape`, and referred to as `$N` after it.
     fn parse_abi_param_layout(&mut self) -> PResult<'sess, AbiParamLayout> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
+        let mut named = FxHashMap::default();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
             loop {
-                types.push(self.parse_abi_param_type()?);
+                types.push(self.parse_abi_param_type(&mut named)?);
                 if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
                     break;
                 }
@@ -1146,7 +1149,37 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(AbiParamLayout::new(types))
     }
 
-    fn parse_abi_param_type(&mut self) -> PResult<'sess, AbiParamType> {
+    fn parse_abi_param_node(
+        &mut self,
+        named: &mut FxHashMap<Symbol, AbiParamTypeRef>,
+    ) -> PResult<'sess, AbiParamTypeRef> {
+        let Some(name) = self.parser.token().ident().filter(|name| name.as_str().starts_with('$'))
+        else {
+            return Ok(AbiParamTypeRef::new(self.parse_abi_param_type(named)?));
+        };
+        if self.parser.look_ahead(1).kind != TokenKind::Eq {
+            let node = named
+                .get(&name.name)
+                .cloned()
+                .ok_or_else(|| self.parser.error(format!("undefined ABI shape `{name}`")))?;
+            self.parser.bump();
+            return Ok(node);
+        }
+        self.parser.bump();
+        self.parser.bump();
+        let node = AbiParamTypeRef::new(self.parse_abi_param_type(named)?);
+        if named.insert(name.name, node.clone()).is_some() {
+            return Err(self
+                .parser
+                .error_at(name.span, format!("ABI shape `{name}` is already defined")));
+        }
+        Ok(node)
+    }
+
+    fn parse_abi_param_type(
+        &mut self,
+        named: &mut FxHashMap<Symbol, AbiParamTypeRef>,
+    ) -> PResult<'sess, AbiParamType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             kw::Bytes => AbiParamType::Bytes,
@@ -1167,7 +1200,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(self.parser.parse_uint_as()?)
                 };
                 self.parser.expect(TokenKind::Comma)?;
-                let element = Box::new(self.parse_abi_param_type()?);
+                let element = self.parse_abi_param_node(named)?;
                 self.expect_gt()?;
                 match len {
                     Some(len) => AbiParamType::FixedArray { element, len },
@@ -1179,7 +1212,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let mut fields = Vec::new();
                 if !self.eat_gt() {
                     loop {
-                        fields.push(self.parse_abi_param_type()?);
+                        fields.push(self.parse_abi_param_node(named)?);
                         if self.eat_gt() {
                             break;
                         }
@@ -1988,29 +2021,45 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::load_storage_bytes => {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
-            sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
-                operands!(address, input);
-                let kind = match mnemonic {
-                    sym::address_call => AddressCallKind::Call,
-                    sym::address_staticcall => AddressCallKind::Static,
-                    _ => AddressCallKind::Delegate,
+            sym::extcall => {
+                // extcall [static | delegate] [word]
+                let kind = if self.parser.eat_keyword(kw::Static) {
+                    ExtCallKind::Static
+                } else if self.parser.eat_keyword(sym::delegate) {
+                    ExtCallKind::Delegate
+                } else {
+                    ExtCallKind::Call
                 };
+                let output = if self.parser.eat_keyword(sym::word) {
+                    CallOutput::Word
+                } else {
+                    CallOutput::None
+                };
+                let policy = CallPolicy { kind, output };
+                let address = self.parse_value(builder)?;
+                let mut input = None;
                 let mut gas = None;
                 let mut value = None;
                 while self.parser.eat(TokenKind::Comma) {
-                    let option = self.parser.parse_ident()?;
-                    let operand = self.parse_value(builder)?;
-                    match option {
-                        kw::Gas if gas.is_none() => gas = Some(operand),
-                        sym::value if value.is_none() => value = Some(operand),
-                        _ => {
-                            return Err(self
-                                .parser
-                                .error("invalid or duplicate address call option"));
+                    if self.parser.check_keyword(kw::Gas) || self.parser.check_keyword(sym::value) {
+                        let option = self.parser.parse_ident()?;
+                        let operand = self.parse_value(builder)?;
+                        match option {
+                            kw::Gas if gas.is_none() => gas = Some(operand),
+                            sym::value if value.is_none() => value = Some(operand),
+                            _ => {
+                                return Err(self
+                                    .parser
+                                    .error("invalid or duplicate extcall option"));
+                            }
                         }
+                    } else if input.is_none() && gas.is_none() && value.is_none() {
+                        input = Some(self.parse_value(builder)?);
+                    } else {
+                        return Err(self.parser.error("invalid or duplicate extcall input"));
                     }
                 }
-                (InstKind::AddressCall { kind, address, input, gas, value }, Some(MirType::I1))
+                (InstKind::ExtCall { policy, address, input, gas, value }, Some(MirType::I1))
             }
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::I256),
             sym::mapping_slot_bytes => inst!(MappingSlotBytes(key, slot) => MirType::I256),
@@ -2073,14 +2122,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(super::Builtin::Require(kind))
                 } else if let Some(builtin) = self.parser.token().ident().and_then(|ident| {
                     Some(match ident.name {
-                        sym::sha256 => super::Builtin::Sha256,
-                        sym::ripemd160 => super::Builtin::Ripemd160,
-                        sym::ecrecover => super::Builtin::EcRecover,
                         sym::erc7201 => super::Builtin::Erc7201,
                         sym::checked_addmod => super::Builtin::CheckedAddMod,
                         sym::checked_mulmod => super::Builtin::CheckedMulMod,
-                        sym::send => super::Builtin::Send,
-                        sym::transfer => super::Builtin::Transfer,
                         sym::returndata_bytes => super::Builtin::ReturndataBytes,
                         _ => return None,
                     })
@@ -2096,18 +2140,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(
                         super::Builtin::Require(_) | super::Builtin::Check { .. },
                     ) => None,
-                    super::Callee::Builtin(super::Builtin::Transfer) => None,
                     super::Callee::Builtin(super::Builtin::ReturndataBytes) => {
                         Some(MirType::MEMPTR)
                     }
                     super::Callee::Builtin(
-                        super::Builtin::Sha256
-                        | super::Builtin::Ripemd160
-                        | super::Builtin::EcRecover
-                        | super::Builtin::Erc7201
+                        super::Builtin::Erc7201
                         | super::Builtin::CheckedAddMod
-                        | super::Builtin::CheckedMulMod
-                        | super::Builtin::Send,
+                        | super::Builtin::CheckedMulMod,
                     ) => Some(MirType::I256),
                     super::Callee::Function(_) => Some(MirType::I256),
                 };

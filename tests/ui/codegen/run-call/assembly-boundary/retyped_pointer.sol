@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: narrowResult 0x1ff => 0xff
 //@ run-call: narrowArgument 0x1ff => 0xff
 //@ run-call: boolResult 2 => true, 1
@@ -22,6 +24,11 @@ contract AssemblyBoundaryRetypedPointer {
         assembly { seen := result }
     }
 
+    // The dispatcher masks the word that reaches the `uint8` callee and the one it returns.
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_uint8(
+    // CHECK: and arg1, 255
+    // CHECK: icall @identity8
+    // CHECK: and {{v[0-9]+}}, 255
     function passThrough(uint256 word) internal pure returns (uint256) {
         return word;
     }

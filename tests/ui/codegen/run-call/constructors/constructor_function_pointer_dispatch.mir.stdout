@@ -31,24 +31,16 @@ fn @applyShift(arg0: i256, arg1: i256) {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shl v0, 208
     v2 = icall @internal_dispatcher_p_bytes6_uint256_r_bytes6, arg0, v1, arg1
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
-    v5 = shr v2, 208
-    v6 = and v5, 0xffffffffffff
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = shr v2, 208
+    sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
 
 ; function setName(bytes6 name_) private
 fn @setName(arg0: i256) {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
-    v2 = shr arg0, 208
-    v3 = and v2, 0xffffffffffff
-    v4 = or v1, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v0 = shr arg0, 208
+    sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 

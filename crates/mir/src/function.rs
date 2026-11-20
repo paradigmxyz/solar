@@ -28,6 +28,9 @@ pub struct Function {
     pub name_span: Span,
     /// Source span of the complete function declaration.
     pub declaration_span: Span,
+    /// Source span where the function exits after its last statement: the closing brace of its
+    /// body, or the declaration when it has no body.
+    pub exit_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub debug_identifier: Option<Symbol>,
     /// Source signature for the text dumps, set only when a dump is requested. It never affects
@@ -92,6 +95,7 @@ impl Function {
             name: MangledSymbol::new(name.name),
             name_span: name.span,
             declaration_span: name.span,
+            exit_span: name.span,
             debug_identifier: None,
             debug_signature: None,
             selector: None,
@@ -446,6 +450,16 @@ impl Function {
     #[must_use]
     pub fn value_u64(&self, id: ValueId) -> Option<u64> {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
+    }
+
+    /// Whether the expansion of an `extcall` with a word output zeroes the word before the call.
+    ///
+    /// A callee can return less than a word, and the result keeps what the word held. The `sha256`
+    /// and `ripemd160` precompiles write all 32 bytes of a successful call and a failed call
+    /// reverts, so a call of one of them at a constant address skips the clear.
+    #[must_use]
+    pub fn extcall_clears_word(&self, address: ValueId) -> bool {
+        !matches!(self.value_u64(address), Some(2 | 3))
     }
 
     /// Visits physical memory ranges used by instructions and terminators.
@@ -887,8 +901,10 @@ impl Function {
                 let inst = self.blocks[block].instructions[index];
                 self.rewrite_inst_operands(inst, &mut f);
             }
-            if let Some(term) = &mut self.blocks[block].terminator {
+            let block = &mut self.blocks[block];
+            if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut f);
+                block.terminator_metadata.rewrite_edge_assignments(&mut f);
             }
         }
     }
@@ -949,6 +965,11 @@ impl Function {
     /// A key naming a deleted value is consistent only until values are renumbered, when it could
     /// come to name another value. Readers recompute a dropped key from the slot operand.
     pub fn drop_dangling_storage_aliases(&mut self) {
+        if !self.instructions.iter().any(|inst| {
+            inst.metadata.storage_alias().is_some_and(|alias| alias.symbolic_base().is_some())
+        }) {
+            return;
+        }
         let mut placed = DenseBitSet::new_empty(self.num_insts());
         for inst in self.instructions() {
             placed.insert(inst);

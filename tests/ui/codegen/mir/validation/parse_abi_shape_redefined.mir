@@ -1,0 +1,9 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module AbiShapeRedefined
+
+fn @f(arg0: ptr<memory>) {
+  bb0:
+    v0 = abi_decode [tuple<$0 = tuple<array<_, uint256>>, $0 = tuple<array<_, uint256>>>], arg0 //~ ERROR: ABI shape `$0` is already defined
+    stop
+}

@@ -5,7 +5,7 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, bit_set::DenseBitSet};
+use solar_data_structures::bit_set::DenseBitSet;
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
@@ -399,7 +399,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
 }
 
 impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

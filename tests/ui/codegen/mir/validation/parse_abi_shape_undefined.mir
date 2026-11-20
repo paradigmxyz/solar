@@ -1,0 +1,9 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module AbiShapeUndefined
+
+fn @f(arg0: ptr<memory>) {
+  bb0:
+    v0 = abi_decode [tuple<$0, $0>], arg0 //~ ERROR: undefined ABI shape `$0`
+    stop
+}

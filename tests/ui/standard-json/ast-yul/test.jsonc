@@ -1,0 +1,84 @@
+//@ filecheck:
+// A block with a suffix of each kind, a Solidity local and a constant, and the references to
+// them in the order of their names.
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "AST": {
+// CHECK: "nodeType": "YulBlock"
+// CHECK: "nativeSrc": "{{[0-9:]+}}"
+// CHECK: "nodeType": "YulAssignment"
+// CHECK: "nodeType": "YulFunctionCall"
+// CHECK: "nodeType": "YulIdentifier"
+// CHECK: "name": "add"
+// CHECK: "name": "cd.length"
+// CHECK: "name": "cd.offset"
+// CHECK: "name": "word.slot"
+// CHECK: "name": "high.offset"
+// CHECK: "name": "callback.address"
+// CHECK: "name": "callback.selector"
+// CHECK: "name": "list.slot"
+// CHECK: "name": "LIMIT"
+// CHECK: "externalReferences": [
+// CHECK: "src": "{{[0-9:]+}}"
+// CHECK-NEXT: "declaration": {{[0-9]+}}
+// CHECK-NEXT: "isSlot": false
+// CHECK-NEXT: "isOffset": false
+// CHECK-NEXT: "valueSize": 1
+// CHECK: "suffix": "address"
+// CHECK: "suffix": "selector"
+// CHECK: "suffix": "length"
+// CHECK: "isOffset": true
+// CHECK: "suffix": "offset"
+// CHECK: "isOffset": true
+// CHECK: "suffix": "offset"
+// CHECK: "isSlot": true
+// CHECK: "suffix": "slot"
+// CHECK: "isSlot": true
+// CHECK: "suffix": "slot"
+// CHECK: "evmVersion"
+// CHECK: "flags": [
+// CHECK: "memory-safe"
+// A Yul function with parameters and return variables, which uses declarations outside the block.
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "nodeType": "YulFunctionDefinition"
+// CHECK: "name": "scale"
+// CHECK: "parameters": [
+// CHECK: "nodeType": "YulTypedName"
+// CHECK: "type": ""
+// CHECK: "returnVariables": [
+// CHECK: "nodeType": "YulLeave"
+// CHECK: "nodeType": "YulFunctionDefinition"
+// CHECK: "name": "noop"
+// CHECK: "nodeType": "YulVariableDeclaration"
+// CHECK: "nodeType": "YulExpressionStatement"
+// CHECK: "externalReferences": [
+// CHECK: "suffix": "slot"
+// Literals.
+// CHECK: "nodeType": "YulLiteral"
+// CHECK: "kind": "number"
+// CHECK: "value": "0x20"
+// CHECK: "kind": "bool"
+// CHECK: "value": "true"
+// CHECK: "kind": "string"
+// CHECK: "hexValue": "61620163"
+// CHECK: "value": "ab\u0001c"
+// CHECK: "hexValue": "c3"
+// Control flow.
+// CHECK: "nodeType": "YulSwitch"
+// CHECK: "nodeType": "YulCase"
+// CHECK: "value": "default"
+// CHECK: "nodeType": "YulForLoop"
+// CHECK: "nodeType": "YulIf"
+// CHECK: "nodeType": "YulContinue"
+// CHECK: "nodeType": "YulBreak"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

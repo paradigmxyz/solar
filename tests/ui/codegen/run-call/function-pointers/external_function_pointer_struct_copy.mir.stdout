@@ -12,8 +12,8 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     icall panic_if<0x41>, v4
     v5 = calldatasize
     v6 = ptrtoint ptr<calldata> v2 to i256
-    v7 = sub v5, v6
-    v8 = slt v7, v3
+    v7 = add v6, v3
+    v8 = lt v5, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = mul v1, 32
     v10 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -69,12 +69,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 

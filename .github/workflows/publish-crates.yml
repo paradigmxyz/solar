@@ -1,0 +1,65 @@
+name: Publish crates
+
+# Publishes every crate to crates.io with trusted publishing (OIDC), without an API token.
+# `release.yml` calls this workflow after it creates the GitHub release. crates.io trusts
+# `release.yml` and the `crates-io` environment, so only the `publish` job can publish.
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write # secure-runner only: crates.io trusts only the crates-io environment.
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@763efe11a9d8333bcbf0bb2f5ab80f21961c48fd # 2026-11-02T08-44-18Z-763efe11
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
+      - name: Check the tag matches every crate and the tagged commit is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cargo metadata --no-deps --format-version 1 \
+            | jq -e --arg version "${TAG#v}" '[.packages[] | select(.publish == null or (.publish | index("crates-io") != null)) | .version] | all(. == $version)'
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+      - uses: tempoxyz/gh-actions/actions/cargo-publish@763efe11a9d8333bcbf0bb2f5ab80f21961c48fd # 2026-11-02T08-44-18Z-763efe11
+        with:
+          dry-run: true
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@763efe11a9d8333bcbf0bb2f5ab80f21961c48fd # 2026-11-02T08-44-18Z-763efe11
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
+      # Orders the crates by dependency and skips versions that are already on crates.io, so a
+      # rerun after a partial release is safe. The verify job already built the crates.
+      - uses: tempoxyz/gh-actions/actions/cargo-publish@763efe11a9d8333bcbf0bb2f5ab80f21961c48fd # 2026-11-02T08-44-18Z-763efe11
+        with:
+          verify: false

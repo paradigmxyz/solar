@@ -53,6 +53,7 @@ pub(crate) mod place_reads;
 pub(crate) mod pre;
 pub(crate) mod pure_eval;
 pub(crate) mod readonly_eval;
+pub(crate) mod scan_region;
 pub(crate) mod sccp;
 pub(crate) mod specialize;
 pub(crate) mod sroa;

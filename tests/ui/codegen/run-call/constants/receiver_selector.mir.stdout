@@ -42,12 +42,8 @@ fn @selectorStored() -> i256 [selector=0x79077958, abi_params=[], abi_returns=[w
     v1 = icall @constant_0
     mstore v0, 0x26121ff000000000000000000000000000000000000000000000000000000000
     v2 = mload v0
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v5 = shr v2, 224
-    v6 = and v5, 0xffffffff
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = shr v2, 224
+    sstore 0, v3 !metadata(storage=slot(0))
     ret 7
 }
 

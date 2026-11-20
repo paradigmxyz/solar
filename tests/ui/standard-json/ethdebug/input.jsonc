@@ -2,6 +2,10 @@
 //@ filecheck: --implicit-check-not=invoke
 // CHECK-LABEL: "bytecode": {
 // CHECK-NEXT: "ethdebug": {
+// CHECK: "schema": "ethdebug/format/program"
+// CHECK: "version": "0.1.0-draft.2"
+// CHECK: "type": "compilation"
+// CHECK: "type": "source"
 // CHECK: "environment": "create"
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK-NEXT: "ethdebug": {
@@ -10,18 +14,24 @@
 // CHECK: "mnemonic": "JUMPI"
 // CHECK: "offset": 19
 // CHECK: "mnemonic": "PUSH1"
-// The external entry falls through; PUSH1 cannot establish an internal call.
+// The external entry falls through and nothing jumps into it, so its `invoke` has no target.
+// CHECK: "invoke": {
+// CHECK-NEXT: "identifier": "f"
+// CHECK: "jump": true
+// CHECK-NOT: "target"
 // CHECK: "mnemonic": "ADD"
 // CHECK: "offset": 79
 // CHECK-NEXT: "length": 5
 // CHECK: "return": {}
 // CHECK-LABEL: "resources": {
-// CHECK: "name": "solar"
-// CHECK: "path": "A.sol"
-// CHECK: "language": "Solidity"
+// CHECK: "schema": "ethdebug/format/info/resources"
+// CHECK: "version": "0.1.0-draft.2"
 // CHECK-LABEL: "types": {}
 // CHECK-LABEL: "pointers": {}
 // CHECK-LABEL: "compilation": {
+// CHECK: "name": "solar"
+// CHECK: "path": "A.sol"
+// CHECK: "language": "Solidity"
 {
   "language": "Solidity",
   "sources": {

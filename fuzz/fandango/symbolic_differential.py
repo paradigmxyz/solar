@@ -1,67 +1,59 @@
 #!/usr/bin/env python3
-"""Run a focused Solc-vs-Solar symbolic differential."""
+"""Run a focused Solc-vs-Solar symbolic differential with `forge equivalence`."""
 
 from __future__ import annotations
 
 import argparse
 import contextlib
 import hashlib
-import itertools
 import json
 import math
 import os
 import pathlib
+import queue
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any
-
-if sys.platform != "win32":
-    import resource
+import threading
+import time
+from collections.abc import Iterator
+from typing import IO, Any
 
 sys.path.insert(
     0, str(pathlib.Path(__file__).resolve().parents[2] / "tools/compiler-diff")
 )
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import evm_runtime as evm
 from compiler_diff.artifacts import read_attempt
 from compiler_diff.compare import canonical_type as _canonical_type
 
-SCHEMA = "solar:solsymdiff@v2"
-TEST_NAME = "checkSymbolicDifferential"
+SCHEMA = "solar:solsymdiff@v3"
 DEFAULT_DYNAMIC_LENGTHS = (0, 1, 2, 3)
 MAX_DYNAMIC_LENGTH = 256
-SYMBOLIC_QUERY_TIMEOUT = 30
+SYMBOLIC_MAX_PATHS = 1024
 SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
-SYMBOLIC_MAX_CALLDATA_BYTES = 4096
 SYMBOLIC_MAX_DEPTH = 100_000
-_LOG_OPCODES = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4}
-# CALL, CALLCODE, DELEGATECALL, STATICCALL, CREATE, and CREATE2.
-_INNER_FRAME_OPCODES = {0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFA}
-# Labels of the fixed-size values whose encoding the label states.
-_STORAGE_VALUE_LABEL = re.compile(
-    r"u?int\d+|bytes\d+|bool|address( payable)?|contract .+|enum .+"
-)
-MIRROR_BASE_ADDRESS = "0x1000000000000000000000000000000000000004"
-# Covers empty, short, selector-only, and one-word calldata.
-RAW_CALLDATA_LENGTHS = (0, 3, 4, 36)
-MAX_CHECKS = 256
-# The comparisons the generated property names when it fails.
-COMPARISONS = frozenset(
-    {
-        "balance",
-        "call success",
-        "code presence",
-        "constructor returndata",
-        "constructor success",
-        "created accounts",
-        "logs",
-        "nonce",
-        "returndata",
-        "storage",
-    }
-)
-UNSUPPORTED_PREFIX = "unsupported: "
+SYMBOLIC_MAX_CALLDATA_BYTES = 1024
+# Covers empty, one-byte, short, selector-only, and one-word calldata.
+RAW_CALLDATA_LENGTHS = (0, 1, 3, 4, 36)
+OTHER_CALLDATA = "<other calldata>"
+CONSTRUCTOR = "<constructor>"
+# Extra seconds a check may run past the Forge timeout before it is killed, so
+# Forge can report an incomplete result itself.
+FORGE_GRACE_SECONDS = 60
+# CREATE and CREATE2.
+_CREATE_OPCODES = {0xF0, 0xF5}
+# Forge's default sender. Its CREATE at nonce 1 is Forge's test contract
+# address, where `forge equivalence` runs both runtimes, so the constructors
+# run at the address the runtimes later see as ADDRESS.
+DEPLOYER = "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+DEPLOYER_NONCE = 1
+# CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, SELFDESTRUCT: ways a
+# constructor can change another account, directly or through code it runs in
+# its own context.
+_OUTSIDE_EFFECT_OPCODES = {0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFF}
 
 
 class AbiDisagreement(ValueError):
@@ -79,88 +71,57 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--solar-attempt", type=pathlib.Path)
     parser.add_argument("--output-root", type=pathlib.Path)
     parser.add_argument("--contract", required=True)
-    parser.add_argument("--signature")
-    parser.add_argument(
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--signature")
+    selection.add_argument(
         "--all-functions",
         action="store_true",
-        help=(
-            "compare every function, plus calldata that matches no selector, in one run"
-        ),
-    )
-    parser.add_argument(
-        "--depth",
-        type=_positive_int,
-        default=1,
-        help=(
-            "compare every sequence of up to this many calls; earlier calls "
-            "are state-changing functions"
-        ),
-    )
-    parser.add_argument(
-        "--max-checks",
-        type=_positive_int,
-        default=MAX_CHECKS,
-        help="refuse runs that would generate more call sequences",
+        help="compare every function, plus raw calldata of fixed lengths",
     )
     parser.add_argument(
         "--constructor-args",
-        type=_prefix_calldata,
+        type=_hex_data,
         metavar="HEX",
-        help="ABI-encoded constructor arguments instead of symbolic ones",
+        help=(
+            "ABI-encoded constructor arguments (default: the zero value of "
+            "every constructor input)"
+        ),
+    )
+    parser.add_argument(
+        "--constructor-value",
+        type=_wei,
+        default=0,
+        metavar="WEI",
+        help="value sent with the deployment",
     )
     parser.add_argument(
         "--runtime-only",
         action="store_true",
-        help="install the runtime without running the constructor",
-    )
-    parser.add_argument(
-        "--allow-precompile-addresses",
-        action="store_true",
-        help=(
-            "let top-level address inputs, callers, and the observer be "
-            "precompile addresses"
-        ),
+        help="compare the runtimes as compiled, without running the constructor",
     )
     parser.add_argument(
         "--arbitrary-storage",
         action="store_true",
+        help="start each call from arbitrary storage instead of empty storage",
+    )
+    parser.add_argument(
+        "--value",
+        type=_wei,
+        metavar="WEI",
+        help="fix the call value instead of leaving it symbolic",
+    )
+    parser.add_argument(
+        "--promise-no-reent",
+        action="store_true",
         help=(
-            "start every fixed storage slot of the target from a symbolic, "
-            "validly encoded word instead of empty storage"
+            "assume calls into unknown code never call back, so state-changing "
+            "calls into it are abstracted instead of stopping the check"
         ),
     )
     parser.add_argument(
-        "--include-view",
+        "--ignore-out-of-gas",
         action="store_true",
-        help="allow a view target under the clean zero-storage model",
-    )
-    parser.add_argument(
-        "--include-stateful",
-        action="store_true",
-        help=(
-            "allow a nonpayable target under the clean zero-storage, single-call model"
-        ),
-    )
-    parser.add_argument(
-        "--include-payable",
-        action="store_true",
-        help=(
-            "allow a payable target and send it a symbolic value; every "
-            "account's final balance is compared"
-        ),
-    )
-    parser.add_argument(
-        "--symbolic-caller",
-        action="store_true",
-        help="call the target from a symbolic msg.sender",
-    )
-    parser.add_argument(
-        "--prefix-calldata",
-        type=_prefix_calldata,
-        action="append",
-        default=[],
-        metavar="HEX",
-        help="prepare fixed zero-value target calls before symbolic comparison",
+        help="leave out inputs on which either build runs out of gas",
     )
     parser.add_argument("--project-root", type=pathlib.Path)
     parser.add_argument(
@@ -171,45 +132,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--solar", default="target/debug/solar")
     parser.add_argument("--forge", default="forge")
     parser.add_argument("--solver", default="z3")
-    parser.add_argument("--timeout", type=_positive_seconds, default=60.0)
     parser.add_argument(
-        "--symbolic-timeout",
-        type=_positive_int,
-        default=SYMBOLIC_QUERY_TIMEOUT,
+        "--timeout",
+        type=_positive_seconds,
+        default=60.0,
+        help="seconds for each compiler run and each equivalence check",
     )
-    parser.add_argument("--max-paths", type=_positive_int, default=1024)
+    parser.add_argument("--max-paths", type=_positive_int, default=SYMBOLIC_MAX_PATHS)
     parser.add_argument(
         "--max-solver-queries",
         type=_positive_int,
         default=SYMBOLIC_MAX_SOLVER_QUERIES,
     )
     parser.add_argument(
-        "--max-calldata-bytes",
-        type=_positive_int,
-        default=SYMBOLIC_MAX_CALLDATA_BYTES,
-    )
-    parser.add_argument(
         "--max-depth",
         type=_positive_int,
         default=SYMBOLIC_MAX_DEPTH,
-        help="opcode limit per path; one path runs both compilers' calls",
+        help="opcode limit per path",
     )
     parser.add_argument(
-        "--exploration-order",
-        choices=("bfs", "dfs"),
-        default="bfs",
+        "--max-calldata-bytes",
+        type=_positive_int,
+        default=SYMBOLIC_MAX_CALLDATA_BYTES,
+        help="longest raw calldata of --all-functions",
     )
     parser.add_argument(
         "--dynamic-lengths",
         type=_dynamic_lengths,
         default=DEFAULT_DYNAMIC_LENGTHS,
-    )
-    parser.add_argument(
-        "--input-length",
-        type=_input_lengths,
-        action="append",
-        default=[],
-        metavar="INDEX=LENGTHS",
+        help="lengths of dynamic ABI inputs",
     )
     parser.add_argument("--evm-version", default="osaka")
     parser.add_argument(
@@ -249,23 +200,20 @@ def run(
     args: argparse.Namespace, output_root: pathlib.Path | None = None
 ) -> dict[str, Any]:
     source = args.source
-    saved_solc = getattr(args, "solc_attempt", None)
-    saved_solar = getattr(args, "solar_attempt", None)
+    saved_solc = args.solc_attempt
+    saved_solar = args.solar_attempt
     if bool(saved_solc) != bool(saved_solar):
         raise ValueError("--solc-attempt and --solar-attempt must be supplied together")
-    prefix_calldata = tuple(args.prefix_calldata)
-    tool_names = (
-        ("solc", "forge", "solver")
-        if saved_solc
-        else ("solc", "solar", "forge", "solver")
-    )
+    tool_names = ("forge",) if saved_solc else ("solc", "solar", "forge")
     tools = {name: _resolve_executable(getattr(args, name)) for name in tool_names}
     # Forge maps bare solver names such as `bitwuzla` to their own commands and
     # runs any path as a z3-compatible command.
-    if not os.path.dirname(args.solver):
-        tools["solver"] = args.solver
+    tools["solver"] = (
+        args.solver
+        if not os.path.dirname(args.solver)
+        else _resolve_executable(args.solver)
+    )
     if saved_solc:
-        source = args.source
         left_input, left_output = read_attempt(saved_solc)
         right_input, right_output = read_attempt(saved_solar)
         if json.dumps(left_input, sort_keys=True) != json.dumps(
@@ -344,15 +292,7 @@ def run(
             args.timeout,
             "Solar",
         )
-    arbitrary_storage = getattr(args, "arbitrary_storage", False)
-    allow_precompile_addresses = getattr(args, "allow_precompile_addresses", False)
-    constructor_args = getattr(args, "constructor_args", None)
-    if arbitrary_storage and "enum_members" not in standard_input:
-        raise ValueError(
-            "--arbitrary-storage needs the Solc AST for enum ranges, which saved "
-            "attempts do not carry"
-        )
-    runtime_only = getattr(args, "runtime_only", False) or not (
+    runtime_only = args.runtime_only or not (
         solc_artifact["creation"] and solar_artifact["creation"]
     )
     for artifact, label in ((solc_artifact, "Solc"), (solar_artifact, "Solar")):
@@ -360,16 +300,16 @@ def run(
             raise ValueError("contracts with immutables require constructor execution")
         if not runtime_only and artifact["creation_links"]:
             raise ValueError(f"{label} creation code has unresolved libraries")
-    if runtime_only and constructor_args is not None:
-        raise ValueError("--constructor-args requires constructor execution")
+    if runtime_only and (args.constructor_args is not None or args.constructor_value):
+        raise ValueError(
+            "--constructor-args and --constructor-value require constructor execution"
+        )
     try:
         if not runtime_only and _function_shape(
             solc_artifact["constructor_entry"]
         ) != _function_shape(solar_artifact["constructor_entry"]):
             raise AbiDisagreement("compiler ABI disagreement for the constructor")
-        checks, skipped = _plan_checks(
-            solc_artifact, solar_artifact, args, prefix_calldata
-        )
+        checks, skipped = _plan_checks(solc_artifact, solar_artifact, args)
     except AbiDisagreement as err:
         # Different external interfaces are an observable difference.
         return {
@@ -381,112 +321,6 @@ def run(
             "contract": args.contract,
             "signature": args.signature,
         }
-    constructor = _harness_constructor(solc_artifact, runtime_only, constructor_args)
-    if constructor and not all(_supported_input(item) for item in constructor):
-        raise ValueError("the constructor uses an unsupported symbolic input")
-    if not checks:
-        raise ValueError("no function can be compared symbolically")
-    if args.input_length:
-        if getattr(args, "all_functions", False):
-            raise ValueError("--input-length requires --signature")
-        target = checks[0]["steps"][-1]["function"]
-        overrides = _normalize_input_lengths(args.input_length, target["inputs"])
-        for check in checks:
-            for index, step in enumerate(check["steps"]):
-                if step.get("function") == target and step["kind"] == "symbolic":
-                    for name, lengths in overrides.items():
-                        position = name.removeprefix("arg")
-                        check["input_lengths"][f"s{index}_a{position}"] = lengths
-
-    if arbitrary_storage:
-        layout = solc_artifact.get("storage_layout")
-        if not isinstance(layout, dict):
-            raise ValueError("--arbitrary-storage requires Solc's storage layout")
-        starting = _storage_constraints(layout, standard_input["enum_members"])
-        for check in checks:
-            check["starting_storage"] = starting
-    # The creation code embeds the runtime, so it covers both.
-    scanned = (
-        (solc_artifact["runtime"], solar_artifact["runtime"])
-        if runtime_only
-        else (solc_artifact["creation"], solar_artifact["creation"])
-    )
-    opcodes = set().union(*(_runtime_opcodes(code) for code in scanned))
-    limitations = []
-    if 0xF5 in opcodes:
-        limitations.append("contracts created with CREATE2 are not compared")
-    if 0x5D in opcodes and not _forge_semantics(tools, args)["isolated_transactions"]:
-        # Without symbolic call isolation, every call and the constructor run
-        # in the test's transaction, so transient storage would persist between
-        # calls that are separate transactions on chain.
-        for check in checks:
-            if (
-                sum(step["kind"] != "fixed" for step in check["steps"])
-                + len(prefix_calldata)
-                + (not runtime_only)
-                > 1
-            ):
-                check["unsupported"] = (
-                    "transient storage would persist between calls that are "
-                    "separate transactions on chain"
-                )
-    if (limit := _inner_frame_log_limit(*scanned)) and not _forge_semantics(
-        tools, args
-    )["reverted_logs_dropped"]:
-        # A log committed in one build and reverted in the other matches in
-        # both recordings, so agreement is qualified too.
-        limitations.append(limit)
-        for check in checks:
-            check["log_limit"] = limit
-    codes = [
-        artifact[key]
-        for artifact in (solc_artifact, solar_artifact)
-        for key in ("runtime", "creation")
-        if artifact[key]
-    ]
-    max_dynamic_length = max(
-        MAX_DYNAMIC_LENGTH, *((len(code) - 2) // 2 for code in codes)
-    )
-    # The calldata budget is per call; one test feeds every call and the
-    # constructor.
-    symbolic_calls = max(
-        sum(step["kind"] != "fixed" for step in check["steps"]) for check in checks
-    )
-    args.max_calldata_bytes *= symbolic_calls + bool(constructor)
-    names = {name for check in checks for name, _ in _check_inputs(check, constructor)}
-    extras = sorted(
-        {
-            kind
-            for kind in ("caller", "value")
-            if any(name.endswith(f"_{kind}") for name in names)
-        }
-        | ({"observer"} & names)
-    )
-    bounds = {
-        "command_timeout_seconds": args.timeout,
-        "solver_timeout_seconds": args.symbolic_timeout,
-        "max_paths": args.max_paths,
-        "max_solver_queries": args.max_solver_queries,
-        "max_calldata_bytes": args.max_calldata_bytes,
-        "max_dynamic_length": max_dynamic_length,
-        "max_depth": args.max_depth,
-        "exploration_order": args.exploration_order,
-        "storage_layout": "zero_init",
-        "symbolic_inputs": extras,
-        "dynamic_lengths": list(args.dynamic_lengths),
-        "constructor": (
-            "runtime_only"
-            if runtime_only
-            else "symbolic_args"
-            if constructor_args is None
-            else "fixed_args"
-        ),
-        "call_depth": getattr(args, "depth", 1),
-        "starting_storage": "arbitrary_fixed_slots" if arbitrary_storage else "empty",
-        "address_inputs": (
-            "any" if allow_precompile_addresses else "zero_or_above_0x100"
-        ),
-    }
 
     if output_root is None:
         output_root = (
@@ -499,42 +333,93 @@ def run(
         serialized_input + "\n",
         encoding="utf-8",
     )
-    runnable = [check for check in checks if not check.get("unsupported")]
-    _write_project(
-        project,
-        solc_artifact,
-        solar_artifact,
-        runnable,
-        args.evm_version,
-        dynamic_lengths=args.dynamic_lengths,
-        exploration_order=args.exploration_order,
-        max_dynamic_length=max_dynamic_length,
-        runtime_only=runtime_only,
-        constructor_args=constructor_args,
-        allow_precompile_addresses=allow_precompile_addresses,
-    )
-    report = (
-        _run_forge(
-            tools["forge"],
-            tools["solc"],
-            tools["solver"],
-            project,
-            args,
-            max_dynamic_length,
+
+    outcomes = []
+    constructor: dict[str, Any] | None = None
+    runtimes = (solc_artifact["runtime"], solar_artifact["runtime"])
+    if not runtime_only:
+        constructor_args = args.constructor_args
+        if constructor_args is None:
+            constructor_args = (
+                "0x" + _zero_arguments(solc_artifact["constructor"]).hex()
+            )
+        constructor = {"args": constructor_args, "value": str(args.constructor_value)}
+        deployed = _deploy(
+            _anvil_executable(tools["forge"]),
+            solc_artifact["creation"] + constructor_args.removeprefix("0x"),
+            solar_artifact["creation"] + constructor_args.removeprefix("0x"),
+            value=args.constructor_value,
+            evm_version=args.evm_version,
+            timeout=args.timeout,
         )
-        if runnable
-        else {}
-    )
-    result = _classify(report, checks, bounds, constructor=constructor)
-    result["limitations"] = limitations
+        outcome = _compare_constructors(deployed, constructor)
+        outcomes.append({"label": CONSTRUCTOR, **outcome})
+        solc_side, solar_side = deployed["solc"], deployed["solar"]
+        if solc_side["success"] and solar_side["success"]:
+            constructor["address"] = solc_side["address"]
+            runtimes = (solc_side["runtime"], solar_side["runtime"])
+        else:
+            checks = []
+
+    (project / "solc.hex").write_text(runtimes[0].removeprefix("0x") + "\n")
+    (project / "solar.hex").write_text(runtimes[1].removeprefix("0x") + "\n")
+    (project / "foundry.toml").write_text(_foundry_toml(args))
+    selectors = {
+        "0x" + selector.removeprefix("0x").lower(): signature
+        for signature, selector in solc_artifact["method_identifiers"].items()
+    }
+    for index, check in enumerate(checks):
+        command = _forge_command(tools, check, args)
+        outcome = _run_check(command, project, index, args.timeout, selectors)
+        outcomes.append({"label": check["label"], **outcome})
+
+    limitations = []
+    opcodes = set().union(*(_runtime_opcodes(code) for code in runtimes))
+    if opcodes & _CREATE_OPCODES:
+        limitations.append(
+            "created contracts are compared byte for byte, so a check that "
+            "reaches CREATE or CREATE2 is incomplete when the builds create "
+            "different code"
+        )
+    if not runtime_only and any(
+        _runtime_opcodes(artifact["creation"]) & _OUTSIDE_EFFECT_OPCODES
+        for artifact in (solc_artifact, solar_artifact)
+    ):
+        limitations.append(
+            "the constructor check compares only the deployed contract, so "
+            "contracts the constructor creates and accounts it calls or pays "
+            "are not compared"
+        )
+    bounds = {
+        "timeout_seconds": args.timeout,
+        "max_paths": args.max_paths,
+        "max_solver_queries": args.max_solver_queries,
+        "max_depth": args.max_depth,
+        "max_calldata_bytes": args.max_calldata_bytes,
+        "dynamic_lengths": list(args.dynamic_lengths),
+        "starting_storage": "arbitrary" if args.arbitrary_storage else "empty",
+        "value": "symbolic" if args.value is None else str(args.value),
+        "promise_no_reent": args.promise_no_reent,
+        "ignore_out_of_gas": args.ignore_out_of_gas,
+        "constructor": "runtime_only"
+        if runtime_only
+        else "default_args"
+        if args.constructor_args is None
+        else "fixed_args",
+    }
+    raw = [check for check in checks if "calldata_lengths" in check]
+    if raw:
+        bounds["raw_calldata_lengths"] = raw[0]["calldata_lengths"]
+    result = _summarize(outcomes)
     result.update(
         {
             "schema": SCHEMA,
             "source": str(source),
             "contract": args.contract,
             "signature": args.signature,
-            "checked": [check["label"] for check in checks],
+            "checked": [outcome["label"] for outcome in outcomes],
             "skipped": skipped,
+            "limitations": limitations,
             "settings": standard_input["settings"],
             "standard_input_sha256": standard_input["sha256"],
             "sources": sorted(standard_input["sources"]),
@@ -542,13 +427,13 @@ def run(
             "project": str(project),
         }
     )
+    if constructor is not None:
+        result["constructor"] = constructor
     if saved_solc and saved_solar:
         result["attempts"] = {
             "solc": str(saved_solc.resolve()),
             "solar": str(saved_solar.resolve()),
         }
-    if prefix_calldata:
-        result["prefix"] = {"calldata": list(prefix_calldata), "value": 0}
     (project / "result.json").write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -577,10 +462,17 @@ def _nonnegative_int(value: str) -> int:
     return number
 
 
-def _prefix_calldata(value: str) -> str:
+def _wei(value: str) -> int:
+    number = int(value, 0)
+    if number < 0:
+        raise argparse.ArgumentTypeError("value must be non-negative")
+    return number
+
+
+def _hex_data(value: str) -> str:
     if not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})*", value):
         raise argparse.ArgumentTypeError(
-            "prefix calldata must be 0x-prefixed, even-length hexadecimal"
+            "data must be 0x-prefixed, even-length hexadecimal"
         )
     return value.lower()
 
@@ -607,33 +499,6 @@ def _dynamic_lengths(value: str) -> tuple[int, ...]:
     return lengths
 
 
-def _input_lengths(value: str) -> tuple[int, tuple[int, ...]]:
-    index, separator, lengths = value.partition("=")
-    if not separator or not index.isdigit():
-        raise argparse.ArgumentTypeError("input lengths must use INDEX=LENGTHS")
-    return int(index), _dynamic_lengths(lengths)
-
-
-def _normalize_input_lengths(
-    overrides: list[tuple[int, tuple[int, ...]]],
-    inputs: list[dict[str, Any]],
-) -> dict[str, tuple[int, ...]]:
-    normalized = {}
-    for index, lengths in overrides:
-        if index >= len(inputs):
-            raise ValueError(f"input length override index {index} is out of range")
-        abi_type = inputs[index].get("type")
-        if not isinstance(abi_type, str) or not (
-            abi_type in {"bytes", "string"} or abi_type.endswith("[]")
-        ):
-            raise ValueError(f"input {index} is not a top-level dynamic input")
-        name = f"arg{index}"
-        if name in normalized:
-            raise ValueError(f"input length override repeats index {index}")
-        normalized[name] = lengths
-    return normalized
-
-
 def _resolve_executable(value: str) -> str:
     path = pathlib.Path(value).expanduser()
     if path.parent != pathlib.Path("."):
@@ -644,6 +509,17 @@ def _resolve_executable(value: str) -> str:
     if resolved is None:
         raise OSError(f"executable was not found: {value}")
     return str(pathlib.Path(resolved).resolve())
+
+
+def _anvil_executable(forge: str) -> str:
+    """Prefers the anvil installed next to Forge, then the one on PATH."""
+    sibling = pathlib.Path(forge).with_name("anvil")
+    if sibling.is_file():
+        return str(sibling)
+    resolved = shutil.which("anvil")
+    if resolved is None:
+        raise OSError("anvil was not found next to Forge or on PATH")
+    return resolved
 
 
 def _standard_input(
@@ -702,12 +578,6 @@ def _standard_input(
     discovered = output.get("sources")
     if not isinstance(discovered, dict) or root_source not in discovered:
         raise ValueError("Solc import discovery did not return the root source")
-    enum_members = {}
-    for unit in discovered.values():
-        for node in _ast_nodes(unit.get("ast") if isinstance(unit, dict) else None):
-            if node.get("nodeType") == "EnumDefinition":
-                enum_members[node.get("canonicalName")] = len(node.get("members", []))
-
     roots = (project_root, *include_paths)
     sources = {}
     for name in sorted(discovered):
@@ -737,7 +607,6 @@ def _standard_input(
                     "evm.deployedBytecode.linkReferences",
                     "evm.deployedBytecode.object",
                     "evm.methodIdentifiers",
-                    "storageLayout",
                 ]
             }
         },
@@ -753,22 +622,7 @@ def _standard_input(
         "settings": settings,
         "sources": sources,
         "sha256": hashlib.sha256(serialized.encode()).hexdigest(),
-        "enum_members": enum_members,
     }
-
-
-def _ast_nodes(node: Any) -> list[dict[str, Any]]:
-    """Returns every AST node below `node`, depth first."""
-    found = []
-    stack = [node]
-    while stack:
-        item = stack.pop()
-        if isinstance(item, dict):
-            found.append(item)
-            stack.extend(item.values())
-        elif isinstance(item, list):
-            stack.extend(item)
-    return found
 
 
 def _compile(
@@ -856,15 +710,8 @@ def _artifact(output, source_name, contract, label):
             isinstance(creation, dict) and creation.get("linkReferences")
         ),
         "has_immutables": bool(deployed.get("immutableReferences")),
-        "storage_layout": artifact.get("storageLayout"),
         "constructor_entry": constructor,
         "constructor": constructor["inputs"],
-        "payable_fallback": any(
-            isinstance(entry, dict)
-            and entry.get("type") in {"fallback", "receive"}
-            and entry.get("stateMutability") == "payable"
-            for entry in abi
-        ),
     }
 
 
@@ -895,10 +742,6 @@ def _select_function(
     solc_artifact: dict[str, Any],
     solar_artifact: dict[str, Any],
     signature: str,
-    *,
-    include_view: bool = False,
-    include_stateful: bool = False,
-    include_payable: bool = False,
 ) -> dict[str, Any]:
     solc_entry = _function_entry(solc_artifact["abi"], signature, "Solc")
     try:
@@ -918,26 +761,12 @@ def _select_function(
             f"compiler selector disagreement for {signature}: "
             f"Solc={solc_selector}, Solar={solar_selector}"
         )
-    mutability = solc_entry.get("stateMutability")
-    allowed = {"pure"}
-    if include_view:
-        allowed.add("view")
-    if include_stateful:
-        allowed.add("nonpayable")
-    if include_payable:
-        allowed.add("payable")
-    if mutability not in allowed:
-        choices = ", ".join(sorted(allowed))
-        raise ValueError(
-            f"{signature} has mutability {mutability!r}; allowed: {choices}"
-        )
     if not all(_supported_input(item) for item in solc_entry["inputs"]):
-        raise ValueError(f"{signature} uses an unsupported symbolic input")
+        raise ValueError(f"{signature} has an input Forge cannot generate")
     return {
         "signature": signature,
         "selector": solc_selector,
         "inputs": solc_entry["inputs"],
-        "mutability": mutability,
     }
 
 
@@ -1032,1078 +861,12 @@ def _supported_elementary(abi_type: str) -> bool:
     return False
 
 
-def _solidity_type(
-    item: dict[str, Any],
-    name: str,
-    definitions: list[str],
-) -> str:
-    abi_type = item["type"]
-    if not abi_type.startswith("tuple"):
-        return abi_type
-
-    fields = []
-    for index, component in enumerate(item["components"]):
-        field_type = _solidity_type(
-            component,
-            f"{name}_{index}",
-            definitions,
-        )
-        fields.append(f"        {field_type} field{index};")
-    definitions.append(
-        "\n".join(
-            [
-                f"    struct {name} {{",
-                *fields,
-                "    }",
-            ]
-        )
-    )
-    return name + abi_type[len("tuple") :]
-
-
-def _plan_checks(
-    solc_artifact: dict[str, Any],
-    solar_artifact: dict[str, Any],
-    args: argparse.Namespace,
-    prefix_calldata: tuple[str, ...],
-) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
-    """Returns the call sequences to compare and the functions left out.
-
-    Raises `AbiDisagreement` when the two builds expose different functions.
-    """
-    symbolic_caller = getattr(args, "symbolic_caller", False)
-    all_functions = getattr(args, "all_functions", False)
-    depth = getattr(args, "depth", 1)
-    if all_functions or depth > 1:
-        solc_signatures = _function_signatures(solc_artifact["abi"])
-        solar_signatures = _function_signatures(solar_artifact["abi"])
-        if solc_signatures != solar_signatures:
-            raise AbiDisagreement(
-                "compiler ABI disagreement: only Solc has "
-                f"{sorted(solc_signatures - solar_signatures)}, only Solar has "
-                f"{sorted(solar_signatures - solc_signatures)}"
-            )
-    skipped = []
-    selectable = []
-    for signature in sorted(_function_signatures(solc_artifact["abi"])):
-        try:
-            selectable.append(
-                _select_function(
-                    solc_artifact,
-                    solar_artifact,
-                    signature,
-                    include_view=True,
-                    include_stateful=True,
-                    include_payable=True,
-                )
-            )
-        except AbiDisagreement:
-            raise
-        except ValueError as err:
-            skipped.append({"signature": signature, "reason": str(err)})
-    if all_functions:
-        functions = selectable
-    else:
-        if not args.signature:
-            raise ValueError("--signature is required without --all-functions")
-        functions = [
-            _select_function(
-                solc_artifact,
-                solar_artifact,
-                args.signature,
-                include_view=args.include_view or depth > 1,
-                include_stateful=args.include_stateful or depth > 1,
-                include_payable=getattr(args, "include_payable", False) or depth > 1,
-            )
-        ]
-        if depth == 1:
-            skipped = []
-        if prefix_calldata and functions[0]["mutability"] == "pure":
-            raise ValueError("prefix calls require a view or nonpayable target")
-
-    def step(kind: str, function: dict[str, Any] | None = None) -> dict[str, Any]:
-        planned: dict[str, Any] = {"kind": kind, "caller": symbolic_caller}
-        if function is not None:
-            planned["function"] = function
-        if kind == "raw":
-            # Calldata that matches no selector reaches `fallback` or `receive`.
-            planned["known_selectors"] = sorted(
-                {
-                    "0x" + selector.removeprefix("0x").lower()
-                    for artifact in (solc_artifact, solar_artifact)
-                    for selector in artifact["method_identifiers"].values()
-                }
-            )
-            planned["lengths"] = RAW_CALLDATA_LENGTHS
-        elif kind == "raw_args" and function is not None:
-            # Arbitrary argument bytes after a known selector exercise the
-            # compilers' ABI decoding: short data, dirty values, bad offsets.
-            head = sum(_abi_head(item)[0] for item in function["inputs"])
-            planned["lengths"] = tuple(
-                sorted(
-                    length
-                    for length in {0, max(head - 1, 0), head, head + 32}
-                    if length <= MAX_DYNAMIC_LENGTH
-                )
-            )
-        return planned
-
-    last_steps = [step("symbolic", function) for function in functions]
-    if all_functions:
-        last_steps += [step("raw_args", function) for function in functions]
-        last_steps.append(step("raw"))
-    state_changing = [
-        step("symbolic", function)
-        for function in (functions if all_functions else selectable)
-        if function["mutability"] in {"nonpayable", "payable"}
-    ]
-    sequences = []
-    for length in range(1, depth + 1):
-        for earlier in itertools.product(state_changing, repeat=length - 1):
-            for last in last_steps:
-                sequences.append([*earlier, last])
-    max_checks = getattr(args, "max_checks", MAX_CHECKS)
-    if len(sequences) > max_checks:
-        raise ValueError(
-            f"{len(sequences)} call sequences exceed --max-checks {max_checks}"
-        )
-    fixed = [{"kind": "fixed", "calldata": calldata} for calldata in prefix_calldata]
-    checks = []
-    for index, sequence in enumerate(sequences):
-        steps = [*fixed, *sequence]
-        checks.append(
-            {
-                "name": f"{TEST_NAME}{index}",
-                "label": " -> ".join(_step_label(item) for item in sequence),
-                "steps": steps,
-                "input_lengths": {
-                    f"s{position}_raw": item["lengths"]
-                    for position, item in enumerate(steps)
-                    if "lengths" in item
-                },
-            }
-        )
-    return checks, skipped
-
-
 def _function_signatures(abi: list[dict[str, Any]]) -> set[str]:
     return {
         _abi_signature(entry)
         for entry in abi
         if isinstance(entry, dict) and entry.get("type") == "function"
     }
-
-
-def _step_label(step: dict[str, Any]) -> str:
-    if step["kind"] == "raw":
-        return "<other calldata>"
-    if step["kind"] == "raw_args":
-        return f"{step['function']['signature']} <arbitrary arguments>"
-    if step["kind"] == "fixed":
-        return step["calldata"]
-    return step["function"]["signature"]
-
-
-def _step_inputs(index: int, step: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    """Names the test parameters that feed one step, in ABI order."""
-    if step["kind"] == "fixed":
-        return []
-    if step["kind"] in {"raw", "raw_args"}:
-        inputs = [(f"s{index}_raw", {"name": "raw", "type": "bytes"})]
-    else:
-        inputs = [
-            (f"s{index}_a{position}", item)
-            for position, item in enumerate(step["function"]["inputs"])
-        ]
-    if step["caller"]:
-        inputs.append((f"s{index}_caller", {"name": "caller", "type": "address"}))
-    # Every call carries a symbolic value, so a missing `callvalue` check on a
-    # nonpayable function is a difference too.
-    inputs.append((f"s{index}_value", {"name": "value", "type": "uint256"}))
-    return inputs
-
-
-def _check_inputs(
-    check: dict[str, Any],
-    constructor: list[dict[str, Any]] | None,
-) -> list[tuple[str, dict[str, Any]]]:
-    """Names every test parameter of one check; `constructor` is None without one."""
-    inputs = [(f"c{position}", item) for position, item in enumerate(constructor or [])]
-    if constructor is not None:
-        inputs.append(("c_value", {"name": "value", "type": "uint256"}))
-    for slot, *_ in check.get("starting_storage", ()):
-        inputs.append((f"st{slot}", {"name": "word", "type": "uint256"}))
-    for index, step in enumerate(check["steps"]):
-        inputs.extend(_step_inputs(index, step))
-    if any(step["kind"] != "fixed" for step in check["steps"]):
-        inputs.append(("observer", {"name": "observer", "type": "address"}))
-    return inputs
-
-
-def _write_project(
-    project: pathlib.Path,
-    solc_artifact: dict[str, Any],
-    solar_artifact: dict[str, Any],
-    checks: list[dict[str, Any]],
-    evm_version: str,
-    *,
-    max_dynamic_length: int,
-    dynamic_lengths: tuple[int, ...] = DEFAULT_DYNAMIC_LENGTHS,
-    exploration_order: str = "bfs",
-    runtime_only: bool = False,
-    constructor_args: str | None = None,
-    allow_precompile_addresses: bool = False,
-) -> None:
-    (project / "src").mkdir()
-    (project / "test").mkdir()
-
-    constructor = _harness_constructor(solc_artifact, runtime_only, constructor_args)
-    definitions: list[str] = []
-    functions = [
-        _render_check(
-            check,
-            constructor,
-            definitions,
-            runtime_only=runtime_only,
-            constructor_args=constructor_args,
-            allow_precompile_addresses=allow_precompile_addresses,
-        )
-        for check in checks
-    ]
-    if runtime_only:
-        codes = (
-            f'    bytes private constant SOLC_RUNTIME = hex"{solc_artifact["runtime"].removeprefix("0x")}";\n'
-            f'    bytes private constant SOLAR_RUNTIME = hex"{solar_artifact["runtime"].removeprefix("0x")}";\n'
-        )
-    else:
-        codes = (
-            f'    bytes private constant SOLC_INIT = hex"{solc_artifact["creation"].removeprefix("0x")}";\n'
-            f'    bytes private constant SOLAR_INIT = hex"{solar_artifact["creation"].removeprefix("0x")}";\n'
-        )
-    test_source = (
-        _TEST_HEADER.format(
-            definitions="\n\n".join(definitions),
-            codes=codes,
-            mirror_base=MIRROR_BASE_ADDRESS,
-        )
-        + "\n".join(functions)
-        + _TEST_FOOTER
-    )
-    (project / "test" / "SymbolicDifferential.t.sol").write_text(
-        test_source,
-        encoding="utf-8",
-    )
-    lengths = ", ".join(str(length) for length in dynamic_lengths)
-    (project / "foundry.toml").write_text(
-        _FOUNDRY_TOML.format(
-            evm_version=evm_version,
-            dynamic_lengths=lengths,
-            exploration_order=exploration_order,
-            max_dynamic_length=max_dynamic_length,
-            storage_layout="zero_init",
-        ),
-        encoding="utf-8",
-    )
-
-
-def _harness_constructor(
-    solc_artifact: dict[str, Any],
-    runtime_only: bool,
-    constructor_args: str | None,
-) -> list[dict[str, Any]] | None:
-    """Returns the constructor's symbolic inputs, or None when it does not run."""
-    if runtime_only:
-        return None
-    return [] if constructor_args is not None else solc_artifact["constructor"]
-
-
-def _render_check(
-    check: dict[str, Any],
-    constructor: list[dict[str, Any]] | None,
-    definitions: list[str],
-    *,
-    runtime_only: bool,
-    constructor_args: str | None = None,
-    allow_precompile_addresses: bool = False,
-) -> str:
-    inputs = _check_inputs(check, constructor)
-    declarations = []
-    for name, item in inputs:
-        type_name = _solidity_type(item, f"{check['name']}_{name}", definitions)
-        abi_type = item["type"]
-        location = (
-            " calldata"
-            if abi_type.startswith("tuple")
-            or abi_type in {"bytes", "string"}
-            or "[" in abi_type
-            else ""
-        )
-        declarations.append(f"{type_name}{location} {name}")
-
-    steps = check["steps"]
-    lines = []
-    if check["input_lengths"]:
-        lengths = ", ".join(
-            f"{name} = [{', '.join(str(length) for length in values)}]"
-            for name, values in sorted(check["input_lengths"].items())
-        )
-        lines.append(
-            f"    /// forge-config: default.symbolic.dynamic_lengths = {{ {lengths} }}"
-        )
-    lines.append(f"    function {check['name']}({', '.join(declarations)}) public {{")
-    if not allow_precompile_addresses:
-        # A symbolic address may otherwise be a precompile whose symbolic
-        # input Foundry does not model, which leaves the whole run incomplete.
-        for name, item in inputs:
-            if item["type"] == "address":
-                lines.append(
-                    f"        vm.assume(uint160({name}) == 0 || uint160({name}) > 0x100);"
-                )
-    lines.append(f"        Call[] memory calls = new Call[]({len(steps)});")
-    for index, step in enumerate(steps):
-        sender = f"s{index}_caller" if step.get("caller") else "address(this)"
-        prank = "true" if step.get("caller") else "false"
-        value = "0" if step["kind"] == "fixed" else f"s{index}_value"
-        if step["kind"] == "fixed":
-            data = f'hex"{step["calldata"].removeprefix("0x")}"'
-        elif step["kind"] == "raw":
-            data = f"s{index}_raw"
-            lines.append(f"        if (s{index}_raw.length >= 4) {{")
-            lines.append(f"            bytes4 selector = bytes4(s{index}_raw[:4]);")
-            for selector in step["known_selectors"]:
-                lines.append(f"            vm.assume(selector != bytes4({selector}));")
-            lines.append("        }")
-        elif step["kind"] == "raw_args":
-            selector = step["function"]["selector"]
-            data = f"abi.encodePacked(bytes4({selector}), s{index}_raw)"
-        else:
-            function = step["function"]
-            arguments = "".join(
-                f", s{index}_a{position}" for position in range(len(function["inputs"]))
-            )
-            data = f"abi.encodeWithSelector(bytes4({function['selector']}){arguments})"
-        lines.append(
-            f"        calls[{index}] = Call({data}, {sender}, {prank}, {value});"
-        )
-    watched = ["address(this)"]
-    for index, step in enumerate(steps):
-        if step.get("caller"):
-            watched.append(f"s{index}_caller")
-    if any(name == "observer" for name, _ in inputs):
-        watched.append("observer")
-    lines.append(f"        address[] memory watched = new address[]({len(watched)});")
-    for index, account in enumerate(watched):
-        lines.append(f"        watched[{index}] = {account};")
-    if runtime_only:
-        lines.append("        bytes memory initA = _runtimeInit(SOLC_RUNTIME);")
-        lines.append("        bytes memory initB = _runtimeInit(SOLAR_RUNTIME);")
-        init_value = "0"
-    else:
-        if constructor_args is not None:
-            arguments = f'hex"{constructor_args.removeprefix("0x")}"'
-        else:
-            names = ", ".join(
-                f"c{position}" for position in range(len(constructor or []))
-            )
-            arguments = f"abi.encode({names})"
-        lines.append(
-            f"        bytes memory initA = abi.encodePacked(SOLC_INIT, {arguments});"
-        )
-        lines.append(
-            f"        bytes memory initB = abi.encodePacked(SOLAR_INIT, {arguments});"
-        )
-        init_value = "c_value"
-    starting = check.get("starting_storage", ())
-    lines.append(f"        Slot[] memory start = new Slot[]({len(starting)});")
-    full = (1 << 256) - 1
-    for index, (slot, mask, bools, enums) in enumerate(starting):
-        # Only validly encoded storage: compilers may treat other words
-        # differently, and Solidity code never stores them.
-        word = f"st{slot}"
-        if mask != full:
-            lines.append(f"        vm.assume({word} & {hex(full ^ mask)} == 0);")
-        for offset in bools:
-            lines.append(f"        vm.assume(({word} >> {8 * offset}) & 0xff <= 1);")
-        for offset, members in enums:
-            lines.append(
-                f"        vm.assume(({word} >> {8 * offset}) & 0xff < {members});"
-            )
-        lines.append(
-            f"        start[{index}] = Slot(bytes32(uint256({slot})), bytes32({word}));"
-        )
-    compare = "_compareFromStartingStorage" if starting else "_compare"
-    lines.append(
-        f"        {compare}(initA, initB, {init_value}, start, calls, watched);"
-    )
-    lines.append("    }")
-    return "\n".join(lines) + "\n"
-
-
-def _storage_constraints(
-    layout: Any,
-    enum_members: dict[str, int] | None = None,
-) -> list[tuple[int, int, list[int], list[tuple[int, int]]]]:
-    """Returns each fixed slot's used-bit mask, `bool` offsets, and enum offsets.
-
-    Slots that hold any value other than fixed-size fields are left out.
-    """
-    if not isinstance(layout, dict):
-        return []
-    enum_members = enum_members or {}
-    types = layout.get("types") or {}
-    full = (1 << 256) - 1
-    slots: dict[int, tuple[int, list[int], list[tuple[int, int]]]] = {}
-    unconstrained = set()
-
-    def use(
-        slot: int,
-        mask: int,
-        bools: list[int],
-        enums: list[tuple[int, int]],
-    ) -> None:
-        current, current_bools, current_enums = slots.get(slot, (0, [], []))
-        slots[slot] = (current | mask, current_bools + bools, current_enums + enums)
-
-    def visit(type_id: str, slot: int, offset: int) -> None:
-        info = types.get(type_id)
-        if not isinstance(info, dict):
-            unconstrained.add(slot)
-            return
-        encoding = info.get("encoding")
-        size = int(info.get("numberOfBytes", 32))
-        label = info.get("label", "")
-        if encoding != "inplace":
-            # Mappings, dynamic arrays, `bytes`, and `string` start empty: their
-            # contents live at hashed slots that replay cannot materialize.
-            unconstrained.add(slot)
-        elif "members" in info:
-            for member in info["members"]:
-                visit(member["type"], slot + int(member["slot"]), int(member["offset"]))
-        elif "base" in info:
-            count = re.search(r"\[(\d+)\]$", label)
-            base = types.get(info["base"], {})
-            element = int(base.get("numberOfBytes", 32))
-            if count is None:
-                unconstrained.add(slot)
-                return
-            per_slot = 32 // element if element < 32 else 0
-            for index in range(int(count.group(1))):
-                if per_slot:
-                    visit(
-                        info["base"],
-                        slot + index // per_slot,
-                        (index % per_slot) * element,
-                    )
-                else:
-                    visit(info["base"], slot + index * (element // 32), 0)
-        elif not _STORAGE_VALUE_LABEL.fullmatch(label):
-            # User-defined value types and internal function pointers hide
-            # their encoding behind the label: a user-defined `bool` still
-            # must hold 0 or 1, and each compiler numbers function pointers
-            # on its own.
-            unconstrained.add(slot)
-        else:
-            mask = ((1 << (8 * size)) - 1) << (8 * offset)
-            enums = []
-            if label.startswith("enum "):
-                members = enum_members.get(label.removeprefix("enum "))
-                if members is None:
-                    raise ValueError(f"unknown member count for storage {label}")
-                enums.append((offset, members))
-            use(slot, mask & full, [offset] if label == "bool" else [], enums)
-
-    for entry in layout.get("storage") or []:
-        if isinstance(entry, dict):
-            visit(entry["type"], int(entry["slot"]), int(entry["offset"]))
-    return [
-        (slot, mask, bools, enums)
-        for slot, (mask, bools, enums) in sorted(slots.items())
-        if slot not in unconstrained
-    ]
-
-
-def _runtime_opcodes(runtime: str) -> set[int]:
-    """Returns the opcodes of runtime or creation code, skipping PUSH data and trailing metadata."""
-    code = bytes.fromhex(runtime.removeprefix("0x"))
-    if len(code) >= 2:
-        metadata = int.from_bytes(code[-2:]) + 2
-        if metadata < len(code) and 0xA1 <= code[-metadata] <= 0xA6:
-            code = code[:-metadata]
-    opcodes = set()
-    pc = 0
-    while pc < len(code):
-        opcode = code[pc]
-        opcodes.add(opcode)
-        pc += 1 + (opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0)
-    return opcodes
-
-
-def _inner_frame_log_limit(*codes: str) -> str | None:
-    """Reports code that can log in an inner frame that later reverts.
-
-    Foundry records the logs of every frame, including inner frames that revert
-    inside a successful call, and attributes no log to a frame, so the harness
-    cannot drop them. A `logs` difference in such code may come from one.
-    """
-    for code in codes:
-        opcodes = _runtime_opcodes(code)
-        if opcodes & _LOG_OPCODES and opcodes & _INNER_FRAME_OPCODES:
-            return (
-                "logs of reverted inner frames are not told apart from committed logs"
-            )
-    return None
-
-
-_SEMANTICS_PROBE = """// SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.8.24;
-
-interface Vm {
-    struct Log {
-        bytes32[] topics;
-        bytes data;
-        address emitter;
-    }
-
-    function recordLogs() external;
-    function getRecordedLogs() external returns (Log[] memory);
-}
-
-contract Transient {
-    function set() external {
-        assembly {
-            tstore(0, 1)
-        }
-    }
-
-    function get() external view returns (uint256 value) {
-        assembly {
-            value := tload(0)
-        }
-    }
-}
-
-contract Logger {
-    event Logged();
-
-    function inner() external {
-        emit Logged();
-        revert();
-    }
-
-    function outer() external {
-        try this.inner() {} catch {}
-    }
-}
-
-contract Probe {
-    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-
-    function checkIsolatedTransactions() public {
-        Transient t = new Transient();
-        t.set();
-        require(t.get() == 0);
-    }
-
-    function checkRevertedLogsDropped() public {
-        Logger logger = new Logger();
-        vm.recordLogs();
-        logger.outer();
-        require(vm.getRecordedLogs().length == 0);
-    }
-}
-"""
-_SEMANTICS: dict[tuple[str, int, int], dict[str, bool]] = {}
-
-
-def _forge_semantics(
-    tools: dict[str, str], args: argparse.Namespace
-) -> dict[str, bool]:
-    """Probes what the symbolic engine of this Forge models, once per binary.
-
-    Older Forge runs the whole symbolic test as one transaction, so transient
-    storage persists between the harness's calls (foundry-rs/foundry#17865), and
-    records the logs of inner frames that revert (foundry-rs/foundry#17866).
-    The harness reports those cases as incomplete only when Forge has the gap.
-    """
-    forge = tools["forge"]
-    stat = os.stat(forge)
-    key = (os.path.realpath(forge), stat.st_mtime_ns, stat.st_size)
-    if key in _SEMANTICS:
-        return _SEMANTICS[key]
-    cache_root = pathlib.Path(
-        os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache"
-    )
-    digest = hashlib.sha256(repr(key).encode()).hexdigest()[:16]
-    cache = cache_root / "solsymdiff" / f"forge-semantics-{digest}.json"
-    with contextlib.suppress(OSError, ValueError):
-        _SEMANTICS[key] = json.loads(cache.read_text())
-        return _SEMANTICS[key]
-    semantics = {}
-    with tempfile.TemporaryDirectory(prefix="solsymdiff-probe-") as tmp:
-        project = pathlib.Path(tmp)
-        (project / "test").mkdir()
-        (project / "test" / "Probe.t.sol").write_text(_SEMANTICS_PROBE)
-        (project / "foundry.toml").write_text('[profile.default]\ntest = "test"\n')
-        env = {
-            name: value
-            for name, value in os.environ.items()
-            if not name.startswith(("FOUNDRY_", "DAPP_"))
-        }
-        help_output = subprocess.run(
-            [forge, "test", "--help"], check=False, text=True, capture_output=True
-        ).stdout
-        local = (
-            ["--allow-local-compiler"]
-            if "--allow-local-compiler" in help_output
-            else []
-        )
-        for name, test in (
-            ("isolated_transactions", "checkIsolatedTransactions"),
-            ("reverted_logs_dropped", "checkRevertedLogsDropped"),
-        ):
-            result = subprocess.run(
-                [
-                    forge,
-                    "test",
-                    "--root",
-                    str(project),
-                    "--use",
-                    tools["solc"],
-                    *local,
-                    "--evm-version",
-                    "cancun",
-                    "--offline",
-                    "--symbolic",
-                    "--symbolic-solver",
-                    tools["solver"],
-                    "--match-test",
-                    f"^{test}",
-                ],
-                check=False,
-                cwd=project,
-                env=env,
-                text=True,
-                capture_output=True,
-                timeout=args.timeout,
-            )
-            semantics[name] = result.returncode == 0 and "[PASS]" in result.stdout
-    _SEMANTICS[key] = semantics
-    try:
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        partial = cache.with_suffix(f".{os.getpid()}.tmp")
-        partial.write_text(json.dumps(semantics))
-        partial.replace(cache)
-    except OSError:
-        pass
-    return semantics
-
-
-def _run_forge(
-    forge: str,
-    solc: str,
-    solver: str,
-    project: pathlib.Path,
-    args: argparse.Namespace,
-    max_dynamic_length: int,
-) -> dict[str, Any]:
-    help_output = subprocess.run(
-        [forge, "test", "--help"],
-        check=False,
-        text=True,
-        capture_output=True,
-        timeout=args.timeout,
-    ).stdout
-    test_pattern = f"^{TEST_NAME}"
-    command = [
-        forge,
-        "test",
-        "--root",
-        str(project),
-        "--use",
-        solc,
-        "--evm-version",
-        args.evm_version,
-        "--symbolic",
-        "--match-test",
-        test_pattern,
-        "--symbolic-solver",
-        solver,
-        "--symbolic-timeout",
-        str(args.symbolic_timeout),
-        "--symbolic-max-paths",
-        str(args.max_paths),
-        "--symbolic-max-solver-queries",
-        str(args.max_solver_queries),
-        "--symbolic-max-calldata-bytes",
-        str(args.max_calldata_bytes),
-        "--symbolic-max-dynamic-length",
-        str(max_dynamic_length),
-        "--json",
-    ]
-    if "--allow-local-compiler" in help_output:
-        command.insert(command.index("--evm-version"), "--allow-local-compiler")
-    if args.max_depth is not None:
-        command.extend(["--symbolic-max-depth", str(args.max_depth)])
-    home = project / ".home"
-    home.mkdir()
-    env = os.environ.copy()
-    svm_home = _host_svm_home(env)
-    for name in list(env):
-        if name.startswith(("FOUNDRY_", "DAPP_")) or name == "SVM_HOME":
-            del env[name]
-    env.update(
-        {
-            "HOME": str(home),
-            "XDG_CACHE_HOME": str(home / ".cache"),
-            "XDG_CONFIG_HOME": str(home / ".config"),
-            "XDG_DATA_HOME": str(home / ".local" / "share"),
-        }
-    )
-    if svm_home.is_dir():
-        isolated_svm_home = home / ".local" / "share" / "svm"
-        isolated_svm_home.parent.mkdir(parents=True, exist_ok=True)
-        isolated_svm_home.symlink_to(svm_home, target_is_directory=True)
-    result = subprocess.run(
-        command,
-        check=False,
-        cwd=project,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=args.timeout,
-        preexec_fn=_raise_stack_limit if sys.platform != "win32" else None,
-    )
-    # Via-IR can run out of stack slots when the harness has a single property
-    # and Solc inlines every helper into it; without the optimizer it does not.
-    if not result.stdout.strip() and "too deep in the stack" in result.stderr:
-        result = subprocess.run(
-            command,
-            check=False,
-            cwd=project,
-            env={**env, "FOUNDRY_OPTIMIZER": "false"},
-            text=True,
-            capture_output=True,
-            timeout=args.timeout,
-            preexec_fn=_raise_stack_limit if sys.platform != "win32" else None,
-        )
-    if not result.stdout.strip():
-        detail = result.stderr.strip() or "no output"
-        raise ValueError(f"Forge did not emit JSON: {detail}")
-    try:
-        report = json.loads(result.stdout)
-    except json.JSONDecodeError as err:
-        raise ValueError(f"Forge emitted invalid JSON: {err}") from err
-    if not isinstance(report, dict):
-        raise ValueError("Forge JSON output must be an object")
-    return report
-
-
-def _raise_stack_limit() -> None:
-    """Raises the stack limit of Forge and the Solc it runs to the hard limit.
-
-    Older Solc releases, such as 0.8.26, recurse deeply on the harness's long
-    hex literals and crash with SIGSEGV under the default 8 MiB stack.
-    """
-    _, hard = resource.getrlimit(resource.RLIMIT_STACK)
-    resource.setrlimit(resource.RLIMIT_STACK, (hard, hard))
-
-
-def _host_svm_home(env: dict[str, str]) -> pathlib.Path:
-    if path := env.get("SVM_HOME"):
-        return pathlib.Path(path)
-    if path := env.get("XDG_DATA_HOME"):
-        return pathlib.Path(path) / "svm"
-    return pathlib.Path(env["HOME"]) / ".local" / "share" / "svm"
-
-
-def _validate_bounded_agreement(
-    symbolic: dict[str, Any],
-    expected: dict[str, Any],
-) -> None:
-    actual = symbolic.get("bounds")
-    if not isinstance(actual, dict):
-        raise ValueError("Forge did not report its effective symbolic bounds")
-    fields = {
-        "timeout_seconds": expected["solver_timeout_seconds"],
-        "max_paths": expected["max_paths"],
-        "max_solver_queries": expected["max_solver_queries"],
-        "max_calldata_bytes": expected["max_calldata_bytes"],
-        "max_dynamic_length": expected["max_dynamic_length"],
-        "exploration_order": expected["exploration_order"],
-        "storage_layout": expected["storage_layout"],
-        "default_array_lengths": expected["dynamic_lengths"],
-        "default_bytes_lengths": expected["dynamic_lengths"],
-        "dynamic_lengths": {
-            name: list(lengths) for name, lengths in expected["input_lengths"].items()
-        },
-    }
-    if expected["max_depth"] is not None:
-        fields["max_depth"] = expected["max_depth"]
-    disagreements = [
-        f"{name}={actual.get(name)!r}"
-        for name, value in fields.items()
-        if actual.get(name) != value
-    ]
-    assumptions = symbolic.get("assumptions")
-    kinds = set()
-    if isinstance(assumptions, list):
-        kinds = {
-            item.get("kind")
-            for item in assumptions
-            if isinstance(item, dict) and isinstance(item.get("kind"), str)
-        }
-    if kinds != {"bounded_exploration", "hash_model"}:
-        disagreements.append(f"assumptions={sorted(kinds)!r}")
-    if disagreements:
-        raise ValueError(
-            "Forge effective symbolic configuration disagrees with the request: "
-            + ", ".join(disagreements)
-        )
-
-
-def _classify(
-    report: dict[str, Any],
-    checks: list[dict[str, Any]],
-    expected_bounds: dict[str, Any] | None = None,
-    *,
-    constructor: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    by_name = {}
-    for suite in report.values():
-        if not isinstance(suite, dict):
-            continue
-        results = suite.get("test_results")
-        if not isinstance(results, dict):
-            continue
-        for test_name, result in results.items():
-            symbolic = result.get("symbolic") if isinstance(result, dict) else None
-            if isinstance(symbolic, dict):
-                by_name[test_name.split("(", 1)[0]] = (result, symbolic)
-    unexpected = sorted(set(by_name) - {check["name"] for check in checks})
-    if unexpected:
-        raise ValueError(f"Forge ran unexpected symbolic tests: {unexpected}")
-
-    outcomes = []
-    for check in checks:
-        if check.get("unsupported"):
-            outcome = {"status": "incomplete", "reason": check["unsupported"]}
-        elif check["name"] not in by_name:
-            outcome = {
-                "status": "incomplete",
-                "reason": "Forge did not report this check",
-            }
-        else:
-            result, symbolic = by_name[check["name"]]
-            # One check that cannot be classified must not hide the others.
-            try:
-                outcome = _classify_one(
-                    result, symbolic, check, expected_bounds, constructor
-                )
-            except ValueError as err:
-                outcome = {"status": "incomplete", "reason": str(err)}
-        outcomes.append({"label": check["label"], **outcome})
-    statuses = {outcome["status"] for outcome in outcomes}
-    if "mismatch" in statuses:
-        status = "mismatch"
-    elif "incomplete" in statuses:
-        status = "incomplete"
-    else:
-        status = "bounded_agreement"
-    if len(outcomes) == 1:
-        single = dict(outcomes[0])
-        single.pop("label")
-        return single
-    summary = {"status": status, "checks": outcomes}
-    if status == "mismatch":
-        first = next(item for item in outcomes if item["status"] == "mismatch")
-        summary["differs_in"] = first["differs_in"]
-        summary["counterexample"] = first["counterexample"]
-    elif status == "incomplete":
-        first = next(item for item in outcomes if item["status"] == "incomplete")
-        summary["reason"] = f"{first['label']}: {first['reason']}"
-    return summary
-
-
-def _classify_one(
-    result: dict[str, Any],
-    symbolic: dict[str, Any],
-    check: dict[str, Any],
-    expected_bounds: dict[str, Any] | None,
-    constructor: list[dict[str, Any]] | None,
-) -> dict[str, Any]:
-    status = symbolic.get("status")
-    replay = symbolic.get("replay")
-    if status == "pass":
-        if result.get("status") != "Success":
-            raise ValueError("Forge emitted an inconsistent symbolic pass")
-        if expected_bounds is not None:
-            _validate_bounded_agreement(
-                symbolic, {**expected_bounds, "input_lengths": check["input_lengths"]}
-            )
-        return {"status": "bounded_agreement"}
-
-    if status == "incomplete":
-        incomplete = symbolic.get("incomplete")
-        reason = (
-            incomplete.get("reason")
-            if isinstance(incomplete, dict)
-            else "symbolic execution was incomplete"
-        )
-        return {"status": "incomplete", "reason": reason}
-
-    if status != "fail_counterexample":
-        raise ValueError(f"unsupported Forge symbolic status: {status}")
-    if not isinstance(replay, dict) or replay.get("status") != "confirmed":
-        raise ValueError("Forge did not concretely replay the counterexample")
-
-    # The harness names the comparison that failed. An `unsupported:` failure
-    # marks behavior the comparison cannot model, and any other failure, such
-    # as a replay stopped by `vm.assume`, did not reproduce a difference.
-    differs_in = result.get("reason") or ""
-    if differs_in.startswith(UNSUPPORTED_PREFIX):
-        return {
-            "status": "incomplete",
-            "reason": differs_in.removeprefix(UNSUPPORTED_PREFIX),
-        }
-    if differs_in not in COMPARISONS:
-        return {
-            "status": "incomplete",
-            "reason": f"counterexample replay failed outside the comparison: {differs_in}",
-        }
-    if differs_in == "logs" and check.get("log_limit"):
-        return {"status": "incomplete", "reason": check["log_limit"]}
-    counterexample = symbolic.get("counterexample")
-    artifact = symbolic.get("artifact")
-    if not isinstance(counterexample, dict) or not isinstance(artifact, dict):
-        raise ValueError("Forge did not emit a counterexample artifact")
-    artifact_path = artifact.get("path")
-    if not isinstance(artifact_path, str) or not artifact_path:
-        raise ValueError("Forge emitted an invalid artifact path")
-    return {
-        "status": "mismatch",
-        "differs_in": differs_in,
-        "counterexample": {
-            **_decode_counterexample(
-                counterexample.get("calldata"), check, constructor
-            ),
-            "forge_artifact": artifact_path,
-        },
-    }
-
-
-def _decode_counterexample(
-    wrapper_calldata: Any,
-    check: dict[str, Any],
-    constructor: list[dict[str, Any]] | None,
-) -> dict[str, Any]:
-    """Splits the test's calldata back into the constructor and each call."""
-    if not isinstance(wrapper_calldata, str) or not re.fullmatch(
-        r"0x(?:[0-9a-fA-F]{2}){4,}",
-        wrapper_calldata,
-    ):
-        raise ValueError("Forge emitted invalid counterexample calldata")
-    inputs = _check_inputs(check, constructor)
-    groups = _split_arguments(
-        bytes.fromhex(wrapper_calldata[10:]), [item for _, item in inputs]
-    )
-    values = dict(zip((name for name, _ in inputs), groups, strict=True))
-    decoded: dict[str, Any] = {}
-    if constructor:
-        decoded["constructor_args"] = (
-            "0x"
-            + _encode_group(
-                [values[f"c{position}"] for position in range(len(constructor))]
-            ).hex()
-        )
-    if "c_value" in values:
-        decoded["constructor_value"] = str(int.from_bytes(values["c_value"].head))
-    starting = {
-        str(slot): "0x" + values[f"st{slot}"].head.hex()
-        for slot, *_ in check.get("starting_storage", ())
-    }
-    if starting:
-        decoded["starting_storage"] = starting
-    calls = []
-    for index, step in enumerate(check["steps"]):
-        call: dict[str, Any] = {}
-        if step["kind"] == "fixed":
-            call["calldata"] = step["calldata"]
-        elif step["kind"] in {"raw", "raw_args"}:
-            raw = values[f"s{index}_raw"].tail or b""
-            length = int.from_bytes(raw[:32])
-            payload = raw[32 : 32 + length].hex()
-            if step["kind"] == "raw_args":
-                call["function"] = step["function"]["signature"]
-                payload = step["function"]["selector"].removeprefix("0x") + payload
-            call["calldata"] = "0x" + payload
-        else:
-            function = step["function"]
-            arguments = [
-                values[f"s{index}_a{position}"]
-                for position in range(len(function["inputs"]))
-            ]
-            call["function"] = function["signature"]
-            call["calldata"] = function["selector"] + _encode_group(arguments).hex()
-        if step.get("caller"):
-            call["caller"] = "0x" + values[f"s{index}_caller"].head[12:].hex()
-        if f"s{index}_value" in values:
-            call["value"] = str(int.from_bytes(values[f"s{index}_value"].head))
-        calls.append(call)
-    decoded["calls"] = calls
-    # The last call is the one a single-function run reports at the top level.
-    decoded.update(
-        {key: value for key, value in calls[-1].items() if key != "function"}
-    )
-    if "observer" in values:
-        decoded["observer"] = "0x" + values["observer"].head[12:].hex()
-    return decoded
-
-
-class _Argument:
-    """One ABI argument: its static head, or the tail a dynamic head points to."""
-
-    def __init__(self, head: bytes, tail: bytes | None) -> None:
-        self.head = head
-        self.tail = tail
-
-
-def _split_arguments(data: bytes, items: list[dict[str, Any]]) -> list[_Argument]:
-    heads = []
-    offset = 0
-    for item in items:
-        size, dynamic = _abi_head(item)
-        word = data[offset : offset + size]
-        if len(word) != size:
-            raise ValueError("Forge emitted truncated counterexample calldata")
-        heads.append((word, dynamic))
-        offset += size
-    pointers = sorted(int.from_bytes(word) for word, dynamic in heads if dynamic) + [
-        len(data)
-    ]
-    arguments = []
-    for word, dynamic in heads:
-        if not dynamic:
-            arguments.append(_Argument(word, None))
-            continue
-        start = int.from_bytes(word)
-        end = next(pointer for pointer in pointers if pointer > start)
-        arguments.append(_Argument(word, data[start:end]))
-    return arguments
-
-
-def _encode_group(arguments: list[_Argument]) -> bytes:
-    head_size = sum(len(argument.head) for argument in arguments)
-    head = []
-    tails = []
-    tail_size = 0
-    for argument in arguments:
-        if argument.tail is None:
-            head.append(argument.head)
-        else:
-            head.append((head_size + tail_size).to_bytes(32))
-            tails.append(argument.tail)
-            tail_size += len(argument.tail)
-    return b"".join(head) + b"".join(tails)
 
 
 def _abi_head(item: dict[str, Any]) -> tuple[int, bool]:
@@ -2124,331 +887,605 @@ def _abi_head(item: dict[str, Any]) -> tuple[int, bool]:
     return 32, abi_type in {"bytes", "string"}
 
 
-_FOUNDRY_TOML = """\
-[profile.default]
-src = "src"
-test = "test"
-out = "out"
-cache_path = "cache"
-libs = []
-optimizer = true
-optimizer_runs = 200
-via_ir = true
-evm_version = "{evm_version}"
-code_size_limit = 1000000
-
-[symbolic]
-exploration_order = "{exploration_order}"
-storage_layout = "{storage_layout}"
-symbolic_call_targets = true
-max_dynamic_length = {max_dynamic_length}
-default_array_lengths = [{dynamic_lengths}]
-default_bytes_lengths = [{dynamic_lengths}]
-"""
+def _runtime_opcodes(runtime: str) -> set[int]:
+    """Returns the opcodes of runtime or creation code, skipping PUSH data and trailing metadata."""
+    code = bytes.fromhex(runtime.removeprefix("0x"))
+    if len(code) >= 2:
+        metadata = int.from_bytes(code[-2:]) + 2
+        if metadata < len(code) and 0xA1 <= code[-metadata] <= 0xA6:
+            code = code[:-metadata]
+    opcodes = set()
+    pc = 0
+    while pc < len(code):
+        opcode = code[pc]
+        opcodes.add(opcode)
+        pc += 1 + (opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0)
+    return opcodes
 
 
-_TEST_HEADER = """\
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+def _plan_checks(
+    solc_artifact: dict[str, Any],
+    solar_artifact: dict[str, Any],
+    args: argparse.Namespace,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Returns the equivalence checks to run and the functions left out.
 
-interface Vm {{
-    struct Log {{
-        bytes32[] topics;
-        bytes data;
-        address emitter;
-    }}
-
-    function accesses(address target)
-        external
-        returns (bytes32[] memory reads, bytes32[] memory writes);
-    function assertTrue(bool condition, string calldata error) external pure;
-    function assume(bool condition) external pure;
-    function computeCreateAddress(address deployer, uint256 nonce)
-        external
-        pure
-        returns (address);
-    function deal(address account, uint256 newBalance) external;
-    function getNonce(address account) external view returns (uint64 nonce);
-    function getRecordedLogs() external returns (Log[] memory logs);
-    function load(address target, bytes32 slot) external view returns (bytes32 data);
-    function prank(address msgSender) external;
-    function record() external;
-    function recordLogs() external;
-    function revertToState(uint256 snapshotId) external returns (bool success);
-    function revertToStateAndDelete(uint256 snapshotId) external returns (bool success);
-    function snapshotState() external returns (uint256 snapshotId);
-    function store(address target, bytes32 slot, bytes32 value) external;
-}}
-
-contract SymbolicDifferentialTest {{
-{definitions}
-    struct Slot {{
-        bytes32 slot;
-        bytes32 word;
-    }}
-
-    struct Call {{
-        bytes data;
-        address sender;
-        bool prank;
-        uint256 value;
-    }}
-
-    // The target and every contract it created with CREATE.
-    struct Account {{
-        address account;
-        bytes32[] writes;
-        bytes32[] values;
-        uint256 balance;
-        uint64 nonce;
-        bool hasCode;
-    }}
-
-    struct Outcome {{
-        address target;
-        bytes initRet;
-        bool destroyed;
-        bool[] oks;
-        bytes[] rets;
-        Vm.Log[] logs;
-        Account[] accounts;
-        uint256[] balances;
-    }}
-
-    Vm private constant vm =
-        Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    // Account k's mirror holds Solc's final storage after its state is rolled back.
-    uint160 private constant MIRROR_BASE = uint160({mirror_base});
-{codes}
-"""
-
-_TEST_FOOTER = """\
-
-    // Both builds start from the same snapshot, so they run at the same
-    // address with the same nonce, balance, and empty storage.
-    function _compare(
-        bytes memory initA,
-        bytes memory initB,
-        uint256 initValue,
-        Slot[] memory start,
-        Call[] memory calls,
-        address[] memory watched
-    ) private {
-        uint256 snapshot = vm.snapshotState();
-        Outcome memory a = _run(initA, initValue, start, calls, watched);
-        assert(vm.revertToStateAndDelete(snapshot));
-        for (uint256 k; k < a.accounts.length; ++k) {
-            address mirror = address(MIRROR_BASE + uint160(k));
-            for (uint256 i; i < a.accounts[k].writes.length; ++i) {
-                vm.store(mirror, a.accounts[k].writes[i], a.accounts[k].values[i]);
-            }
+    Raises `AbiDisagreement` when the two builds expose different functions.
+    """
+    if not args.all_functions:
+        if not args.signature:
+            raise ValueError("--signature is required without --all-functions")
+        _select_function(solc_artifact, solar_artifact, args.signature)
+        return [{"label": args.signature, "sig": args.signature}], []
+    solc_signatures = _function_signatures(solc_artifact["abi"])
+    solar_signatures = _function_signatures(solar_artifact["abi"])
+    if solc_signatures != solar_signatures:
+        raise AbiDisagreement(
+            "compiler ABI disagreement: only Solc has "
+            f"{sorted(solc_signatures - solar_signatures)}, only Solar has "
+            f"{sorted(solar_signatures - solc_signatures)}"
+        )
+    checks = []
+    skipped = []
+    for signature in sorted(solc_signatures):
+        try:
+            _select_function(solc_artifact, solar_artifact, signature)
+        except AbiDisagreement:
+            raise
+        except ValueError as err:
+            skipped.append({"signature": signature, "reason": str(err)})
+            continue
+        checks.append({"label": signature, "sig": signature})
+    # Forge cannot fix the selector of raw calldata, so one check covers both
+    # calldata that matches no selector, which reaches `fallback` and `receive`,
+    # and the short and dirty arguments of every function.
+    checks.append(
+        {
+            "label": OTHER_CALLDATA,
+            "calldata_lengths": _raw_lengths(
+                solc_artifact["abi"], args.max_calldata_bytes
+            ),
         }
-        Outcome memory b = _run(initB, initValue, start, calls, watched);
-        _assertSameEffects(a, b);
-        for (uint256 k; k < a.accounts.length; ++k) {
-            Account memory left = a.accounts[k];
-            Account memory right = b.accounts[k];
-            address mirror = address(MIRROR_BASE + uint160(k));
-            // A slot written by neither build still holds its initial zero.
-            for (uint256 i; i < left.writes.length; ++i) {
-                _same(vm.load(mirror, left.writes[i]) == vm.load(right.account, left.writes[i]), "storage");
-            }
-            for (uint256 i; i < right.writes.length; ++i) {
-                _same(vm.load(mirror, right.writes[i]) == vm.load(right.account, right.writes[i]), "storage");
-            }
+    )
+    return checks, skipped
+
+
+def _raw_lengths(abi: list[dict[str, Any]], limit: int) -> list[int]:
+    """Returns raw calldata lengths: short ones, and around each argument head."""
+    lengths = set(RAW_CALLDATA_LENGTHS)
+    for entry in abi:
+        if isinstance(entry, dict) and entry.get("type") == "function":
+            head = sum(_abi_head(item)[0] for item in entry["inputs"])
+            lengths.update(
+                4 + size for size in (head - 1, head, head + 32) if size >= 0
+            )
+    return sorted(length for length in lengths if length <= limit)
+
+
+def _zero_arguments(items: list[dict[str, Any]]) -> bytes:
+    """ABI-encodes the zero value of each parameter.
+
+    Static values are zero words; arrays, `bytes`, and `string` are empty.
+    """
+    head_size = sum(_abi_head(item)[0] for item in items)
+    heads = []
+    tails = []
+    for item in items:
+        size, dynamic = _abi_head(item)
+        if not dynamic:
+            heads.append(bytes(size))
+            continue
+        heads.append((head_size + sum(len(tail) for tail in tails)).to_bytes(32))
+        tails.append(_zero_tail(item))
+    return b"".join(heads + tails)
+
+
+def _zero_tail(item: dict[str, Any]) -> bytes:
+    """ABI-encodes the zero value of one dynamic parameter, without its offset."""
+    abi_type = item["type"]
+    if abi_type.endswith("]"):
+        start = abi_type.rfind("[")
+        length = abi_type[start + 1 : -1]
+        if not length:
+            return bytes(32)
+        element = {**item, "type": abi_type[:start]}
+        return _zero_arguments([element] * int(length))
+    if abi_type == "tuple":
+        return _zero_arguments(item["components"])
+    return bytes(32)
+
+
+@contextlib.contextmanager
+def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
+    """Runs a private anvil on a free local port and yields its URL.
+
+    Anvil picks the port itself and prints it, so the URL is always the
+    child's own node.
+    """
+    process = subprocess.Popen(
+        [
+            anvil,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--hardfork",
+            _anvil_hardfork(evm_version),
+            "--disable-code-size-limit",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    stdout = process.stdout
+    assert stdout is not None
+    try:
+        url = _anvil_url(process, stdout, timeout)
+        # Keep reading anvil's output so a full pipe never blocks it.
+        threading.Thread(target=lambda: [None for _ in stdout], daemon=True).start()
+        yield url
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
+def _anvil_hardfork(evm_version: str) -> str:
+    """Returns anvil's name for a solc EVM version."""
+    # Anvil calls tangerineWhistle "tangerine"; the other names match.
+    name = evm_version.lower()
+    return {"tangerinewhistle": "tangerine"}.get(name, name)
+
+
+def _anvil_url(process: subprocess.Popen[str], stdout: IO[str], timeout: float) -> str:
+    """Reads the address anvil prints once it listens."""
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def read() -> None:
+        for line in stdout:
+            lines.put(line)
+            if "Listening on" in line:
+                return
+        lines.put(None)
+
+    threading.Thread(target=read, daemon=True).start()
+    output = []
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            line = lines.get(timeout=max(deadline - time.monotonic(), 0))
+        except queue.Empty:
+            raise RuntimeError("anvil did not start") from None
+        if line is None:
+            detail = "".join(output[-20:]).strip()
+            raise RuntimeError(f"anvil exited before it started: {detail}")
+        output.append(line)
+        match = re.search(r"Listening on (\S+:\d+)", line)
+        if match:
+            return f"http://{match.group(1)}"
+
+
+def _deploy(
+    anvil: str,
+    solc_initcode: str,
+    solar_initcode: str,
+    *,
+    value: int,
+    evm_version: str,
+    timeout: float,
+) -> dict[str, dict[str, Any]]:
+    """Deploys both builds from the same account and nonce, so at one address.
+
+    That address is the one `forge equivalence` runs the runtimes at.
+    """
+    with _anvil(anvil, evm_version, timeout) as url:
+        _rpc(url, "anvil_impersonateAccount", [DEPLOYER], timeout)
+        _rpc(url, "anvil_setNonce", [DEPLOYER, hex(DEPLOYER_NONCE)], timeout)
+        # Covers any constructor value.
+        _rpc(url, "anvil_setBalance", [DEPLOYER, hex(value + 10**24)], timeout)
+        # One explicit gas price for the transactions of both builds, so
+        # GASPRICE reads the same everywhere.
+        gas_price = int(_rpc(url, "eth_gasPrice", [], timeout), 16)
+        return {
+            "solc": _create(url, solc_initcode, value, gas_price, timeout),
+            "solar": _create(url, solar_initcode, value, gas_price, timeout),
         }
+
+
+def _create(
+    url: str, initcode: str, value: int, gas_price: int, timeout: float
+) -> dict[str, Any]:
+    """Runs one deployment and reports its outcome, then undoes it."""
+    transaction = {
+        "from": DEPLOYER,
+        "data": initcode,
+        "value": hex(value),
+        "gas": evm.TX_GAS,
+        "gasPrice": hex(gas_price),
+    }
+    snapshot = _rpc(url, "evm_snapshot", [], timeout)
+    try:
+        # Both builds deploy in a block mined on the same parent. Pin its
+        # timestamp, which anvil otherwise takes from the wall clock.
+        latest = _rpc(url, "eth_getBlockByNumber", ["latest", False], timeout)
+        _rpc(
+            url,
+            "evm_setNextBlockTimestamp",
+            [int(latest["timestamp"], 16) + 1],
+            timeout,
+        )
+        # The mined transaction decides the outcome, so no simulation can see
+        # a different block or transaction environment.
+        # Pin the nonce and never resend: a retry after a lost response would
+        # deploy at the next nonce, so at another address.
+        transaction["nonce"] = _rpc(
+            url, "eth_getTransactionCount", [DEPLOYER, "latest"], timeout
+        )
+        sent = evm.rpc(url, "eth_sendTransaction", [transaction], timeout, retries=0)
+        if "result" not in sent:
+            raise RuntimeError(f"anvil eth_sendTransaction failed: {sent.get('error')}")
+        tx_hash = sent["result"]
+        receipt = evm.wait_for_receipt(url, tx_hash, timeout)
+        if not receipt:
+            raise RuntimeError("the deployment transaction was not mined")
+        if receipt.get("status") != "0x1":
+            # Only the revert data is the contract's; the error is anvil's.
+            trace = _rpc(
+                url,
+                "debug_traceTransaction",
+                [tx_hash, {"tracer": "callTracer"}],
+                timeout,
+            )
+            return {
+                "success": False,
+                "data": evm.normalize_hex(trace.get("output")),
+                "error": str(trace.get("error", "")),
+            }
+        address = receipt["contractAddress"]
+        balance = _rpc(url, "eth_getBalance", [address, "latest"], timeout)
+        nonce = _rpc(url, "eth_getTransactionCount", [address, "latest"], timeout)
+        return {
+            "success": True,
+            "address": address,
+            "runtime": evm.normalize_hex(
+                _rpc(url, "eth_getCode", [address, "latest"], timeout)
+            ),
+            "logs": [_constructor_log(log) for log in receipt.get("logs", [])],
+            "storage_root": evm.storage_root(url, address, timeout),
+            "balance": str(int(balance, 16)),
+            "nonce": int(nonce, 16),
+        }
+    finally:
+        _rpc(url, "evm_revert", [snapshot], timeout)
+
+
+def _constructor_log(log: dict[str, Any]) -> dict[str, Any]:
+    """Normalizes a constructor log, keeping its emitter.
+
+    Both builds deploy at the same address, so the emitting contract is
+    comparable and is part of the log.
+    """
+    return {"address": evm.normalize_hex(log.get("address")), **evm.normalize_log(log)}
+
+
+def _rpc(url: str, method: str, params: list[Any], timeout: float) -> Any:
+    response = evm.rpc(url, method, params, timeout)
+    if "result" not in response:
+        raise RuntimeError(f"anvil {method} failed: {response.get('error')}")
+    return response["result"]
+
+
+def _compare_constructors(
+    deployed: dict[str, dict[str, Any]], constructor: dict[str, Any]
+) -> dict[str, Any]:
+    """Compares the two deployments' success, revert data, logs, storage, balance, and nonce."""
+    solc, solar = deployed["solc"], deployed["solar"]
+    if solc["success"] != solar["success"]:
+        comparison = "success"
+    elif not solc["success"]:
+        if solc["data"] == solar["data"]:
+            return {
+                "status": "incomplete",
+                "reason": (
+                    "both constructors revert with the same data, so no runtime "
+                    "was compared; pass --constructor-args that deploy"
+                ),
+            }
+        comparison = "revert data"
+    else:
+        comparison = next(
+            (
+                name
+                for key, name in (
+                    ("logs", "logs"),
+                    ("storage_root", "storage"),
+                    ("balance", "balance"),
+                    ("nonce", "nonce"),
+                )
+                if solc[key] != solar[key]
+            ),
+            None,
+        )
+        if comparison is None:
+            return {"status": "bounded_agreement"}
+    sides = {
+        label: {key: value for key, value in side.items() if key != "runtime"}
+        for label, side in deployed.items()
+    }
+    return {
+        "status": "mismatch",
+        "differs_in": "constructor",
+        "comparison": comparison,
+        "counterexample": {
+            "constructor_args": constructor["args"],
+            "constructor_value": constructor["value"],
+            **sides,
+        },
     }
 
-    // With symbolic starting storage, a slot only one build wrote holds the
-    // other build's starting value, so Solc runs again to read its final
-    // value at every slot either build wrote.
-    function _compareFromStartingStorage(
-        bytes memory initA,
-        bytes memory initB,
-        uint256 initValue,
-        Slot[] memory start,
-        Call[] memory calls,
-        address[] memory watched
-    ) private {
-        uint256 snapshot = vm.snapshotState();
-        Outcome memory a = _run(initA, initValue, start, calls, watched);
-        assert(vm.revertToState(snapshot));
-        Outcome memory b = _run(initB, initValue, start, calls, watched);
-        _assertSameEffects(a, b);
-        bytes32[][] memory slots = new bytes32[][](b.accounts.length);
-        bytes32[][] memory values = new bytes32[][](b.accounts.length);
-        for (uint256 k; k < b.accounts.length; ++k) {
-            bytes32[] memory left = a.accounts[k].writes;
-            bytes32[] memory right = b.accounts[k].writes;
-            slots[k] = new bytes32[](left.length + right.length);
-            values[k] = new bytes32[](slots[k].length);
-            for (uint256 i; i < slots[k].length; ++i) {
-                slots[k][i] = i < left.length ? left[i] : right[i - left.length];
-                values[k][i] = vm.load(b.accounts[k].account, slots[k][i]);
-            }
+
+def _foundry_toml(args: argparse.Namespace) -> str:
+    """Returns the Forge configuration that holds the symbolic bounds."""
+    lengths = ", ".join(str(length) for length in args.dynamic_lengths)
+    return (
+        "[profile.default]\n"
+        f'evm_version = "{args.evm_version}"\n'
+        "\n"
+        "[profile.default.symbolic]\n"
+        f"max_paths = {args.max_paths}\n"
+        f"max_depth = {args.max_depth}\n"
+        f"max_solver_queries = {args.max_solver_queries}\n"
+        f"max_dynamic_length = {MAX_DYNAMIC_LENGTH}\n"
+        f"default_array_lengths = [{lengths}]\n"
+        f"default_bytes_lengths = [{lengths}]\n"
+    )
+
+
+def _forge_command(
+    tools: dict[str, str], check: dict[str, Any], args: argparse.Namespace
+) -> list[str]:
+    command = [
+        tools["forge"],
+        "equivalence",
+        "--code-a-file",
+        "solc.hex",
+        "--code-b-file",
+        "solar.hex",
+    ]
+    if "sig" in check:
+        command.extend(["--sig", check["sig"]])
+    else:
+        lengths = ",".join(str(length) for length in check["calldata_lengths"])
+        command.extend(["--calldata-lengths", lengths])
+    command.extend(
+        [
+            "--max-calldata",
+            str(args.max_calldata_bytes),
+            "--solver",
+            tools["solver"],
+            "--timeout",
+            str(math.ceil(args.timeout)),
+        ]
+    )
+    if not args.arbitrary_storage:
+        command.append("--empty-storage")
+    if args.value is not None:
+        command.extend(["--value", str(args.value)])
+    if args.promise_no_reent:
+        command.append("--promise-no-reent")
+    if args.ignore_out_of_gas:
+        command.append("--ignore-out-of-gas")
+    command.append("--json")
+    return command
+
+
+def _run_check(
+    command: list[str],
+    project: pathlib.Path,
+    index: int,
+    timeout: float,
+    selectors: dict[str, str],
+) -> dict[str, Any]:
+    """Runs one equivalence check in the project and classifies its result."""
+    home = project / ".home"
+    home.mkdir(exist_ok=True)
+    # Only the project's foundry.toml configures Forge.
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("FOUNDRY_", "DAPP_"))
+    }
+    env.update({"HOME": str(home), "XDG_CONFIG_HOME": str(home / ".config")})
+    limit = timeout + FORGE_GRACE_SECONDS
+    log: dict[str, Any] = {"command": command}
+    try:
+        process = subprocess.run(
+            command,
+            check=False,
+            cwd=project,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=limit,
+        )
+    except subprocess.TimeoutExpired:
+        outcome = {
+            "status": "incomplete",
+            "reason": f"forge equivalence did not finish within {limit:g} seconds",
         }
-        assert(vm.revertToStateAndDelete(snapshot));
-        _run(initA, initValue, start, calls, watched);
-        for (uint256 k; k < b.accounts.length; ++k) {
-            for (uint256 i; i < slots[k].length; ++i) {
-                _same(vm.load(b.accounts[k].account, slots[k][i]) == values[k][i], "storage");
-            }
+    else:
+        log.update(
+            returncode=process.returncode,
+            stdout=process.stdout,
+            stderr=process.stderr,
+        )
+        outcome = _classify(
+            process.returncode, process.stdout, process.stderr, selectors
+        )
+    (project / f"check-{index}.json").write_text(
+        json.dumps(log, indent=2) + "\n", encoding="utf-8"
+    )
+    return outcome
+
+
+def _classify(
+    returncode: int, stdout: str, stderr: str, selectors: dict[str, str]
+) -> dict[str, Any]:
+    """Classifies one `forge equivalence --json` run.
+
+    Forge prints a JSON result and exits with 0 when no explored input tells the
+    codes apart, and prints a JSON counterexample and exits with 1 only after
+    replaying it concretely. Every other run, such as an incomplete check that
+    Forge reports as an error, is incomplete.
+    """
+    report = _last_json(stdout)
+    status = report.get("status") if report else None
+    if report and status == "equivalent" and returncode == 0:
+        return {"status": "bounded_agreement", "stats": report.get("stats")}
+    if report and status == "not_equivalent" and returncode != 0:
+        return _counterexample(report, selectors)
+    reason = _forge_error(stderr) or (
+        f"forge equivalence exited with status {returncode} without a result"
+    )
+    return {"status": "incomplete", "reason": reason}
+
+
+def _last_json(stdout: str) -> dict[str, Any] | None:
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _forge_error(stderr: str) -> str:
+    """Returns Forge's error message, such as why a check is incomplete."""
+    lines = re.sub(r"\x1b\[[0-9;]*m", "", stderr).strip().splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("Error:"):
+            parts = [line.removeprefix("Error:"), *lines[index + 1 :]]
+            return " ".join(part.strip() for part in parts if part.strip())[:2000]
+    return "\n".join(lines)[-2000:]
+
+
+def _counterexample(
+    report: dict[str, Any], selectors: dict[str, str]
+) -> dict[str, Any]:
+    """Turns a replayed Forge counterexample into a mismatch; Solc's build is code A."""
+    solc = report.get("code_a") or {}
+    solar = report.get("code_b") or {}
+    storage = [_sides(item) for item in report.get("storage") or []]
+    balances = [_sides(item) for item in report.get("balances") or []]
+    accounts = [_sides(item) for item in report.get("accounts") or []]
+    if report.get("out_of_gas"):
+        differs_in = "out of gas"
+    elif solc.get("success") != solar.get("success"):
+        differs_in = "call success"
+    elif solc.get("output") != solar.get("output"):
+        differs_in = "returndata"
+    elif solc.get("logs") != solar.get("logs"):
+        differs_in = "logs"
+    elif storage:
+        differs_in = "storage"
+    elif balances:
+        differs_in = "balance"
+    elif any(
+        (item["solc"] or {}).get("nonce") != (item["solar"] or {}).get("nonce")
+        for item in accounts
+    ):
+        differs_in = "nonce"
+    else:
+        differs_in = "code"
+    env = report.get("env") or {}
+    calldata = report.get("calldata") or "0x"
+    counterexample: dict[str, Any] = {
+        "calldata": calldata,
+        "caller": env.get("caller"),
+        "value": _decimal(env.get("value")),
+        "env": env,
+        "solc": solc,
+        "solar": solar,
+    }
+    if function := selectors.get(calldata[:10].lower()):
+        counterexample["function"] = function
+    if report.get("args"):
+        counterexample["args"] = report["args"]
+    for key, items in (
+        ("storage", storage),
+        ("balances", balances),
+        ("accounts", accounts),
+    ):
+        if items:
+            counterexample[key] = items
+    if differs_in == "code":
+        # Created code legitimately differs between compilers.
+        return {
+            "status": "incomplete",
+            "reason": (
+                "the builds create contracts with different code, which Forge "
+                "counts as a difference; compare the created contract's source "
+                "on its own"
+            ),
+            "counterexample": counterexample,
+            "stats": report.get("stats"),
         }
+    return {
+        "status": "mismatch",
+        "differs_in": differs_in,
+        "counterexample": counterexample,
+        "stats": report.get("stats"),
     }
 
-    function _assertSameEffects(Outcome memory a, Outcome memory b) private pure {
-        // Every call runs in the test's transaction, where SELFDESTRUCT deletes
-        // the target as if it had been created in the same transaction.
-        _same(!a.destroyed && !b.destroyed, "unsupported: SELFDESTRUCT within the comparison transaction");
-        _same(a.target == b.target, "constructor success");
-        _assertSameBytes(a.initRet, b.initRet, "constructor returndata");
-        for (uint256 i; i < a.oks.length; ++i) {
-            _same(a.oks[i] == b.oks[i], "call success");
-            _assertSameBytes(a.rets[i], b.rets[i], "returndata");
-        }
-        _same(a.logs.length == b.logs.length, "logs");
-        for (uint256 i; i < a.logs.length; ++i) {
-            _same(a.logs[i].emitter == b.logs[i].emitter, "logs");
-            _same(a.logs[i].topics.length == b.logs[i].topics.length, "logs");
-            for (uint256 j; j < a.logs[i].topics.length; ++j) {
-                _same(a.logs[i].topics[j] == b.logs[i].topics[j], "logs");
-            }
-            _assertSameBytes(a.logs[i].data, b.logs[i].data, "logs");
-        }
-        _same(a.accounts.length == b.accounts.length, "nonce");
-        for (uint256 k; k < a.accounts.length; ++k) {
-            _same(a.accounts[k].account == b.accounts[k].account, "created accounts");
-            _same(a.accounts[k].balance == b.accounts[k].balance, "balance");
-            _same(a.accounts[k].nonce == b.accounts[k].nonce, "nonce");
-            _same(a.accounts[k].hasCode == b.accounts[k].hasCode, "code presence");
-        }
-        for (uint256 i; i < a.balances.length; ++i) {
-            _same(a.balances[i] == b.balances[i], "balance");
-        }
-    }
 
-    function _run(
-        bytes memory init,
-        uint256 initValue,
-        Slot[] memory start,
-        Call[] memory calls,
-        address[] memory watched
-    ) private returns (Outcome memory outcome) {
-        vm.record();
-        vm.recordLogs();
-        if (initValue != 0) vm.deal(address(this), initValue);
-        address target;
-        bytes memory initRet;
-        assembly ("memory-safe") {
-            target := create(initValue, add(init, 0x20), mload(init))
-            if iszero(target) {
-                initRet := mload(0x40)
-                mstore(initRet, returndatasize())
-                returndatacopy(add(initRet, 0x20), 0, returndatasize())
-                mstore(0x40, add(add(initRet, 0x20), and(add(returndatasize(), 31), not(31))))
-            }
-        }
-        outcome.target = target;
-        outcome.initRet = initRet;
-        outcome.oks = new bool[](calls.length);
-        outcome.rets = new bytes[](calls.length);
-        outcome.logs = _committedLogs(new Vm.Log[](0), target != address(0));
-        if (target != address(0)) {
-            // The starting storage replaces what the constructor left in
-            // fixed slots; `vm.store` is not a recorded write.
-            for (uint256 i; i < start.length; ++i) {
-                vm.store(target, start[i].slot, start[i].word);
-            }
-            for (uint256 i; i < calls.length; ++i) {
-                Call memory call = calls[i];
-                if (call.value != 0) vm.deal(call.sender, call.value);
-                if (call.prank) vm.prank(call.sender);
-                (bool ok, bytes memory ret) = target.call{value: call.value}(call.data);
-                outcome.oks[i] = ok;
-                outcome.rets[i] = ret;
-                outcome.logs = _committedLogs(outcome.logs, ok);
-            }
-            outcome.destroyed = target.code.length == 0;
-            // A contract's nonce starts at one and counts the contracts it
-            // created, which CREATE places at the same addresses in both runs.
-            uint64 nonce = vm.getNonce(target);
-            outcome.accounts = new Account[](nonce == 0 ? 1 : nonce);
-            for (uint256 k; k < outcome.accounts.length; ++k) {
-                address account = k == 0 ? target : vm.computeCreateAddress(target, k);
-                (, bytes32[] memory writes) = vm.accesses(account);
-                bytes32[] memory values = new bytes32[](writes.length);
-                for (uint256 i; i < writes.length; ++i) {
-                    values[i] = vm.load(account, writes[i]);
-                }
-                outcome.accounts[k] = Account(
-                    account,
-                    writes,
-                    values,
-                    account.balance,
-                    vm.getNonce(account),
-                    account.code.length != 0
-                );
-            }
-        }
-        outcome.balances = new uint256[](watched.length);
-        for (uint256 i; i < watched.length; ++i) {
-            outcome.balances[i] = watched[i].balance;
-        }
+def _sides(item: dict[str, Any]) -> dict[str, Any]:
+    """Renames Forge's code A and code B to the builds they hold."""
+    renamed = {
+        key: value for key, value in item.items() if key not in {"code_a", "code_b"}
     }
+    renamed.update(solc=item.get("code_a"), solar=item.get("code_b"))
+    return renamed
 
-    // A reverted top-level call discards its logs on chain, but Foundry still
-    // records them, so drop them here. The tool does not run code that can
-    // revert an inner frame after a log.
-    function _committedLogs(
-        Vm.Log[] memory committed,
-        bool ok
-    ) private returns (Vm.Log[] memory result) {
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        if (!ok || logs.length == 0) return committed;
-        result = new Vm.Log[](committed.length + logs.length);
-        for (uint256 i; i < committed.length; ++i) {
-            result[i] = committed[i];
-        }
-        for (uint256 i; i < logs.length; ++i) {
-            result[committed.length + i] = logs[i];
-        }
-    }
 
-    // Names the comparison that failed, so a mismatch reports what differs.
-    function _same(bool equal, string memory what) private pure {
-        vm.assertTrue(equal, what);
-    }
+def _decimal(value: Any) -> Any:
+    if isinstance(value, str) and value.startswith("0x"):
+        return str(int(value, 16))
+    if isinstance(value, int):
+        return str(value)
+    return value
 
-    function _assertSameBytes(
-        bytes memory a,
-        bytes memory b,
-        string memory what
-    ) private pure {
-        _same(a.length == b.length, what);
-        for (uint256 offset; offset < a.length; offset += 32) {
-            _same(_word(a, offset) == _word(b, offset), what);
-        }
-    }
 
-    function _word(
-        bytes memory value,
-        uint256 offset
-    ) private pure returns (uint256 result) {
-        assembly ("memory-safe") {
-            result := mload(add(add(value, 0x20), offset))
-        }
-        uint256 remaining = value.length - offset;
-        if (remaining < 32) result >>= (32 - remaining) * 8;
-    }
-
-    function _runtimeInit(bytes memory runtime) private pure returns (bytes memory) {
-        return abi.encodePacked(
-            hex"63", uint32(runtime.length), hex"601260003963",
-            uint32(runtime.length), hex"6000f3", runtime
-        );
-    }
-}
-"""
+def _summarize(outcomes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Combines the checks; one check that is incomplete hides no other."""
+    statuses = {outcome["status"] for outcome in outcomes}
+    if "mismatch" in statuses:
+        status = "mismatch"
+    elif "incomplete" in statuses or not outcomes:
+        status = "incomplete"
+    else:
+        status = "bounded_agreement"
+    summary: dict[str, Any] = {"status": status, "checks": outcomes}
+    if status == "mismatch":
+        first = next(item for item in outcomes if item["status"] == "mismatch")
+        summary["differs_in"] = first["differs_in"]
+        summary["counterexample"] = first["counterexample"]
+    elif status == "incomplete":
+        first = next(
+            (item for item in outcomes if item["status"] == "incomplete"), None
+        )
+        summary["reason"] = (
+            f"{first['label']}: {first['reason']}" if first else "nothing was compared"
+        )
+    return summary
 
 
 if __name__ == "__main__":

@@ -2,10 +2,7 @@
 
 use super::{function, storage::StorageLayout, types};
 use solar_config::OptimizationMode;
-use solar_data_structures::{
-    Never,
-    map::{FxHashMap, FxHashSet, FxIndexSet},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx, InlineTag,
@@ -24,6 +21,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let mut module = Module::new(contract.name);
     module.contract_span = contract.span;
     module.set_unsafe_assembly(false);
+    module.set_assembly(false);
     // Every decision about the contract's code reads the objective its tag selects.
     module.optimization = gcx
         .sess
@@ -174,15 +172,13 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     });
     let (shared_literals, shared_word_literals) = shared_string_literals(gcx, &function_ids);
     let mut mir_ids = FxHashMap::default();
-    let mut visiting_storage_structs = FxHashSet::default();
+    let mut storage_bytes = StorageBytes::new(gcx);
     let share_storage_bytes = contract
         .linearized_bases
         .iter()
         .flat_map(|&base| gcx.hir.contract(base).variables())
         .filter(|&id| gcx.hir.variable(id).is_state_variable())
-        .map(|id| {
-            storage_bytes_count(gcx.type_of_item(id.into()), gcx, &mut visiting_storage_structs)
-        })
+        .map(|id| storage_bytes.count(gcx.type_of_item(id.into()), None))
         .sum::<usize>()
         >= 2;
     for &(function_id, expose_selector) in &function_ids {
@@ -324,7 +320,7 @@ fn shared_string_literals(
     }
 
     impl<'hir> Visit<'hir> for Counter<'hir> {
-        type BreakValue = Never;
+        type BreakValue = !;
 
         fn hir(&self) -> &'hir hir::Hir<'hir> {
             &self.gcx.hir
@@ -380,6 +376,8 @@ pub(super) fn declaration(
     let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = declaration_span(gcx, function);
+    mir.exit_span =
+        function.body.map_or(mir.declaration_span, |body| body.span.with_lo(body.span.hi() - 1));
     mir.debug_identifier = Some(name.name);
     if gcx.sess.opts.unstable.dump.is_some() {
         mir.debug_signature = debug_signature(gcx, function.span);
@@ -410,29 +408,54 @@ pub(super) fn declaration(
     mir
 }
 
-fn storage_bytes_count<'gcx>(
-    ty: solar_sema::ty::Ty<'gcx>,
+/// Counts the `bytes` and `string` leaves of storage types, saturating at two.
+///
+/// A leaf counts once per path through the struct graph that does not repeat a struct, so the
+/// count of a struct on a cycle depends on which structs the walk already holds. A struct entered
+/// from outside its strongly connected component holds none of that component, so its count is the
+/// same on every path and is computed once.
+struct StorageBytes<'gcx> {
     gcx: Gcx<'gcx>,
-    visiting: &mut FxHashSet<hir::StructId>,
-) -> usize {
-    match ty.peel_refs().kind {
-        TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String) => 1,
-        TyKind::Array(element, _) | TyKind::DynArray(element) => {
-            storage_bytes_count(element, gcx, visiting)
+    visiting: FxHashSet<hir::StructId>,
+    counts: FxHashMap<hir::StructId, usize>,
+}
+
+impl<'gcx> StorageBytes<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
+        Self { gcx, visiting: FxHashSet::default(), counts: FxHashMap::default() }
+    }
+
+    /// Returns the saturated count of `ty`, reached from a struct in component `parent`, if any.
+    fn count(&mut self, ty: solar_sema::ty::Ty<'gcx>, parent: Option<usize>) -> usize {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String) => 1,
+            TyKind::Array(element, _) | TyKind::DynArray(element) => self.count(element, parent),
+            TyKind::Mapping(_, value) => self.count(value, parent),
+            TyKind::Struct(id) => {
+                let component = self.gcx.struct_component(id);
+                let from_outside = parent != Some(component);
+                if from_outside && let Some(&count) = self.counts.get(&id) {
+                    return count;
+                }
+                if !self.visiting.insert(id) {
+                    return 0;
+                }
+                let mut count = 0;
+                for &field in self.gcx.hir.strukt(id).fields {
+                    count += self.count(self.gcx.type_of_item(field.into()), Some(component));
+                    if count >= 2 {
+                        count = 2;
+                        break;
+                    }
+                }
+                self.visiting.remove(&id);
+                if from_outside {
+                    self.counts.insert(id, count);
+                }
+                count
+            }
+            _ => 0,
         }
-        TyKind::Mapping(_, value) => storage_bytes_count(value, gcx, visiting),
-        TyKind::Struct(id) if visiting.insert(id) => {
-            let count = gcx
-                .hir
-                .strukt(id)
-                .fields
-                .iter()
-                .map(|&field| storage_bytes_count(gcx.type_of_item(field.into()), gcx, visiting))
-                .sum();
-            visiting.remove(&id);
-            count
-        }
-        _ => 0,
     }
 }
 

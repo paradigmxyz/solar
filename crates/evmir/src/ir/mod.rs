@@ -352,9 +352,7 @@ pub struct BlockMetadata {
     ///
     /// NOTE: The event marks the callee's entry, so it sits on the destination only while the
     /// bypassed edge is the label's only entry, which [`Module::valid_lent_invokes`] checks after
-    /// every pass. Where frame events belong is decision D2 in
-    /// <https://ampcode.com/artifacts/debug-info-across-rewrites-one-rule-per-case-vs-llvm-clang-r-e66f5371-2c50-4a89-8817-1460e914d7ff>
-    /// (§3 "Frame events", §7); the frame-event placement change settles it.
+    /// every pass.
     pub lent_invoke: Option<DebugFunction>,
 }
 
@@ -913,15 +911,12 @@ pub struct Metadata {
     pub keep_with_next: bool,
     /// Source origins, modifier depth, and why there are no origins, when there are none.
     debug_loc: DebugLoc,
-    /// Function activation entered after this operation.
+    /// The function whose code starts with this operation, which runs once per call: the
+    /// callee's first instruction, its entry `JUMPDEST` when a jump enters it.
     function_invoke: Option<DebugFunction>,
-    /// Function activation closed after this operation.
+    /// The function activation that this operation leaves, which runs once per return: the
+    /// instruction that returns or reverts.
     function_exit: Option<DebugFunctionExit>,
-}
-
-fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
-    let first = events.next()?;
-    events.all(|event| event == first).then_some(first)
 }
 
 impl Metadata {
@@ -1016,24 +1011,22 @@ impl Metadata {
         }
     }
 
-    /// Rule E2, merge events: keeps an event only if every operation that has one agrees, like
-    /// solc's `BlockDeduplicator` keeping one block's `JumpType` for equivalent blocks.
+    /// Rule E2, merge events: keeps an event only if every operation agrees on it, like solc's
+    /// `BlockDeduplicator` keeping one block's `JumpType` for equivalent blocks.
+    ///
+    /// NOTE: An operation without the event disagrees with one that has it. The shared copy runs
+    /// for both paths, so an event only some of them have would mark code that is not a call or a
+    /// return on the others.
     pub fn merge_function_events<'a>(
         &mut self,
         others: impl IntoIterator<Item = &'a Self> + Clone,
     ) {
-        // NOTE: Missing events do not conflict with known ones. Conflicting events become
-        // unknown across the whole group; a later known event must not resurrect them.
-        self.function_invoke = common_debug_event(
-            self.function_invoke
-                .into_iter()
-                .chain(others.clone().into_iter().filter_map(Self::function_invoke)),
-        );
-        self.function_exit = common_debug_event(
-            self.function_exit
-                .into_iter()
-                .chain(others.into_iter().filter_map(Self::function_exit)),
-        );
+        if others.clone().into_iter().any(|other| other.function_invoke != self.function_invoke) {
+            self.function_invoke = None;
+        }
+        if others.into_iter().any(|other| other.function_exit != self.function_exit) {
+            self.function_exit = None;
+        }
     }
 
     /// Rule E3, drop events: forgets the function events, as solc loses the

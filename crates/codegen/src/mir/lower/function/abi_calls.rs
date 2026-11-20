@@ -7,8 +7,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty.encodes_as_slot()
     }
 
-    /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
-    /// lies once [`Self::validate_calldata_word_array`] validated its elements.
+    /// Whether `abi_type` is a calldata array of words, which an encoding validates and copies
+    /// from where it lies.
     pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
         matches!(
             abi_type,
@@ -17,9 +17,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    /// Validates the elements of the calldata array of words `value` where they lie, before an
-    /// encoding copies them: solc's IR pipeline validates each element it encodes, reading past
-    /// the end of the calldata as zeros, and never checks the array's range.
+    /// Validates the elements of the calldata array of words `value` where they lie, before a
+    /// packed encoding copies them: solc's IR pipeline validates each element it encodes, reading
+    /// past the end of the calldata as zeros, and never checks the array's range.
     pub(super) fn validate_calldata_word_array(&mut self, value: ValueId, ty: Ty<'gcx>) {
         let Some(element) = self.array_element_type(ty) else { return };
         // for index in 0..slice_len(value):
@@ -518,11 +518,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let validated_static =
             self.validate_calldata_static_argument_inner(value, ty, needs_validation);
         let word_array = needs_validation && Self::is_calldata_word_array(&abi_type);
-        // The dispatcher validates the elements of an argument that only ABI decoding passes
-        // when an encoding takes it.
-        if word_array && !self.is_decoded_external_argument(value) {
-            self.validate_calldata_word_array(value, ty);
-        }
         // The encoder validates a dynamic calldata aggregate while it encodes it from where it
         // lies.
         let needs_materialization = needs_validation && !word_array && !abi_type.is_dynamic();
@@ -633,7 +628,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let data = self.builder.slice_ptr(value);
                 let element_head_size = self.builder.imm(element_type.head_size());
                 let head_size = self.builder.checked_mul(length, element_head_size);
-                self.check_calldata_range(data, head_size);
+                self.check_calldata_copy_range(data, head_size);
                 if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
@@ -728,8 +723,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Array(_, length) = base_ty.kind
             && self.types.abi_type(base_ty)?.is_dynamic()
         {
-            let value_pos =
-                self.calldata_value_position(base_ty, head, tuple_base, validate_bounds, false)?;
+            let value_pos = self.calldata_value_position(
+                base_ty,
+                head,
+                tuple_base,
+                validate_bounds,
+                false,
+                false,
+            )?;
             let length = self.builder.imm(u64::try_from(length).ok()?);
             return Some(self.builder.make_slice(value_pos, length, PtrLocation::Calldata));
         }
@@ -778,8 +779,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
         // position = calldata_value_position(ty, head, tuple_base, decoded)
-        let value_pos =
-            self.calldata_value_position(ty, head, tuple_base, validate_bounds, decoded)?;
+        let value_pos = self.calldata_value_position(
+            ty,
+            head,
+            tuple_base,
+            validate_bounds,
+            decoded,
+            !is_calldata,
+        )?;
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
                 // value = calldata_slice(position + 32, calldataload(position))
@@ -882,6 +889,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         tuple_base: ValueId,
         validate_bounds: bool,
         decoded: bool,
+        copy: bool,
     ) -> Option<ValueId> {
         let word = self.builder.imm(32);
         let abi_type = self.types.abi_type(ty)?;
@@ -890,7 +898,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(head);
         }
         if validate_bounds {
-            self.check_calldata_range(head, word);
+            if copy {
+                self.check_calldata_copy_range(head, word);
+            } else {
+                self.check_calldata_range(head, word);
+            }
         }
         // offset = calldataload(head)
         // position = tuple_base + offset
@@ -921,6 +933,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let calldata_size = self.builder.calldatasize();
         let remaining = self.builder.sub(calldata_size, start);
         let invalid = self.builder.slt(remaining, size);
+        self.builder.revert_if(invalid, RevertReason::CalldataTailTooShort);
+    }
+
+    /// Reverts unless `size` bytes at `start` lie inside calldata, for a copy to memory.
+    ///
+    /// The bound is `gt(add(start, size), calldatasize())`, unsigned: a pointer that wrapped
+    /// through an accepted negative tail offset lies above calldata, as solc's copy to memory
+    /// finds, and a signed compare would take it for in range and read zero-filled calldata.
+    fn check_calldata_copy_range(&mut self, start: ValueId, size: ValueId) {
+        let calldata_size = self.builder.calldatasize();
+        let end = self.builder.add(start, size);
+        let invalid = self.builder.gt(end, calldata_size);
         self.builder.revert_if(invalid, RevertReason::CalldataTailTooShort);
     }
 
@@ -1006,11 +1030,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_decoded_external_argument(slice) {
             return;
         }
-        // calldata_tail_data(pointer, length, 1)
+        // calldata_copy_data(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
         let calldata_size = self.builder.calldatasize();
-        self.builder.calldata_tail_data(CalldataTail::Access, pointer, 0, length, calldata_size, 1);
+        self.builder.calldata_copy_data(CalldataTail::Access, pointer, 0, length, calldata_size, 1);
     }
 
     fn materialize_calldata_fixed_array(

@@ -362,24 +362,21 @@ fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[w
 fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<uint8>, word, word], abi_return_params=[uint256, uint8, uint256, uint256]] {
   bb0:
     sstore 3, 1 !metadata(storage=slot(3))
-    v0 = sload 5 !metadata(storage=slot(5))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = or v1, 2
-    sstore 5, v2 !metadata(storage=slot(5))
-    v3 = mapping_slot 1, 4
-    sstore v3, 23 !metadata(storage=symbolic(v3))
+    sstore 5, 2 !metadata(storage=slot(5))
+    v0 = mapping_slot 1, 4
+    sstore v0, 23 !metadata(storage=symbolic(v0))
     sstore 4, 17 !metadata(storage=slot(4))
     sstore 3, 0 !metadata(storage=slot(3))
     sstore 5, 0 !metadata(storage=slot(5))
-    v4 = sload 3 !metadata(storage=slot(3))
-    v5 = sload 5 !metadata(storage=slot(5))
-    v6 = trunc i256 v5 to i8
-    v7 = mapping_slot 1, 4
-    v8 = sload v7 !metadata(storage=symbolic(v7))
-    v9 = sload 4 !metadata(storage=slot(4))
-    v10 = insert_value struct2, undef struct2, 0, v4
-    v11 = insert_value struct2, v10, 1, v6
-    v12 = insert_value struct2, v11, 2, v9
-    v13 = insert_value struct2, v12, 3, v8
-    ret v13
+    v1 = sload 3 !metadata(storage=slot(3))
+    v2 = sload 5 !metadata(storage=slot(5))
+    v3 = trunc i256 v2 to i8
+    v4 = mapping_slot 1, 4
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = sload 4 !metadata(storage=slot(4))
+    v7 = insert_value struct2, undef struct2, 0, v1
+    v8 = insert_value struct2, v7, 1, v3
+    v9 = insert_value struct2, v8, 2, v6
+    v10 = insert_value struct2, v9, 3, v5
+    ret v10
 }

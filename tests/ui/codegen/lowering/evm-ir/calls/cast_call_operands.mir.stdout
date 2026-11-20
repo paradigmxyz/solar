@@ -12,14 +12,11 @@ fn @accept(arg0: i160, arg1: i256) -> i1 [selector=0xcd67571c, pure, abi_params=
 ; function prepare(address, address, uint24, uint160 value) external returns (address) [selector 0xe2351092]
 fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe2351092, abi_params=[address, address, uint24, uint160], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v2 = zext i160 arg3 to i256
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = or v1, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = address
-    ret v5
+    v0 = zext i160 arg3 to i256
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = address
+    ret v2
 }
 
 ; function consume(CallArguments calldata params) external view returns (uint256, uint128, uint256, uint256) [selector 0x353abfa4]
@@ -60,12 +57,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -93,48 +87,45 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
     v7 = phi [bb3: v1], [bb4: v4]
     v8 = phi [bb3: v4], [bb4: v1]
     v9 = mapping_slot 0, 1
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = and v10, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v12 = or v11, 3
-    sstore v9, v12 !metadata(storage=symbolic(v9))
-    v13 = add v9, 1
-    v14 = sload v13 !metadata(storage=offset(v9, 1))
-    v15 = and v14, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v16 = or v15, 5
-    sstore v13, v16 !metadata(storage=offset(v9, 1))
-    v17 = add v9, 1
-    v18 = sload v17 !metadata(storage=offset(v9, 1))
-    v19 = and v18, 0xffffffffffffffffff000000ffffffffffffffffffffffffffffffffffffffff
-    v20 = or v19, 0xfffffe0000000000000000000000000000000000000000
-    sstore v17, v20 !metadata(storage=offset(v9, 1))
-    v21 = add v9, 1
-    v22 = sload v21 !metadata(storage=offset(v9, 1))
-    v23 = and v22, 0xffffffffffff000000ffffffffffffffffffffffffffffffffffffffffffffff
-    v24 = or v23, 0x40000000000000000000000000000000000000000000000
-    sstore v21, v24 !metadata(storage=offset(v9, 1))
-    v25 = add v9, 2
-    sstore v25, 7 !metadata(storage=offset(v9, 2))
-    v26 = add v9, 3
-    sstore v26, 11 !metadata(storage=offset(v9, 3))
+    sstore v9, 3 !metadata(storage=symbolic(v9))
+    v10 = add v9, 1
+    v11 = sload v10 !metadata(storage=offset(v9, 1))
+    v12 = and v11, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v13 = or v12, 5
+    sstore v10, v13 !metadata(storage=offset(v9, 1))
+    v14 = add v9, 1
+    v15 = sload v14 !metadata(storage=offset(v9, 1))
+    v16 = and v15, 0xffffffffffffffffff000000ffffffffffffffffffffffffffffffffffffffff
+    v17 = or v16, 0xfffffe0000000000000000000000000000000000000000
+    sstore v14, v17 !metadata(storage=offset(v9, 1))
+    v18 = add v9, 1
+    v19 = sload v18 !metadata(storage=offset(v9, 1))
+    v20 = and v19, 0xffffffffffff000000ffffffffffffffffffffffffffffffffffffffffffffff
+    v21 = or v20, 0x40000000000000000000000000000000000000000000000
+    sstore v18, v21 !metadata(storage=offset(v9, 1))
+    v22 = add v9, 2
+    sstore v22, 7 !metadata(storage=offset(v9, 2))
+    v23 = add v9, 3
+    sstore v23, 11 !metadata(storage=offset(v9, 3))
     jumpi arg0, bb6, bb7
   bb7:                                            ; preds = bb5
     jump bb8
   bb6:                                            ; preds = bb5
     jump bb8
   bb8:                                            ; preds = bb6, bb7
-    v27 = phi [bb6: v8], [bb7: v7]
+    v24 = phi [bb6: v8], [bb7: v7]
     jumpi arg0, bb9, bb10
   bb10:                                           ; preds = bb8
     jump bb11
   bb9:                                            ; preds = bb8
     jump bb11
   bb11:                                           ; preds = bb9, bb10
-    v28 = phi [bb9: v7], [bb10: v8]
-    icall @invokeWideCall, v27, v28, 0
-    v29 = zext i160 v27 to i256
-    v30 = mapping_slot v29, 2
-    v31 = sload v30 !metadata(storage=symbolic(v30))
-    ret v31
+    v25 = phi [bb9: v7], [bb10: v8]
+    icall @invokeWideCall, v24, v25, 0
+    v26 = zext i160 v24 to i256
+    v27 = mapping_slot v26, 2
+    v28 = sload v27 !metadata(storage=symbolic(v27))
+    ret v28
 }
 
 ; function invokeWideCall(address a, address b, uint256 configIndex) internal

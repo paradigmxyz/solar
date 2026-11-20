@@ -4268,9 +4268,9 @@ checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
 
 [[package]]
 name = "smolgen"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40c9a98255db4f93af8770f11f42b5a7f345cd93b96dafe7b1ae72ef99a16386"
+checksum = "918b13a79f76807dba726c1e6d6bc7de0e5352b6f006c3eb44a8d0438061c957"
 
 [[package]]
 name = "snapbox"
@@ -5307,7 +5307,7 @@ checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 [[package]]
 name = "ui_test"
 version = "0.30.7"
-source = "git+https://github.com/DaniPopes/ui_test?branch=fork#1c13820b36211eb94b1974610da1025cb56d5fd6"
+source = "git+https://github.com/DaniPopes/ui_test?branch=fork#d67427d5abae070290468be59849da0b4675670d"
 dependencies = [
  "annotate-snippets",
  "anyhow",

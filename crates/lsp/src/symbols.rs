@@ -8,7 +8,6 @@ use serde::Deserialize;
 use solar_interface::{
     Ident, Span, Symbol,
     data_structures::{
-        Never,
         index::IndexVec,
         map::{FxHashMap, FxHashSet},
         newtype_index,
@@ -1424,7 +1423,7 @@ impl SymbolTables {
         let namespace_symbols = bindings
             .namespace_aliases()
             .filter_map(|(key, alias)| namespace_symbols.get(&alias).map(|&symbol| (key, symbol)))
-            .collect();
+            .collect::<FxHashMap<_, _>>();
         for (span, targets) in bindings.references() {
             self.push_reference_entry(
                 locations,
@@ -1440,6 +1439,7 @@ impl SymbolTables {
                 continue;
             }
             for (span, resolutions) in gcx.natspec_references(item_id) {
+                // NatSpec paths resolve from the source scope only, as in sema.
                 let targets = resolutions
                     .iter()
                     .filter_map(|res| {
@@ -1452,14 +1452,41 @@ impl SymbolTables {
                     RenameReferenceContext {
                         bindings: &bindings,
                         source: item.source(),
-                        contract: item.contract(),
+                        contract: None,
                         item_symbols,
                         declarations: &self.declarations,
                     },
                     span,
                     &targets,
                 );
-                self.push_reference_entry(locations, span, targets, DocumentHighlightKind::READ);
+                if let Some(path) = SourcePath::resolve(gcx, span, item.source(), None) {
+                    // The qualifiers of an `@inheritdoc` path, such as `M` in `M.Base`.
+                    for qualifier in path.qualifiers {
+                        let targets = qualifier
+                            .resolutions
+                            .into_iter()
+                            .filter_map(|res| match res {
+                                Res::Namespace(namespace) => namespace_symbols
+                                    .get(&(qualifier.source, namespace, qualifier.ident.name))
+                                    .copied(),
+                                Res::Item(id) => item_symbols.get(&id).copied(),
+                                _ => None,
+                            })
+                            .collect();
+                        self.push_reference_entry(
+                            locations,
+                            qualifier.ident.span,
+                            targets,
+                            DocumentHighlightKind::READ,
+                        );
+                    }
+                    self.push_reference_entry(
+                        locations,
+                        path.final_ident.span,
+                        targets,
+                        DocumentHighlightKind::READ,
+                    );
+                }
             }
         }
         self.rename.build_overrides(
@@ -2080,7 +2107,7 @@ impl<'gcx> YulVariableCollector<'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for YulVariableCollector<'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -2209,7 +2236,7 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -2425,7 +2452,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir
@@ -2529,7 +2556,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         receiver: &'gcx hir::Expr<'gcx>,
         ident: Ident,
         kind: DocumentHighlightKind,
-    ) -> ControlFlow<Never> {
+    ) -> ControlFlow<!> {
         self.visit_expr(receiver)?;
         self.tables.builtins.record(self.gcx, self.locations, expr, ident.span);
         let targets = self.symbol_ids_for_expr(expr);
@@ -2537,7 +2564,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         ControlFlow::Continue(())
     }
 
-    fn visit_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
+    fn visit_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<!> {
         match expr.kind {
             hir::ExprKind::Ident(resolutions) => {
                 self.visit_ident_reference(expr, resolutions, DocumentHighlightKind::WRITE);
@@ -2677,7 +2704,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
 }
 
 impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
         &self.gcx.hir

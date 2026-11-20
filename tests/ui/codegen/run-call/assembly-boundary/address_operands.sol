@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: balanceOfDirty; value=3 => 3
 //@ run-call: callDirty => true
 //@ run-call: codeSizeOfDirty => true
@@ -10,6 +12,10 @@ contract AssemblyBoundaryAddressOperands {
         assembly { account := or(address(), shl(160, 1)) }
     }
 
+    // CHECK-LABEL: fn @balanceOfDirty{{[( ]}}
+    // CHECK: [[WORD:v[0-9]+]] = icall @dirtySelf
+    // CHECK-NEXT: trunc i256 [[WORD]] to i160
+    // CHECK: balance
     function balanceOfDirty() external payable returns (uint256) {
         address account = dirtySelf();
         return account.balance;

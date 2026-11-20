@@ -1,0 +1,37 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+// The run passes through a guard that aborts, and `callee` starts after it. A path that aborts at
+// the guard never starts `callee`, so the entry stays below the guard, on the instruction that
+// follows it.
+@module StackRescheduleGuardEntry
+
+// CHECK-LABEL: (after stack-reschedule)
+// CHECK: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}push 1 !metadata(invoke=callee@1..10)
+bb0 [stack=2]:
+  swap 1
+  dup 2
+  push bb1
+  jumpi
+  swap 1
+  push 1 !metadata(invoke=callee@1..10)
+  add
+  stop
+// An instruction that the schedule replaces passes its entry to the next original it keeps, which
+// runs after the guard as well.
+// CHECK-LABEL: {{^[ +].*}}bb2 [stack=2]:
+// CHECK: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}push 1 !metadata(invoke=other@11..20)
+bb2 [stack=2]:
+  swap 1
+  dup 2
+  push bb1
+  jumpi
+  swap 1 !metadata(invoke=other@11..20)
+  push 1
+  add
+  stop
+bb1 [cold]:
+  push 0
+  push 0
+  revert

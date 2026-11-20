@@ -4,7 +4,7 @@
 //@ run-call: byteStore 1 => 9
 //@ run-call: callOutput 1 => 9
 
-// Each helper returns a pointer 160 bytes before the heap, and the caller
+// Each helper returns a pointer 128 bytes before the heap, and the caller
 // writes there while a value stays live across the call. Codegen must see how
 // far back the pointer reaches and keep that much room below the heap, so the
 // write cannot land in the spill slot that holds the live value. The first two
@@ -13,7 +13,7 @@ contract HeapPrefixShapes {
     function addNegative(uint256 seed) external pure returns (uint256 result) {
         assembly {
             function pair() -> first, second {
-                first := add(mload(0x40), not(159))
+                first := add(mload(0x40), not(127))
                 second := 7
             }
             let live := add(seed, 1)
@@ -26,7 +26,7 @@ contract HeapPrefixShapes {
     function addNegativeFirst(uint256 seed) external pure returns (uint256 result) {
         assembly {
             function pair() -> first, second {
-                first := add(not(159), mload(0x40))
+                first := add(not(127), mload(0x40))
                 second := 7
             }
             let live := add(seed, 1)
@@ -40,7 +40,7 @@ contract HeapPrefixShapes {
     function byteStore(uint256 seed) external pure returns (uint256 result) {
         assembly {
             function pair() -> first, second {
-                first := sub(mload(0x40), 160)
+                first := sub(mload(0x40), 128)
                 second := 7
             }
             let live := add(seed, 1)
@@ -53,7 +53,7 @@ contract HeapPrefixShapes {
     function callOutput(uint256 seed) external view returns (uint256 result) {
         assembly {
             function pair() -> first, second {
-                first := sub(mload(0x40), 160)
+                first := sub(mload(0x40), 128)
                 second := 7
             }
             let live := add(seed, 1)

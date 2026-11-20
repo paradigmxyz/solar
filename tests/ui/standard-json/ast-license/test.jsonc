@@ -1,0 +1,28 @@
+//@ filecheck:
+// A license in a block comment counts, and so does one after the last item, after the pragma and in
+// the doc comment of an item, which the item does not span.
+// CHECK: "absolutePath": "Block.sol"
+// CHECK: "license": "GPL-2.0-only"
+// CHECK: "absolutePath": "Bottom.sol"
+// CHECK: "license": "GPL-3.0"
+// CHECK: "absolutePath": "Doc.sol"
+// CHECK: "license": "MIT"
+// A license inside an item, or without the end of its line, does not count.
+// CHECK: "absolutePath": "Inside.sol"
+// CHECK-NOT: "license"
+// CHECK: "absolutePath": "NoNewline.sol"
+// CHECK-NOT: "license"
+// CHECK: "absolutePath": "Pragma.sol"
+// CHECK: "license": "Apache-2.0"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

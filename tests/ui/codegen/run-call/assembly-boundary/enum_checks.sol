@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: assemblyOnly => 7, 7
 //@ run-call-fail: readInvalid => Panic(0x21)
 //@ run-call-fail: copyInvalid => Panic(0x21)
@@ -23,6 +25,8 @@ contract AssemblyBoundaryEnumChecks {
         assembly { second := choice }
     }
 
+    // CHECK-LABEL: fn @readInvalid{{[( ]}}
+    // CHECK: panic_if<0x21>
     function readInvalid() external pure returns (uint256) {
         Choice choice;
         assembly { choice := 2 }

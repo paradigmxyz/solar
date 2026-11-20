@@ -1,0 +1,79 @@
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/memptr_return.sol:Word ===
+@module Word
+@phase lowered
+; backend-memory-v1
+; backend-entry 1 0x80
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x5fdf05d7 => bb2]
+  bb2:                                            ; preds = bb1
+    tail_call @two
+  bb3 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function two() external pure returns (uint256) [selector 0x5fdf05d7]
+fn @two() {
+  bb0:
+    v3 = mload 64
+    v4 = add v3, 32
+    v9 = add v3, v4
+    v10 = lt v9, v3
+    jumpi v10, bb1, bb2
+  bb2:                                            ; preds = bb0
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/memptr_return.sol:Bytes ===
+@module Bytes
+@phase lowered
+; backend-memory-v1
+; backend-entry 1 0x80
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x5fdf05d7 => bb2]
+  bb2:                                            ; preds = bb1
+    tail_call @two
+  bb3 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function two() external pure returns (uint256) [selector 0x5fdf05d7]
+fn @two() {
+  bb0:
+    v11 = mload 64
+    v13 = add v11, 32
+    mstore 64, v13
+    v15 = mload 64
+    v9 = add v11, v15
+    v10 = lt v9, v11
+    jumpi v10, bb1, bb2
+  bb2:                                            ; preds = bb0
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

@@ -22,12 +22,14 @@
 use super::{MirInlineSummary, MirInliner, is_terminal_call, surviving_call_words};
 use crate::{
     mir::{
-        Callee, EffectKind, Function, FunctionId, InstKind, MirType, Module, Terminator,
+        Callee, EffectKind, Function, FunctionId, InstKind, MirModuleTarget, MirType, Module,
+        Terminator,
         analysis::{Liveness, direct_callees},
     },
-    target::{Cost, Target},
+    target::Cost,
 };
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_sema::Gcx;
 
 /// The most call sites of a callee that is inlined everywhere.
 const MAX_SITES: usize = 8;
@@ -35,6 +37,7 @@ const MAX_SITES: usize = 8;
 /// The callees whose inlining at every call site leaves the bytecode smaller. Empty unless the
 /// objective is size.
 pub(super) fn consumed_everywhere(
+    gcx: Gcx<'_>,
     inliner: &MirInliner,
     module: &Module,
     summaries: &IndexVec<FunctionId, MirInlineSummary>,
@@ -69,13 +72,16 @@ pub(super) fn consumed_everywhere(
         })
         .map(|(callee, _)| callee)
         .collect::<FxHashSet<_>>();
-    drop_stack_bound(module, summaries, &mut consumed);
+    drop_stack_bound(gcx, module, summaries, &mut consumed);
     consumed
 }
 
-/// Removes the callees that overflow the stack budget at any of their sites. The inline loop
-/// skips such a site alone, which would leave copies beside the callee the price assumed gone.
+/// Removes the callees that overflow the stack budget at any of their sites. The price leaves out
+/// the stack moves each copy pays under pressure, and the inline loop skips a site of a callee
+/// with several blocks in a loop, which would leave copies beside the callee the price assumed
+/// gone.
 fn drop_stack_bound(
+    gcx: Gcx<'_>,
     module: &Module,
     summaries: &IndexVec<FunctionId, MirInlineSummary>,
     consumed: &mut FxHashSet<FunctionId>,
@@ -84,6 +90,7 @@ fn drop_stack_bound(
         return;
     }
     for func in &module.functions {
+        let budget = module.target_of(gcx, func).inline_stack_budget();
         let mut liveness = None;
         for block in func.blocks.indices() {
             for (index, &inst) in func.blocks[block].instructions.iter().enumerate() {
@@ -94,9 +101,7 @@ fn drop_stack_bound(
                 {
                     let liveness =
                         liveness.get_or_insert_with(|| Liveness::compute_live_sets(func));
-                    if surviving_call_words(func, liveness, block, index) + peak
-                        > Target::INLINE_STACK_BUDGET
-                    {
+                    if surviving_call_words(func, liveness, block, index) + peak > budget {
                         consumed.remove(&callee);
                     }
                 }

@@ -23,6 +23,12 @@ mod yul;
 /// Maximum allowed recursive descent depth for selected parser entry points.
 const PARSER_RECURSION_LIMIT: usize = 256;
 
+/// Maximum allowed depth of an expression tree.
+///
+/// The parser builds binary and postfix chains in a loop, so [`PARSER_RECURSION_LIMIT`] does not
+/// bound them, but every pass that walks the tree recurses once per level.
+const PARSER_EXPR_DEPTH_LIMIT: usize = 2500;
+
 /// Solidity and Yul parser.
 ///
 /// # Examples
@@ -72,6 +78,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
+    /// Depth of the expression tree under construction, see [`Parser::bump_expr_depth`].
+    expr_depth: usize,
     /// Callback invoked after a top-level import directive is parsed.
     #[allow(clippy::type_complexity)]
     import_callback:
@@ -174,6 +182,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
+            expr_depth: 0,
             import_callback: None,
         };
         parser.bump();
@@ -990,6 +999,32 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         res
     }
 
+    /// Adds a level to the depth of the expression under construction, and checks it against
+    /// [`PARSER_EXPR_DEPTH_LIMIT`].
+    ///
+    /// `expr_depth` holds the depth of the expression the current `parse_binary_expr` call has
+    /// built so far, including its nested expressions, which merge their depth in when they finish.
+    #[inline]
+    fn bump_expr_depth(&mut self) -> PResult<'sess, ()> {
+        self.expr_depth += 1;
+        self.check_expr_depth()
+    }
+
+    /// Errors when the depth of the expression under construction exceeds
+    /// [`PARSER_EXPR_DEPTH_LIMIT`].
+    #[inline]
+    fn check_expr_depth(&mut self) -> PResult<'sess, ()> {
+        if self.expr_depth > PARSER_EXPR_DEPTH_LIMIT {
+            return Err(self.expr_depth_limit_reached());
+        }
+        Ok(())
+    }
+
+    #[cold]
+    fn expr_depth_limit_reached(&mut self) -> PErr<'sess> {
+        self.dcx().err_at(self.token.span, "expression is too deeply nested")
+    }
+
     #[cold]
     fn recursion_limit_reached(&mut self, context: &str) -> PErr<'sess> {
         let mut err = self.dcx().err_at(self.token.span, "recursion limit reached");
@@ -1288,9 +1323,9 @@ fn parse_natspec(
         }
     };
 
-    // Iterate over each line and look for tags.
+    // Iterate over each line and look for tags. As in solc, a line ends at LF, CR LF or a lone CR.
     let mut prev_line_end = 0;
-    for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
+    for line_end in memchr::memchr2_iter(b'\n', b'\r', bytes).chain(std::iter::once(bytes.len())) {
         if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end])
             && is_line_start(line_start, line_start + tag_offset)
         {
@@ -1320,10 +1355,14 @@ fn parse_natspec(
                 "dev" => ast::NatSpecKind::Dev,
                 "param" | "inheritdoc" => {
                     let name_start = rest_start;
-                    // Names are identifier prefixes, mirroring solc: `@param -`
-                    // documents an unnamed parameter with an empty name.
-                    let (name, content_start_pos) =
-                        crate::natspec::split_once_ident(content, rest_start, line_end);
+                    // Parameter names are identifier prefixes, mirroring solc: `@param -`
+                    // documents an unnamed parameter with an empty name. An `@inheritdoc`
+                    // reference is a word, which may be a path such as `M.Base`.
+                    let (name, content_start_pos) = if tag == "param" {
+                        crate::natspec::split_once_ident(content, rest_start, line_end)
+                    } else {
+                        crate::natspec::split_once_ws(content, rest_start, line_end)
+                    };
                     content_start = content_start_pos;
                     let name_lo = comment_span.lo() + PREFIX_BYTES + name_start as u32;
                     let name_span = Span::new(name_lo, name_lo + name.len() as u32);

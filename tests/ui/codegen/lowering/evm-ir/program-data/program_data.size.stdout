@@ -84,14 +84,15 @@ fn @subsliceHash() {
 ; function zeroData() public pure returns (bytes memory) [selector 0x6ec059cd]
 fn @zeroData() {
   bb0:
-    v2 = icall @zeroData.body
-    v6 = mload v2
+    v20 = heap_floor !metadata(alloc_ptr)
+    mstore v20, 160
+    v24 = add v20, 32
+    v6 = mload v20
     v7 = add v6, 31
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v2, 32
-    v11 = add v16, v6
+    v11 = add v24, v6
     mstore v11, 0
-    v18 = sub v2, 32
+    v18 = sub v20, 32
     mstore v18, 32
     v13 = add v8, 64
     returndata v18, v13
@@ -125,10 +126,11 @@ fn @splatData() {
 ; function zeroHash() external pure returns (bytes32) [selector 0x672c8259]
 fn @zeroHash() {
   bb0:
-    v0 = icall @zeroData.body
-    v2 = mload v0
-    v5 = add v0, 32
-    v3 = keccak256 v5, v2
+    v7 = heap_floor !metadata(alloc_ptr)
+    mstore v7, 160
+    v2 = mload v7
+    v11 = add v7, 32
+    v3 = keccak256 v11, v2
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
 }
@@ -136,7 +138,7 @@ fn @zeroHash() {
 ; function zeroWordHash() external pure returns (bytes32) [selector 0x0d00d797]
 fn @zeroWordHash() {
   bb0:
-    v7 = heap_floor
+    v7 = heap_floor !metadata(alloc_ptr)
     mstore v7, 32
     v2 = mload v7
     v11 = add v7, 32
@@ -154,14 +156,6 @@ fn @splatHash() {
     v3 = keccak256 v5, v2
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-; function zeroData() public pure returns (bytes memory)
-fn @zeroData.body() -> i256 [may_return_memory] {
-  bb0:
-    v5 = heap_floor !metadata(alloc_ptr)
-    mstore v5, 160
-    ret v5
 }
 
 ; function splatData() public pure returns (bytes memory)
@@ -195,7 +189,7 @@ bb0:                                              ; runtime dispatch entry
   dup 1
   push 0xd00d797
   eq
-  push bb24
+  push bb22
   jumpi
   dup 1
   push 0x1b3012a3
@@ -205,17 +199,17 @@ bb0:                                              ; runtime dispatch entry
   dup 1
   push 0x38f844b9
   eq
-  push bb25
+  push bb23
   jumpi
   dup 1
   push 0x4c092794
   eq
-  push bb19
+  push bb18
   jumpi
   dup 1
   push 0x672c8259
   eq
-  push bb22
+  push bb21
   jumpi
   dup 1
   push 0x6ec059cd
@@ -235,7 +229,7 @@ bb0:                                              ; runtime dispatch entry
   dup 1
   push 0xe1910fda
   eq
-  push bb20
+  push bb19
   jumpi
   dup 1
   push 0xe5a3e763
@@ -248,69 +242,55 @@ bb12 [cold]:
   push 0
   revert
 bb13 [entry]:                                     ; function data() external pure returns (bytes memory) [selector 0x73d4a13a]
-  push 32
   push 160
-  dup 1
   dup 1
   push 64
   mstore
-  swap 2
-  add
   push 257
   dup 1
-  dup 4
+  dup 3
   mstore
+  push 352
+  swap 2
+  push 192
+  push 32
+  swap 3
   push_data literal_0
   dup 3
   codecopy
   push 257
+  jump bb26
+bb26:
   add
   push 0
   swap 1
   mstore
-  push 32
-  swap 1
   sub
   push 32
   dup 2
   mstore
-  push 352
-  swap 1
   return
 bb14 [entry]:                                     ; function subslice() external pure returns (bytes memory) [selector 0xb9ad073e]
-  push 32
   push 160
-  dup 1
-  dup 1
   push 64
   mstore
-  swap 2
-  add
+  push 256
+  push 32
+  push 160
   push 161
-  dup 1
-  dup 4
+  dup 2
   mstore
+  push 192
+  push 161
   push_data literal_0+64
   dup 3
   codecopy
   push 161
-  add
-  push 0
-  swap 1
-  mstore
-  push 32
-  swap 1
-  sub
-  push 32
-  dup 2
-  mstore
-  push 256
-  swap 1
-  return
+  jump bb26
 bb15 [entry]:                                     ; function dataHash() external pure returns (bytes32) [selector 0x1b3012a3]
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-  jump bb29
-bb29:
+  jump bb27
+bb27:
   push 0
   mstore
   push 32
@@ -318,33 +298,24 @@ bb29:
   return
 bb16 [entry]:                                     ; function subsliceHash() external pure returns (bytes32) [selector 0xe5a3e763]
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-  jump bb29
+  jump bb27
 bb17 [entry]:                                     ; function zeroData() public pure returns (bytes memory) [selector 0x6ec059cd]
+  push 31
   push 160
+  dup 1
+  dup 1
+  dup 1
   push 64
   mstore
-  push bb18
-  jump bb27
-bb27 [ret=0, inputs=1, outputs=1]:                ; function zeroData() public pure returns (bytes memory)
-  push 160
-  dup 1
-  dup 2
   mstore
   swap 1
-  jump
-bb18 [continuation]:
-  dup 1
-  mload
-  push 31
-  dup 2
-  add
-  push 31
   not
+  push 191
   and
-  swap 1
-  push 32
-  dup 4
-  add
+  dup 2
+  push 192
+  jump bb28
+bb28:
   add
   push 0
   swap 1
@@ -361,7 +332,7 @@ bb18 [continuation]:
   add
   swap 1
   return
-bb19 [entry]:                                     ; function zeroWord() public pure returns (bytes memory) [selector 0x4c092794]
+bb18 [entry]:                                     ; function zeroWord() public pure returns (bytes memory) [selector 0x4c092794]
   push 0
   push 32
   dup 1
@@ -374,20 +345,18 @@ bb19 [entry]:                                     ; function zeroWord() public p
   push 96
   push 0
   return
-bb20 [entry]:                                     ; function splatData() public pure returns (bytes memory) [selector 0xe1910fda]
+bb19 [entry]:                                     ; function splatData() public pure returns (bytes memory) [selector 0xe1910fda]
   push 160
   push 64
   mstore
-  push bb18
-  jump bb28
-bb28 [ret=0, inputs=1, outputs=1]:                ; function splatData() public pure returns (bytes memory)
+  push bb20
+  jump bb25
+bb25 [ret=0, inputs=1, outputs=1]:                ; function splatData() public pure returns (bytes memory)
   push 160
   dup 1
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 192
   push 0
   not
   push 128
@@ -400,48 +369,56 @@ bb28 [ret=0, inputs=1, outputs=1]:                ; function splatData() public 
   dup 1
   dup 3
   mstore
-  push 64
-  dup 4
-  add
+  push 224
   mstore
   push 64
   dup 2
-  push 96
-  dup 5
-  add
+  push 256
   mcopy
   push 32
   dup 2
-  dup 4
-  dup 5
-  add
+  push 320
   mcopy
   pop
   swap 1
   jump
-bb22 [entry]:                                     ; function zeroHash() external pure returns (bytes32) [selector 0x672c8259]
-  push 160
-  push 64
-  mstore
-  push bb30
-  jump bb27
-bb24 [entry]:                                     ; function zeroWordHash() external pure returns (bytes32) [selector 0x0d00d797]
-  push 128
+bb20 [continuation]:
+  dup 1
+  mload
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  swap 1
   push 32
+  dup 4
+  add
+  jump bb28
+bb21 [entry]:                                     ; function zeroHash() external pure returns (bytes32) [selector 0x672c8259]
+  push 128
+  push 160
+  jump bb30
+bb30:
   dup 2
   mstore
-  jump bb30
-bb30 [continuation]:
+  jump bb29
+bb29 [continuation]:
   dup 1
   mload
   swap 1
   push 32
   add
   keccak256
-  jump bb29
-bb25 [entry]:                                     ; function splatHash() external pure returns (bytes32) [selector 0x38f844b9]
+  jump bb27
+bb22 [entry]:                                     ; function zeroWordHash() external pure returns (bytes32) [selector 0x0d00d797]
+  push 128
+  push 32
+  jump bb30
+bb23 [entry]:                                     ; function splatHash() external pure returns (bytes32) [selector 0x38f844b9]
   push 160
   push 64
   mstore
-  push bb30
-  jump bb28
+  push bb29
+  jump bb25

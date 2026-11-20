@@ -52,10 +52,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     v13 = call v11, v10, 0, 28, 36, 0, 32
     jumpi v13, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     ret 1
   bb1:                                            ; preds = bb0
@@ -66,6 +63,9 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     ret v16
   bb3:
     ret 0
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function callReturnedField() external view returns (uint256) [selector 0xee2961ee]
@@ -97,10 +97,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v16 = staticcall v14, v13, 28, 4, 0, 32
     jumpi v16, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     ret 0
   bb3:                                            ; preds = bb2
@@ -111,4 +108,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     ret v19
   bb5:
     ret 0
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }

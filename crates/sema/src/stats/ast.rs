@@ -1,6 +1,6 @@
 use super::{EnumVariantSize, Stats};
 use solar_ast::{self as ast, ItemId, visit::Visit, yul};
-use solar_data_structures::{Never, bit_set::DenseBitSet};
+use solar_data_structures::bit_set::DenseBitSet;
 use std::ops::ControlFlow;
 
 /// AST stat collector.
@@ -189,7 +189,7 @@ macro_rules! record_variants {
 }
 
 impl<'ast> Visit<'ast> for StatCollector {
-    type BreakValue = Never;
+    type BreakValue = !;
 
     fn visit_source_unit(
         &mut self,
@@ -290,7 +290,7 @@ impl<'ast> Visit<'ast> for StatCollector {
     ) -> ControlFlow<Self::BreakValue> {
         self.record("ItemEnum", None, enum_);
         for variant in enum_.variants.iter() {
-            self.visit_ident(variant)?;
+            self.visit_ident(&variant.name)?;
         }
         // Don't visit name field since it isn't boxed
         ControlFlow::Continue(())

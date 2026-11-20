@@ -24,16 +24,12 @@ enum TryCallee<'a> {
     },
 }
 
-/// The failed call's return data, which the catch clauses match on and bind.
+/// The failed call's return data, which the catch clauses match on.
 ///
 /// Absent before Byzantium, where the only lowerable clause is a bare `catch { }` and there is no
 /// `RETURNDATACOPY` to read the data with.
 #[derive(Clone, Copy)]
 struct TryCatchData {
-    /// The `bytes` object holding the return data.
-    object: ValueId,
-    /// Pointer to the object's first data byte.
-    data: ValueId,
     /// The data's length in bytes.
     len: ValueId,
     /// The leading selector word; each typed clause checks the required payload length.
@@ -49,7 +45,7 @@ struct TryTarget<'a, 'gcx> {
     /// Parameter names for named-argument resolution.
     parameter_names: Option<CallableParamNames>,
     /// The call opcode; unused for a contract creation.
-    kind: AddressCallKind,
+    kind: ExtCallKind,
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -64,16 +60,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lower_then: impl FnMut(&mut Self) -> Option<T>,
         lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        self.lower_branches_labeled(condition, then_first, None, lower_then, lower_else)
+        self.lower_branches_labeled(condition, then_first, None, false, lower_then, lower_else)
     }
 
     /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
     /// at the span the builder has when it places them.
+    ///
+    /// With `dropped_exits`, the jumps that leave the arms and the merge block's label have no
+    /// location, instead of taking `label_span` and the span in force.
     pub(super) fn lower_branches_labeled<T>(
         &mut self,
         condition: ValueId,
         then_first: bool,
         label_span: Option<Span>,
+        dropped_exits: bool,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -95,7 +95,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let then_values = std::mem::take(&mut self.values);
         let then_storage_refs = std::mem::take(&mut self.storage_refs);
         if !then_terminated {
-            self.builder.jump(merge_block);
+            self.with_dropped_loc(dropped_exits, |this| this.builder.jump(merge_block));
         }
 
         self.values = before_values.clone();
@@ -107,12 +107,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let else_values = std::mem::take(&mut self.values);
         let else_storage_refs = std::mem::take(&mut self.storage_refs);
         if !else_terminated {
-            self.builder.jump(merge_block);
+            self.with_dropped_loc(dropped_exits, |this| this.builder.jump(merge_block));
         }
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.place_block(merge_block, label_span);
+        self.with_dropped_loc(dropped_exits, |this| {
+            this.place_block(merge_block, label_span.filter(|_| !dropped_exits))
+        });
         self.values = self.merge_values(
             before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
@@ -148,19 +150,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
-        // solc places the else and end tags under the statement: `LocationSetter(m_context,
-        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
-        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
-        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
-        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
-        // its `if`.
-        let label_span = else_stmt
-            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
-            .map_or(previous, |stmt| stmt.span);
+        // A loop condition desugars to `if (cond) body else break`, and its blocks take the span of
+        // the desugared `break`, which is the loop statement, so stepping a loop still stops on
+        // it. A user `break` is narrower than its `if`.
+        let loop_break = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous));
+        let label_span = loop_break.map_or(previous, |stmt| stmt.span);
+        // A Yul `for` condition is the same, with the span of the condition on its `break`.
+        let desugared_loop = else_stmt.is_some_and(|stmt| {
+            matches!(stmt.kind, StmtKind::Break)
+                && (stmt.span.contains(previous) || stmt.span == condition_span)
+        });
+        // NOTE: A source `if` leaves its arms and starts the code after it without a location:
+        // that code implements no source construct, and mapping it to the `if`, as solc's
+        // `LocationSetter(m_context, _ifStatement)` does, would show the condition line again
+        // after the arm ran. A debugger stops once on the `if`, at the condition.
+        let dropped_exits = !desugared_loop;
         let branches = self.lower_branches_labeled(
             condition,
             true,
             Some(label_span),
+            dropped_exits,
             |this| {
                 this.builder.replace_source_span(previous);
                 this.lower_stmt(then_stmt)
@@ -176,6 +186,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.invalid();
         }
         Some(())
+    }
+
+    /// Runs `f` with its locations dropped when `dropped`.
+    fn with_dropped_loc(&mut self, dropped: bool, f: impl FnOnce(&mut Self)) {
+        let previous = dropped.then(|| self.builder.drop_debug_loc());
+        f(self);
+        if let Some(previous) = previous {
+            self.builder.restore_debug_context(previous);
+        }
     }
 
     /// Switches to `block`, labeling it at `label_span` when it is placed for the first time.
@@ -275,7 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .collect(),
                 return_types: Vec::new(),
                 parameter_names: Some(parameter_names),
-                kind: AddressCallKind::Call,
+                kind: ExtCallKind::Call,
             }
         } else if let ExprKind::Member(receiver, _) = callee.kind
             && let Some(function_id) = self.cx.gcx.resolved_function(callee)
@@ -307,7 +326,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .call_param_source(callee)
                         .map(|source| self.cx.gcx.callable_param_names(source)),
-                    AddressCallKind::Delegate,
+                    ExtCallKind::Delegate,
                 )
             } else {
                 (
@@ -416,6 +435,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Several return words come back over the input area and may reach past it into free
         // memory, so the defaults are allocated before the call rather than over its output.
         self.materialize_default_bindings();
+        // The call, its arguments, and its return data map to the call expression, as in solc; the
+        // success and catch branches map to the statement.
+        let statement_span = self.builder.replace_source_span(try_expr.span);
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
@@ -474,6 +496,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (success, None, Some(ret_plan))
         };
 
+        self.builder.replace_source_span(statement_span);
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -492,6 +515,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values.insert(binding, value);
         } else if let Some(plan) = ret_plan {
             // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
+            self.builder.replace_source_span(try_expr.span);
             let values = self.finish_external_call(
                 plan,
                 &return_types,
@@ -499,6 +523,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ExternalReturnMode::All,
                 "codegen cannot decode try/catch returndata before Byzantium",
             )?;
+            self.builder.replace_source_span(statement_span);
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
@@ -529,18 +554,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
-        // data = returndata()
-        // selector = mload(data) >> 224
+        // Every clause reads the selector and length through scratch memory, as solc does. Only
+        // `catch Error(string)` and `catch (bytes memory)` copy the return data into a `bytes`
+        // object, and only on the path that reaches them, so a large payload that no such clause
+        // takes costs nothing here. A payload no clause matches is bubbled up from the return data
+        // buffer.
+        // len = returndatasize
+        // returndatacopy(0, 0, min(len, 32))
+        // selector = mload(0) >> 224
         let catch_data = (supports_returndata && needs_data).then(|| {
-            let object = self.materialize_returndata_bytes();
-            let view = self.builder.memory_slice(object);
-            let data = self.builder.slice_ptr(view);
-            let len = self.builder.slice_len(view);
+            let len = self.builder.returndatasize();
+            let word = self.builder.imm(32);
+            let below = self.builder.lt(len, word);
+            let size = self.builder.select(below, len, word);
             let zero = self.builder.imm(U256::ZERO);
-            let selector_word = self.builder.slice_load_word(view, zero);
+            self.builder.copy(zero, zero, size, PtrLocation::Returndata);
+            let selector_word = self.builder.load(zero, PtrLocation::Memory);
             let selector_shift = self.builder.imm(224);
             let selector = self.builder.shr(selector_word, selector_shift);
-            TryCatchData { object, data, len, selector }
+            TryCatchData { len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
         // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
@@ -554,21 +586,55 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(sym::Panic) => 1,
             _ => 2,
         });
+        // A malformed `Error(string)` payload falls through to the `bytes memory` clause, which
+        // reuses the object the probe copied instead of copying the return data again.
+        let bytes_block = (catch_clauses
+            .iter()
+            .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
+            && catch_clauses.iter().any(|clause| clause.name.is_none() && !clause.args.is_empty()))
+        .then(|| self.builder.create_block());
+        let mut probe_failed = None;
+        let mut bytes_sources = None;
         let mut next_catch = self.builder.current_block();
         for catch_clause in ordered_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+            let is_bytes = !catch_error && !catch_panic && !catch_clause.args.is_empty();
+            let clause_block = match bytes_block {
+                Some(block) if is_bytes => block,
+                _ => self.builder.create_block(),
+            };
+            let next_block = self.builder.create_block();
+            let mut error_object = None;
             // A typed clause is rejected before Byzantium, so its data is always there.
-            let condition = if catch_error {
-                // selector_matches = selector == Error(string)
-                // valid = selector_matches ? try_decode_error_message(data) : false
+            if catch_error {
+                // if selector == Error(string) {
+                //     object = returndata()
+                //     if try_decode_error_message(object) { clause } else { bytes_clause |
+                // next_catch } } else { next_catch }
                 let data = catch_data?;
                 let expected =
                     self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
                 let matches = self.builder.eq(data.selector, expected);
-                self.lower_error_catch_match(data.data, data.len, matches)
+                let probe_block = self.builder.create_block();
+                self.builder.branch(matches, probe_block, next_block);
+                self.builder.switch_to_block(probe_block);
+                let object = self.materialize_returndata_bytes();
+                let view = self.builder.memory_slice(object);
+                let ptr = self.builder.slice_ptr(view);
+                let valid = self.lower_error_catch_match(ptr, data.len);
+                if let Some(bytes_block) = bytes_block {
+                    let failed = self.builder.create_block();
+                    self.builder.branch(valid, clause_block, failed);
+                    self.builder.switch_to_block(failed);
+                    self.builder.jump(bytes_block);
+                    probe_failed = Some((failed, object));
+                } else {
+                    self.builder.branch(valid, clause_block, next_block);
+                }
+                error_object = Some(object);
             } else if catch_panic {
                 // valid = data.length >= 36 && selector == Panic(uint256)
                 let data = catch_data?;
@@ -577,25 +643,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let size = self.builder.imm(36);
                 let short = self.builder.lt(data.len, size);
                 let has_payload = self.builder.eq_zero(short);
-                self.builder.and(matches, has_payload)
+                let valid = self.builder.and(matches, has_payload);
+                self.builder.branch(valid, clause_block, next_block);
             } else {
-                self.builder.imm_bool(true)
-            };
-            let clause_block = self.builder.create_block();
-            let next_block = self.builder.create_block();
-            self.builder.branch(condition, clause_block, next_block);
+                if is_bytes && let Some((failed, probe_object)) = probe_failed {
+                    // object = returndata()
+                    let object = self.materialize_returndata_bytes();
+                    bytes_sources =
+                        Some(vec![(self.builder.current_block(), object), (failed, probe_object)]);
+                }
+                self.builder.jump(clause_block);
+            }
 
             self.values = before.clone();
             self.storage_refs = before_storage_refs.clone();
             self.builder.switch_to_block(clause_block);
             if let Some(&binding) = catch_clause.args.first() {
-                let object = catch_data?.object;
-                let value = if catch_error {
+                let value = if let Some(object) = error_object {
                     self.lower_error_catch_string(object)?
                 } else if catch_panic {
-                    self.lower_panic_catch_word(object)
+                    self.lower_panic_catch_scratch_word()
+                } else if let Some(sources) = bytes_sources.take() {
+                    // object = phi(copied, probe)
+                    self.builder.phi(sources)
                 } else {
-                    object
+                    self.materialize_returndata_bytes()
                 };
                 self.values.insert(binding, value);
             }
@@ -613,14 +685,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             next_catch = next_block;
         }
         self.builder.switch_to_block(next_catch);
-        match catch_data {
-            // revert(data.data, data.length)
-            Some(data) => self.builder.revert(data.data, data.len),
-            // Unreachable: a bare catch matches unconditionally.
+        // Unreachable without data: a bare catch matches unconditionally.
+        if catch_data.is_some() {
+            // revert(returndata)
+            self.builder.revert_returndata();
+        } else {
             // revert(0, 0)
-            None => {
-                self.builder.revert_with(RevertReason::Empty);
-            }
+            self.builder.revert_with(RevertReason::Empty);
         }
 
         // values, storage_refs = phi(success, catches)
@@ -875,7 +946,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 value
             };
-            let phi = self.merge_value_phi(vec![(preheader, value)]);
+            let phi = self.merge_local_phi(id, vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
@@ -981,6 +1052,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
+            self.record_edge_assignment(id, state.block, value);
             if self.unchecked_calldata_slices.contains(&value) {
                 self.unchecked_calldata_slices.insert(phi);
             }
@@ -1019,7 +1091,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
                 .collect::<Vec<_>>();
             let value = self
-                .merge_incoming_values(incoming)
+                .merge_incoming_values(id, incoming)
                 .unwrap_or_else(|| header_phis.get(&id).copied().unwrap_or(before_value));
             merged.insert(id, value);
         }
@@ -1088,12 +1160,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
                     (true, false, _, value) | (false, true, value, _) => value,
                     (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                    (false, false, Some(lhs), Some(rhs)) => {
-                        Some(self.merge_value_phi(vec![
-                            (then_branch.block, lhs),
-                            (else_branch.block, rhs),
-                        ]))
-                    }
+                    (false, false, Some(lhs), Some(rhs)) => Some(self.merge_local_phi(
+                        id,
+                        vec![(then_branch.block, lhs), (else_branch.block, rhs)],
+                    )),
                     _ => then_value.or(else_value),
                 };
             if let Some(value) = value {
@@ -1122,19 +1192,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .map(|value| (state.block, value))
                 })
                 .collect::<Vec<_>>();
-            if let Some(value) = self.merge_incoming_values(incoming) {
+            if let Some(value) = self.merge_incoming_values(id, incoming) {
                 before.insert(id, value);
             }
         }
         before
     }
 
-    fn merge_incoming_values(&mut self, incoming: Vec<(BlockId, ValueId)>) -> Option<ValueId> {
+    fn merge_incoming_values(
+        &mut self,
+        id: VariableId,
+        incoming: Vec<(BlockId, ValueId)>,
+    ) -> Option<ValueId> {
         match incoming.as_slice() {
             [] => None,
             [(_, value)] => Some(*value),
             [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => Some(*first),
-            _ => Some(self.merge_value_phi(incoming)),
+            _ => Some(self.merge_local_phi(id, incoming)),
         }
     }
 
@@ -1146,6 +1220,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.unchecked_calldata_slices.insert(value);
         }
         value
+    }
+
+    /// Merges the local `id`, recording the assignments behind the incoming values.
+    fn merge_local_phi(&mut self, id: VariableId, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
+        for &(block, value) in &incoming {
+            self.record_edge_assignment(id, block, value);
+        }
+        self.merge_value_phi(incoming)
+    }
+
+    /// Binds the local `id` to `value` and records the assignment in the current block.
+    pub(super) fn assign_local(&mut self, id: VariableId, value: ValueId) {
+        self.values.insert(id, value);
+        let block = self.builder.current_block();
+        let origin = self.builder.debug_context();
+        if origin.source_span().is_some() {
+            self.assignments.insert((id, block), (value, origin));
+        }
+    }
+
+    /// Records, on the jump that ends `block`, the assignment that stored `value` in the local
+    /// `id`, when `value` is the last one stored in `block`: a phi takes it from there.
+    ///
+    /// NOTE: The scheduler can then give the copy of a phi operand the span of its assignment: the
+    /// assignment runs in the block before the jump, so a copy on the unconditional edge runs
+    /// exactly when it does.
+    pub(super) fn record_edge_assignment(
+        &mut self,
+        id: VariableId,
+        block: BlockId,
+        value: ValueId,
+    ) {
+        if let Some((assigned, origin)) = self.assignments.get(&(id, block))
+            && *assigned == value
+        {
+            self.builder.add_edge_assignment(block, value, origin.clone());
+        }
     }
 
     pub(super) fn merge_storage_ref_states(

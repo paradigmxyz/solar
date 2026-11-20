@@ -926,6 +926,7 @@ def compile_runtime_fixture(
         "language": "Solidity",
         "sources": {source_name: {"content": RUNTIME_FIXTURES.read_text()}},
         "settings": {
+            "metadata": {"appendCBOR": False, "bytecodeHash": "none"},
             "optimizer": {"enabled": True, "runs": 200},
             "outputSelection": {"*": {contract_name: ["evm.bytecode.object"]}},
         },

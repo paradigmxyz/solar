@@ -1,0 +1,38 @@
+; === ROOT/tests/ui/codegen/mir/storage-dse/storage_packed_struct_dse_neighbors.sol:PackedStructDseNeighbors ===
+@module PackedStructDseNeighbors
+; function preservesRawNeighbors() public returns (bool) [selector 0x56c38e53]
+fn @preservesRawNeighbors() -> i1 [selector=0x56c38e53, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    sstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v5 = or v4, 512
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = trunc i256 v6 to i8
+    v8 = eq v7, i8 1
+    jumpi v8, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v9 = shr v6, 8
+    v10 = trunc i256 v9 to i8
+    v11 = eq v10, i8 2
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v12 = phi [bb1: v11], [bb2: false]
+    jumpi v12, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v13 = shr v6, 16
+    v14 = eq v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v15 = phi [bb4: v14], [bb5: false]
+    ret v15
+}

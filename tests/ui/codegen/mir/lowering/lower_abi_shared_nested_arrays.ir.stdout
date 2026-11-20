@@ -110,43 +110,40 @@ fn @sumDecoded() {
   bb13:                                           ; preds = bb0
     v71 = calldataload v67
     v72 = add v67, 32
-    v110 = add v71, 63
-    v75 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v102 = add v71, 63
+    v75 = and v102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v76 = lt v75, v71
     jumpi v76, bb14, bb15
   bb15:                                           ; preds = bb13
-    v107 = icall @alloc, v75
-    mstore v107, v71
+    v101 = icall @alloc, v75
+    mstore v101, v71
     v78 = sub v64, v72
     v79 = lt v78, v71
     jumpi v79, bb10, bb16
   bb16:                                           ; preds = bb15
-    v98 = add v107, 32
-    calldatacopy v98, v72, v71
-    v45 = mload v107
-    v47 = add v98, v45
-    v48 = slt v45, 32
+    v94 = add v101, 32
+    calldatacopy v94, v72, v71
+    v47 = add v94, v71
+    v48 = slt v71, 32
     jumpi v48, bb10, bb11
   bb11:                                           ; preds = bb16
-    v49 = mload v98
-    v51 = add v98, v49
-    v54 = lt v45, v49
+    v49 = mload v94
+    v51 = add v94, v49
+    v54 = lt v71, v49
     v55 = sub v47, v51
     v56 = lt v55, 64
-    v112 = or v54, v56
-    jumpi v112, bb10, bb12
+    v104 = or v54, v56
+    jumpi v104, bb10, bb12
   bb12:                                           ; preds = bb11
-    v108 = mload 64 !metadata(alloc_ptr)
-    v109 = add v108, 64
-    mstore 64, v109
+    v57 = alloc 64 !metadata(deferred_alloc)
     v58 = icall @decode_memory_type, v51, v51, v47
-    mstore v108, v58
+    mstore v57, v58
     v60 = add v51, 32
     v61 = icall @decode_memory_type, v60, v51, v47
-    v96 = add v108, 32
-    mstore v96, v61
-    v103 = mload v108
-    v6 = mload v103
+    v92 = add v57, 32
+    mstore v92, v61
+    v98 = mload v57
+    v6 = mload v98
     jump bb1
   bb1:                                            ; preds = bb8, bb12
     v2 = phi [bb12: 0], [bb8: v40]
@@ -166,9 +163,9 @@ fn @sumDecoded() {
     returndata 0, 32
   bb6:                                            ; preds = bb4
     v32 = shl v22, 5
-    v93 = add v61, v32
-    v94 = add v93, 32
-    v35 = mload v94
+    v89 = add v61, v32
+    v90 = add v89, 32
+    v35 = mload v90
     v42 = add v35, v19
     v43 = lt v42, v19
     jumpi v43, bb7, bb9
@@ -177,9 +174,9 @@ fn @sumDecoded() {
     jump bb4
   bb3:                                            ; preds = bb1
     v12 = shl v4, 5
-    v90 = add v103, v12
-    v91 = add v90, 32
-    v15 = mload v91
+    v86 = add v98, v12
+    v87 = add v86, 32
+    v15 = mload v87
     v40 = add v15, v2
     v41 = lt v40, v2
     jumpi v41, bb7, bb8

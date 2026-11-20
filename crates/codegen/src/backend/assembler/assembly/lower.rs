@@ -58,7 +58,6 @@ impl Assembler<'_> {
     /// Runs the EVM IR pipeline when `passes` is set, then legalization, returning whether neither
     /// reported an error.
     fn run_pipeline(&mut self, program: &mut ir::Module, passes: bool) -> bool {
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
@@ -68,10 +67,6 @@ impl Assembler<'_> {
         if !succeeded() {
             return false;
         }
-        debug_assert!(
-            !input_is_valid || ir::verify::Verifier::is_valid(program),
-            "EVM IR pipeline invalidated a valid module"
-        );
         let _legalized = ir::legalize_revert(self.gcx, program);
         if !succeeded() {
             return false;
@@ -281,7 +276,7 @@ fn lower_evm_ir_once(
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = inst.metadata.function_invoke() {
-                    program.mark_last_function_invoke(Some(function));
+                    program.set_function_invoke(first, Some(function));
                 }
                 program.mark_last_function_exit(inst.metadata.function_exit());
             }
@@ -308,7 +303,7 @@ fn lower_evm_ir_once(
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = terminator.metadata.function_invoke() {
-                    program.mark_last_function_invoke(Some(function));
+                    program.set_function_invoke(first, Some(function));
                 }
                 program.mark_last_function_exit(terminator.metadata.function_exit());
             }

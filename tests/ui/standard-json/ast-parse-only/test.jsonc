@@ -1,0 +1,38 @@
+//@ filecheck:
+// With `stopAfter: parsing` the AST has no IDs of declarations, types, resolutions or scopes, as
+// in solc. Every expression has empty `typeDescriptions`, an identifier lists no overloads, a
+// contract has no dependencies, and no variable is a state variable.
+// CHECK: "nodeType": "SourceUnit"
+// CHECK: "absolutePath": "A.sol"
+// CHECK: "nodeType": "ImportDirective"
+// CHECK: "overloadedDeclarations": [],
+// CHECK-NEXT: "typeDescriptions": {}
+// CHECK: "contractDependencies": [],
+// CHECK: "stateVariable": false,
+// CHECK: "kind": "constructor",
+// CHECK: "nodeType": "BinaryOperation"
+// CHECK: "commonType": {},
+// CHECK-NOT: "exportedSymbols"
+// CHECK-NOT: "referencedDeclaration"
+// CHECK-NOT: "canonicalName"
+// CHECK-NOT: "scope"
+// CHECK-NOT: "isPure"
+// CHECK-NOT: "isLValue"
+// CHECK-NOT: "lValueRequested"
+// CHECK-NOT: "argumentTypes"
+// CHECK-NOT: "functionSelector"
+// CHECK-NOT: "functionReturnParameters"
+// CHECK-NOT: "isSimpleCounterLoop"
+{
+  "language": "Solidity",
+  "settings": {
+    "stopAfter": "parsing",
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

@@ -7,6 +7,10 @@
 //! legal recipe is materialized, immediately before the original root, whose
 //! value identity and semantic metadata are retained.
 //!
+//! A recipe operand that redoes the original operand's operation, as in `(zext a | zext b) == 0`
+//! to `(a | b) == 0`, keeps that operand's debug location. Every other recipe operation takes the
+//! root's.
+//!
 //! Profitability charges target opcode prices, immediate materialization and
 //! operand copies. The old cost includes only removable, single-use producers;
 //! shared producers and ABI validation instructions earn no deletion credit.
@@ -21,6 +25,9 @@
 //! Shared integer casts can move outside a select when their source widths match;
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
+//! A recipe on booleans wraps at one bit, where `add` and `sub` equal `xor`, `mul` equals `and` and
+//! `not` equals `xor` with one, so it is built from those bitwise operations, which `lowered` MIR
+//! accepts at `i1`.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
 //! that a nonzero test whose every use is a branch or a check, or an `or` that only such a test
 //! joins, costs nothing: `JUMPI` reads the word.
@@ -37,9 +44,11 @@
 //! of such a test into that comparison as enabling recipes. The last run, the
 //! `spell-width-tests` pass in the lowered pipeline, sees the final uses and chooses the spelling
 //! with [`Target::shifts_bits_test`]: a branch or the `or` that joins tests for a branch reads a
-//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; an `and` of
-//! a fits test and a zero test becomes one word zero test; a test of the width of a shift the block
-//! already computes reads that shift. Only comparisons, `or` and `and` are roots there.
+//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; a fits test
+//! whose failure branches to a cold block becomes `(x >> k) == 0`, since the branch jumps on
+//! `x >> k`; an `and` of a fits test and a zero test becomes one word zero test; a test of the
+//! width of a shift the block already computes reads that shift. Only comparisons, `or` and `and`
+//! are roots there.
 
 use super::lower_checks::is_check;
 use crate::{
@@ -209,6 +218,32 @@ fn root_cost(
 }
 
 impl Recipe {
+    /// Spells the arithmetic of a boolean recipe as the bitwise operations it equals modulo 2,
+    /// which `lowered` MIR accepts at `i1`: `add` and `sub` are `xor`, `mul` is `and`, and `not` is
+    /// `xor` with one. `first_temporary` is the first ID past the function's values.
+    fn legalize_booleans(&mut self, first_temporary: usize) {
+        let one = ValueId::new(first_temporary + self.temporaries.len());
+        let mut uses_one = false;
+        let mut bitwise = |op: Op| match op {
+            Op::Add { a, b } | Op::Sub { a, b } => Op::Xor { a, b },
+            Op::Mul { a, b } => Op::And { a, b },
+            Op::Not { a } => {
+                uses_one = true;
+                Op::Xor { a, b: one }
+            }
+            op => op,
+        };
+        self.root = bitwise(self.root);
+        for temporary in self.temporaries.values_mut() {
+            if let Temporary::Operation(op) = temporary {
+                *op = bitwise(*op);
+            }
+        }
+        if uses_one {
+            self.temporaries.insert(one, Temporary::Constant(U256::ONE));
+        }
+    }
+
     /// Visits only reachable temporary definitions, in dependency order.
     fn collect(
         &self,
@@ -260,8 +295,9 @@ impl Recipe {
     fn materialize(&self, func: &mut Function, root: InstId) -> Vec<InstId> {
         let mut inserted = Vec::new();
         let mut values = FxHashMap::default();
+        let origins = self.child_origins(func, root);
         let op = self.root.map_values(|value| {
-            self.materialize_value(func, root, value, &mut values, &mut inserted)
+            self.materialize_value(func, root, value, &origins, &mut values, &mut inserted)
         });
         // %temporary = recipe_child(...)
         // %original_result = recipe_root(%temporary, ...)
@@ -280,11 +316,43 @@ impl Recipe {
         inserted
     }
 
+    /// Pairs each recipe child that is an operand of the root with the original instruction at
+    /// the same operand position when both are the same operation over the same operands, up to
+    /// integer casts: the child then computes what that instruction computed, at another width.
+    fn child_origins(&self, func: &Function, root: InstId) -> FxHashMap<ValueId, InstId> {
+        let original = func.inst(root).kind.op();
+        self.root
+            .operands()
+            .into_iter()
+            .zip(original.operands())
+            .filter_map(|(child, operand)| {
+                let Some(Temporary::Operation(op)) = self.temporaries.get(&child) else {
+                    return None;
+                };
+                let Value::Inst(inst) = *func.value(operand) else { return None };
+                Self::same_operation(func, op, &func.inst(inst).kind.op()).then_some((child, inst))
+            })
+            .collect()
+    }
+
+    /// Whether `recipe` applies the operation of `original` to the same operands, or to the
+    /// sources of integer casts of them.
+    fn same_operation(func: &Function, recipe: &Op, original: &Op) -> bool {
+        std::mem::discriminant(recipe) == std::mem::discriminant(original)
+            && recipe.operands().into_iter().zip(original.operands()).all(|(r, o)| {
+                r == o
+                    || matches!(func.value_inst_kind(o),
+                        Some(InstKind::Zext(v) | InstKind::Sext(v, ..) | InstKind::Trunc(v, ..))
+                            if *v == r)
+            })
+    }
+
     fn materialize_value(
         &self,
         func: &mut Function,
         root: InstId,
         value: ValueId,
+        origins: &FxHashMap<ValueId, InstId>,
         values: &mut FxHashMap<ValueId, ValueId>,
         inserted: &mut Vec<InstId>,
     ) -> ValueId {
@@ -297,12 +365,16 @@ impl Recipe {
                 .alloc_value(Value::Immediate(Immediate::for_type(Some(self.scalar_ty), *value))),
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {
-                    self.materialize_value(func, root, value, values, inserted)
+                    self.materialize_value(func, root, value, origins, values, inserted)
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
                 let ty = recipe_type(func, &kind, self.scalar_ty);
-                emit_recipe(func, root, kind, ty, self.scalar_ty, inserted)
+                // Keeps the replaced operation's location, as `foldCastedBitwiseLogic` does for
+                // `or (zext a), (zext b)` (LLVM HowToUpdateDebugInfo, "When to preserve
+                // instruction locations").
+                let origin = origins.get(&value).copied().unwrap_or(root);
+                emit_recipe(func, origin, kind, ty, self.scalar_ty, inserted)
             }
         };
         values.insert(value, actual);
@@ -313,13 +385,13 @@ impl Recipe {
 /// Emits a recipe with explicit scalar conversions, returning its detached instruction list.
 fn emit_recipe(
     func: &mut Function,
-    root: InstId,
+    origin: InstId,
     kind: InstKind,
     ty: MirType,
     scalar_ty: MirType,
     inserted: &mut Vec<InstId>,
 ) -> ValueId {
-    let metadata = func.inst(root).metadata.debug_context();
+    let metadata = func.inst(origin).metadata.debug_context();
     let block = crate::mir::BlockId::ENTRY;
     let start = func.blocks[block].instructions.len();
     // operands = zext i1 boolean_operands to i256
@@ -415,10 +487,17 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
                 ordered.push(inst);
                 continue;
             }
-            let is_branch_only =
-                func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
+            let value = func.inst_result_value(inst);
+            let is_branch_only = value.is_some_and(|value| branch_only.contains(&value));
             let read = ConditionRead {
                 branch: is_branch_only,
+                fails_to_cold: matches!(func.blocks[block].terminator,
+                    Some(Terminator::Branch { condition, then_block, else_block })
+                        if Some(condition) == value
+                            && uses[condition] == 1
+                            && func.blocks[else_block].hotness.is_cold()
+                            && !func.blocks[then_block].hotness.is_cold()
+                            && func.blocks[then_block].predecessors.len() == 1),
                 in_loop: cyclic.as_ref().is_some_and(|cyclic| cyclic.contains(block)),
             };
             let mut best = None;
@@ -617,6 +696,13 @@ fn zero_tested_leaf(
 struct ConditionRead {
     /// A branch reads the word, through the `or` that joins it with other tests, if any.
     branch: bool,
+    /// A branch reads the word itself and goes to a cold block when it is false and to a hot one
+    /// that only it enters when it is true, so the backend places the hot block next and jumps
+    /// when the test fails. A hot block with other predecessors, such as a join or a loop header,
+    /// may be placed elsewhere, and the branch then jumps when the test holds. NOTE: a hot block
+    /// that only jumps on and that stack scheduling forwards breaks this too; no source lowering
+    /// was seen to leave one there after the last CFG cleanup.
+    fails_to_cold: bool,
     in_loop: bool,
 }
 

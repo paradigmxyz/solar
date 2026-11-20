@@ -60,7 +60,8 @@ pub(super) fn alternatives(
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
     // The `and` or `or` of booleans that joins tests builds words from its operands' words, whose
     // constants do not fit a bool. Both are bitwise, so a word of zeros and ones gives the same
-    // answer at any width; arithmetic on booleans wraps at one bit, so it keeps its type.
+    // answer at any width; arithmetic on booleans wraps at one bit, so it keeps its type and
+    // `sequence` spells it bitwise.
     let scalar_ty = if scalar_ty == MirType::I1 && matches!(op, Op::And { .. } | Op::Or { .. }) {
         MirType::I256
     } else {
@@ -191,12 +192,16 @@ impl generated::Context for Context<'_> {
     }
 
     fn sequence(&mut self, root: &Op) -> Recipe {
-        Recipe {
+        let mut recipe = Recipe {
             root: *root,
             scalar_ty: self.scalar_ty,
             temporaries: self.temporaries.clone(),
             enabling: false,
+        };
+        if self.scalar_ty == MirType::I1 {
+            recipe.legalize_booleans(self.func.num_values());
         }
+        recipe
     }
 
     fn enabling_sequence(&mut self, root: &Op) -> Recipe {
@@ -258,7 +263,9 @@ impl generated::Context for Context<'_> {
 
     fn width_shifts(&mut self, bits: U256, fits: bool) -> bool {
         u32::try_from(bits).is_ok_and(|bits| {
-            self.target.shifts_bits_test(bits, fits, self.read.branch, self.read.in_loop)
+            // The shifted word is nonzero when the word does not fit.
+            let reads_word = if fits { self.read.fails_to_cold } else { self.read.branch };
+            self.target.shifts_bits_test(bits, fits, reads_word, self.read.in_loop)
         })
     }
 

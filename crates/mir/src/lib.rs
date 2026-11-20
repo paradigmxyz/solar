@@ -29,7 +29,7 @@ pub use types::{
 mod abi;
 pub use abi::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator,
+    AbiParamTypeRef, AbiType, AbiWordValidator,
 };
 
 mod packed;
@@ -42,8 +42,9 @@ mod canonical;
 
 mod inst;
 pub use inst::{
-    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationInitialization,
-    AllocationSemantics, EffectKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
+    AbiEncodeMode, AllocationFailure, AllocationInitialization, AllocationSemantics, CallOutput,
+    CallPolicy, EdgeAssignment, EffectKind, ExtCallKind, Instruction, InstructionMetadata,
+    MemoryRegion, StorageAlias,
 };
 
 mod arithmetic;

@@ -9,7 +9,29 @@ changed or not.
 Publish the crates last. Pushing the tag starts the release workflow, and a
 failure there only needs a fix on `main` and a new tag while nothing is on
 `crates.io` yet. This keeps the crates, the tag, and the release binaries on one
-commit.
+commit. Once the publish job has uploaded a crate, rerun it instead of tagging
+again.
+
+## Publishing setup
+
+The release workflow publishes with crates.io trusted publishing, so no
+`CARGO_REGISTRY_TOKEN` secret exists. The current configuration:
+
+- The GitHub environment `crates-io` limits deployments to the `v*` tag policy.
+- Each crate below has the trusted publisher `paradigmxyz` / `solar` /
+  `release.yml` / `crates-io` on crates.io. The workflow filename is the
+  top-level `release.yml`, not the reusable `publish-crates.yml` that it calls.
+- The `release` tag ruleset protects `refs/tags/v*`: it blocks creating,
+  updating, deleting and force-pushing tags, and the maintain and admin roles
+  bypass it.
+
+A new crate needs one manual publish with an API token, then a trusted
+publisher with the same values.
+
+Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen`,
+`solar-config`, `solar-data-structures`, `solar-evmir`, `solar-evmir-interpreter`,
+`solar-interface`, `solar-ir`, `solar-lint`, `solar-lsp`, `solar-macros`, `solar-mir`,
+`solar-mir-interpreter`, `solar-parse`, `solar-sema`.
 
 ## Requirements
 
@@ -42,15 +64,22 @@ commit.
 - [ ] `git checkout main` and `git pull`.
 - [ ] Verify `dist plan` is correct.
 - [ ] Tag and push the tag: `cargo release tag --execute` and `cargo release push --execute`.
-- [ ] Wait for the release workflow to publish the GitHub release. If it fails,
-  fix the cause on `main`, delete the remote tag, and tag the fix.
+- [ ] Wait for the release workflow to publish the GitHub release. If it fails
+  before the publish job uploads a crate, fix the cause on `main`, delete the
+  remote tag, and tag the fix.
 - [ ] Check the GitHub release: the notes render, every artifact from `dist plan`
   is attached, and a downloaded binary reports `solar <version>+commit...`
   without `-dev`.
 
 ## Publish
 
-- [ ] Publish the crates: `cargo release publish --execute [--no-verify]`
+- [ ] The tag's release workflow publishes the crates after it creates the GitHub
+  release (`.github/workflows/publish-crates.yml`). It runs only for stable
+  `v<version>` tags, checks that every crate has the tag's version and that the
+  tagged commit is on `main`, and skips versions that are already on crates.io.
+  Check that the `custom-publish-crates` job passed and that every crate shows
+  the new version on crates.io. If it fails, fix the cause and rerun the failed
+  job.
 
 ## Downstream
 

@@ -64,7 +64,7 @@ Options:
           
           Outputs are collected in JSON on stdout, or `combined.json` in `--out-dir`.
           
-          [possible values: abi, bin, bin-runtime, hashes, ethdebug, ethdebug-runtime, ethdebug-resources, srcmap, srcmap-runtime]
+          [possible values: abi, ast, bin, bin-runtime, hashes, ethdebug, ethdebug-runtime, ethdebug-resources, srcmap, srcmap-runtime]
 
       --standard-json
           Switch to Standard JSON input/output mode

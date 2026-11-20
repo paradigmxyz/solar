@@ -196,10 +196,7 @@ fn @tryBytes() -> struct0 [selector=0x73203734, abi_params=[], abi_returns=[word
     v7 = staticcall v5, v6, 28, 36, 0, 0
     jumpi v7, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
@@ -230,6 +227,9 @@ fn @tryBytes() -> struct0 [selector=0x73203734, abi_params=[], abi_returns=[word
     v27 = insert_value struct0, v26, 1, v16
     v28 = insert_value struct0, v27, 2, v25
     ret v28
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function directEmpty() external returns (uint256 allocated, uint256 length) [selector 0x69aae4eb]

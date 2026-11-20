@@ -42,6 +42,14 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
             attributes.push("entry".to_string());
         }
         if !module.hide_debug_info
+            && (metadata.function_invoke.is_some_and(|function| function.dispatched)
+                && !metadata.external_entry
+                || metadata.lent_invoke.is_some_and(|function| function.dispatched))
+        {
+            // The dispatcher enters exactly the blocks marked `entry`.
+            attributes.push("dispatch".to_string());
+        }
+        if !module.hide_debug_info
             && let Some(function) = metadata.function_invoke
         {
             attributes.push(format!(
@@ -196,6 +204,9 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
                 function.declaration.lo().0,
                 function.declaration.hi().0
             )?;
+            if function.dispatched {
+                write!(f, ", dispatch")?;
+            }
             separator = ", ";
         }
         if let Some(function_exit) = function_exit {

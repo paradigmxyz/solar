@@ -1,0 +1,46 @@
+//@ compile-flags: -Zevm-ir-pipeline=outline --optimize-runs 1
+//@ filecheck:
+@module OutlineContinuationEntry
+
+// Outlining splits the callee's entry block around the shared run. The label keeps the entry, and
+// the continuation, which the stub returns to, does not enter the function again.
+// CHECK-LABEL: (after outline)
+// CHECK: {{^[ +].*}}bb0 [invoke=callee@1..30]:
+// CHECK-NOT: invoke
+bb0 [invoke=callee@1..30]:
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  jump bb1 !metadata(span=11..15)
+
+bb1:
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  stop !metadata(span=31..35)
