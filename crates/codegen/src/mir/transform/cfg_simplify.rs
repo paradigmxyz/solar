@@ -625,7 +625,9 @@ fn can_merge(func: &Function, block_id: BlockId, keep: Option<FunctionId>) -> Op
     // The merge drops the jump and the target's label.
     if let Some(function) = keep
         && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
-        && !block.instructions.last().is_some_and(|&inst| calls_function(func, inst, function))
+        && !block.instructions.last().is_some_and(|&inst| {
+            calls_function(func, inst, function) && returns_result(func, inst, *target)
+        })
     {
         return None;
     }
@@ -1168,4 +1170,26 @@ fn constant(func: &Function, value: ValueId, depth: u32) -> Option<U256> {
 /// Returns whether `inst` is a call of `function`.
 fn calls_function(func: &Function, inst: InstId, function: FunctionId) -> bool {
     matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if *callee == function)
+}
+
+/// Returns whether the blocks from `block` on only jump and return the result of `call`.
+fn returns_result(func: &Function, call: InstId, mut block: BlockId) -> bool {
+    let result = func.inst_result_value(call);
+    for _ in 0..func.blocks.len() {
+        let data = &func.blocks[block];
+        if !data.instructions.is_empty() {
+            return false;
+        }
+        match &data.terminator {
+            Some(Terminator::Jump(next)) => block = *next,
+            Some(Terminator::Return { values }) => {
+                return match result {
+                    Some(result) => values.as_slice() == [result],
+                    None => values.is_empty(),
+                };
+            }
+            _ => return false,
+        }
+    }
+    false
 }
