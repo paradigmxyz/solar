@@ -253,6 +253,12 @@ fn lower_evm_ir_once(
             // NOTE: `-O none` keeps the empty blocks of a function that only tail-calls another,
             // and layout makes them fall through. Their entries then share the first instruction
             // of the chain, which can mark one: the outer entry, the call the caller made.
+            debug_assert!(
+                pending_block_invoke.is_none()
+                    || pending_block_invoke == Some(function)
+                    || block.metadata.optimization.unwrap_or(module.optimization).is_none(),
+                "an instruction-free block cannot enter two functions"
+            );
             pending_block_invoke.get_or_insert(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
