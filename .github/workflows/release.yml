@@ -267,3 +267,16 @@ jobs:
           echo "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/notes.txt"
 
           gh release create "$RELEASE_TAG" --target "$RELEASE_COMMIT" "${prerelease_flag_args[@]}" --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+
+  # Publish the crates once the GitHub release and its binaries exist.
+  custom-publish-crates:
+    if: ${{ startsWith(github.ref_name, 'v') && !fromJson(needs.plan.outputs.val).announcement_is_prerelease }}
+    permissions:
+      contents: read
+      id-token: write
+    needs:
+      - plan
+      - announce
+    uses: ./.github/workflows/publish-crates.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
