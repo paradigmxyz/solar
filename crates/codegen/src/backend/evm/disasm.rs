@@ -52,9 +52,8 @@ pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion, instrument_coverage
             }
         }
         if is_push(instruction)
-            && instructions
-                .get(index + 1)
-                .is_some_and(|next| matches!(next.opcode, op::JUMP | op::JUMPI))
+            && next_op(&instructions, index)
+                .is_some_and(|next| matches!(instructions[next].opcode, op::JUMP | op::JUMPI))
         {
             if let Some(label) = pushed_offset(instruction).and_then(|offset| labels.get(&offset)) {
                 write!(output, " ; bb{label}").unwrap();
@@ -62,7 +61,8 @@ pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion, instrument_coverage
                 output.push_str(" ; unknown");
             }
         } else if matches!(instruction.opcode, op::JUMP | op::JUMPI)
-            && !index.checked_sub(1).is_some_and(|previous| is_push(&instructions[previous]))
+            && !previous_op(&instructions, index)
+                .is_some_and(|previous| is_push(&instructions[previous]))
         {
             output.push_str(" ; unknown");
         }
@@ -140,7 +140,7 @@ fn add_jump_successors(
     pending: &mut VecDeque<usize>,
     all_jumpdests_pending: &mut bool,
 ) {
-    if let Some(previous) = index.checked_sub(1)
+    if let Some(previous) = previous_op(instructions, index)
         && is_push(&instructions[previous])
     {
         if let Some(target) = pushed_offset(&instructions[previous])
@@ -171,6 +171,25 @@ fn pushed_offset(instruction: &DecodedInstruction<'_>) -> Option<usize> {
             })
             .flatten()
     }
+}
+
+/// Returns the index of the instruction that runs before the one at `index`, past coverage probes,
+/// which change no stack.
+fn previous_op(instructions: &[DecodedInstruction<'_>], index: usize) -> Option<usize> {
+    let mut previous = index.checked_sub(1)?;
+    while instructions[previous].coverage_counter {
+        previous = previous.checked_sub(2)?;
+    }
+    Some(previous)
+}
+
+/// Returns the index of the instruction that runs after the one at `index`, past coverage probes.
+fn next_op(instructions: &[DecodedInstruction<'_>], index: usize) -> Option<usize> {
+    let mut next = index + 1;
+    while instructions.get(next + 1).is_some_and(|counter| counter.coverage_counter) {
+        next += 2;
+    }
+    (next < instructions.len()).then_some(next)
 }
 
 /// Returns whether the instruction pushes a value. A coverage probe's counter push never runs.

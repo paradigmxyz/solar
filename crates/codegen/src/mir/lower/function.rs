@@ -244,7 +244,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     inlined_struct_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
     /// being constructed, in evaluation order.
-    base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
+    base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>, Option<&'gcx hir::Modifier<'gcx>>)>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
     modifier_depth: u32,

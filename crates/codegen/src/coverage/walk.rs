@@ -537,14 +537,16 @@ impl<'gcx> Walker<'gcx> {
         }
         self.begin(contract.source);
         for base in contract.bases_args {
-            if self.has_regions(|this| {
+            let args = |this: &mut Self| {
                 for arg in base.args.exprs() {
                     this.expr(arg);
                 }
-            }) {
-                for arg in base.args.exprs() {
-                    self.expr(arg);
-                }
+            };
+            if self.has_regions(args) {
+                let count = self.counter(Site::Init(Site::key(base)));
+                self.open(base.span, &count);
+                args(self);
+                self.close();
             }
         }
         for var in contract.variables() {

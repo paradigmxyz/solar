@@ -123,13 +123,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for &base_id in self.cx.gcx.hir.contract(contract_id).linearized_bases.iter().skip(1) {
             if let Some(constructor_id) = self.cx.gcx.hir.contract(base_id).ctor
                 && self.cx.gcx.hir.function(constructor_id).parameters.is_empty()
-                && !self.base_args.iter().any(|&(id, _)| id == base_id)
+                && !self.base_args.iter().any(|&(id, ..)| id == base_id)
             {
-                self.base_args.push((base_id, hir::CallArgs::default()));
+                self.base_args.push((base_id, hir::CallArgs::default(), None));
             }
         }
         for index in 0..self.base_args.len() {
-            let (base_id, args) = self.base_args[index];
+            let (base_id, args, written) = self.base_args[index];
             let Some(constructor_id) = self.cx.gcx.hir.contract(base_id).ctor else {
                 continue;
             };
@@ -142,6 +142,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Like solc's `appendBaseConstructor`, which sets the location of the base
             // constructor's definition around the arguments, map the argument conversions and
             // parameter bindings to it. Each argument expression keeps its own location.
+            if let Some(written) = written {
+                self.coverage(Site::Init(Site::key(written)));
+            }
             let previous = self.builder.replace_source_span(constructor.span);
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
@@ -244,7 +247,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns the base constructor argument lists of `contract_id`'s
-    /// hierarchy, in evaluation order.
+    /// hierarchy, in evaluation order, each with the inheritance specifier
+    /// that writes it.
     ///
     /// solc evaluates the lists grouped by the contract that wrote them, the
     /// most derived writer first, and inside one writer in that writer's own
@@ -256,7 +260,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn base_constructor_arg_lists(
         &self,
         contract_id: hir::ContractId,
-    ) -> Vec<(hir::ContractId, hir::CallArgs<'gcx>)> {
+    ) -> Vec<(hir::ContractId, hir::CallArgs<'gcx>, Option<&'gcx hir::Modifier<'gcx>>)> {
         let hir = &self.cx.gcx.hir;
         let mut lists = Vec::new();
         for &writer_id in hir.contract(contract_id).linearized_bases {
@@ -266,9 +270,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // same base further up the hierarchy still applies.
                 if let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
                     && !modifier.args.is_empty()
-                    && !lists.iter().any(|&(id, _)| id == base_id)
+                    && !lists.iter().any(|&(id, _, _)| id == base_id)
                 {
-                    lists.push((base_id, modifier.args));
+                    lists.push((base_id, modifier.args, Some(modifier)));
                 }
             }
         }
@@ -279,7 +283,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &self,
         base_id: hir::ContractId,
     ) -> Option<hir::CallArgs<'gcx>> {
-        self.base_args.iter().find(|&&(id, _)| id == base_id).map(|&(_, args)| args)
+        self.base_args.iter().find(|&&(id, ..)| id == base_id).map(|&(_, args, _)| args)
     }
 
     pub(super) fn finish(&mut self, returns: &[VariableId]) -> Option<()> {

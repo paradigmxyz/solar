@@ -6,10 +6,19 @@
 // CHECK-NEXT: "hash"
 // CHECK-NEXT: "counters": [
 // CHECK-NEXT: 6,
-// CHECK-NEXT: 10
+// CHECK-NEXT: 11
 // CHECK-NEXT: ],
-// The leaf of the inheritance argument has a branch region of its own.
+// The inheritance specifier has a code region of its own entry counter, 6, encoded `25`, as an
+// initializer does, so an argument list that reverts before its first branch still counts. The
+// leaf of its argument has a branch region.
 // CHECK: "regions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 82,
+// CHECK-NEXT: 27,
+// CHECK-NEXT: 25
+// CHECK-NEXT: ],
 // CHECK-NEXT: [
 // CHECK-NEXT: 4,
 // CHECK-NEXT: 0,
