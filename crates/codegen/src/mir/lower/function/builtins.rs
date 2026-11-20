@@ -1022,7 +1022,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns whether reading `expr` cannot revert: a constant that folds, or a variable reached
-    /// through plain identifiers and member accesses outside calldata, with no index or call.
+    /// through plain identifiers and member accesses, with no index, call or calldata.
     fn is_plain_read(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         let gcx = self.cx.gcx;
         let expr = expr.peel_parens();
@@ -1033,12 +1033,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if gcx.hir.variable(id).is_constant() {
             return gcx.const_eval().eval_var(id).is_ok();
         }
+        // Reading a calldata field or copying nested calldata checks offsets and lengths against
+        // the calldata size.
+        if gcx.type_of_expr(expr.id).is_some_and(lies_in_calldata) {
+            return false;
+        }
         match expr.kind {
             ExprKind::Ident(_) => true,
-            // A calldata field read checks its offset and length against the calldata size.
-            ExprKind::Member(base, _) => {
-                !gcx.type_of_expr(base.id).is_some_and(lies_in_calldata) && self.is_plain_read(base)
-            }
+            ExprKind::Member(base, _) => self.is_plain_read(base),
             _ => false,
         }
     }

@@ -129,16 +129,32 @@ fn @calldataField(arg0: slice<calldata>, arg1: i1) [selector=0x0ffe8935, pure, a
     ret
 }
 
-; function overflow(bool ok) external pure [selector 0x2dab65f2]
-fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+; function calldataError(Item calldata item, bool ok) external pure [selector 0x3f9285cb]
+fn @calldataError(arg0: slice<calldata>, arg1: i1) [selector=0x3f9285cb, pure, abi_params=[tuple<bytes>, bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     coverage 19
     coverage 20
-    jumpi arg0, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     coverage 21
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    icall require<custom_error [tuple<memory_bytes>]>, arg1, 0xd281273100000000000000000000000000000000000000000000000000000000, arg0
+    ret
+}
+
+; function overflow(bool ok) external pure [selector 0x2dab65f2]
+fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 22
+    coverage 23
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 24
     jump bb3
   bb3:                                            ; preds = bb1, bb2
     v0 = icall @constant_1
@@ -150,7 +166,7 @@ fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_return
 ; function message() internal pure returns (string memory)
 fn @message() -> ptr<memory> [pure] {
   bb0:
-    coverage 22
+    coverage 25
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
     v1 = ptradd v0, 32
@@ -161,13 +177,13 @@ fn @message() -> ptr<memory> [pure] {
 ; function call(bool ok) external pure [selector 0xb463fbfc]
 fn @call(arg0: i1) [selector=0xb463fbfc, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    coverage 23
-    coverage 24
+    coverage 26
+    coverage 27
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    coverage 25
+    coverage 28
     jump bb3
   bb3:                                            ; preds = bb1, bb2
     v0 = icall @message
