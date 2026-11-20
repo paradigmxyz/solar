@@ -83,7 +83,8 @@ Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen
   publishing). The job waits for approval of the `crates-io` deployment: approve
   it only after the GitHub release check above passes. It runs only for stable
   `v<version>` tags, checks that the tag still points at the commit it built,
-  and publishes only the crates that are missing from crates.io. Check that the
+  and publishes only the crates that are missing from crates.io, computed again
+  when the job starts, so a rerun of the failed job is safe. Check that the
   `custom-publish-crates` job passed and that every crate shows the new version
   on crates.io. If it fails, fix the cause and rerun the failed job.
 

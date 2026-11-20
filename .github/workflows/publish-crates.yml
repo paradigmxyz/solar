@@ -17,8 +17,8 @@ on:
 jobs:
   # Run everything that executes repository code or release artifacts here, in a job that cannot
   # request an OIDC token, and that has no token yet: the crates.io token lasts 30 minutes.
-  # `cargo publish --workspace` fails on a version that is already on crates.io, so this job
-  # lists the crates that are missing and a failed run can be rerun.
+  # `cargo publish --workspace` fails on a version that is already on crates.io, so the publish
+  # job lists the crates that are missing and a failed run can be rerun.
   check:
     name: Check the release
     runs-on: ubuntu-22.04
@@ -27,7 +27,6 @@ jobs:
       contents: read
     outputs:
       crates: ${{ steps.plan.outputs.crates }}
-      missing: ${{ steps.plan.outputs.missing }}
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -112,10 +111,7 @@ jobs:
             esac
           done < "$RUNNER_TEMP/crates.txt"
 
-          {
-            echo "crates=$(awk '{ printf "%s%s@%s", sep, $1, $2; sep = " " }' "$RUNNER_TEMP/crates.txt")"
-            echo "missing=$(paste -sd ' ' "$RUNNER_TEMP/missing.txt")"
-          } >> "$GITHUB_OUTPUT"
+          echo "crates=$(awk '{ printf "%s%s@%s", sep, $1, $2; sep = " " }' "$RUNNER_TEMP/crates.txt")" >> "$GITHUB_OUTPUT"
           if [ ! -s "$RUNNER_TEMP/missing.txt" ]; then
             echo "Every crate is already published."
           fi
@@ -123,7 +119,6 @@ jobs:
   publish:
     name: Publish to crates.io
     needs: check
-    if: ${{ needs.check.outputs.missing != '' }}
     runs-on: ubuntu-22.04
     environment: crates-io
     timeout-minutes: 30
@@ -141,21 +136,57 @@ jobs:
           persist-credentials: false
       - name: Install Rust
         run: rustup update "1.100.0" --no-self-update && rustup default "1.100.0"
+      # The approval wait and a rerun of only this job can outlive the check job's results, so
+      # compute what is missing again here, and check the tag once more right before the token.
+      - name: List missing crates
+        id: missing
+        shell: bash
+        env:
+          CRATES: ${{ needs.check.outputs.crates }}
+        run: |
+          user_agent="paradigmxyz/solar release workflow"
+          missing=()
+          for crate in $CRATES; do
+            name=${crate%@*}
+            crate_version=${crate#*@}
+            status=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -A "$user_agent" "https://crates.io/api/v1/crates/$name/$crate_version")
+            case "$status" in
+              200) ;;
+              404) missing+=("$name") ;;
+              *)
+                echo "::error::crates.io answered HTTP $status for $name@$crate_version"
+                exit 1
+                ;;
+            esac
+          done
+          echo "missing=${missing[*]}" >> "$GITHUB_OUTPUT"
+      - name: Check that the tag still points at this commit
+        if: steps.missing.outputs.missing != ''
+        shell: bash
+        run: |
+          refs=$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$GITHUB_REF_NAME" "refs/tags/$GITHUB_REF_NAME^{}")
+          tag_sha=$(printf '%s\n' "$refs" | awk '$2 ~ /\^\{\}$/ { peeled = $1 } $2 !~ /\^\{\}$/ { direct = $1 } END { print (peeled != "" ? peeled : direct) }')
+          if [ "$tag_sha" != "$GITHUB_SHA" ] || [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "::error::tag $GITHUB_REF_NAME points at ${tag_sha:-nothing}, not $GITHUB_SHA"
+            exit 1
+          fi
       - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        if: steps.missing.outputs.missing != ''
         id: auth
       # Cargo publishes the selected crates in dependency order and waits for the index. The
       # check job built the archives, so skip the verification build.
       - name: Publish crates
+        if: steps.missing.outputs.missing != ''
         shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-          MISSING: ${{ needs.check.outputs.missing }}
+          MISSING: ${{ steps.missing.outputs.missing }}
         run: |
           packages=()
           for name in $MISSING; do packages+=(-p "$name"); done
           cargo publish --locked --no-verify "${packages[@]}"
-      # Cargo can exit 0 when its index wait times out, so check that every crate is in the
-      # sparse index, which is where Cargo resolves versions from.
+      # Cargo can exit 0 when its index wait times out, and a release can already be complete, so
+      # always check that every crate is in the sparse index, where Cargo resolves versions from.
       - name: Check that every crate is published
         shell: bash
         env:
