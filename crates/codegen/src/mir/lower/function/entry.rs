@@ -17,7 +17,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     },
                 );
             } else {
+                // The widening belongs to the parameter's declaration.
+                let previous =
+                    self.builder.replace_source_span(self.cx.gcx.hir.variable(param).span);
                 let value = self.materialize_raw_scalar(param, value);
+                self.builder.replace_source_span(previous);
                 self.values.insert(param, value);
             }
         }
