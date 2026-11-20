@@ -20,33 +20,47 @@ fn @entry() [entry] {
 ; function combine(uint256 x) public pure returns (uint256) [selector 0xd9171e32]
 fn @combine() {
   bb0:
-    v23 = calldatasize
-    v24 = lt v23, 36
-    jumpi v24, bb3, bb4
-  bb4:                                            ; preds = bb0
-    v25 = calldataload 4
+    v28 = calldatasize
+    v29 = lt v28, 36
+    jumpi v29, bb1, bb5
+  bb5:                                            ; preds = bb0
+    v30 = calldataload 4
     v0 = alloc 96 !metadata(deferred_alloc)
-    v44 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    mstore v44, v25
-    v27 = add v44, 32
-    mstore v27, 1
-    v43 = add v44, 64
-    mstore v43, 2
-    v29 = add v44, 96
-    mstore v29, v25
-    v19 = add v25, v25
-    v20 = lt v19, v25
-    v21 = add v19, 3
-    v22 = lt v21, v19
-    v46 = or v20, v22
-    jumpi v46, bb1, bb2
-  bb2:                                            ; preds = bb4
-    mstore 0, v21 !metadata(memory=scratch)
+    v49 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v50 = add v49, 128 !metadata(alloc_ptr)
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v49, v30
+    v34 = add v49, 32
+    mstore v34, 1
+    v48 = add v49, 64
+    mstore v48, 2
+    v36 = add v49, 96
+    mstore v36, v30
+    mstore v0, v49
+    v38 = add v0, 32
+    mstore v38, v48
+    v40 = add v0, 64
+    mstore v40, 3
+    v10 = keccak256 v0, 96
+    v11 = eq v10, 0
+    jumpi v11, bb1, bb2
+  bb2:                                            ; preds = bb5
+    v42 = mload v0
+    v15 = mload v42
+    v19 = mload v36
+    v24 = add v15, v19
+    v25 = lt v24, v15
+    v26 = add v24, 3
+    v27 = lt v26, v24
+    v51 = or v25, v27
+    jumpi v51, bb3, bb4
+  bb4:                                            ; preds = bb2
+    mstore 0, v26 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:                                     ; preds = bb4
+  bb3 [cold]:                                     ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:                                     ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }

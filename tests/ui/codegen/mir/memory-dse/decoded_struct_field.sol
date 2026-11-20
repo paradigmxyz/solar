@@ -16,7 +16,7 @@ struct Params {
 
 contract DecodedStructField {
     // CHECK-LABEL: fn @tokenId
-    // CHECK: alloc 128 !metadata(deferred_alloc)
+    // CHECK-NOT: alloc
     // CHECK-NOT: mstore v{{[0-9]+}}
     // CHECK: mstore 0,
     // CHECK-NEXT: returndata 0, 32
