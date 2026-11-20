@@ -1,0 +1,8 @@
+; === solar-tv/examples/mir/external-calls/before.mir (after sccp) ===
+@module Messages
+fn @f() -> i256 {
+  bb0:
+    v1 = call 0x186a0, 0x40000, 0, 0, 0, 0, 32
+    v2 = mload 0
+    ret v2
+}

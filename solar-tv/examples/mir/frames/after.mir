@@ -1,0 +1,8 @@
+; === solar-tv/examples/mir/frames/before.mir (after lower-frame-slots,lower-slices,lower-memory-objects) ===
+@module State
+fn @f() -> i256 {
+  bb0:
+    mstore 129, 17
+    v1 = mload 129
+    ret v1
+}

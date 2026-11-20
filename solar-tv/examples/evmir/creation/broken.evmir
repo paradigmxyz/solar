@@ -1,0 +1,11 @@
+@module Creation
+bb0:
+  push 0x60fe5f5360015ff3
+  push 0
+  mstore
+  push 8
+  push 24
+  push 0
+  create
+  pop
+  stop

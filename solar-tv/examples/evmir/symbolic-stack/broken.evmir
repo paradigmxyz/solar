@@ -1,0 +1,7 @@
+@module SymbolicStack
+bb0 [stack=2]:
+  sub
+  push bb1
+  jump
+bb1 [stack=1]:
+  stop

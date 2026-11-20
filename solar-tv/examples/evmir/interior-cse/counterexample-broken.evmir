@@ -1,0 +1,11 @@
+@module BrokenInterior
+bb0 [stack=0]:
+ push 1
+ push 0
+ sstore
+ push 32
+ push 31
+ mstore
+ push 32
+ push 32
+ return

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "mir_layout": {
+    "functions": {
+      "make": {
+        "return_buffer": 256
+      }
+    }
+  }
+}

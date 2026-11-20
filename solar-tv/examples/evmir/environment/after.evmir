@@ -1,0 +1,8 @@
+@module Environment
+bb0:
+  push 42
+  push 0
+  mstore
+  push 32
+  push 0
+  return

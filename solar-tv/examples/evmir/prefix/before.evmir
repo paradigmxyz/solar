@@ -1,0 +1,12 @@
+@module Prefix
+bb0 [stack=5]:
+    push 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+    push 32
+    push 32
+    log3
+    push 1
+    push 0
+    mstore
+    push 32
+    push 0
+    return

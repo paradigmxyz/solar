@@ -1,0 +1,5 @@
+@module Examples
+fn @f() -> i256 {
+bb0:
+ret 100
+}

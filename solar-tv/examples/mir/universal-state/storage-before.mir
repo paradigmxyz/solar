@@ -1,0 +1,7 @@
+@module Void
+fn @f(arg0: i256) {
+bb0:
+  v0 = add arg0, 0
+  sstore 0, v0
+  ret
+}

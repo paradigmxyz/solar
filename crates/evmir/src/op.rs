@@ -20,7 +20,7 @@ const UNKNOWN_PREFIX: &str = "op_";
 
 /// Declarative properties of an EVM operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct OpcodeTraits(u8);
+pub struct OpcodeTraits(u16);
 
 impl OpcodeTraits {
     /// No additional properties.
@@ -50,6 +50,10 @@ impl OpcodeTraits {
     /// The operation runs another frame, so the executing call's return data buffer afterwards
     /// holds that frame's output: every call and create.
     pub const SETS_RETURNDATA: Self = Self(1 << 7);
+
+    /// The operation can inspect code bytes, code size, or a physical code offset.
+    /// Relocation-neutral validation needs an explicit code-image correspondence.
+    pub const OBSERVES_CODE: Self = Self(1 << 8);
 
     /// Returns the union of two property sets.
     pub const fn union(self, other: Self) -> Self {
@@ -365,15 +369,15 @@ opcodes! {
     // Calldata and code lengths are gas-bounded, even before code-size caps, and fit in 64 bits.
     0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
     0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
-    0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
+    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_CODE) => gas(base) => available(legacy) => result_bits(64);
+    0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY | OBSERVES_CODE) => gas(copy) => available(legacy);
     0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => result_bits(64) => input_bits(160);
-    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
+    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits(OBSERVES_CODE) => gas(extcode) => available(legacy) => result_bits(64) => input_bits(160);
+    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY | OBSERVES_CODE) => gas(extcode) => available(legacy) => input_bits(160);
     // Return data comes from gas-bounded EVM memory or precompile output, so its length fits in 64 bits.
     0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Byzantium) => result_bits(64);
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
-    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
+    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits(OBSERVES_CODE) => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
     0x41 => COINBASE => coinbase => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
     0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
@@ -394,7 +398,7 @@ opcodes! {
     0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(sstore) => available(legacy);
     0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
     0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
-    0x58 => PC => pc => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x58 => PC => pc => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_CODE) => gas(base) => available(legacy);
     0x59 => MSIZE => msize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
     0x5a => GAS => gas => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_GAS) => gas(base) => available(legacy);
     0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
@@ -1104,6 +1108,7 @@ mod tests {
                 ("observes_gas", def.observes_gas()),
                 ("context_read", def.is_context_read()),
                 ("sets_returndata", def.sets_returndata()),
+                ("observes_code", def.traits.contains(OpcodeTraits::OBSERVES_CODE)),
             ];
             for (name, set) in traits {
                 if set {

@@ -30,11 +30,11 @@ use alloy_primitives::Bytes;
 use solar_ir::link::LibraryId;
 
 use super::{
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationSemantics, ArithmeticKind, BlockId,
-    Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
-    StructId, ValueId, ValueLayout, typing,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AbiWordValidator, AllocationSemantics,
+    ArithmeticKind, BlockId, Builtin, CallPolicy, Callee, CheckedOp, DataRef, DataSize, EffectKind,
+    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind,
+    Semantics, StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;
@@ -652,6 +652,7 @@ attributes! {
     u64,
     LibraryId,
     AbiEncodeMode,
+    AbiWordValidator,
     AllocationSemantics,
     DataRef,
     DataSize,
@@ -837,7 +838,7 @@ macro_rules! define_mir_ops {
             }
 
             /// Every operation's mnemonic with its `#[semantics(...)]` declaration as written.
-            pub(crate) const DECLARED_SEMANTICS: &[(&str, &str)] = &[
+            pub const DECLARED_SEMANTICS: &[(&str, &str)] = &[
                 $( ($mnemonic, stringify!($( $( $semantics )+ )?)), )+
             ];
 
@@ -1247,6 +1248,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "insert_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
     #[operand_types(func => None)]
+    #[semantics(insert_value(ty, aggregate, index, value))]
     InsertValue { ty: MirType, aggregate: ValueId, index: u32, value: ValueId },
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
@@ -1254,6 +1256,7 @@ define_mir_ops! {
         phase_category: Some(PhaseCategory::Slice),
     })]
     #[operand_types(func => None)]
+    #[semantics(extract_value(ty, aggregate, index))]
     ExtractValue { ty: MirType, aggregate: ValueId, index: u32 },
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
@@ -1290,6 +1293,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "ptradd", result = Pointer, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::PointerArithmetic))]
     #[operand_types(func => Some(smallvec![typing::pointer(func, *ptr), MirType::I256]))]
+    #[semantics(pointer_add(ptr, offset))]
     PtrAdd(ptr: ValueId, offset: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::CheckedArithmetic))]
@@ -1304,38 +1308,49 @@ define_mir_ops! {
     #[mir_op(mnemonic = "validate_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(validate_storage_bytes(operand0))]
     ValidateStorageBytes(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_bytes", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(load_storage_bytes(operand0))]
     StorageBytesLoad(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_array", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(load_storage_array(slot, element, enum_variants))]
     StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
+    /// Copy a memory bytes object into storage. Overflow when rounding its byte
+    /// length to a word boundary is a memory allocation overflow (`Panic(0x41)`).
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]
+    #[semantics(store_storage_bytes(operand0, operand1))]
     StorageBytesStore(operand0: ValueId, operand1: ValueId),
     #[mir_op(mnemonic = "store_storage_bytes_literal", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(store_storage_bytes_literal(slot, bytes))]
     StorageBytesStoreLiteral { slot: ValueId, bytes: Bytes },
     #[mir_op(mnemonic = "clear_storage_words", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
+    #[semantics(clear_storage_words(operand0, operand1, operand2))]
     StorageClearWords(operand0: ValueId, operand1: ValueId, operand2: ValueId),
     #[mir_op(mnemonic = "validate_abi", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::AbiValidation))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
-    ValidateAbi(operand0: ValueId),
+    #[semantics(validate_abi(validator, value))]
+    ValidateAbi { validator: AbiWordValidator, value: ValueId },
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::packed_types(func, parts)))]
+    #[semantics(packed(parts, hash))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
     #[mir_op(mnemonic = "extcall", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::address_call_types(func, *input, gas.is_some(), value.is_some())))]
+    #[semantics(external_call(policy, address, input, gas, value))]
     ExtCall {
         policy: CallPolicy,
         address: ValueId,
@@ -1793,6 +1808,7 @@ define_mir_ops! {
     #[builder(memory_zero, void)]
     #[raw_memory(Write(offset, size))]
     #[operand_types(func => Some(smallvec![typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(memory_zero(offset, size))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
     #[mir_op(
@@ -1820,6 +1836,7 @@ define_mir_ops! {
     )]
     #[builder(fmp)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(free_pointer())]
     Fmp,
     /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
     /// can run this function, which codegen fixes once it has placed the frames and spill slots
@@ -1866,6 +1883,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::AbiEncoding)
     )]
     #[operand_types(func => Some(typing::abi_encode_types(func, base.is_some(), selector.is_some(), args, layout)))]
+    #[semantics(abi_encode(mode, base, selector, args, layout))]
     AbiEncode {
         /// Storage policy for the encoded result.
         mode: AbiEncodeMode,
@@ -1894,6 +1912,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::AbiDecoding)
     )]
     #[operand_types(func => Some(smallvec![typing::read_object(func, *data)]))]
+    #[semantics(abi_decode(data, layout))]
     AbiDecode {
         /// ABI-encoded bytes object, or a memory or calldata slice of the encoding.
         data: ValueId,
@@ -1949,6 +1968,7 @@ define_mir_ops! {
         mnemonic: "make_returndata_slice",
     })]
     #[operand_types(func => Some(smallvec![MirType::Ptr(*location), MirType::I256]))]
+    #[semantics(make_slice(location, ptr, len))]
     MakeSlice {
         /// Pointer to the first element or byte.
         ptr: ValueId,
@@ -1968,6 +1988,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(internal_frame_address(offset))]
     InternalFrameAddr(offset: u64),
     /// Load a mutable local through its logical frame slot.
     ///
@@ -1984,6 +2005,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::FrameSlot)
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(frame_load(offset, mode, kind))]
     FrameLoad {
         /// Byte offset within the function's local region.
         offset: u64,
@@ -2003,6 +2025,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::FrameSlot)
     )]
     #[operand_types(func => Some(smallvec![kind.result_type()]))]
+    #[semantics(frame_store(offset, mode, kind, value))]
     FrameStore {
         /// Byte offset within the function's local region.
         offset: u64,
@@ -2025,6 +2048,7 @@ define_mir_ops! {
     )]
     #[builder(constructor_args_base)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(constructor_args_base())]
     ConstructorArgsBase,
     /// End address of the constructor's copied ABI argument blob.
     #[mir_op(
@@ -2038,6 +2062,7 @@ define_mir_ops! {
     )]
     #[builder(constructor_args_end)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(constructor_args_end())]
     ConstructorArgsEnd,
 
     // Code operations
@@ -2071,6 +2096,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(linked_data_size(size))]
     DataSize(size: DataSize),
     /// Get code size: `codesize()`
     #[mir_op(
@@ -2155,6 +2181,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::ImmutableAssignment)
     )]
     #[operand_types(func => None)]
+    #[semantics(immutable_store(id, value))]
     StoreImmutable(id: ImmutableId, value: ValueId),
     /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
@@ -2171,6 +2198,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => None)]
+    #[semantics(immutable_read(id))]
     LoadImmutable(id: ImmutableId),
 
     /// A library address whose value is supplied by the linker.
@@ -2184,6 +2212,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(library_address(library))]
     LibraryAddress(library: LibraryId),
 
     // Return data operations
@@ -2501,6 +2530,7 @@ define_mir_ops! {
     )]
     #[builder(mapping_slot)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[semantics(mapping_slot(key, slot))]
     MappingSlot(key: ValueId, slot: ValueId),
     /// Hash a `bytes` or `string` mapping key, a memory object or a calldata slice, and its
     /// parent mapping slot.
@@ -2518,6 +2548,7 @@ define_mir_ops! {
     )]
     #[builder(mapping_slot_bytes)]
     #[operand_types(func => Some(smallvec![typing::bytes_key(func, *key), MirType::I256]))]
+    #[semantics(mapping_slot_bytes(key, slot))]
     MappingSlotBytes(key: ValueId, slot: ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
@@ -2533,6 +2564,7 @@ define_mir_ops! {
     )]
     #[builder(storage_array_data_slot)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(storage_array_data_slot(slot))]
     StorageArrayDataSlot(slot: ValueId),
     /// Resolve one element slot in a dynamic storage array.
     ///
@@ -2549,6 +2581,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::StorageSlot)
     )]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[semantics(storage_array_element_slot(slot, index, element_slots))]
     StorageArrayElementSlot { slot: ValueId, index: ValueId, element_slots: u64 },
 
     // Call operations

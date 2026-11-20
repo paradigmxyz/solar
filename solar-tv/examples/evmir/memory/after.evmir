@@ -1,0 +1,8 @@
+; === solar-tv/examples/evmir/memory/before.evmir (after peephole) ===
+@module Memory
+bb0 [stack=1]:
+  push 0
+  mstore
+  push 32
+  push 0
+  return

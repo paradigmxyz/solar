@@ -14,7 +14,12 @@ use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{MirPhase, Module};
 
 mod machine;
-pub use machine::{Host, Log};
+mod values;
+pub use machine::{
+    ExternalMessage, Host, Log, MessageError, MessageOutput, PendingChanges, PlacementRead,
+};
+
+pub mod replay;
 
 /// How a run ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -165,7 +170,7 @@ fn execution_from(outcome: RunOutcome, effects: Effects) -> Execution {
         RunOutcome::ReturnData(data) => Outcome::Success(data),
         RunOutcome::Stop => Outcome::Success(Vec::new()),
         RunOutcome::Revert(data) => Outcome::Revert(data),
-        RunOutcome::Invalid => Outcome::Halt,
+        RunOutcome::Invalid | RunOutcome::OutOfGas => Outcome::Halt,
         RunOutcome::ReturndataOutOfBounds => Outcome::ReturndataOutOfBounds,
         RunOutcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),
         RunOutcome::Limit(Limit::Depth) => Outcome::Unsupported("nests calls too deeply".into()),
@@ -306,5 +311,90 @@ fn @twice(arg0: i256) -> i256 {
             run(frames, "    mstore 0xe0, 1\n"),
             Outcome::Success(U256::from(0x100).to_be_bytes_vec())
         );
+    }
+
+    #[test]
+    fn external_replay_requires_a_message_host() {
+        for operation in [
+            "call 100, 2, 0, 0, 0, 0, 0",
+            "callcode 100, 2, 0, 0, 0, 0, 0",
+            "delegatecall 100, 2, 0, 0, 0, 0",
+            "staticcall 100, 2, 0, 0, 0, 0",
+            "create 0, 0, 0",
+            "create2 0, 0, 0, 0",
+        ] {
+            let module =
+                format!("@module Replay\nfn @f() -> i256 {{\nbb0:\nv0 = {operation}\nret 0\n}}\n");
+            let result = replay::run(&module, &[], &[], 0, Options::default()).unwrap();
+            assert!(matches!(result.outcome, replay::Outcome::Unsupported(_)), "{operation}");
+            let result = replay::run_state(
+                &module,
+                replay::StateInput {
+                    function: None,
+                    arguments: &[],
+                    memory: &[],
+                    memory_size: 0,
+                    calldata: &[],
+                },
+                &mut Zero,
+                Options::default(),
+            )
+            .unwrap();
+            assert!(matches!(result.outcome, replay::StateOutcome::Unsupported(_)), "{operation}");
+        }
+    }
+    #[test]
+    fn replay_product_boundaries() {
+        let source = "@module Products\n@types\nstruct0: {i256,i1}\nfn @f(arg0: struct0) -> struct0 {\nbb0:\nv0 = insert_value struct0, arg0, 1, false\nret v0\n}\n";
+        let result =
+            replay::run(source, &[U256::from(9), U256::from(1)], &[], 0, Options::default())
+                .unwrap();
+        let replay::Outcome::Return(values) = result.outcome else {
+            panic!("product did not return")
+        };
+        assert_eq!(values, [U256::from(9), U256::ZERO]);
+    }
+
+    #[test]
+    fn replay_partial_products_do_not_invent_fields() {
+        let source = "@module Products\n@types\nstruct0: {i256,i1}\nfn @f() -> i256 {\nbb0:\nv0 = insert_value struct0, undef struct0, 0, 7\nv1 = extract_value struct0, v0, 0\nret v1\n}\n";
+        let result = replay::run(source, &[], &[], 0, Options::default()).unwrap();
+        let replay::Outcome::Return(values) = result.outcome else {
+            panic!("defined field did not return")
+        };
+        assert_eq!(values, [U256::from(7)]);
+        let source =
+            source.replace("fn @f() -> i256", "fn @f() -> i1").replace("v0, 0\nret", "v0, 1\nret");
+        let result = replay::run(&source, &[], &[], 0, Options::default()).unwrap();
+        assert!(matches!(result.outcome, replay::Outcome::Unsupported(_)));
+    }
+
+    #[test]
+    fn replay_abi_obligations_use_explicit_rules() {
+        for (rule, clean, dirty) in [
+            ("uint1", U256::ONE, U256::from(2)),
+            ("uint8", U256::from(255), U256::from(256)),
+            ("uint255", (U256::ONE << 255) - U256::ONE, U256::ONE << 255),
+            ("int8", U256::MAX, U256::from(255)),
+            ("bytes2", U256::from(0xabcd) << 240, (U256::from(0xabcd) << 240) | U256::ONE),
+            ("bytes24", U256::from(17) << 64, (U256::from(17) << 64) | U256::ONE),
+            ("bool", U256::ONE, U256::from(2)),
+            ("enum 3", U256::from(2), U256::from(3)),
+        ] {
+            let source = format!(
+                "@module Abi\nfn @f(arg0: i256) -> i256 {{\nbb0:\nvalidate_abi {rule}, arg0\nret arg0\n}}\n"
+            );
+            for (word, canonical) in [(clean, true), (dirty, false)] {
+                let result = replay::run(&source, &[word], &[], 0, Options::default()).unwrap();
+                match result.outcome {
+                    replay::Outcome::Return(values) if canonical => assert_eq!(values, [word]),
+                    replay::Outcome::Unsupported(reason) if !canonical => {
+                        assert_eq!(reason, "unproved ABI canonicality obligation");
+                    }
+                    outcome => panic!("unexpected {rule} obligation outcome: {outcome:?}"),
+                }
+                assert_eq!(result.memory_size, 0, "an obligation must not expand memory");
+            }
+        }
     }
 }

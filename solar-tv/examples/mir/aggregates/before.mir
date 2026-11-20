@@ -1,0 +1,17 @@
+@module Aggregates
+@types
+  struct0: {i256, i1}
+  struct1: {struct0, i256}
+
+fn @f(arg0: struct1, arg1: i1) -> i256 {
+bb0:
+  v0 = extract_value struct1, arg0, 0
+  v1 = insert_value struct0, v0, 0, 7
+  v2 = insert_value struct1, arg0, 0, v1
+  v3 = select arg1, v2, arg0
+  v4 = extract_value struct1, v3, 0
+  v5 = extract_value struct0, v4, 0
+  v6 = extract_value struct1, v3, 1
+  v7 = add v5, v6
+  ret v7
+}

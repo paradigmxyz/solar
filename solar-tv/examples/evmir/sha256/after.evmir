@@ -1,0 +1,8 @@
+@module Hash
+bb0:
+  push 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  push 0
+  mstore
+  push 32
+  push 0
+  return

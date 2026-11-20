@@ -1,0 +1,53 @@
+@module Morpho
+@immutables
+  DOMAIN_SEPARATOR: bytes32
+fn @constructor() [constructor, creation_only] {
+  bb0:
+    v18 = callvalue
+    v19 = ne v18, 0
+    jumpi v19, bb4, bb1
+  bb1:
+    v11 = constructor_args_base
+    v12 = constructor_args_end
+    v13 = add v11, 32
+    v14 = lt v12, v13
+    jumpi v14, bb4, bb5
+  bb5:
+    v15 = mload v11
+    v16 = gt v15, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v16, bb4, bb6
+  bb6:
+    v17 = trunc i256 v15 to i160
+    v0 = ne v17, i160 0
+    jumpi v0, bb3, bb2
+  bb2 [cold]:
+    icall @revert_error, 12, 0x7a65726f20616464726573730000000000000000000000000000000000000000
+    invalid
+  bb3:
+    v1 = chainid
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v20 = fmp
+    v26 = ptrtoint ptr<memory> v20 to i256
+    mstore v26, 0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218
+    v22 = add v26, 32
+    mstore v22, v1
+    v24 = add v26, 64
+    mstore v24, v3
+    v7 = keccak256 v26, 96
+    mstore 192, v7
+    v8 = zext i160 v17 to i256
+    sstore 0, v8 !metadata(storage=slot(0))
+    log 0, 0, 0x167d3e9c1016ab80e58802ca9da10ce5c6a0f4debc46a2e7a2cd9e56899a4fb5, v8
+    ret
+  bb4 [cold]:
+    revert 0, 0
+}
+fn @revert_error(arg0: i256, arg1: i256) [cold] {
+  bb0 [cold]:
+    mstore 32, 32 !metadata(memory=scratch)
+    mstore 64, arg0 !metadata(memory=scratch)
+    mstore 96, arg1 !metadata(memory=scratch)
+    mstore 0, 0x8c379a0 !metadata(memory=scratch)
+    revert 28, 100
+}
