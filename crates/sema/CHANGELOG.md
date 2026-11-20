@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [sema] Inherit NatSpec through diamond bases ([#2718](https://github.com/paradigmxyz/solar/issues/2718))
 - [sema] Type mapping keys as memory pointers ([#2714](https://github.com/paradigmxyz/solar/issues/2714))
 - [sema] Drop pointer suffix from storage array bases ([#2716](https://github.com/paradigmxyz/solar/issues/2716))
 - [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))
@@ -41,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- [codegen] Count each struct once in storage walks ([#2735](https://github.com/paradigmxyz/solar/issues/2735))
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
 - [sema] Cache literal and builtin type descriptions ([#2683](https://github.com/paradigmxyz/solar/issues/2683))
 - [sema] Reuse per-item results across contracts ([#2660](https://github.com/paradigmxyz/solar/issues/2660))

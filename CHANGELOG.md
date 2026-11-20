@@ -37,6 +37,13 @@ blog post: AMD EPYC 9254, solc 0.8.38, Cancun, Solar `--profile bench`, main at
 
 ### Bug Fixes
 
+- [codegen] Load recursive fixed arrays via helper ([#2731](https://github.com/paradigmxyz/solar/issues/2731))
+- [codegen] Share calldata abi.decode helpers ([#2730](https://github.com/paradigmxyz/solar/issues/2730))
+- [codegen] Keep the origin of a single-use read ([#2721](https://github.com/paradigmxyz/solar/issues/2721))
+- [codegen] Drop origin of inline bypassed arm exit ([#2724](https://github.com/paradigmxyz/solar/issues/2724))
+- [codegen] Map the wrapper exit to the closing brace ([#2725](https://github.com/paradigmxyz/solar/issues/2725))
+- [codegen] Type low-level call results in tuple assignments ([#2723](https://github.com/paradigmxyz/solar/issues/2723))
+- [sema] Inherit NatSpec through diamond bases ([#2718](https://github.com/paradigmxyz/solar/issues/2718))
 - [codegen] Follow slices and pointer arithmetic ([#2715](https://github.com/paradigmxyz/solar/issues/2715))
 - [sema] Type mapping keys as memory pointers ([#2714](https://github.com/paradigmxyz/solar/issues/2714))
 - [sema] Drop pointer suffix from storage array bases ([#2716](https://github.com/paradigmxyz/solar/issues/2716))
@@ -177,6 +184,10 @@ blog post: AMD EPYC 9254, solc 0.8.38, Cancun, Solar `--profile bench`, main at
 
 ### Performance
 
+- [codegen] Bound heap_floor so dead allocation checks fold ([#2734](https://github.com/paradigmxyz/solar/issues/2734))
+- [codegen] Count each struct once in storage walks ([#2735](https://github.com/paradigmxyz/solar/issues/2735))
+- [codegen] Remove unused deferred allocations ([#2736](https://github.com/paradigmxyz/solar/issues/2736))
+- [codegen] Share nested ABI decode shapes ([#2729](https://github.com/paradigmxyz/solar/issues/2729))
 - [mir] Hoist memory reads over affine stores in unknown-trip loops ([#2695](https://github.com/paradigmxyz/solar/issues/2695))
 - [cli] Write the largest ASTs while codegen runs ([#2685](https://github.com/paradigmxyz/solar/issues/2685))
 - [sema] Cache literal and builtin type descriptions ([#2683](https://github.com/paradigmxyz/solar/issues/2683))

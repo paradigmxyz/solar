@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [codegen] Load recursive fixed arrays via helper ([#2731](https://github.com/paradigmxyz/solar/issues/2731))
+- [codegen] Share calldata abi.decode helpers ([#2730](https://github.com/paradigmxyz/solar/issues/2730))
+- [codegen] Keep the origin of a single-use read ([#2721](https://github.com/paradigmxyz/solar/issues/2721))
+- [codegen] Drop origin of inline bypassed arm exit ([#2724](https://github.com/paradigmxyz/solar/issues/2724))
+- [codegen] Map the wrapper exit to the closing brace ([#2725](https://github.com/paradigmxyz/solar/issues/2725))
+- [codegen] Type low-level call results in tuple assignments ([#2723](https://github.com/paradigmxyz/solar/issues/2723))
 - [codegen] Follow slices and pointer arithmetic ([#2715](https://github.com/paradigmxyz/solar/issues/2715))
 - [codegen] Follow calldata addresses through calls ([#2564](https://github.com/paradigmxyz/solar/issues/2564))
 - [codegen] Leave pointer dispatcher cases unlocated ([#2712](https://github.com/paradigmxyz/solar/issues/2712))
@@ -105,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- [codegen] Bound heap_floor so dead allocation checks fold ([#2734](https://github.com/paradigmxyz/solar/issues/2734))
+- [codegen] Count each struct once in storage walks ([#2735](https://github.com/paradigmxyz/solar/issues/2735))
+- [codegen] Remove unused deferred allocations ([#2736](https://github.com/paradigmxyz/solar/issues/2736))
+- [codegen] Share nested ABI decode shapes ([#2729](https://github.com/paradigmxyz/solar/issues/2729))
 - [mir] Hoist memory reads over affine stores in unknown-trip loops ([#2695](https://github.com/paradigmxyz/solar/issues/2695))
 - [codegen] Read fits tests that fail to cold code as shifts ([#2672](https://github.com/paradigmxyz/solar/issues/2672))
 - [codegen] Hoist pushed words in the stack plan ([#2520](https://github.com/paradigmxyz/solar/issues/2520))

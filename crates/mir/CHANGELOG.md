@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [codegen] Map the wrapper exit to the closing brace ([#2725](https://github.com/paradigmxyz/solar/issues/2725))
 - [codegen] Cap the heap prefix guard at the heap start ([#2694](https://github.com/paradigmxyz/solar/issues/2694))
 - [codegen] Leave if arm exits without a location ([#2699](https://github.com/paradigmxyz/solar/issues/2699))
 - [codegen] Map bypassed arm assignments to their edge ([#2668](https://github.com/paradigmxyz/solar/issues/2668))
@@ -37,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- [codegen] Bound heap_floor so dead allocation checks fold ([#2734](https://github.com/paradigmxyz/solar/issues/2734))
+- [codegen] Remove unused deferred allocations ([#2736](https://github.com/paradigmxyz/solar/issues/2736))
+- [codegen] Share nested ABI decode shapes ([#2729](https://github.com/paradigmxyz/solar/issues/2729))
 - [codegen] Scope dangling alias cleanup ([#2645](https://github.com/paradigmxyz/solar/issues/2645))
 - [codegen] Encode calldata returns in place ([#2575](https://github.com/paradigmxyz/solar/issues/2575))
 - [codegen] Stage calldata hash inputs ([#2504](https://github.com/paradigmxyz/solar/issues/2504))

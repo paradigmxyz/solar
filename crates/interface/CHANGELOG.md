@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [codegen] Share calldata abi.decode helpers ([#2730](https://github.com/paradigmxyz/solar/issues/2730))
 - [cli] Read Standard JSON imports from disk like solc ([#2522](https://github.com/paradigmxyz/solar/issues/2522))
 - [codegen] Merge coalesced copy origins and keep events unique ([#2481](https://github.com/paradigmxyz/solar/issues/2481))
 - [sema] Order import DFS roots by raw source unit name ([#2409](https://github.com/paradigmxyz/solar/issues/2409))
