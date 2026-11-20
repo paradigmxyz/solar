@@ -1251,11 +1251,13 @@ fn returns_result(
         _ => 1,
     };
     let result = func.inst_result_value(call);
-    let result_words = result.and_then(|result| func.value_ty(result)).map(words);
-    // The values that equal the call's result, the field of the result that each other value
-    // holds, and the fields that each unfinished aggregate has back in place.
+    let result_ty = result.and_then(|result| func.value_ty(result));
+    let result_words = result_ty.map(words);
+    let result_slice = matches!(result_ty, Some(MirType::Slice(_)));
+    // The values that equal the call's result, the path to the part of the result that each other
+    // value holds, and the fields that each unfinished aggregate has back in place.
     let mut whole = FxHashSet::from_iter(result);
-    let mut fields = FxHashMap::default();
+    let mut fields = FxHashMap::<ValueId, Vec<u32>>::default();
     let mut built = FxHashMap::<ValueId, FxHashSet<u32>>::default();
     let mut project = |instructions: &[InstId]| {
         for &inst in instructions {
@@ -1265,17 +1267,31 @@ fn returns_result(
                 InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
                     if whole.contains(&operand) {
                         whole.insert(output);
-                    } else if let Some(&field) = fields.get(&operand) {
-                        fields.insert(output, field);
+                    } else if let Some(path) = fields.get(&operand) {
+                        let path = path.clone();
+                        fields.insert(output, path);
                     }
                 }
-                InstKind::ExtractValue { aggregate, index, .. } if whole.contains(&aggregate) => {
-                    fields.insert(output, index);
+                InstKind::ExtractValue { aggregate, index, .. } => {
+                    let mut path = if whole.contains(&aggregate) {
+                        Vec::new()
+                    } else if let Some(path) = fields.get(&aggregate) {
+                        path.clone()
+                    } else {
+                        continue;
+                    };
+                    path.push(index);
+                    fields.insert(output, path);
                 }
                 // A field of the result goes back into the field it came from.
                 InstKind::InsertValue { ty, aggregate, index, value }
-                    if Some(words(ty)) == result_words && fields.get(&value) == Some(&index) =>
+                    if Some(words(ty)) == result_words
+                        && fields.get(&value).is_some_and(|path| path == &[index]) =>
                 {
+                    if whole.contains(&aggregate) {
+                        whole.insert(output);
+                        continue;
+                    }
                     let mut back = match func.value(aggregate) {
                         Value::Undef(_) => FxHashSet::default(),
                         _ => built.get(&aggregate).cloned().unwrap_or_default(),
@@ -1286,14 +1302,22 @@ fn returns_result(
                     }
                     built.insert(output, back);
                 }
-                // A slice made again from the two fields of the result.
+                // A slice made again from the pointer and the length of a slice of the result.
                 InstKind::MakeSlice { ptr, len, .. }
-                    if fields.get(&ptr) == Some(&MirType::SLICE_PTR_FIELD)
-                        && fields.get(&len) == Some(&MirType::SLICE_LEN_FIELD) =>
+                    if let Some((&MirType::SLICE_PTR_FIELD, slice)) =
+                        fields.get(&ptr).and_then(|path| path.split_last())
+                        && let Some((&MirType::SLICE_LEN_FIELD, same)) =
+                            fields.get(&len).and_then(|path| path.split_last())
+                        && slice == same =>
                 {
-                    whole.insert(output);
+                    if !slice.is_empty() {
+                        let slice = slice.to_vec();
+                        fields.insert(output, slice);
+                    } else if result_slice {
+                        whole.insert(output);
+                    }
                 }
-                InstKind::ExtractValue { .. } | InstKind::InsertValue { .. } => {}
+                InstKind::InsertValue { .. } => {}
                 _ => return false,
             }
         }
