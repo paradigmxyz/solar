@@ -448,7 +448,10 @@ fn snapshotless_filecheck_revisions(src: &str, path: &Path) -> Vec<String> {
                 Some(revisions) => scoped.extend(revisions),
                 None => unscoped = true,
             }
-        } else if directive.contains("compile-flags") && directive.contains("-Zdump=") {
+        } else if directive
+            .strip_prefix("compile-flags:")
+            .is_some_and(|flags| flags.split_whitespace().any(|flag| flag.starts_with("-Zdump=")))
+        {
             // `None` dumps in every revision.
             dumps.push(revisions.map(Iterator::collect::<Vec<_>>));
         }
