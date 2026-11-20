@@ -25,11 +25,18 @@
 // CHECK-NEXT: 13,
 // CHECK: {{^ *551,$}}
 // CHECK-NEXT: 13,
+// A Yul header has no `)`, so the gap starts where the condition of the `if` or the post block of
+// the `for` ends.
+// CHECK: "name": "A.sol:H.yul(uint256)",
+// CHECK: {{^ *696,$}}
+// CHECK-NEXT: 13,
+// CHECK: {{^ *806,$}}
+// CHECK-NEXT: 13,
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract H {\n    function h(uint256 v) public pure returns (uint256) {\n        if (v == 1)\n            return 5;\n        if (v == 0) v = 3;\n        else v = 4;\n        return v;\n    }\n\n    function loops(uint256 n) public pure returns (uint256 r) {\n        while (n > 100)\n            n--;\n        for (uint256 i = 0; i < n; i++)\n            r += i;\n        do\n            r++;\n        while (r < 3);\n    }\n\n    function noUpdate(uint256 n, bool take) public pure returns (uint256) {\n        for (; n != 0;)\n            --n;\n        if (take // note\r)\n            return 1;\n        return n;\n    }\n}\n"
+      "content": "contract H {\n    function h(uint256 v) public pure returns (uint256) {\n        if (v == 1)\n            return 5;\n        if (v == 0) v = 3;\n        else v = 4;\n        return v;\n    }\n\n    function loops(uint256 n) public pure returns (uint256 r) {\n        while (n > 100)\n            n--;\n        for (uint256 i = 0; i < n; i++)\n            r += i;\n        do\n            r++;\n        while (r < 3);\n    }\n\n    function noUpdate(uint256 n, bool take) public pure returns (uint256) {\n        for (; n != 0;)\n            --n;\n        if (take // note\r)\n            return 1;\n        return n;\n    }\n\n    function yul(uint256 n) public pure returns (uint256 r) {\n        assembly {\n            if n\n            {\n                r := 1\n            }\n            for { let i := 0 } lt(i, n) { i := add(i, 1) }\n            {\n                r := add(r, i)\n            }\n        }\n    }\n}\n"
     }
   },
   "settings": {

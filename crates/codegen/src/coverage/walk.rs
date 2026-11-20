@@ -305,7 +305,8 @@ impl<'gcx> Walker<'gcx> {
     }
 
     /// Returns the position after the `)` that follows `from`, past whitespace, comments and the
-    /// second `;` of a `for` header without an update, if the text up to `limit` has one.
+    /// second `;` of a `for` header without an update, if the text up to `limit` has one, or
+    /// `from` itself when only whitespace and comments follow, as after a Yul header.
     fn after_paren(&self, from: BytePos, limit: BytePos) -> Option<BytePos> {
         let files = self.gcx.sess.source_map().files();
         let text = files.span_to_snippet(Span::new(from, limit)).ok()?;
@@ -322,6 +323,10 @@ impl<'gcx> Walker<'gcx> {
             } else {
                 break;
             }
+        }
+        // A Yul header has no `)`: its body follows it directly.
+        if rest.is_empty() {
+            return Some(from);
         }
         rest.starts_with(')').then(|| BytePos(from.0 + (text.len() - rest.len()) as u32 + 1))
     }
