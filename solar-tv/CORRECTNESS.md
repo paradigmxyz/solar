@@ -785,6 +785,26 @@ Independent replay compares the original operations with the lowered form at
 a concrete sampled budget. It catches a shifted payload store, a corrupt
 scratch clear, and a request too small to run the recovery precompile.
 
+The separate emitted recovery certificate reads the actual GAS and STATICCALL
+bytes from the captured runtime. GAS either exhausts the frame or deducts
+two gas and pushes its remaining balance directly into STATICCALL. Given the
+matched scratch memory, calldata slice, stack arguments and journal at that
+cut, the kernel derives the MIR message budget from the frame. It compares
+both memory debits, the EIP-150 split, the child result, unused gas and work.
+Native replay checks exhaustion at GAS and at STATICCALL. Replacing GAS with
+PUSH0 changes the returned status word. Pricing before this cut remains open.
+
+The reentry certificate executes Morpho's emitted dispatcher and substitutes
+the actual captured `owner()` MIR at the checked getter PC. Both typed bodies
+read arbitrary slot-zero data and publish the same address as the emitted
+instructions, including the discarded high bits, slot warming, memory charge,
+remaining gas and work. The recursive driver proves that this substitution
+preserves the entire EVM result across nested calls and continuations.
+Independent replay covers a token that reenters the getter, retains its
+result on success and loses its write on the outer revert. Other selectors
+execute with the bytecode interpreter. Typed correspondence for reentrant
+writes or reentry into the changed bodies remains open.
+
 The CALL debit lemma relates the EVM input and output memory steps to
 MIR's cumulative debit. It covers both unpaid legs, including an input
 that fits the budget and an output that does not. The existing

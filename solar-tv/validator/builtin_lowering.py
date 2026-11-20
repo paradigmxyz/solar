@@ -795,7 +795,7 @@ def check(
 
         runtime, directory, worlds = final_call["caller_entry"]
         artifact = final_call["artifact"]
-        entry_paths, suite, context = caller_entry.check(
+        entry_paths, suite, context, boundaries = caller_entry.check(
             runtime,
             artifact["entry_pc"],
             final_call["callers"],
@@ -837,6 +837,7 @@ def check(
             "paths": entry_paths,
             "proof": suite,
             "shared_mir_context": context,
+            **boundaries,
             "safe_transfer_call": {
                 "proof": transfer.name,
                 "scope": "local CALL and returndata expansion with a shared incoming budget",

@@ -14,6 +14,8 @@ from . import (
     market_proof,
     mir_state,
     native,
+    owner_reentry,
+    recovery_boundary,
     world,
 )
 from .callers import require
@@ -270,6 +272,8 @@ theorem {side}_live :
 def check(
     runtime, helper_pc, sites, tables, directory, solar, executable, timeout, worlds
 ):
+    from .call_budget import decode_runtime
+
     directory.mkdir()
     built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
@@ -291,11 +295,24 @@ def check(
     catalog = {
         row["opcode"]: row for row in native.catalog(executable, timeout)["evmir"]
     }
-    context = caller_context.certify(
-        kernel, tables, sites, {row["name"]: row for row in catalog.values()}, timeout
-    )
+    names = {row["name"]: row for row in catalog.values()}
+    context = caller_context.certify(kernel, tables, sites, names, timeout)
+    decoded = decode_runtime(runtime, names)
+    boundaries = None
     for site in sites:
         state = fixtures(runtime, site, directory, solar, timeout, worlds)
+        if boundaries is None:
+            recovery = recovery_boundary.find(decoded)
+            owner = owner_reentry.steps(runtime, decoded, names)
+            config = world.configuration(solar, FORK, state, timeout, executable)
+            boundaries = {
+                "recovery_boundary": recovery_boundary.certify(
+                    kernel, recovery, state, solar, executable, timeout
+                ),
+                "reentrant_owner": owner_reentry.certify(
+                    kernel, owner, config, tables, names, timeout
+                ),
+            }
         observed = replay(state, helper_pc, executable, timeout)
         routed = replay(state, site.abi_pc, executable, timeout)
         route = dispatch_proof.plan(runtime, site, observed["pcs"], catalog)
@@ -425,4 +442,9 @@ def check(
             "gas": observed["gas"],
             "steps": len(observed["pcs"]),
         }
-    return evidence, entry_proof.certify_suite(kernel, evidence, timeout), context
+    return (
+        evidence,
+        entry_proof.certify_suite(kernel, evidence, timeout),
+        context,
+        boundaries,
+    )

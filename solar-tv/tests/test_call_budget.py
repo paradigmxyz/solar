@@ -134,6 +134,10 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertTrue(
                     (output / "entry" / entry_report[name]["proof"]).is_file()
                 )
+            for name in ("recovery_boundary", "reentrant_owner"):
+                self.assertTrue(
+                    (output / "entry" / entry_report[name]["proof"]).is_file()
+                )
             entry = entry_report["paths"]
             self.assertEqual(set(entry), set(report["caller_replays"]))
             for site in report["callers"]:
