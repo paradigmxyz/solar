@@ -1287,7 +1287,7 @@ fn returns_result(
                     partial.extend(result);
                 }
                 // A word of the result goes back into the field it came from, onto an empty
-                // aggregate of the result's type or one that the earlier words built.
+                // aggregate of the result's width or one that the earlier words built.
                 InstKind::InsertValue { ty, aggregate, index, value }
                     if Some(words(ty)) == result_words
                         && (matches!(func.value(aggregate), Value::Undef(_))
@@ -1297,7 +1297,8 @@ fn returns_result(
                             aggregate: source, index: field, ..
                         } = func.inst(word).kind
                         && field == index
-                        && derived.contains(&source) =>
+                        && derived.contains(&source)
+                        && !partial.contains(&source) =>
                 {
                     derived.extend(result);
                 }
