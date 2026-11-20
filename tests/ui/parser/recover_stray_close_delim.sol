@@ -1,6 +1,6 @@
 //@compile-flags: -Zrecover-incomplete-input
 
-// A stray `)` or `]` in a nested block must be skipped, not re-parsed by the enclosing block.
+// Recovery must advance past a token it already reported instead of failing at it again.
 
 contract C {
     function whileLoop() public {
@@ -21,18 +21,35 @@ contract C {
         } while (true);
     }
 
+    function bracket() public {
+        while (true) {
+            if (] //~ ERROR: expected one of
+        }
+    }
+
     function orphanElse() public {
         if () {} else {} //~ ERROR: expected one of
         //~^ ERROR: expected one of
     }
 
-    function later() public {
-        uint8 value = 300; //~ ERROR: mismatched types
+    function mismatchedCall() public {
+        f(1, ]; //~ ERROR: expected one of
+        //~^ ERROR: expected one of
     }
 
-    function bracket() public {
-        while (true) {
-            if (] //~ ERROR: expected one of
-        }
+    function tuple() public {
+        (x, (1, } //~ ERROR: expected one of
+
+    function doWithoutWhile() public {
+        do x; } //~ ERROR: expected `while`
+
+    function yul() public {
+        assembly {
+            pop(] } //~ ERROR: expected one of
+            //~^ ERROR: wrong argument count
+    }
+
+    function later() public {
+        uint8 value = 300; //~ ERROR: mismatched types
     }
 }

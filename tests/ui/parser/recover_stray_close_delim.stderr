@@ -16,6 +16,12 @@ error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elemen
 LL │             if ()
    ╰╴                ━ expected one of 10 possible tokens
 
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if (]
+   ╰╴                ━ expected one of 10 possible tokens
+
 error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
    │
@@ -28,11 +34,41 @@ error: expected one of `(`, `+`, `[`, `assembly`, `break`, `continue`, `delete`,
 LL │         if () {} else {}
    ╰╴                 ━━━━ expected one of 25 possible tokens
 
-error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
+error: expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
    │
-LL │             if (]
-   ╰╴                ━ expected one of 10 possible tokens
+LL │         f(1, ];
+   ╰╴             ━ expected one of 11 possible tokens
+
+error: expected one of `(`, `+`, `[`, `assembly`, `break`, `continue`, `delete`, `do`, `emit`, `for`, `if`, `new`, `payable`, `return`, `revert`, `throw`, `try`, `type`, `unchecked`, `while`, `{`, `}`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         f(1, ];
+   ╰╴              ━ expected one of 25 possible tokens
+
+error: expected one of `(`, `)`, `+`, `,`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         (x, (1, }
+   ╰╴                ━ expected one of 12 possible tokens
+
+error: expected `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         do x; }
+   ╰╴              ━ expected `while`
+
+error: expected one of `)`, literal, or path, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             pop(] }
+   ╰╴                ━ expected one of `)`, literal, or path
+
+error: wrong argument count for function call: 0 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             pop(] }
+   ╰╴            ━━━━ expected 1 argument, found 0
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
@@ -40,5 +76,5 @@ error: mismatched types
 LL │         uint8 value = 300;
    ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
 
-error: aborting due to 7 previous errors
+error: aborting due to 13 previous errors
 

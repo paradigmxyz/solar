@@ -7,8 +7,8 @@ use solar_ast::{
 use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
-    diagnostics::DiagCtxt,
-    error_code, kw,
+    diagnostics::{Diag, DiagCtxt},
+    error_code,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -52,6 +52,9 @@ pub struct Parser<'sess, 'ast, 'cb> {
     expected_tokens: Vec<ExpectedToken>,
     /// The span of the last unexpected token.
     last_unexpected_token_span: Option<Span>,
+    /// The error reported at `last_unexpected_token_span` and whether a recovered sequence emitted
+    /// it. Kept only when recovering.
+    last_unexpected_error: Option<(Diag, bool)>,
     /// The current doc-comments.
     docs: Vec<DocComment<'ast>>,
     /// The statements of the blocks being parsed, innermost last.
@@ -172,6 +175,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             prev_token: Token::DUMMY,
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
+            last_unexpected_error: None,
             docs: Vec::with_capacity(4),
             stmts: Vec::new(),
             yul_stmts: Vec::new(),
@@ -356,6 +360,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.token.kind != TokenKind::Eof
             && self.last_unexpected_token_span == Some(self.token.span)
         {
+            // Recovery left the token in place and the parser failed at it again. Return the
+            // error already reported, so the failure unwinds to a sequence that recovers from it
+            // without reporting the token twice.
+            if let Some((diag, _)) = &self.last_unexpected_error {
+                let mut err = self.dcx().err("");
+                *err = diag.clone();
+                return Err(err);
+            }
             panic!("called unexpected twice on the same token");
         }
 
@@ -440,6 +452,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             err = err.span_label(self.token.span, "unexpected token");
         }
 
+        if self.recover_incomplete_input {
+            self.last_unexpected_error = Some(((*err).clone(), false));
+        }
         Err(err)
     }
 
@@ -772,6 +787,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut first = true;
         let mut recovered = Recovered::No;
         let mut trailing = false;
+        let is_block = self.recover_incomplete_input
+            && ket == TokenKind::CloseDelim(Delimiter::Brace)
+            && sep.sep.is_none();
 
         loop {
             let required_first = first && !allow_empty;
@@ -803,19 +821,26 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 }
             }
 
+            let lo = self.token.span;
             match f(self) {
                 Ok(value) => push(self, value),
-                Err(err) if self.can_recover_sequence(ket) => {
-                    err.emit();
-                    if ket == TokenKind::CloseDelim(Delimiter::Brace)
-                        && sep.sep.is_none()
-                        && (matches!(
-                            self.token.kind,
-                            TokenKind::Semi
-                                | TokenKind::CloseDelim(
-                                    Delimiter::Parenthesis | Delimiter::Bracket
-                                )
-                        ) || self.token.is_keyword(kw::Else))
+                Err(err)
+                    if self.can_recover_sequence(ket) || (is_block && self.token.span == lo) =>
+                {
+                    self.emit_recovered(err);
+                    // A block skips the token that it cannot parse a statement at, and a stray `;`,
+                    // `)` or `]` after a failed statement, so that recovery always advances.
+                    if is_block
+                        && self.token.kind != ket
+                        && !self.token.is_eof()
+                        && (self.token.span == lo
+                            || matches!(
+                                self.token.kind,
+                                TokenKind::Semi
+                                    | TokenKind::CloseDelim(
+                                        Delimiter::Parenthesis | Delimiter::Bracket
+                                    )
+                            ))
                     {
                         self.bump();
                         continue;
@@ -852,15 +877,26 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         Ok(recovered)
     }
 
+    /// Emits an error that a sequence recovers from, unless it already emitted the same error.
+    fn emit_recovered(&mut self, err: PErr<'sess>) {
+        if let Some((diag, emitted)) = &mut self.last_unexpected_error
+            && *diag == *err
+        {
+            if *emitted {
+                return err.cancel();
+            }
+            *emitted = true;
+        }
+        err.emit();
+    }
+
     fn can_recover_sequence(&self, ket: TokenKind) -> bool {
         self.recover_incomplete_input
             && (self.token.kind == ket
                 || matches!(
                     self.token.kind,
                     TokenKind::Semi | TokenKind::Eof | TokenKind::CloseDelim(_)
-                )
-                || (ket == TokenKind::CloseDelim(Delimiter::Brace)
-                    && self.token.is_keyword(kw::Else)))
+                ))
     }
 
     /// Advance the parser by one token.
