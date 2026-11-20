@@ -19,6 +19,13 @@ struct Item {
 
 error Bad(Item);
 
+enum Kind {
+    A,
+    B
+}
+
+error BadKind(Kind);
+
 contract RequireMessage {
     // CHECK-LABEL: fn @f(
     // CHECK-NEXT: bb0:
@@ -116,6 +123,22 @@ contract RequireMessage {
     // CHECK: load_storage_bytes
     function storageField(bool ok) external view {
         require(ok, stored.reason);
+    }
+
+    // Encoding an enum checks its range, so the counter comes before it.
+    // CHECK-LABEL: fn @enumError(
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    // CHECK: jumpi arg0, [[HELD:bb[0-9]+]],
+    // CHECK: [[HELD]]:
+    // CHECK-NEXT: coverage {{[0-9]+}}
+    function enumError(bool ok, uint256 raw) external pure {
+        Kind kind;
+        assembly {
+            kind := raw
+        }
+        require(ok, BadKind(kind));
     }
 
     // A constant that does not fold panics when it is read, so the counter comes before it.

@@ -178,16 +178,39 @@ fn @storageField(arg0: i1) [selector=0x2bb2ee34, view, abi_params=[bool], abi_re
     ret
 }
 
-; function overflow(bool ok) external pure [selector 0x2dab65f2]
-fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+; function enumError(bool ok, uint256 raw) external pure [selector 0x17dea0a4]
+fn @enumError(arg0: i1, arg1: i256) [selector=0x17dea0a4, pure, abi_params=[bool, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     coverage 25
     coverage 26
+    coverage 27
+    coverage 28
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    coverage 27
+    coverage 29
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = lt arg1, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    v2 = trunc i256 arg1 to i8
+    v3 = zext i8 v2 to i256
+    icall require<custom_error [word<enum 2>]>, arg0, 0xdfc0338700000000000000000000000000000000000000000000000000000000, v3
+    ret
+}
+
+; function overflow(bool ok) external pure [selector 0x2dab65f2]
+fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 30
+    coverage 31
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 32
     jump bb3
   bb3:                                            ; preds = bb1, bb2
     v0 = icall @constant_1
@@ -199,7 +222,7 @@ fn @overflow(arg0: i1) [selector=0x2dab65f2, pure, abi_params=[bool], abi_return
 ; function message() internal pure returns (string memory)
 fn @message() -> ptr<memory> [pure] {
   bb0:
-    coverage 28
+    coverage 33
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
     v1 = ptradd v0, 32
@@ -210,13 +233,13 @@ fn @message() -> ptr<memory> [pure] {
 ; function call(bool ok) external pure [selector 0xb463fbfc]
 fn @call(arg0: i1) [selector=0xb463fbfc, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    coverage 29
-    coverage 30
+    coverage 34
+    coverage 35
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    coverage 31
+    coverage 36
     jump bb3
   bb3:                                            ; preds = bb1, bb2
     v0 = icall @message

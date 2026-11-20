@@ -1021,9 +1021,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Returns whether reading `expr` cannot revert: a constant that folds, or a variable reached
-    /// through plain identifiers and member accesses, with no index, call, calldata or storage
-    /// reference.
+    /// Returns whether reading `expr` cannot revert: a constant that folds, or a variable of an
+    /// unchecked type reached through an identifier and fields of memory structs.
+    ///
+    /// Only integers, addresses, booleans, fixed bytes and memory `string`/`bytes` are unchecked:
+    /// encoding an enum checks its range, loading storage bytes checks their length encoding,
+    /// calldata reads check offsets against the calldata size, and arrays and structs may hold
+    /// any of these.
     fn is_plain_read(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         let gcx = self.cx.gcx;
         let expr = expr.peel_parens();
@@ -1034,19 +1038,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if gcx.hir.variable(id).is_constant() {
             return gcx.const_eval().eval_var(id).is_ok();
         }
-        // Reading a calldata field or copying nested calldata checks offsets and lengths against
-        // the calldata size, and loading storage bytes checks their length encoding.
-        if gcx
-            .type_of_expr(expr.id)
-            .is_some_and(|ty| lies_in_calldata(ty) || ty.is_ref_at(DataLocation::Storage))
-        {
+        let unchecked = |ty: Ty<'_>| match ty.kind {
+            TyKind::Elementary(ty) => !matches!(ty, ElementaryType::String | ElementaryType::Bytes),
+            TyKind::Ref(inner, DataLocation::Memory) => matches!(
+                inner.kind,
+                TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
+            ),
+            _ => false,
+        };
+        if !gcx.type_of_expr(expr.id).is_some_and(unchecked) {
             return false;
         }
-        match expr.kind {
-            ExprKind::Ident(_) => true,
-            ExprKind::Member(base, _) => self.is_plain_read(base),
-            _ => false,
+        let mut place = expr;
+        while let ExprKind::Member(base, _) = place.kind {
+            place = base.peel_parens();
+            if !gcx.type_of_expr(place.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Memory)) {
+                return false;
+            }
         }
+        matches!(place.kind, ExprKind::Ident(_))
     }
 
     pub(super) fn builtin_args_with_optional<'hir, const N: usize>(
