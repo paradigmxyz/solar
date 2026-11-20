@@ -85,9 +85,7 @@ impl FreshHeap {
         module: &Module,
         summaries: impl FnOnce() -> Arc<MemoryCallSummaries>,
     ) -> Self {
-        let reads_msize = module.functions.iter().any(|func| {
-            func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
-        });
+        let reads_msize = reads_msize(module);
         let has_fill = module
             .functions
             .iter()
@@ -754,4 +752,14 @@ fn written_between(
 /// Whether a fill of `size` bytes is small enough to leave: see [`EvmMemoryLayout::MAX_DEAD_FILL`].
 fn is_small(func: &Function, size: ValueId) -> bool {
     unsigned_bounds_with_opcodes(func, size).1 <= U256::from(EvmMemoryLayout::MAX_DEAD_FILL)
+}
+
+/// Returns whether any function of `module` reads `MSIZE`, whose value shows the memory that
+/// code has touched, including bytes above the free memory pointer.
+#[must_use]
+pub(crate) fn reads_msize(module: &Module) -> bool {
+    module
+        .functions
+        .iter()
+        .any(|func| func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)))
 }

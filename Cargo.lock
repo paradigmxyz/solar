@@ -4402,6 +4402,7 @@ dependencies = [
  "either",
  "memchr",
  "serde_json",
+ "sha2 0.11.1",
  "smallvec",
  "snapbox",
  "solar-ast",
@@ -4410,6 +4411,7 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
+ "solar-parse",
  "solar-sema",
  "tempfile",
  "tracing",
@@ -4712,6 +4714,22 @@ dependencies = [
  "solar-mir-interpreter",
  "strum 0.28.0",
  "tempfile",
+]
+
+[[package]]
+name = "solar-verify"
+version = "0.3.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "evm2",
+ "num-bigint 0.5.1",
+ "num-traits",
+ "serde_json",
+ "sha2 0.11.1",
+ "snapbox",
+ "solar-cli",
+ "solar-parse",
 ]
 
 [[package]]

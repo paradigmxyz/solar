@@ -221,7 +221,7 @@ class MirAbiTests(unittest.TestCase):
                         "lower-builtins,lower-slices,lower-memory-objects",
                     )
 
-    def test_packed_encoding_does_not_clear_past_its_last_store(self):
+    def test_packed_tail_clear_follows_msize(self):
         world = storage.fixture()
         world["memory"] = {
             "data": "0x"
@@ -230,16 +230,32 @@ class MirAbiTests(unittest.TestCase):
             ).hex(),
             "size": 256,
         }
-        before = state.module('v0 = abi_encode_packed (data hex"0102")\nret 0')
-        after = self.lowered_pair(
-            before,
-            "lower-builtins,lower-slices,lower-memory-objects",
-            world,
+        pipeline = "lower-builtins,lower-slices,lower-memory-objects"
+        # The result starts at 128 and its payload store covers 160–191, below the free memory
+        # pointer at 192. Without MSIZE, memory at and above that pointer is unobservable, so
+        # the lowering may skip the source's clear of the word after the payload (162–193).
+        plain = state.module('v0 = abi_encode_packed (data hex"0102")\nret 0')
+        after = self.lowered_pair(plain, pipeline, world)
+        self.pair(
+            plain,
+            after.replace("    ret 0", "    mstore 162, 0\n    ret 0"),
+            fixture=world,
         )
-        # The result starts at 128. Its payload store covers 160–191.
-        # A word clear at the end of the payload would also overwrite 192–193.
-        broken = after.replace("    ret 0", "    mstore 162, 0\n    ret 0")
-        result, _ = self.pair(before, broken, fixture=world, status=1)
+        # With MSIZE, the lowering keeps the clear, as solc's final copy does; dropping it
+        # leaves 192–193 as they were, which is a counterexample.
+        observed = state.module(
+            'v0 = abi_encode_packed (data hex"0102")\nv1 = msize\nret v1'
+        )
+        after = self.lowered_pair(observed, pipeline, world)
+        lines = after.splitlines(keepends=True)
+        clears = [
+            index
+            for index, line in enumerate(lines)
+            if line.strip().startswith("mstore ") and line.strip().endswith(", 0")
+        ]
+        self.assertEqual(len(clears), 1, after)
+        broken = "".join(line for index, line in enumerate(lines) if index != clears[0])
+        result, _ = self.pair(observed, broken, fixture=world, status=1)
         self.assertIn("Live memory contents or active size changed", result.stdout)
         self.assertIn("Rust interpreter: matched", result.stdout)
 

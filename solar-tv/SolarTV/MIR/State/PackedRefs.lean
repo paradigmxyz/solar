@@ -91,6 +91,10 @@ def packedBorrow (pieces : List PackedReference) : Option (List Byte × Word × 
 
 def packedReferenceProgram (cfg : Config) (parts : List PackedInput) (hash : Bool) (args : List Value) : AbiM Word := do
   let (pieces,total) ← packedPrepare cfg parts args
+  let aligned := pieces.all fun piece => match piece with
+    | .static piece => piece.bytes.length % 32 == 0
+    | .array _ => true
+    | _ => false
   if hash then
     if let some (leading,source,length) := packedBorrow pieces then
       return ← abiMemory fun memory => do
@@ -127,7 +131,8 @@ def packedReferenceProgram (cfg : Config) (parts : List PackedInput) (hash : Boo
       | .array array => writePackedArray 33 cfg array cursor true
       | .static _ => pure ()
       cursor := cursor+BitVec.ofNat 256 piece.length
-  let _ ← packedStaticSegment cursor pending.reverse
+  let last ← packedStaticSegment cursor pending.reverse
+  if !hash && !aligned then abiStore last 0
   if hash then
     abiMemory fun memory => do
       let memory ← expand memory start.toNat total

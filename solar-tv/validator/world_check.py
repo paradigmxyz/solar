@@ -43,6 +43,23 @@ MIR_UNFOLD = (
     "Bind.bind, Pure.pure, Functor.map, List.mapM.loop, List.mapM, List.foldl, List.getElem?_cons, List.find?_cons"
 )
 
+# A mismatch witness for direct MIR pairs. `tvDiffers` tests every observation
+# field, so it is true exactly when the observations differ, and the lemma turns
+# it into the negated relation. Fields that rarely carry hashes come first.
+MIR_WITNESS = """def tvDiffers (o p : MIR.State.Observation) : Bool :=
+  decide (o.status ≠ p.status) || decide (o.memory ≠ p.memory) || decide (o.data ≠ p.data) ||
+  decide (o.returnData ≠ p.returnData) || decide (o.accounts ≠ p.accounts) ||
+  decide (o.logs ≠ p.logs) || decide (o.warmAddresses ≠ p.warmAddresses) ||
+  decide (o.warmSlots ≠ p.warmSlots) || decide (o.boundaryBudgets ≠ p.boundaryBudgets) ||
+  decide (o.messageGas ≠ p.messageGas) || decide (o.values ≠ p.values)
+theorem tvNotRelated (a b : MIR.State.Run)
+    (h : (match a, b with
+      | .ok x, .ok y => tvDiffers ({observe} x) ({observe} y)
+      | _, _ => true) = true) : ¬ {relation} a b := by
+  intro e
+  cases a <;> cases b <;> simp_all [{relation}, tvDiffers]
+"""
+
 
 def check(
     a: Program,
@@ -86,9 +103,23 @@ def check(
         for name, width in zip(a.inputs, widths, strict=True)
     )
 
+    # Free memory and the memory size are unobservable without MSIZE, so a pair in which
+    # neither side reads it compares memory below the free memory pointer only. Frame slots
+    # live at convention-defined addresses the allocator does not track (external scratch
+    # starts at 0x80, where the free memory pointer begins), so a pair that touches a frame
+    # slot keeps comparing all of memory.
+    observes_free = any(
+        re.search(r"\bmsize\b|\bframe_(?:load|store)\b", text)
+        for program in (a, b)
+        for text in (program.body, program.canonical_ir, program.replay_ir)
+    )
+    mir_relation = (
+        "MIR.State.equivalent" if observes_free else "MIR.State.equivalentBelowFree"
+    )
+
     def relation(left, right):
         if direct_mir:
-            return f"MIR.State.equivalent ({left}) ({right})"
+            return f"{mir_relation} ({left}) ({right})"
         return f"EVM.State.equivalent tvWorldConfig tvWorldConfig .{policy} ({left}) ({right})"
 
     def describe(term):
@@ -127,7 +158,10 @@ def check(
             "before",
             "after",
             "MIR.State.equivalent",
+            "MIR.State.equivalentBelowFree",
             "MIR.State.observe",
+            "MIR.State.observeBelowFree",
+            "MIR.State.belowFree",
             "Execution.readWord",
             "Execution.readBytes",
             "Execution.wordBytes",
@@ -139,7 +173,7 @@ def check(
         # Splitting a guard can expose a continuation, so normalize again there.
         # Normalize completed word observations if the existing solvers cannot
         # close equality, including operand order after closed memory reads.
-        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm])\n"
+        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.equivalentBelowFree, MIR.State.observe, MIR.State.observeBelowFree, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.equivalentBelowFree, MIR.State.observe, MIR.State.observeBelowFree, MIR.State.belowFree, BitVec.add_comm])\n"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"
@@ -218,6 +252,21 @@ def check(
                 if verified
                 else f"example : ¬ ({relation(left, right)}) := by decide +kernel\n"
             )
+            if direct_mir and not verified:
+                # The derived equality compares `values` second, so a returned hash
+                # forces kernel Keccak even when an earlier byte of memory already
+                # differs. Decide the same negation through a complete field test
+                # that leaves `values` for last and stops at the first difference.
+                witness = (
+                    MIR_WITNESS.format(
+                        relation=mir_relation,
+                        observe="MIR.State.observe"
+                        if observes_free
+                        else "MIR.State.observeBelowFree",
+                    )
+                    + f"example : ¬ ({relation(left, right)}) := "
+                    + f"tvNotRelated ({left}) ({right}) (by decide +kernel)\n"
+                )
             observations = lean(
                 witness
                 + f"#eval IO.println ({describe(left)})\n"
