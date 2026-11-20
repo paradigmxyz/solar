@@ -4,17 +4,27 @@
 // the fallback is declared in `B.sol` (ID 1), the file of the contract.
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "mnemonic": "SSTORE"
-// CHECK: "code": {
+// CHECK-NEXT: },
+// CHECK-NEXT: "context": {
+// CHECK-NEXT: "code": {
 // CHECK-NEXT: "source": {
 // CHECK-NEXT: "id": 0,
 // CHECK-NEXT: "type": "source"
-// CHECK: "offset": 57
+// CHECK-NEXT: },
+// CHECK-NEXT: "range": {
+// CHECK-NEXT: "offset": 57,
 // CHECK-NEXT: "length": 6
 // CHECK: "mnemonic": "STOP"
-// CHECK: "code": {
+// CHECK-NEXT: },
+// CHECK-NEXT: "context": {
+// CHECK-NEXT: "code": {
 // CHECK-NEXT: "source": {
 // CHECK-NEXT: "id": 1,
 // CHECK-NEXT: "type": "source"
+// CHECK-NEXT: },
+// CHECK-NEXT: "range": {
+// CHECK-NEXT: "offset": 64,
+// CHECK-NEXT: "length": 1
 {
   "language": "Solidity",
   "sources": {
