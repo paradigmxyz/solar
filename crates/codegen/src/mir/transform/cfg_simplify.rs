@@ -19,11 +19,10 @@
 //! preserve stack lifetimes.
 //!
 //! ## `-O none`
-//! A function that is not optimized follows clang's `-O0`: each source construct keeps its block,
-//! its branch, and its location. The pass folds only a branch on a constant, removes unreachable
-//! blocks and trivial phis, and bypasses or merges a block only if the labels and jumps it drops
-//! name no source construct. It does not share equal terminal blocks, merge blocks that name a
-//! construct, or fold a branch from equal targets or from the condition of a dominating branch.
+//! The pass follows clang's `-O0`: it merges no block, forwards no empty block, shares no equal
+//! terminal blocks and folds no branch except on a constant, so each source construct keeps its
+//! block, its branch and its location. It still removes unreachable blocks and trivial phis. It
+//! decides this by the optimization level alone, never by the locations the code carries.
 //!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
@@ -48,13 +47,10 @@
 //! terminators retain the union of their original locations instead. A shared block keeps
 //! `cold_hint` only if every block it replaces has it.
 
-use super::{
-    egraph::use_counts,
-    utils::{redirect_edge, redirect_successor_predecessors},
-};
+use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
-    BlockId, Builtin, Callee, EdgeAssignment, EffectKind, Function, FunctionId, Immediate, InstId,
-    InstKind, InstructionMetadata, MirType, Module, OpTraits, StructId, Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, EdgeAssignment, Function, FunctionId, Immediate, InstKind,
+    InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
@@ -63,18 +59,10 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::FxHashMap,
 };
 use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
-
-/// What `-O none` knows about the recursion that a function sits in.
-struct Recursion<'a> {
-    /// The functions that a call from this function can reach again.
-    component: &'a DenseBitSet<FunctionId>,
-    /// The number of fields of each struct type.
-    fields: &'a IndexVec<StructId, usize>,
-}
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -90,45 +78,9 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        // At `-O none`, the functions that a call can reach again, one set per recursive component.
-        // Constant branches fold first, so that a call behind one cannot make functions look
-        // recursive.
-        let functions = module.functions.len();
-        let mut folded = false;
-        let (components, component_of, fields) =
-            if module.runs_objective(|objective| objective.is_none()) {
-                folded = run_function_pass(module, analyses, |func, analyses| {
-                    analyses.optimization().is_none() && fold_constant_branches(func)
-                });
-                let call_graph = CallGraphInfo::new(module);
-                let mut components = Vec::new();
-                let mut component_of = index_vec![None; module.functions.len()];
-                for id in module.functions.indices() {
-                    if component_of[id].is_none() && call_graph.is_recursive(id) {
-                        let component = call_graph.recursive_component(id);
-                        for member in component.iter() {
-                            component_of[member] = Some(components.len());
-                        }
-                        components.push(component);
-                    }
-                }
-                let fields = module.struct_types.iter().map(|ty| ty.fields.len()).collect();
-                (components, component_of, fields)
-            } else {
-                (Vec::new(), IndexVec::new(), IndexVec::new())
-            };
-        let none = DenseBitSet::new_empty(functions);
-        let changed = run_function_pass(module, analyses, |func, analyses| {
-            let keep = analyses.optimization().is_none().then(|| Recursion {
-                component: match component_of.get(analyses.function()).copied().flatten() {
-                    Some(component) => &components[component],
-                    None => &none,
-                },
-                fields: &fields,
-            });
-            run_to_fixpoint(func, keep.as_ref())
-        });
-        changed | folded
+        run_function_pass(module, analyses, |func, analyses| {
+            run_to_fixpoint(func, analyses.optimization().is_none())
+        })
     }
 }
 
@@ -158,7 +110,7 @@ impl MirPass for BranchSimplify {
 
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
-    run_to_fixpoint(func, None)
+    run_to_fixpoint(func, false)
 }
 
 /// Function pass that only replaces trivial phis by their unique incoming value.
@@ -290,32 +242,20 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
     removed
 }
 
-/// Folds the branches on a constant condition and drops the blocks that this leaves unreachable.
-fn fold_constant_branches(func: &mut Function) -> bool {
-    let changed = simplify_degenerate_terminators(func, true);
-    if changed {
-        let _ = remove_unreachable_blocks(func);
-    }
-    changed
-}
-
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
 ///
-/// `keep` is the `-O none` mode, which follows clang's `-O0`, and holds the function's recursive
-/// component: it removes the unreachable code, the phis, and the blocks that carry no source
-/// location of their own, and leaves every other block and branch alone, so that each source
-/// construct keeps its block, its branch, and its location. It never shares equal blocks, folds a
-/// branch from the facts that reach it or from equal targets, or merges a block that names a
-/// construct into another, except after a call into the function's own recursive component, which
-/// must stay in tail position: a frame per level would overflow the EVM stack.
-fn run(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
-    let keep_locations = keep.is_some();
-    let mut changed = simplify_degenerate_terminators(func, keep_locations);
-    changed |= merge_blocks(func, keep);
-    changed |= eliminate_empty_blocks(func, keep_locations);
-    if !keep_locations {
-        changed |= deduplicate_terminal_blocks(func);
+/// `unoptimized` is the `-O none` mode, which follows clang's `-O0`: every block and branch stays,
+/// so each source construct keeps its block, its branch and its location. Only the branches on a
+/// constant fold, and only the unreachable code and the trivial phis go. The mode depends on the
+/// optimization level alone, never on the locations the code carries.
+fn run(func: &mut Function, unoptimized: bool) -> bool {
+    let mut changed = simplify_degenerate_terminators(func, unoptimized);
+    if unoptimized {
+        return changed | simplify_trivial_phis(func);
     }
+    changed |= merge_blocks(func);
+    changed |= eliminate_empty_blocks(func);
+    changed |= deduplicate_terminal_blocks(func);
     changed |= simplify_trivial_phis(func);
     changed
 }
@@ -539,13 +479,13 @@ fn trivial_phi_replacement(
     incoming_values.all(|value| value == phi_value || value == first).then_some(first)
 }
 
-fn simplify_degenerate_terminators(func: &mut Function, keep_locations: bool) -> bool {
+fn simplify_degenerate_terminators(func: &mut Function, constant_only: bool) -> bool {
     let mut changed = false;
     for block_id in func.blocks.indices() {
         let Some(term) = &func.blocks[block_id].terminator else { continue };
-        let terminator = if let Some(target) = known_branch_target(func, block_id, keep_locations) {
+        let terminator = if let Some(target) = known_branch_target(func, block_id, constant_only) {
             Terminator::Jump(target)
-        } else if keep_locations {
+        } else if constant_only {
             continue;
         } else {
             match term {
@@ -622,7 +562,7 @@ fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> 
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
+fn run_to_fixpoint(func: &mut Function, unoptimized: bool) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -634,7 +574,7 @@ fn run_to_fixpoint(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
     }
 
     let mut changed = false;
-    while run(func, keep) {
+    while run(func, unoptimized) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)
@@ -644,10 +584,10 @@ fn run_to_fixpoint(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
 /// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
-fn merge_blocks(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
+fn merge_blocks(func: &mut Function) -> bool {
     let mut merged = false;
     for block_id in func.blocks.indices() {
-        while let Some(target) = can_merge(func, block_id, keep) {
+        while let Some(target) = can_merge(func, block_id) {
             do_merge(func, block_id, target);
             merged = true;
         }
@@ -657,7 +597,7 @@ fn merge_blocks(func: &mut Function, keep: Option<&Recursion<'_>>) -> bool {
 
 /// Checks if block_id can be merged with its successor.
 /// Returns the target block if merge is possible.
-fn can_merge(func: &Function, block_id: BlockId, keep: Option<&Recursion<'_>>) -> Option<BlockId> {
+fn can_merge(func: &Function, block_id: BlockId) -> Option<BlockId> {
     let block = &func.blocks[block_id];
 
     let Terminator::Jump(target) = block.terminator.as_ref()? else {
@@ -674,17 +614,6 @@ fn can_merge(func: &Function, block_id: BlockId, keep: Option<&Recursion<'_>>) -
     }
 
     if target_block.predecessors[0] != block_id {
-        return None;
-    }
-
-    // The merge drops the jump and the target's label.
-    if let Some(recursion) = keep
-        && (block.terminator_metadata.names_source() || target_block.label_metadata.names_source())
-        && !last_call(func, block).is_some_and(|inst| {
-            calls_function(func, inst, recursion.component)
-                && returns_result(func, recursion, block, inst, *target)
-        })
-    {
         return None;
     }
 
@@ -744,7 +673,7 @@ fn fold_target_phis_for_merge(
 }
 
 /// Eliminates empty blocks that only contain an unconditional jump.
-fn eliminate_empty_blocks(func: &mut Function, keep_locations: bool) -> bool {
+fn eliminate_empty_blocks(func: &mut Function) -> bool {
     // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
     // changes neither reachability nor dominance among the other blocks, so one snapshot
     // answers every round; the eliminated block is never a forwarder again.
@@ -758,9 +687,6 @@ fn eliminate_empty_blocks(func: &mut Function, keep_locations: bool) -> bool {
         for block_id in func.blocks.indices() {
             if empty_forwarder_target(func, block_id).is_none()
                 || (func.blocks[block_id].predecessors.is_empty() && cfg().is_reachable(block_id))
-                || (keep_locations
-                    && (func.blocks[block_id].terminator_metadata.names_source()
-                        || func.blocks[block_id].label_metadata.names_source()))
             {
                 continue;
             }
@@ -1221,176 +1147,4 @@ fn constant(func: &Function, value: ValueId, depth: u32) -> Option<U256> {
     })
     .ok()
     .flatten()
-}
-
-/// Returns the last call in `block`, after which only the projections of its results can follow.
-fn last_call(func: &Function, block: &crate::mir::BasicBlock) -> Option<InstId> {
-    block
-        .instructions
-        .iter()
-        .rev()
-        .copied()
-        .find(|&inst| matches!(func.inst(inst).kind, InstKind::ICall { .. }))
-}
-
-/// Returns whether `inst` calls a function of the recursive `component`.
-fn calls_function(func: &Function, inst: InstId, component: &DenseBitSet<FunctionId>) -> bool {
-    matches!(&func.inst(inst).kind, InstKind::ICall { function: Callee::Function(callee), .. } if component.contains(*callee))
-}
-
-/// Returns whether `kind` is an environment read through a nullary opcode, as `calldatasize` is,
-/// or widens one, possibly through several zero extensions.
-fn reads_environment<'a>(func: &'a Function, mut kind: &'a InstKind) -> bool {
-    while let InstKind::Zext(operand) = *kind {
-        let Value::Inst(inner) = *func.value(operand) else { return false };
-        kind = &func.inst(inner).kind;
-    }
-    let def = kind.op_def();
-    def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
-}
-
-/// Returns the environment reads that nothing uses, and the widenings through which only they are
-/// used, none of which emits code.
-fn unused_reads(func: &Function) -> DenseBitSet<InstId> {
-    let uses = use_counts(func);
-    let mut dead = DenseBitSet::new_empty(func.num_insts());
-    let mut dead_uses = FxHashMap::<ValueId, u32>::default();
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for inst in func.instructions() {
-            let kind = &func.inst(inst).kind;
-            if dead.contains(inst) || !reads_environment(func, kind) {
-                continue;
-            }
-            let Some(output) = func.inst_result_value(inst) else { continue };
-            if uses[output] == dead_uses.get(&output).copied().unwrap_or(0) {
-                dead.insert(inst);
-                kind.visit_operands(|operand| *dead_uses.entry(operand).or_default() += 1);
-                changed = true;
-            }
-        }
-    }
-    dead
-}
-
-/// Returns whether the blocks after `call` only take its result apart and put it back, cast a
-/// pointer, jump, and return the whole result, and each has no other predecessor, so that all of
-/// them merge into the call's block.
-fn returns_result(
-    func: &Function,
-    recursion: &Recursion<'_>,
-    source: &crate::mir::BasicBlock,
-    call: InstId,
-    target: BlockId,
-) -> bool {
-    let words = |ty: MirType| match ty {
-        MirType::Struct(id) => recursion.fields[id],
-        MirType::Slice(_) => 2,
-        _ => 1,
-    };
-    let result = func.inst_result_value(call);
-    let dead = unused_reads(func);
-    let result_ty = result.and_then(|result| func.value_ty(result));
-    let result_words = result_ty.map(words);
-    let result_slice = matches!(result_ty, Some(MirType::Slice(_)));
-    // The values that equal the call's result, the path to the part of the result that each other
-    // value holds, and the fields that each unfinished aggregate has back in place.
-    let mut whole = FxHashSet::from_iter(result);
-    let mut fields = FxHashMap::<ValueId, Vec<u32>>::default();
-    let mut built = FxHashMap::<ValueId, FxHashSet<u32>>::default();
-    let mut project = |instructions: &[InstId]| {
-        for &inst in instructions {
-            let Some(output) = func.inst_result_value(inst) else { return false };
-            // An environment read that only unused widenings use emits no code, nor do they.
-            if dead.contains(inst) {
-                continue;
-            }
-            match func.inst(inst).kind {
-                // A pointer cast emits no code, so the call stays in tail position past it.
-                InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
-                    if whole.contains(&operand) {
-                        whole.insert(output);
-                    } else if let Some(path) = fields.get(&operand) {
-                        let path = path.clone();
-                        fields.insert(output, path);
-                    }
-                }
-                InstKind::ExtractValue { aggregate, index, .. } => {
-                    let mut path = if whole.contains(&aggregate) {
-                        Vec::new()
-                    } else if let Some(path) = fields.get(&aggregate) {
-                        path.clone()
-                    } else {
-                        continue;
-                    };
-                    path.push(index);
-                    fields.insert(output, path);
-                }
-                // A field of the result goes back into the field it came from.
-                InstKind::InsertValue { ty, aggregate, index, value }
-                    if Some(words(ty)) == result_words
-                        && fields.get(&value).is_some_and(|path| path == &[index]) =>
-                {
-                    if whole.contains(&aggregate) {
-                        whole.insert(output);
-                        continue;
-                    }
-                    let mut back = match func.value(aggregate) {
-                        Value::Undef(_) => FxHashSet::default(),
-                        _ => built.get(&aggregate).cloned().unwrap_or_default(),
-                    };
-                    back.insert(index);
-                    if Some(back.len()) == result_words {
-                        whole.insert(output);
-                    }
-                    built.insert(output, back);
-                }
-                // A slice made again from the pointer and the length of a slice of the result.
-                InstKind::MakeSlice { ptr, len, .. }
-                    if let Some((&MirType::SLICE_PTR_FIELD, slice)) =
-                        fields.get(&ptr).and_then(|path| path.split_last())
-                        && let Some((&MirType::SLICE_LEN_FIELD, same)) =
-                            fields.get(&len).and_then(|path| path.split_last())
-                        && slice == same =>
-                {
-                    if !slice.is_empty() {
-                        let slice = slice.to_vec();
-                        fields.insert(output, slice);
-                    } else if result_slice {
-                        whole.insert(output);
-                    }
-                }
-                InstKind::InsertValue { .. } | InstKind::MakeSlice { .. } => {}
-                _ => return false,
-            }
-        }
-        true
-    };
-    let at = source.instructions.iter().position(|&inst| inst == call).expect("call in block");
-    // Only the projections of the result follow the call in its block.
-    if !project(&source.instructions[at + 1..]) {
-        return false;
-    }
-    let mut block = target;
-    for _ in 0..func.blocks.len() {
-        let data = &func.blocks[block];
-        if !project(&data.instructions) {
-            return false;
-        }
-        match &data.terminator {
-            Some(Terminator::Jump(next)) if func.blocks[*next].predecessors.len() == 1 => {
-                block = *next
-            }
-            Some(Terminator::Return { values }) => {
-                return if values.is_empty() {
-                    func.inst_result_value(call).is_none()
-                } else {
-                    values.iter().all(|value| whole.contains(value))
-                };
-            }
-            _ => return false,
-        }
-    }
-    false
 }

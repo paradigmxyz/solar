@@ -87,31 +87,37 @@ bb10:
 bb17:                                             ; function abort(uint256 value) internal pure
   dup 1
   iszero
-  push bb26
+  push bb29
   jumpi
   jump bb18
 bb18:
+  jump bb19
+bb19:
   push 1
   dup 2
   eq
-  push bb24
-  jumpi
-  jump bb19
-bb19:
-  push 2
-  eq
-  push bb22
+  push bb27
   jumpi
   jump bb20
 bb20:
   jump bb21
 bb21:
+  push 2
+  eq
+  push bb25
+  jumpi
+  jump bb22
+bb22:
+  jump bb23
+bb23:
+  jump bb24
+bb24:
   push 0x6f74686572
   push 216
   shl
   push 5
-  jump bb28
-bb28:                                             ; revert_error (synthesized)
+  jump bb31
+bb31:                                             ; revert_error (synthesized)
   push 32
   push 32
   mstore
@@ -127,27 +133,27 @@ bb28:                                             ; revert_error (synthesized)
   revert
 bb16:
   jump bb17
-bb22:
-  jump bb23
-bb23:
+bb25:
+  jump bb26
+bb26:
   push 0x74776f
   push 232
   shl
   push 3
+  jump bb31
+bb27:
   jump bb28
-bb24:
-  jump bb25
-bb25:
+bb28:
   push 0x6f6e65
   push 232
   shl
   push 3
-  jump bb28
-bb26:
-  jump bb27
-bb27:
+  jump bb31
+bb29:
+  jump bb30
+bb30:
   push 0x7a65726f
   push 224
   shl
   push 4
-  jump bb28
+  jump bb31

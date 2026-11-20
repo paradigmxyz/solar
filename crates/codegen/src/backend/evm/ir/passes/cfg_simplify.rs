@@ -388,14 +388,14 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 }
 
 /// Returns whether the block's code is not optimized, so it keeps its branches and its blocks.
-fn keeps_locations(optimization: OptimizationMode, block: &Block) -> bool {
+fn is_unoptimized(optimization: OptimizationMode, block: &Block) -> bool {
     block.metadata.optimization.unwrap_or(optimization).is_none()
 }
 
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block_id in module.blocks.indices() {
-        if keeps_locations(module.optimization, &module.blocks[block_id]) {
+        if is_unoptimized(module.optimization, &module.blocks[block_id]) {
             continue;
         }
         // A branch whose edges reach equal halting blocks runs the same code either way: fold it
@@ -495,7 +495,7 @@ fn redirect_jump_thunks(
             None => {
                 if let Some(terminator) = &block.terminator
                     && let TerminatorKind::Jump(next) = terminator.kind
-                    && !keeps_locations(module.optimization, block)
+                    && !is_unoptimized(module.optimization, block)
                 {
                     thunks
                         .insert(block_id, Thunk { next, entered: None, exit: Metadata::default() });
@@ -750,8 +750,8 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
                 break;
             }
-            if keeps_locations(module.optimization, &module.blocks[predecessor])
-                || keeps_locations(module.optimization, &module.blocks[target])
+            if is_unoptimized(module.optimization, &module.blocks[predecessor])
+                || is_unoptimized(module.optimization, &module.blocks[target])
             {
                 break;
             }

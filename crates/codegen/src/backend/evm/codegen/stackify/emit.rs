@@ -303,27 +303,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         // A block that only jumps on is never emitted; edges into it go to its final target. At
-        // `-O none` a block that names a source construct stays, and ends every chain.
-        let named = |block: BlockId| {
-            self.optimization.is_none()
-                && (func.blocks[block].label_metadata.names_source()
-                    || func.blocks[block].terminator_metadata.names_source())
-        };
+        // `-O none` every block stays, as in clang's `-O0`.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
-            if block != BlockId::ENTRY
+            if !self.optimization.is_none()
+                && block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit
-                && !named(block)
             {
                 for _ in 0..plan.blocks.len() {
                     match plan.blocks[target].as_ref().map(|plan| (&plan.steps, &plan.exit)) {
                         Some((steps, Exit::Jump(next)))
-                            if steps.is_empty()
-                                && target != BlockId::ENTRY
-                                && target != block
-                                && !named(target) =>
+                            if steps.is_empty() && target != BlockId::ENTRY && target != block =>
                         {
                             target = *next;
                         }

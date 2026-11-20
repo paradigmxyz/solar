@@ -253,8 +253,8 @@ fn lower_evm_ir_once(
             valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
         if let Some(function) = block.metadata.function_invoke.or(lent) {
             // NOTE: `-O none` keeps the empty blocks of a function that only tail-calls another,
-            // and layout makes them fall through. Their entries then share the first instruction
-            // of the chain, which can mark one: the outer entry, the call the caller made.
+            // and layout makes them fall through, so a chain of them can enter two functions. The
+            // last block of the chain marks the entry.
             let unoptimized = block.metadata.optimization.unwrap_or(module.optimization).is_none();
             debug_assert!(
                 pending_block_invoke.is_none()
@@ -263,12 +263,8 @@ fn lower_evm_ir_once(
                     || pending_unoptimized,
                 "an instruction-free block cannot enter two functions"
             );
-            // A block that other blocks jump to marks its own entry: the code that falls into it
-            // cannot, since the label is where those callers arrive.
-            if pending_block_invoke.is_none() || labels.get(original).copied().flatten().is_some() {
-                pending_block_invoke = Some(function);
-                pending_unoptimized = unoptimized;
-            }
+            pending_block_invoke = Some(function);
+            pending_unoptimized = unoptimized;
         }
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin.

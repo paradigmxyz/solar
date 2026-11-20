@@ -584,11 +584,9 @@ impl PlannerBase {
         }
         // icall f(args); return results -> jump f with the inherited return address
         // At `-O none` every call keeps its own return address and jump, as in clang's `-O0`,
-        // which folds no call into a tail call: the jump carries the call's location. A call
-        // into the function's own recursive component stays a tail call, since a frame per level
-        // would overflow the EVM stack.
+        // which folds no call into a tail call: the jump carries the call's location.
         let mut tail_calls = FxHashMap::default();
-        if has_ret {
+        if has_ret && !target.optimization().is_none() {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 let Some(Terminator::Return { values }) = &block.terminator else { continue };
                 let Some(&last) =
@@ -600,9 +598,6 @@ impl PlannerBase {
                 if !info.internal.contains(callee)
                     || info.returns[callee] != values.len()
                     || publish.contains(last)
-                    || (target.optimization().is_none()
-                        && (info.components[func_id].is_none()
-                            || info.components[callee] != info.components[func_id]))
                 {
                     continue;
                 }

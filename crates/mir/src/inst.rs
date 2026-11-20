@@ -74,13 +74,6 @@ impl InstructionMetadata {
         self.edge_assignments.as_deref().map_or(&[], |assignments| assignments.0.as_slice())
     }
 
-    /// Returns whether this metadata holds a source origin or a recorded assignment, which a
-    /// pass that removes its jump or label would drop.
-    #[must_use]
-    pub fn names_source(&self) -> bool {
-        self.source_spans().next().is_some() || !self.edge_assignments().is_empty()
-    }
-
     /// Records an assignment that stored `value`, which a phi takes on `edge`, the edge to a
     /// target block, or on the jump that ends the block when `edge` is `None`. `origin` is the
     /// source context the assignment was lowered under, as [`Self::debug_context`] copies it.
