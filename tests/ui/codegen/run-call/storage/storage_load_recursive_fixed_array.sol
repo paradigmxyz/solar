@@ -1,6 +1,6 @@
-//@ filecheck:
-// CHECK: fn @load_storage_struct_array_0_2(
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: partialAssignment => 1, 0, 0
 //@ run-call: copy => 5, 6, 8, 6, 9, 0
 
@@ -25,6 +25,8 @@ contract StorageLoadRecursiveFixedArray {
         return (t[0].v, t[1].v, t[2].v);
     }
 
+    // CHECK-LABEL: fn @copy()
+    // CHECK: icall @load_storage_struct_array_0_2
     function copy() external returns (uint256, uint256, uint256, uint256, uint256, uint256) {
         b.v = 5;
         b.pairs.push();
@@ -48,3 +50,5 @@ contract StorageLoadRecursiveFixedArray {
         );
     }
 }
+
+// CHECK-LABEL: fn @load_storage_struct_array_0_2(
