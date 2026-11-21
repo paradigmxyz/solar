@@ -32,3 +32,29 @@ contract Hashing {
         return keccak256(abi.encodePacked(a, b)) == keccak256(abi.encodePacked(a, b));
     }
 }
+struct Fees { uint64[4] amounts; address to; }
+string constant TAG = "tag";
+/// A spec's `abi.encode` hashes as the body's: fixed-size arrays expand into their elements, and a
+/// string literal is one term however often it is evaluated.
+contract EncodeAlike {
+    /// @custom:ensures result == keccak256(abi.encode(f))
+    function ok_struct_array(Fees calldata f) external pure returns (bytes32 result) {
+        return keccak256(abi.encode(f));
+    }
+    /// @custom:ensures result == keccak256(abi.encode(xs))
+    function ok_array(uint256[3] calldata xs) external pure returns (bytes32 result) {
+        return keccak256(abi.encode(xs));
+    }
+    /// @custom:ensures result == keccak256(abi.encode(xs))
+    function bad_array(uint256[3] calldata xs, uint256[3] calldata ys) external pure returns (bytes32 result) {
+        return keccak256(abi.encode(ys));
+    }
+    /// @custom:ensures result == keccak256(abi.encode(TAG, x))
+    function ok_string_constant(uint256 x) external pure returns (bytes32 result) {
+        return keccak256(abi.encode(TAG, x));
+    }
+    /// @custom:ensures result == keccak256(abi.encode("tag", x))
+    function ok_string_literal(uint256 x) external pure returns (bytes32 result) {
+        return keccak256(abi.encode(TAG, x));
+    }
+}

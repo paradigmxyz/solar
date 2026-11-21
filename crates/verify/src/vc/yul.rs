@@ -692,6 +692,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                 }
             }
+            // A small fixed-size array of static elements: its elements in place, in order.
+            Ty::Arr(e, Some(n)) if *n <= 32 => {
+                for i in 0..*n {
+                    if !self.abi_words(e, &format!("(select {t} {i})"), out) {
+                        return false;
+                    }
+                }
+            }
             _ => return false,
         }
         true

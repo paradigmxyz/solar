@@ -3343,8 +3343,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                     .unwrap_or_default();
                 Ok(Self::val(Ty::Addr, num(&b)))
             }
-            LitKind::Str(..) => {
-                let t = self.decl("str", &Ty::Opaque);
+            LitKind::Str(_, bytes, _) => {
+                // One constant per literal value, so the same literal evaluated twice (in the body
+                // and in a spec, say) is the same term and hashes alike.
+                let hex: String = bytes.as_byte_str().iter().map(|b| format!("{b:02x}")).collect();
+                let t = format!("|str.{hex}|");
+                self.declare_fun(&t, 0, &Ty::Opaque.sort());
                 Ok(Self::val(Ty::Opaque, t))
             }
             _ => Err((span, "unsupported literal".into())),
