@@ -523,7 +523,8 @@ fn struct_names_deep() {
 
 #[test]
 fn mem_struct_array_field() {
-    let run = run_verifier(&["tests/cases/mem_struct_array_field.sol"]);
+    // A dry run reports the unsupported assembly without z3, which CI's test job lacks.
+    let run = run_verifier(&["--dry-run", "tests/cases/mem_struct_array_field.sol"]);
     let want = "assembly use of memory struct `s` with a non-value field `a`";
     assert!(
         run.stderr.contains(want),
@@ -531,7 +532,7 @@ fn mem_struct_array_field() {
 {}",
         run.stderr
     );
-    assert_ne!(run.code, Some(0), "{}", run.stderr);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
 }
 
 #[test]
