@@ -522,6 +522,19 @@ fn struct_names_deep() {
 }
 
 #[test]
+fn mem_struct_array_field() {
+    let run = run_verifier(&["tests/cases/mem_struct_array_field.sol"]);
+    let want = "assembly use of memory struct `s` with a non-value field `a`";
+    assert!(
+        run.stderr.contains(want),
+        "missing `{want}`
+{}",
+        run.stderr
+    );
+    assert_ne!(run.code, Some(0), "{}", run.stderr);
+}
+
+#[test]
 fn vox() {
     check("tests/cases/vox.sol")
 }

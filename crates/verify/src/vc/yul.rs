@@ -1352,8 +1352,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let fields = self.prog.struct_fields(sn).cloned().unwrap_or_default();
                 let base = REGION_BASE + (cx.regions.len() as u64) * 0x10000;
                 for (i, (f, fty)) in fields.iter().enumerate() {
+                    // A struct or array field is a pointer in memory, whatever its ABI words.
                     let mut ws = vec![];
-                    if !self.abi_words(fty, &format!("(|{sn}.{f}| {})", v.t), &mut ws)
+                    if matches!(fty, Ty::Struct(_) | Ty::Arr(..))
+                        || !self.abi_words(fty, &format!("(|{sn}.{f}| {})", v.t), &mut ws)
                         || ws.len() != 1
                     {
                         return unsupported(
