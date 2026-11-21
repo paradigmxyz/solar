@@ -325,19 +325,22 @@ impl<'s, 'a> Builder<'s, 'a> {
     }
 
     /// A struct of `ambiguous_structs` that a storage value of type `t` holds in place, in itself,
-    /// a fixed-size array or a struct field (`depth` levels deep at most): the slots it takes are
-    /// not known, so neither are the slots of the variables after it.
-    fn ambiguous_in_layout(&self, t: &Type<'a>, depth: u32) -> Option<String> {
+    /// a fixed-size array or a struct field at any depth: the slots it takes are not known, so
+    /// neither are the slots of the variables after it. `seen` holds the structs on the current
+    /// path; a struct that holds itself in place has no layout, so it is reported too.
+    fn ambiguous_in_layout(&self, t: &Type<'a>, seen: &mut Vec<String>) -> Option<String> {
         match &t.kind {
-            TypeKind::Array(a) if a.size.is_some() => self.ambiguous_in_layout(&a.element, depth),
+            TypeKind::Array(a) if a.size.is_some() => self.ambiguous_in_layout(&a.element, seen),
             TypeKind::Custom(p) => {
                 let n = p.last().as_str();
-                if self.ambiguous_structs.contains(n) {
+                if self.ambiguous_structs.contains(n) || seen.iter().any(|s| s == n) {
                     return Some(n.to_string());
                 }
                 let st = self.struct_items.iter().find(|st| st.name.as_str() == n)?;
-                let depth = depth.checked_sub(1)?;
-                st.fields.iter().find_map(|f| self.ambiguous_in_layout(&f.ty, depth))
+                seen.push(n.to_string());
+                let found = st.fields.iter().find_map(|f| self.ambiguous_in_layout(&f.ty, seen));
+                seen.pop();
+                found
             }
             _ => None,
         }
@@ -902,7 +905,7 @@ pub(crate) fn build<'a>(
                     ItemKind::Variable(v) => {
                         let ty = b.ty(&v.ty);
                         if v.mutability.is_none()
-                            && let Some(sn) = b.ambiguous_in_layout(&v.ty, 16)
+                            && let Some(sn) = b.ambiguous_in_layout(&v.ty, &mut Vec::new())
                         {
                             // an opaque value takes one slot, which this one need not
                             b.errors.push((
