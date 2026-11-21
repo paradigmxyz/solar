@@ -472,6 +472,15 @@ fn structs() {
 }
 
 #[test]
+fn struct_names() {
+    check("tests/cases/struct_names.sol");
+    let run = run_verifier(&["--dry-run", "tests/cases/struct_names.sol"]);
+    let want = "unknown storage layout: struct `Item` names structs with different fields";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
 fn vox() {
     check("tests/cases/vox.sol")
 }

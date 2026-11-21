@@ -210,6 +210,10 @@ struct Builder<'s, 'a> {
     udvts: FxHashMap<String, &'a Type<'a>>,
     struct_items: Vec<&'a ast::ItemStruct<'a>>,
     struct_docs: Vec<(String, &'a ast::DocComments<'a>)>,
+    /// Struct names that declarations with different fields share (such as `IOld.Item` and
+    /// `INew.Item`): structs are keyed by bare name, so such a name stands for no one datatype
+    /// and values of it stay opaque.
+    ambiguous_structs: FxHashSet<String>,
     decl_stmts: FxHashSet<Span>,
     contract_names: Vec<String>,
     stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
@@ -303,6 +307,8 @@ impl<'s, 'a> Builder<'s, 'a> {
                     Ty::Enum(n, *k)
                 } else if self.contract_names.contains(&n) {
                     Ty::Contract(n)
+                } else if self.ambiguous_structs.contains(&n) {
+                    Ty::Opaque
                 } else if self.struct_items.iter().any(|st| st.name.as_str() == n) {
                     Ty::Struct(n)
                 } else if let Some(u) = self.udvts.get(&n).copied() {
@@ -315,6 +321,25 @@ impl<'s, 'a> Builder<'s, 'a> {
                     Ty::Opaque
                 }
             }
+        }
+    }
+
+    /// A struct of `ambiguous_structs` that a storage value of type `t` holds in place, in itself,
+    /// a fixed-size array or a struct field (`depth` levels deep at most): the slots it takes are
+    /// not known, so neither are the slots of the variables after it.
+    fn ambiguous_in_layout(&self, t: &Type<'a>, depth: u32) -> Option<String> {
+        match &t.kind {
+            TypeKind::Array(a) if a.size.is_some() => self.ambiguous_in_layout(&a.element, depth),
+            TypeKind::Custom(p) => {
+                let n = p.last().as_str();
+                if self.ambiguous_structs.contains(n) {
+                    return Some(n.to_string());
+                }
+                let st = self.struct_items.iter().find(|st| st.name.as_str() == n)?;
+                let depth = depth.checked_sub(1)?;
+                st.fields.iter().find_map(|f| self.ambiguous_in_layout(&f.ty, depth))
+            }
+            _ => None,
         }
     }
 
@@ -605,6 +630,7 @@ pub(crate) fn build<'a>(
         udvts: FxHashMap::default(),
         struct_items: vec![],
         struct_docs: vec![],
+        ambiguous_structs: FxHashSet::default(),
         decl_stmts: Default::default(),
         contract_names: vec![],
         stmt_specs: FxHashMap::default(),
@@ -694,8 +720,33 @@ pub(crate) fn build<'a>(
             }
         }
     }
+    // A name whose declarations read differently stays opaque; the same declaration seen twice
+    // (or two that read alike, which resolve alike) is one datatype.
+    let mut decls: FxHashMap<&str, Vec<String>> = FxHashMap::default();
+    for st in &b.struct_items {
+        let text: Vec<String> = st
+            .fields
+            .iter()
+            .map(|f| {
+                sess.source_map()
+                    .span_to_snippet(f.span)
+                    .unwrap_or_else(|_| format!("{:?}", f.span))
+            })
+            .collect();
+        let text = text.join(";");
+        let seen = decls.entry(st.name.as_str()).or_default();
+        if !seen.contains(&text) {
+            seen.push(text);
+        }
+    }
+    b.ambiguous_structs =
+        decls.into_iter().filter(|(_, d)| d.len() > 1).map(|(n, _)| n.to_string()).collect();
     let mut structs = vec![];
     for st in b.struct_items.clone() {
+        let name = st.name.as_str();
+        if b.ambiguous_structs.contains(name) || structs.iter().any(|(n, _)| n == name) {
+            continue;
+        }
         let fields = st
             .fields
             .iter()
@@ -706,6 +757,15 @@ pub(crate) fn build<'a>(
     let mut struct_invs: FxHashMap<String, Vec<Spec<'a>>> = FxHashMap::default();
     for (n, docs) in b.struct_docs.clone() {
         for (tag, content, span) in custom_tags(docs) {
+            if tag == "invariant" && b.ambiguous_structs.contains(&n) {
+                b.errors.push((
+                    span,
+                    format!(
+                        "invariant of struct `{n}`, a name another struct with different fields shares, is not supported"
+                    ),
+                ));
+                continue;
+            }
             if tag == "invariant"
                 && let Some(sp) = b.parse_spec(&content, span)
             {
@@ -841,6 +901,17 @@ pub(crate) fn build<'a>(
                 match &sub.kind {
                     ItemKind::Variable(v) => {
                         let ty = b.ty(&v.ty);
+                        if v.mutability.is_none()
+                            && let Some(sn) = b.ambiguous_in_layout(&v.ty, 16)
+                        {
+                            // an opaque value takes one slot, which this one need not
+                            b.errors.push((
+                                v.span,
+                                format!(
+                                    "unknown storage layout: struct `{sn}` names structs with different fields"
+                                ),
+                            ));
+                        }
                         con.state.push(StateVar {
                             name: v.name.map(|n| n.as_str().to_string()).unwrap_or_default(),
                             ty,
