@@ -796,14 +796,37 @@ impl<'p, 'a> Vc<'p, 'a> {
                 && matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)
             {
                 kind = m.as_str().to_string();
-                for x in inner.exprs() {
-                    vals.push(self.eval(x)?);
+                for (i, x) in inner.exprs().enumerate() {
+                    let v = self.eval(x)?;
+                    // `encodeWithSignature` encodes only the signature's 4-byte selector, which
+                    // distinct signatures can share: hash that, a function of the signature that
+                    // is not injective.
+                    let v =
+                        if i == 0 && kind == "encodeWithSignature" { self.selector(v) } else { v };
+                    vals.push(v);
                 }
             } else {
                 vals.push(self.eval(a)?);
             }
         }
         Ok((kind, vals))
+    }
+
+    /// The `bytes4` selector of a function signature: an uninterpreted function of the signature,
+    /// with no injectivity, since distinct signatures can share a selector.
+    fn selector(&mut self, sig: Var) -> Var {
+        let ty = Ty::Bytes(32);
+        let f = "sv_selector";
+        self.declare_fun(f, 1, "Int");
+        let t = format!("({f} {})", sig.t);
+        if self.bound.is_empty() {
+            self.smt.send(&format!(
+                "(assert {})
+",
+                ty.range(&t).unwrap()
+            ));
+        }
+        Var { ty, t, len: None }
     }
 
     /// Solidity keccak256, sha256 and ripemd160 of their argument, as an uninterpreted function

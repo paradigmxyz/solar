@@ -114,3 +114,20 @@ contract EncodeWrites {
         r = keccak256(abi.encode(a, uint256(1)));
     }
 }
+
+/// The signature's selector is all `encodeWithSignature` encodes, and distinct signatures can share it.
+contract SigHashing {
+    /// these two signatures share the selector 0x23b872dd, so their encodings are equal
+    // expect: solver returned unknown
+    /// @custom:ensures result
+    function bad_sig_collision() external pure returns (bool) {
+        if (keccak256(abi.encodeWithSignature("transferFrom(address,address,uint256)")) == keccak256(abi.encodeWithSignature("gasprice_bit_ether(int128)"))) {
+            return keccak256(bytes("transferFrom(address,address,uint256)")) == keccak256(bytes("gasprice_bit_ether(int128)"));
+        }
+        return true;
+    }
+    /// @custom:ensures (x != y) ==> result
+    function ok_sig_args(uint256 x, uint256 y) external pure returns (bool) {
+        return keccak256(abi.encodeWithSignature("f(uint256)", x)) != keccak256(abi.encodeWithSignature("f(uint256)", y));
+    }
+}
