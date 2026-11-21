@@ -1,6 +1,6 @@
 """Check the emitted authorization deadline guard at both successors."""
 
-from . import decoder_proof, metered_prefix, mir_state
+from . import decoder_proof, metered_prefix, mir_state, revert_stub
 from .callers import require
 
 
@@ -271,3 +271,62 @@ theorem {side}_deadline_guard (env : World.Environment) (journal : Journal) (sur
 
 #print axioms {side}_deadline_guard
 """
+
+
+def expired_fragments(
+    runtime,
+    decoded,
+    catalog,
+    layout,
+    failure,
+    abi_gas,
+    abi_steps,
+    guard_gas,
+    binders,
+    args,
+):
+    rows = revert_stub.plan(
+        runtime, decoded, catalog, failure, layout.stack, layout.memory
+    )
+    detail = b"signature expired"
+    payload = (
+        bytes.fromhex("08c379a0")
+        + (32).to_bytes(32, "big")
+        + len(detail).to_bytes(32, "big")
+    )
+    payload += detail.ljust(32, b"\0")
+    count = abi_steps + 5 + len(rows) - 1
+    cost = abi_gas + guard_gas + sum(row.inst.schema[1] for row in rows[:-1])
+    tail = revert_stub.fragments(rows, "expiredStub", payload)
+    link = f"""
+theorem authorizationExpired {binders}
+    (noValue : env.value = 0)
+    (selected : MIR.TransferFromDispatch.selector env.input = {layout.selector})
+    (expired : expiry env ≠ 0#256)
+    (work balance : Nat) :
+    if balance < {cost} then
+      ∃ spent ≤ {count},
+        EVM.State.execute (work+1+{count}) tvWorldConfig journal (dispatchFrame env balance 0 []) =
+          .ok ⟨.outOfGas,[],journal,0,spent⟩
+    else
+      EVM.State.execute (work+1+{count}) tvWorldConfig journal (dispatchFrame env balance 0 []) =
+        .ok ⟨.reverted,expiredStubData,journal,balance-{cost},{count}+1⟩ := by
+  have deadline := metered_deadline env journal
+  simp only [afterDeadline, show expiry env ≠ (0 : Word) from expired, ite_false] at deadline
+  have path := (metered_abi {args} noValue selected).append
+    (deadline.append (expiredStub env journal))
+  by_cases short : balance < {cost}
+  · simp only [short, ite_true]
+    exact path.rollbackOutOfGas (work+1) balance short
+  · simp only [short, ite_false]
+    have runPrefix := path.paid (work+1) balance (Nat.le_of_not_gt short)
+    simp only [decoderFrame,dispatchFrame,Nat.reduceAdd] at runPrefix
+    have finish := expiredStubReturns env journal work (balance-{cost})
+    simp only [decoderFrame] at finish
+    simp only [EVM.State.execute,dispatchFrame,runPrefix,finish,Except.bind,Bind.bind,
+      Pure.pure,Except.pure]
+    rfl
+
+#print axioms authorizationExpired
+"""
+    return tail, link, cost

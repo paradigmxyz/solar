@@ -806,9 +806,13 @@ and the signature calldata span. Independent replay reaches the cut with
 the exact gas charged by dispatch and decoding, exhausts gas one unit below
 it, and rejects noncanonical address and boolean words. The next proof
 links the emitted timestamp check to both typed MIR branches, including the
-expiry branch, and checks the charge on either edge. For an unexpired
-authorization with a nonwrapping nonce increment, the prefix continues
-through the emitted mapping hash, warm or cold SLOAD, and checked-add guard
+expiry branch, and checks the charge on either edge. The expired path
+continues through the emitted error encoder to REVERT. The kernel proves the
+exact `Error("signature expired")` payload, remaining gas, and rollback for
+a funded invocation, and the out-of-gas result for every smaller balance.
+For an unexpired authorization with a nonwrapping nonce increment, the
+prefix continues through the emitted mapping hash, warm or cold SLOAD, and
+checked-add guard
 to the nonce SSTORE. The proof derives the canonical key, old nonce,
 incremented nonce, residual gas, and warmed journal from ABI entry. It
 composes with the typed store continuation, including the write's gas sentry.

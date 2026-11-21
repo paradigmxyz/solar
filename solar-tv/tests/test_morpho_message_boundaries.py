@@ -185,6 +185,32 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 "revert",
             )
 
+        expired = state["calldata"].copy()
+        expired[132:164] = caller_replay.word(0)
+        short = caller_entry.replay(
+            {**state, "calldata": expired, "gas": abi["expired_gas"] - 1},
+            None,
+            self.replay,
+            30,
+        )
+        self.assertEqual(short[:4], ["out-of-gas", [], 0, 0])
+        message = b"signature expired"
+        revert_data = (
+            bytes.fromhex("08c379a0")
+            + caller_replay.word(32)
+            + caller_replay.word(len(message))
+            + message.ljust(32, b"\0")
+        )
+        for surplus in (0, 37):
+            stopped = caller_entry.replay(
+                {**state, "calldata": expired, "gas": abi["expired_gas"] + surplus},
+                None,
+                self.replay,
+                30,
+            )
+            self.assertEqual(stopped[:4], ["revert", list(revert_data), surplus, 0])
+            self.assertEqual(stopped[5], [])
+
         nonce_pc = abi["nonce_store_pc"]
         self.assertEqual(nonce_pc, site.nonce)
         nonce_full = caller_entry.replay(state, nonce_pc, self.replay, 30)

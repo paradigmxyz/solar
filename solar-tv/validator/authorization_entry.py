@@ -245,6 +245,7 @@ def certify(
         runtime, decoded, catalog, layout
     )
     abi_gas = route.gas + layout.gas
+    abi_steps = len(route.instructions) + len(layout.instructions)
     nonce, link, nonce_gas = authorization_nonce.source(
         runtime,
         decoded,
@@ -253,7 +254,19 @@ def certify(
         success,
         nonce_pc,
         abi_gas,
-        len(route.instructions) + len(layout.instructions),
+        abi_steps,
+        guard_gas,
+        BINDINGS,
+        ARGS,
+    )
+    expired_rows, expired_link, expired_gas = authorization_deadline.expired_fragments(
+        runtime,
+        decoded,
+        catalog,
+        layout,
+        expired,
+        abi_gas,
+        abi_steps,
         guard_gas,
         BINDINGS,
         ARGS,
@@ -263,8 +276,8 @@ theorem authorizationDeadlineOutOfGas {BINDINGS}
     (noValue : env.value = 0)
     (selected : MIR.TransferFromDispatch.selector env.input = {SELECTOR})
     (work balance : Nat) (unpaid : balance < {abi_gas + guard_gas}) :
-    ∃ spent ≤ {len(route.instructions) + len(layout.instructions) + 5},
-      EVM.State.execute (work+{len(route.instructions) + len(layout.instructions) + 5})
+    ∃ spent ≤ {abi_steps + 5},
+      EVM.State.execute (work+{abi_steps + 5})
         tvWorldConfig journal (dispatchFrame env balance 0 []) =
         .ok ⟨.outOfGas,[],journal,0,spent⟩ :=
   ((metered_abi {ARGS} noValue selected).append
@@ -279,6 +292,8 @@ theorem authorizationDeadlineOutOfGas {BINDINGS}
         ),
         *fragments(layout, route, layout.pc, functions),
         guard,
+        *("".join(group) for group in batched(expired_rows, 7)),
+        expired_link,
         authorization_deadline.MIR_DEFINITIONS,
         *authorization_deadline.mir_fragments(
             *bodies, opcodes, success=success, failure=expired
@@ -319,6 +334,7 @@ theorem authorizationDeadlineOutOfGas {BINDINGS}
         "deadline_gas": guard_gas,
         "deadline_success_pc": success,
         "deadline_expired_pc": expired,
+        "expired_gas": expired_gas,
         "nonce_store_pc": nonce_pc,
         "nonce_fixed_gas": nonce_gas,
     }
