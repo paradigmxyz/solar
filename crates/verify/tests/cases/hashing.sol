@@ -58,3 +58,23 @@ contract EncodeAlike {
         return keccak256(abi.encode(TAG, x));
     }
 }
+/// Converting bytes to `bytesN` keeps the width: a literal's bytes sit left-aligned, and other
+/// bytes read at two widths are not one term.
+contract BytesWidths {
+    /// @custom:ensures result
+    function bad_literal_widths() external pure returns (bool) {
+        return uint16(bytes2("A")) == uint16(uint8(bytes1("A")));
+    }
+    /// @custom:ensures result
+    function ok_literal_value() external pure returns (bool) {
+        return bytes2("A") == 0x4100 && bytes1("A") == 0x41;
+    }
+    /// @custom:ensures result
+    function bad_bytes_widths(bytes memory b) external pure returns (bool) {
+        return uint16(bytes2(b)) == uint16(uint8(bytes1(b)));
+    }
+    /// @custom:ensures result
+    function ok_bytes_same_width(bytes memory b) external pure returns (bool) {
+        return bytes2(b) == bytes2(b);
+    }
+}

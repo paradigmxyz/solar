@@ -4772,6 +4772,27 @@ impl<'p, 'a> Vc<'p, 'a> {
         if v.ty == Ty::Lit && !self.spec {
             return Self::val(ty, v.t);
         }
+        if let (Ty::Bytes(n), Ty::Opaque) = (&ty, &v.ty) {
+            let n = *n as usize;
+            let lit = v.t.strip_prefix("|str.").and_then(|s| s.strip_suffix('|'));
+            // A string literal's bytes are known: `bytesN` holds them left-aligned.
+            if let Some(hex) = lit
+                && hex.len() * 4 <= n
+            {
+                let b = BigInt::parse_bytes(hex.as_bytes(), 16).unwrap_or_default();
+                let t = num(&(b * pow2((n - hex.len() * 4) as u32)));
+                return Self::val(ty, t);
+            }
+            // Other bytes are unknown here, but each width reads them through its own function,
+            // so no relabeled term makes two widths of one value equal.
+            let f = format!("sv_bytes{n}");
+            self.declare_fun(&f, 1, "Int");
+            let t = format!("({f} {})", v.t);
+            if self.bound.is_empty() {
+                self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
+            }
+            return Self::val(ty, t);
+        }
         match (&ty, &v.ty) {
             // Between `bytesN` types the bytes keep their places: a wider type pads on the right,
             // a narrower one keeps the leading bytes. A value of a different width typed as an
