@@ -222,6 +222,8 @@ struct Builder<'s, 'a> {
     /// through another constant: sizes are keyed by bare name, so neither sizes an array.
     const_conflicts: FxHashSet<String>,
     const_derived: FxHashSet<String>,
+    /// Fixed array sizes that no constant resolves.
+    unknown_sizes: Vec<Span>,
     decl_stmts: FxHashSet<Span>,
     contract_names: Vec<String>,
     stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
@@ -299,10 +301,16 @@ impl<'s, 'a> Builder<'s, 'a> {
                 ElementaryType::String | ElementaryType::Bytes => Ty::Opaque,
             },
             TypeKind::Mapping(m) => Ty::Map(Box::new(self.ty(&m.key)), Box::new(self.ty(&m.value))),
-            TypeKind::Array(a) => Ty::Arr(
-                Box::new(self.ty(&a.element)),
-                a.size.as_deref().and_then(|e| array_size(&self.const_sizes, e)),
-            ),
+            TypeKind::Array(a) => {
+                let size = a.size.as_deref().and_then(|e| array_size(&self.const_sizes, e));
+                // A fixed array whose size is not known would read as a dynamic one.
+                if let Some(e) = a.size.as_deref()
+                    && size.is_none()
+                {
+                    self.unknown_sizes.push(e.span);
+                }
+                Ty::Arr(Box::new(self.ty(&a.element)), size)
+            }
             TypeKind::Function(f) if f.visibility() != Some(ast::Visibility::External) => {
                 let params = f.parameters.iter().map(|v| self.ty(&v.ty)).collect();
                 let rets = f.returns().iter().map(|v| self.ty(&v.ty)).collect();
@@ -623,6 +631,7 @@ pub(crate) fn build<'a>(
         ambiguous_structs: FxHashSet::default(),
         const_conflicts: FxHashSet::default(),
         const_derived: FxHashSet::default(),
+        unknown_sizes: vec![],
         decl_stmts: Default::default(),
         contract_names: vec![],
         stmt_specs: FxHashMap::default(),
@@ -1215,7 +1224,16 @@ pub(crate) fn build<'a>(
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
         ghost_errors: vec![],
-        refused,
+        refused: refused
+            .into_iter()
+            .chain(b.unknown_sizes.iter().map(|&sp| {
+                (
+                    sp,
+                    "fixed array size is not a known constant, so this file is not verified"
+                        .to_string(),
+                )
+            }))
+            .collect(),
         absint: b.absint,
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);

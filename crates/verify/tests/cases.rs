@@ -510,8 +510,18 @@ fn struct_names() {
 }
 
 #[test]
-fn const_names() {
-    check("tests/cases/const_names.sol")
+fn const_unsized() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/const_unsized.sol"]);
+    let want = "fixed array size is not a known constant";
+    assert!(
+        run.stderr.contains(want),
+        "missing `{want}`
+{}",
+        run.stderr
+    );
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
 }
 
 #[test]
