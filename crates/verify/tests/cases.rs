@@ -471,6 +471,34 @@ fn structs() {
     check("tests/cases/structs.sol")
 }
 
+/// Constructor verdicts, which `check` (keyed by function name) cannot tell apart.
+#[test]
+fn ctor_calls() {
+    let file = "tests/cases/ctor_calls.sol";
+    check(file);
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    for (c, want) in [
+        ("CtorCall", "verified"),
+        ("CtorLowCall", "verified"),
+        ("CtorStatic", "verified"),
+        ("CtorHelper", "verified"),
+        ("CtorAsm", "verified"),
+        ("CtorBalanceGrows", "verified"),
+        ("CtorDelegate", "failed"),
+        ("CtorBalance", "failed"),
+    ] {
+        let f = format!("{c}.constructor");
+        assert_eq!(got.get(f.as_str()), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);
+    }
+}
+
 #[test]
 fn struct_names() {
     check("tests/cases/struct_names.sol");

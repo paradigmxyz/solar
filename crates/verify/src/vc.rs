@@ -117,6 +117,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// The span of the call a try statement makes: a revert there runs a catch clause instead of
     /// reverting us.
     try_call: Option<Span>,
+    /// Whether this VC runs a constructor: this contract's address holds no code until it
+    /// returns, so outside code it calls cannot call back in (see `external_call`).
+    in_ctor: bool,
     /// While computing what entry points open under the reentrancy lock may write: their external
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
@@ -262,6 +265,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             inv_entry: FxHashSet::default(),
             revert_sites: vec![],
             try_call: None,
+            in_ctor: false,
             lock_modset: std::cell::Cell::new(false),
             mem_call_writes: Default::default(),
             ranges: Default::default(),
@@ -1571,6 +1575,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let lemmas = broadcast::active(self.prog, self.c, f)?;
         self.broadcast(lemmas, true)?;
         let ctor = f.item.kind.is_constructor();
+        self.in_ctor = ctor;
         self.init_env(ctor)?;
         self.rets = f.rets.iter().map(|(n, _)| n.clone()).collect();
         for (n, ty) in &f.params {
@@ -4234,11 +4239,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                         if let Some(v) = value {
                             self.send_value(&v, Some(&ok));
                         }
-                        let mut r = self.external_call(
+                        // delegated code runs on our storage, even in a constructor
+                        let in_ctor = self.in_ctor;
+                        self.in_ctor &= m != "delegatecall";
+                        let r = self.external_call(
                             vec![Ty::Bool, Ty::Opaque],
                             m == "staticcall",
                             e.span,
-                        )?;
+                        );
+                        self.in_ctor = in_ctor;
+                        let mut r = r?;
                         r[0] = Self::val(Ty::Bool, ok);
                         Ok(r)
                     }
@@ -5177,11 +5187,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             // outside code may run: it may change what code the created addresses hold
             self.known_code.clear();
         }
-        let locked = !self.spec && !is_static && self.lock_held();
+        // In a constructor this contract's address holds no code yet, so the callee cannot run any
+        // of it: the call acts as one under a reentrancy lock that leaves no entry point open.
+        // Only a delegatecall runs outside code on our storage, and it clears `in_ctor`.
+        let ctor = self.in_ctor && !self.spec && !is_static;
+        let locked = ctor || !self.spec && !is_static && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before
         // the call, and afterwards everything those entry points may write is unknown (each of
         // them preserves the invariants, which are proved separately).
-        let open: Vec<&'p Func<'a>> = if locked {
+        let open: Vec<&'p Func<'a>> = if locked && !ctor {
             self.c.funcs.iter().filter(|f| self.lock_open(f)).collect()
         } else {
             vec![]
