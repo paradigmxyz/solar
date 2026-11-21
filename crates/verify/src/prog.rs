@@ -163,6 +163,9 @@ pub(crate) struct Program<'a> {
     pub errors: Vec<(Span, String)>,
     /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
     pub ghost_errors: Vec<crate::ghost::Violation>,
+    /// Struct names that declarations with different fields share: structs are keyed by bare
+    /// name, so no proof about such a file is about the program, and none is attempted.
+    pub refused: Vec<(Span, String)>,
     /// Loop invariant candidates the abstract interpreter found, keyed by the loop statement's
     /// span; inference checks them like any other candidate (`vc::infer`).
     pub absint: FxHashMap<Span, Vec<Spec<'a>>>,
@@ -214,6 +217,10 @@ struct Builder<'s, 'a> {
     /// `INew.Item`): structs are keyed by bare name, so such a name stands for no one datatype
     /// and values of it stay opaque.
     ambiguous_structs: FxHashSet<String>,
+    /// Constant names that several declarations give different sizes, and constants sized
+    /// through another constant: sizes are keyed by bare name, so neither sizes an array.
+    const_conflicts: FxHashSet<String>,
+    const_derived: FxHashSet<String>,
     decl_stmts: FxHashSet<Span>,
     contract_names: Vec<String>,
     stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
@@ -321,28 +328,6 @@ impl<'s, 'a> Builder<'s, 'a> {
                     Ty::Opaque
                 }
             }
-        }
-    }
-
-    /// A struct of `ambiguous_structs` that a storage value of type `t` holds in place, in itself,
-    /// a fixed-size array or a struct field at any depth: the slots it takes are not known, so
-    /// neither are the slots of the variables after it. `seen` holds the structs on the current
-    /// path; a struct that holds itself in place has no layout, so it is reported too.
-    fn ambiguous_in_layout(&self, t: &Type<'a>, seen: &mut Vec<String>) -> Option<String> {
-        match &t.kind {
-            TypeKind::Array(a) if a.size.is_some() => self.ambiguous_in_layout(&a.element, seen),
-            TypeKind::Custom(p) => {
-                let n = p.last().as_str();
-                if self.ambiguous_structs.contains(n) || seen.iter().any(|s| s == n) {
-                    return Some(n.to_string());
-                }
-                let st = self.struct_items.iter().find(|st| st.name.as_str() == n)?;
-                seen.push(n.to_string());
-                let found = st.fields.iter().find_map(|f| self.ambiguous_in_layout(&f.ty, seen));
-                seen.pop();
-                found
-            }
-            _ => None,
         }
     }
 
@@ -634,6 +619,8 @@ pub(crate) fn build<'a>(
         struct_items: vec![],
         struct_docs: vec![],
         ambiguous_structs: FxHashSet::default(),
+        const_conflicts: FxHashSet::default(),
+        const_derived: FxHashSet::default(),
         decl_stmts: Default::default(),
         contract_names: vec![],
         stmt_specs: FxHashMap::default(),
@@ -670,7 +657,16 @@ pub(crate) fn build<'a>(
             if let (Some(n), Some(init)) = (v.name, v.initializer.as_deref())
                 && let Some(k) = array_size(&b.const_sizes, init)
             {
-                b.const_sizes.insert(n.as_str().to_string(), k);
+                let n = n.as_str().to_string();
+                if matches!(init.kind, ast::ExprKind::Ident(_)) {
+                    b.const_derived.insert(n.clone());
+                }
+                if b.const_sizes.get(&n).is_some_and(|&old| old != k) {
+                    b.const_conflicts.insert(n.clone());
+                }
+                if !b.const_conflicts.contains(&n) {
+                    b.const_sizes.insert(n, k);
+                }
             }
         }
         _ => {}
@@ -744,6 +740,23 @@ pub(crate) fn build<'a>(
     }
     b.ambiguous_structs =
         decls.into_iter().filter(|(_, d)| d.len() > 1).map(|(n, _)| n.to_string()).collect();
+    let mut refused = vec![];
+    let mut named = FxHashSet::default();
+    for st in &b.struct_items {
+        let n = st.name.as_str();
+        if b.ambiguous_structs.contains(n) && named.insert(n) {
+            refused.push((
+                st.name.span,
+                format!("struct `{n}` names structs with different fields: structs are keyed by name, so this file is not verified"),
+            ));
+        }
+    }
+    // A size another constant gave may be the conflicting name's other value.
+    if !b.const_conflicts.is_empty() {
+        for n in b.const_conflicts.iter().chain(&b.const_derived) {
+            b.const_sizes.remove(n);
+        }
+    }
     let mut structs = vec![];
     for st in b.struct_items.clone() {
         let name = st.name.as_str();
@@ -760,15 +773,6 @@ pub(crate) fn build<'a>(
     let mut struct_invs: FxHashMap<String, Vec<Spec<'a>>> = FxHashMap::default();
     for (n, docs) in b.struct_docs.clone() {
         for (tag, content, span) in custom_tags(docs) {
-            if tag == "invariant" && b.ambiguous_structs.contains(&n) {
-                b.errors.push((
-                    span,
-                    format!(
-                        "invariant of struct `{n}`, a name another struct with different fields shares, is not supported"
-                    ),
-                ));
-                continue;
-            }
             if tag == "invariant"
                 && let Some(sp) = b.parse_spec(&content, span)
             {
@@ -904,17 +908,6 @@ pub(crate) fn build<'a>(
                 match &sub.kind {
                     ItemKind::Variable(v) => {
                         let ty = b.ty(&v.ty);
-                        if v.mutability.is_none()
-                            && let Some(sn) = b.ambiguous_in_layout(&v.ty, &mut Vec::new())
-                        {
-                            // an opaque value takes one slot, which this one need not
-                            b.errors.push((
-                                v.span,
-                                format!(
-                                    "unknown storage layout: struct `{sn}` names structs with different fields"
-                                ),
-                            ));
-                        }
                         con.state.push(StateVar {
                             name: v.name.map(|n| n.as_str().to_string()).unwrap_or_default(),
                             ty,
@@ -1218,6 +1211,7 @@ pub(crate) fn build<'a>(
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
         ghost_errors: vec![],
+        refused,
         absint: b.absint,
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);

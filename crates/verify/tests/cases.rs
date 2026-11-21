@@ -501,24 +501,17 @@ fn ctor_calls() {
 
 #[test]
 fn struct_names() {
-    check("tests/cases/struct_names.sol");
-    let run = run_verifier(&["--dry-run", "tests/cases/struct_names.sol"]);
-    let want = "unknown storage layout: struct `Item` names structs with different fields";
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/struct_names.sol"]);
+    let want = "struct `Item` names structs with different fields";
     assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
     assert_eq!(run.code, Some(1), "{}", run.stderr);
 }
 
 #[test]
-fn struct_names_deep() {
-    let run = run_verifier(&["--dry-run", "tests/cases/struct_names_deep.sol"]);
-    let want = "unknown storage layout: struct `Item` names structs with different fields";
-    assert!(
-        run.stderr.contains(want),
-        "missing `{want}`
-{}",
-        run.stderr
-    );
-    assert_eq!(run.code, Some(1), "{}", run.stderr);
+fn const_names() {
+    check("tests/cases/const_names.sol")
 }
 
 #[test]

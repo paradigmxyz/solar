@@ -3348,7 +3348,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 // and in a spec, say) is the same term and hashes alike.
                 let hex: String = bytes.as_byte_str().iter().map(|b| format!("{b:02x}")).collect();
                 let t = format!("|str.{hex}|");
-                self.declare_fun(&t, 0, &Ty::Opaque.sort());
+                if self.declared_funs.insert(t.clone()) {
+                    self.smt.send(&format!("(declare-const {t} {})\n", Ty::Opaque.sort()));
+                }
                 Ok(Self::val(Ty::Opaque, t))
             }
             _ => Err((span, "unsupported literal".into())),

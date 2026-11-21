@@ -226,6 +226,14 @@ fn report_ghost(sess: &Session, program: &prog::Program<'_>) -> usize {
     program.ghost_errors.len()
 }
 
+/// Reports why no proof about the file is attempted (see `prog::Program::refused`).
+fn report_refused(sess: &Session, program: &prog::Program<'_>) -> usize {
+    for (sp, msg) in &program.refused {
+        report(sess, msg, *sp, &[]);
+    }
+    program.refused.len()
+}
+
 /// The verdict mark, coloured when stdout is a terminal.
 fn mark(ok: bool) -> &'static str {
     match (ok, std::io::stdout().is_terminal()) {
@@ -262,6 +270,10 @@ fn run_parallel(cli: &Cli) -> ! {
             for (sp, msg) in &program.errors {
                 report(&sess, msg, *sp, &[]);
                 fe_errors += 1;
+            }
+            if !program.refused.is_empty() {
+                fe_errors += report_refused(&sess, &program);
+                continue;
             }
             if !program.ghost_errors.is_empty() {
                 // Not erasable: nothing about this file is verified.
@@ -431,6 +443,10 @@ fn main() {
                     report(&sess, msg, *sp, &[]);
                     total_err += 1;
                 }
+            }
+            if !program.refused.is_empty() {
+                total_err += report_refused(&sess, &program);
+                continue;
             }
             if !program.ghost_errors.is_empty() {
                 // Ghost code that is not erasable: the proof would not be about the deployed
@@ -848,7 +864,7 @@ fn emit_lean_spec(
         report(sess, msg, *sp, &[]);
         errors += 1;
     }
-    errors += report_ghost(sess, program);
+    errors += report_ghost(sess, program) + report_refused(sess, program);
     if errors > 0 {
         return 1;
     }
