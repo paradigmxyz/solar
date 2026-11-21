@@ -17,7 +17,7 @@ use num_bigint::BigInt;
 use solar_parse::{
     ast::{self, BinOpKind, Expr, ExprKind, IndexKind, LitKind, Stmt, StmtKind, UnOpKind},
     interface::{
-        Span,
+        ByteSymbol, Span,
         data_structures::map::{FxHashMap, FxHashSet},
         sym,
     },
@@ -104,6 +104,9 @@ pub(crate) struct Vc<'p, 'a> {
     cex_terms: Vec<(String, String)>,
     depth: usize,
     declared_funs: FxHashSet<String>,
+    /// Interned bytes of string literals longer than 32 bytes to the index that names their
+    /// constant (`|strl.N|`).
+    str_lits: FxHashMap<ByteSymbol, usize>,
     splits: Vec<String>,
     /// The `value:` option of the call being evaluated (ETH it sends), consumed by external_call.
     call_value: Option<String>,
@@ -261,6 +264,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             cex_terms: vec![],
             depth: 0,
             declared_funs: FxHashSet::default(),
+            str_lits: FxHashMap::default(),
             splits: vec![],
             split_wins: 0,
             call_value: None,
@@ -3348,9 +3352,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             LitKind::Str(_, bytes, _) => {
                 // One constant per literal value, so the same literal evaluated twice (in the body
-                // and in a spec, say) is the same term and hashes alike.
-                let hex: String = bytes.as_byte_str().iter().map(|b| format!("{b:02x}")).collect();
-                let t = format!("|str.{hex}|");
+                // and in a spec, say) is the same term and hashes alike. A literal that fits a
+                // `bytes32` is named by its hex, which `str_bytes` reads back; a longer one by an
+                // index into its interned bytes, so naming it costs the same however long it is.
+                let raw = bytes.as_byte_str();
+                let t = if raw.len() <= 32 {
+                    let hex: String = raw.iter().map(|b| format!("{b:02x}")).collect();
+                    format!("|str.{hex}|")
+                } else {
+                    let n = self.str_lits.len();
+                    let i = *self.str_lits.entry(*bytes).or_insert(n);
+                    format!("|strl.{i}|")
+                };
                 if self.declared_funs.insert(t.clone()) {
                     self.smt.send(&format!("(declare-const {t} {})\n", Ty::Opaque.sort()));
                 }
