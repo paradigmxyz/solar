@@ -1005,6 +1005,26 @@ end {namespace}
                     state["gas"] - index,
                     executable,
                 )
+            if name == "flashLoan":
+                failure = path["zero_assets"]
+                self.assertTrue((kernel / Path(failure["proof"]).name).is_file())
+                empty = state["calldata"].copy()
+                empty[36:68] = caller_replay.word(0)
+                data = bytes.fromhex("08c379a0") + caller_replay.word(32)
+                data += caller_replay.word(11) + b"zero assets".ljust(32, b"\0")
+                for surplus in (-1, 0, 23):
+                    stopped = caller_entry.replay(
+                        {**state, "calldata": empty, "gas": failure["gas"] + surplus},
+                        None,
+                        executable,
+                        30,
+                    )
+                    if surplus < 0:
+                        self.assertEqual(stopped[:4], ["out-of-gas", [], 0, 0])
+                    else:
+                        self.assertEqual(
+                            stopped[:4], ["revert", list(data), surplus, 0]
+                        )
             if name == "supplyCollateral":
                 self.check_collateral_write(
                     kernel, path, state, state["gas"] - index, executable

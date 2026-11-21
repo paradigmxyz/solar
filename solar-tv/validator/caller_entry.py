@@ -14,6 +14,7 @@ from . import (
     decoder_proof,
     dispatch_proof,
     entry_proof,
+    flashloan_rejection,
     market_proof,
     market_rejection,
     mir_state,
@@ -562,6 +563,17 @@ def check(
                 decoded,
                 catalog,
                 market,
+                decoder,
+                route,
+                timeout,
+            )
+        elif site.name == "flashLoan":
+            proof["zero_assets"] = flashloan_rejection.certify(
+                kernel,
+                proof["decoder"]["proof"],
+                runtime,
+                decoded,
+                catalog,
                 decoder,
                 route,
                 timeout,

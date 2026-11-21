@@ -1,12 +1,22 @@
 """Check a compiled ABI error stub, including its exact revert bytes."""
 
-from itertools import pairwise
+from itertools import batched, pairwise
 
-from . import metered_prefix
+from . import entry_proof, metered_prefix
 from .callers import require
 from .decoder_proof import Step
 from .dispatch_proof import Instruction
 from .market_proof import word, words
+
+
+def error_data(detail):
+    padded = detail.ljust((len(detail) + 31) // 32 * 32, b"\0")
+    return (
+        bytes.fromhex("08c379a0")
+        + (32).to_bytes(32, "big")
+        + len(detail).to_bytes(32, "big")
+        + padded
+    )
 
 
 def plan(runtime, decoded, catalog, entry, stack, memory):
@@ -25,7 +35,8 @@ def plan(runtime, decoded, catalog, entry, stack, memory):
             *(spec["stack"] or (0, 0)),
         )
         inst = Instruction(pc, opcode, 0, schema, stack.copy(), None, None)
-        rows.append(Step(inst, memory.copy()))
+        row = Step(inst, memory.copy())
+        rows.append(row)
         if opcode == 0xFD:
             return rows
         pc += 1
@@ -47,26 +58,42 @@ def plan(runtime, decoded, catalog, entry, stack, memory):
                 "symbolic revert string",
             )
             stack[:2] = [(value << offset) % 2**256]
+        elif opcode == 0x15:
+            require(isinstance(stack[0], int), "symbolic revert stub condition")
+            stack[0] = int(stack[0] == 0)
         elif opcode == 0x52:
             offset, value = stack[:2]
             require(
                 isinstance(offset, int)
                 and offset % 32 == 0
-                and offset // 32 < len(memory),
-                "revert stub writes outside its active memory",
+                and offset // 32 <= len(memory),
+                "unsupported store in revert stub",
             )
-            memory[offset // 32] = value
+            index = offset // 32
+            if index == len(memory):
+                row.growth = 3 + (index + 1) ** 2 // 512 - index**2 // 512
+                memory.append(value)
+            else:
+                memory[index] = value
             del stack[:2]
-        elif opcode == 0x56:
-            pc = stack.pop(0)
-            require(
-                pc in decoded and decoded[pc][0] == "jumpdest",
-                "unexpected revert stub jump",
-            )
-            inst.target = pc
+        elif opcode in (0x56, 0x57):
+            target = stack.pop(0)
+            condition = 1 if opcode == 0x56 else stack.pop(0)
+            require(isinstance(condition, int), "symbolic revert stub branch")
+            if condition != 0:
+                require(
+                    target in decoded and decoded[target][0] == "jumpdest",
+                    "unexpected revert stub jump",
+                )
+                pc = target
+                inst.target = pc
         else:
             require(False, "unexpected revert stub instruction")
     require(False, "cycle in revert stub")
+
+
+def charges(rows):
+    return sum(row.inst.schema[1] + row.growth for row in rows[:-1])
 
 
 def frame(row, balance=0):
@@ -80,7 +107,7 @@ def fragments(rows, label, payload):
     debits = []
     for row, follow in pairwise(rows):
         inst = row.inst
-        cost = inst.schema[1]
+        cost = inst.schema[1] + row.growth
         name = f"{label}Step{len(debits)}"
         debits.append(
             metered_prefix.Debit(name, inst.pc, inst.opcode, cost, frame(follow))
@@ -103,14 +130,16 @@ def fragments(rows, label, payload):
             offset, stored = inst.stack[:2]
             arena = words(row.memory)
             index = offset // 32
-            out += f"""  have within : {index}+1 ≤ ({arena} : List Word).length := by simp
-  have expanded : expand (wordArena {arena}) {offset} 32 = .ok (wordArena {arena}) :=
-    expandArenaRange {arena} {index} 1 within (by simp)
-  have growth : EVM.State.memoryCharge (wordArena {arena}) {offset} 32 = 0 :=
-    arenaCharge {arena} {index} 1 within
-  have written : writeBytes (wordArena {arena}) {offset} (wordBytes {word(stored)}) =
-      wordArena {words(follow.memory)} :=
-    writeActiveArena {arena} {index} {word(stored)} within
+            out += f"""  have growth : EVM.State.memoryCharge (wordArena {arena}) {offset} 32 = {row.growth} := by
+    change EVM.State.memoryCharge (wordArena {arena}) (32*{index}) 32 = _
+    rw [EVM.State.memoryCharge,requiredWordStore,memoryWords,wordArena_length]
+    simp only [List.length_cons,List.length_nil] <;> decide
+  have expanded : expand (wordArena {arena}) {offset} 32 =
+      .ok (wordArena (activeWords {arena} {index})) :=
+    expandArena {arena} {index} (by change 32*max {len(row.memory)} ({index}+1) ≤ 65536; decide)
+  have written : writeBytes (wordArena (activeWords {arena} {index})) {offset} (wordBytes {word(stored)}) =
+      wordArena (storeArena {arena} {index} {word(stored)}) :=
+    writeArena {arena} {index} {word(stored)}
   simp at expanded growth written
 """
             facts += [
@@ -134,7 +163,7 @@ def fragments(rows, label, payload):
     tail = last.memory[covered:]
     require(all(isinstance(value, int) for value in constants), "symbolic revert bytes")
     arena = words(last.memory)
-    charge = sum(debit.gas for debit in debits)
+    charge = charges(rows)
     yield metered_prefix.certify(
         label, binders, "env journal", charge, frame(rows[0]), frame(last), debits
     )
@@ -179,3 +208,24 @@ theorem {label}Returns (env : World.Environment) (journal : Journal) (work balan
 
 #print axioms {label}Returns
 """
+
+
+def certify(kernel, module, namespace, label, rows, payload, link, timeout):
+    chunks = map("".join, batched(fragments(rows, label, payload), 7))
+    for i, body in enumerate([*chunks, link]):
+        name = f"{namespace}{label}{i}"
+        source = (
+            entry_proof.import_modules([module])
+            + entry_proof.HEADER
+            + "open SolarTV.Execution MIR.TransferFromABI\n"
+            + "set_option linter.unusedVariables false\n"
+            + "set_option linter.unusedSimpArgs false\n"
+            + body
+        )
+        result = entry_proof.lean(
+            kernel, name, source, timeout, module=True, namespace=namespace
+        )
+        output = entry_proof.success(result, name)
+        entry_proof.check_axioms(output.splitlines(), body.count("#print axioms"))
+        module = name
+    return f"kernel/{module}.lean"

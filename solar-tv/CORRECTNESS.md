@@ -756,6 +756,11 @@ encoder and proves the exact `Error("market not created")` bytes, remaining gas,
 and rollback. Independent replay checks both gas outcomes with a cold and warm
 slot, and tests a nonzero high half with a zero low half.
 
+FlashLoan's zero-assets branch is checked from ABI entry through its REVERT.
+The certificate includes the memory expansion for the error payload and
+proves the funded receipt or out-of-gas rollback for any incoming balance.
+Independent replay checks the threshold and surplus gas.
+
 SupplyCollateral carries this symbolic certificate through the first
 position update for canonical calldata, a created market, a nonzero
 amount and owner, and a collateral sum that fits in 128 bits. The emitted

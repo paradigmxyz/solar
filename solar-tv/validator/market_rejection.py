@@ -1,9 +1,8 @@
 """Certify the emitted revert when a caller's market is missing."""
 
-from itertools import batched
 from pathlib import Path
 
-from . import decoder_proof, entry_proof, revert_stub
+from . import decoder_proof, revert_stub
 
 
 def certify(kernel, proof, runtime, decoded, catalog, market, decoder, route, timeout):
@@ -13,14 +12,7 @@ def certify(kernel, proof, runtime, decoded, catalog, market, decoder, route, ti
     rows = revert_stub.plan(
         runtime, decoded, catalog, guard.missing, guard.stack, market.memory
     )
-    detail = b"market not created"
-    payload = (
-        bytes.fromhex("08c379a0")
-        + (32).to_bytes(32, "big")
-        + len(detail).to_bytes(32, "big")
-    )
-    payload += detail.ljust(32, b"\0")
-    fragments = revert_stub.fragments(rows, "missingStub", payload)
+    payload = revert_stub.error_data(b"market not created")
     steps = (
         len(route.instructions)
         + len(decoder.instructions)
@@ -30,9 +22,11 @@ def certify(kernel, proof, runtime, decoded, catalog, market, decoder, route, ti
         - 1
     )
     abi_gas = route.gas + decoder.gas
-    tail = sum(row.inst.schema[1] for row in rows[:-1])
+    tail = revert_stub.charges(rows)
     price = f"{abi_gas} + (marketGas env journal + {guard.gas + tail})"
     link = f"""
+open MIR.TransferFromMarket
+
 theorem marketNotCreated {decoder_proof.input_binders(decoder)}
     (noValue : env.value = 0)
     (selected : MIR.TransferFromDispatch.selector env.input = {route.stack[0]})
@@ -66,20 +60,7 @@ theorem marketNotCreated {decoder_proof.input_binders(decoder)}
 
 #print axioms marketNotCreated
 """
-    for i, body in enumerate([*map("".join, batched(fragments, 7)), link]):
-        name = f"{namespace}MarketReject{i}"
-        source = (
-            entry_proof.import_modules([module])
-            + entry_proof.HEADER
-            + "open SolarTV.Execution MIR.TransferFromABI MIR.TransferFromMarket\n"
-            + "set_option linter.unusedVariables false\n"
-            + "set_option linter.unusedSimpArgs false\n"
-            + body
-        )
-        result = entry_proof.lean(
-            kernel, name, source, timeout, module=True, namespace=namespace
-        )
-        output = entry_proof.success(result, name)
-        entry_proof.check_axioms(output.splitlines(), body.count("#print axioms"))
-        module = name
-    return {"proof": f"kernel/{module}.lean", "gas_after_guard": tail}
+    reference = revert_stub.certify(
+        kernel, module, namespace, "missingStub", rows, payload, link, timeout
+    )
+    return {"proof": reference, "gas_after_guard": tail}

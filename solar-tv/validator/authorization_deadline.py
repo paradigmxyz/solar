@@ -288,15 +288,9 @@ def expired_fragments(
     rows = revert_stub.plan(
         runtime, decoded, catalog, failure, layout.stack, layout.memory
     )
-    detail = b"signature expired"
-    payload = (
-        bytes.fromhex("08c379a0")
-        + (32).to_bytes(32, "big")
-        + len(detail).to_bytes(32, "big")
-    )
-    payload += detail.ljust(32, b"\0")
+    payload = revert_stub.error_data(b"signature expired")
     count = abi_steps + 5 + len(rows) - 1
-    cost = abi_gas + guard_gas + sum(row.inst.schema[1] for row in rows[:-1])
+    cost = abi_gas + guard_gas + revert_stub.charges(rows)
     tail = revert_stub.fragments(rows, "expiredStub", payload)
     link = f"""
 theorem authorizationExpired {binders}
