@@ -78,3 +78,22 @@ contract BytesWidths {
         return bytes2(b) == bytes2(b);
     }
 }
+/// String literals convert to `bytesN` implicitly as well, and unset bytes cast to zero.
+contract ImplicitBytes {
+    /// @custom:ensures result
+    function bad_implicit_widths() external pure returns (bool) {
+        bytes2 x = "A";
+        bytes1 y = "A";
+        return uint16(x) == uint16(uint8(y));
+    }
+    /// @custom:ensures result
+    function ok_implicit_value() external pure returns (bool) {
+        bytes2 x = "A";
+        return x == 0x4100 && x == "A";
+    }
+    /// @custom:ensures r == 0
+    function ok_empty_bytes() external pure returns (uint8 r) {
+        bytes memory b;
+        return uint8(bytes1(b));
+    }
+}

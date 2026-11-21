@@ -4776,14 +4776,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         if let (Ty::Bytes(n), Ty::Opaque) = (&ty, &v.ty) {
             let n = *n as usize;
-            let lit = v.t.strip_prefix("|str.").and_then(|s| s.strip_suffix('|'));
-            // A string literal's bytes are known: `bytesN` holds them left-aligned.
-            if let Some(hex) = lit
-                && hex.len() * 4 <= n
-            {
-                let b = BigInt::parse_bytes(hex.as_bytes(), 16).unwrap_or_default();
-                let t = num(&(b * pow2((n - hex.len() * 4) as u32)));
+            if let Some(t) = Self::str_bytes(n, &v.t) {
                 return Self::val(ty, t);
+            }
+            // Unset bytes are empty: every byte of the result is padding.
+            if v.t == "0" {
+                return Self::val(ty, "0");
             }
             // Other bytes are unknown here, but each width reads them through its own function,
             // so no relabeled term makes two widths of one value equal.
@@ -5897,6 +5895,10 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// on the right. Every other implicit conversion keeps the value.
     fn coerce(ty: &Ty, v: Val) -> Val {
         match (ty, &v.ty) {
+            // A string literal converts to `bytesN` implicitly too, its bytes left-aligned.
+            (Ty::Bytes(n), Ty::Opaque) if let Some(t) = Self::str_bytes(*n as usize, &v.t) => {
+                Var { ty: ty.clone(), t, len: None }
+            }
             (Ty::Bytes(n), Ty::Bytes(m)) if n > m => Var {
                 ty: ty.clone(),
                 t: format!("(* {} {})", v.t, num(&pow2((n - m) as u32))),
@@ -5906,9 +5908,27 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// The `bytesN` value (N in bits) of the string literal term t, when its bytes fit.
+    fn str_bytes(n: usize, t: &str) -> Option<String> {
+        let hex = t.strip_prefix("|str.")?.strip_suffix('|')?;
+        if hex.len() * 4 > n {
+            return None;
+        }
+        let b = BigInt::parse_bytes(hex.as_bytes(), 16).unwrap_or_default();
+        Some(num(&(b * pow2((n - hex.len() * 4) as u32))))
+    }
+
     /// Two operands of one operator, the narrower `bytesN` widened to the other's type.
     fn widen_pair(a: Val, b: Val) -> (Val, Val) {
         match (&a.ty, &b.ty) {
+            (Ty::Bytes(_), Ty::Opaque) => {
+                let ty = a.ty.clone();
+                (a, Self::coerce(&ty, b))
+            }
+            (Ty::Opaque, Ty::Bytes(_)) => {
+                let ty = b.ty.clone();
+                (Self::coerce(&ty, a), b)
+            }
             (Ty::Bytes(n), Ty::Bytes(m)) if n > m => {
                 let ty = a.ty.clone();
                 (a, Self::coerce(&ty, b))

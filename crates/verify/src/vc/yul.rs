@@ -695,7 +695,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             // A small fixed-size array of static elements: its elements in place, in order.
             Ty::Arr(e, Some(n)) if *n <= 32 => {
                 for i in 0..*n {
-                    if !self.abi_words(e, &format!("(select {t} {i})"), out) {
+                    // Nested arrays multiply: past 32 words in all, keep the hash opaque.
+                    if !self.abi_words(e, &format!("(select {t} {i})"), out) || out.len() > 32 {
                         return false;
                     }
                 }

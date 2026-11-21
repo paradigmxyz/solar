@@ -212,6 +212,7 @@ struct Builder<'s, 'a> {
     enum_variants: FxHashMap<String, usize>,
     udvts: FxHashMap<String, &'a Type<'a>>,
     struct_items: Vec<&'a ast::ItemStruct<'a>>,
+    struct_names: FxHashSet<String>,
     struct_docs: Vec<(String, &'a ast::DocComments<'a>)>,
     /// Struct names that declarations with different fields share (such as `IOld.Item` and
     /// `INew.Item`): structs are keyed by bare name, so such a name stands for no one datatype
@@ -316,7 +317,7 @@ impl<'s, 'a> Builder<'s, 'a> {
                     Ty::Contract(n)
                 } else if self.ambiguous_structs.contains(&n) {
                     Ty::Opaque
-                } else if self.struct_items.iter().any(|st| st.name.as_str() == n) {
+                } else if self.struct_names.contains(&n) {
                     Ty::Struct(n)
                 } else if let Some(u) = self.udvts.get(&n).copied() {
                     self.ty(u)
@@ -617,6 +618,7 @@ pub(crate) fn build<'a>(
         enum_variants: FxHashMap::default(),
         udvts: FxHashMap::default(),
         struct_items: vec![],
+        struct_names: FxHashSet::default(),
         struct_docs: vec![],
         ambiguous_structs: FxHashSet::default(),
         const_conflicts: FxHashSet::default(),
@@ -651,6 +653,7 @@ pub(crate) fn build<'a>(
         }
         ItemKind::Struct(st) => {
             b.struct_items.push(st);
+            b.struct_names.insert(st.name.as_str().to_string());
             b.struct_docs.push((st.name.as_str().to_string(), &it.docs));
         }
         ItemKind::Variable(v) => {
@@ -758,9 +761,10 @@ pub(crate) fn build<'a>(
         }
     }
     let mut structs = vec![];
+    let mut emitted = FxHashSet::default();
     for st in b.struct_items.clone() {
         let name = st.name.as_str();
-        if b.ambiguous_structs.contains(name) || structs.iter().any(|(n, _)| n == name) {
+        if b.ambiguous_structs.contains(name) || !emitted.insert(name) {
             continue;
         }
         let fields = st
