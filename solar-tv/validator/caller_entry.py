@@ -15,6 +15,7 @@ from . import (
     dispatch_proof,
     entry_proof,
     market_proof,
+    market_rejection,
     mir_state,
     native,
     owner_reentry,
@@ -552,6 +553,19 @@ def check(
             len(runtime),
             timeout,
         )
+        if market is not None:
+            read = proof["market_read"]
+            read["guard"]["failure"] = market_rejection.certify(
+                kernel,
+                read["proof"],
+                runtime,
+                decoded,
+                catalog,
+                market,
+                decoder,
+                route,
+                timeout,
+            )
         terminal = replay(state, None, executable, timeout)
         exit_proof = entry_proof.certify_exit(
             kernel, proof["proof"], helper_pc, terminal, timeout

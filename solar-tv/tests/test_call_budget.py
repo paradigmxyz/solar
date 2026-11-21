@@ -1200,10 +1200,29 @@ end {namespace}
                 caller_entry.replay(underpaid, None, executable, 30)[0], "out-of-gas"
             )
             if successor == "missing":
-                funded = {**guarded, "gas": guarded["gas"] + 1_000}
-                rejected = caller_entry.replay(funded, None, executable, 30)
-                self.assertEqual(rejected[0], "revert")
-                self.assertIn(b"market not created", bytes(rejected[1]))
+                failure = guard["failure"]
+                self.assertTrue((kernel / Path(failure["proof"]).name).is_file())
+                detail = b"market not created"
+                data = (
+                    bytes.fromhex("08c379a0")
+                    + caller_replay.word(32)
+                    + caller_replay.word(len(detail))
+                    + detail.ljust(32, b"\0")
+                )
+                for warm, cost in ((False, 2100), (True, 100)):
+                    meter = load_gas + cost + guard["gas"] + failure["gas_after_guard"]
+                    funded = {
+                        **guarded,
+                        "warm_slots": guarded["warm_slots"] if warm else [],
+                    }
+                    failed = caller_entry.replay(
+                        {**funded, "gas": meter - 1}, None, executable, 30
+                    )
+                    self.assertEqual(failed[:4], ["out-of-gas", [], 0, 0])
+                    rejected = caller_entry.replay(
+                        {**funded, "gas": meter + 17}, None, executable, 30
+                    )
+                    self.assertEqual(rejected[:4], ["revert", list(data), 17, 0])
 
         guard_checks = "".join(
             f"""

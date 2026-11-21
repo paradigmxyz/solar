@@ -751,9 +751,10 @@ successor. Both MIR versions continue from their checked SSA frame and
 branch on the same low 128 bits. The metered prefix composes with dispatch,
 decoding and the price of the first storage read. This proves rollback for
 every budget below the guard successor, even if the slot had already been
-warmed. Independent bytecode replay covers a zero word, a nonzero high half
-with a zero low half, a nonzero low half, and the gas required to reach the
-successor.
+warmed. For a missing market, the proof continues through the shared error
+encoder and proves the exact `Error("market not created")` bytes, remaining gas,
+and rollback. Independent replay checks both gas outcomes with a cold and warm
+slot, and tests a nonzero high half with a zero low half.
 
 SupplyCollateral carries this symbolic certificate through the first
 position update for canonical calldata, a created market, a nonzero
