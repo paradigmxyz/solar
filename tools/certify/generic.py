@@ -4255,9 +4255,37 @@ def replayed_modules(rec):
     ]
 
 
+def lifecycle_claims_problem(rec):
+    """Why a lifecycle-tier record's claims do not hold together, or None. The lifecycle tier runs no
+    scripts/certify: it publishes no final statement, statuses or replay of its own, and its
+    verdict is the lifecycle stages' (CERTIFIED exactly when the kernel proved the creation, with the
+    composed theorem built when the record binds an expected theorem). The fresh run must reproduce
+    status, tier_reached and every lifecycle key replay compares."""
+    claimed = [k for k in (*CLAIM_KEYS, "strict", "published_statement") if rec.get(k)]
+    if claimed:
+        return f"the lifecycle tier publishes no {', '.join(claimed)}, but the record claims it"
+    status, reached = rec.get("status"), rec.get("tier_reached")
+    life = rec.get("lifecycle") or {}
+    if status == "CERTIFIED":
+        if reached != "lifecycle":
+            return f"a CERTIFIED lifecycle record has tier_reached {reached!r}, not 'lifecycle'"
+        if not any(
+            st.get("stage") == "kernel" and st.get("ok")
+            for st in life.get("stages", [])
+        ):
+            return "a CERTIFIED lifecycle record has no proved kernel stage"
+        if life.get("bind") and not (life.get("composed") or {}).get("built"):
+            return "a CERTIFIED lifecycle record that binds an expected theorem has no built composed theorem"
+    elif reached == "lifecycle":
+        return f"a {status} lifecycle record claims tier_reached 'lifecycle'"
+    return None
+
+
 def claims_problem(rec, d):
     """Why record.json's claims are not certify-record.json's (or its verdict not the one strict
-    gives that record), or None."""
+    gives that record), or None. A lifecycle-tier record is checked by lifecycle_claims_problem."""
+    if rec.get("requested_tier") == "lifecycle":
+        return lifecycle_claims_problem(rec)
     if "certify-record.json" not in rec.get("run_files", {}):
         claimed = [
             k
@@ -4346,6 +4374,10 @@ def producer_problem(rec, d, which):
             f"stale producer: the {which}'s solar embeds {s.get('binary_commit')}, "
             f"not the commit it was built from ({b['commit']})"
         )
+    if rec.get("requested_tier") == "lifecycle":
+        # The lifecycle tier runs no scripts/certify: the driver itself ran the artifact its build
+        # produced, bound above (solar.build.artifact.sha256 == binary_sha256).
+        return None
     try:
         cr = json.loads((d / "certify-record.json").read_text())
     except OSError, ValueError:

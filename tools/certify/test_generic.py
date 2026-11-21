@@ -278,9 +278,34 @@ def claims_record():
 
 
 BIN = "e" * 64
+
+
+def lifecycle_record(r):
+    """A complete lifecycle-tier record: its provenance (LIFE_PROV), a CERTIFIED verdict with a proved
+    kernel stage and a built composed theorem, and none of the certified tier's claims."""
+    for k in (*generic.CLAIM_KEYS, "strict", "published_statement"):
+        r.pop(k, None)
+    r.update(
+        requested_tier="lifecycle",
+        status="CERTIFIED",
+        tier_reached="lifecycle",
+        lifecycle=dict(
+            json.loads(json.dumps(LIFE_PROV)),
+            stages=[
+                {"stage": "kernel", "ok": True, "detail": "the kernel proves Deploys"}
+            ],
+            composed={"theorem": "Certified.c_1.Composed.composed", "built": True},
+        ),
+    )
+
+
 # A lifecycle-tier record's provenance-bound inputs (generic.LIFECYCLE_PROVENANCE).
 LIFE_PROV = {
-    "bind": {"source": "Verify.LoopSource.Equiv.CounterCtx.src 8", "ws": [8]},
+    "bind": {
+        "source": "Verify.LoopSource.Equiv.CounterCtx.src 8",
+        "source_module": "Verify.LoopSource.Equiv.CounterCtx",
+        "ws": [8],
+    },
     "args": ["0x8"],
     "creation_sha256": "4" * 64,
 }
@@ -670,21 +695,9 @@ class ReplayClaims(unittest.TestCase):
     def test_fresh_command_carries_lifecycle_inputs(self):
         """For a lifecycle-tier record, the fresh run is given the record's words (decimal) and its
         binding (a file whose JSON is the record's bind); a record of another tier gets neither."""
-        # claims_problem's tier recomputation does not know the lifecycle tier ("is not a tier"),
-        # so a lifecycle record is refused there; it is set aside here to reach the fresh command.
-        with (
-            tempfile.TemporaryDirectory() as t,
-            unittest.mock.patch.object(generic, "claims_problem", lambda rec, d: None),
-        ):
+        with tempfile.TemporaryDirectory() as t:
             self.fresh_cmd, self.fresh_bind = None, None
-            self.replay(
-                self.make(
-                    pathlib.Path(t),
-                    lambda r: r.update(
-                        requested_tier="lifecycle", lifecycle=dict(LIFE_PROV)
-                    ),
-                )
-            )
+            self.replay(self.make(pathlib.Path(t), lifecycle_record))
             cmd = self.fresh_cmd
             self.assertIsNotNone(cmd)
             self.assertEqual(cmd[cmd.index("--constructor-args") + 1], "8")
@@ -696,6 +709,73 @@ class ReplayClaims(unittest.TestCase):
             self.assertIsNotNone(self.fresh_cmd)
             self.assertNotIn("--constructor-args", self.fresh_cmd)
             self.assertNotIn("--lifecycle-bind", self.fresh_cmd)
+
+    def test_complete_lifecycle_record_replays(self):
+        """A complete lifecycle record (its provenance, claims and producer whole) reaches the fresh
+        run and replays: claims_problem no longer refuses requested_tier lifecycle."""
+        with tempfile.TemporaryDirectory() as t:
+            code, line = self.replay(self.make(pathlib.Path(t), lifecycle_record))
+        self.assertEqual(code, 0, line)
+        self.assertTrue(line.startswith("CERTIFIED: replay of "), line)
+        self.assertNotIn("is not a tier", line)
+
+    def test_lifecycle_replay_refuses_each_changed_input(self):
+        """The fresh run must reproduce the recorded constructor words, the binding (its source and
+        source_module) and the creation hash; any difference is refused by name."""
+        cases = {
+            "lifecycle.args": lambda r: r["lifecycle"].update(args=["0x5"]),
+            "lifecycle.bind (source_module)": lambda r: r["lifecycle"]["bind"].update(
+                source_module="Verify.LoopSource.Equiv.CounterCreated"
+            ),
+            "lifecycle.bind (source)": lambda r: r["lifecycle"]["bind"].update(
+                source="Verify.LoopSource.Equiv.CounterCtx.src 5"
+            ),
+            "lifecycle.creation_sha256": lambda r: r["lifecycle"].update(
+                creation_sha256="5" * 64
+            ),
+        }
+        for label, fresh_edit in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as t:
+                code, line = self.replay(
+                    self.make(pathlib.Path(t), lifecycle_record), fresh_edit
+                )
+                self.assertEqual(code, 1, line)
+                key = label.split(" ")[0]
+                self.assertIn(
+                    f"REJECTED: replay: {key} differs between the record and the fresh run",
+                    line,
+                )
+
+    def test_lifecycle_claims_hold_together(self):
+        """A lifecycle record's verdict must be its stages': CERTIFIED with a proved kernel stage
+        and (with a binding) a built composed theorem, tier_reached lifecycle exactly then, and no
+        claim of a statement the lifecycle tier does not publish."""
+
+        def edited(f):
+            def e(r):
+                lifecycle_record(r)
+                f(r)
+
+            return e
+
+        cases = {
+            "no proved kernel stage": lambda r: r["lifecycle"].update(stages=[]),
+            "has no built composed theorem": lambda r: r["lifecycle"].update(
+                composed={"built": False}
+            ),
+            "has tier_reached 'functional'": lambda r: r.update(
+                tier_reached="functional"
+            ),
+            "claims tier_reached 'lifecycle'": lambda r: r.update(
+                status="UNSUPPORTED-lifecycle"
+            ),
+            "publishes no final": lambda r: r.update(final={"theorem": "x"}),
+        }
+        for needle, f in cases.items():
+            with self.subTest(needle), tempfile.TemporaryDirectory() as t:
+                code, line = self.replay(self.make(pathlib.Path(t), edited(f)))
+                self.assertEqual(code, 1, line)
+                self.assertIn(needle, line)
 
     def test_non_lifecycle_record_without_lifecycle_keys(self):
         """A record of another tier without any lifecycle key replays as before."""
