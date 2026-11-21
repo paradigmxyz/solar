@@ -460,7 +460,7 @@ class Wiring(unittest.TestCase):
     def test_driver_checks_source_then_composes(self):
         src = (HERE / "generic.py").read_text()
         i = src.index("def lifecycle_run(")
-        body = src[i : src.index("\ndef admit_lake_jobs", i)]
+        body = src[i : src.index("\n# The edge the loop-resource generator", i)]
         self.assertLess(
             body.index('"SourceSame"'), body.index("kq = lifecycle_kernel(")
         )
@@ -468,6 +468,20 @@ class Wiring(unittest.TestCase):
         self.assertIn("this run's source unit is not the expected theorem's", body)
         self.assertIn("the composed theorem does not build", body)
         self.assertEqual(body.count("build_failure("), 2)
+        # The loop-resource module is built after Composed, and only when the run has a bind.
+        self.assertLess(
+            body.index('"Composed"'), body.index("lifecycle_loop_resources(")
+        )
+        self.assertIn("if opened and bind:", body)
+
+    def test_loop_resources_build_after_composed(self):
+        src = (HERE / "generic.py").read_text()
+        i = src.index("def lifecycle_loop_resources(")
+        body = src[i : src.index("\ndef admit_lake_jobs", i)]
+        self.assertIn('"LoopResources"', body)
+        self.assertEqual(body.count("build_failure("), 1)
+        self.assertIn('"subedge" if ok else "failed"', body)
+        self.assertIn("loop_resources.Unsupported", body)
 
     def test_build_failure_keeps_the_whole_log(self):
         out = "\n".join(

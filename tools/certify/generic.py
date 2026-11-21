@@ -2946,16 +2946,28 @@ def lifecycle_run(
                     tier_reached="lifecycle",
                 )
         opened = record.get("lifecycle_open") or []
+        loops_note = (
+            f"; runtime loops OPEN, outside this tier ({', '.join(o['where'] for o in opened)}): "
+            "their fixed-fuel resource obligation is not discharged"
+            if opened
+            else ""
+        )
+        if opened and bind:
+            lr = lifecycle_loop_resources(
+                a, solar, src, name, contract, ast, fns, bind, lean_dir, body, rec_dir
+            )
+            life["loop_resources"] = lr
+            log(f"lifecycle loop resources: {lr['status']}: {lr['detail']}")
+            if lr["status"] == "subedge":
+                loops_note = (
+                    f"; runtime loop ({', '.join(o['where'] for o in opened)}) resources: the final "
+                    f"EVM IR subedge is proved on these bytes ({lr['theorem']}); the source join stays "
+                    f"OPEN: {LOOP_SOURCE_GAP}"
+                )
         finish(
             "CERTIFIED",
             0,
-            f"CERTIFIED: lifecycle: {kq['detail']}"
-            + (
-                f"; runtime loops OPEN, outside this tier ({', '.join(o['where'] for o in opened)}): "
-                "their fixed-fuel resource obligation is not discharged"
-                if opened
-                else ""
-            ),
+            f"CERTIFIED: lifecycle: {kq['detail']}" + loops_note,
             tier_reached="lifecycle",
         )
     if kq["verdict"] == "refuted":
@@ -2971,6 +2983,96 @@ def lifecycle_run(
         f"UNSUPPORTED-lifecycle: kernel: {kq['detail']}",
         tier_reached="none",
     )
+
+
+# The edge the loop-resource generator cannot derive within tools/certify: the source loop's body
+# summary. resources_of_verdict over the source semantics needs a stage from the source to the final
+# EVM IR, and Verify.LoopSource.Equiv.loop_stage needs BodyRuns of the loop's body, which
+# SolidCore.Refinement.Generic.eraseStmt (no loop case) cannot give.
+LOOP_SOURCE_GAP = (
+    "no generic BodyRuns for a loop body. SolidCore.Refinement.Generic.bodyRuns_of_erase needs "
+    "`eraseStmt E fuel fn.body (initState fn) = some b`, and eraseStmt has no case for a loop. "
+    "Missing: a loop-aware eraser `eraseLoopStmt (E : EraseEnv) : Nat → Stmt → SymState → Option Br` "
+    "and `theorem bodyRuns_of_eraseLoop {E : EraseEnv} {fuel : Nat} {fn : FunctionDef} {b : Br} "
+    "(h : eraseLoopStmt E fuel fn.body (initState fn) = some b) : BodyRuns E fuel fn b`, the premise "
+    "`hb` of Verify.LoopSource.Equiv.loop_stage"
+)
+
+# The composed theorem's binder the joint consumer reuses: one iteration bound K under a named bound.
+JOINT_BINDERS = re.compile(r"\{K : Nat\} \(hK : K ≤ (" + LEAN_IDENT + r")\)")
+
+
+def lifecycle_loop_resources(
+    a, solar, src, name, contract, ast, fns, bind, lean_dir, body, rec_dir
+):
+    """The runtime loop's fixed-fuel resources at the lifecycle tier
+    (tools/certify/loop_resources.py): the generated module Certified/NAME/LoopResources.lean,
+    built in the run's clone after Composed. status is "subedge" when it builds (the final EVM IR's
+    Shapes.Resources on this run's bytes, joined with the composed theorem), "unsupported" when the
+    loop is outside the generator's shape, and "failed" when the kernel refuses the module."""
+    import loop_resources
+
+    m = JOINT_BINDERS.fullmatch(bind["expected"]["binders"])
+    if not m:
+        return {
+            "status": "unsupported",
+            "detail": "the composed theorem's binders are not one iteration bound K",
+        }
+    joint = {
+        "composed": f"Certified.{name}.Composed.composed",
+        "bound": m.group(1),
+        "code_same": f"Certified.{name}.Lifecycle.code_same",
+        "runtime": bind["runtime"],
+        "import": f"{name}.Composed",
+    }
+    abi = [
+        {
+            "signature": f["sig"],
+            "selector": f"0x{f['sel']:08x}",
+            "params": [
+                t for t in f["sig"].split("(", 1)[1].rstrip(")").split(",") if t
+            ],
+        }
+        for f in fns
+    ]
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            text, facts = loop_resources.for_run(
+                solar,
+                src,
+                contract,
+                ast,
+                abi,
+                tmp,
+                ns=f"Certified.{name}.LoopResources",
+                code_term=f"Certified.{name}.Lifecycle.code",
+                code_import=f"{name}.Lifecycle",
+                joint=joint,
+            )
+    except loop_resources.Unsupported as e:
+        return {"status": "unsupported", "detail": str(e)}
+    runtime = facts.pop("runtime")
+    (rec_dir / f"{name}.LoopResources.lean").write_text(text)
+    ok, out = lifecycle_build(
+        lean_dir, name, source_lean(body), "LoopResources", text, a.probe_cache or None
+    )
+    rec = {
+        "status": "subedge" if ok else "failed",
+        "theorem": f"Certified.{name}.LoopResources.joint",
+        "resources": f"Certified.{name}.LoopResources.resources_evmir",
+        "lean_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "export_runtime_sha256": hashlib.sha256(bytes.fromhex(runtime)).hexdigest(),
+        "obligation": facts,
+        "source_join": LOOP_SOURCE_GAP,
+        "detail": (
+            "Shapes.Resources of the final EVM IR on Valid K, K ≤ Kmax, joined with the composed theorem"
+            if ok
+            else "the kernel refuses the generated loop-resource module"
+        ),
+    }
+    if not ok:
+        rec["log"], rec["log_tail"] = build_failure(rec_dir, name, "LoopResources", out)
+    return rec
 
 
 def admit_lake_jobs():
