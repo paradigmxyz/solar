@@ -93,3 +93,19 @@ contract CtorComputedTarget {
         ok;
     }
 }
+contract CtorGasOrderOk {
+    uint256 public x;
+    function r(address h) internal returns (address) { x = 1; return h; }
+    function g() internal returns (uint256) { x = 2; return 5000; }
+    /// the receiver runs before the gas option
+    /// @custom:ensures x == 2
+    constructor(address h) { x = 7; (bool ok, ) = r(h).call{gas: g()}(""); ok; }
+}
+contract CtorGasOrderBad {
+    uint256 public x;
+    function r(address h) internal returns (address) { x = 1; return h; }
+    function g() internal returns (uint256) { x = 2; return 5000; }
+    /// the gas option runs last, so x is not 1
+    /// @custom:ensures x == 1
+    constructor(address h) { x = 7; (bool ok, ) = r(h).call{gas: g()}(""); ok; }
+}

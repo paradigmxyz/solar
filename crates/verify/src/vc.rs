@@ -107,6 +107,8 @@ pub(crate) struct Vc<'p, 'a> {
     splits: Vec<String>,
     /// The `value:` option of the call being evaluated (ETH it sends), consumed by external_call.
     call_value: Option<String>,
+    /// Options of a member call (`r().call{gas: g()}`) waiting for its receiver, which runs first.
+    pending_opts: Option<&'a ast::NamedArgList<'a>>,
     /// Invariant terms assumed at function entry, before any branch: every path implies them, so a
     /// later check of the identical term (the state it reads is unchanged) needs no solver call.
     inv_entry: FxHashSet<String>,
@@ -262,6 +264,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             splits: vec![],
             split_wins: 0,
             call_value: None,
+            pending_opts: None,
             inv_entry: FxHashSet::default(),
             revert_sites: vec![],
             try_call: None,
@@ -3799,16 +3802,17 @@ impl<'p, 'a> Vc<'p, 'a> {
         let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
         let callee = match &callee.kind {
             ExprKind::CallOptions(c, opts) => {
-                // Every option runs, in order, for its effects (`gas: g()` may write state); only
-                // `value` moves ETH.
-                let mut value = None;
-                for o in opts.iter() {
-                    let v = self.eval(o.value)?;
-                    if o.name.name == sym::value {
-                        value = Some(v.t);
-                    }
+                // A computed receiver runs before the options (`r().call{gas: g()}`): leave them
+                // to the member call, which evaluates them right after it.
+                if let ExprKind::Member(base, _) = &c.kind
+                    && !matches!(base.kind, ExprKind::Ident(_))
+                {
+                    self.pending_opts = Some(opts);
+                    self.call_value = None;
+                } else {
+                    self.pending_opts = None;
+                    self.call_value = self.eval_call_opts(opts)?;
                 }
-                self.call_value = value;
                 &**c
             }
             _ => {
@@ -4171,6 +4175,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                 }
                 if let Some((lib, f, vals, all)) = self.pick_using(base, m, &argv)? {
+                    if self.pending_opts.take().is_some() {
+                        return Err((e.span, "unsupported call options on this call".to_string()));
+                    }
                     let caps = self.storage_arg_caps(f, &all, e.span)?;
                     let rets = self.internal_call(lib, f, vals, e.span, true)?;
                     self.write_back_storage_params(f, &all, &caps, e.span)?;
@@ -4184,11 +4191,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let t = self.decl("concat", &Ty::Opaque);
                     return Ok(vec![Self::val(Ty::Opaque, t)]);
                 }
-                // The receiver may itself call (`payable(f()).call{value: 1}`), which resets the
-                // pending value: keep this call's.
+                // The receiver runs first and may itself call (`payable(f()).call{value: 1}`),
+                // which resets the pending value: keep this call's, then run its options.
+                let opts = self.pending_opts.take();
                 let value = self.call_value.take();
                 let bv = self.eval(base)?;
-                self.call_value = value;
+                self.call_value = match opts {
+                    Some(opts) => self.eval_call_opts(opts)?,
+                    None => value,
+                };
                 match (&bv.ty, m) {
                     (Ty::Arr(el, _), "push") => {
                         let el = (**el).clone();
@@ -5215,6 +5226,19 @@ impl<'p, 'a> Vc<'p, 'a> {
             let ne = self.fresh_var("__code_epoch", &ep.ty);
             self.bind("__code_epoch", ep.ty.clone(), ne);
         }
+    }
+
+    /// Runs every call option, in order, for its effects (`gas: g()` may write state), and
+    /// returns the `value` one, the only option that moves ETH.
+    fn eval_call_opts(&mut self, opts: &'a ast::NamedArgList<'a>) -> R<Option<String>> {
+        let mut value = None;
+        for o in opts.iter() {
+            let v = self.eval(o.value)?;
+            if o.name.name == sym::value {
+                value = Some(v.t);
+            }
+        }
+        Ok(value)
     }
 
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
