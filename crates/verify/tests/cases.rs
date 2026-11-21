@@ -500,12 +500,14 @@ fn ctor_calls() {
         ("CtorBalanceGrows", "verified"),
         ("CtorGasOk", "verified"),
         ("CtorGasOrderOk", "verified"),
+        ("CtorRecvOrderOk", "verified"),
         ("CtorDelegate", "failed"),
         ("CtorBalance", "failed"),
         ("CtorGasWrite", "failed"),
         ("CtorNewBytes", "failed"),
         ("CtorComputedTarget", "failed"),
         ("CtorGasOrderBad", "failed"),
+        ("CtorRecvOrderBad", "failed"),
     ] {
         let f = format!("{c}.constructor");
         assert_eq!(got.get(f.as_str()), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);

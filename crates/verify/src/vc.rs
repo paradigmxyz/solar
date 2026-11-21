@@ -3815,10 +3815,17 @@ impl<'p, 'a> Vc<'p, 'a> {
         let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
         let callee = match &callee.kind {
             ExprKind::CallOptions(c, opts) => {
-                // A computed receiver runs before the options (`r().call{gas: g()}`): leave them
-                // to the member call, which evaluates them right after it.
+                // The receiver runs before the options (`r().call{gas: g()}`), and a variable
+                // receiver is read before them (`h.f{gas: g()}()` where `g` writes `h`): leave
+                // them to the member call, which evaluates them right after it. A contract,
+                // library or type name has no value to read.
                 if let ExprKind::Member(base, _) = &c.kind
-                    && !matches!(base.kind, ExprKind::Ident(_))
+                    && match &base.kind {
+                        ExprKind::Ident(id) => {
+                            self.env.get(id.as_str()).is_some_and(|v| !matches!(v.ty, Ty::Fn(_)))
+                        }
+                        _ => true,
+                    }
                 {
                     self.pending_opts = Some(opts);
                     self.call_value = None;

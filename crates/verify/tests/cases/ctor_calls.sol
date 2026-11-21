@@ -109,3 +109,20 @@ contract CtorGasOrderBad {
     /// @custom:ensures x == 1
     constructor(address h) { x = 7; (bool ok, ) = r(h).call{gas: g()}(""); ok; }
 }
+interface IPeek {
+    function peek() external returns (uint256);
+}
+contract CtorRecvOrderOk {
+    IPeek h;
+    function g() internal returns (uint256) { h = IPeek(address(0)); return 5000; }
+    /// the call goes to `a`, read before the gas option clears `h`, so `a` holds code
+    /// @custom:ensures address(a) != address(0)
+    constructor(IPeek a) { h = a; h.peek{gas: g()}(); }
+}
+contract CtorRecvOrderBad {
+    IPeek h;
+    function g() internal returns (uint256) { h = IPeek(address(0)); return 5000; }
+    /// the gas option clears `h` after the receiver is read
+    /// @custom:ensures address(h) != address(0)
+    constructor(IPeek a) { h = a; h.peek{gas: g()}(); }
+}
