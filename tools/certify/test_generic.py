@@ -278,6 +278,12 @@ def claims_record():
 
 
 BIN = "e" * 64
+# A lifecycle-tier record's provenance-bound inputs (generic.LIFECYCLE_PROVENANCE).
+LIFE_PROV = {
+    "bind": {"source": "Verify.LoopSource.Equiv.CounterCtx.src 8", "ws": [8]},
+    "args": ["0x8"],
+    "creation_sha256": "4" * 64,
+}
 SOLAR_COMMIT = "5" * 40
 
 
@@ -600,6 +606,11 @@ class ReplayClaims(unittest.TestCase):
             if "--record-dir" not in cmd:
                 # git and the checks' own commands run.
                 return saved(cmd, *args, **kw)
+            self.fresh_cmd = list(cmd)
+            if "--lifecycle-bind" in cmd:
+                self.fresh_bind = json.loads(
+                    pathlib.Path(cmd[cmd.index("--lifecycle-bind") + 1]).read_text()
+                )
             fresh = json.loads(json.dumps(orig))
             if fresh_edit:
                 fresh_edit(fresh)
@@ -656,7 +667,46 @@ class ReplayClaims(unittest.TestCase):
         finally:
             generic.SOLAR_ARTIFACT = old
 
-    # Replay pins    # Replay pins (build provenance instead of cross-build binary identity). Each line is snapshot
+    def test_fresh_command_carries_lifecycle_inputs(self):
+        """For a lifecycle-tier record, the fresh run is given the record's words (decimal) and its
+        binding (a file whose JSON is the record's bind); a record of another tier gets neither."""
+        # claims_problem's tier recomputation does not know the lifecycle tier ("is not a tier"),
+        # so a lifecycle record is refused there; it is set aside here to reach the fresh command.
+        with (
+            tempfile.TemporaryDirectory() as t,
+            unittest.mock.patch.object(generic, "claims_problem", lambda rec, d: None),
+        ):
+            self.fresh_cmd, self.fresh_bind = None, None
+            self.replay(
+                self.make(
+                    pathlib.Path(t),
+                    lambda r: r.update(
+                        requested_tier="lifecycle", lifecycle=dict(LIFE_PROV)
+                    ),
+                )
+            )
+            cmd = self.fresh_cmd
+            self.assertIsNotNone(cmd)
+            self.assertEqual(cmd[cmd.index("--constructor-args") + 1], "8")
+            self.assertEqual(self.fresh_bind, LIFE_PROV["bind"])
+            self.assertEqual(cmd[cmd.index("--tier") + 1], "lifecycle")
+        with tempfile.TemporaryDirectory() as t:
+            self.fresh_cmd = None
+            self.replay(self.make(pathlib.Path(t)))
+            self.assertIsNotNone(self.fresh_cmd)
+            self.assertNotIn("--constructor-args", self.fresh_cmd)
+            self.assertNotIn("--lifecycle-bind", self.fresh_cmd)
+
+    def test_non_lifecycle_record_without_lifecycle_keys(self):
+        """A record of another tier without any lifecycle key replays as before."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.make(pathlib.Path(t))
+            self.assertNotIn("lifecycle", json.loads((d / "record.json").read_text()))
+            code, line = self.replay(d)
+        self.assertEqual(code, 0, line)
+        self.assertNotIn("lifecycle provenance", line)
+
+    # Replay pins (build provenance instead of cross-build binary identity). Each line is snapshot
     # in testdata/replay_pin.snapshot, which REPLAY_PIN_SNAPSHOT=1 rewrites.
     def pin_case(self, edit=None, fresh_edit=None, fresh_cr_edit=None):
         with tempfile.TemporaryDirectory() as t:
@@ -773,6 +823,18 @@ class ReplayClaims(unittest.TestCase):
                 ),
                 None,
             ),
+            **{
+                f"lifecycle record without {k}": (
+                    1,
+                    lambda r, k=k: r.update(
+                        requested_tier="lifecycle",
+                        lifecycle={x: v for x, v in LIFE_PROV.items() if x != k},
+                    ),
+                    None,
+                    None,
+                )
+                for k in ("bind", "args", "creation_sha256")
+            },
             "old provenance version 1": (
                 1,
                 lambda r: r["solar"]["build"].update(provenance_version=1),

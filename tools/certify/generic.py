@@ -4358,6 +4358,25 @@ def producer_problem(rec, d, which):
     return None
 
 
+LIFECYCLE_PROVENANCE = ("bind", "args", "creation_sha256")
+
+
+def lifecycle_provenance_problem(rec):
+    """Why a lifecycle-tier record cannot be replayed, or None: it must carry the lifecycle tier's
+    provenance-bound inputs (LIFECYCLE_PROVENANCE), which the fresh run is given and compared on; a
+    record without them is refused, never filled in. Other tiers are not affected."""
+    if rec.get("requested_tier") != "lifecycle":
+        return None
+    life = rec.get("lifecycle") or {}
+    missing = [k for k in LIFECYCLE_PROVENANCE if life.get(k) is None]
+    if missing:
+        return (
+            f"versioned-unsupported: the recorded run has no lifecycle provenance "
+            f"({', '.join(missing)}); nothing is filled in"
+        )
+    return None
+
+
 def replay_main(a):
     """--replay DIR: refuse a finished run's directory unless its files are the record's and a
     fresh, cold run from the same pinned source/build inputs gives identical checked outputs."""
@@ -4397,6 +4416,8 @@ def replay_main(a):
     if len(srcs) != 1 or files[srcs[0]] != dig(rec, ("source", "sha256")):
         out(1, "REJECTED: replay: the record's source digest is not its source file's")
     if (why := inputs_problem(rec, files)) is not None:
+        out(1, f"REJECTED: replay: {why}")
+    if (why := lifecycle_provenance_problem(rec)) is not None:
         out(1, f"REJECTED: replay: {why}")
     if (why := claims_problem(rec, d)) is not None:
         out(1, f"REJECTED: replay: {why}")

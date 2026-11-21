@@ -312,12 +312,7 @@ class ComposedPinnedApi(unittest.TestCase):
                 ),
             )
         )
-        template = {
-            n
-            for n in names
-            if n not in bound
-            and not n.startswith(("Verify.LoopSource.Equiv.CounterCtx.Kmax",))
-        }
+        template = names - bound
         self.assertEqual(template, set(self.PINNED), sorted(template))
         self.assertEqual(
             (HERE / "solidity-lean.rev").read_text().strip(),
