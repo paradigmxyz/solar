@@ -280,26 +280,6 @@ def claims_record():
 BIN = "e" * 64
 
 
-def lifecycle_record(r):
-    """A complete lifecycle-tier record: its provenance (LIFE_PROV), a CERTIFIED verdict with a proved
-    kernel stage and a built composed theorem, and none of the certified tier's claims."""
-    for k in (*generic.CLAIM_KEYS, "strict", "published_statement"):
-        r.pop(k, None)
-    r.get("run_files", {}).pop("certify-record.json", None)
-    r.update(
-        requested_tier="lifecycle",
-        status="CERTIFIED",
-        tier_reached="lifecycle",
-        lifecycle=dict(
-            json.loads(json.dumps(LIFE_PROV)),
-            stages=[
-                {"stage": "kernel", "ok": True, "detail": "the kernel proves Deploys"}
-            ],
-            composed={"theorem": "Certified.c_1.Composed.composed", "built": True},
-        ),
-    )
-
-
 # A lifecycle-tier record's provenance-bound inputs (generic.LIFECYCLE_PROVENANCE).
 LIFE_PROV = {
     "bind": {
@@ -567,6 +547,368 @@ class SolarBuildConfig(unittest.TestCase):
             generic.SOLAR_ARTIFACT = None
 
 
+class LifecycleRecordReplay(unittest.TestCase):
+    """--replay of a record the lifecycle driver itself writes: lifecycle_run, with only solar's
+    compile, the front end, the probe and lake replaced, against a real git base, sealed by
+    seal_record (main's record writer). Every all-tier replay check applies to it unchanged."""
+
+    EXAMPLE = "NoArgCtor"
+    NAME = "noargctor_0000abcd"
+    ARGS = None
+    TYPES: typing.ClassVar[list] = []
+    BIND: typing.ClassVar[dict] = {
+        "unit": "Spec.unit",
+        "unit_module": "Spec.Unit",
+        "fuel": "Spec.fuel",
+        "init": "Spec.init",
+        "runtime": "Spec.runtime",
+        "modules": ["Spec.Bytes"],
+        "ws": [],
+        "source": "Spec.src",
+        "source_module": "Spec.Src",
+        "expected": {
+            "module": "Spec.Expected",
+            "binders": "",
+            "prop": "SolidCore.Verify.Generic.Expected Spec.src Spec.spec Spec.runtime",
+            "term": "Spec.expected_created",
+        },
+    }
+
+    def run_driver(self, root):
+        """A real lifecycle record directory, written by lifecycle_run and seal_record."""
+        self.repo = root / "sl"
+        manifest = json.dumps({"version": "1.1.0", "packages": []})
+        base = git_init(
+            self.repo,
+            {
+                "lakefile.lean": "-- lakefile\n",
+                "lean-toolchain": "leanprover/lean4:v4.35.0\n",
+                "lake-manifest.json": manifest,
+                "Verify/Lifecycle/CreationFrame.lean": "-- frame\n",
+            },
+        )
+        src = LIFE / f"{self.EXAMPLE}.sol"
+        src_sha = hashlib.sha256(src.read_text().encode()).hexdigest()
+        bins = {
+            "bin": "6080" + LIFE_RUNTIME[self.EXAMPLE],
+            "bin-runtime": LIFE_RUNTIME[self.EXAMPLE],
+        }
+        (root / "bind.json").write_text(json.dumps(self.BIND))
+        rec_dir = root / "rec"
+        rec_dir.mkdir()
+        record = {
+            "schema": "solar-certify-generic/1",
+            "name": self.NAME,
+            "contract": self.EXAMPLE,
+            "requested_tier": "lifecycle",
+            "source": {"file": str(src), "sha256": src_sha},
+            "spec": {"kind": "none", "sha256": None},
+            "options": generic.OPTIONS,
+            "solar": solar_rec(),
+            "solc": {"version": generic.SOLC_VERSION, "sha256": "1" * 64},
+            "lean_toolchain": {"recorded_digest": "2" * 64},
+        }
+        saved = (
+            generic.run,
+            generic.frontend,
+            generic.run_lifecycle_probe,
+            generic.log,
+            generic.lifecycle_build,
+        )
+        real_run = generic.run
+
+        def fake_run(cmd, *a, **kw):
+            if cmd[:1] == ["solar"]:
+                return 0, json.dumps({"contracts": {f"{src}:{self.EXAMPLE}": bins}}), ""
+            return real_run(cmd, *a, **kw)
+
+        def fake_build(lean_dir, name, source_text, mod, text, cache):
+            d = lean_dir / "Certified" / name
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "Source.lean").write_text(source_text)
+            (d / f"{mod}.lean").write_text(text)
+            return mod != "LifecycleRefute", ""
+
+        def finish(status, code, line, **extra):
+            generic.seal_record(rec_dir, record, status, **extra)
+            raise SystemExit(code)
+
+        generic.run, generic.lifecycle_build = fake_run, fake_build
+        generic.frontend = lambda *a, **kw: (0, "-- body", "")
+        generic.run_lifecycle_probe = lambda *a, **kw: REAL[self.EXAMPLE][1]
+        generic.log = lambda *a, **kw: None
+        try:
+            ns = argparse.Namespace(
+                constructor_args=self.ARGS,
+                solidity_lean=str(self.repo),
+                base=base,
+                solc="solc",
+                probe_cache=None,
+                lifecycle_bind=str(root / "bind.json"),
+            )
+            with self.assertRaises(SystemExit) as e:
+                generic.lifecycle_run(
+                    ns,
+                    record,
+                    "solar",
+                    src,
+                    src_sha,
+                    self.NAME,
+                    self.EXAMPLE,
+                    LifecycleRun.ctor_ast(None, self.EXAMPLE, self.TYPES),
+                    root / "w",
+                    finish,
+                    [],
+                    rec_dir,
+                )
+            self.assertEqual(
+                e.exception.code, 0, record.get("lifecycle_manifest_error")
+            )
+        finally:
+            (
+                generic.run,
+                generic.frontend,
+                generic.run_lifecycle_probe,
+                generic.log,
+                generic.lifecycle_build,
+            ) = saved
+        return rec_dir
+
+    def replay(self, d, fresh_edit=None):
+        orig = json.loads((d / "record.json").read_text())
+
+        def fake_run(cmd, *args, **kw):
+            if "--record-dir" not in cmd:
+                return saved(cmd, *args, **kw)
+            self.fresh_cmd = list(cmd)
+            fresh = json.loads(json.dumps(orig))
+            if fresh_edit:
+                fresh_edit(fresh)
+            out = pathlib.Path(cmd[cmd.index("--record-dir") + 1])
+            out.mkdir(parents=True)
+            (out / "record.json").write_text(json.dumps(fresh))
+            return subprocess.CompletedProcess(cmd, 0)
+
+        a = argparse.Namespace(
+            replay=str(d),
+            work=str(d.parent / "rw"),
+            solidity_lean=str(self.repo),
+            packages_from=None,
+            probe_cache=None,
+        )
+        buf = io.StringIO()
+        saved = generic.subprocess.run
+        generic.subprocess.run = fake_run
+        try:
+            with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as e:
+                generic.replay_main(a)
+        finally:
+            generic.subprocess.run = saved
+        return e.exception.code, buf.getvalue().strip().splitlines()[-1]
+
+    def edit_record(self, d, f):
+        rec = json.loads((d / "record.json").read_text())
+        f(rec)
+        (d / "record.json").write_text(json.dumps(rec))
+
+    def test_the_driver_writes_a_manifest(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.run_driver(pathlib.Path(t))
+            rec = json.loads((d / "record.json").read_text())
+        self.assertEqual(rec["status"], "CERTIFIED")
+        files = rec["run_files"]
+        for f in (
+            f"{self.EXAMPLE}.sol",
+            *generic.LIFECYCLE_FILES.values(),
+            f"inputs/Certified/{self.NAME}/Source.lean",
+            f"inputs/Certified/{self.NAME}/Lifecycle.lean",
+            f"inputs/Certified/{self.NAME}/SourceSame.lean",
+            f"inputs/Certified/{self.NAME}/Composed.lean",
+            "inputs/lakefile.lean",
+        ):
+            self.assertIn(f, files)
+        sl = rec["solidity_lean"]
+        self.assertEqual(sorted(sl["inputs"]), sorted(sl["inputs_sha256"]))
+        self.assertRegex(sl["executed_tree"], r"^[0-9a-f]{40}$")
+        self.assertIsNone(rec["packages"]["cache_sha256"])
+        self.assertNotIn("certify-record.json", files)
+
+    def test_complete_record_replays(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.run_driver(pathlib.Path(t))
+            code, line = self.replay(d)
+        self.assertEqual(code, 0, line)
+        self.assertTrue(line.startswith("CERTIFIED: replay of "), line)
+        self.assertIn("--tier", self.fresh_cmd)
+        self.assertEqual(
+            self.fresh_cmd[self.fresh_cmd.index("--tier") + 1], "lifecycle"
+        )
+        # NoArgCtor has no constructor words: the record's args [] are passed as the empty list.
+        self.assertEqual(
+            self.fresh_cmd[self.fresh_cmd.index("--constructor-args") + 1], ""
+        )
+        self.assertIn("--lifecycle-bind", self.fresh_cmd)
+
+    def test_each_compared_key_refused(self):
+        """Each difference the fresh run could show, refused by the key that actually refuses it."""
+        cases = {
+            "lifecycle.args": lambda r: r["lifecycle"].update(args=["0x5"]),
+            "lifecycle.bind": lambda r: r["lifecycle"]["bind"].update(
+                source_module="Spec.Other"
+            ),
+            "lifecycle.creation_sha256": lambda r: r["lifecycle"].update(
+                creation_sha256="5" * 64
+            ),
+            "lifecycle.kernel_ok": lambda r: r["lifecycle"].update(stages=[]),
+            "lifecycle.composed.theorem": lambda r: r["lifecycle"]["composed"].update(
+                theorem="X.y"
+            ),
+            "lifecycle.composed.built": lambda r: r["lifecycle"]["composed"].update(
+                built=False
+            ),
+            "status": lambda r: r.update(status="UNSUPPORTED-lifecycle"),
+            "solidity_lean.inputs_sha256": lambda r: r["solidity_lean"][
+                "inputs_sha256"
+            ].update(x="0"),
+            "solidity_lean.executed_tree": lambda r: r["solidity_lean"].update(
+                executed_tree="0" * 40
+            ),
+        }
+        for key, f in cases.items():
+            with self.subTest(key), tempfile.TemporaryDirectory() as t:
+                code, line = self.replay(self.run_driver(pathlib.Path(t)), f)
+                self.assertEqual(code, 1, line)
+                self.assertIn(
+                    f"REJECTED: replay: {key} differs between the record and the fresh run",
+                    line,
+                )
+
+    def test_tampered_record_refused_by_its_own_files(self):
+        """A record whose args, bind or creation hash is not its own listed files' is refused by name
+        before the fresh run."""
+        cases = {
+            "args are not the words lifecycle/creation.hex appends": lambda r: r[
+                "lifecycle"
+            ].update(args=["0x5"]),
+            "lifecycle.bind is not lifecycle/bind.json": lambda r: r["lifecycle"][
+                "bind"
+            ].update(source_module="Spec.Other"),
+            "creation_sha256 is not lifecycle/creation.hex's": lambda r: r[
+                "lifecycle"
+            ].update(creation_sha256="5" * 64),
+            "the record lists no lifecycle/creation.hex": lambda r: r["run_files"].pop(
+                "lifecycle/creation.hex"
+            ),
+        }
+        for needle, f in cases.items():
+            with self.subTest(needle), tempfile.TemporaryDirectory() as t:
+                d = self.run_driver(pathlib.Path(t))
+                self.edit_record(d, f)
+                if "lists no" in needle:
+                    (d / "lifecycle" / "creation.hex").unlink()
+                self.fresh_cmd = None
+                code, line = self.replay(d)
+                self.assertEqual(code, 1, line)
+                self.assertIn(needle, line)
+                self.assertIsNone(self.fresh_cmd)
+
+    def test_missing_provenance_fails_closed(self):
+        for k in ("bind", "args", "creation_sha256"):
+            with self.subTest(k), tempfile.TemporaryDirectory() as t:
+                d = self.run_driver(pathlib.Path(t))
+                self.edit_record(d, lambda r, k=k: r["lifecycle"].pop(k))
+                code, line = self.replay(d)
+                self.assertEqual(code, 1, line)
+                self.assertIn(
+                    f"versioned-unsupported: the recorded run has no lifecycle provenance ({k})",
+                    line,
+                )
+
+    def test_claims_hold_together(self):
+        """A lifecycle record's verdict must be its stages': each inconsistency is refused by name."""
+        cases = {
+            "no proved kernel stage": lambda r: r["lifecycle"].update(stages=[]),
+            "has no built composed theorem": lambda r: r["lifecycle"][
+                "composed"
+            ].update(built=False),
+            "has tier_reached 'functional'": lambda r: r.update(
+                tier_reached="functional"
+            ),
+            "claims tier_reached 'lifecycle'": lambda r: r.update(
+                status="UNSUPPORTED-lifecycle"
+            ),
+            "publishes no final": lambda r: r.update(final={"theorem": "x"}),
+        }
+        for needle, f in cases.items():
+            with self.subTest(needle), tempfile.TemporaryDirectory() as t:
+                d = self.run_driver(pathlib.Path(t))
+                self.edit_record(d, f)
+                code, line = self.replay(d)
+                self.assertEqual(code, 1, line)
+                self.assertIn(needle, line)
+
+    def test_stray_certify_record_is_refused_not_read(self):
+        """An unlisted certify-record.json is refused as an unlisted file before anything reads it;
+        a listed one is refused because the lifecycle tier writes none."""
+        with tempfile.TemporaryDirectory() as t:
+            d = self.run_driver(pathlib.Path(t))
+            (d / "certify-record.json").write_text(
+                '{"solar_sha256": "not json evidence"'
+            )
+            code, line = self.replay(d)
+        self.assertEqual(code, 1, line)
+        self.assertIn(
+            "files the record's manifest does not list: ['certify-record.json']", line
+        )
+        with tempfile.TemporaryDirectory() as t:
+            d = self.run_driver(pathlib.Path(t))
+            (d / "certify-record.json").write_text("{}")
+            self.edit_record(
+                d,
+                lambda r: r["run_files"].update(
+                    {"certify-record.json": sha(d / "certify-record.json")}
+                ),
+            )
+            code, line = self.replay(d)
+        self.assertEqual(code, 1, line)
+        self.assertIn(
+            "the lifecycle tier runs no scripts/certify, but the record lists a certify-record.json",
+            line,
+        )
+
+
+class LifecycleRecordReplayArgs(LifecycleRecordReplay):
+    """The same, for a constructor with words (ArgCtor 42, 0xbeef): the fresh run gets the record's
+    words in decimal and its binding."""
+
+    EXAMPLE = "ArgCtor"
+    NAME = "argctor_0000abcd"
+    ARGS = "42,0xbeef"
+    TYPES: typing.ClassVar[list] = ["uint256", "address"]
+    BIND: typing.ClassVar[dict] = dict(
+        LifecycleRecordReplay.BIND,
+        ws=[42, 48879],
+        source="Spec.src 42 48879",
+        expected=dict(
+            LifecycleRecordReplay.BIND["expected"],
+            prop="SolidCore.Verify.Generic.Expected (Spec.src 42 48879) Spec.spec Spec.runtime",
+        ),
+    )
+
+    def test_complete_record_replays(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = self.run_driver(pathlib.Path(t))
+            code, line = self.replay(d)
+            cmd = self.fresh_cmd
+            bind = json.loads(
+                pathlib.Path(cmd[cmd.index("--lifecycle-bind") + 1]).read_text()
+            )
+        self.assertEqual(code, 0, line)
+        self.assertTrue(line.startswith("CERTIFIED: replay of "), line)
+        self.assertEqual(cmd[cmd.index("--constructor-args") + 1], "42,48879")
+        self.assertEqual(bind, self.BIND)
+
+
 class ReplayClaims(unittest.TestCase):
     """record.json is not hashed: --replay must hold its claims to certify-record.json and the fresh run."""
 
@@ -696,105 +1038,6 @@ class ReplayClaims(unittest.TestCase):
             self.assertIn("not one this run's build produced", str(e.exception))
         finally:
             generic.SOLAR_ARTIFACT = old
-
-    def test_fresh_command_carries_lifecycle_inputs(self):
-        """For a lifecycle-tier record, the fresh run is given the record's words (decimal) and its
-        binding (a file whose JSON is the record's bind); a record of another tier gets neither."""
-        with tempfile.TemporaryDirectory() as t:
-            self.fresh_cmd, self.fresh_bind = None, None
-            self.replay(self.make(pathlib.Path(t), lifecycle_record))
-            cmd = self.fresh_cmd
-            self.assertIsNotNone(cmd)
-            self.assertEqual(cmd[cmd.index("--constructor-args") + 1], "8")
-            self.assertEqual(self.fresh_bind, LIFE_PROV["bind"])
-            self.assertEqual(cmd[cmd.index("--tier") + 1], "lifecycle")
-        with tempfile.TemporaryDirectory() as t:
-            self.fresh_cmd = None
-            self.replay(self.make(pathlib.Path(t)))
-            self.assertIsNotNone(self.fresh_cmd)
-            self.assertNotIn("--constructor-args", self.fresh_cmd)
-            self.assertNotIn("--lifecycle-bind", self.fresh_cmd)
-
-    def test_complete_lifecycle_record_replays(self):
-        """A complete lifecycle record (its provenance, claims and producer whole) reaches the fresh
-        run and replays: claims_problem no longer refuses requested_tier lifecycle."""
-        with tempfile.TemporaryDirectory() as t:
-            code, line = self.replay(self.make(pathlib.Path(t), lifecycle_record))
-        self.assertEqual(code, 0, line)
-        self.assertTrue(line.startswith("CERTIFIED: replay of "), line)
-        self.assertNotIn("is not a tier", line)
-
-    def test_lifecycle_replay_refuses_each_changed_input(self):
-        """The fresh run must reproduce the recorded constructor words, the binding (its source and
-        source_module) and the creation hash; any difference is refused by name."""
-        cases = {
-            "lifecycle.args": lambda r: r["lifecycle"].update(args=["0x5"]),
-            "lifecycle.bind (source_module)": lambda r: r["lifecycle"]["bind"].update(
-                source_module="Verify.LoopSource.Equiv.CounterCreated"
-            ),
-            "lifecycle.bind (source)": lambda r: r["lifecycle"]["bind"].update(
-                source="Verify.LoopSource.Equiv.CounterCtx.src 5"
-            ),
-            "lifecycle.creation_sha256": lambda r: r["lifecycle"].update(
-                creation_sha256="5" * 64
-            ),
-            "lifecycle.kernel_ok": lambda r: r["lifecycle"].update(
-                stages=[{"stage": "kernel", "ok": False, "detail": "x"}]
-            ),
-            "lifecycle.composed.theorem": lambda r: r["lifecycle"]["composed"].update(
-                theorem="Certified.c_1.Composed.other"
-            ),
-            "lifecycle.composed.built": lambda r: r["lifecycle"]["composed"].update(
-                built=False
-            ),
-            "status": lambda r: r.update(status="UNSUPPORTED-lifecycle"),
-            "tier_reached": lambda r: r.update(tier_reached="none"),
-        }
-        for label, fresh_edit in cases.items():
-            with self.subTest(label), tempfile.TemporaryDirectory() as t:
-                code, line = self.replay(
-                    self.make(pathlib.Path(t), lifecycle_record), fresh_edit
-                )
-                self.assertEqual(code, 1, line)
-                key = label.split(" ")[0]
-                self.assertIn(
-                    f"REJECTED: replay: {key} differs between the record and the fresh run",
-                    line,
-                )
-
-    def test_lifecycle_claims_hold_together(self):
-        """A lifecycle record's verdict must be its stages': CERTIFIED with a proved kernel stage
-        and (with a binding) a built composed theorem, tier_reached lifecycle exactly then, and no
-        claim of a statement the lifecycle tier does not publish."""
-
-        def edited(f):
-            def e(r):
-                lifecycle_record(r)
-                f(r)
-
-            return e
-
-        cases = {
-            "no proved kernel stage": lambda r: r["lifecycle"].update(stages=[]),
-            "has no built composed theorem": lambda r: r["lifecycle"].update(
-                composed={"built": False}
-            ),
-            "has tier_reached 'functional'": lambda r: r.update(
-                tier_reached="functional"
-            ),
-            "claims tier_reached 'lifecycle'": lambda r: r.update(
-                status="UNSUPPORTED-lifecycle"
-            ),
-            "publishes no final": lambda r: r.update(final={"theorem": "x"}),
-            "lists a certify-record.json": lambda r: r["run_files"].update(
-                {"certify-record.json": self.cr_sha}
-            ),
-        }
-        for needle, f in cases.items():
-            with self.subTest(needle), tempfile.TemporaryDirectory() as t:
-                code, line = self.replay(self.make(pathlib.Path(t), edited(f)))
-                self.assertEqual(code, 1, line)
-                self.assertIn(needle, line)
 
     def test_non_lifecycle_record_without_lifecycle_keys(self):
         """A record of another tier without any lifecycle key replays as before."""
@@ -1993,6 +2236,10 @@ class LifecycleRun(unittest.TestCase):
         seen = {}
 
         def fake_git(cwd, *args, **kw):
+            # The clone's checkout holds the base's lakefile.
+            if args[:1] == ("checkout",):
+                pathlib.Path(cwd).mkdir(parents=True, exist_ok=True)
+                (pathlib.Path(cwd) / "lakefile.lean").write_text("-- lakefile\n")
             # The clone of a base with the generic creation frame, when FRAME.
             if frame and args[:1] == ("checkout",):
                 (pathlib.Path(cwd) / "Verify" / "Lifecycle").mkdir(
@@ -2047,7 +2294,7 @@ class LifecycleRun(unittest.TestCase):
                     "solar",
                     src,
                     "0" * 64,
-                    "x",
+                    "x_0000abcd",
                     example,
                     ast,
                     pathlib.Path(t) / "w",
@@ -2156,7 +2403,9 @@ class LifecycleRun(unittest.TestCase):
         self.assertEqual(seen["built"], ["Lifecycle"])
         self.assertEqual(rec["lifecycle"]["stages"][-1]["stage"], "kernel")
         self.assertTrue(rec["lifecycle"]["stages"][-1]["ok"])
-        self.assertIn("Certified.x.Lifecycle.statement", rec["lifecycle"]["statement"])
+        self.assertIn(
+            "Certified.x_0000abcd.Lifecycle.statement", rec["lifecycle"]["statement"]
+        )
 
     def test_kernel_proves_with_runtime_loops_open(self):
         """A source with a runtime loop: the lifecycle tier's CERTIFIED names the loops OPEN and

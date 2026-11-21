@@ -2598,6 +2598,90 @@ def lifecycle_kernel(
     }
 
 
+def seal_record(rec_dir, record, status, **extra):
+    """Write RECORD as REC_DIR/record.json with STATUS: when it has a run manifest (run_files), every
+    file the driver left in REC_DIR but record.json is added to it with its sha256."""
+    record.update(extra)
+    if record.get("run_files") is not None:
+        for q in sorted(rec_dir.rglob("*")):
+            rel = str(q.relative_to(rec_dir))
+            if q.is_file() and rel != "record.json" and rel not in record["run_files"]:
+                record["run_files"][rel] = sha256_file(q)
+    record["status"] = status
+    record["finished"] = datetime.datetime.now(datetime.UTC).isoformat(
+        timespec="seconds"
+    )
+    (rec_dir / "record.json").write_text(json.dumps(record, indent=2) + "\n")
+
+
+# The lifecycle tier's compared bytes, kept in the record directory (run_files) beside the record.
+LIFECYCLE_FILES = {
+    "init": "lifecycle/init.hex",
+    "creation": "lifecycle/creation.hex",
+    "bin_runtime": "lifecycle/bin-runtime.hex",
+    "bind": "lifecycle/bind.json",
+}
+
+
+def lifecycle_manifest(
+    record,
+    lean_src,
+    lean_dir,
+    base,
+    name,
+    contract,
+    src,
+    src_sha,
+    rec_dir,
+    init,
+    creation,
+    plain,
+):
+    """The lifecycle run's manifest, as the certified path writes it: the generated inputs of the
+    run's clone (Certified/NAME/ and the lakefile stanza) committed on BASE and checked by
+    checkout.sh, solidity_lean.inputs/inputs_sha256/base_tree/executed_tree, the source and inputs
+    copied into REC_DIR, the base's pinned packages, and the creation, init and runtime bytes and
+    the binding it compared (LIFECYCLE_FILES). seal_record then lists every file in run_files."""
+    inputs, changed = commit_inputs(lean_dir, base, name, contract)
+    tree = git(lean_dir, "rev-parse", inputs + "^{tree}")
+    record["solidity_lean_source"] = str(lean_src)
+    record["solidity_lean"] = {
+        "base": base,
+        "inputs_commit": inputs,
+        "inputs_tree": tree,
+        "provenance": f"solidity-lean {base} + inputs {inputs} (tree {tree}, Certified/{name} only)",
+        "inputs": changed,
+        "inputs_sha256": {p: sha256_file(lean_dir / p) for p in changed},
+    }
+    shutil.copy(src, rec_dir / src.name)
+    for q in changed:
+        (rec_dir / "inputs" / q).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(lean_dir / q, rec_dir / "inputs" / q)
+    record["run_files"] = {
+        src.name: src_sha,
+        **{f"inputs/{q}": sha256_file(lean_dir / q) for q in changed},
+    }
+    rebuilt = inputs_tree(lean_dir, base, rec_dir / "inputs", changed)
+    if rebuilt != tree:
+        raise Failed(
+            f"executed tree: the input commit's tree {tree} is not base + the listed generated inputs ({rebuilt})"
+        )
+    record["solidity_lean"].update(
+        base_tree=git(lean_dir, "rev-parse", base + "^{tree}"), executed_tree=tree
+    )
+    pin, pin_digest = pinned_packages(lean_dir, base)
+    record["packages"] = {"pinned": pin, "digest": pin_digest, "cache_sha256": None}
+    (rec_dir / "lifecycle").mkdir(exist_ok=True)
+    (rec_dir / LIFECYCLE_FILES["init"]).write_text(init.hex() + "\n")
+    (rec_dir / LIFECYCLE_FILES["creation"]).write_text(creation.hex() + "\n")
+    (rec_dir / LIFECYCLE_FILES["bin_runtime"]).write_text(plain.lower() + "\n")
+    bind = (record.get("lifecycle") or {}).get("bind")
+    if bind is not None:
+        (rec_dir / LIFECYCLE_FILES["bind"]).write_text(
+            json.dumps(bind, indent=1) + "\n"
+        )
+
+
 def lifecycle_run(
     a, record, solar, src, src_sha, name, contract, ast, work, finish, fns, rec_dir
 ):
@@ -2665,6 +2749,8 @@ def lifecycle_run(
     git(work, "clone", "-q", "--no-checkout", "--shared", str(lean_src), str(lean_dir))
     git(lean_dir, "checkout", "-q", "--detach", base)
     git(lean_dir, "submodule", "update", "-q", "--init", "--recursive", check=False)
+    # The canonical library stanza (the one the inputs commit may add), before any module build.
+    fresh_certified(lean_dir, name, contract)
     rc, body, err = frontend(lean_dir, src, src_sha, name, contract, a.solc)
     if rc != 0:
         raise Blocked(
@@ -2677,6 +2763,32 @@ def lifecycle_run(
                 }
             ]
         )
+    sealed = finish
+
+    def finish(status, code, line, **extra):
+        # Every outcome from here on leaves the run's manifest, so --replay can check it.
+        (lean_dir / "Certified" / name).mkdir(parents=True, exist_ok=True)
+        (lean_dir / "Certified" / name / "Source.lean").write_text(source_lean(body))
+        try:
+            lifecycle_manifest(
+                record,
+                lean_src,
+                lean_dir,
+                base,
+                name,
+                contract,
+                src,
+                src_sha,
+                rec_dir,
+                init,
+                creation,
+                plain,
+            )
+        except (Failed, OSError) as e:
+            record.pop("run_files", None)
+            record["lifecycle_manifest_error"] = str(e)
+        sealed(status, code, line, **extra)
+
     res = run_lifecycle_probe(
         lean_dir,
         work,
@@ -4410,6 +4522,47 @@ def producer_problem(rec, d, which):
 LIFECYCLE_PROVENANCE = ("bind", "args", "creation_sha256")
 
 
+def lifecycle_files_problem(rec, d):
+    """Why a lifecycle record's provenance is not its own listed files, or None: its creation, init
+    and runtime bytes and its binding (LIFECYCLE_FILES) must be listed in run_files, and the record's
+    creation_sha256, initcode_sha256, bin_runtime_sha256, args and bind must be those files'."""
+    if rec.get("requested_tier") != "lifecycle":
+        return None
+    life, files = rec.get("lifecycle") or {}, rec.get("run_files") or {}
+    need = ["init", "creation", "bin_runtime"] + (
+        ["bind"] if life.get("bind") is not None else []
+    )
+    for k in need:
+        if LIFECYCLE_FILES[k] not in files:
+            return f"lifecycle files: the record lists no {LIFECYCLE_FILES[k]}"
+    try:
+        init = bytes.fromhex((d / LIFECYCLE_FILES["init"]).read_text().strip())
+        creation = bytes.fromhex((d / LIFECYCLE_FILES["creation"]).read_text().strip())
+        plain = bytes.fromhex((d / LIFECYCLE_FILES["bin_runtime"]).read_text().strip())
+    except (OSError, ValueError) as e:
+        return f"lifecycle files: unreadable bytes: {e}"
+    if hashlib.sha256(creation).hexdigest() != life.get("creation_sha256"):
+        return "lifecycle files: creation_sha256 is not lifecycle/creation.hex's"
+    if hashlib.sha256(init).hexdigest() != life.get("initcode_sha256"):
+        return "lifecycle files: initcode_sha256 is not lifecycle/init.hex's"
+    if hashlib.sha256(plain).hexdigest() != life.get("bin_runtime_sha256"):
+        return "lifecycle files: bin_runtime_sha256 is not lifecycle/bin-runtime.hex's"
+    try:
+        words = b"".join(int(w, 16).to_bytes(32, "big") for w in life.get("args") or [])
+    except TypeError, ValueError, OverflowError:
+        return "lifecycle files: args are not 32-byte words"
+    if creation != init + words:
+        return "lifecycle files: args are not the words lifecycle/creation.hex appends to lifecycle/init.hex"
+    if life.get("bind") is not None:
+        try:
+            listed = json.loads((d / LIFECYCLE_FILES["bind"]).read_text())
+        except (OSError, ValueError) as e:
+            return f"lifecycle files: unreadable lifecycle/bind.json: {e}"
+        if listed != life["bind"]:
+            return "lifecycle files: lifecycle.bind is not lifecycle/bind.json"
+    return None
+
+
 def lifecycle_provenance_problem(rec):
     """Why a lifecycle-tier record cannot be replayed, or None: it must carry the lifecycle tier's
     provenance-bound inputs (LIFECYCLE_PROVENANCE), which the fresh run is given and compared on; a
@@ -4467,6 +4620,8 @@ def replay_main(a):
     if (why := inputs_problem(rec, files)) is not None:
         out(1, f"REJECTED: replay: {why}")
     if (why := lifecycle_provenance_problem(rec)) is not None:
+        out(1, f"REJECTED: replay: {why}")
+    if (why := lifecycle_files_problem(rec, d)) is not None:
         out(1, f"REJECTED: replay: {why}")
     if (why := claims_problem(rec, d)) is not None:
         out(1, f"REJECTED: replay: {why}")
@@ -4700,22 +4855,7 @@ def main():
     }
 
     def finish(status, code, line, **extra):
-        record.update(extra)
-        # The manifest: every file the driver leaves in the record directory but record.json.
-        if record.get("run_files") is not None:
-            for q in sorted(rec_dir.rglob("*")):
-                rel = str(q.relative_to(rec_dir))
-                if (
-                    q.is_file()
-                    and rel != "record.json"
-                    and rel not in record["run_files"]
-                ):
-                    record["run_files"][rel] = sha256_file(q)
-        record["status"] = status
-        record["finished"] = datetime.datetime.now(datetime.UTC).isoformat(
-            timespec="seconds"
-        )
-        (rec_dir / "record.json").write_text(json.dumps(record, indent=2) + "\n")
+        seal_record(rec_dir, record, status, **extra)
         log(line)
         sys.exit(code)
 
