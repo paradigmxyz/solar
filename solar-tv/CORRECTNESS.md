@@ -796,17 +796,25 @@ two gas and pushes its remaining balance directly into STATICCALL. Given the
 matched scratch memory, calldata slice, stack arguments and journal at that
 cut, the kernel derives the MIR message budget from the frame. It compares
 both memory debits, the EIP-150 split, the child result, unused gas and work.
-The recursive evaluator substitutes either captured recovery expansion at
-this boundary and uses the typed MIR store at both emitted SSTORE sites.
-The continuation reconstructs the physical frame from the typed result and
-the untouched stack. Each store preserves the gas sentry, the slot-warming
-update and refunds computed from transaction-original and current values.
-A checked route can resume the same frame at a smaller work budget, so the
-nonce write, recovery and authorization write compose in one invocation.
+The recursive evaluator substitutes both captured MIR expansions in the same
+callback. The emitted packing proof starts with the domain word read from
+the captured runtime, a symbolic digest, and a live memory arena that already
+covers the entire allocation. It checks the 32 emitted instructions through
+the next hash boundary, including the free-memory pointer, the five stores,
+the exact stack and memory, and the 96-gas charge. The recovery proof checks
+the child message with the remaining physical budget. The evaluator also
+uses the typed MIR store at both emitted SSTORE sites, preserving the gas
+sentry, slot warming, and refunds from transaction-original and current
+values. The certified regions resume the same frame at smaller work budgets,
+so the nonce write, packing, recovery, and authorization write compose in
+one invocation.
 Independent replay runs a signed authorization reentered by the token during
 transferFrom. It checks committed writes and logs, the clear refund and outer
-rollback. Changing the recovery GAS or the authorization word changes the
-committed result. The remaining authorization instructions execute as bytecode.
+rollback. The changed-domain counterexample agrees with Rust running the
+altered domain immediate in the runtime. Changing the recovery GAS or the
+authorization word also changes the committed result. Other authorization
+instructions still execute as bytecode, including dispatch, the checks and
+hashes around these regions, and low-gas exits inside the packing sequence.
 
 The reentry certificate executes Morpho's emitted dispatcher and substitutes
 the actual captured `owner()` MIR at the checked getter PC. Both typed bodies

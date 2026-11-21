@@ -16,6 +16,7 @@ from . import (
     mir_state,
     native,
     owner_reentry,
+    packing_boundary,
     recovery_boundary,
     world,
 )
@@ -304,11 +305,19 @@ def check(
         state = fixtures(runtime, site, directory, solar, timeout, worlds)
         if boundaries is None:
             recovery = recovery_boundary.find(decoded)
+            packing = packing_boundary.plan(runtime, decoded, recovery.gas, names)
             owner = owner_reentry.steps(runtime, decoded, names)
             config = world.configuration(solar, FORK, state, timeout, executable)
             boundaries = {
                 "recovery_boundary": recovery_boundary.certify(
-                    kernel, recovery, state, solar, executable, timeout, tables=tables
+                    kernel,
+                    recovery,
+                    packing,
+                    state,
+                    solar,
+                    executable,
+                    timeout,
+                    tables=tables,
                 ),
                 "reentrant_owner": owner_reentry.certify(
                     kernel, owner, config, tables, names, timeout

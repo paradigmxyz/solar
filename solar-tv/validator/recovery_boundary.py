@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from . import authorization_lowering, entry_proof, native, world
+from . import authorization_lowering, entry_proof, native, packing_boundary, world
 from .callers import require
 from .check import build_model
 
@@ -51,10 +51,11 @@ def find(decoded):
     return Site(gas, call, nonce, authorization)
 
 
-def source(site, configuration, base):
+def source(site, configuration, base, packing):
     return f"""import EntryImage
 import {MODULE}
 import {STORAGE}
+import {packing}
 {entry_proof.HEADER}
 open SolarTV.EVM.MessageBoundary
 open MIR.StaticCallCut (project priced)
@@ -283,10 +284,12 @@ theorem storeSound (first second : Bool) : EVM.State.Reentry.Sound tvWorldConfig
   · contradiction
 
 def route (lowered : Bool) : EVM.State.Reentry.Route :=
-  EVM.State.Reentry.choose (routeStore true true) (routeRecovery lowered)
+  EVM.State.Reentry.choose (routeStore true true) <|
+    EVM.State.Reentry.choose (MorphoPacking.packedRoute lowered) (routeRecovery lowered)
 
 theorem routeSound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (route lowered) :=
-  EVM.State.Reentry.choose_sound _ _ _ (storeSound true true) (recoverySound lowered)
+  EVM.State.Reentry.choose_sound _ _ _ (storeSound true true)
+    (EVM.State.Reentry.choose_sound _ _ _ (MorphoPacking.packedSound lowered) (recoverySound lowered))
 
 theorem nested (work : Nat) (journal : Execution.Journal) (frame : EVM.State.Frame) :
     EVM.State.Reentry.executeWith tvWorldConfig (route false) work journal frame =
@@ -300,7 +303,9 @@ theorem nested (work : Nat) (journal : Execution.Journal) (frame : EVM.State.Fra
 """
 
 
-def certify(directory, site, fixture, solar, executable, timeout, *, tables=None):
+def certify(
+    directory, site, layout, fixture, solar, executable, timeout, *, tables=None
+):
     if tables is not None:
         authorization_lowering.source(
             *(table["setAuthorizationWithSig"] for table in tables)
@@ -309,13 +314,18 @@ def certify(directory, site, fixture, solar, executable, timeout, *, tables=None
         built = build_model(timeout, module)
         entry_proof.success(built, module)
     configuration = world.configuration(solar, "cancun", fixture, timeout, executable)
+    packing = packing_boundary.certify(directory, layout, configuration, timeout)
     base = next(
         row["forks"]["cancun"]["base_gas"]
         for row in native.catalog(executable, timeout)["evmir"]
         if row["opcode"] == 0xFA
     )
     checked = entry_proof.lean(
-        directory, NAME, source(site, configuration, base), timeout, module=True
+        directory,
+        NAME,
+        source(site, configuration, base, packing),
+        timeout,
+        module=True,
     )
     output = entry_proof.success(checked, NAME)
     entry_proof.check_axioms(output.splitlines(), 3)
@@ -324,7 +334,9 @@ def certify(directory, site, fixture, solar, executable, timeout, *, tables=None
         "gas_pc": site.gas,
         "call_pc": site.call,
         "store_pcs": [site.nonce, site.authorization],
-        "scope": "nested MIR recovery and both metered stores in the emitted authorization body",
+        "packing_pc": layout.steps[0].pc,
+        "packing_gas": layout.gas,
+        "scope": "nested MIR signing envelope, recovery, and both metered stores in the emitted authorization body",
     }
 
 
@@ -361,6 +373,8 @@ def brokenStore : Route
         some (MIR.StorageBoundary.resumeWith tvWorldConfig journal frame slot (word ^^^ 1) rest
           (proceed work (Nat.lt_succ_self _)))
   | _, _, _, _ => none
+def brokenPacked : Route :=
+  choose MorphoPacking.changedDomain (route true)
 #eval IO.println ("[" ++ replay (route false) ++ "," ++ replay (route true) ++ "," ++
-  replay broken ++ "," ++ replay brokenStore ++ "]")
+  replay broken ++ "," ++ replay brokenStore ++ "," ++ replay brokenPacked ++ "]")
 """

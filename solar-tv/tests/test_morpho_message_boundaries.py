@@ -17,6 +17,7 @@ from validator import (
     entry_proof,
     native,
     owner_reentry,
+    packing_boundary,
     recovery_boundary,
     world,
 )
@@ -60,6 +61,9 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
 
     def test_authorization_prices_the_emitted_staticcall(self):
         site = recovery_boundary.find(self.decoded)
+        packing = packing_boundary.plan(
+            self.runtime, self.decoded, site.gas, self.catalog
+        )
         call_data = bytes.fromhex("8069218f") + b"".join(
             map(
                 caller_replay.word,
@@ -78,9 +82,16 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
             },
         )
         evidence = recovery_boundary.certify(
-            self.directory, site, state, SOLAR, self.replay, 45
+            self.directory, site, packing, state, SOLAR, self.replay, 45
         )
         self.assertTrue((self.directory / Path(evidence["proof"]).name).is_file())
+        before_packing = caller_entry.replay(
+            state, evidence["packing_pc"], self.replay, 30
+        )
+        after_packing = caller_entry.replay(state, packing.next_pc, self.replay, 30)
+        self.assertEqual(
+            before_packing["gas"] - after_packing["gas"], evidence["packing_gas"]
+        )
         sample = caller_entry.replay(state, site.gas, self.replay, 30)
         call = caller_entry.replay(state, site.call, self.replay, 30)
         returned = caller_entry.replay(state, site.call + 1, self.replay, 30)
@@ -114,6 +125,9 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
 
     def test_authorization_reentry_commits_and_rolls_back(self):
         site = recovery_boundary.find(self.decoded)
+        packing = packing_boundary.plan(
+            self.runtime, self.decoded, site.gas, self.catalog
+        )
         _, models, _ = builtin_lowering.load_pair(
             self.mir_pair, SOLAR, self.replay, "cancun", 45
         )
@@ -164,6 +178,7 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                     evidence = recovery_boundary.certify(
                         self.directory,
                         site,
+                        packing,
                         state,
                         SOLAR,
                         self.replay,
@@ -208,13 +223,21 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                         current,
                     )
                 if accepted and grant:
-                    altered = list(self.runtime)
-                    altered[site.gas] = 0x5F
+                    changed_domain = list(self.runtime)
+                    changed_domain[evidence["packing_pc"] + 32] ^= 1
                     root = next(
                         account
                         for account in state["accounts"]
                         if account["address"] == state["address"]
                     )
+                    root["code"] = changed_domain
+                    invalid_signature = caller_entry.replay(
+                        state, None, self.replay, 45
+                    )
+                    self.assertNotEqual(invalid_signature, observed)
+                    self.assertEqual(checked[4], invalid_signature)
+                    altered = list(self.runtime)
+                    altered[site.gas] = 0x5F
                     root["code"] = altered
                     broken = caller_entry.replay(state, None, self.replay, 45)
                     slots = {int(account[0]): dict(account[4]) for account in broken[4]}
