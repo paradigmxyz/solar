@@ -10,9 +10,11 @@ from test_cli import ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
 from validator import (
+    authorization_completion,
     builtin_lowering,
     call_budget,
     caller_entry,
+    caller_gas,
     caller_replay,
     callers,
     entry_proof,
@@ -64,6 +66,16 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
         )["code"] = list(self.runtime)
         return parsed
 
+    @staticmethod
+    def call_owner():
+        return (
+            bytes.fromhex("63")
+            + owner_reentry.SELECTOR.to_bytes(4, "big")
+            + bytes.fromhex("60e01b5f5260205f60045f62")
+            + caller_replay.MORPHO.to_bytes(3, "big")
+            + bytes.fromhex("5afa505f515f55")
+        )
+
     def test_morpho_prehelper_call_caps_and_residual_gas(self):
         catalog = {row["opcode"]: row for row in self.catalog.values()}
         state = self.fixture(
@@ -112,6 +124,63 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
             int.from_bytes(bytes(after["returndata"]), "big"), forwarded - 2
         )
         self.assertEqual(after["gas"], available - 15)
+        report = caller_gas.evaluate(self.directory, [state], 45)[0]
+        witness = next(call for call in report["calls"] if call["pc"] == pc)
+        self.assertEqual(witness["prepared"], available)
+        self.assertEqual(witness["charged"], forwarded)
+        self.assertEqual(witness["supplied"], forwarded)
+        self.assertEqual(witness["returned"], forwarded - 15)
+
+        cases = []
+        for name in callers.SELECTORS:
+            base = world.read(
+                self.directory / f"{name}-callback.world.json", SOLAR, "exact"
+            )
+            for code, stop in (
+                (bytes.fromhex("60015f5500"), "helper"),
+                (self.call_owner() + bytes.fromhex("00"), "helper"),
+                (bytes.fromhex("60015f5563deadbeef5f526004601cfd"), "revert"),
+                (bytes.fromhex("60015f55fe"), "exception"),
+            ):
+                accounts = [
+                    {**account, "code": list(self.runtime)}
+                    if account["address"] == base["address"]
+                    else {**account, "code": list(code)}
+                    if account["address"] == base["caller"]
+                    else account
+                    for account in base["accounts"]
+                ]
+                cases.append((name, {**base, "accounts": accounts}, stop))
+            cases.append((name, {**cases[-1][1], "gas": 1}, "out-of-gas"))
+        reports = caller_gas.evaluate(
+            self.directory, [state for _, state, _ in cases], 45
+        )
+        for report, (name, probe, stop) in zip(reports, cases, strict=True):
+            with self.subTest(caller=name, gas=probe["gas"], stop=stop):
+                if stop == "helper":
+                    reached = caller_entry.replay(probe, self.helper, self.replay, 30)
+                    caller_gas.check_reached(report, probe, reached)
+                    self.assertTrue(
+                        any(
+                            call["returned"] < call["supplied"]
+                            for call in report["calls"]
+                        )
+                    )
+                else:
+                    receipt = caller_entry.replay(probe, None, self.replay, 30)
+                    self.assertEqual(report["result"], receipt)
+                    self.assertEqual(report["net"], probe["gas"] - receipt[2])
+                    if stop != "out-of-gas":
+                        self.assertEqual(receipt[0], "revert")
+                        pc, _ = evidence["sites"][name][-1]
+                        call = next(row for row in report["calls"] if row["pc"] == pc)
+                        self.assertEqual(
+                            call["after"],
+                            call["prepared"] - call["charged"] + call["returned"],
+                        )
+                        self.assertEqual(call["returned"] == 0, stop == "exception")
+                    else:
+                        self.assertEqual(receipt[0], "out-of-gas")
 
     def test_authorization_prices_the_emitted_staticcall(self):
         site = recovery_boundary.find(self.decoded)
@@ -149,6 +218,8 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
             config,
             self.replay,
             45,
+            nonce_pc=site.nonce,
+            signing_pc=packing.steps[0].pc,
         )
         self.assertTrue((self.directory / Path(abi["proof"]).name).is_file())
         reached = caller_entry.replay(
@@ -235,12 +306,62 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 self.assertEqual(failed[5], [])
 
         evidence = recovery_boundary.certify(
-            self.directory, site, packing, state, SOLAR, self.replay, 45
+            self.directory,
+            site,
+            packing,
+            state,
+            SOLAR,
+            self.replay,
+            45,
+            entry=abi["signing_record"]["proof"],
         )
         self.assertTrue((self.directory / Path(evidence["proof"]).name).is_file())
+        self.assertTrue((self.directory / Path(evidence["from_nonce"]).name).is_file())
+        cases = []
+        # This fixed signature binds nonce zero, grant=true, and the pinned domain.
+        signed = state["calldata"].copy()
+        words = (
+            0x7E5F4552091A69125D5DFCB7B8C2659029395BDF,
+            0x20000,
+            1,
+            0,
+            10**10,
+            28,
+            0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+            0x4F8C8CC2DF646C47881F49253C98A3A39F6F5A0C95C2ACD55B5204AA5CAF5828,
+        )
+        signed[4:] = b"".join(map(caller_replay.word, words))
+        live = {**state, "calldata": signed}
+        changed = signed.copy()
+        changed[100:132] = caller_replay.word(1)
+        for probe, stop in (
+            (live, "success"),
+            ({**live, "calldata": changed}, "revert"),
+            (state, "revert"),
+            ({**live, "gas": prefix + 2100 + 2300}, "out-of-gas"),
+        ):
+            cut = caller_entry.replay(probe, nonce_pc, self.replay, 30)
+            cases.append((probe, cut["gas"], stop))
+        receipts = authorization_completion.evaluate(
+            self.directory, [(probe, gas) for probe, gas, _ in cases], 45
+        )
+        for (probe, _, stop), (before, after) in zip(cases, receipts, strict=True):
+            reference = caller_entry.replay(probe, None, self.replay, 30)
+            self.assertEqual(reference[0], stop)
+            self.assertEqual(before, reference)
+            self.assertEqual(after, reference)
+
         before_packing = caller_entry.replay(
             state, evidence["packing_pc"], self.replay, 30
         )
+        record = abi["signing_record"]
+        self.assertTrue((self.directory / Path(record["proof"]).name).is_file())
+        self.assertEqual(record["pc"], evidence["packing_pc"])
+        self.assertEqual(
+            nonce_full["gas"] - before_packing["gas"], 20000 + record["gas"]
+        )
+        self.assertEqual(len(before_packing["memory"]), 480)
+        self.assertEqual(before_packing["memory"][320:], state["calldata"][4:164])
         after_packing = caller_entry.replay(state, packing.next_pc, self.replay, 30)
         self.assertEqual(
             before_packing["gas"] - after_packing["gas"], evidence["packing_gas"]
@@ -409,13 +530,7 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
         fixture["gas"] = 150000
         # ERC-20 transferFrom reenters Morpho with a read-only owner() call,
         # records the ABI word, then returns the chosen ERC-20 success flag.
-        call_owner = (
-            bytes.fromhex("63")
-            + owner_reentry.SELECTOR.to_bytes(4, "big")
-            + bytes.fromhex("60e01b5f5260205f60045f62")
-            + caller_replay.MORPHO.to_bytes(3, "big")
-            + bytes.fromhex("5afa505f515f55")
-        )
+        call_owner = self.call_owner()
         paid_gas = []
         for accepted, warm in ((True, False), (True, True), (False, False)):
             with self.subTest(accepted=accepted, warm=warm):

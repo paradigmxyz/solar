@@ -6,6 +6,7 @@ from pathlib import Path
 from . import (
     authorization_entry,
     caller_context,
+    caller_gas,
     caller_replay,
     collateral_mir,
     collateral_mir_tail,
@@ -277,7 +278,18 @@ theorem {side}_live :
 
 
 def certify_authorization(
-    kernel, runtime, decoded, catalog, tables, state, config, executable, timeout
+    kernel,
+    runtime,
+    decoded,
+    catalog,
+    tables,
+    state,
+    config,
+    executable,
+    timeout,
+    *,
+    nonce_pc,
+    signing_pc,
 ):
     layout = authorization_entry.plan(runtime, decoded, catalog)
     calldata = list(layout.selector.to_bytes(4, "big")) + [0] * 256
@@ -319,7 +331,8 @@ def certify_authorization(
         config,
         tables,
         catalog,
-        recovery_boundary.find(decoded).nonce,
+        nonce_pc,
+        signing_pc,
         timeout,
     )
 
@@ -338,6 +351,7 @@ def certify_prehelper_calls(
 ):
     # Cover the callback routes even when the supplied fixtures take the empty branch.
     cuts = {}
+    probes, snapshots = [], []
     for name in SELECTORS:
         fixture = default_fixture(name, solar, timeout)
         data = caller_replay.calldata(name)
@@ -349,6 +363,8 @@ def certify_prehelper_calls(
         probe = world.read(file, solar, "exact")
         probe["accounts"][0]["code"] = list(runtime)
         reached = replay(probe, helper, executable, timeout)
+        probes.append(probe)
+        snapshots.append(reached)
         cuts[name] = [
             (pc, decoded[pc][0])
             for pc in reached["pcs"]
@@ -359,7 +375,13 @@ def certify_prehelper_calls(
             if opcode == "call":
                 stack = replay(probe, pc, executable, timeout)["stack"]
                 require(stack[2] == "0", "pre-helper CALL sends value")
-    return prehelper_calls.certify(kernel, cuts, config, catalog, timeout)
+    evidence = prehelper_calls.certify(kernel, cuts, config, catalog, timeout)
+    meter = caller_gas.certify(kernel, helper, config, timeout)
+    reports = caller_gas.evaluate(kernel, probes, timeout)
+    for report, probe, snapshot in zip(reports, probes, snapshots, strict=True):
+        caller_gas.check_reached(report, probe, snapshot)
+    evidence["abi_meter"] = meter
+    return evidence
 
 
 def check(
@@ -392,6 +414,7 @@ def check(
     context = caller_context.certify(kernel, tables, sites, names, timeout)
     decoded = decode_runtime(runtime, names)
     boundaries = None
+    meter_inputs = []
     for site in sites:
         state = fixtures(runtime, site, directory, solar, timeout, worlds)
         if boundaries is None:
@@ -399,6 +422,19 @@ def check(
             packing = packing_boundary.plan(runtime, decoded, recovery.gas, names)
             owner = owner_reentry.steps(runtime, decoded, names)
             config = world.configuration(solar, FORK, state, timeout, executable)
+            authorization = certify_authorization(
+                kernel,
+                runtime,
+                decoded,
+                catalog,
+                tables,
+                state,
+                config,
+                executable,
+                timeout,
+                nonce_pc=recovery.nonce,
+                signing_pc=packing.steps[0].pc,
+            )
             boundaries = {
                 "prehelper_calls": certify_prehelper_calls(
                     directory,
@@ -412,17 +448,7 @@ def check(
                     config,
                     timeout,
                 ),
-                "authorization_entry": certify_authorization(
-                    kernel,
-                    runtime,
-                    decoded,
-                    catalog,
-                    tables,
-                    state,
-                    config,
-                    executable,
-                    timeout,
-                ),
+                "authorization_entry": authorization,
                 "recovery_boundary": recovery_boundary.certify(
                     kernel,
                     recovery,
@@ -432,12 +458,14 @@ def check(
                     executable,
                     timeout,
                     tables=tables,
+                    entry=authorization["signing_record"]["proof"],
                 ),
                 "reentrant_owner": owner_reentry.certify(
                     kernel, owner, config, tables, names, timeout
                 ),
             }
         observed = replay(state, helper_pc, executable, timeout)
+        meter_inputs.append((site.name, state, observed))
         routed = replay(state, site.abi_pc, executable, timeout)
         route = dispatch_proof.plan(runtime, site, observed["pcs"], catalog)
         require(
@@ -591,6 +619,12 @@ def check(
             "gas": observed["gas"],
             "steps": len(observed["pcs"]),
         }
+    reports = caller_gas.evaluate(
+        kernel, [state for _, state, _ in meter_inputs], timeout
+    )
+    for (name, state, observed), report in zip(meter_inputs, reports, strict=True):
+        caller_gas.check_reached(report, state, observed)
+        (directory / f"{name}-abi-gas.json").write_text(json.dumps(report))
     return (
         evidence,
         entry_proof.certify_suite(kernel, evidence, timeout),

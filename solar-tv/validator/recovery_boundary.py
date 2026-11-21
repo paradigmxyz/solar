@@ -2,7 +2,14 @@
 
 from dataclasses import dataclass
 
-from . import authorization_lowering, entry_proof, native, packing_boundary, world
+from . import (
+    authorization_completion,
+    authorization_lowering,
+    entry_proof,
+    native,
+    packing_boundary,
+    world,
+)
 from .callers import require
 from .check import build_model
 
@@ -304,7 +311,16 @@ theorem nested (work : Nat) (journal : Execution.Journal) (frame : EVM.State.Fra
 
 
 def certify(
-    directory, site, layout, fixture, solar, executable, timeout, *, tables=None
+    directory,
+    site,
+    layout,
+    fixture,
+    solar,
+    executable,
+    timeout,
+    *,
+    tables=None,
+    entry=None,
 ):
     if tables is not None:
         authorization_lowering.source(
@@ -329,7 +345,7 @@ def certify(
     )
     output = entry_proof.success(checked, NAME)
     entry_proof.check_axioms(output.splitlines(), 3)
-    return {
+    evidence = {
         "proof": f"kernel/{NAME}.lean",
         "gas_pc": site.gas,
         "call_pc": site.call,
@@ -338,6 +354,11 @@ def certify(
         "packing_gas": layout.gas,
         "scope": "nested MIR signing envelope, recovery, and both metered stores in the emitted authorization body",
     }
+    if entry is not None:
+        evidence["from_nonce"] = authorization_completion.certify(
+            directory, entry, evidence["proof"], timeout
+        )
+    return evidence
 
 
 def replay_source(state):

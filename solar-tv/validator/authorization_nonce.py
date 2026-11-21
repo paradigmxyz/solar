@@ -263,6 +263,9 @@ def source(
     gas = f"{abi_gas} + ({guard_gas} + (noncePrice env journal + {fixed_gas}))"
     steps = abi_steps + 5 + len(rows)
     link = f"""
+abbrev noncePrefixSteps : Nat := {steps}
+abbrev noncePrefixCharge (env : World.Environment) (journal : Journal) : Nat := {gas}
+
 theorem authorizationToNonce {binders}
     (noValue : env.value = 0)
     (selected : MIR.TransferFromDispatch.selector env.input = {layout.selector})

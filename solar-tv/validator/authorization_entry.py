@@ -12,6 +12,8 @@ from . import (
     entry_proof,
     metered_prefix,
     mir_state,
+    packing_boundary,
+    signing_digest,
 )
 from .callers import require
 from .check import build_model
@@ -226,11 +228,13 @@ def certify(
     tables,
     catalog,
     nonce_pc,
+    signing_pc,
     timeout,
 ):
     modules = [
         "SolarTV.MIR.Transforms.TransferFromMarket",
         "SolarTV.MIR.Transforms.StorageBoundary",
+        packing_boundary.MODULE,
     ]
     for module in modules:
         entry_proof.success(build_model(timeout, module), module)
@@ -327,8 +331,22 @@ theorem authorizationDeadlineOutOfGas {BINDINGS}
         output = entry_proof.success(result, name)
         entry_proof.check_axioms(output.splitlines(), body.count("#print axioms"))
         imports = [name]
+    proof = f"kernel/{name}.lean"
+    signing = signing_digest.certify(
+        directory,
+        proof,
+        runtime,
+        decoded,
+        catalog,
+        layout,
+        success,
+        nonce_pc,
+        signing_pc,
+        timeout,
+    )
     return {
-        "proof": f"kernel/{name}.lean",
+        "proof": proof,
+        "signing_record": signing,
         "body_pc": layout.pc,
         "gas": abi_gas,
         "deadline_gas": guard_gas,

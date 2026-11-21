@@ -825,6 +825,16 @@ composes with the typed store continuation, including the write's gas sentry.
 Independent replay checks the store boundary with cold and warm slots and
 different old values.
 
+The nonce-to-exit theorem starts at that exact frame, executes the typed
+SSTORE, and resumes either recursive evaluator. Both continuations produce
+the same outcome, returned bytes, gas, work and journal as the emitted
+runtime. Where the nonce matches and the write and encoding are funded, the
+kernel derives the six-word signing record, its Keccak hash and the active
+memory required by the packing proof. This slice costs 217 gas after the
+write. Independent replay checks the record and charge, then checks whole
+receipts for a valid signature, a mismatched nonce, a bad signature, and the
+SSTORE gas sentry.
+
 The separate emitted recovery certificate reads the actual GAS and STATICCALL
 bytes from the captured runtime. GAS either exhausts the frame or deducts
 two gas and pushes its remaining balance directly into STATICCALL. Given the
@@ -862,16 +872,19 @@ result on success and loses its write on the outer revert. Other selectors
 without certified regions execute with the bytecode interpreter. Whole-body
 typed correspondence for reentrant writes remains open.
 
-A separate certificate binds the prepared Cancun message proofs to the
-actual CALL instructions reached before transferFrom on all five nonempty
-callback paths, including the shared outgoing token transfer and the
-Liquidate oracle STATICCALL. The incoming gas is the reached EVM frame's
-balance. The kernel checks both memory debits, the account charge, EIP-150
-clipping, the child result, and the parent balance after unused child gas
-is returned. The FlashLoan replay reads the forwarded budget from the
-callback's returndata and checks the exact remaining parent gas. The
-symbolic paths that establish each prepared frame remain separate
-obligations.
+The ABI gas certificate starts at PC zero for Supply, Repay,
+SupplyCollateral, Liquidate and FlashLoan. It accepts arbitrary modeled
+calldata, transaction state, block context and gas for the five selectors.
+It derives the residual gas at the helper, or the terminal result if
+execution halts first. The kernel proves that the signed debits balance and
+that resuming the reached frame is equivalent to uninterrupted execution.
+The prepared Cancun message proofs also bind both memory debits, the account
+charge and the EIP-150 split to the emitted CALLs and Liquidate STATICCALL.
+For a forwarded call, the ledger records the unused gas returned by its
+actual child. Independent replay checks the ABI-to-helper frame in each
+supplied world and on all five nonempty callback routes. It also checks
+nested reentry, callback reverts and exceptions, and out-of-gas before the
+helper. The FlashLoan test samples gas in the callback itself.
 
 The CALL debit lemma relates the EVM input and output memory steps to
 MIR's cumulative debit. It covers both unpaid legs, including an input

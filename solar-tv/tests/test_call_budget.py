@@ -143,6 +143,14 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertTrue(
                     (output / "entry" / entry_report[name]["proof"]).is_file()
                 )
+            meter = entry_report["prehelper_calls"]["abi_meter"]
+            self.assertEqual(set(meter["callers"]), set(callers.SELECTORS))
+            for proof in (
+                meter["proof"],
+                entry_report["authorization_entry"]["signing_record"]["proof"],
+                entry_report["recovery_boundary"]["from_nonce"],
+            ):
+                self.assertTrue((output / "entry" / proof).is_file())
             entry = entry_report["paths"]
             collateral = entry["supplyCollateral"]["collateral_write"]
             self.assertEqual(
@@ -152,6 +160,12 @@ class CallBudgetTests(unittest.TestCase):
             self.assertEqual(set(entry), set(report["caller_replays"]))
             for site in report["callers"]:
                 name = site["name"]
+                ledger = json.loads(
+                    (output / "entry" / f"{name}-abi-gas.json").read_text()
+                )
+                self.assertEqual(ledger["result"]["gas"], entry[name]["gas"])
+                self.assertEqual(ledger["result"]["pc"], entry[name]["pc"])
+                self.assertEqual(len(ledger["pcs"]), entry[name]["steps"])
                 proof = output / f"entry/{name}.lean"
                 self.assertTrue(proof.is_file())
                 self.assertTrue((output / "entry" / entry[name]["proof"]).is_file())
