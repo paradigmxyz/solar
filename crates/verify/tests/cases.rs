@@ -503,7 +503,7 @@ fn ctor_calls() {
 fn struct_names() {
     // Refused before any query, so this needs no z3.
     let run = run_verifier(&["--json", "tests/cases/struct_names.sol"]);
-    let want = "struct `Item` names structs with different fields";
+    let want = "struct `Item` names several structs with different fields or with invariants";
     assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
     assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
     assert_eq!(run.code, Some(1), "{}", run.stderr);
@@ -520,6 +520,26 @@ fn const_unsized() {
 {}",
         run.stderr
     );
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn const_unsized_local() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/const_unsized_local.sol"]);
+    let want = "fixed array size is not a known constant";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn struct_shared_inv() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/struct_shared_inv.sol"]);
+    let want = "struct `Item` names several structs with different fields or with invariants";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
     assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
     assert_eq!(run.code, Some(1), "{}", run.stderr);
 }

@@ -750,8 +750,23 @@ pub(crate) fn build<'a>(
             seen.push(text);
         }
     }
-    b.ambiguous_structs =
-        decls.into_iter().filter(|(_, d)| d.len() > 1).map(|(n, _)| n.to_string()).collect();
+    // Invariants are keyed by name too, so two declarations of one name, even alike, would share
+    // the invariants either one states.
+    let mut spans: FxHashMap<&str, FxHashSet<Span>> = FxHashMap::default();
+    for st in &b.struct_items {
+        spans.entry(st.name.as_str()).or_default().insert(st.name.span);
+    }
+    let with_inv: FxHashSet<&str> = b
+        .struct_docs
+        .iter()
+        .filter(|(_, docs)| custom_tags(docs).iter().any(|(tag, _, _)| tag == "invariant"))
+        .map(|(n, _)| n.as_str())
+        .collect();
+    b.ambiguous_structs = decls
+        .into_iter()
+        .filter(|(n, d)| d.len() > 1 || (spans[n].len() > 1 && with_inv.contains(n)))
+        .map(|(n, _)| n.to_string())
+        .collect();
     let mut refused = vec![];
     let mut named = FxHashSet::default();
     for st in &b.struct_items {
@@ -759,7 +774,7 @@ pub(crate) fn build<'a>(
         if b.ambiguous_structs.contains(n) && named.insert(n) {
             refused.push((
                 st.name.span,
-                format!("struct `{n}` names structs with different fields: structs are keyed by name, so this file is not verified"),
+                format!("struct `{n}` names several structs with different fields or with invariants: structs are keyed by name, so this file is not verified"),
             ));
         }
     }
@@ -768,6 +783,24 @@ pub(crate) fn build<'a>(
         for n in b.const_conflicts.iter().chain(&b.const_derived) {
             b.const_sizes.remove(n);
         }
+    }
+    // Every fixed-array size in the files, including those in function bodies and expressions,
+    // which `vc::ty_of` would otherwise read as dynamic arrays.
+    for u in units {
+        crate::walk::all_types(u, &mut |site| {
+            let size = match site {
+                crate::walk::TypeSite::Type(t) => match &t.kind {
+                    ast::TypeKind::Array(a) => a.size.as_deref(),
+                    _ => None,
+                },
+                crate::walk::TypeSite::Size(e) => Some(e),
+            };
+            if let Some(e) = size
+                && array_size(&b.const_sizes, e).is_none()
+            {
+                b.unknown_sizes.push(e.span);
+            }
+        });
     }
     let mut structs = vec![];
     let mut emitted = FxHashSet::default();
@@ -1209,6 +1242,7 @@ pub(crate) fn build<'a>(
         }
         contracts.push(con);
     }
+    let mut unknown_seen = FxHashSet::default();
     let mut program = Program {
         contracts,
         quants: b.quants,
@@ -1226,7 +1260,7 @@ pub(crate) fn build<'a>(
         ghost_errors: vec![],
         refused: refused
             .into_iter()
-            .chain(b.unknown_sizes.iter().map(|&sp| {
+            .chain(b.unknown_sizes.iter().filter(|&&sp| unknown_seen.insert(sp)).map(|&sp| {
                 (
                     sp,
                     "fixed array size is not a known constant, so this file is not verified"
