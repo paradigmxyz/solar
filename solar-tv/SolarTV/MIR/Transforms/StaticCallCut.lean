@@ -16,16 +16,12 @@ def project (frame : Frame)
   match ← step with
   | .inl result =>
     if result.stop = .outOfGas then return none
-    else .error "unexpected terminal STATICCALL action"
+    else .error "unexpected terminal message action"
   | .inr (work,world,next) =>
-    let value ← required next.stack.head? "missing STATICCALL result"
+    let value ← required next.stack.head? "missing message result"
     return some (.returned (some value,{frame with
       world, memory := next.memory, returnData := next.returnData,
       messageGas := frame.messageGas ++ [next.gas]}),work)
-
-private theorem warmTwice (world : Journal) (address : Address) :
-    warmAddress (warmAddress world address) address = warmAddress world address := by
-  by_cases warm : address ∈ world.warmAddresses <;> simp [warmAddress, warm]
 
 theorem prepared (cfg : Config) (ext : EVM.State.Config) (fuel : Nat)
     (mir : Frame) (physical : EVM.State.Frame) (rest : List Word)
@@ -103,10 +99,10 @@ theorem prepared (cfg : Config) (ext : EVM.State.Config) (fuel : Nat)
     have destination : message.destination = address := rfl
     have returnedGas : physical.gas-price-child+child = physical.gas-price := by omega
     by_cases depth : 1024 ≤ cfg.environment.depth
-    · simp [project, EVM.State.advance, forward, warmTwice, environment, kind, noValue,
+    · simp [project, EVM.State.advance, forward, CallDebit.warmTwice, environment, kind, noValue,
         destination, EVM.State.executeCall, codeAddress, knownAddress, depth, returnedGas, required,
         Bind.bind, Except.bind, Pure.pure, Except.pure, writeBytes]
-    · simp [project, EVM.State.advance, forward, warmTwice, environment, kind, noValue,
+    · simp [project, EVM.State.advance, forward, CallDebit.warmTwice, environment, kind, noValue,
         extFork, destination, depth, required, Bind.bind, Except.bind, Pure.pure, Except.pure]
       cases EVM.State.executeCall (EVM.State.run fuel ext) ext (warmAddress mir.world address)
         cfg.environment message code child <;> rfl

@@ -14,6 +14,7 @@ from validator import (
     call_budget,
     caller_entry,
     caller_replay,
+    callers,
     entry_proof,
     native,
     owner_reentry,
@@ -30,12 +31,16 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         cls.addClassCleanup(temporary.cleanup)
         cls.directory = Path(temporary.name)
-        *_, cls.runtime, cls.mir_pair = call_budget.capture(SOLAR, cls.directory, 45)
+        scheduled, _, disassembly, _, cls.runtime, cls.mir_pair = call_budget.capture(
+            SOLAR, cls.directory, 45
+        )
         cls.replay = native.default(SOLAR)
         cls.catalog = {
             row["name"]: row for row in native.catalog(cls.replay, 30)["evmir"]
         }
         cls.decoded = call_budget.decode_runtime(cls.runtime, cls.catalog)
+        _, _, setup, _ = call_budget.extract(scheduled, disassembly)
+        cls.helper = call_budget.extract_final(cls.runtime, setup, cls.catalog)[0]
         entry_proof.success(build_model(45, entry_proof.MODULE), entry_proof.MODULE)
         entry_proof.success(
             entry_proof.lean(
@@ -58,6 +63,55 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
             if account["address"] == parsed["address"]
         )["code"] = list(self.runtime)
         return parsed
+
+    def test_morpho_prehelper_call_caps_and_residual_gas(self):
+        catalog = {row["opcode"]: row for row in self.catalog.values()}
+        state = self.fixture(
+            "prehelper", caller_entry.default_fixture("flashLoan", SOLAR, 30)
+        )
+        config = world.configuration(SOLAR, "cancun", state, 45, self.replay)
+        evidence = caller_entry.certify_prehelper_calls(
+            self.directory,
+            self.directory,
+            self.runtime,
+            self.decoded,
+            catalog,
+            self.helper,
+            SOLAR,
+            self.replay,
+            config,
+            45,
+        )
+        self.assertTrue((self.directory / Path(evidence["proof"]).name).is_file())
+        self.assertEqual(set(evidence["sites"]), set(callers.SELECTORS))
+        self.assertEqual(
+            [len(evidence["sites"][name]) for name in callers.SELECTORS],
+            [1, 1, 1, 3, 2],
+        )
+        state = world.read(
+            self.directory / "flashLoan-callback.world.json", SOLAR, "exact"
+        )
+        state["accounts"][0]["code"] = list(self.runtime)
+        actor = next(
+            account
+            for account in state["accounts"]
+            if account["address"] == state["caller"]
+        )
+        # Return the child's GAS observation in a word. The wrapper advances
+        # past CALL before the next Solidity statement consumes the result.
+        actor["code"] = list(bytes.fromhex("5a5f5260205ff3"))
+        pc, _ = evidence["sites"]["flashLoan"][-1]
+        before = caller_entry.replay(state, pc, self.replay, 30)
+        after = caller_entry.replay(state, pc + 1, self.replay, 30)
+        before_gas = before["gas"]
+        self.assertGreater(int(before["stack"][0]), before_gas)
+        self.assertEqual(before["memory"], after["memory"])
+        available = before_gas - 100  # The caller's address is already warm.
+        forwarded = available - available // 64
+        self.assertEqual(
+            int.from_bytes(bytes(after["returndata"]), "big"), forwarded - 2
+        )
+        self.assertEqual(after["gas"], available - 15)
 
     def test_authorization_prices_the_emitted_staticcall(self):
         site = recovery_boundary.find(self.decoded)

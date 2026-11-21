@@ -121,4 +121,8 @@ theorem budget_eq (cfg : Config) (ext : EVM.State.Config) (frame : Frame)
   · rename_i paid
     simp [Nat.le_of_not_gt paid] <;> rfl
 
+theorem warmTwice (world : Journal) (address : Address) :
+    warmAddress (warmAddress world address) address = warmAddress world address := by
+  by_cases warm : address ∈ world.warmAddresses <;> simp [warmAddress, warm]
+
 end SolarTV.MIR.CallDebit

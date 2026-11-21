@@ -837,6 +837,17 @@ result on success and loses its write on the outer revert. Other selectors
 without certified regions execute with the bytecode interpreter. Whole-body
 typed correspondence for reentrant writes remains open.
 
+A separate certificate binds the prepared Cancun message proofs to the
+actual CALL instructions reached before transferFrom on all five nonempty
+callback paths, including the shared outgoing token transfer and the
+Liquidate oracle STATICCALL. The incoming gas is the reached EVM frame's
+balance. The kernel checks both memory debits, the account charge, EIP-150
+clipping, the child result, and the parent balance after unused child gas
+is returned. The FlashLoan replay reads the forwarded budget from the
+callback's returndata and checks the exact remaining parent gas. The
+symbolic paths that establish each prepared frame remain separate
+obligations.
+
 The CALL debit lemma relates the EVM input and output memory steps to
 MIR's cumulative debit. It covers both unpaid legs, including an input
 that fits the budget and an output that does not. The existing

@@ -134,7 +134,12 @@ class CallBudgetTests(unittest.TestCase):
                 self.assertTrue(
                     (output / "entry" / entry_report[name]["proof"]).is_file()
                 )
-            for name in ("authorization_entry", "recovery_boundary", "reentrant_owner"):
+            for name in (
+                "prehelper_calls",
+                "authorization_entry",
+                "recovery_boundary",
+                "reentrant_owner",
+            ):
                 self.assertTrue(
                     (output / "entry" / entry_report[name]["proof"]).is_file()
                 )

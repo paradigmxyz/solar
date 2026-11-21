@@ -19,10 +19,11 @@ from . import (
     native,
     owner_reentry,
     packing_boundary,
+    prehelper_calls,
     recovery_boundary,
     world,
 )
-from .callers import require
+from .callers import SELECTORS, require
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Program
 
@@ -312,6 +313,44 @@ def certify_authorization(
     )
 
 
+def certify_prehelper_calls(
+    directory,
+    kernel,
+    runtime,
+    decoded,
+    catalog,
+    helper,
+    solar,
+    executable,
+    config,
+    timeout,
+):
+    # Cover the callback routes even when the supplied fixtures take the empty branch.
+    cuts = {}
+    for name in SELECTORS:
+        fixture = default_fixture(name, solar, timeout)
+        data = caller_replay.calldata(name)
+        fixture["calldata"] = (
+            "0x" + (data[:-32] + caller_replay.word(1) + b"\xab" + bytes(31)).hex()
+        )
+        file = directory / f"{name}-callback.world.json"
+        file.write_text(json.dumps(fixture))
+        probe = world.read(file, solar, "exact")
+        probe["accounts"][0]["code"] = list(runtime)
+        reached = replay(probe, helper, executable, timeout)
+        cuts[name] = [
+            (pc, decoded[pc][0])
+            for pc in reached["pcs"]
+            if decoded[pc][0] in {"call", "staticcall"}
+        ]
+        require(cuts[name], f"missing {name} pre-helper message")
+        for pc, opcode in cuts[name]:
+            if opcode == "call":
+                stack = replay(probe, pc, executable, timeout)["stack"]
+                require(stack[2] == "0", "pre-helper CALL sends value")
+    return prehelper_calls.certify(kernel, cuts, config, catalog, timeout)
+
+
 def check(
     runtime, helper_pc, sites, tables, directory, solar, executable, timeout, worlds
 ):
@@ -350,6 +389,18 @@ def check(
             owner = owner_reentry.steps(runtime, decoded, names)
             config = world.configuration(solar, FORK, state, timeout, executable)
             boundaries = {
+                "prehelper_calls": certify_prehelper_calls(
+                    directory,
+                    kernel,
+                    runtime,
+                    decoded,
+                    catalog,
+                    helper_pc,
+                    solar,
+                    executable,
+                    config,
+                    timeout,
+                ),
                 "authorization_entry": certify_authorization(
                     kernel,
                     runtime,
