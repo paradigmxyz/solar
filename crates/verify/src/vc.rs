@@ -3799,10 +3799,16 @@ impl<'p, 'a> Vc<'p, 'a> {
         let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
         let callee = match &callee.kind {
             ExprKind::CallOptions(c, opts) => {
-                if let Some(o) = opts.iter().find(|o| o.name.name == sym::value) {
+                // Every option runs, in order, for its effects (`gas: g()` may write state); only
+                // `value` moves ETH.
+                let mut value = None;
+                for o in opts.iter() {
                     let v = self.eval(o.value)?;
-                    self.call_value = Some(v.t);
+                    if o.name.name == sym::value {
+                        value = Some(v.t);
+                    }
                 }
+                self.call_value = value;
                 &**c
             }
             _ => {
@@ -4178,7 +4184,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let t = self.decl("concat", &Ty::Opaque);
                     return Ok(vec![Self::val(Ty::Opaque, t)]);
                 }
+                // The receiver may itself call (`payable(f()).call{value: 1}`), which resets the
+                // pending value: keep this call's.
+                let value = self.call_value.take();
                 let bv = self.eval(base)?;
+                self.call_value = value;
                 match (&bv.ty, m) {
                     (Ty::Arr(el, _), "push") => {
                         let el = (**el).clone();
@@ -4232,9 +4242,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                     (_, "call" | "delegatecall" | "staticcall") => {
                         let value = self.call_value.take();
                         for a in &argv {
-                            // `new bytes(n)` only allocates memory: nothing to evaluate
-                            if matches!(&a.kind, ExprKind::Call(c, _) if matches!(c.kind, ExprKind::New(_)))
+                            // `new bytes(n)` only allocates memory, but its length runs for its
+                            // effects
+                            if let ExprKind::Call(c, inner) = &a.kind
+                                && matches!(c.kind, ExprKind::New(_))
                             {
+                                for x in inner.exprs() {
+                                    self.eval(x)?;
+                                }
                                 continue;
                             }
                             self.eval(a)?;

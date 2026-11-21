@@ -36,7 +36,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         s: &Sample<'_>,
         specs: &[&'p Spec<'a>],
     ) -> R<Vec<Option<bool>>> {
+        // Each sample is its own solver scope, like a function's: what an earlier one declared
+        // (a string literal's constant, a hash's axioms) was popped with it.
         self.smt.send("(push 1)\n");
+        self.clear_scope();
         let r = self.eval_sample_inner(f, s, specs);
         self.smt.send("(pop 1)\n");
         r

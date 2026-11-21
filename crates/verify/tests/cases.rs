@@ -283,6 +283,13 @@ fn spec_check() {
     let run = run_verifier(&["--spec-check", "tests/cases/speccheck_oz.sol"]);
     assert_eq!(run.code, Some(0), "{}\n{}", run.stdout, run.stderr);
     assert!(run.stdout.contains("spec-check results:: 2 held, 0 violated"), "{}", run.stdout);
+
+    let run = run_verifier(&["--spec-check", "tests/cases/speccheck_scopes.sol"]);
+    let ctx = format!("--- stdout ---\n{}\n--- stderr ---\n{}", run.stdout, run.stderr);
+    assert!(!run.stderr.contains("unknown constant"), "{ctx}");
+    assert!(run.stdout.contains("✘ Tagged.bad_tag"), "{ctx}");
+    assert!(run.stdout.contains("✔ Tagged.ok_tag"), "{ctx}");
+    assert!(run.stdout.contains("spec-check results:: 1 held, 1 violated"), "{ctx}");
 }
 
 #[test]
@@ -491,8 +498,12 @@ fn ctor_calls() {
         ("CtorHelper", "verified"),
         ("CtorAsm", "verified"),
         ("CtorBalanceGrows", "verified"),
+        ("CtorGasOk", "verified"),
         ("CtorDelegate", "failed"),
         ("CtorBalance", "failed"),
+        ("CtorGasWrite", "failed"),
+        ("CtorNewBytes", "failed"),
+        ("CtorComputedTarget", "failed"),
     ] {
         let f = format!("{c}.constructor");
         assert_eq!(got.get(f.as_str()), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);

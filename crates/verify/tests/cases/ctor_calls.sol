@@ -62,3 +62,34 @@ contract CtorBalance {
     /// @custom:ensures address(this).balance == msg.value
     constructor(IHook h) payable { h.ping(); }
 }
+contract CtorGasOk {
+    uint256 public x;
+    /// a constant gas option changes nothing
+    /// @custom:ensures x == 7
+    constructor(address h) { x = 7; (bool ok, ) = h.call{gas: 5000}(""); ok; }
+    function set(uint256 v) external { x = v; }
+}
+contract CtorGasWrite {
+    uint256 public x;
+    function g() internal returns (uint256) { x = 2; return 5000; }
+    /// the gas option runs, and writes x
+    /// @custom:ensures x == 7
+    constructor(address h) { x = 7; (bool ok, ) = h.call{gas: g()}(""); ok; }
+}
+contract CtorNewBytes {
+    uint256 public x;
+    function size() internal returns (uint256) { x = 2; return 1; }
+    /// the length of `new bytes` runs, and writes x
+    /// @custom:ensures x == 7
+    constructor(address h) { x = 7; (bool ok, ) = h.call(new bytes(size())); ok; }
+}
+contract CtorComputedTarget {
+    uint256 before;
+    /// the receiver's own cast does not hide the value sent
+    /// @custom:ensures address(this).balance >= before
+    constructor(address h) payable {
+        before = address(this).balance;
+        (bool ok, ) = payable(address(h)).call{value: 1}("");
+        ok;
+    }
+}
