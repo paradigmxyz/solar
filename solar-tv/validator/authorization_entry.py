@@ -2,7 +2,13 @@
 
 from dataclasses import dataclass
 
-from . import decoder_proof, dispatch_proof, entry_proof, mir_state
+from . import (
+    authorization_deadline,
+    decoder_proof,
+    dispatch_proof,
+    entry_proof,
+    mir_state,
+)
 from .callers import require
 from .check import build_model
 from .decoder_proof import Step, words
@@ -196,20 +202,32 @@ theorem {side}_authorization_ready {BINDINGS}
 """
 
 
-def certify(directory, runtime, layout, route, config, tables, catalog, timeout):
-    module = "SolarTV.MIR.Transforms.TransferFromABI"
+def certify(
+    directory, runtime, decoded, layout, route, config, tables, catalog, timeout
+):
+    module = "SolarTV.MIR.Transforms.TransferFromMarket"
     entry_proof.success(build_model(timeout, module), module)
     functions = []
+    bodies = []
     opcodes = {opcode["name"]: opcode for opcode in catalog.values()}
     for table in tables:
         body = table["setAuthorizationWithSig"]
         functions.append((body["id"], mir_state.function_body(body, opcodes)))
+        bodies.append(body)
+    guard, success, expired, guard_gas = authorization_deadline.source(
+        runtime, decoded, catalog, layout
+    )
     fragments_ = [
         config
         + dispatch_proof.source(
             route, layout.pc, SELECTOR, len(runtime), concrete=False
         ),
         *fragments(layout, route, layout.pc, functions),
+        guard,
+        authorization_deadline.MIR_DEFINITIONS,
+        *authorization_deadline.mir_fragments(
+            *bodies, opcodes, success=success, failure=expired
+        ),
     ]
     imports = ["EntryImage", module]
     for index, body in enumerate(fragments_):
@@ -237,4 +255,7 @@ def certify(directory, runtime, layout, route, config, tables, catalog, timeout)
         "proof": f"kernel/{name}.lean",
         "body_pc": layout.pc,
         "gas": route.gas + layout.gas,
+        "deadline_gas": guard_gas,
+        "deadline_success_pc": success,
+        "deadline_expired_pc": expired,
     }

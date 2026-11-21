@@ -155,6 +155,20 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
             {**state, "gas": abi["gas"]}, abi["body_pc"], self.replay, 30
         )
         self.assertEqual(reached["gas"], 0)
+        for expired in (False, True):
+            data = state["calldata"].copy()
+            if expired:
+                data[132:164] = caller_replay.word(0)
+            selected = (
+                abi["deadline_expired_pc"] if expired else abi["deadline_success_pc"]
+            )
+            checkpoint = caller_entry.replay(
+                {**state, "calldata": data, "gas": abi["gas"] + abi["deadline_gas"]},
+                selected,
+                self.replay,
+                30,
+            )
+            self.assertEqual(checkpoint["gas"], 0)
         self.assertEqual(
             caller_entry.replay(
                 {**state, "gas": abi["gas"] - 1}, None, self.replay, 30

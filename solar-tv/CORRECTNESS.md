@@ -798,7 +798,9 @@ both address guards, and the boolean guard. The emitted arena agrees with
 both captured MIR entry configurations, including the authorization object
 and the signature calldata span. Independent replay reaches the cut with
 the exact gas charged by dispatch and decoding, exhausts gas one unit below
-it, and rejects noncanonical address and boolean words.
+it, and rejects noncanonical address and boolean words. The next proof
+links the emitted timestamp check to both typed MIR branches, including the
+expiry branch, and checks the charge on either edge.
 
 The separate emitted recovery certificate reads the actual GAS and STATICCALL
 bytes from the captured runtime. GAS either exhausts the frame or deducts

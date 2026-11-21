@@ -309,7 +309,7 @@ def certify_authorization(
         "authorization ABI cut disagrees with raw runtime",
     )
     return authorization_entry.certify(
-        kernel, runtime, layout, route, config, tables, catalog, timeout
+        kernel, runtime, decoded, layout, route, config, tables, catalog, timeout
     )
 
 
