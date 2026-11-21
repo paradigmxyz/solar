@@ -164,18 +164,23 @@ theorem recovery (cfg : Config) (ext : EVM.State.Config) (fuel : Nat)
 
 /-- Reassemble the live physical continuation from the typed result and the
 untouched stack. A failed caller charge stops the frame before any child. -/
-def resume (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame)
+def resumeWith (fuel : Nat)
+    (proceed : (remaining : Nat) → remaining ≤ fuel → EVM.State.ChildExecutor) (frame : EVM.State.Frame)
     (world : Journal) (rest : List Word) (message : MessageStep) : EVM.State.Run := do
   match ← message with
   | none => return ⟨.outOfGas,[],world,0,2⟩
   | some (.returned (some flag,mir),work) =>
     let gas ← required mir.messageGas.getLast? "missing recovery continuation gas"
-    let result ← EVM.State.run (fuel-work) cfg mir.world
+    let result ← proceed (fuel-work) (Nat.sub_le ..) mir.world
       {frame with
         pc := frame.pc+2, stack := flag :: rest
         memory := mir.memory, returnData := mir.returnData, gas := gas}
     return {result with work := result.work + work + 2}
   | _ => .error "unexpected typed recovery result"
+
+def resume (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame)
+    (world : Journal) (rest : List Word) (message : MessageStep) : EVM.State.Run :=
+  resumeWith fuel (fun remaining _ => EVM.State.run remaining cfg) frame world rest message
 
 theorem resume_eq (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame)
     (mir : Frame) (rest : List Word) (target offset length : Word)
@@ -223,19 +228,19 @@ theorem resume_eq (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame
   simp only [callShape]
   simp only [Bind.bind, Except.bind, Pure.pure, Except.pure]
   by_cases known : (cfg.unknownCode == some code.address) = true
-  · simp [known, resume, project, Bind.bind, Except.bind]
+  · simp [known, resume, resumeWith, project, Bind.bind, Except.bind]
   simp only [known]
   by_cases paid : atGas.gas < first
-  · simp [paid, resume, project, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure]
+  · simp [paid, resume, resumeWith, project, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure]
   simp only [paid, ite_false]
   cases expand frame.memory offset.toNat length.toNat with
-  | error err => simp [resume, project, Bind.bind, Except.bind]
+  | error err => simp [resume, resumeWith, project, Bind.bind, Except.bind]
   | ok input =>
     by_cases outputPaid : atGas.gas-first < EVM.State.memoryCharge input 0 32
-    · simp [outputPaid, resume, project, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure]
+    · simp [outputPaid, resume, resumeWith, project, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind, Pure.pure, Except.pure]
     simp only [outputPaid, ite_false]
     cases expand input 0 32 with
-    | error err => simp [resume, project, Bind.bind, Except.bind]
+    | error err => simp [resume, resumeWith, project, Bind.bind, Except.bind]
     | ok active =>
       let message : Calls.Message := ⟨.staticcall,dest,0,readBytes active offset.toNat length.toNat⟩
       let gas := atGas.gas-first-EVM.State.memoryCharge input 0 32
@@ -245,7 +250,7 @@ theorem resume_eq (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame
         simp [fork, Calls.forwardGas, Fork.atLeast, Fork.ordinal, supplied]
       have noValue : Calls.hasValue message = false := rfl
       by_cases depth : 1024 ≤ frame.environment.depth
-      · simp [EVM.State.advance, depth, Calls.hasValue, resume, project, required,
+      · simp [EVM.State.advance, depth, Calls.hasValue, resume, resumeWith, project, required,
           Bind.bind, Except.bind, Pure.pure, Except.pure]
         cases EVM.State.run fuel cfg (warmAddress entered dest) _ <;> rfl
       · have cap' : Calls.forwardGas cfg.fork (atGas.gas-first-EVM.State.memoryCharge input 0 32)
@@ -258,7 +263,7 @@ theorem resume_eq (cfg : EVM.State.Config) (fuel : Nat) (frame : EVM.State.Frame
           cap', Bind.bind, Except.bind, Pure.pure, Except.pure]
         cases EVM.State.executeCall (EVM.State.run fuel cfg) cfg (warmAddress entered dest)
           frame.environment message code supplied <;>
-          simp [resume, project, required, Bind.bind, Except.bind, Pure.pure, Except.pure]
+          simp [resume, resumeWith, project, required, Bind.bind, Except.bind, Pure.pure, Except.pure]
         split <;> simp_all
 
 end SolarTV.MIR.StaticCallCut

@@ -8,6 +8,7 @@ from . import (
     caller_replay,
     collateral_mir,
     collateral_proof,
+    collateral_tail,
     decoder_proof,
     dispatch_proof,
     entry_proof,
@@ -343,14 +344,14 @@ def check(
             else None
         )
         concrete = decoder.accepts(state["calldata"])
-        collateral = (
-            (
-                collateral_proof.plan(runtime, observed["pcs"], catalog, market),
+        collateral = None
+        if site.name == "supplyCollateral":
+            write = collateral_proof.plan(runtime, observed["pcs"], catalog, market)
+            collateral = (
+                write,
                 collateral_mir.plan(tables, catalog, market),
+                collateral_tail.plan(runtime, catalog, write, helper_pc),
             )
-            if site.name == "supplyCollateral"
-            else None
-        )
         market_snapshot = None
         if concrete:
             reached = replay(state, decoder.pc, executable, timeout)

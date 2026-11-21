@@ -7,6 +7,7 @@ from .callers import require
 from .check import build_model
 
 MODULE = "SolarTV.MIR.Transforms.StaticCallCut"
+STORAGE = "SolarTV.MIR.Transforms.StorageBoundary"
 NAME = "MorphoRecoveryBoundary"
 
 
@@ -14,25 +15,46 @@ NAME = "MorphoRecoveryBoundary"
 class Site:
     gas: int
     call: int
+    nonce: int
+    authorization: int
 
 
 def find(decoded):
     points = list(decoded)
     sites = [
-        Site(gas, call)
+        (gas, call)
         for address, gas, call in zip(points, points[1:], points[2:], strict=False)
         if [decoded[pc] for pc in (address, gas, call)]
         == [("push1", 1), ("gas", None), ("staticcall", None)]
         and call == gas + 1
     ]
     require(len(sites) == 1, "expected one adjacent recovery GAS and STATICCALL")
-    return sites[0]
+    gas, call = sites[0]
+    at = points.index(call)
+    nearby = points[at - 140 : at + 90]
+    stores = [pc for pc in nearby if decoded[pc] == ("sstore", None)]
+    require(
+        len(stores) == 2 and stores[0] < gas < stores[1], "unexpected signing stores"
+    )
+    nonce, authorization = stores
+    nonce_at = points.index(nonce)
+    authorization_at = points.index(authorization)
+    require(
+        [decoded[pc][0] for pc in points[nonce_at - 2 : nonce_at + 3]]
+        == ["swap1", "swap2", "sstore", "dup4", "sub"]
+        and [
+            decoded[pc][0] for pc in points[authorization_at - 2 : authorization_at + 5]
+        ]
+        == ["push0", "keccak256", "sstore", "push0", "mstore", "swap1", "push2"],
+        "unexpected nonce or authorization storage continuation",
+    )
+    return Site(gas, call, nonce, authorization)
 
 
 def source(site, configuration, base):
     return f"""import EntryImage
 import {MODULE}
-import SolarTV.EVMIR.State.Reentry
+import {STORAGE}
 {entry_proof.HEADER}
 open SolarTV.EVM.MessageBoundary
 open MIR.StaticCallCut (project priced)
@@ -124,22 +146,24 @@ theorem lowered_eq (work : Nat) (frame : EVM.State.Frame) (journal : Execution.J
     (gasBefore := frame.gas) (budget := frame.gas-2) (budgets := [frame.gas-2])
   all_goals first | rfl | exact paid | exact Nat.le_refl _ | exact bound
 
-def route (lowered : Bool) : EVM.State.Reentry.Route := fun work _ journal frame => do
-  let remainingWork+2 := work | none
-  if frame.code ≠ code.bytes ∨ frame.pc ≠ samplePC then none else
-  let 1 :: offset :: length :: 0 :: 32 :: rest := frame.stack | none
-  if rest.length+6 > 1024 then none
-  else if frame.gas < 2 then some (.ok ⟨.outOfGas,[],journal,0,1⟩)
-  else if frame.gas-2 > 30000000 then none
-  else
-    let .ok scratch := Execution.expand frame.memory 0 32 | none
-    if scratch ≠ frame.memory ∨
-        Execution.writeBytes scratch 0 (Execution.wordBytes 0) ≠ frame.memory then none else
-    let .ok input := Execution.expand frame.memory offset.toNat length.toNat | none
-    let .ok _ := Execution.expand input 0 32 | none
-    let mir := typedFrame journal frame offset length
-    some (MIR.StaticCallCut.resume tvWorldConfig remainingWork frame journal rest
-      (recoveryMessage lowered remainingWork frame mir offset length))
+def routeRecovery (lowered : Bool) : EVM.State.Reentry.Route
+  | remainingWork+2, proceed, journal, frame => do
+    if frame.code ≠ code.bytes ∨ frame.pc ≠ samplePC then none else
+    let 1 :: offset :: length :: 0 :: 32 :: rest := frame.stack | none
+    if rest.length+6 > 1024 then none
+    else if frame.gas < 2 then some (.ok ⟨.outOfGas,[],journal,0,1⟩)
+    else if frame.gas-2 > 30000000 then none
+    else
+      let .ok scratch := Execution.expand frame.memory 0 32 | none
+      if scratch ≠ frame.memory ∨
+          Execution.writeBytes scratch 0 (Execution.wordBytes 0) ≠ frame.memory then none else
+      let .ok input := Execution.expand frame.memory offset.toNat length.toNat | none
+      let .ok _ := Execution.expand input 0 32 | none
+      let mir := typedFrame journal frame offset length
+      some (MIR.StaticCallCut.resumeWith remainingWork
+        (fun steps bounded => proceed steps (by omega)) frame journal rest
+        (recoveryMessage lowered remainingWork frame mir offset length))
+  | _, _, _, _ => none
 
 theorem typedContinuation (remainingWork : Nat) (journal : Execution.Journal) (frame : EVM.State.Frame)
     (offset length : Word) (rest : List Word) (input active : List Execution.Byte)
@@ -167,12 +191,12 @@ theorem typedContinuation (remainingWork : Nat) (journal : Execution.Journal) (f
   rw [gas] at call
   exact MIR.StaticCallCut.resume_eq tvWorldConfig remainingWork frame mir rest 1 offset length rfl sample call
 
-theorem routeSound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (route lowered) := by
-  intro work execute _ journal frame result chosen
+theorem recoverySound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (routeRecovery lowered) := by
+  intro work proceed agrees journal frame result chosen
   cases work with
-  | zero => simp [route] at chosen
+  | zero => simp [routeRecovery] at chosen
   | succ remainingWork =>
-    simp only [route] at chosen
+    simp only [routeRecovery] at chosen
     split at chosen
     · contradiction
     rename_i located
@@ -211,6 +235,8 @@ theorem routeSound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (rou
           split at chosen
           · rename_i active outputOk
             cases chosen
+            simp only [agrees]
+            change MIR.StaticCallCut.resume tvWorldConfig remainingWork frame journal rest _ = _
             cases lowered
             · exact typedContinuation remainingWork journal frame offset length rest input active
                 location.1 location.2 stack space paid gasBound expanded clear inputOk outputOk
@@ -221,6 +247,46 @@ theorem routeSound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (rou
         · contradiction
       · contradiction
     · contradiction
+
+def noncePC : Nat := {site.nonce}
+def authorizationPC : Nat := {site.authorization}
+
+def routeStore (first second : Bool) : EVM.State.Reentry.Route
+  | remainingWork+1, proceed, journal, frame => do
+    if frame.code = code.bytes ∧
+        ((first = true ∧ frame.pc = noncePC) ∨ (second = true ∧ frame.pc = authorizationPC)) then
+      let slot :: word :: rest := frame.stack | none
+      if rest.length > 1024 then none else
+      some (MIR.StorageBoundary.resumeWith tvWorldConfig journal frame slot word rest
+        (proceed remainingWork (Nat.lt_succ_self _)))
+    else none
+  | _, _, _, _ => none
+
+theorem storeSound (first second : Bool) : EVM.State.Reentry.Sound tvWorldConfig (routeStore first second) := by
+  intro work proceed agrees journal frame result chosen
+  simp only [routeStore] at chosen
+  split at chosen
+  · rename_i ready
+    split at chosen
+    · rename_i slot word rest stack
+      split at chosen
+      · contradiction
+      rename_i fits
+      have opcode : frame.code[frame.pc]? = some 0x55 := by
+        rw [ready.1, ← EVM.State.CodeChunks.get_eq]
+        rcases ready.2 with ⟨_,pc⟩ | ⟨_,pc⟩ <;> rw [pc] <;> decide +kernel
+      cases chosen
+      simp only [agrees]
+      exact MIR.StorageBoundary.resume_eq tvWorldConfig journal frame slot word rest work
+        opcode rfl (by decide) stack (by omega)
+    · contradiction
+  · contradiction
+
+def route (lowered : Bool) : EVM.State.Reentry.Route :=
+  EVM.State.Reentry.choose (routeStore true true) (routeRecovery lowered)
+
+theorem routeSound (lowered : Bool) : EVM.State.Reentry.Sound tvWorldConfig (route lowered) :=
+  EVM.State.Reentry.choose_sound _ _ _ (storeSound true true) (recoverySound lowered)
 
 theorem nested (work : Nat) (journal : Execution.Journal) (frame : EVM.State.Frame) :
     EVM.State.Reentry.executeWith tvWorldConfig (route false) work journal frame =
@@ -239,8 +305,9 @@ def certify(directory, site, fixture, solar, executable, timeout, *, tables=None
         authorization_lowering.source(
             *(table["setAuthorizationWithSig"] for table in tables)
         )
-    built = build_model(timeout, MODULE)
-    entry_proof.success(built, MODULE)
+    for module in (MODULE, STORAGE):
+        built = build_model(timeout, module)
+        entry_proof.success(built, module)
     configuration = world.configuration(solar, "cancun", fixture, timeout, executable)
     base = next(
         row["forks"]["cancun"]["base_gas"]
@@ -256,7 +323,8 @@ def certify(directory, site, fixture, solar, executable, timeout, *, tables=None
         "proof": f"kernel/{NAME}.lean",
         "gas_pc": site.gas,
         "call_pc": site.call,
-        "scope": "nested before/after MIR recovery through the emitted STATICCALL continuation",
+        "store_pcs": [site.nonce, site.authorization],
+        "scope": "nested MIR recovery and both metered stores in the emitted authorization body",
     }
 
 
@@ -284,5 +352,15 @@ def replay (pick : Route) : String :=
 def broken : Route := fun work execute journal frame =>
   (route true work execute journal frame).map (Except.map fun result =>
     {{result with stop := .reverted, data := [], «world» := journal}})
-#eval IO.println ("[" ++ replay (route false) ++ "," ++ replay (route true) ++ "," ++ replay broken ++ "]")
+def brokenStore : Route
+  | work+1, proceed, journal, frame => do
+      if frame.pc != authorizationPC || frame.code != code.bytes then
+        route true (work+1) proceed journal frame
+      else
+        let slot :: word :: rest := frame.stack | none
+        some (MIR.StorageBoundary.resumeWith tvWorldConfig journal frame slot (word ^^^ 1) rest
+          (proceed work (Nat.lt_succ_self _)))
+  | _, _, _, _ => none
+#eval IO.println ("[" ++ replay (route false) ++ "," ++ replay (route true) ++ "," ++
+  replay broken ++ "," ++ replay brokenStore ++ "]")
 """

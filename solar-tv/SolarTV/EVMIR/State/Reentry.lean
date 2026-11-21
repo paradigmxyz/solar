@@ -9,20 +9,34 @@ outcome to its owning frame. -/
 namespace SolarTV.EVM.State.Reentry
 open SolarTV.Execution
 
-abbrev Route := Nat → ChildExecutor → Journal → Frame → Option Run
+abbrev Continuation (budget : Nat) := (remaining : Nat) → remaining < budget → ChildExecutor
+abbrev Route := (budget : Nat) → Continuation budget → Journal → Frame → Option Run
 
-/-- A region may delegate children at the strictly smaller work budget. The
-recursive driver supplies the correspondence needed by its local proof. -/
+/-- A region can resume nested children and the same frame with a strictly
+smaller work budget. The recursive driver supplies their correspondence. -/
 def Sound (cfg : Config) (route : Route) : Prop :=
-  ∀ fuel execute, execute = run fuel cfg → ∀ world frame result,
-    route (fuel+1) execute world frame = some result → result = run (fuel+1) cfg world frame
+  ∀ fuel (proceed : Continuation (fuel+1)), (∀ n h, proceed n h = run n cfg) →
+    ∀ world frame result,
+      route (fuel+1) proceed world frame = some result → result = run (fuel+1) cfg world frame
+
+def choose (first second : Route) : Route := fun work proceed world frame =>
+  (first work proceed world frame).orElse (fun () => second work proceed world frame)
+
+theorem choose_sound (cfg : Config) (first second : Route)
+    (left : Sound cfg first) (right : Sound cfg second) : Sound cfg (choose first second) := by
+  intro work proceed agrees world frame result chosen
+  unfold choose at chosen
+  cases firstResult : first (work+1) proceed world frame with
+  | none => exact right work proceed agrees world frame result (by simpa [firstResult] using chosen)
+  | some _ => exact left work proceed agrees world frame result (by simpa [firstResult] using chosen)
 
 def runWith (cfg : Config) (route : Route) (fuel : Nat) (world : Journal) (frame : Frame) : Run := do
   match fuel with
   | 0 => .error "world instruction/depth evaluation limit"
   | fuel+1 =>
     let execute := runWith cfg route fuel
-    match route (fuel+1) execute world frame with
+    let proceed : Continuation (fuel+1) := fun remaining _ => runWith cfg route remaining
+    match route (fuel+1) proceed world frame with
     | some result => result
     | none =>
       match ← advance cfg execute (← instruction cfg world frame) with
@@ -41,9 +55,13 @@ theorem correspondence (cfg : Config) (route : Route) (sound : Sound cfg route) 
     cases fuel with
     | zero => rw [runWith, run]
     | succ fuel =>
-      rw [runWith, ih fuel (by omega)]
-      cases routed : route (fuel+1) (run fuel cfg) world frame with
-      | some result => exact sound fuel _ rfl world frame result routed
+      have agree : (fun remaining (_ : remaining < fuel+1) => runWith cfg route remaining) =
+          fun remaining _ => run remaining cfg := by
+        funext remaining within
+        exact ih remaining within
+      rw [runWith, agree, ih fuel (by omega)]
+      cases routed : route (fuel+1) (fun remaining _ => run remaining cfg) world frame with
+      | some result => exact sound fuel _ (fun _ _ => rfl) world frame result routed
       | none =>
         rw [run]
         cases instruction cfg world frame with

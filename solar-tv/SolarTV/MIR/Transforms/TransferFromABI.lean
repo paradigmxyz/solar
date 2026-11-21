@@ -85,6 +85,10 @@ private theorem Calldata.word (data : Calldata) (tag : data.tag.length = 4) (ind
 active memory in words while keeping ordinary byte memory in each EVM step. -/
 def wordArena (words : List Word) : List Byte := words.flatMap wordBytes
 
+theorem readArenaWord (words : List Word) (index : Nat) (word : Word)
+    (present : words[index]? = some word) : readWord (wordArena words) (32*index) = word := by
+  simpa only [wordArena, List.append_nil, Nat.mul_comm] using encodedWord words [] index word present
+
 theorem wordArena_cons (head : Word) (tail : List Word) :
     wordArena (head :: tail) = wordBytes head ++ wordArena tail := rfl
 

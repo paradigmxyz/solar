@@ -9,6 +9,7 @@ from textwrap import indent
 from . import (
     collateral_mir,
     collateral_proof,
+    collateral_tail,
     decoder_proof,
     dispatch_proof,
     market_proof,
@@ -385,12 +386,17 @@ def certify_market(prove, decoded, market, decoder, route, pc, snapshot, timeout
 
 
 def certify_collateral(prove, prefix, market, decoder, route, helper, plan, timeout):
-    path, mir = plan
+    path, mir, tail = plan
     batches = chain(
         batched(collateral_proof.fragments(path, market, decoder, route, helper), 9),
         ((fragment,) for fragment in collateral_mir.fragments(decoder, mir)),
+        batched(collateral_tail.fragments(tail, path, market, decoder, route), 9),
     )
-    imports = (prefix, "SolarTV.MIR.Transforms.TransferFromCollateral")
+    imports = (
+        prefix,
+        "SolarTV.MIR.Transforms.TransferFromCollateral",
+        "SolarTV.MIR.Transforms.ReentrantOwner",
+    )
     for index, fragment in enumerate(batches):
         name = f"{prefix}Collateral{index}"
         body = "".join(fragment)
@@ -411,6 +417,7 @@ def certify_collateral(prove, prefix, market, decoder, route, helper, plan, time
         "pc": path.pc,
         "steps": len(path.steps),
         "fixed_gas": path.gas,
+        "empty_callback_gas": tail.gas,
     }
 
 

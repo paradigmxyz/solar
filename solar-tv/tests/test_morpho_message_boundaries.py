@@ -120,24 +120,36 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
         tables = list(map(builtin_lowering.functions, models))
         # A fixed signature for the pinned Morpho domain and this authorization.
         # The token submits it with a nested CALL during transferFrom.
-        calldata = bytes.fromhex("8069218f") + b"".join(
-            map(
-                caller_replay.word,
-                (
-                    0x7E5F4552091A69125D5DFCB7B8C2659029395BDF,
-                    0x20000,
-                    1,
-                    0,
-                    10**10,
-                    28,
-                    0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
-                    0x4F8C8CC2DF646C47881F49253C98A3A39F6F5A0C95C2ACD55B5204AA5CAF5828,
-                ),
-            )
-        )
-        fixture = caller_entry.default_fixture("supplyCollateral", SOLAR, 30)
-        for accepted in (True, False):
-            with self.subTest(accepted=accepted):
+        signatures = {
+            True: 0x4F8C8CC2DF646C47881F49253C98A3A39F6F5A0C95C2ACD55B5204AA5CAF5828,
+            False: 0x0B2A20151741914053235149B51D70C5BE8D497F5205C07BF73140CB593C7919,
+        }
+        auth_slot = "0x36a320cf0eede54290cc183360d09f3bf8d29f568fed549dd6326f34ca6c0690"
+        for accepted, grant in (
+            (True, True),
+            (False, True),
+            (True, False),
+            (False, False),
+        ):
+            with self.subTest(accepted=accepted, grant=grant):
+                calldata = bytes.fromhex("8069218f") + b"".join(
+                    map(
+                        caller_replay.word,
+                        (
+                            0x7E5F4552091A69125D5DFCB7B8C2659029395BDF,
+                            0x20000,
+                            int(grant),
+                            0,
+                            10**10,
+                            28,
+                            0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+                            signatures[grant],
+                        ),
+                    )
+                )
+                fixture = caller_entry.default_fixture("supplyCollateral", SOLAR, 30)
+                if not grant:
+                    fixture["accounts"][0]["storage"][auth_slot] = "1"
                 # Copy the appended calldata, call Morpho, save its success
                 # flag to token storage, and return the ERC-20 boolean.
                 token = (
@@ -147,9 +159,9 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 )
                 token[4] = len(token)
                 fixture["accounts"][1]["code"] = "0x" + (token + calldata).hex()
-                state = self.fixture(f"authorization-nested-{accepted}", fixture)
-                if accepted:
-                    recovery_boundary.certify(
+                state = self.fixture(f"authorization-{accepted}-{grant}", fixture)
+                if accepted and grant:
+                    evidence = recovery_boundary.certify(
                         self.directory,
                         site,
                         state,
@@ -157,6 +169,9 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                         self.replay,
                         45,
                         tables=tables,
+                    )
+                    self.assertEqual(
+                        evidence["store_pcs"], [site.nonce, site.authorization]
                     )
                 observed = caller_entry.replay(state, None, self.replay, 45)
                 self.assertEqual(observed[0], "success" if accepted else "revert")
@@ -166,7 +181,9 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 )
                 # The success path commits the nonce and authorization. The
                 # final transferFrom failure rolls them and all three logs back.
-                self.assertEqual(len(slots[caller_replay.MORPHO]), 6 if accepted else 4)
+                self.assertEqual(observed[3], 4800 if accepted and not grant else 0)
+                current = slots[caller_replay.MORPHO].get(str(int(auth_slot, 16)))
+                self.assertEqual(current, "1" if accepted == grant else None)
                 self.assertEqual(len(observed[5]), 3 if accepted else 0)
                 result = entry_proof.lean(
                     self.directory,
@@ -182,6 +199,15 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 if accepted:
                     self.assertEqual(checked[2][0], "success")
                     self.assertNotEqual(checked[2], observed)
+                    self.assertEqual(checked[3][0], "success")
+                    corrupted = {
+                        int(account[0]): dict(account[4]) for account in checked[3][4]
+                    }
+                    self.assertNotEqual(
+                        corrupted[caller_replay.MORPHO].get(str(int(auth_slot, 16))),
+                        current,
+                    )
+                if accepted and grant:
                     altered = list(self.runtime)
                     altered[site.gas] = 0x5F
                     root = next(

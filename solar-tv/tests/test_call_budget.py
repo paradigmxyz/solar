@@ -1049,6 +1049,30 @@ end {namespace}
             )
             self.assertEqual(unpaid[0], "out-of-gas")
             self.assertEqual(int(storage(unpaid).get(position_key, "0")), old)
+            empty = fixture["calldata"].copy()
+            empty[260:292] = [0] * 32
+            entry_gas = gas + proof["empty_callback_gas"]
+            paid = {**fixture, "calldata": empty, "gas": entry_gas}
+            helper_cut = caller_entry.replay(paid, path["pc"], executable, 30)
+            self.assertEqual(helper_cut["gas"], 0)
+            self.assertEqual((helper_cut["samples"], helper_cut["budgets"]), ([], []))
+            self.assertEqual(
+                helper_cut["stack"][1:5],
+                [
+                    str(caller_replay.TOKEN),
+                    str(caller_replay.CALLER),
+                    str(owner),
+                    str(assets),
+                ],
+            )
+            short = {**paid, "gas": entry_gas - 1}
+            with self.assertRaisesRegex(Unsupported, "bytecode probe was not reached"):
+                caller_entry.replay(short, path["pc"], executable, 30)
+            rolled_back = caller_entry.replay(short, None, executable, 30)
+            self.assertEqual(rolled_back[0], "out-of-gas")
+            self.assertEqual(int(storage(rolled_back).get(position_key, "0")), old)
+            self.assertEqual(rolled_back[5], [])
+
             success = caller_entry.replay(fixture, None, executable, 30)
             self.assertEqual(success[0], "success")
             self.assertEqual(int(storage(success)[position_key]), packed)
