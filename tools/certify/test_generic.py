@@ -285,6 +285,7 @@ def lifecycle_record(r):
     kernel stage and a built composed theorem, and none of the certified tier's claims."""
     for k in (*generic.CLAIM_KEYS, "strict", "published_statement"):
         r.pop(k, None)
+    r.get("run_files", {}).pop("certify-record.json", None)
     r.update(
         requested_tier="lifecycle",
         status="CERTIFIED",
@@ -611,8 +612,12 @@ class ReplayClaims(unittest.TestCase):
         ]
         (d / "certify-record.json").write_text(json.dumps(cr))
         files["certify-record.json"] = sha(d / "certify-record.json")
+        self.cr_sha = files["certify-record.json"]
         if edit:
             edit(rec)
+        if "certify-record.json" not in rec.get("run_files", {}):
+            # A record that does not list it (the lifecycle tier) has no certify-record.json.
+            (d / "certify-record.json").unlink()
         (d / "record.json").write_text(json.dumps(rec))
         return d
 
@@ -733,6 +738,17 @@ class ReplayClaims(unittest.TestCase):
             "lifecycle.creation_sha256": lambda r: r["lifecycle"].update(
                 creation_sha256="5" * 64
             ),
+            "lifecycle.kernel_ok": lambda r: r["lifecycle"].update(
+                stages=[{"stage": "kernel", "ok": False, "detail": "x"}]
+            ),
+            "lifecycle.composed.theorem": lambda r: r["lifecycle"]["composed"].update(
+                theorem="Certified.c_1.Composed.other"
+            ),
+            "lifecycle.composed.built": lambda r: r["lifecycle"]["composed"].update(
+                built=False
+            ),
+            "status": lambda r: r.update(status="UNSUPPORTED-lifecycle"),
+            "tier_reached": lambda r: r.update(tier_reached="none"),
         }
         for label, fresh_edit in cases.items():
             with self.subTest(label), tempfile.TemporaryDirectory() as t:
@@ -770,6 +786,9 @@ class ReplayClaims(unittest.TestCase):
                 status="UNSUPPORTED-lifecycle"
             ),
             "publishes no final": lambda r: r.update(final={"theorem": "x"}),
+            "lists a certify-record.json": lambda r: r["run_files"].update(
+                {"certify-record.json": self.cr_sha}
+            ),
         }
         for needle, f in cases.items():
             with self.subTest(needle), tempfile.TemporaryDirectory() as t:

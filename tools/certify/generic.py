@@ -4255,6 +4255,21 @@ def replayed_modules(rec):
     ]
 
 
+def lifecycle_verdict(rec):
+    """The lifecycle verdict replay compares between the record and the fresh run: whether a kernel
+    stage proved the creation, and the composed theorem's name and whether it built."""
+    life = rec.get("lifecycle") or {}
+    comp = life.get("composed") or {}
+    return {
+        "kernel_ok": any(
+            st.get("stage") == "kernel" and st.get("ok") is True
+            for st in life.get("stages") or []
+        ),
+        "composed.theorem": comp.get("theorem"),
+        "composed.built": comp.get("built"),
+    }
+
+
 def lifecycle_claims_problem(rec):
     """Why a lifecycle-tier record's claims do not hold together, or None. The lifecycle tier runs no
     scripts/certify: it publishes no final statement, statuses or replay of its own, and its
@@ -4264,6 +4279,8 @@ def lifecycle_claims_problem(rec):
     claimed = [k for k in (*CLAIM_KEYS, "strict", "published_statement") if rec.get(k)]
     if claimed:
         return f"the lifecycle tier publishes no {', '.join(claimed)}, but the record claims it"
+    if "certify-record.json" in (rec.get("run_files") or {}):
+        return "the lifecycle tier runs no scripts/certify, but the record lists a certify-record.json"
     status, reached = rec.get("status"), rec.get("tier_reached")
     life = rec.get("lifecycle") or {}
     if status == "CERTIFIED":
@@ -4532,6 +4549,15 @@ def replay_main(a):
             f"REJECTED: replay: {q} differs between the record and the fresh run "
             f"(record {str(fresh_caveats(rec))[:120]}, fresh {str(fresh_caveats(new))[:120]})",
         )
+    if rec.get("requested_tier") == "lifecycle":
+        want, got = lifecycle_verdict(rec), lifecycle_verdict(new)
+        for k in want:
+            if want[k] != got[k]:
+                out(
+                    1,
+                    f"REJECTED: replay: lifecycle.{k} differs between the record and the fresh run "
+                    f"(record {want[k]}, fresh {got[k]})",
+                )
     if replayed_modules(rec) != replayed_modules(new):
         out(
             1,
