@@ -25,7 +25,11 @@ use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 use solar_parse::{
     ast::{self, Expr, ExprKind, LitKind, StmtKind, yul},
-    interface::{Span, data_structures::map::FxHashMap, sym},
+    interface::{
+        Span,
+        data_structures::map::{FxHashMap, FxHashSet},
+        sym,
+    },
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -827,8 +831,12 @@ impl<'p, 'a> Vc<'p, 'a> {
     pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
         let (kind, vals) = self.hash_args(argv)?;
         let ty = Ty::Uint(256);
-        // abi.encode of static values goes through the keccak that assembly shares.
-        if kind == "encode" && argv.len() == 1 && !vals.is_empty() {
+        // abi.encode of static values goes through the keccak that assembly shares. Its words
+        // are read from each value when it is evaluated, while the compiled code encodes memory
+        // only after every argument ran: an argument that writes anything (`abi.encode(a, a[0] =
+        // 1)`, a call that writes a memory array) could change an earlier one's words, so such a
+        // call hashes opaquely instead.
+        if kind == "encode" && argv.len() == 1 && !vals.is_empty() && !self.encode_writes(argv[0]) {
             let mut ws = vec![];
             let mut tys = vec![];
             let mut ok = true;
@@ -859,6 +867,20 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
         }
         Ok(Var { ty, t, len: None })
+    }
+
+    /// Whether an argument of this `abi.*` call after its first may write anything.
+    fn encode_writes(&self, e: &'a Expr<'a>) -> bool {
+        let ExprKind::Call(_, inner) = &e.kind else {
+            return true;
+        };
+        let (mut out, mut all) = (BTreeSet::new(), false);
+        for x in inner.exprs().skip(1) {
+            walk::sub_exprs(x, &mut |y| {
+                self.effects(y, &mut out, &mut all, &mut FxHashSet::default())
+            });
+        }
+        all || !out.is_empty()
     }
 
     // ------------------------------------------------------------------ memory

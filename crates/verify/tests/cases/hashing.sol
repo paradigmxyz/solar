@@ -97,3 +97,20 @@ contract ImplicitBytes {
         return uint8(bytes1(b));
     }
 }
+/// An `abi.encode` argument that writes memory changes the words of an earlier one, which the
+/// compiled code reads only after every argument ran.
+contract EncodeWrites {
+    // expect: solver returned unknown
+    /// @custom:ensures r == keccak256(abi.encode(x, uint256(1)))
+    function bad_stale_array(uint256 x) external pure returns (bytes32 r) {
+        uint256[1] memory a;
+        a[0] = x;
+        r = keccak256(abi.encode(a, a[0] = 1));
+    }
+    /// @custom:ensures r == keccak256(abi.encode(x, uint256(1)))
+    function ok_no_write(uint256 x) external pure returns (bytes32 r) {
+        uint256[1] memory a;
+        a[0] = x;
+        r = keccak256(abi.encode(a, uint256(1)));
+    }
+}
