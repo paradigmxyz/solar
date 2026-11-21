@@ -236,11 +236,7 @@ theorem entry_concrete :
 """
 
 
-def source(decoder, dispatch, helper, concrete):
-    required = decoder.payload
-    addresses = list(decoder.addresses)
-    binders = input_binders(decoder)
-    args = "env journal surplus room small offsetWord slice addresses"
+def steps_source(decoder, dispatch, helper, binders):
     out = """
 open MIR.TransferFromABI
 
@@ -330,6 +326,16 @@ theorem decodeStep{index} {binders} :
     Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> {close}
 """
         pcs = after_pcs
+    return out, pcs
+
+
+def source(decoder, dispatch, helper, concrete):
+    required = decoder.payload
+    addresses = list(decoder.addresses)
+    binders = input_binders(decoder)
+    args = "env journal surplus room small offsetWord slice addresses"
+    out, pcs = steps_source(decoder, dispatch, helper, binders)
+    fuel = 2048 - len(dispatch.instructions)
     width = len(decoder.instructions)
     market = decoder.memory[4:]
     first_parameter = 164 if market else 4

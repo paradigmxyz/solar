@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from . import (
+    authorization_entry,
     caller_context,
     caller_replay,
     collateral_mir,
@@ -272,6 +273,45 @@ theorem {side}_live :
     return source
 
 
+def certify_authorization(
+    kernel, runtime, decoded, catalog, tables, state, config, executable, timeout
+):
+    layout = authorization_entry.plan(runtime, decoded, catalog)
+    calldata = list(layout.selector.to_bytes(4, "big")) + [0] * 256
+    probe = {**state, "calldata": calldata, "gas": 300000}
+    reached = replay(probe, layout.pc, executable, timeout)
+    route = dispatch_proof.plan(runtime, layout, reached["pcs"], catalog)
+    stack = [
+        str(
+            word
+            if isinstance(word, int)
+            else decoder_proof.read_word(calldata, word[1])
+        )
+        for word in layout.stack
+    ]
+    memory = b"".join(
+        caller_replay.word(
+            word
+            if isinstance(word, int)
+            else decoder_proof.read_word(calldata, word[1])
+        )
+        for word in layout.memory
+    )
+    require(
+        reached["pc"] == layout.pc
+        and reached["gas"] == probe["gas"] - route.gas - layout.gas
+        and reached["stack"] == stack
+        and reached["memory"] == list(memory)
+        and reached["pcs"]
+        == [inst.pc for inst in route.instructions]
+        + [step.inst.pc for step in layout.instructions],
+        "authorization ABI cut disagrees with raw runtime",
+    )
+    return authorization_entry.certify(
+        kernel, runtime, layout, route, config, tables, catalog, timeout
+    )
+
+
 def check(
     runtime, helper_pc, sites, tables, directory, solar, executable, timeout, worlds
 ):
@@ -310,6 +350,17 @@ def check(
             owner = owner_reentry.steps(runtime, decoded, names)
             config = world.configuration(solar, FORK, state, timeout, executable)
             boundaries = {
+                "authorization_entry": certify_authorization(
+                    kernel,
+                    runtime,
+                    decoded,
+                    catalog,
+                    tables,
+                    state,
+                    config,
+                    executable,
+                    timeout,
+                ),
                 "recovery_boundary": recovery_boundary.certify(
                     kernel,
                     recovery,

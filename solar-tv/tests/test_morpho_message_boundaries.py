@@ -81,6 +81,42 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 "accounts": [{"address": caller_replay.MORPHO, "nonce": 1}],
             },
         )
+        _, models, _ = builtin_lowering.load_pair(
+            self.mir_pair, SOLAR, self.replay, "cancun", 45
+        )
+        config = world.configuration(SOLAR, "cancun", state, 45, self.replay)
+        abi = caller_entry.certify_authorization(
+            self.directory,
+            self.runtime,
+            self.decoded,
+            {row["opcode"]: row for row in self.catalog.values()},
+            list(map(builtin_lowering.functions, models)),
+            state,
+            config,
+            self.replay,
+            45,
+        )
+        self.assertTrue((self.directory / Path(abi["proof"]).name).is_file())
+        reached = caller_entry.replay(
+            {**state, "gas": abi["gas"]}, abi["body_pc"], self.replay, 30
+        )
+        self.assertEqual(reached["gas"], 0)
+        self.assertEqual(
+            caller_entry.replay(
+                {**state, "gas": abi["gas"] - 1}, None, self.replay, 30
+            )[0],
+            "out-of-gas",
+        )
+        for offset, invalid in ((4, 2**160), (36, 2**160), (68, 2)):
+            corrupt = state["calldata"].copy()
+            corrupt[offset : offset + 32] = caller_replay.word(invalid)
+            self.assertEqual(
+                caller_entry.replay(
+                    {**state, "calldata": corrupt}, None, self.replay, 30
+                )[0],
+                "revert",
+            )
+
         evidence = recovery_boundary.certify(
             self.directory, site, packing, state, SOLAR, self.replay, 45
         )

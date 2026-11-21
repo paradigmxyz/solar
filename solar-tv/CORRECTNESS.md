@@ -792,6 +792,14 @@ Independent replay compares the original operations with the lowered form at
 a concrete sampled budget. It catches a shifted payload store, a corrupt
 scratch clear, and a request too small to run the recovery precompile.
 
+The authorization ABI entry certificate starts at PC zero and reaches the
+deadline check for a complete, canonical head. It checks selector dispatch,
+both address guards, and the boolean guard. The emitted arena agrees with
+both captured MIR entry configurations, including the authorization object
+and the signature calldata span. Independent replay reaches the cut with
+the exact gas charged by dispatch and decoding, exhausts gas one unit below
+it, and rejects noncanonical address and boolean words.
+
 The separate emitted recovery certificate reads the actual GAS and STATICCALL
 bytes from the captured runtime. GAS either exhausts the frame or deducts
 two gas and pushes its remaining balance directly into STATICCALL. Given the

@@ -103,7 +103,7 @@ def stack_text(stack):
     return "[" + ", ".join(map(str, stack)) + "]"
 
 
-def source(route, helper, selector, runtime_size):
+def source(route, helper, selector, runtime_size, *, concrete=True):
     binders = f"""(env : World.Environment) (journal : Execution.Journal) (surplus : Nat)
     (large : 4 ≤ env.input.length) (small : env.input.length < 2^256)
     (noValue : env.value = 0)
@@ -199,6 +199,11 @@ theorem resume_dispatch {binders} :
   exact Execution.Trace.run_segment {width} 2048 _ _
     (symbolic_dispatch env journal surplus large small noValue selected)
 
+#print axioms resume_dispatch
+"""
+    if not concrete:
+        return out
+    out += f"""
 def dispatchStart := dispatched env checkpoint (initial.frame.gas - {route.gas})
 
 theorem dispatch_concrete :
@@ -207,7 +212,6 @@ theorem dispatch_concrete :
   resume_dispatch env checkpoint (initial.frame.gas - {route.gas})
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
-#print axioms resume_dispatch
 #print axioms dispatch_concrete
 """
     return out
