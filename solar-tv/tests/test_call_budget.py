@@ -139,6 +139,11 @@ class CallBudgetTests(unittest.TestCase):
                     (output / "entry" / entry_report[name]["proof"]).is_file()
                 )
             entry = entry_report["paths"]
+            collateral = entry["supplyCollateral"]["collateral_write"]
+            self.assertEqual(
+                collateral["empty_callback_mir"],
+                ["before_abi_collateral_helper", "after_abi_collateral_helper"],
+            )
             self.assertEqual(set(entry), set(report["caller_replays"]))
             for site in report["callers"]:
                 name = site["name"]

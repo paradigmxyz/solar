@@ -762,9 +762,11 @@ one-gas-short store. It also checks the actual callback's forwarded gas
 and that a reverted callback restores the position and discards the log.
 For empty callback data, the symbolic certificate continues through LOG4,
 the callback branch and the final stack setup to the transferFrom entry.
-It derives the exact entry gas from the fork prices, incoming journal and
-emitted schedule for arbitrary admitted ABI words. Native replay reaches
-the helper at exactly zero remaining gas and fails one unit below that
+Both captured MIR bodies reach the same helper call with the same arguments,
+memory, and journal aside from the EVM metering refund. The linked proof
+derives the exact entry gas from the fork prices, incoming journal, and
+emitted schedule for arbitrary admitted ABI words. Independent replay
+reaches the helper at zero remaining gas and fails one unit below that
 threshold, restoring the position and discarding the log.
 
 `MorphoCallContext.lean` checks the full captured MIR tables in one proof

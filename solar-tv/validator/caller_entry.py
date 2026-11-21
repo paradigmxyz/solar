@@ -7,6 +7,7 @@ from . import (
     caller_context,
     caller_replay,
     collateral_mir,
+    collateral_mir_tail,
     collateral_proof,
     collateral_tail,
     decoder_proof,
@@ -360,6 +361,7 @@ def check(
                 write,
                 collateral_mir.plan(tables, catalog, market),
                 collateral_tail.plan(runtime, catalog, write, helper_pc),
+                collateral_mir_tail.plan(tables, catalog),
             )
         market_snapshot = None
         if concrete:
