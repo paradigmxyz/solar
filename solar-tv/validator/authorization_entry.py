@@ -1,12 +1,16 @@
 """Prove the emitted ABI entry for the authorization callback up to TIMESTAMP."""
 
 from dataclasses import dataclass
+from itertools import batched
 
 from . import (
     authorization_deadline,
+    authorization_mir_nonce,
+    authorization_nonce,
     decoder_proof,
     dispatch_proof,
     entry_proof,
+    metered_prefix,
     mir_state,
 )
 from .callers import require
@@ -134,7 +138,7 @@ ARGS = "env journal surplus room small addresses boolean"
 
 
 def fragments(decoder, route, stop, functions):
-    source, pcs = decoder_proof.steps_source(decoder, route, stop, BINDINGS)
+    source, pcs = decoder_proof.steps_source(decoder, route, stop, BINDINGS, ARGS)
     yield source
     width = len(decoder.instructions)
     budget = 2048 - len(route.instructions)
@@ -178,6 +182,16 @@ theorem authorization_entry {BINDINGS}
 """
     )
 
+    yield metered_prefix.abi_failure(
+        BINDINGS,
+        ARGS,
+        "dispatchFrame env 0 0 []",
+        "(authCut env journal 0).frame",
+        len(route.instructions) + width,
+        route.gas + decoder.gas,
+        str(SELECTOR),
+    )
+
     for side, (entry, body) in zip(("before", "after"), functions, strict=True):
         yield f"""
 def {side}AuthFunctions : MIR.State.Functions := [{body}]
@@ -203,10 +217,23 @@ theorem {side}_authorization_ready {BINDINGS}
 
 
 def certify(
-    directory, runtime, decoded, layout, route, config, tables, catalog, timeout
+    directory,
+    runtime,
+    decoded,
+    layout,
+    route,
+    config,
+    tables,
+    catalog,
+    nonce_pc,
+    timeout,
 ):
-    module = "SolarTV.MIR.Transforms.TransferFromMarket"
-    entry_proof.success(build_model(timeout, module), module)
+    modules = [
+        "SolarTV.MIR.Transforms.TransferFromMarket",
+        "SolarTV.MIR.Transforms.StorageBoundary",
+    ]
+    for module in modules:
+        entry_proof.success(build_model(timeout, module), module)
     functions = []
     bodies = []
     opcodes = {opcode["name"]: opcode for opcode in catalog.values()}
@@ -217,6 +244,34 @@ def certify(
     guard, success, expired, guard_gas = authorization_deadline.source(
         runtime, decoded, catalog, layout
     )
+    abi_gas = route.gas + layout.gas
+    nonce, link, nonce_gas = authorization_nonce.source(
+        runtime,
+        decoded,
+        catalog,
+        layout,
+        success,
+        nonce_pc,
+        abi_gas,
+        len(route.instructions) + len(layout.instructions),
+        guard_gas,
+        BINDINGS,
+        ARGS,
+    )
+    guard += f"""
+theorem authorizationDeadlineOutOfGas {BINDINGS}
+    (noValue : env.value = 0)
+    (selected : MIR.TransferFromDispatch.selector env.input = {SELECTOR})
+    (work balance : Nat) (unpaid : balance < {abi_gas + guard_gas}) :
+    ∃ spent ≤ {len(route.instructions) + len(layout.instructions) + 5},
+      EVM.State.execute (work+{len(route.instructions) + len(layout.instructions) + 5})
+        tvWorldConfig journal (dispatchFrame env balance 0 []) =
+        .ok ⟨.outOfGas,[],journal,0,spent⟩ :=
+  ((metered_abi {ARGS} noValue selected).append
+    (metered_deadline env journal)).rollbackOutOfGas work balance unpaid
+
+#print axioms authorizationDeadlineOutOfGas
+"""
     fragments_ = [
         config
         + dispatch_proof.source(
@@ -228,14 +283,20 @@ def certify(
         *authorization_deadline.mir_fragments(
             *bodies, opcodes, success=success, failure=expired
         ),
+        *("".join(group) for group in batched(nonce, 7)),
+        link,
+        *(
+            "".join(group)
+            for group in batched(authorization_mir_nonce.fragments(bodies, opcodes), 4)
+        ),
     ]
-    imports = ["EntryImage", module]
+    imports = ["EntryImage", *modules]
     for index, body in enumerate(fragments_):
         name = f"MorphoAuthorizationEntry{index}"
         source = (
             entry_proof.import_modules(imports)
             + entry_proof.HEADER
-            + "open MIR.TransferFromABI\n"
+            + "open SolarTV.Execution MIR.State MIR.TransferFromABI MIR.TransferFromMarket\n"
             + "set_option linter.unusedVariables false\n"
             + "set_option linter.unusedSimpArgs false\n"
             + body
@@ -254,8 +315,10 @@ def certify(
     return {
         "proof": f"kernel/{name}.lean",
         "body_pc": layout.pc,
-        "gas": route.gas + layout.gas,
+        "gas": abi_gas,
         "deadline_gas": guard_gas,
         "deadline_success_pc": success,
         "deadline_expired_pc": expired,
+        "nonce_store_pc": nonce_pc,
+        "nonce_fixed_gas": nonce_gas,
     }

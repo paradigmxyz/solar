@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from itertools import pairwise
 
+from . import metered_prefix
 from .callers import require
 from .dispatch_proof import Instruction
 
@@ -236,7 +237,7 @@ theorem entry_concrete :
 """
 
 
-def steps_source(decoder, dispatch, helper, binders):
+def steps_source(decoder, dispatch, helper, binders, args):
     out = """
 open MIR.TransferFromABI
 
@@ -245,6 +246,7 @@ def decoderFrame (env : World.Environment) (gas pc : Nat) (stack memory : List W
 """
     pcs = [inst.pc for inst in reversed(dispatch.instructions)]
     fuel = 2048 - len(dispatch.instructions)
+    debits = []
     for index, step in enumerate(decoder.instructions):
         inst = step.inst
         remaining = decoder.gas - inst.gas
@@ -264,21 +266,18 @@ def decoderFrame (env : World.Environment) (gas pc : Nat) (stack memory : List W
             else (decoder.pc, decoder.stack, decoder.memory, 0)
         )
         after_pcs = [inst.pc, *pcs]
+        name = f"decodeStep{index}"
+        charge = remaining - after_gas
+        zero = f"decoderFrame env 0 {inst.pc} {words(inst.stack)} {words(step.memory)}"
+        next_zero = (
+            f"decoderFrame env 0 {after_pc} {words(after_stack)} {words(after_memory)}"
+        )
+        out += metered_prefix.debit(name, binders, zero, next_zero, inst.opcode, charge)
         out += f"""
-theorem decodeStep{index} {binders} :
-    chunkedByteStep {helper} tvWorldConfig code Keccak.hash {fuel - index - 1}
-      ⟨{frame(inst.pc, inst.stack, step.memory, remaining)},journal,[],[],{pcs}⟩ =
-      .ok (.inr ⟨{frame(after_pc, after_stack, after_memory, after_gas)},journal,[],[],{after_pcs}⟩) := by
-  refine dispatchNext _ _ _ _ _ _ _ _ {inst.opcode} ?_ ?_ (by decide) ?_
-  · change {inst.pc} ≠ {helper}
-    decide
-  · change code.get? {inst.pc} = some {inst.opcode}
-    decide +kernel
-  have paid : ¬ surplus + {remaining} < {remaining - after_gas} := by omega
   have schema : EVM.State.available tvWorldConfig {inst.opcode} =
     ⟨{", ".join(str(value).lower() for value in inst.schema)}⟩ := by rfl
 """
-        facts = ["schema", "paid"]
+        facts = ["schema", "unpaid"]
         if inst.immediate is not None:
             out += f"  have immediate : code.immediate {inst.pc} {inst.opcode - 0x5F} = {inst.immediate} := by decide +kernel\n"
             facts.append("immediate")
@@ -321,11 +320,36 @@ theorem decodeStep{index} {binders} :
         close = (
             "exact value" if step.fact and inst.opcode not in (0x52, 0x35) else "rfl"
         )
-        out += f"""  simp [decoderFrame,EVM.State.instructionWithImage,dispatch_size,
+        out += f"""  by_cases unpaid : balance < {charge} <;>
+    simp [decoderFrame,EVM.State.instructionWithImage,dispatch_size,
     EVM.State.next,EVM.step,EVM.Context.ofEnvironment,EVM.State.pureOp,
     Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> {close}
 """
+        debit = metered_prefix.Debit(name, inst.pc, inst.opcode, charge, next_zero)
+        out += metered_prefix.paid_step(
+            debit,
+            binders,
+            args,
+            helper,
+            fuel - index - 1,
+            frame(inst.pc, inst.stack, step.memory, remaining),
+            frame(after_pc, after_stack, after_memory, after_gas),
+            pcs,
+            f"surplus+{remaining}",
+            f"surplus+{after_gas}",
+            "decoderFrame",
+        )
+        debits.append(debit)
         pcs = after_pcs
+    out += metered_prefix.certify(
+        "metered_decoder",
+        binders,
+        args,
+        decoder.gas,
+        f"decoderFrame env 0 {dispatch.pc} {words(dispatch.stack)} []",
+        f"decoderFrame env 0 {decoder.pc} {words(decoder.stack)} {words(decoder.memory)}",
+        debits,
+    )
     return out, pcs
 
 
@@ -334,7 +358,7 @@ def source(decoder, dispatch, helper, concrete):
     addresses = list(decoder.addresses)
     binders = input_binders(decoder)
     args = "env journal surplus room small offsetWord slice addresses"
-    out, pcs = steps_source(decoder, dispatch, helper, binders)
+    out, pcs = steps_source(decoder, dispatch, helper, binders, args)
     fuel = 2048 - len(dispatch.instructions)
     width = len(decoder.instructions)
     market = decoder.memory[4:]
@@ -409,6 +433,14 @@ theorem resume_abi_prefix {binders}
 #print axioms decoded_mir_memory
 #print axioms resume_abi_prefix
 """
+    out += metered_prefix.abi_failure(
+        binders,
+        args,
+        "dispatchFrame env 0 0 []",
+        f"decoderFrame env 0 {decoder.pc} {words(decoder.stack)} {words(decoder.memory)}",
+        len(dispatch.instructions) + width,
+        dispatch.gas + decoder.gas,
+    )
     if concrete:
         out += f"""
 def decoderStart := decodedFrame env checkpoint (dispatchStart.frame.gas - {decoder.gas})

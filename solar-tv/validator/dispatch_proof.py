@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from itertools import pairwise
 
+from . import metered_prefix
 from .callers import require
 
 LENGTH = "(BitVec.ofNat 256 env.input.length)"
@@ -118,6 +119,8 @@ def dispatched (env : World.Environment) (journal : Execution.Journal) (surplus 
   ⟨{frame(route.pc, route.stack, 0)},
     journal,[],[],{[step.pc for step in reversed(route.instructions)]}⟩
 """
+    debits = []
+    args = "env journal surplus large small noValue selected"
     for index, step in enumerate(route.instructions):
         after = (
             route.instructions[index + 1]
@@ -133,21 +136,17 @@ def dispatched (env : World.Environment) (journal : Execution.Journal) (surplus 
         cost = paid - (route.gas - after.gas if after else 0)
         before = frame(step.pc, step.stack, paid)
         pcs = [earlier.pc for earlier in reversed(route.instructions[:index])]
+        after_pc = after.pc if after else route.pc
+        after_stack = after.stack if after else route.stack
+        zero = f"dispatchFrame env 0 {step.pc} {stack_text(step.stack)}"
+        next_zero = f"dispatchFrame env 0 {after_pc} {stack_text(after_stack)}"
+        name = f"dispatch{index}"
+        out += metered_prefix.debit(name, binders, zero, next_zero, step.opcode, cost)
         out += f"""
-theorem dispatch{index} {binders} :
-    chunkedByteStep {helper} tvWorldConfig code Keccak.hash {2047 - index} ⟨{before},journal,[],[],{pcs}⟩ =
-      .ok (.inr ⟨{next_frame},journal,[],[],{[step.pc, *pcs]}⟩) := by
-  refine dispatchNext _ _ _ _ _ _ _ _ {step.opcode} ?_ ?_ ?_ ?_
-  · change {step.pc} ≠ {helper}
-    decide
-  · change code.get? {step.pc} = some {step.opcode}
-    decide +kernel
-  · decide
-  have paid : ¬ surplus + {paid} < {cost} := by omega
   have schema : EVM.State.available tvWorldConfig {step.opcode} =
     ⟨{", ".join(str(value).lower() for value in step.schema)}⟩ := by rfl
 """
-        facts = ["schema", "paid"]
+        facts = ["schema", "unpaid"]
         final = "rfl"
         if step.immediate is not None:
             out += f"  have immediate : code.immediate {step.pc} {step.opcode - 0x5F} = {step.immediate} := by decide +kernel\n"
@@ -172,11 +171,35 @@ theorem dispatch{index} {binders} :
     rw [MIR.TransferFromDispatch.selector_word, selected]
 """
             final = "exact word"
-        out += f"""  simp [
+        out += f"""  by_cases unpaid : balance < {cost} <;> simp [
     dispatchFrame, EVM.State.instructionWithImage, dispatch_size,
     EVM.State.next, EVM.step, EVM.Context.ofEnvironment, EVM.State.pureOp,
     Evm.lt, Evm.gt, Evm.eq, Evm.or, Fork.atLeast, Fork.ordinal, {", ".join(facts)}] <;> {final}
 """
+        debit = metered_prefix.Debit(name, step.pc, step.opcode, cost, next_zero)
+        out += metered_prefix.paid_step(
+            debit,
+            binders,
+            args,
+            helper,
+            2047 - index,
+            before,
+            next_frame,
+            pcs,
+            f"surplus+{paid}",
+            f"surplus+{paid - cost}",
+            "dispatchFrame",
+        )
+        debits.append(debit)
+    out += metered_prefix.certify(
+        "metered_dispatch",
+        binders,
+        args,
+        route.gas,
+        "dispatchFrame env 0 0 []",
+        f"dispatchFrame env 0 {route.pc} {stack_text(route.stack)}",
+        debits,
+    )
     width = len(route.instructions)
     out += f"""
 theorem symbolic_dispatch {binders} :

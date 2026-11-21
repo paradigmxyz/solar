@@ -922,6 +922,14 @@ def printGas (gas : Nat) : IO Unit :=
                 caller_entry.replay(rejected_input, None, executable, 30)[0], "revert"
             )
 
+            prefix_gas = evidence["gas"] + decoder["gas"]
+            for budget in (0, evidence["gas"] - 1, prefix_gas - 1):
+                stopped = caller_entry.replay(
+                    {**state, "gas": budget}, None, executable, 30
+                )
+                self.assertEqual(stopped[:4], ["out-of-gas", [], 0, 0])
+                self.assertEqual(stopped[5], [])
+
             module = Path(decoder["proof"]).stem
             namespace = module.removesuffix("Decoder")
             address_count = (4 if market else 0) + 1
@@ -948,6 +956,16 @@ theorem reachedVariant :
     (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
     (by intro i h; simp only [List.mem_cons,List.not_mem_nil,or_false] at h
         rcases h with {cases} <;> decide +kernel)
+theorem shortVariant :
+    ∃ spent ≤ {evidence["steps"] + decoder["steps"]},
+      EVM.State.execute {evidence["steps"] + decoder["steps"]} tvWorldConfig checkpoint
+        (dispatchFrame changedEnv {prefix_gas - 1} 0 []) =
+        .ok ⟨.outOfGas,[],checkpoint,0,spent⟩ :=
+  abi_prefix_out_of_gas changedEnv checkpoint 0
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by intro i h; simp only [List.mem_cons,List.not_mem_nil,or_false] at h
+        rcases h with {cases} <;> decide +kernel)
+    (by decide +kernel) (by decide +kernel) 0 {prefix_gas - 1} (by decide)
 theorem replayedVariant :
     (decodedFrame changedEnv checkpoint {index}).frame.stack = {list(map(int, observed["stack"]))} ∧
     (decodedFrame changedEnv checkpoint {index}).frame.memory = {observed["memory"]} := by

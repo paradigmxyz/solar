@@ -1,6 +1,6 @@
 """Check the emitted authorization deadline guard at both successors."""
 
-from . import decoder_proof, mir_state
+from . import decoder_proof, metered_prefix, mir_state
 from .callers import require
 
 
@@ -43,6 +43,7 @@ def afterDeadline (env : World.Environment) (surplus : Nat) : EVM.State.Frame :=
   decoderFrame env surplus (if expiry env = 0 then {success} else {failure}) {start_stack} {memory}
 """
     args = "(env : World.Environment) (journal : Journal) (surplus : Nat)"
+    debits = []
     for i, pc in enumerate(steps[:-1]):
         opcode = runtime[pc]
         spec = catalog[opcode]
@@ -56,23 +57,22 @@ def afterDeadline (env : World.Environment) (surplus : Nat) : EVM.State.Frame :=
                 *spec["stack"],
             )
         )
-        before = f"decoderFrame env (surplus+{fees[i]}) {pc} ({stacks[i]}) {memory}"
-        after = f"decoderFrame env (surplus+{fees[i + 1]}) {steps[i + 1]} ({stacks[i + 1]}) {memory}"
+        before = f"decoderFrame env 0 {pc} ({stacks[i]}) {memory}"
+        after = f"decoderFrame env 0 {steps[i + 1]} ({stacks[i + 1]}) {memory}"
         if i == 4:
-            after = "afterDeadline env surplus"
+            after = "afterDeadline env 0"
+        name = f"deadlineStep{i}"
+        out += metered_prefix.debit(name, args, before, after, opcode, gas[i])
         out += f"""
-theorem deadlineStep{i} {args} :
-    EVM.State.instruction tvWorldConfig journal ({before}) = .ok (.next journal ({after})) := by
-  have opcode : code.get? {pc} = some {opcode} := by decide +kernel
-  have within : {pc} < code.bytes.length := by rw [EVM.State.CodeChunks.size_eq]; decide +kernel
   have schema : EVM.State.available tvWorldConfig {opcode} = ⟨{schema}⟩ := rfl
-  have paid : ¬ surplus+{fees[i]} < {gas[i]} := by omega
-  have spent : surplus+{fees[i]}-{gas[i]} = surplus+{fees[i + 1]} := by omega
-  simp only [decoderFrame,EVM.State.instruction,← EVM.State.CodeChunks.get_eq,opcode, Option.getD_some]
-  unfold EVM.State.instructionWithImage
-  rw [ite_eq_right (Nat.not_le_of_gt within)]
 """
-        facts = ["schema", "paid", "spent"]
+        facts = [
+            "schema",
+            "unpaid",
+            "dispatch_size",
+            "EVM.State.instructionWithImage",
+            "decoderFrame",
+        ]
         if i == 0:
             facts.append("timestamp")
         if i == 1:
@@ -83,33 +83,35 @@ theorem deadlineStep{i} {args} :
             out += f"  have value : code.immediate {pc} 2 = {failure} := by decide +kernel\n"
             facts.append("value")
         if i == 4:
-            out += f"""  have jumps : EVM.State.validJump code.bytes {failure}#256 = true := by
-    rw [← EVM.State.CodeChunks.jump_eq]
-    decide +kernel
-  by_cases expired : expiry env = 0#256
-  all_goals simp [EVM.step,EVM.State.pureOp,EVM.State.next,afterDeadline,decoderFrame,
+            out += f"""  have jumps : {failure} ∈ code.jumps 0 := by decide +kernel
+  by_cases unpaid : balance < {gas[i]} <;> by_cases expired : expiry env = 0#256 <;>
+    simp [EVM.step,EVM.State.pureOp,EVM.State.next,afterDeadline,decoderFrame,
     jumps,expired,{",".join(facts)}]
 """
         else:
-            out += f"""  simp [← EVM.State.CodeChunks.immediate_eq,EVM.State.pureOp,EVM.State.next,EVM.step,
+            out += f"""  by_cases unpaid : balance < {gas[i]} <;>
+    simp [← EVM.State.CodeChunks.immediate_eq,EVM.State.pureOp,EVM.State.next,EVM.step,
     {",".join(facts)}]
 """
         if i == 2:
             out += "  all_goals rfl\n"
+        debits.append(metered_prefix.Debit(name, pc, opcode, gas[i], after))
+    out += metered_prefix.certify(
+        "metered_deadline",
+        args.replace(" (surplus : Nat)", ""),
+        "env journal 0",
+        fees[0],
+        f"decoderFrame env 0 {layout.pc} {start_stack} {memory}",
+        "afterDeadline env 0",
+        debits,
+    )
     out += f"""
 theorem deadlineGuard {args} (work : Nat) :
     EVM.State.run (work+5) tvWorldConfig journal (beforeDeadline env surplus) = (do
       let result ← EVM.State.run work tvWorldConfig journal (afterDeadline env surplus)
       return {{result with work := result.work+5}}) := by
-  unfold beforeDeadline
-  simp only [
-    EVM.State.run_next (work+4) (deadlineStep0 env journal surplus),
-    EVM.State.run_next (work+3) (deadlineStep1 env journal surplus),
-    EVM.State.run_next (work+2) (deadlineStep2 env journal surplus),
-    EVM.State.run_next (work+1) (deadlineStep3 env journal surplus),
-    EVM.State.run_next work (deadlineStep4 env journal surplus),
-    Bind.bind, Except.bind, Pure.pure, Except.pure]
-  cases EVM.State.run work tvWorldConfig journal _ <;> rfl
+  have exactPrice := (metered_deadline env journal).paid work (surplus+{fees[0]}) (by omega)
+  simpa only [beforeDeadline,afterDeadline,decoderFrame,Nat.add_sub_cancel] using exactPrice
 
 #print axioms deadlineGuard
 """
@@ -121,7 +123,7 @@ open SolarTV.Execution MIR.State MIR.TransferFromMarket
 def authWords (env : World.Environment) : List Word :=
   [0,0,288,0,readWord env.input 4,readWord env.input 36,readWord env.input 68,
     readWord env.input 100,readWord env.input 132]
-def mirAvailable : List Nat := [0x42,0x51,0x10,0x14]
+def mirAvailable : List Nat := [0x42,0x51,0x10,0x14,0x54,0x55]
 theorem one (cfg : MIR.State.Config) (fs : Functions) (ticks : Nat) (initial reached : Machine)
     (step : transition ticks cfg fs initial = .ok (.next 0 reached)) :
     mirStepsFrom cfg fs initial 1 (ticks+1) = .ok (.inr reached) := by

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from itertools import pairwise
 
-from . import decoder_proof, mir_state
+from . import decoder_proof, metered_prefix, mir_state
 from .callers import require
 from .dispatch_proof import Instruction
 
@@ -199,67 +199,53 @@ def marketGas (env : World.Environment) (journal : Execution.Journal) : Nat :=
   marketPrice env journal + {market.gas_before_load}
 """
     binders = "(env : World.Environment) (journal : Execution.Journal) (surplus : Nat)"
+    debits = []
     for index, step in enumerate(market.instructions):
         inst = step.inst
         pending = market.gas_before_load - inst.gas
-        before = frame(
-            inst.pc,
-            inst.stack,
-            step.memory,
-            f"surplus + marketPrice env journal + {pending}",
-        )
+        balance = f"surplus + marketPrice env journal + {pending}"
+        before = frame(inst.pc, inst.stack, step.memory, balance)
         end = index == load
         if end:
-            after = frame(market.pc, market.stack, market.memory, "surplus")
+            left = "surplus"
+            after_pc, stack, memory = market.pc, market.stack, market.memory
             new_world = "(Execution.warmSlot journal env.address (marketSlot env))"
+            debit_gas = "marketPrice env journal"
         else:
             follow = market.instructions[index + 1]
-            left = market.gas_before_load - follow.inst.gas
-            after = frame(
-                follow.inst.pc,
-                follow.inst.stack,
-                follow.memory,
-                f"surplus + marketPrice env journal + {left}",
-            )
+            suffix = market.gas_before_load - follow.inst.gas
+            left = f"surplus + marketPrice env journal + {suffix}"
+            after_pc, stack, memory = follow.inst.pc, follow.inst.stack, follow.memory
             new_world = "journal"
+            debit_gas = pending - suffix
+        after = frame(after_pc, stack, memory, left)
+        zero = frame(inst.pc, inst.stack, step.memory, 0)
+        next_zero = frame(after_pc, stack, memory, 0)
         if end:
             out += f"""
 def beforeMarketRead {binders} : ByteCut :=
   ⟨{before},journal,[],[],{pcs}⟩
 """
-        next_pcs = [inst.pc, *pcs]
-        proof_call = (
-            "ordinaryNext _ _ _ _ _ _ _ _ _" if end else "dispatchNext _ _ _ _ _ _ _ _"
+        name = f"marketStep{index}"
+        debit = metered_prefix.Debit(
+            name, inst.pc, inst.opcode, debit_gas, next_zero, new_world
+        )
+        debits.append(debit)
+        out += metered_prefix.debit(
+            name, binders, zero, next_zero, inst.opcode, debit_gas, next_world=new_world
         )
         out += f"""
-theorem marketStep{index} {binders} :
-    chunkedByteStep {helper} tvWorldConfig code Keccak.hash {fuel - index - 1}
-      ⟨{before},journal,[],[],{pcs}⟩ =
-      .ok (.inr ⟨{after},{new_world},[],[],{next_pcs}⟩) := by
-  refine {proof_call} {inst.opcode} ?_ ?_ (by decide) ?_
-  · change {inst.pc} ≠ {helper}
-    decide
-  · change code.get? {inst.pc} = some {inst.opcode}
-    decide +kernel
   have schema : EVM.State.available tvWorldConfig {inst.opcode} =
-    ⟨{", ".join(str(value).lower() for value in inst.schema)}⟩ := by rfl
+    ⟨{", ".join(str(value).lower() for value in inst.schema)}⟩ := rfl
 """
-        facts = ["schema"]
+        facts = ["schema", "unpaid"]
         if end:
-            out += """  have paid : ¬ surplus + marketPrice env journal < marketPrice env journal := by omega
-  have spent : surplus + marketPrice env journal - marketPrice env journal = surplus := by omega
-  have cancun : tvWorldConfig.fork = .cancun := rfl
+            out += """  have cancun : tvWorldConfig.fork = .cancun := rfl
   have price : SolarTV.Storage.readPrice .cancun
       (decide ((env.address,marketSlot env) ∈ journal.warmSlots)) = marketPrice env journal := by
     simp [marketPrice]
 """
-            facts += ["marketValue", "cancun", "price", "paid", "spent"]
-        else:
-            out += f"""  have paid : ¬ surplus + marketPrice env journal + {pending} < {pending - left} := by omega
-  have spent : surplus + marketPrice env journal + {pending} - {pending - left} =
-      surplus + marketPrice env journal + {left} := by omega
-"""
-            facts += ["paid", "spent"]
+            facts += ["marketValue", "cancun", "price"]
         if inst.immediate is not None:
             out += f"  have immediate : code.immediate {inst.pc} {inst.opcode - 0x5F} = {inst.immediate} := by decide +kernel\n"
             facts.append("immediate")
@@ -319,12 +305,50 @@ theorem marketStep{index} {binders} :
                 "BitVec.add_comm",
             ]
         # Rewriting exact expansion and store equations keeps symbolic bytes opaque.
-        out += f"""  simp [decoderFrame,EVM.State.instructionWithImage,dispatch_size,
-    EVM.State.next,EVM.step,EVM.Context.ofEnvironment,EVM.State.pureOp,
-    Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> rfl
+        out += f"""  by_cases unpaid : balance < ({debit_gas}) <;>
+    simp [decoderFrame,EVM.State.instructionWithImage,dispatch_size,
+      EVM.State.next,EVM.step,EVM.Context.ofEnvironment,EVM.State.pureOp,
+      Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> rfl
 """
-        pcs = next_pcs
+        out += metered_prefix.paid_step(
+            debit,
+            binders,
+            "env journal surplus",
+            helper,
+            fuel - index - 1,
+            before,
+            after,
+            pcs,
+            balance,
+            left,
+            "decoderFrame",
+        )
+        pcs = [inst.pc, *pcs]
     width = len(market.instructions)
+    out += metered_prefix.certify(
+        "metered_market",
+        binders,
+        "env journal surplus",
+        f"marketPrice env journal + {market.gas_before_load}",
+        f"decoderFrame env 0 {decoder.pc} {words(decoder.stack)} {words(decoder.memory)}",
+        next_zero,
+        debits,
+    )
+    total = dispatch.gas + decoder.gas
+    steps = len(dispatch.instructions) + len(decoder.instructions) + width
+    out += f"""
+theorem market_prefix_out_of_gas {decoder_proof.input_binders(decoder)}
+    (noValue : env.value = 0)
+    (selected : MIR.TransferFromDispatch.selector env.input = {dispatch.stack[0]})
+    (work balance : Nat) (short : balance < {total} + marketGas env journal) :
+    ∃ spent ≤ {steps},
+      EVM.State.execute (work+{steps}) tvWorldConfig journal
+        (dispatchFrame env balance 0 []) = .ok ⟨.outOfGas,[],journal,0,spent⟩ := by
+  exact ((metered_abi env journal surplus room small offsetWord slice addresses noValue selected).append
+    (metered_market env journal surplus)).rollbackOutOfGas work balance short
+
+#print axioms market_prefix_out_of_gas
+"""
     out += f"""
 def readMarket {binders} : ByteCut :=
   ⟨{after},{new_world},[],[],{pcs}⟩
@@ -387,37 +411,40 @@ def guard_source(market, decoder, dispatch, helper, fuel, pcs):
 def marketGuardCut {binders} : ByteCut :=
   ⟨{frame(f"({target})", guard.stack, market.memory, "surplus")},{world},[],[],{after_pcs}⟩
 """
+    debits = []
     for index, inst in enumerate(guard.instructions):
-        before = frame(
-            inst.pc, inst.stack, market.memory, f"surplus + {guard.gas - inst.gas}"
-        )
+        pending = guard.gas - inst.gas
+        debit_gas = inst.schema[1]
+        before = frame(inst.pc, inst.stack, market.memory, f"surplus + {pending}")
+        zero = frame(inst.pc, inst.stack, market.memory, 0)
         last = index + 1 == width
-        unfold = "  unfold marketGuardCut\n" if last else ""
         if last:
-            result = f"marketGuardCut {args}"
+            next_pc, next_stack, left = f"({target})", guard.stack, 0
         else:
             follow = guard.instructions[index + 1]
-            after = frame(
-                follow.pc,
-                follow.stack,
-                market.memory,
-                f"surplus + {guard.gas - follow.gas}",
-            )
-            result = f"⟨{after},{world},[],[],{[inst.pc, *pcs]}⟩"
+            next_pc, next_stack, left = follow.pc, follow.stack, guard.gas - follow.gas
+        after = frame(next_pc, next_stack, market.memory, f"surplus + {left}")
+        next_zero = frame(next_pc, next_stack, market.memory, 0)
+        name = f"marketGuardStep{index}"
+        debit = metered_prefix.Debit(
+            name, inst.pc, inst.opcode, debit_gas, next_zero, world
+        )
+        debits.append(debit)
+        out += metered_prefix.debit(
+            name,
+            binders,
+            zero,
+            next_zero,
+            inst.opcode,
+            debit_gas,
+            current=world,
+            next_world=world,
+        )
         out += f"""
-theorem marketGuardStep{index} {binders} :
-    chunkedByteStep {helper} tvWorldConfig code Keccak.hash {fuel - index - 1}
-      ⟨{before},{world},[],[],{pcs}⟩ = .ok (.inr ({result})) := by
-{unfold}  refine dispatchNext _ _ _ _ _ _ _ _ {inst.opcode} ?_ ?_ (by decide) ?_
-  · change {inst.pc} ≠ {helper}
-    decide
-  · change code.get? {inst.pc} = some {inst.opcode}
-    decide +kernel
   have schema : EVM.State.available tvWorldConfig {inst.opcode} =
     ⟨{", ".join(str(value).lower() for value in inst.schema)}⟩ := by rfl
-  have paid : ¬ surplus + {guard.gas - inst.gas} < {inst.schema[1]} := by omega
 """
-        facts = ["schema", "paid"]
+        facts = ["schema", "unpaid"]
         if inst.immediate is not None:
             out += f"  have immediate : code.immediate {inst.pc} {inst.opcode - 0x5F} = {inst.immediate} := by decide +kernel\n"
             facts.append("immediate")
@@ -426,15 +453,61 @@ theorem marketGuardStep{index} {binders} :
                 f"  have target : {inst.target} ∈ code.jumps 0 := by decide +kernel\n"
             )
             facts.append("target")
+        out += f"  by_cases unpaid : balance < {debit_gas} <;>\n"
         if last:
-            out += "  by_cases missing : marketMissing loaded <;>\n"
+            out += "    by_cases missing : marketMissing loaded <;>\n"
             facts.extend(("missing", "marketGuardFlag"))
         finish = "exact maskGuard loaded" if inst.opcode == 0x15 else "rfl"
-        out += f"""  simp [decoderFrame,EVM.State.instructionWithImage,dispatch_size,
-    EVM.State.next,EVM.step,EVM.Context.ofEnvironment,EVM.State.pureOp,
-    Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> {finish}
+        out += f"""    simp [decoderFrame,EVM.State.instructionWithImage,dispatch_size,
+      EVM.State.next,EVM.step,EVM.Context.ofEnvironment,EVM.State.pureOp,
+      Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> {finish}
 """
+        out += metered_prefix.paid_step(
+            debit,
+            binders,
+            args,
+            helper,
+            fuel - index - 1,
+            before,
+            after,
+            pcs,
+            f"surplus + {pending}",
+            f"surplus + {left}",
+            "decoderFrame",
+            current=world,
+        )
         pcs = [inst.pc, *pcs]
+    out += metered_prefix.certify(
+        "metered_market_guard",
+        binders,
+        args,
+        guard.gas,
+        frame(market.pc, guard.instructions[0].stack, market.memory, 0),
+        next_zero,
+        debits,
+        current=world,
+    )
+    total = dispatch.gas + decoder.gas
+    steps = (
+        len(dispatch.instructions)
+        + len(decoder.instructions)
+        + len(market.instructions)
+        + width
+    )
+    out += f"""
+theorem market_guard_out_of_gas {decoder_proof.input_binders(decoder)}
+    (noValue : env.value = 0)
+    (selected : MIR.TransferFromDispatch.selector env.input = {dispatch.stack[0]})
+    (work balance : Nat) (short : balance < {total} + (marketGas env journal + {guard.gas})) :
+    ∃ spent ≤ {steps},
+      EVM.State.execute (work+{steps}) tvWorldConfig journal
+        (dispatchFrame env balance 0 []) = .ok ⟨.outOfGas,[],journal,0,spent⟩ := by
+  exact ((metered_abi env journal surplus room small offsetWord slice addresses noValue selected).append
+    ((metered_market env journal surplus).append
+      (metered_market_guard env journal surplus (marketValue env journal)))).rollbackOutOfGas work balance short
+
+#print axioms market_guard_out_of_gas
+"""
     out += f"""
 theorem symbolic_market_guard (env : World.Environment) (journal : Execution.Journal) (surplus : Nat) :
     Execution.Trace.segment (chunkedByteStep {helper} tvWorldConfig code) {width} {fuel}

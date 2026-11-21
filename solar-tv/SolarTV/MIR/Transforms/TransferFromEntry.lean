@@ -2,7 +2,7 @@ import SolarTV.MIR.State.Interpreter
 import SolarTV.MIR.Transforms.TransferFromCallers
 import SolarTV.State.Trace
 import SolarTV.State.CheckedHashes
-import SolarTV.EVMIR.State.CodeChunks
+import SolarTV.EVMIR.State.MeteredPrefix
 import SolarTV.EVMIR.State.Observe
 import Lean.Data.Json
 

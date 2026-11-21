@@ -727,9 +727,12 @@ charge against the Cancun opcode table. Every step carries the world through
 unchanged. From there a second symbolic segment checks the emitted length
 and address guards, tuple stores and bytes-slice decoding for the canonical
 ABI head offset. It derives the physical stack, active memory, and residual
-gas for arbitrary valid head words and callback bytes. Aligned word-store
-lemmas relate the physical memory to the MIR entry frame. The MIR ABI
-model separately relates the typed arguments to the canonical encoding.
+gas for arbitrary valid head words and callback bytes. The same checked
+debits prove that every smaller gas allowance stops at the first unpaid
+instruction, with empty returndata and the entry journal restored.
+Aligned word-store lemmas relate the physical memory to the MIR entry frame.
+The MIR ABI model separately relates the typed arguments to the canonical
+encoding.
 
 For Supply, Repay, SupplyCollateral and Liquidate the symbolic physical
 prefix continues through the first market storage read. It checks the
@@ -745,9 +748,12 @@ checks the exact gas boundary.
 The market guard certificate continues from that read through the emitted
 mask, stack shuffles and branch, with the exact stack and gas at either
 successor. Both MIR versions continue from their checked SSA frame and
-branch on the same low 128 bits. Independent bytecode replay covers a zero
-word, a nonzero high half with a zero low half, a nonzero low half, and the
-gas required to reach the successor.
+branch on the same low 128 bits. The metered prefix composes with dispatch,
+decoding and the price of the first storage read. This proves rollback for
+every budget below the guard successor, even if the slot had already been
+warmed. Independent bytecode replay covers a zero word, a nonzero high half
+with a zero low half, a nonzero low half, and the gas required to reach the
+successor.
 
 SupplyCollateral carries this symbolic certificate through the first
 position update for canonical calldata, a created market, a nonzero
@@ -800,7 +806,14 @@ and the signature calldata span. Independent replay reaches the cut with
 the exact gas charged by dispatch and decoding, exhausts gas one unit below
 it, and rejects noncanonical address and boolean words. The next proof
 links the emitted timestamp check to both typed MIR branches, including the
-expiry branch, and checks the charge on either edge.
+expiry branch, and checks the charge on either edge. For an unexpired
+authorization with a nonwrapping nonce increment, the prefix continues
+through the emitted mapping hash, warm or cold SLOAD, and checked-add guard
+to the nonce SSTORE. The proof derives the canonical key, old nonce,
+incremented nonce, residual gas, and warmed journal from ABI entry. It
+composes with the typed store continuation, including the write's gas sentry.
+Independent replay checks the store boundary with cold and warm slots and
+different old values.
 
 The separate emitted recovery certificate reads the actual GAS and STATICCALL
 bytes from the captured runtime. GAS either exhausts the frame or deducts

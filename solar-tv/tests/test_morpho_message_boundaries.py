@@ -185,6 +185,29 @@ class MorphoMessageBoundaryTests(unittest.TestCase):
                 "revert",
             )
 
+        nonce_pc = abi["nonce_store_pc"]
+        self.assertEqual(nonce_pc, site.nonce)
+        nonce_full = caller_entry.replay(state, nonce_pc, self.replay, 30)
+        key = nonce_full["stack"][0]
+        prefix = abi["gas"] + abi["deadline_gas"] + abi["nonce_fixed_gas"]
+        for price, warm in ((2100, []), (100, [(state["address"], key)])):
+            for old in (0, 17):
+                account = {**state["accounts"][0], "storage": [[key, str(old)]]}
+                ready = {
+                    **state,
+                    "accounts": [account],
+                    "warm_slots": warm,
+                    "gas": prefix + price,
+                }
+                reached = caller_entry.replay(ready, nonce_pc, self.replay, 30)
+                self.assertEqual(reached["gas"], 0)
+                self.assertEqual(reached["stack"][:3], [key, str(old + 1), str(old)])
+                failed = caller_entry.replay(
+                    {**ready, "gas": ready["gas"] - 1}, None, self.replay, 30
+                )
+                self.assertEqual(failed[:4], ["out-of-gas", [], 0, 0])
+                self.assertEqual(failed[5], [])
+
         evidence = recovery_boundary.certify(
             self.directory, site, packing, state, SOLAR, self.replay, 45
         )

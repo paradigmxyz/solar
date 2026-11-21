@@ -368,7 +368,7 @@ def certify_decoder(prove, dispatch, decoder, route, pc, concrete, market, timeo
             pc, fuel, "decoderStart", "decoder_concrete"
         )
     output = success(prove(name, source, timeout, module=True), name)
-    check_axioms(output.splitlines(), 2)
+    check_axioms(output.splitlines(), 3)
     return name
 
 
@@ -377,12 +377,12 @@ def certify_market(prove, decoded, market, decoder, route, pc, snapshot, timeout
     source = (
         import_modules([decoded, "SolarTV.MIR.Transforms.TransferFromMarket"])
         + HEADER
-        + "set_option linter.unusedSimpArgs false\n"
+        + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
         + market_proof.source(market, decoder, route, pc, snapshot)
         + market_proof.mir_source(decoder, market.mir)
     )
     output = success(prove(name, source, timeout, module=True), name)
-    check_axioms(output.splitlines(), 7)
+    check_axioms(output.splitlines(), 9)
     return name
 
 
