@@ -104,11 +104,11 @@ class Text(unittest.TestCase):
     def test_bound_module_uses_the_theorems_constants(self):
         t = life(binding(BIND))
         self.assertIn(
-            "import Contracts.VerifyCounter.Source\nimport Verify.LoopSource.Equiv.CounterCtor\n"
+            "import Contracts.VerifyCounter.Source\nimport Verify.LoopSource.Equiv.CounterCtx\n"
+            "import Verify.LoopSource.Equiv.CounterCtor\n"
             "import Verify.LoopSource.Equiv.Counter.gen.Counter.Bytecode\nimport Verify.Generic.Expected\n",
             t,
         )
-        self.assertNotIn("import Verify.LoopSource.Equiv.CounterCtx", t)
         self.assertIn("def fuel : Nat := Contracts.VerifyCounter.Source.fuel\n", t)
         self.assertIn("def frameFuel : Nat := 4096\n", t)
         self.assertIn("  (Verify.LoopSource.Equiv.CounterCtx.src 8).checked\n", t)
@@ -173,6 +173,89 @@ class Text(unittest.TestCase):
             t,
         )
         self.assertNotIn("admitCtor", t)
+
+
+class SourceModuleImport(unittest.TestCase):
+    """The bound lifecycle module imports the module defining the source term (P2's box run failed
+    with Unknown identifier Verify.LoopSource.Equiv.CounterCtx.src: contract? named the source, whose
+    module was not imported), and the record binds that module beside the term."""
+
+    def imports(self, t):
+        return [
+            l.removeprefix("import ") for l in t.splitlines() if l.startswith("import ")
+        ]
+
+    def test_counter_imports_exactly(self):
+        self.assertEqual(
+            self.imports(life(binding(BIND))),
+            [
+                "Verify.Lifecycle.CreationFrame",
+                "Verify.Lifecycle.Route",
+                "Verify.Lifecycle.KernelIndex",
+                "SolidCore.Refinement.KernelRfl",
+                f"{NAME}.Source",
+                "Contracts.VerifyCounter.Source",
+                "Verify.LoopSource.Equiv.CounterCtx",
+                "Verify.LoopSource.Equiv.CounterCtor",
+                "Verify.LoopSource.Equiv.Counter.gen.Counter.Bytecode",
+                "Verify.Generic.Expected",
+            ],
+        )
+
+    def test_non_default_source_module(self):
+        b = copy.deepcopy(BIND)
+        b["source"] = "Acme.Specs.Vault.src 8"
+        b["source_module"] = "Acme.Specs.Vault"
+        b["expected"]["prop"] = (
+            "SolidCore.Verify.Generic.Expected (Acme.Specs.Vault.src 8) (Acme.Specs.Vault.spec 8) "
+            "SolarTV.Export.Counter.bytecode"
+        )
+        t = life(binding(b))
+        self.assertIn("Acme.Specs.Vault", self.imports(t))
+        self.assertNotIn("Verify.LoopSource.Equiv.CounterCtx", self.imports(t))
+        self.assertIn("  (Acme.Specs.Vault.src 8).checked\n", t)
+        self.assertIn(
+            "theorem contract_same : contract? = (Acme.Specs.Vault.src 8).checked := rfl\n",
+            t,
+        )
+
+    def test_source_module_shared_with_another_is_imported_once(self):
+        b = copy.deepcopy(BIND)
+        b["source_module"] = "Contracts.VerifyCounter.Source"
+        imps = self.imports(life(binding(b)))
+        self.assertEqual(imps.count("Contracts.VerifyCounter.Source"), 1)
+
+    def test_missing_and_invalid_source_module_refused(self):
+        b = copy.deepcopy(BIND)
+        del b["source_module"]
+        with self.assertRaises(generic.Failed) as e:
+            binding(b)
+        self.assertIn("keys must be exactly", str(e.exception))
+        for bad in ("", "A B", "A\nB", "A.", 8):
+            with self.subTest(bad=bad):
+                b = copy.deepcopy(BIND)
+                b["source_module"] = bad
+                with self.assertRaises(generic.Failed) as e:
+                    binding(b)
+                self.assertIn("source_module", str(e.exception))
+
+    def test_record_binds_the_source_module(self):
+        self.assertIn("source_module", generic.BIND_KEYS)
+        src = (HERE / "generic.py").read_text()
+        self.assertIn('life["bind"] = {k: bind[k] for k in BIND_KEYS}', src)
+        self.assertIn(bind_source := '"source_module"', src)
+        del bind_source
+
+    def test_composed_and_source_same_resolve_through_their_imports(self):
+        """Composed names source, contract, fuel, init and runtime, and gets them through Lifecycle
+        (now importing the source's module) and the expected theorem's module; SourceSame names only
+        the unit, from unit_module."""
+        b = binding(BIND)
+        c = generic.composed_lean(NAME, b)
+        self.assertIn(f"import {NAME}.Lifecycle\n", c)
+        self.assertIn("import Verify.LoopSource.Equiv.CounterCreated\n", c)
+        ss = generic.source_same_lean(NAME, b)
+        self.assertIn("import Contracts.VerifyCounter.Source\n", ss)
 
 
 class CreatedByControls(unittest.TestCase):

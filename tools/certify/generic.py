@@ -2196,10 +2196,13 @@ BIND_KEYS = {
     "fuel": "its fuel constant",
     "init": "its constructor's init code constant (ByteArray)",
     "runtime": "the runtime bytes constant it states Expected for (List Nat)",
-    "modules": "the modules holding init and runtime (the lifecycle module imports these only)",
+    "modules": "the modules holding fuel, init and runtime (the lifecycle module imports these, the "
+    "unit's and the source's)",
     "ws": "the pinned constructor words it admits for this run",
     "source": "the expected theorem's Source term (a constant, or one applied to the words in ws, "
     "such as CounterCtx.src 8)",
+    "source_module": "the module defining the source term (the lifecycle module imports it: its "
+    "contract? is the source's checked)",
     "expected": "{module, binders, prop, term}: the theorem's module, its Expected conjunct, binders and the term "
     "proving PROP ∧ ∀ c, contract? = .ok c → ∀ s, Statement fuel c init (runtimeCode runtime) ws s → "
     "Deploys (initArgs init ws) (runtimeCode runtime) s",
@@ -2230,7 +2233,7 @@ def lifecycle_binding(path, ws):
         raise Failed(f"--lifecycle-bind: cannot read {path}: {e}") from None
     if not isinstance(b, dict) or set(b) != set(BIND_KEYS):
         raise Failed(f"--lifecycle-bind: keys must be exactly {sorted(BIND_KEYS)}")
-    for k in ("unit", "unit_module", "fuel", "init", "runtime"):
+    for k in ("unit", "unit_module", "source_module", "fuel", "init", "runtime"):
         if not (isinstance(b[k], str) and re.fullmatch(LEAN_IDENT, b[k])):
             raise Failed(f"--lifecycle-bind: {k} {b[k]!r} is not a Lean name")
     if not (
@@ -2297,7 +2300,13 @@ def paren(t):
 
 
 def bind_modules(bind):
-    return [bind["unit_module"], *bind["modules"]]
+    """The modules the bound lifecycle module imports: the unit's, the source term's, and those
+    holding fuel, init and runtime, once each, in that order."""
+    out = []
+    for m in [bind["unit_module"], bind["source_module"], *bind["modules"]]:
+        if m not in out:
+            out.append(m)
+    return out
 
 
 def source_same_lean(name, bind):
