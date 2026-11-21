@@ -4034,7 +4034,13 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Member(base, m) => {
                 let m = m.as_str();
-                if let ExprKind::Ident(b) = &base.kind {
+                // Take this call's options before anything evaluates its receiver or arguments:
+                // a nested member call there (`h.f{gas: 1}(x.g())`) must not see them.
+                let opts = self.pending_opts.take();
+                let value = self.call_value.take();
+                if let ExprKind::Ident(b) = &base.kind
+                    && opts.is_none()
+                {
                     let bn = b.as_str();
                     if bn == "super" {
                         let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
@@ -4194,10 +4200,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                         return Ok(rets);
                     }
                 }
-                if let Some((lib, f, vals, all)) = self.pick_using(base, m, &argv)? {
-                    if self.pending_opts.take().is_some() {
-                        return Err((e.span, "unsupported call options on this call".to_string()));
-                    }
+                if opts.is_some() && matches!(base.kind, ExprKind::Type(_)) {
+                    return Err((e.span, "unsupported call options on this call".to_string()));
+                }
+                // A bound library function is an internal call, which takes no options: a call
+                // with options is external, even when a library function has the same name.
+                if opts.is_none()
+                    && let Some((lib, f, vals, all)) = self.pick_using(base, m, &argv)?
+                {
                     let caps = self.storage_arg_caps(f, &all, e.span)?;
                     let rets = self.internal_call(lib, f, vals, e.span, true)?;
                     self.write_back_storage_params(f, &all, &caps, e.span)?;
@@ -4213,8 +4223,6 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 // The receiver runs first and may itself call (`payable(f()).call{value: 1}`),
                 // which resets the pending value: keep this call's, then run its options.
-                let opts = self.pending_opts.take();
-                let value = self.call_value.take();
                 let bv = self.eval(base)?;
                 self.call_value = match opts {
                     Some(opts) => self.eval_call_opts(opts)?,

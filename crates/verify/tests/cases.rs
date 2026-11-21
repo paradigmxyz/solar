@@ -501,6 +501,7 @@ fn ctor_calls() {
         ("CtorGasOk", "verified"),
         ("CtorGasOrderOk", "verified"),
         ("CtorRecvOrderOk", "verified"),
+        ("CtorNestedOptsOk", "verified"),
         ("CtorDelegate", "failed"),
         ("CtorBalance", "failed"),
         ("CtorGasWrite", "failed"),
@@ -508,6 +509,7 @@ fn ctor_calls() {
         ("CtorComputedTarget", "failed"),
         ("CtorGasOrderBad", "failed"),
         ("CtorRecvOrderBad", "failed"),
+        ("CtorNestedOptsBad", "failed"),
     ] {
         let f = format!("{c}.constructor");
         assert_eq!(got.get(f.as_str()), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);

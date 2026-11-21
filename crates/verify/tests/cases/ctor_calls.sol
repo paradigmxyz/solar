@@ -126,3 +126,26 @@ contract CtorRecvOrderBad {
     /// @custom:ensures address(h) != address(0)
     constructor(IPeek a) { h = a; h.peek{gas: g()}(); }
 }
+interface ITake {
+    function take(uint256) external;
+}
+// A bound function of the same name and arity, so the verifier considers `h.take(..)` as one.
+library LTake {
+    function take(address a, uint256 b) internal pure returns (uint256) { return uint160(a) + b; }
+}
+contract CtorNestedOptsOk {
+    IPeek k;
+    IPeek t;
+    function g() internal returns (uint256) { k = t; return 5000; }
+    /// the gas option sets `k` before the argument's call reads it
+    /// @custom:ensures address(k) == address(a)
+    constructor(ITake h, IPeek a) { t = a; h.take{gas: g()}(k.peek()); }
+}
+contract CtorNestedOptsBad {
+    IPeek k;
+    IPeek t;
+    function g() internal returns (uint256) { k = t; return 5000; }
+    /// the argument's call goes to `a`, which holds code
+    /// @custom:ensures address(k) == address(0)
+    constructor(ITake h, IPeek a) { t = a; h.take{gas: g()}(k.peek()); }
+}
