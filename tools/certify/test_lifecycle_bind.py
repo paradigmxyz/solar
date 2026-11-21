@@ -9,8 +9,10 @@ Lean; testdata/lifecycle_bind/counter-bind.json names solidity-lean's Counter ex
 import copy
 import json
 import pathlib
+import re
 import sys
 import tempfile
+import typing
 import unittest
 import unittest.mock
 
@@ -151,7 +153,7 @@ class Text(unittest.TestCase):
             "(Verify.LoopSource.Equiv.CounterCtx.spec 8 K) SolarTV.Export.Counter.bytecode ∧\n"
             f"      ∃ c, {S}.checked = .ok c ∧ {S}.CreatedBy c {I} (Verify.Lifecycle.initArgs {I} [8]) ∧\n"
             f"        Verify.Lifecycle.Statement Contracts.VerifyCounter.Source.fuel c {I} {CODE} [8] {L}.storageLit ∧\n"
-            f"        Verify.Lifecycle.Deploys (Verify.Lifecycle.initArgs {I} [8]) {CODE} {L}.storageLit := by\n"
+            f"        SolidCore.Refinement.Deploys (Verify.Lifecycle.initArgs {I} [8]) {CODE} {L}.storageLit := by\n"
             "  obtain ⟨hE, c, hc, hcb, -⟩ := Verify.LoopSource.Equiv.CounterCreated.counter_expected_created "
             "(n := 8) (Or.inr rfl) hK\n"
             f"  obtain ⟨c', hc', hl⟩ := {L}.statement\n"
@@ -256,6 +258,78 @@ class SourceModuleImport(unittest.TestCase):
         self.assertIn("import Verify.LoopSource.Equiv.CounterCreated\n", c)
         ss = generic.source_same_lean(NAME, b)
         self.assertIn("import Contracts.VerifyCounter.Source\n", ss)
+
+
+class ComposedPinnedApi(unittest.TestCase):
+    """Every externally qualified constant the Composed template itself writes (not the binding's
+    names) is a declaration of the pinned solidity-lean (tools/certify/solidity-lean.rev), at the
+    file and namespace below; the smoke box at 822e0c6c failed on Verify.Lifecycle.Deploys, which
+    does not exist (Deploys is SolidCore.Refinement's)."""
+
+    # name -> where it is declared at solidity-lean 822e0c6c
+    PINNED: typing.ClassVar[dict[str, str]] = {
+        "SolidCore.Verify.Generic.runtimeCode": "Verify/Generic/Expected.lean:190 (namespace SolidCore.Verify.Generic)",
+        "Verify.Lifecycle.Statement": "Verify/Lifecycle/Route.lean:101 (namespace Verify.Lifecycle)",
+        "Verify.Lifecycle.initArgs": "Verify/Lifecycle/Route.lean:44 (namespace Verify.Lifecycle)",
+        "SolidCore.Refinement.Deploys": "SolidCore/Refinement/Deploy.lean:25 (namespace SolidCore.Refinement)",
+    }
+
+    def test_no_stale_deploys(self):
+        t = generic.composed_lean(NAME, binding(BIND))
+        self.assertNotIn("Verify.Lifecycle.Deploys", t)
+        self.assertIn(
+            "        SolidCore.Refinement.Deploys (Verify.Lifecycle.initArgs "
+            "Verify.LoopSource.Equiv.CounterCtor.counterInit [8]) "
+            "(SolidCore.Verify.Generic.runtimeCode SolarTV.Export.Counter.bytecode) "
+            f"Certified.{NAME}.Lifecycle.storageLit := by\n",
+            t,
+        )
+
+    def test_template_constants_are_pinned(self):
+        b = binding(BIND)
+        t = generic.composed_lean(NAME, b)
+        bound = set()
+        for k in ("unit", "fuel", "init", "runtime", "source"):
+            bound.add(b[k].split(" ")[0])
+        for x in (
+            (
+                b["expected"]["binders"]
+                + " "
+                + b["expected"]["prop"]
+                + " "
+                + b["expected"]["term"]
+            )
+            .replace("(", " ")
+            .replace(")", " ")
+            .split()
+        ):
+            bound.add(x)
+        names = set(
+            re.findall(
+                r"\b(?:SolidCore|Verify|Contracts|SolarTV)(?:\.[A-Za-z_][A-Za-z0-9_']*)+",
+                "\n".join(
+                    line for line in t.splitlines() if not line.startswith("import ")
+                ),
+            )
+        )
+        template = {
+            n
+            for n in names
+            if n not in bound
+            and not n.startswith(("Verify.LoopSource.Equiv.CounterCtx.Kmax",))
+        }
+        self.assertEqual(template, set(self.PINNED), sorted(template))
+        self.assertEqual(
+            (HERE / "solidity-lean.rev").read_text().strip(),
+            "822e0c6c363bfc9fa686c3338c57743dc73cfd2e",
+        )
+
+    def test_reachable_through_imports(self):
+        """Composed imports NAME.Lifecycle, which imports Verify.Lifecycle.Route, which imports
+        SolidCore.Refinement.Deploy; Expected comes through the binding's expected.module."""
+        t = generic.composed_lean(NAME, binding(BIND))
+        self.assertIn(f"import {NAME}.Lifecycle\n", t)
+        self.assertIn("import Verify.Lifecycle.Route\n", life(binding(BIND)))
 
 
 class CreatedByControls(unittest.TestCase):

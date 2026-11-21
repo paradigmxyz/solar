@@ -2356,7 +2356,7 @@ theorem composed {e["binders"]} :
     {e["prop"]} ∧
       ∃ c, {src}.checked = .ok c ∧ {src}.CreatedBy c {init} {cre} ∧
         Verify.Lifecycle.Statement {bind["fuel"]} c {init} {code} {ws} {life}.storageLit ∧
-        Verify.Lifecycle.Deploys {cre} {code} {life}.storageLit := by
+        SolidCore.Refinement.Deploys {cre} {code} {life}.storageLit := by
   obtain ⟨hE, c, hc, hcb, -⟩ := {e["term"]}
   obtain ⟨c', hc', hl⟩ := {life}.statement
   rw [{life}.contract_same, hc] at hc'
@@ -3808,6 +3808,11 @@ REPLAY_KEYS = [
     ("status",),
     ("strict",),
     ("tier_reached",),
+    # The lifecycle tier's provenance-bound inputs: the binding (every key, source_module
+    # included), the argument words and the creation bytes they give.
+    ("lifecycle", "bind"),
+    ("lifecycle", "args"),
+    ("lifecycle", "creation_sha256"),
     ("solidity_lean", "executed_tree"),
     ("packages", "digest"),
     ("packages", "cache_sha256"),
@@ -4427,6 +4432,13 @@ def replay_main(a):
     ]
     if rec.get("contract"):
         cmd += ["--contract", rec["contract"]]
+    life = rec.get("lifecycle") or {}
+    if rec.get("requested_tier") == "lifecycle" and life.get("args") is not None:
+        cmd += ["--constructor-args", ",".join(str(int(w, 16)) for w in life["args"])]
+        if life.get("bind"):
+            bind_file = fresh_dir.parent / f"{fresh_dir.name}.bind.json"
+            bind_file.write_text(json.dumps(life["bind"]))
+            cmd += ["--lifecycle-bind", str(bind_file)]
     for flag, val in (
         ("--packages-from", a.packages_from),
         ("--probe-cache", a.probe_cache),

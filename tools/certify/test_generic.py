@@ -765,6 +765,14 @@ class ReplayClaims(unittest.TestCase):
                 build("cargo_env", {"CARGO_INCREMENTAL": "1"}),
                 None,
             ),
+            "lifecycle binding differs": (
+                1,
+                None,
+                lambda r: r.setdefault("lifecycle", {}).update(
+                    bind={"source_module": "Verify.LoopSource.Equiv.CounterCreated"}
+                ),
+                None,
+            ),
             "old provenance version 1": (
                 1,
                 lambda r: r["solar"]["build"].update(provenance_version=1),
