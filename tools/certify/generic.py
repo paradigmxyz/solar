@@ -4549,7 +4549,7 @@ def lifecycle_files_problem(rec, d):
         return "lifecycle files: bin_runtime_sha256 is not lifecycle/bin-runtime.hex's"
     try:
         words = b"".join(int(w, 16).to_bytes(32, "big") for w in life.get("args") or [])
-    except TypeError, ValueError, OverflowError:
+    except (TypeError, ValueError, OverflowError):  # fmt: skip
         return "lifecycle files: args are not 32-byte words"
     if creation != init + words:
         return "lifecycle files: args are not the words lifecycle/creation.hex appends to lifecycle/init.hex"

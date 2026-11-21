@@ -756,6 +756,9 @@ class LifecycleRecordReplay(unittest.TestCase):
             "lifecycle.bind": lambda r: r["lifecycle"]["bind"].update(
                 source_module="Spec.Other"
             ),
+            "lifecycle.bind (source)": lambda r: r["lifecycle"]["bind"].update(
+                source="Spec.other"
+            ),
             "lifecycle.creation_sha256": lambda r: r["lifecycle"].update(
                 creation_sha256="5" * 64
             ),
@@ -767,6 +770,7 @@ class LifecycleRecordReplay(unittest.TestCase):
                 built=False
             ),
             "status": lambda r: r.update(status="UNSUPPORTED-lifecycle"),
+            "tier_reached": lambda r: r.update(tier_reached="none"),
             "solidity_lean.inputs_sha256": lambda r: r["solidity_lean"][
                 "inputs_sha256"
             ].update(x="0"),
@@ -779,7 +783,7 @@ class LifecycleRecordReplay(unittest.TestCase):
                 code, line = self.replay(self.run_driver(pathlib.Path(t)), f)
                 self.assertEqual(code, 1, line)
                 self.assertIn(
-                    f"REJECTED: replay: {key} differs between the record and the fresh run",
+                    f"REJECTED: replay: {key.split(' ')[0]} differs between the record and the fresh run",
                     line,
                 )
 
@@ -1038,6 +1042,17 @@ class ReplayClaims(unittest.TestCase):
             self.assertIn("not one this run's build produced", str(e.exception))
         finally:
             generic.SOLAR_ARTIFACT = old
+
+    def test_non_lifecycle_fresh_command_has_no_lifecycle_inputs(self):
+        """A certified-tier record's fresh command carries neither --constructor-args nor
+        --lifecycle-bind."""
+        with tempfile.TemporaryDirectory() as t:
+            self.fresh_cmd = None
+            code, line = self.replay(self.make(pathlib.Path(t)))
+            self.assertEqual(code, 0, line)
+            self.assertIsNotNone(self.fresh_cmd)
+            self.assertNotIn("--constructor-args", self.fresh_cmd)
+            self.assertNotIn("--lifecycle-bind", self.fresh_cmd)
 
     def test_non_lifecycle_record_without_lifecycle_keys(self):
         """A record of another tier without any lifecycle key replays as before."""
