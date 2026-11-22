@@ -193,6 +193,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
         raise ValueError("no changed pass pairs captured")
     chosen = select(rows, limit, seed)
     results = []
+    dispatch_reports = {}
     for index, row in enumerate(chosen):
         target = folder / f"check-{index:03}.json"
         start = time.monotonic()
@@ -209,11 +210,19 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             and region["kind"] == "region"
             and row["rejection"] == "incoming EVM stack height is unknown"
         )
-        prune = row["layer"] == "mir" and row["rejection"] in {
-            "function was removed or its identity changed",
-            "shared MIR declarations or phase changed; no function-local claim",
-        }
-        if row["rejection"] and not (prefix or universal_region or prune):
+        dispatch = row["layer"] == "mir" and row["pass"] == "lower-dispatch"
+        dispatch_key = (*row["paths"], row["target"])
+        prune = row["layer"] == "mir" and (
+            dispatch
+            or row["rejection"]
+            in {
+                "function was removed or its identity changed",
+                "shared MIR declarations or phase changed; no function-local claim",
+            }
+        )
+        if dispatch and dispatch_key in dispatch_reports:
+            target, record = dispatch_reports[dispatch_key]
+        elif row["rejection"] and not (prefix or universal_region or prune):
             record = {
                 "version": 1,
                 "status": "unsupported",
@@ -304,6 +313,8 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                     "diagnostic": "checker wall-time budget",
                 }
                 audit.write(target, record)
+        if dispatch:
+            dispatch_reports[dispatch_key] = (target, record)
         results.append(
             {
                 "id": row["id"],

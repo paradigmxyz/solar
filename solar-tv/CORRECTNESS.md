@@ -585,8 +585,17 @@ the direct interpreter returns the implicit runtime's empty revert with
 the original journal and byte memory for every argument-free frame in the
 model's memory domain and every work bound at least as large as the path.
 This proves the runtime boundary for modules without callable routes.
-Selector cases, wrapper guards, debug revert strings and EVM gas remain
-outside this certificate.
+The routed-dispatch certificate compares the implicit ABI route selection
+with the actual interpreter prefix. The kernel checks that an argument-free
+wrapper starts with the original journal, byte memory, returndata and
+execution state, or that dispatch terminates with the original journal and
+empty revert data. Kernel-checked signature agreement preserves the prefix
+when the prover sets aside bodies beyond the cut. The retained-function
+proof also checks direct and tail-call targets after function ID renumbering.
+This covers selector routing, short calldata, receive and fallback, and
+nonpayable value guards for unmodified non-library wrappers. Calldata guard
+hoisting that changes wrapper bodies, library delegatecall guards, debug
+payloads and EVM gas remain open.
 
 The phase-only form of `lower-evm-shaped` is covered by a module certificate.
 Both original modules pass phase validation and retain the same canonical

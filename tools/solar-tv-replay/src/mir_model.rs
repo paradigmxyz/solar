@@ -205,6 +205,24 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
         })
         .collect::<Result<Vec<_>, String>>()?;
     let Some(id) = entry else {
+        let route = |id| {
+            let func = module.function(id);
+            json!({
+                "id": id.index(),
+                "payable": func.attributes.state_mutability.to_str() == "payable",
+                "wrapper": func.attributes.is_abi_wrapper,
+            })
+        };
+        let selectors = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, f)| {
+                let selector = u32::from_be_bytes(f.selector?);
+                let mut row = route(id);
+                row["selector"] = selector.into();
+                Some(row)
+            })
+            .collect::<Vec<_>>();
         return Ok(json!({
             "version": 1,
             "structural_module": true,
@@ -213,6 +231,10 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
             "constructor": module.constructor().map(|id| id.index()),
             "receive": module.receive().map(|id| id.index()),
             "fallback": module.fallback().map(|id| id.index()),
+            "selectors": selectors,
+            "receive_route": module.receive().map(route),
+            "fallback_route": module.fallback().map(route),
+            "library": module.is_library,
             "functions": functions,
         }));
     };

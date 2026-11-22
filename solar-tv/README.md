@@ -1776,8 +1776,15 @@ and records the retained function table. Lean checks direct call targets
 after the printer places the new entry before ordinary functions. The
 `empty-runtime-dispatch` certificate covers argument-free entry with at most
 64 KiB initial memory.
-Selector and ABI-wrapper routing, debug revert payloads, and physical gas
-need separate proofs.
+For non-library modules with unchanged ABI wrapper bodies, the
+`routed-runtime-dispatch` certificate compares implicit selector, receive,
+and fallback routing against the actual typed MIR execution. It checks the
+full frame at the selected wrapper entry, or the empty revert, for symbolic
+calldata and call value. This covers short selector prefixes and the
+dispatcher-wide nonpayable guard. The report records the wrapper counts and
+the MIR work bound. Hoisted calldata checks that edit wrapper bodies, library
+delegatecall guards, debug revert payloads, and physical gas need separate
+proofs.
 
 ### Allocation prefixes before unchanged cyclic callees
 
@@ -1901,6 +1908,8 @@ Each case's `pass_coverage` groups captured, unselected and unverified regions
 by IR layer, pass and EVM target. It preserves the separate checker statuses,
 including unsupported inputs and timeouts. The counts cover the captured
 corpus; a pass that never changes that corpus needs other inputs.
+Selected records for the same dispatch pair share the module-level proof
+report. The evaluator retains each capture ID in the coverage totals.
 
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or

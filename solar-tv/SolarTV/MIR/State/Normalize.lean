@@ -75,8 +75,10 @@ dsimproc_decl reduceConclude (conclude _ _ _) := fun expression => do
 
 /-- Normalize either a plain or an instrumented interpreter run using its own
 equations for the same kernel-checked transition. -/
-def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Name) : SimpM Simp.Step := do
-  let args := expression.getAppArgs
+def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Name)
+    (prefixCount : Nat := 0) : SimpM Simp.Step := do
+  let leading := expression.getAppArgs.extract 0 prefixCount
+  let args := expression.getAppArgs.extract prefixCount expression.getAppArgs.size
   unless args.size == 4 do return .continue
   let some fuel ← getNatValue? args[0]! | return .continue
   if fuel = 0 then return .done {expr := ← whnf expression}
@@ -97,7 +99,7 @@ def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Nam
     else simp step
   let reduced ← whnf reduction.expr
   let proof ← reduction.getProof
-  let parameters := #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
+  let parameters := leading ++ #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
   let mut resolved := true
   let equation ← if reduced.isAppOf ``Except.error then
       pure (mkAppN (mkConst onError) (parameters ++ #[reduced.appArg!,proof]))

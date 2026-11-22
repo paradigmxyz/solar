@@ -25,6 +25,20 @@ impl<'a> MirSnapshot<'a> {
         if self.snapshot.before == after {
             return Ok(());
         }
+        if !gcx.sess.opts.unstable.solar_tv_capture
+            && self.before.dispatch_entry().is_none()
+            && module.dispatch_entry().is_some()
+            && module.functions.len() == self.before.functions.len() + 1
+        {
+            return self.snapshot.check(
+                gcx,
+                "mir",
+                pass,
+                module.name,
+                &after,
+                (None, Some("runtime dispatch was materialized")),
+            );
+        }
         let prefix = |text: &str| {
             text.lines().take_while(|line| !line.starts_with("fn @")).collect::<Vec<_>>().join("\n")
         };

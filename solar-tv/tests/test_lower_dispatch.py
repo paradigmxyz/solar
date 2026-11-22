@@ -3,11 +3,13 @@
 import gzip
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from test_cli import CLI, ROOT, SOLAR
 
@@ -117,7 +119,11 @@ class LowerDispatchTests(unittest.TestCase):
     def test_live_dispatch_audit_keeps_bytecode(self):
         source = evaluate.inputs(self.case)
         baseline, _ = evaluate.compile_input(SOLAR, source, self.folder)
-        audit = self.folder / "audit"
+        self.check_audit(
+            source, baseline, self.folder / "audit", "empty-runtime-dispatch"
+        )
+
+    def check_audit(self, source, baseline, audit, proof):
         run = subprocess.run(
             [SOLAR, "--standard-json", "-j1", f"-Zsolar-tv={audit}"],
             input=json.dumps(source),
@@ -139,7 +145,7 @@ class LowerDispatchTests(unittest.TestCase):
             if row["context"].startswith("solar-tv: mir pass `lower-dispatch`")
         )
         self.assertEqual(dispatch["status"], "verified")
-        self.assertEqual(dispatch["region"]["proof"], "empty-runtime-dispatch")
+        self.assertEqual(dispatch["region"]["proof"], proof)
 
     def test_retained_function_and_bad_dispatchers(self):
         record = self.check_pair(self.before, self.after, 0)
@@ -167,4 +173,73 @@ class LowerDispatchTests(unittest.TestCase):
         )
         report = self.check_pair(routed, self.after, 2)
         self.assertEqual(report["status"], "unsupported")
-        self.assertIn("source with no runtime routes", report["diagnostic"])
+        self.assertIn("explicit non-library ABI wrappers", report["diagnostic"])
+
+    def test_selector_receive_and_nonpayable_fallback(self):
+        folder = self.folder / "routed"
+        folder.mkdir()
+        source = evaluate.inputs(self.case)
+        source["sources"]["C.sol"]["content"] = """
+contract C {
+    function nonces(address) external pure returns (uint256) { return 7; }
+    receive() external payable {}
+    fallback() external {}
+}
+"""
+        baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+        captured, _ = evaluate.compile_input(SOLAR, source, folder, capture=True)
+        self.assertEqual(baseline, captured)
+        row = next(
+            r for r in evaluate.captures(folder) if r["pass"] == "lower-dispatch"
+        )
+        before, after = row["paths"]
+        proof = self.check_pair(before, after, 0)
+        self.assertEqual(proof["region"]["proof"], "routed-runtime-dispatch")
+        self.assertEqual(proof["region"]["selectors"], 1)
+        self.assertTrue(proof["region"]["receive"])
+        self.assertTrue(proof["region"]["fallback"])
+        self.check_audit(source, baseline, folder / "audit", "routed-runtime-dispatch")
+        # A constructor keeps the printed module prefix unchanged as dispatch is
+        # materialized, so capture records several changed function regions.
+        unit = source["sources"]["C.sol"]
+        unit["content"] = unit["content"].replace(
+            "contract C {",
+            "contract C { constructor() { require(msg.sender != address(0)); }",
+        )
+        with (
+            patch.object(evaluate, "inputs", return_value=source),
+            patch.object(
+                evaluate,
+                "select",
+                side_effect=lambda rows, *_: [
+                    r for r in rows if r["pass"] == "lower-dispatch"
+                ],
+            ),
+        ):
+            evaluated = evaluate.evaluate_case(
+                self.case, SOLAR, folder / "evaluation", None, "0", 30
+            )
+        checks = evaluated["checks"]
+        self.assertGreater(len(checks), 1)
+        self.assertEqual({check["status"] for check in checks}, {"verified"})
+        self.assertEqual(
+            {check["proof_mode"] for check in checks}, {"routed-runtime-dispatch"}
+        )
+        self.assertEqual(len({check["report"] for check in checks}), 1)
+        text = after.read_text()
+        self.assertIn("0x7ecebe00 =>", text)
+        broken = folder / "wrong-selector.mir"
+        broken.write_text(text.replace("0x7ecebe00 =>", "0x7ecebe01 =>"))
+        report = self.check_pair(before, broken, 2)
+        self.assertEqual(report["status"], "unsupported")
+        self.assertIn("dispatch proof did not close", report["diagnostic"])
+        without_short_guard, count = re.subn(
+            r"((v\d+) = lt v\d+, 4\n)    jumpi \2, bb\d+, (bb\d+)",
+            r"\1    jump \3",
+            text,
+        )
+        self.assertEqual(count, 1)
+        broken.write_text(without_short_guard)
+        report = self.check_pair(before, broken, 2)
+        self.assertEqual(report["status"], "unsupported")
+        self.assertIn("dispatch proof did not close", report["diagnostic"])

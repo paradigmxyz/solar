@@ -1,11 +1,11 @@
-"""Prove dispatch materialization for modules with no callable runtime routes."""
+"""Prove dispatch materialization from independently parsed module data."""
 
 import hashlib
 import re
 import tempfile
 from pathlib import Path
 
-from . import audit, mir_state, native, type_prune
+from . import audit, mir_state, native, routed_dispatch, type_prune
 from .common import Program, Unsupported
 
 
@@ -48,24 +48,13 @@ def check(texts, before, after, version, timeout, executable):
     source, target = models = [
         type_prune.export(text, executable, timeout) for text in texts
     ]
-    if source["dispatch_entry"] is not None or source["runtime_entries"]:
-        raise Unsupported(
-            "dispatch certificate requires a source with no runtime routes"
-        )
+    if source["dispatch_entry"] is not None:
+        raise Unsupported("dispatch certificate requires an implicit source entry")
     entry = target["dispatch_entry"]
-    if (
-        entry is None
-        or target["runtime_entries"]
-        or target["receive"] is not None
-        or target["fallback"] is not None
-    ):
-        raise Unsupported(
-            "dispatch certificate requires a single rejecting runtime root"
-        )
+    if entry is None or not 0 <= entry < len(after):
+        raise Unsupported("dispatch certificate requires a resolved runtime entry")
     retained = list(after.items())
     dispatcher, _ = retained.pop(entry)
-    if list(before.items()) != retained:
-        raise Unsupported("dispatch materialization changed retained functions")
     constructor = source["constructor"]
     if constructor is not None and constructor >= entry:
         constructor += 1
@@ -75,21 +64,41 @@ def check(texts, before, after, version, timeout, executable):
         if [body["id"] for body in model["functions"]] != list(range(len(table))):
             raise Unsupported("module export changed the function ID table")
 
-    steps, path = rejecting_path(target["functions"][entry])
     definitions = {
         row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
     }
-    code = PRELUDE
+    code = PRELUDE + "set_option maxRecDepth 16384\nset_option maxHeartbeats 2000000\n"
     for side, model in zip(("before", "after"), models, strict=True):
         functions = ",".join(
             mir_state.function_body(body, definitions) for body in model["functions"]
         )
         code += f"def {side} : MIR.State.Functions := [{functions}]\n"
     code += f"""
-def sourceRoutes : List Nat := {source["runtime_entries"]}
 def entry : Nat := {entry}
 def dispatcher : MIR.State.Function := (after[entry]'(by decide)).2
 theorem retained : after = MIR.LowerDispatch.insertDispatcher before entry dispatcher := by rfl
+#print axioms retained
+"""
+    if source["runtime_entries"]:
+        body, evidence = routed_dispatch.proof(
+            source, target, entry, definitions, version, before, retained
+        )
+        scope = "routed-dispatch"
+        code += body
+    else:
+        if target["runtime_entries"] or any(
+            target[role] is not None for role in ("receive", "fallback")
+        ):
+            raise Unsupported(
+                "dispatch certificate requires a single rejecting runtime root"
+            )
+        if list(before.items()) != retained:
+            raise Unsupported("dispatch materialization changed retained functions")
+        steps, path = rejecting_path(target["functions"][entry])
+        scope = "empty-dispatch"
+        evidence = {"work_steps": steps}
+        code += f"""
+def sourceRoutes : List Nat := []
 theorem path : MIR.LowerDispatch.RejectPath dispatcher 0 {steps} := {path}
 theorem dispatch (cfg : MIR.State.Config) (fuel : Nat) (frame : MIR.State.Frame)
     (depth : cfg.callDepth ≠ 0) (args : frame.arguments = [])
@@ -98,7 +107,6 @@ theorem dispatch (cfg : MIR.State.Config) (fuel : Nat) (frame : MIR.State.Frame)
       MIR.State.execute (fuel + {steps}) cfg after entry frame :=
   MIR.LowerDispatch.certificate sourceRoutes rfl after entry dispatcher rfl rfl
     {steps} path cfg fuel frame depth args bounded
-#print axioms retained
 #print axioms dispatch
 """
     built = build_model(timeout)
@@ -128,14 +136,14 @@ theorem dispatch (cfg : MIR.State.Config) (fuel : Nat) (frame : MIR.State.Frame)
             "",
             canonical_ir=text,
             replay_ir=text,
-            scope="empty-dispatch",
+            scope=scope,
             evm_version=version,
             import_evidence={
-                "kind": "kernel-checked-empty-dispatch",
+                "kind": f"kernel-checked-{scope}",
                 "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
                 "retained": list(before),
                 "dispatcher": dispatcher,
-                "work_steps": steps,
+                **evidence,
             },
         )
         for text in texts

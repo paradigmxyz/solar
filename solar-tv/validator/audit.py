@@ -204,6 +204,15 @@ def record(
                     "retained function data and constructor root unchanged; physical gas and backend layout are outside this proof",
                 ]
             )
+        elif program and program.scope == "routed-dispatch":
+            assumptions.extend(
+                [
+                    "explicit non-library ABI wrappers with unchanged executable bodies",
+                    "initial memory at most 64 KiB and calldata length representable as a word; routing opcode availability checked against the target",
+                    "symbolic calldata and call value; exact wrapper entry frame or empty revert proved using direct MIR transitions",
+                    "wrapper execution, backend placement and physical gas outside the routing certificate",
+                ]
+            )
         elif program and program.scope == "fresh-heap-function":
             assumptions.extend(
                 [
@@ -463,6 +472,7 @@ def record(
                 "unused-type-erasure",
                 "phase-advance",
                 "empty-dispatch",
+                "routed-dispatch",
                 "allocation-prefix",
                 "calldata-induction",
                 "memory-induction",
@@ -494,6 +504,7 @@ def record(
                 "unused-type-erasure",
                 "phase-advance",
                 "empty-dispatch",
+                "routed-dispatch",
                 "calldata-induction",
                 "memory-induction",
                 "bounded-fill",
@@ -552,6 +563,7 @@ def record(
                 "unused-type-erasure",
                 "phase-advance",
                 "empty-dispatch",
+                "routed-dispatch",
                 "calldata-induction",
                 "memory-induction",
                 "bounded-fill",
@@ -651,6 +663,28 @@ def record(
                 },
             }
             if program and program.scope == "empty-dispatch"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "routed-runtime-dispatch",
+                    **{
+                        key: program.import_evidence[key]
+                        for key in (
+                            "dispatcher",
+                            "retained",
+                            "work_steps",
+                            "selectors",
+                            "receive",
+                            "fallback",
+                        )
+                    },
+                },
+            }
+            if program and program.scope == "routed-dispatch"
             else {}
         ),
         **(

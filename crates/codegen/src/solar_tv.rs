@@ -91,8 +91,7 @@ impl<'a> Snapshot<'a> {
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
         // Deleted functions require rooted function-table correspondence, and unused type
-        // declarations and phase-only advances require resolved module identity. Other shared
-        // declaration and phase edits need a separate proof.
+        // declarations, phase advances and materialized dispatch have module certificates.
         // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()
@@ -107,6 +106,7 @@ impl<'a> Snapshot<'a> {
                 rejection,
                 Some("function was removed or its identity changed")
                     | Some("shared MIR declarations or phase changed; no function-local claim")
+                    | Some("runtime dispatch was materialized")
             );
         let rejection = if prefix || universal_region || prune { None } else { rejection };
         let pair = tempfile::Builder::new()
