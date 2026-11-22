@@ -104,6 +104,36 @@ def select(rows, limit, seed):
     return ordered[:limit]
 
 
+def pass_coverage(rows, checks):
+    passes = {}
+    for row in rows:
+        key = (row["layer"], row["pass"], row["target"])
+        record = passes.setdefault(
+            key,
+            {
+                "layer": key[0],
+                "pass": key[1],
+                "target": key[2],
+                "captured": 0,
+                "unselected": 0,
+                "statuses": dict.fromkeys(audit.STATUSES, 0),
+            },
+        )
+        record["captured"] += 1
+        record["unselected"] += 1
+    for check in checks:
+        record = passes[check["layer"], check["pass"], check["target"]]
+        record["unselected"] -= 1
+        record["statuses"][check["status"]] += 1
+    return [
+        {
+            **record,
+            "unverified": record["captured"] - record["statuses"]["verified"],
+        }
+        for _, record in sorted(passes.items())
+    ]
+
+
 def compile_input(solar, source, directory, *, capture=False, timeout=120):
     args = [solar, "--standard-json", "-j1"]
     if capture:
@@ -279,6 +309,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 "id": row["id"],
                 "layer": row["layer"],
                 "pass": row["pass"],
+                "target": row["target"],
                 "status": record["status"],
                 "capture_rejection": row["rejection"],
                 "proof_mode": record.get("region", {}).get("proof", "original"),
@@ -298,6 +329,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
         "selected": len(chosen),
         "unselected": len(rows) - len(chosen),
         "checks": results,
+        "pass_coverage": pass_coverage(rows, results),
     }
 
 
@@ -306,11 +338,24 @@ def main():
     parser.add_argument("--solar", type=Path, default=ROOT / "target/debug/solar")
     parser.add_argument("--manifest", type=Path, default=TV / "evaluation.json")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument(
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
         "--limit",
         type=int,
         default=24,
         help="checks per contract, including unsupported regions",
+    )
+    selection.add_argument(
+        "--all",
+        dest="limit",
+        action="store_const",
+        const=None,
+        help="check every captured region for each selected contract",
+    )
+    parser.add_argument(
+        "--require-verified",
+        action="store_true",
+        help="with --all, fail if any captured region remains unverified",
     )
     parser.add_argument("--seed", default="0")
     parser.add_argument(
@@ -320,8 +365,12 @@ def main():
     args = parser.parse_args()
     if os.environ.get("SOLAR_TV_GAS"):
         parser.error("unset SOLAR_TV_GAS for the pinned sufficient-gas evaluation")
-    if not 1 <= args.limit <= 128 or not 1 <= args.timeout <= 120:
+    if (
+        args.limit is not None and not 1 <= args.limit <= 128
+    ) or not 1 <= args.timeout <= 120:
         parser.error("limit must be 1..128 and timeout 1..120")
+    if args.require_verified and args.limit is not None:
+        parser.error("--require-verified needs --all")
     if args.output.exists():
         parser.error("output must be a fresh directory")
     args.output = args.output.resolve()
@@ -358,7 +407,11 @@ def main():
         "timeout": args.timeout,
         "cases": [],
         "expected_cases": len(cases),
-        "sampling": "round-robin across layers and passes, stable hash order within groups; includes rejected and unsupported regions",
+        "sampling": (
+            "all captured regions, including rejected and unsupported regions"
+            if args.limit is None
+            else "round-robin across layers and passes, stable hash order within groups; includes rejected and unsupported regions"
+        ),
         "errors": [],
     }
     for case in cases:
@@ -399,5 +452,13 @@ def main():
             or counts["counterexample"]
             or counts["error"]
             or not report["semantics_unchanged"]
+            or (
+                args.require_verified
+                and any(
+                    case["captured"]
+                    != sum(c["status"] == "verified" for c in case["checks"])
+                    for case in report["cases"]
+                )
+            )
         )
     )

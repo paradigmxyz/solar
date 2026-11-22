@@ -24,6 +24,22 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(chosen, evaluate.select(list(reversed(rows)), 6, "0"))
         self.assertEqual({row["layer"] for row in chosen[:2]}, {"mir", "evmir"})
         self.assertEqual(len({(r["layer"], r["pass"]) for r in chosen}), 6)
+        self.assertEqual(
+            {r["id"] for r in evaluate.select(rows, None, "0")}, {r["id"] for r in rows}
+        )
+
+    def test_pass_coverage_includes_unselected_and_unsupported_regions(self):
+        mir = {"layer": "mir", "pass": "egraph", "target": "cancun"}
+        evm = {"layer": "evmir", "pass": "block-layout", "target": "cancun"}
+        checks = [{**mir, "status": "verified"}, {**evm, "status": "unsupported"}]
+        by_pass = {
+            row["pass"]: row for row in evaluate.pass_coverage([evm, evm, mir], checks)
+        }
+        self.assertEqual(by_pass["block-layout"]["captured"], 2)
+        self.assertEqual(by_pass["block-layout"]["unselected"], 1)
+        self.assertEqual(by_pass["block-layout"]["unverified"], 2)
+        self.assertEqual(by_pass["block-layout"]["statuses"]["unsupported"], 1)
+        self.assertEqual(by_pass["egraph"]["unverified"], 0)
 
     def test_capture_is_unchecked_and_bytecode_neutral(self):
         source = {

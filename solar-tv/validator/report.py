@@ -206,7 +206,7 @@ def replay_command(
     world: Path | None = None,
     prefix: str | None = None,
     return_path: str | None = None,
-    mint_layout: bool = False,
+    erc20_layout: str | None = None,
     prune: bool = False,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
@@ -224,8 +224,8 @@ def replay_command(
         argv.extend(["--prefix", prefix])
     if return_path is not None:
         argv.extend(["--return-path", return_path])
-    if mint_layout:
-        argv.append("--mint-layout")
+    if erc20_layout:
+        argv.append(f"--{erc20_layout}-layout")
     if prune:
         argv.append("--prune")
     if world is not None:

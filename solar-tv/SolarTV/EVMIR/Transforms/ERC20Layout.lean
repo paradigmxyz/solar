@@ -1,10 +1,10 @@
 import SolarTV.EVMIR.State.BudgetedPath
 import SolarTV.EVMIR.State.Observe
 
-/-! The ERC20 mint layout certificate uses these shared data effects when
+/-! The ERC20 update layout certificate uses these shared data effects when
 checking each emitted instruction. Calldata is read from the real environment;
 current and original storage, access warmth and refunds come from the journal. -/
-namespace SolarTV.EVM.MintLayout
+namespace SolarTV.EVM.ERC20Layout
 open EvmRules SolarTV.Execution State State.BudgetedPath
 
 def frame (code : State.CodeChunks) (env : World.Environment) (pc : Nat)
@@ -16,6 +16,11 @@ def expandTo (memory : List Byte) (size : Nat) : List Byte :=
 
 def storedWord (memory : List Byte) (size offset : Nat) (value : Word) : List Byte :=
   writeBytes (expandTo memory size) offset (wordBytes value)
+
+/-- The ABI words used by the ERC20 balance mapping lookup. Each caller
+checks that its physical memory stores establish these bytes before hashing. -/
+def balanceSlot (owner : Word) : Word :=
+  Keccak.hash (readBytes (storedWord (storedWord [] 32 0 owner) 64 32 0) 0 64)
 
 def readSlot (journal : Journal) (owner : Address) (slot : Word) : Word :=
   slotsRead (account journal owner).storage slot
@@ -131,4 +136,4 @@ theorem Compared.refinement {before after : Run} {world : Journal} {gas : Nat} {
   rw [proof.prior,proof.rewrite,← proof.terminal]
   exact expected_refines world _ _ _ gas proof.admission proof.debit
 
-end SolarTV.EVM.MintLayout
+end SolarTV.EVM.ERC20Layout

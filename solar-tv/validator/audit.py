@@ -157,10 +157,10 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "mint-layout":
+        if program and program.scope in {"mint-layout", "burn-layout"}:
             assumptions.extend(
                 [
-                    "Cancun bytecode ABI entry selected by the actual mint selector; writable frame with empty stack, memory and returndata",
+                    f"Cancun bytecode ABI entry selected by {program.selector}; writable frame with empty stack, memory and returndata",
                     "all calldata bytes, value, initial journals and incoming gas under that entry contract",
                     "all five terminal paths proved from PC zero; instruction charges, SSTORE sentry and frame rollback checked",
                     "same funded effects and no less remaining gas; original out-of-gas may become a funded exit",
@@ -480,6 +480,7 @@ def record(
                 "builtin-lowering",
                 "allocation-prefix",
                 "mint-layout",
+                "burn-layout",
                 "interior-window",
                 "source-identity",
                 "stack-layout",
@@ -520,7 +521,7 @@ def record(
             "exact-caller-continuation"
             if program and program.gas == "exact-caller-continuation"
             else "refine"
-            if program and program.scope == "mint-layout"
+            if program and program.scope in {"mint-layout", "burn-layout"}
             else "unpriced-structural"
             if program
             and program.scope
@@ -657,10 +658,10 @@ def record(
                 "region": {
                     "kind": "abi-entry",
                     "name": program.selector,
-                    "proof": "kernel-checked-mint-gas-refinement",
+                    "proof": f"kernel-checked-{program.scope.removesuffix('-layout')}-gas-refinement",
                 },
             }
-            if program and program.scope == "mint-layout"
+            if program and program.scope in {"mint-layout", "burn-layout"}
             else {}
         ),
         **(

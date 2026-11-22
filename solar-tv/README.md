@@ -1271,18 +1271,23 @@ continuation after erasing the root code being compared. The proof covers this
 funded route. A different path or an exact gas comparison requires a separate
 check.
 
-The symbolic mint check covers the whole selected ABI entry, including reverts:
+The symbolic check covers the selected mint or burn ABI entry through its exit:
 
 ```sh
 solar-tv/solar-tv evmir before.evmir after.evmir \
   --mint-layout --world mint-world.json --report mint-layout.json
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --burn-layout --world burn-world.json --report burn-layout.json
 ```
 
 The kernel checks both byte images from PC zero for arbitrary calldata with
-the mint selector, call value, current and original storage, access warmth,
-and incoming gas. The entry starts in a writable Cancun frame with empty
-stack, memory and returndata. It covers nonpayable calls, malformed ABI input,
-the zero recipient, supply overflow and successful minting.
+the selected entry's selector, call value, current and original storage,
+access warmth, and incoming gas. The entry starts in a writable Cancun frame with empty
+stack, memory and returndata. Both entries cover nonpayable calls and
+malformed ABI input. Mint covers the zero recipient and supply overflow.
+Burn covers the zero sender and insufficient sender balance, including the
+sender, balance and amount in the revert payload. Burn replay uses selector
+`0x9dc29fac` followed by the ABI-encoded sender and amount.
 
 Each version has its own exact gas threshold. The check includes memory
 expansion, storage charges, the SSTORE sentry and rollback on exhaustion.
@@ -1290,6 +1295,9 @@ When the old version finishes without exhausting gas, the new version
 produces the same exit data and journal and leaves at least as much gas.
 The world fixture is for replay. The report records both interpreters'
 observations just below and at the two thresholds.
+The burn regression also probes the supply store with too little gas to pay
+for it, after the sender store has executed. Both interpreters confirm that
+the original storage is restored and the log list stays empty.
 
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
@@ -1845,6 +1853,20 @@ hash ordering inside each group. Rejected and unsupported regions stay in the
 denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
+
+To check every captured region in the selected corpus, use `--all` in place of
+`--limit`. Add `--require-verified` to fail the run when a captured region lacks
+a proof:
+
+```sh
+solar-tv/evaluate --all --require-verified --timeout 30 \
+  --output target/tv-exhaustive
+```
+
+Each case's `pass_coverage` groups captured, unselected and unverified regions
+by IR layer, pass and EVM target. It preserves the separate checker statuses,
+including unsupported inputs and timeouts. The counts cover the captured
+corpus; a pass that never changes that corpus needs other inputs.
 
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or

@@ -1,4 +1,4 @@
-"""Propose metered symbolic routes through the emitted ERC20Mock mint entry."""
+"""Prove gas refinement of emitted ERC20Mock entries through shared layout code."""
 
 import hashlib
 import json
@@ -11,9 +11,8 @@ from . import audit, entry_proof, native, world
 from .call_budget import decode_runtime
 from .common import Inconclusive, Program, Unsupported
 
-SELECTOR = 0x40C10F19
-MODULE = "SolarTV.EVMIR.Transforms.MintLayout"
-HEADER = """open SolarTV EvmRules Execution EVM.MintLayout EVM.State EVM.State.BudgetedPath
+MODULE = "SolarTV.EVMIR.Transforms.ERC20Layout"
+HEADER = """open SolarTV EvmRules Execution EVM.ERC20Layout EVM.State EVM.State.BudgetedPath
 set_option autoImplicit false
 set_option maxRecDepth 8192
 set_option maxHeartbeats 6000000
@@ -22,40 +21,79 @@ set_option linter.unusedSimpArgs false
 set_option linter.unusedVariables false
 """
 
-HEAD = "(readWord env.input 0)"
-RECIPIENT = "(readWord env.input 4)"
+ADDRESS = "(readWord env.input 4)"
 AMOUNT = "(readWord env.input 36)"
-SELECTED = f"(Evm.shr 224 {HEAD})"
+SELECTED = "(Evm.shr 224 (readWord env.input 0))"
 SUPPLY = "(readSlot journal env.address 2)"
-ADDITION = f"(Evm.add {SUPPLY} {AMOUNT})"
-# These are branch predicates, not a separate implementation of mint.
-GUARDS = {
-    "value": "env.value",
-    "abi": f"(Evm.or (Evm.lt (BitVec.ofNat 256 env.input.length) 68) (Evm.shr 160 {RECIPIENT}))",
-    "recipient": f"(Evm.iszero {RECIPIENT})",
-    "overflow": f"(Evm.lt {ADDITION} {SUPPLY})",
-}
-CASES = {
-    "Nonpayable": {"value": True},
-    "Malformed": {"value": False, "abi": True},
-    "ZeroAddress": {"value": False, "abi": False, "recipient": True},
-    "Overflow": {"value": False, "abi": False, "recipient": False, "overflow": True},
-    "Success": {"value": False, "abi": False, "recipient": False, "overflow": False},
+BALANCE = f"(readSlot journal env.address (balanceSlot {ADDRESS}))"
+
+# The kernel checks these predicates against the actual JUMPI operands.
+COMMON_GUARDS = (
+    ("value", "Nonpayable", "env.value"),
+    (
+        "abi",
+        "Malformed",
+        f"(Evm.or (Evm.lt (BitVec.ofNat 256 env.input.length) 68) (Evm.shr 160 {ADDRESS}))",
+    ),
+    ("address", "ZeroAddress", f"(Evm.iszero {ADDRESS})"),
+)
+
+
+@dataclass(frozen=True)
+class Entry:
+    name: str
+    selector: int
+    guard: tuple[str, str, str]
+
+    @property
+    def branches(self):
+        return (*COMMON_GUARDS, self.guard)
+
+    def cases(self):
+        cases = {}
+        taken = {}
+        for key, name, _ in self.branches:
+            cases[name] = {**taken, key: True}
+            taken[key] = False
+        cases["Success"] = taken
+        return cases
+
+    def parameters(self, case):
+        guards = " ".join(
+            f"(h{key} : {guard} {'≠' if case[key] else '='} 0)"
+            for key, _, guard in self.branches
+            if key in case
+        )
+        return (
+            "(env : World.Environment) (journal : Journal) (writable : env.isStatic = false) "
+            f"(selected : {SELECTED} = {self.selector}) {guards}"
+        )
+
+
+ENTRIES = {
+    "mint": Entry(
+        "mint",
+        0x40C10F19,
+        (
+            "overflow",
+            "Overflow",
+            f"(Evm.lt (Evm.add {SUPPLY} {AMOUNT}) {SUPPLY})",
+        ),
+    ),
+    "burn": Entry(
+        "burn",
+        0x9DC29FAC,
+        (
+            "balance",
+            "InsufficientBalance",
+            f"(Evm.lt {BALANCE} {AMOUNT})",
+        ),
+    ),
 }
 
 
 def args(case):
     return "env journal writable selected " + " ".join(f"h{k}" for k in case)
-
-
-def parameters(case):
-    guards = " ".join(
-        f"(h{k} : {GUARDS[k]} {'≠' if taken else '='} 0)" for k, taken in case.items()
-    )
-    return (
-        "(env : World.Environment) (journal : Journal) (writable : env.isStatic = false) "
-        f"(selected : {SELECTED} = {SELECTOR}) {guards}"
-    )
 
 
 def list_term(items):
@@ -106,7 +144,7 @@ class Route:
         return self.steps[-1].terminal
 
 
-def propose(image, table, case):
+def propose(image, table, entry, case):
     """Symbolically walk a leaf, with every proposal checked against the bytes."""
     decoded = decode_runtime(image, {op["name"]: op for op in table.values()})
     values = []
@@ -114,21 +152,22 @@ def propose(image, table, case):
     definitions = []
     memory, size = "[]", 0
     journal, loaded = "journal", "journal"
-    guards = {expression: name for name, expression in GUARDS.items()}
+    guards = {guard: key for key, _, guard in entry.branches}
+    writes = []
     seen = set()
     pc = 0
     for _ in range(128):
         if pc not in decoded:
-            raise Unsupported(f"mint path leaves the decoded image at PC {pc}")
+            raise Unsupported(f"ERC20 path leaves the decoded image at PC {pc}")
         op, immediate = decoded[pc]
         bite = image[pc]
         schema = table.get(bite)
         if schema is None or schema["stack"] is None:
-            raise Unsupported(f"unsupported mint opcode {op} at PC {pc}")
+            raise Unsupported(f"unsupported ERC20 opcode {op} at PC {pc}")
         fork = schema["forks"]["cancun"]
         inputs, outputs = schema["stack"]
         if not fork["available"] or len(values) < inputs:
-            raise Unsupported(f"mint opcode {op} cannot execute at PC {pc}")
+            raise Unsupported(f"ERC20 opcode {op} cannot execute at PC {pc}")
         step = Step(
             pc,
             bite,
@@ -160,7 +199,7 @@ def propose(image, table, case):
             if all(isinstance(a, int) for a in values_top):
                 word = PURE[op](*values_top)
             elif normal == SELECTED:
-                word = SELECTOR
+                word = entry.selector
             else:
                 word = normal
             values = [word, *rest]
@@ -180,7 +219,7 @@ def propose(image, table, case):
                     branch = guards.get(condition)
                     if branch is None or branch not in case:
                         raise Unsupported(
-                            f"unrecognized mint condition at PC {pc}: {condition}"
+                            f"unrecognized ERC20 condition at PC {pc}: {condition}"
                         )
                     seen.add(branch)
                     taken = case[branch]
@@ -189,22 +228,24 @@ def propose(image, table, case):
             if taken:
                 next_pc = target
                 if decoded.get(target) != ("jumpdest", None):
-                    raise Unsupported(f"invalid mint destination at PC {pc}")
+                    raise Unsupported(f"invalid ERC20 destination at PC {pc}")
                 step.facts.append(
                     f"have destination : {target} ∈ code.jumps 0 := by decide +kernel"
                 )
             values = rest
         elif op == "jumpdest":
             pass
+        elif op == "pop":
+            values = rest
         elif op in {"mstore", "keccak256", "revert", "log3"}:
             offset = values_top[0]
             count = 32 if op == "mstore" else values_top[1]
             if (
                 not isinstance(offset, int)
                 or not isinstance(count, int)
-                or offset + count > 64
+                or offset + count > 128
             ):
-                raise Unsupported("unsupported mint memory extent")
+                raise Unsupported("unsupported ERC20 memory extent")
             grown = size if count == 0 else max(size, (offset + count + 31) // 32 * 32)
             expansion = 3 * (grown // 32 - size // 32)
             step.cost += expansion
@@ -227,6 +268,7 @@ def propose(image, table, case):
                 ]
             )
             if op == "mstore":
+                writes.append((offset, values_top[1]))
                 mem = f"mem{pc}"
                 definitions.append(
                     f"def {mem} (env : World.Environment) (journal : Journal) : List Byte :=\n"
@@ -241,10 +283,18 @@ def propose(image, table, case):
             else:
                 # Each non-store memory observer in this pair reads an active range.
                 if grown != size:
-                    raise Unsupported("mint memory observation expands memory")
+                    raise Unsupported("ERC20 memory observation expands memory")
                 data = f"(readBytes {memory} {offset} {count})"
                 if op == "keccak256":
-                    values = [f"(Keccak.hash {data})", *rest]
+                    # Propose the shared balance-key expression only after the
+                    # two ABI-word stores. The kernel binds it to the live bytes.
+                    key = (
+                        f"(balanceSlot {ADDRESS})"
+                        if (offset, count) == (0, 64)
+                        and writes == [(0, ADDRESS), (32, 0)]
+                        else f"(Keccak.hash {data})"
+                    )
+                    values = [key, *rest]
                 elif op == "revert":
                     step.terminal = f"⟨.reverted,{data},{journal}⟩"
                 else:
@@ -269,25 +319,25 @@ def propose(image, table, case):
         elif op == "stop":
             step.terminal = f"⟨.success,[],{journal}⟩"
         else:
-            raise Unsupported(f"unsupported mint opcode {op} at PC {pc}")
+            raise Unsupported(f"unsupported ERC20 opcode {op} at PC {pc}")
         steps.append(step)
         if step.terminal:
             if seen != case.keys():
                 raise Unsupported(
-                    f"mint route did not consume its branch conditions: {seen}"
+                    f"ERC20 route did not consume its branch conditions: {seen}"
                 )
             return Route(steps, definitions)
         step.after = f"frame code env {next_pc} {list_term(values)} {memory}"
         journal = step.next_journal
         pc = next_pc
-    raise Unsupported("mint path exceeds the certificate's instruction bound")
+    raise Unsupported("ERC20 path exceeds the certificate's instruction bound")
 
 
-def checked_step(index, step, case):
+def checked_step(index, step, entry, case):
     opcode = step.opcode
     schema = step.schema
     # Arity is taken from the reflected opcode, just as in the emitted image.
-    binders = parameters(case)
+    binders = entry.parameters(case)
     effect = (
         f".done (({step.terminal} : Exit).result (balance-({step.cost})))"
         if step.terminal
@@ -339,8 +389,8 @@ theorem step{index} {binders} (balance : Nat) :
     return out
 
 
-def leaf_source(module, name, route, case):
-    binders = parameters(case)
+def leaf_source(module, name, route, entry, case):
+    binders = entry.parameters(case)
     call_args = args(case)
     out = f"import {module}\n{HEADER}\nnamespace {name}\n"
     out += "\n".join(route.definitions)
@@ -355,7 +405,7 @@ def terminal (env : World.Environment) (journal : Journal) : Exit :=
   {route.exit}
 """
     for index, step in enumerate(route.steps):
-        out += checked_step(index, step, case)
+        out += checked_step(index, step, entry, case)
     out += f"""
 theorem certified {binders} :
     Checked cfg journal (frame code env 0 [] []) (debits env journal) (terminal env journal) := by
@@ -390,9 +440,11 @@ theorem runtimeSize : code.size = {len(image)} := by decide +kernel
     )
 
 
-def prove_image(directory, label, image, fixture, solar, executable, timeout, routes):
+def prove_image(
+    directory, label, image, fixture, solar, executable, timeout, entry, routes
+):
     prove = partial(entry_proof.lean, directory, namespace=label)
-    module = f"{label}MintImage"
+    module = f"{label}ERC20Image"
     entry_proof.success(
         prove(
             module,
@@ -403,10 +455,15 @@ def prove_image(directory, label, image, fixture, solar, executable, timeout, ro
         module,
     )
     for name, route in routes.items():
-        case = CASES[name]
-        proof = f"{label}Mint{name}"
+        case = entry.cases()[name]
+        proof = f"{label}ERC20{name}"
         checked = entry_proof.success(
-            prove(proof, leaf_source(module, name, route, case), timeout, module=True),
+            prove(
+                proof,
+                leaf_source(module, name, route, entry, case),
+                timeout,
+                module=True,
+            ),
             proof,
         )
         entry_proof.check_axioms(checked.splitlines(), 1)
@@ -432,8 +489,8 @@ def bounds_source(name, routes):
     variables = [f"p{i}" for i in range(len(old_prices))]
     before, after = (ledger(route, variables) for route in routes)
     params = f"({' '.join(variables)} : Nat)" if variables else ""
-    out = f"""import OldMint{name}
-import NewMint{name}
+    out = f"""import OldERC20{name}
+import NewERC20{name}
 {HEADER}
 private theorem {name}BoundsArithmetic {params} :
     required {after} ≤ required {before} ∧ charged {after} ≤ charged {before} := by
@@ -470,7 +527,8 @@ theorem {name}Terminal (env : World.Environment) (journal : Journal) :
     return out
 
 
-def comparison_source(modules):
+def comparison_source(modules, entry):
+    cases = entry.cases()
     out = entry_proof.import_modules(modules) + HEADER
     for name, label in (("before", "Old"), ("after", "New")):
         out += f"""
@@ -480,15 +538,15 @@ def {name} (env : World.Environment) (journal : Journal) (gas : Nat) : Run :=
 
 def {name}Plan (env : World.Environment) (journal : Journal) : Plan :=
 """
-        for index, (case, guard) in enumerate(zip(CASES, GUARDS.values())):
+        for index, (_, case, guard) in enumerate(entry.branches):
             branch = "if" if index == 0 else "else if"
             out += f"  {branch} {guard} ≠ 0 then\n"
             out += f"    ({label}.{case}.debits env journal,{label}.{case}.terminal env journal)\n"
         out += f"  else ({label}.Success.debits env journal,{label}.Success.terminal env journal)\n"
-    for name, case in CASES.items():
+    for name, case in cases.items():
         call_args = args(case)
         out += f"""
-private theorem {name}Compared {parameters(case)} (gas : Nat) :
+private theorem {name}Compared {entry.parameters(case)} (gas : Nat) :
     Compared (before env journal gas) (after env journal gas) journal gas
       (Old.{name}.debits env journal, Old.{name}.terminal env journal)
       (New.{name}.debits env journal, New.{name}.terminal env journal) :=
@@ -496,46 +554,46 @@ private theorem {name}Compared {parameters(case)} (gas : Nat) :
     ({name}Budget env journal).1, ({name}Budget env journal).2, {name}Terminal env journal⟩
 """
     out += f"""
-theorem mint_layout_exits {parameters({})} (gas : Nat) :
+theorem erc20_layout_exits {entry.parameters({})} (gas : Nat) :
     Compared (before env journal gas) (after env journal gas) journal gas
       (beforePlan env journal) (afterPlan env journal) := by
 """
-    for depth, (name, condition) in enumerate(zip(CASES, GUARDS), 1):
+    for depth, (condition, name, guard) in enumerate(entry.branches, 1):
         indent = "  " * depth
         prefix = indent if depth == 1 else indent[:-2] + "· "
-        out += prefix + f"by_cases h{condition} : {GUARDS[condition]} ≠ 0\n"
-        case = CASES[name]
+        out += prefix + f"by_cases h{condition} : {guard} ≠ 0\n"
+        case = cases[name]
         hs = ", ".join(
             f"ite_eq_{'left' if taken else 'right'} h{k}" for k, taken in case.items()
         )
         out += indent + f"· simp only [beforePlan,afterPlan,{hs}]\n"
-        for prior in list(case)[:-1]:
+        for prior, _, prior_guard in entry.branches[: depth - 1]:
             out += (
                 indent
-                + f"  have h{prior} : {GUARDS[prior]} = 0 := by simpa using h{prior}\n"
+                + f"  have h{prior} : {prior_guard} = 0 := by simpa using h{prior}\n"
             )
         out += indent + f"  exact {name}Compared {args(case)} gas\n"
-    indent = "  " * len(GUARDS)
-    hs = ", ".join(f"ite_eq_right h{k}" for k in GUARDS)
+    indent = "  " * len(entry.branches)
+    hs = ", ".join(f"ite_eq_right h{k}" for k, _, _ in entry.branches)
     out += indent + f"· simp only [beforePlan,afterPlan,{hs}]\n"
-    for key, guard in GUARDS.items():
+    for key, _, guard in entry.branches:
         out += indent + f"  have h{key} : {guard} = 0 := by simpa using h{key}\n"
-    out += indent + f"  exact SuccessCompared {args(CASES['Success'])} gas\n"
+    out += indent + f"  exact SuccessCompared {args(cases['Success'])} gas\n"
     out += f"""
-theorem mint_layout_refines {parameters({})} (gas : Nat) :
+theorem erc20_layout_refines {entry.parameters({})} (gas : Nat) :
     GasRefines (before env journal gas) (after env journal gas) :=
-  (mint_layout_exits env journal writable selected gas).refinement
-#print axioms mint_layout_exits
-#print axioms mint_layout_refines
+  (erc20_layout_exits env journal writable selected gas).refinement
+#print axioms erc20_layout_exits
+#print axioms erc20_layout_refines
 """
     return out
 
 
-def certify(directory, images, fixture, solar, executable, timeout):
+def certify(directory, images, fixture, solar, executable, timeout, entry):
     table = {row["opcode"]: row for row in native.catalog(executable, timeout)["evmir"]}
     routes = {
-        name: [propose(image, table, case) for image in images]
-        for name, case in CASES.items()
+        name: [propose(image, table, entry, case) for image in images]
+        for name, case in entry.cases().items()
     }
     for index, (side, image) in enumerate(zip(("Old", "New"), images, strict=True)):
         prove_image(
@@ -546,11 +604,12 @@ def certify(directory, images, fixture, solar, executable, timeout):
             solar,
             executable,
             timeout,
+            entry,
             {case: sides[index] for case, sides in routes.items()},
         )
     bounds = []
     for name, sides in routes.items():
-        module = f"Mint{name}Budget"
+        module = f"ERC20{name}Budget"
         entry_proof.success(
             entry_proof.lean(
                 directory, module, bounds_source(name, sides), timeout, module=True
@@ -561,27 +620,27 @@ def certify(directory, images, fixture, solar, executable, timeout):
     checked = entry_proof.success(
         entry_proof.lean(
             directory,
-            "MintComparison",
-            comparison_source(bounds),
+            "ERC20Comparison",
+            comparison_source(bounds, entry),
             timeout,
             module=True,
         ),
-        "mint gas refinement",
+        f"{entry.name} gas refinement",
     )
     entry_proof.check_axioms(checked.splitlines(), 2)
     return routes
 
 
-def replay(directory, images, fixture, executable, timeout):
+def replay(directory, images, fixture, executable, timeout, entry):
     """Check the two admission boundaries in both interpreters."""
     if fixture["static"] or fixture["symbols"]:
-        raise Unsupported("mint replay requires concrete storage in a writable frame")
-    if bytes(fixture["calldata"][:4]) != SELECTOR.to_bytes(4, "big"):
-        raise Unsupported("mint replay requires the mint(address,uint256) selector")
+        raise Unsupported("ERC20 replay requires concrete storage in a writable frame")
+    if bytes(fixture["calldata"][:4]) != entry.selector.to_bytes(4, "big"):
+        raise Unsupported(f"replay requires the {entry.name}(address,uint256) selector")
     warm = ", ".join(world.warm_addresses(fixture, "cancun"))
     slots = ", ".join(f"({a},{k})" for a, k in fixture["warm_slots"])
     source = (
-        "import MintComparison\n"
+        "import ERC20Comparison\n"
         + HEADER
         + f"""
 def env : World.Environment := {world.environment_expression(fixture)}
@@ -601,12 +660,13 @@ def journal : Journal := ⟨accounts,accounts,[{warm}],[{slots}],[],0⟩
     let newPlan := settle journal (expected new.1 new.2 journal gas)
     unless left == EVM.State.describe Old.cfg .exact (.ok oldPlan) &&
         right == EVM.State.describe New.cfg .exact (.ok newPlan) do
-      throw (IO.userError s!"mint budget prediction differs from bytecode at {{gas}}")
+      throw (IO.userError s!"ERC20 budget prediction differs from bytecode at {{gas}}")
     IO.println s!"{{gas}}\\t{{left}}\\t{{right}}"
 """
     )
     checked = entry_proof.success(
-        entry_proof.lean(directory, "MintReplay", source, timeout), "mint budget replay"
+        entry_proof.lean(directory, "ERC20Replay", source, timeout),
+        "ERC20 budget replay",
     )
     threshold, *rows = checked.splitlines()
     old, new = map(int, threshold.split())
@@ -646,27 +706,27 @@ def journal : Journal := ⟨accounts,accounts,[{warm}],[{slots}],[],0⟩
             for program in programs
         ]
         if observations != [json.loads(before), json.loads(after)]:
-            raise Inconclusive(f"independent mint replay differs at gas {budget}")
+            raise Inconclusive(f"independent ERC20 replay differs at gas {budget}")
         samples.append({"gas": budget, "observations": observations})
     return {"minimum_gas_before": old, "minimum_gas_after": new, "samples": samples}
 
 
-def check(paths, fixture_path, solar, executable, version, timeout):
+def check(paths, fixture_path, solar, executable, version, timeout, entry):
     if version != "cancun":
-        raise Unsupported("--mint-layout requires Cancun")
+        raise Unsupported(f"--{entry.name}-layout requires Cancun")
     if any(
         path.suffix != ".evmir" or path.stat().st_size > 1024 * 1024 for path in paths
     ):
-        raise Unsupported("mint layout requires .evmir files of at most 1024 KiB")
+        raise Unsupported("ERC20 layout requires .evmir files of at most 1024 KiB")
     fixture = world.read(fixture_path, solar, None)
     sources = [path.read_text() for path in paths]
     images = [
         world.runtime(source, "evmir", solar, version, timeout) for source in sources
     ]
-    with tempfile.TemporaryDirectory(prefix="solar-tv-mint-layout-") as folder:
+    with tempfile.TemporaryDirectory(prefix="solar-tv-erc20-layout-") as folder:
         directory = Path(folder)
-        routes = certify(directory, images, fixture, solar, executable, timeout)
-        witness = replay(directory, images, fixture, executable, timeout)
+        routes = certify(directory, images, fixture, solar, executable, timeout, entry)
+        witness = replay(directory, images, fixture, executable, timeout, entry)
     pair = tuple(
         Program(
             ("world-entry", "evmir"),
@@ -676,10 +736,10 @@ def check(paths, fixture_path, solar, executable, version, timeout):
             canonical_ir=source,
             gas="refine",
             evm_version=version,
-            scope="mint-layout",
-            selector=f"{SELECTOR:#010x}",
+            scope=f"{entry.name}-layout",
+            selector=f"{entry.selector:#010x}",
             import_evidence={
-                "kind": "symbolic-mint-budget",
+                "kind": f"symbolic-{entry.name}-budget",
                 "runtime_sha256": hashlib.sha256(image).hexdigest(),
                 "path_steps": {
                     case: len(sides[index].steps) for case, sides in routes.items()
@@ -691,7 +751,7 @@ def check(paths, fixture_path, solar, executable, version, timeout):
     return audit.Result(
         "verified",
         stdout=(
-            "verified: mint gas refinement over symbolic calldata and storage\n"
+            f"verified: {entry.name} gas refinement over symbolic calldata and storage\n"
             f"replay minimum gas: {witness['minimum_gas_before']} → {witness['minimum_gas_after']}\n"
         ),
         program=pair[0],

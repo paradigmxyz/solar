@@ -670,6 +670,15 @@ The proof is a gas refinement. In the cold replay, the after image can mint
 with 11 less gas. Minting zero tokens to a nonzero recipient can have the
 same minimum in both images when the SSTORE sentry dominates.
 
+`--burn-layout` uses the same certificate generator and storage model for
+the other caller of this shared update path. Each byte image checks the
+sender mapping key against the words actually stored before KECCAK256. The
+proof partitions all incoming gas budgets for successful burns, nonpayable
+calls, malformed calldata, the zero sender and insufficient sender balance.
+The insufficient-balance path checks the exact custom error bytes. The
+out-of-gas replay reaches the supply SSTORE after performing the sender
+SSTORE. It checks the original balance and supply and an empty log list.
+
 WETH's `name.body` now verifies through complete direct typed SSA execution,
 including its initialized bytes, final FMP and returned pointer. The supplied
 named heap floor must equal the live FMP, with an aligned, active cursor word

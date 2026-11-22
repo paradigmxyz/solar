@@ -690,8 +690,17 @@ def main() -> int:
     )
     selection.add_argument(
         "--mint-layout",
-        action="store_true",
+        dest="erc20_layout",
+        action="store_const",
+        const="mint",
         help="prove gas refinement of the ERC20Mock mint layout",
+    )
+    selection.add_argument(
+        "--burn-layout",
+        dest="erc20_layout",
+        action="store_const",
+        const="burn",
+        help="prove gas refinement of the ERC20Mock burn layout",
     )
     selection.add_argument(
         "--prune",
@@ -727,7 +736,7 @@ def main() -> int:
         world=args.world,
         prefix=args.prefix,
         return_path=args.return_path,
-        mint_layout=args.mint_layout,
+        erc20_layout=args.erc20_layout,
         prune=args.prune,
     )
     programs: list[Program] = []
@@ -758,7 +767,7 @@ def main() -> int:
             world=args.world,
             prefix=args.prefix,
             return_path=args.return_path,
-            mint_layout=args.mint_layout,
+            erc20_layout=args.erc20_layout,
             prune=args.prune,
         )
         if args.prune:
@@ -804,7 +813,7 @@ def main() -> int:
                 verbose=args.verbose,
             )
             programs = list(result.pair)
-        elif args.mint_layout:
+        elif args.erc20_layout:
             if (
                 args.ir != "evmir"
                 or not args.world
@@ -812,17 +821,18 @@ def main() -> int:
                 or args.stack_height is not None
             ):
                 raise Unsupported(
-                    "--mint-layout requires EVM IR and a concrete replay world, with gas refinement"
+                    f"--{args.erc20_layout}-layout requires EVM IR and a concrete replay world, with gas refinement"
                 )
-            from . import mint_layout
+            from . import erc20_layout
 
-            result = mint_layout.check(
+            result = erc20_layout.check(
                 (args.before, args.after),
                 args.world,
                 solar,
                 rust_replay,
                 version,
                 args.timeout,
+                erc20_layout.ENTRIES[args.erc20_layout],
             )
             programs = list(result.pair)
         elif args.return_path:
