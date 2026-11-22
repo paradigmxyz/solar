@@ -982,12 +982,14 @@ def main() -> int:
                         dead_ssa,
                         induction,
                         memory_induction,
+                        mir_cfg,
                     )
 
                     validators = (
                         (
                             coalesce.check,
                             dead_ssa.check,
+                            mir_cfg.check,
                             partial(
                                 induction.check, replay=replay, verbose=args.verbose
                             ),
@@ -1002,7 +1004,7 @@ def main() -> int:
                             builtin_lowering.check,
                         )
                         if str(error) == "symbolic MIR cycles require an invariant"
-                        else (builtin_lowering.check,)
+                        else (mir_cfg.check, builtin_lowering.check)
                     )
                     for validate in validators:
                         try:

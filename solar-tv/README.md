@@ -1983,6 +1983,13 @@ graphs and proves the matched actions preserve all incoming stack heights
 and ordered effects. The certificate counts logical work and leaves gas
 and physical return addresses outside its comparison.
 
+The MIR checker also validates block coalescing and jump threading on typed
+graphs, including backedges. Every selected phi group reads its predecessor's
+operands simultaneously. Direct callees are checked with their original
+bindings. `GAS` and external calls remain ordered requests under the shared
+effect handler. The certificate applies to the selected function and its
+direct call closure.
+
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.

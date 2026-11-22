@@ -291,6 +291,14 @@ def record(
                     "compiler parser/schema and constructor bindings are trusted",
                 ]
             )
+        elif program and program.scope == "mir-cfg-flow":
+            assumptions.extend(
+                [
+                    "independently exported typed MIR; checked contraction of unconditional jumps with every ordered operand, simultaneous phi input, result and other control operation retained",
+                    "every logical action bound and shared live state; direct callee graphs checked with the same bindings; GAS and message effects are retained requests",
+                    "trusted compiler structural exporter and action-constructor binding; no physical gas pricing, ABI frame initialization or runtime callback binding",
+                ]
+            )
         elif program and program.scope == "source-identity":
             assumptions.extend(
                 [
@@ -579,6 +587,7 @@ def record(
                 "source-identity",
                 "stack-layout",
                 "cfg-flow",
+                "mir-cfg-flow",
             }
             and program.symbolic_mir is None
         ):
@@ -637,6 +646,7 @@ def record(
                 "source-identity",
                 "stack-layout",
                 "cfg-flow",
+                "mir-cfg-flow",
                 "return-path",
             }
             else program.gas
@@ -826,6 +836,19 @@ def record(
                 },
             }
             if program and program.scope == "return-path"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
+                    "proof": "kernel-checked-typed-jump-chain",
+                    "functions": program.import_evidence["functions"],
+                },
+            }
+            if program and program.scope == "mir-cfg-flow"
             else {}
         ),
         **(
