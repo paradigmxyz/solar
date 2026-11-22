@@ -1780,6 +1780,16 @@ function. The compiler validates both declared phases before checking either
 certificate. The live audit uses the same proofs. Physical gas and stack
 placement are outside these MIR certificates.
 
+The contextual graph certificate also handles complete captures with loops
+and retained effect requests. It checks that every eliminated full-width
+carrier copy still denotes the same word wherever it is read. Each register
+write invalidates copies of that register, including writes by a phi group.
+The graph proof preserves the order and arguments of effects, including
+`GAS`, without pricing them. A separate direct proof checks the actual
+straight-line revert helper when a call followed by `invalid` or `stop`
+becomes a tail call. The [carrier loop example](examples/mir/phase-carriers/input.mir)
+can be captured with the same commands.
+
 ### Materializing a runtime dispatcher
 
 For a module with no selector, receive or fallback routes, `lower-dispatch`

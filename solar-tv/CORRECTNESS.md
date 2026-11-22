@@ -647,9 +647,29 @@ A separate local proof handles empty phi-edge forwarders. The kernel compares
 the full resolved bodies to the split graph and proves that ordered switch
 selection and simultaneous phi assignment preserve the original edge's frame
 for every traversal, including backedges. Independent replay exercises a wrong
-memory address, tail-call argument and phi input. Recursive direct execution,
-bodies that mix unsupported rewrites and cycles, and physical gas and stack
-layout remain open.
+memory address, tail-call argument and phi input.
+
+When both phases retain the block graph, the carrier certificate compares
+the independently resolved bodies as ordered requests. The kernel checks
+the copy substitutions and the active-alias invariant on every incoming
+edge. Phi groups read the predecessor's values before writing their results,
+and a write invalidates the aliases it would make stale. Induction covers
+each logical block bound, including the state of an unfinished execution.
+The carrier lemmas relate full-width casts to the identity word operation.
+Every other request retains its operands, order, and result binding.
+
+The abort-tail certificate requires a resultless direct call followed by
+`invalid` or `stop` and an unchanged straight-line revert helper. Lean checks the
+actual typed helper body, including its memory stores. The helper's execution
+ignores both the saved caller stack and the return owner and cannot produce a
+normal MIR return. The graph then checks that both phases invoke that helper
+with the same arguments.
+
+These certificates close the full `lower-evm-shaped` captures for the pinned
+Solady WETH, OpenZeppelin ERC20Mock, and Morpho Blue cases. WETH's `GAS` remains
+a request to the same effect handler on both sides. Deriving its reply from
+emitted instruction costs, general recursive direct execution, and physical
+stack layout remain separate obligations.
 
 After rebasing onto `main`, the new frozen sample has a different selection of
 24 obligations: its baseline verifies 15, with 9 unsupported and no timeouts or

@@ -65,6 +65,8 @@ import SolarTV.MIR.Transforms.LowerStaticWord
 import SolarTV.MIR.Transforms.CalldataInduction
 import SolarTV.MIR.Transforms.ContinuedCounter
 import SolarTV.MIR.Transforms.PhaseShaping
+import SolarTV.MIR.Transforms.CarrierCopies
+import SolarTV.MIR.Transforms.AbortTail
 import SolarTV.MIR.Transforms.StorageInduction
 import SolarTV.MIR.Transforms.BoundedFill
 import SolarTV.MIR.State.LoopStep

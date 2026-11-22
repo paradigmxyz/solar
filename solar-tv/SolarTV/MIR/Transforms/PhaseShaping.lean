@@ -7,6 +7,16 @@ written memory, including every byte outside the range. -/
 namespace SolarTV.MIR.PhaseShaping
 open EvmRules SolarTV.Execution MIR.ContinuedCounter
 
+-- Typed pointers and i256 values share the same scalar carrier.
+theorem pointer_carrier (value : MIR.State.Value) (fuel location : Nat) :
+    value.fits fuel (.pointer location) = value.fits fuel (.word 256) := by
+  cases fuel <;> cases value <;> rfl
+
+theorem full_word_casts (cfg : MIR.State.Config) (frame : MIR.State.Frame) (word : Word) :
+    MIR.State.operation cfg frame .word [word] = MIR.State.value frame word ∧
+    MIR.State.operation cfg frame (.lowBits 256) [word] = MIR.State.value frame word :=
+  ⟨rfl,rfl⟩
+
 theorem expand_after_write (memory bytes : List Byte) (limit atByte offset size : Nat)
     (nonempty : size > 0) (aligned : memory.length % 32 = 0)
     (limitAligned : limit % 32 = 0) (endAligned : (offset + size) % 32 = 0)

@@ -199,11 +199,30 @@ def record(
             assumptions.extend(
                 [
                     "same module declarations and function interfaces after pointer-to-word representation erasure",
-                    "all changed bodies and their callers have a checked certificate; direct execution quantifies defined scalar inputs and arbitrary aligned byte memory up to 64 KiB",
-                    "phi-edge certificates check that empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges, with no physical gas claim",
                     "trusted compiler parser/schema export and typed constructor renderer; no physical gas or backend layout claim",
                 ]
             )
+            certificates = program.import_evidence["certificates"].values()
+            kinds = {certificate["kind"] for certificate in certificates}
+            if "carrier-graph" in kinds:
+                assumptions.extend(
+                    [
+                        "defined scalar carriers; checked copy availability on every loop and phi edge, with equivalent ordered effects and live state at every logical block bound",
+                        "same handlers for retained requests, including GAS and constructor queries; physical gas and placement are not derived",
+                    ]
+                )
+                if any(certificate.get("abort_tails") for certificate in certificates):
+                    assumptions.append(
+                        "typed straight-line revert helpers execute with the same arguments and never resume their incoming continuation"
+                    )
+            if "direct-execution" in kinds:
+                assumptions.append(
+                    "direct execution quantifies defined scalar inputs and arbitrary aligned byte memory up to 64 KiB"
+                )
+            if "phi-edges" in kinds:
+                assumptions.append(
+                    "empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges"
+                )
         elif program and program.scope == "empty-dispatch":
             assumptions.extend(
                 [

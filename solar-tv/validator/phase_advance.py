@@ -3,7 +3,7 @@
 import hashlib
 import re
 
-from . import audit, mir, mir_symbolic, native, phi_edges, type_prune
+from . import audit, mir, mir_symbolic, native, phase_carriers, phi_edges, type_prune
 from .common import Program, Unsupported
 
 
@@ -71,7 +71,6 @@ def check_rewrites(texts, tables, version, timeout, executable):
     definitions = {
         row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
     }
-    evidence = {}
     for i, name in enumerate(ids):
         left, right = by_id[0][i], by_id[1][i]
         for field in ("params", "returns"):
@@ -82,8 +81,45 @@ def check_rewrites(texts, tables, version, timeout, executable):
         )
         if interface(erase_pointer_text(left_header)) != interface(right_header):
             raise Unsupported(f"phase advance changed the declaration of @{name}")
-        if i not in changed:
-            continue
+    try:
+        evidence = phase_carriers.check(*by_id, changed, definitions, timeout)
+    except Unsupported:
+        evidence = prove_locally(
+            texts, by_id, ids, changed, definitions, version, timeout, executable
+        )
+
+    programs = tuple(
+        Program(
+            ("mir-phase-rewrite",),
+            [],
+            "",
+            "",
+            canonical_ir=text,
+            replay_ir=text,
+            scope="phase-rewrite",
+            evm_version=version,
+            import_evidence={
+                "kind": "kernel-checked-phase-rewrites",
+                "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                "functions": list(evidence),
+                "certificates": evidence,
+                "boundary": "trusted compiler parser/schema export and typed constructor renderer; unpriced direct execution, phi-edge correspondence or contextual carrier graph",
+            },
+        )
+        for text in texts
+    )
+    return audit.Result(
+        "verified", stdout="verified\n", program=programs[0], pair=programs
+    )
+
+
+def prove_locally(
+    texts, by_id, ids, changed, definitions, version, timeout, executable
+):
+    evidence = {}
+    for i in sorted(changed):
+        left, right = by_id[0][i], by_id[1][i]
+        name = ids[i]
         edges = phi_edges.check(left, right, definitions, timeout)
         if edges:
             evidence[name] = {"kind": "phi-edges", "edges": edges}
@@ -116,29 +152,7 @@ def check_rewrites(texts, tables, version, timeout, executable):
             )
         evidence[name] = {"kind": "direct-execution"}
 
-    programs = tuple(
-        Program(
-            ("mir-phase-rewrite",),
-            [],
-            "",
-            "",
-            canonical_ir=text,
-            replay_ir=text,
-            scope="phase-rewrite",
-            evm_version=version,
-            import_evidence={
-                "kind": "kernel-checked-phase-rewrites",
-                "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
-                "functions": list(evidence),
-                "certificates": evidence,
-                "boundary": "trusted compiler parser/schema export and typed constructor renderer; unpriced direct execution or local phi-edge correspondence",
-            },
-        )
-        for text in texts
-    )
-    return audit.Result(
-        "verified", stdout="verified\n", program=programs[0], pair=programs
-    )
+    return evidence
 
 
 def erase_pointer(ty):

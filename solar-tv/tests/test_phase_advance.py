@@ -178,9 +178,7 @@ fn @f(arg0: i8) -> i8 {
         self.assertIn("tail_call @fail", after.read_text())
         report = self.check_pair([before, after], 0)
         self.assertEqual(report["region"]["proof"], "resolved-phase-rewrites")
-        self.assertEqual(
-            report["region"]["certificates"]["entry"], {"kind": "direct-execution"}
-        )
+        self.assertEqual(report["region"]["certificates"]["go"]["abort_tails"], 1)
 
     def test_real_pointer_call_and_phi_rewrites(self):
         folder = self.directory / "shape-audit"
@@ -222,25 +220,6 @@ fn @f(arg0: i8) -> i8 {
         initial = world.read(fixture, SOLAR, None, kind="mir")
         lowered = after.read_text()
 
-        def replay(text, function, values):
-            pair = [
-                Program(
-                    ("world-entry", "mir"),
-                    [f"arg{i}" for i in range(len(values))],
-                    "",
-                    "",
-                    replay_ir=body,
-                    selector=function,
-                    evm_version="cancun",
-                    world=initial,
-                )
-                for body in (before.read_text(), text)
-            ]
-            data = native.replay(
-                *pair, values, executable=native.default(SOLAR), timeout=10
-            )
-            return tuple(map(json.loads, data["observations"]))
-
         for function, args, old, new, outcome, field, original, broken in (
             (
                 "entry",
@@ -266,7 +245,7 @@ fn @f(arg0: i8) -> i8 {
         ):
             with self.subTest(rewrite=function):
                 self.assertIn(old, lowered)
-                good, candidate = replay(lowered, function, args)
+                good, candidate = self.replay(before, lowered, initial, function, args)
                 self.assertEqual(good, candidate)
                 self.assertEqual((good["outcome"], good[field]), (outcome, original))
                 mutated = lowered.replace(old, new, 1)
@@ -275,6 +254,122 @@ fn @f(arg0: i8) -> i8 {
                 self.assertEqual(
                     self.check_pair([before, path], 2)["status"], "unsupported"
                 )
-                good, wrong = replay(mutated, function, args)
+                good, wrong = self.replay(before, mutated, initial, function, args)
                 self.assertEqual((good["outcome"], good[field]), (outcome, original))
                 self.assertEqual((wrong["outcome"], wrong[field]), (outcome, broken))
+
+    def test_contextual_graph_preserves_loop_gas_and_abort(self):
+        folder = self.directory / "carrier-audit"
+        subprocess.run(
+            [
+                SOLAR,
+                ROOT / "examples/mir/phase-carriers/input.mir",
+                "-j1",
+                "--evm-version=cancun",
+                "-Zmir-pipeline=lower-evm-shaped",
+                "-Zvalidate-ir=true",
+                f"-Zsolar-tv={folder}",
+                "-Zsolar-tv-capture",
+            ],
+            check=True,
+            capture_output=True,
+            timeout=10,
+        )
+        (capture,) = evaluate.captures(folder)
+        before, after = capture["paths"]
+        record = self.check_pair([before, after], 0)
+        self.assertEqual(record["evidence"], "kernel-proof")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        self.assertEqual(
+            record["region"]["certificates"],
+            {
+                "go": {
+                    "kind": "carrier-graph",
+                    "copies": 0,
+                    "blocks": 1,
+                    "abort_tails": 1,
+                },
+                "count": {
+                    "kind": "carrier-graph",
+                    "copies": 2,
+                    "blocks": 4,
+                    "abort_tails": 0,
+                },
+                "observe_gas": {
+                    "kind": "carrier-graph",
+                    "copies": 2,
+                    "blocks": 1,
+                    "abort_tails": 0,
+                },
+            },
+        )
+        fixture = folder / "world.json"
+        fixture.write_text('{"version": 1, "mir_layout": {"gas_before": 100}}')
+        initial = world.read(fixture, SOLAR, None, kind="mir")
+        lowered = after.read_text()
+        for function, args, old, new, field, original, broken in (
+            ("count", [3], "add v0, 1", "add v0, 2", "values", ["3"], ["4"]),
+            (
+                "entry",
+                [],
+                "tail_call @abort, 37",
+                "tail_call @abort, 38",
+                "data",
+                [0] * 31 + [37],
+                [0] * 31 + [38],
+            ),
+            (
+                "entry",
+                [],
+                "revert 0, 32",
+                "returndata 0, 32",
+                "outcome",
+                "revert",
+                "success",
+            ),
+            (
+                "observe_gas",
+                [],
+                "v0 = gas",
+                "v0 = calldatasize",
+                "values",
+                ["98"],
+                ["0"],
+            ),
+        ):
+            with self.subTest(rewrite=function):
+                self.assertIn(old, lowered)
+                # Only the lowered observer is an isolated GAS window in replay.
+                original_ir = after if function == "observe_gas" else before
+                if original_ir == before:
+                    good, candidate = self.replay(
+                        before, lowered, initial, function, args
+                    )
+                    self.assertEqual(good, candidate)
+                mutated = lowered.replace(old, new, 1)
+                path = folder / f"broken-{function}.mir"
+                path.write_text(mutated)
+                self.assertEqual(
+                    self.check_pair([before, path], 2)["status"], "unsupported"
+                )
+                good, wrong = self.replay(original_ir, mutated, initial, function, args)
+                self.assertEqual((good[field], wrong[field]), (original, broken))
+
+    def replay(self, before, after, initial, function, values):
+        pair = [
+            Program(
+                ("world-entry", "mir"),
+                [f"arg{i}" for i in range(len(values))],
+                "",
+                "",
+                replay_ir=body,
+                selector=function,
+                evm_version="cancun",
+                world=initial,
+            )
+            for body in (before.read_text(), after)
+        ]
+        data = native.replay(
+            *pair, values, executable=native.default(SOLAR), timeout=10
+        )
+        return tuple(map(json.loads, data["observations"]))
