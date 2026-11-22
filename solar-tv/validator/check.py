@@ -689,6 +689,11 @@ def main() -> int:
         help="check a relocated EVM ABI return path",
     )
     selection.add_argument(
+        "--mint-layout",
+        action="store_true",
+        help="prove gas refinement of the ERC20Mock mint layout",
+    )
+    selection.add_argument(
         "--prune",
         action="store_true",
         help="prove unreachable-function or unused-type erasure in MIR modules",
@@ -722,6 +727,7 @@ def main() -> int:
         world=args.world,
         prefix=args.prefix,
         return_path=args.return_path,
+        mint_layout=args.mint_layout,
         prune=args.prune,
     )
     programs: list[Program] = []
@@ -752,6 +758,7 @@ def main() -> int:
             world=args.world,
             prefix=args.prefix,
             return_path=args.return_path,
+            mint_layout=args.mint_layout,
             prune=args.prune,
         )
         if args.prune:
@@ -795,6 +802,27 @@ def main() -> int:
                 args.storage_loop,
                 replay=replay,
                 verbose=args.verbose,
+            )
+            programs = list(result.pair)
+        elif args.mint_layout:
+            if (
+                args.ir != "evmir"
+                or not args.world
+                or args.gas not in (None, "refine")
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--mint-layout requires EVM IR and a concrete replay world, with gas refinement"
+                )
+            from . import mint_layout
+
+            result = mint_layout.check(
+                (args.before, args.after),
+                args.world,
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
             )
             programs = list(result.pair)
         elif args.return_path:

@@ -1271,6 +1271,26 @@ continuation after erasing the root code being compared. The proof covers this
 funded route. A different path or an exact gas comparison requires a separate
 check.
 
+The symbolic mint check covers the whole selected ABI entry, including reverts:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --mint-layout --world mint-world.json --report mint-layout.json
+```
+
+The kernel checks both byte images from PC zero for arbitrary calldata with
+the mint selector, call value, current and original storage, access warmth,
+and incoming gas. The entry starts in a writable Cancun frame with empty
+stack, memory and returndata. It covers nonpayable calls, malformed ABI input,
+the zero recipient, supply overflow and successful minting.
+
+Each version has its own exact gas threshold. The check includes memory
+expansion, storage charges, the SSTORE sentry and rollback on exhaustion.
+When the old version finishes without exhausting gas, the new version
+produces the same exit data and journal and leaves at least as much gas.
+The world fixture is for replay. The report records both interpreters'
+observations just below and at the two thresholds.
+
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
 A checker launch or protocol failure is a compiler error. Each unsuccessful

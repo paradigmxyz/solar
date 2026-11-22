@@ -85,18 +85,7 @@ def actions(image, pcs, producer, decoded, catalog):
 def replay_side(program, image, pc, executable, timeout):
     fixture = program.world
     assert fixture is not None
-    raw = replace(
-        program,
-        world={
-            **fixture,
-            "accounts": [
-                {**account, "code": list(image)}
-                if account["address"] == fixture["address"]
-                else account
-                for account in fixture["accounts"]
-            ],
-        },
-    )
+    raw = replace(program, world=world.with_runtime(fixture, image))
     options = {"executable": executable, "timeout": timeout}
     cut = json.loads(
         native.replay(raw, raw, [], probe_pc=pc, **options)["observations"][0]

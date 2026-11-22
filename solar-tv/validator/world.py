@@ -442,6 +442,19 @@ def replay_input(fixture: dict) -> dict:
     return {key: value for key, value in fixture.items() if key in keys}
 
 
+def with_runtime(fixture, image):
+    """Install the assembled root image for independent raw-bytecode replay."""
+    return {
+        **fixture,
+        "accounts": [
+            {**account, "code": list(image)}
+            if account["address"] == fixture["address"]
+            else account
+            for account in fixture["accounts"]
+        ],
+    }
+
+
 def accounts_expression(fixture, image=None):
     def slots(values):
         pairs = ",".join(

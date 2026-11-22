@@ -659,6 +659,17 @@ erased. Redirecting the caller's PUSH to the boolean return stub produces
 mint's writes and log. The result is path-local. Alternate branches and
 physical gas equivalence remain outside this certificate.
 
+The symbolic `--mint-layout` certificate handles all five exits of the
+selected mint entry in a writable Cancun frame. It checks every physical
+instruction and its exact debit in both byte images. A checked instruction
+also supplies its admission threshold, which can exceed its debit at SSTORE.
+Induction gives the first unpaid instruction, full rollback, and the exact
+funded result for every incoming gas balance. The two thresholds and costs
+are compared over shared symbolic calldata, journal and access warmth.
+The proof is a gas refinement. In the cold replay, the after image can mint
+with 11 less gas. Minting zero tokens to a nonzero recipient can have the
+same minimum in both images when the SSTORE sentry dominates.
+
 WETH's `name.body` now verifies through complete direct typed SSA execution,
 including its initialized bytes, final FMP and returned pointer. The supplied
 named heap floor must equal the live FMP, with an aligned, active cursor word

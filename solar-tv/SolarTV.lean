@@ -16,6 +16,7 @@ import SolarTV.MIR.Transforms.LowerAllocPrefix
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 import SolarTV.EVMIR.Transforms.StackPeephole
 import SolarTV.EVMIR.Transforms.RelocatedReturn
+import SolarTV.EVMIR.Transforms.MintLayout
 import SolarTV.EVMIR.StackSafety
 import SolarTV.EVMIR.Memory
 import SolarTV.MIR.Transforms.DeadStore

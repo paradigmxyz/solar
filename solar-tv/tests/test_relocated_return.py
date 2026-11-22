@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate
+from validator import evaluate, mint_layout, native, world
 
 
 class RelocatedReturnTests(unittest.TestCase):
@@ -111,3 +111,91 @@ class RelocatedReturnTests(unittest.TestCase):
         self.assertEqual(before["stack"], after["stack"])
         self.assertEqual(before["memory"], after["memory"])
         self.assertNotEqual(before["pc"], after["pc"])
+
+    def test_symbolic_mint_replays_the_gas_boundaries(self):
+        self.assertEqual(self.baseline, self.captured)
+        solar = str(Path(SOLAR).resolve())
+        executable = native.default(solar)
+        images = [
+            world.runtime(path.read_text(), "evmir", solar, "cancun", 90)
+            for path in self.paths
+        ]
+        proof = self.folder / "mint-proof"
+        proof.mkdir()
+        initial = world.read(self.world, solar, None)
+        paths = mint_layout.certify(proof, images, initial, solar, executable, 90)
+        self.assertEqual(
+            set(paths),
+            {"Nonpayable", "Malformed", "ZeroAddress", "Overflow", "Success"},
+        )
+
+        root = json.loads(self.world.read_text())
+        selector = "0x40c10f19"
+        balance_slot = "83862486449319017530411873853010819072563423120971894174048127046291118262171"
+        scenarios = [
+            ("cold", root["calldata"], 9, [], "success", ""),
+            ("short", selector, 9, [], "revert", ""),
+            (
+                "dirty",
+                selector + f"{(1 << 160) | 0x2222:064x}{7:064x}",
+                9,
+                [],
+                "revert",
+                "",
+            ),
+            (
+                "zero",
+                selector + f"{0:064x}{7:064x}",
+                9,
+                [],
+                "revert",
+                "ec442f05" + "00" * 32,
+            ),
+            (
+                "overflow",
+                root["calldata"],
+                2**256 - 1,
+                [],
+                "revert",
+                "4e487b71" + f"{17:064x}",
+            ),
+            (
+                "sentry",
+                selector + f"{0x2222:064x}{0:064x}",
+                9,
+                [[65536, "2"], [65536, balance_slot]],
+                "success",
+                "",
+            ),
+        ]
+        for name, calldata, supply, warm_slots, halt, data in scenarios:
+            with self.subTest(name=name):
+                root["calldata"] = calldata
+                root["accounts"][0]["storage"]["2"] = str(supply)
+                root["warm_slots"] = warm_slots
+                fixture = self.folder / "mint-replay.json"
+                fixture.write_text(json.dumps(root))
+                result = mint_layout.replay(
+                    proof, images, world.read(fixture, solar, None), executable, 90
+                )
+                before = result["minimum_gas_before"]
+                after = result["minimum_gas_after"]
+                self.assertLessEqual(after, before)
+                samples = {r["gas"]: r["observations"] for r in result["samples"]}
+                low = samples[after - 1]
+                self.assertEqual([row[:2] for row in low], [["out-of-gas", []]] * 2)
+                for observation in samples[before]:
+                    self.assertEqual(observation[0], halt)
+                    self.assertEqual(bytes(observation[1]).hex(), data)
+                if name in {"cold", "overflow"}:
+                    self.assertEqual(before - after, 11)
+                    self.assertEqual(samples[after][0][0], "out-of-gas")
+                    self.assertEqual(samples[after][1][0], halt)
+                if name == "cold":
+                    # Exhaustion can occur after the first SSTORE, which must roll back.
+                    self.assertEqual(dict(low[0][4][1][4])["2"], "9")
+                    self.assertEqual(dict(low[1][4][1][4])["2"], "9")
+                    self.assertEqual(low[0][5], [])
+                    self.assertEqual(low[1][5], [])
+                if name == "sentry":
+                    self.assertEqual(before, after)

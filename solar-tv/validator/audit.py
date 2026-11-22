@@ -157,7 +157,16 @@ def record(
                 ]
             )
     else:
-        if program and program.scope == "allocation-prefix":
+        if program and program.scope == "mint-layout":
+            assumptions.extend(
+                [
+                    "Cancun bytecode ABI entry selected by the actual mint selector; writable frame with empty stack, memory and returndata",
+                    "all calldata bytes, value, initial journals and incoming gas under that entry contract",
+                    "all five terminal paths proved from PC zero; instruction charges, SSTORE sentry and frame rollback checked",
+                    "same funded effects and no less remaining gas; original out-of-gas may become a funded exit",
+                ]
+            )
+        elif program and program.scope == "allocation-prefix":
             assumptions.extend(
                 [
                     "explicit allocation-producer contract: initial FMP is aligned, at least 128, equals its memory word, and the total reserved extent does not wrap uint64; initial active memory is aligned and includes bytes 0x40..0x5f",
@@ -470,6 +479,7 @@ def record(
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
+                "mint-layout",
                 "interior-window",
                 "source-identity",
                 "stack-layout",
@@ -509,6 +519,8 @@ def record(
         "gas_policy": (
             "exact-caller-continuation"
             if program and program.gas == "exact-caller-continuation"
+            else "refine"
+            if program and program.scope == "mint-layout"
             else "unpriced-structural"
             if program
             and program.scope
@@ -637,6 +649,18 @@ def record(
                 },
             }
             if program and program.scope == "return-path"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "abi-entry",
+                    "name": program.selector,
+                    "proof": "kernel-checked-mint-gas-refinement",
+                },
+            }
+            if program and program.scope == "mint-layout"
             else {}
         ),
         **(
