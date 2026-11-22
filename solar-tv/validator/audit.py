@@ -195,6 +195,15 @@ def record(
                     "trusted compiler parser/schema export and typed constructor renderer; backend layout and physical gas remain outside direct MIR execution",
                 ]
             )
+        elif program and program.scope == "empty-dispatch":
+            assumptions.extend(
+                [
+                    "semantic MIR without an explicit entry or any selector, receive or fallback route",
+                    "argument-free runtime entry, positive call-depth bound and at most 64 KiB of initial memory",
+                    "every calldata, call value and journal; the synthesized MIR entry reaches an empty revert within the proved work bound",
+                    "retained function data and constructor root unchanged; physical gas and backend layout are outside this proof",
+                ]
+            )
         elif program and program.scope == "fresh-heap-function":
             assumptions.extend(
                 [
@@ -453,6 +462,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
+                "empty-dispatch",
                 "allocation-prefix",
                 "calldata-induction",
                 "memory-induction",
@@ -483,6 +493,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
+                "empty-dispatch",
                 "calldata-induction",
                 "memory-induction",
                 "bounded-fill",
@@ -540,6 +551,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
+                "empty-dispatch",
                 "calldata-induction",
                 "memory-induction",
                 "bounded-fill",
@@ -625,6 +637,20 @@ def record(
                 },
             }
             if program and program.scope == "phase-advance"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "empty-runtime-dispatch",
+                    "dispatcher": program.import_evidence["dispatcher"],
+                    "retained": program.import_evidence["retained"],
+                    "work_steps": program.import_evidence["work_steps"],
+                },
+            }
+            if program and program.scope == "empty-dispatch"
             else {}
         ),
         **(

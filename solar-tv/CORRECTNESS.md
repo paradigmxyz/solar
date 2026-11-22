@@ -576,6 +576,18 @@ unsafe-growth and bytecode-neutrality tests are in
 
 ## Remaining obligations
 
+The empty-runtime branch of `lower-dispatch` now has a kernel-checked proof.
+The source export supplies an empty set of callable routes. Both modules
+keep their shared declarations, constructor root and retained functions.
+The appended entry's resolved blocks must form a finite path of
+instruction-free unconditional jumps to an empty revert. Lean proves that
+the direct interpreter returns the implicit runtime's empty revert with
+the original journal and byte memory for every argument-free frame in the
+model's memory domain and every work bound at least as large as the path.
+This proves the runtime boundary for modules without callable routes.
+Selector cases, wrapper guards, debug revert strings and EVM gas remain
+outside this certificate.
+
 The phase-only form of `lower-evm-shaped` is covered by a module certificate.
 Both original modules pass phase validation and retain the same canonical
 MIR after removal of the lowered phase marker. The kernel checks equality of

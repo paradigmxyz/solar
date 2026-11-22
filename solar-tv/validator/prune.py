@@ -39,7 +39,7 @@ def unquoted(line, *, strip_strings=False):
     return "".join(result).strip()
 
 
-def declarations(text):
+def declarations(text, *, allow_empty=False):
     if "backend-memory" in text or "backend-stack" in text:
         raise Unsupported("function pruning does not certify backend memory records")
     header, functions = [], {}
@@ -64,7 +64,7 @@ def declarations(text):
             functions[current]["text"].append(line)
             if line == "}":
                 current = None
-    if current is not None or not 1 <= len(functions) <= 128:
+    if current is not None or len(functions) > 128 or not (allow_empty or functions):
         raise Unsupported("function pruning requires 1..128 complete declarations")
     for function in functions.values():
         if "function_pointer_dispatcher" in function["text"][0]:
@@ -103,8 +103,18 @@ def check(paths, solar, version, timeout, *, executable=None):
         if result.returncode:
             raise Unsupported(result.stderr)
         texts.append(result.stdout)
-        tables.append(declarations(result.stdout))
+        tables.append(declarations(result.stdout, allow_empty=True))
     (old_header, before), (new_header, after) = tables
+    if (
+        old_header == new_header
+        and "@phase lowered" not in old_header
+        and len(after) > len(before)
+    ):
+        from . import lower_dispatch, native
+
+        return lower_dispatch.check(
+            texts, before, after, version, timeout, executable or native.default(solar)
+        )
     if old_header != new_header:
         from . import native, phase_advance, type_prune
 

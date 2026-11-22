@@ -1761,6 +1761,24 @@ Live pass audits use the same check automatically. Reports use
 `resolved-phase-advance` and `unpriced-structural`. Pointer erasure, call
 shaping, phi-edge rewrites and backend gas or layout require separate evidence.
 
+### Materializing an empty runtime dispatcher
+
+For a module with no selector, receive or fallback routes, `lower-dispatch`
+adds a runtime entry that rejects every call. Use
+`solar-tv/solar-tv mir before.mir after.mir --prune` to check a saved pair.
+The live audit and exhaustive evaluator use the same certificate.
+
+The compiler's structural export supplies the roots and typed function
+bodies. Lean checks that the entry follows a finite path of unconditional
+jumps to `revert 0, 0` and leaves memory and the journal unchanged for every
+calldata and call value. The report gives the required number of MIR steps
+and records the retained function table. Lean checks direct call targets
+after the printer places the new entry before ordinary functions. The
+`empty-runtime-dispatch` certificate covers argument-free entry with at most
+64 KiB initial memory.
+Selector and ABI-wrapper routing, debug revert payloads, and physical gas
+need separate proofs.
+
 ### Allocation prefixes before unchanged cyclic callees
 
 An allocation-coalescing constructor can finish all changed instructions before

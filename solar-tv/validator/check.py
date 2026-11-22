@@ -705,7 +705,7 @@ def main() -> int:
     selection.add_argument(
         "--prune",
         action="store_true",
-        help="prove MIR function or type pruning, or a phase-only advance",
+        help="prove a structural MIR module change (pruning, phase advance, or empty dispatch)",
     )
     parser.add_argument(
         "--stack-height",
