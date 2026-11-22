@@ -7,8 +7,8 @@ later rejected for balance/depth. Resolution warmth survives child revert.
 Code introspection reads the original account bytes; execution uses the resolved
 image. Delegation to a precompile does not invoke it. A second designator is
 executed as ordinary (invalid) bytecode, not recursively resolved.
-Authorization signatures, transaction intrinsic gas and authorization refunds
-precede this entry model; the fixture supplies their resulting account state.
+The entry model receives the account state after authorization processing.
+The transaction model checks signatures, intrinsic gas and refunds separately.
 https://eips.ethereum.org/EIPS/eip-7702#delegation-indicator -/
 
 namespace SolarTV.EVM.State

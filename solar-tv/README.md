@@ -1079,6 +1079,25 @@ both versions halt successfully with sufficient gas, but only the original
 finishes at budget 10. Reports and replay commands retain the policy, budget,
 target version and remaining gas.
 
+### Check the transaction boundary
+
+Run the kernel and independent `evm2` transaction handler on decoded EIP-7702
+fixtures through Osaka. The fixture supplies the outer sender and signed
+authorization tuples. The kernel checks each signature recovery and then
+compares admission, receipt gas and refund, output, and the selected account
+nonces and code. The revert example checks that authorization changes survive
+failure of the execution message.
+
+```sh
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/set-code-revert.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-reservoir.json
+```
+
+The Amsterdam fixture checks reservoir initialization, execution-only debits,
+state charges that spill into the execution balance, insufficient gas, and
+restoration of state gas on rollback. These checks are separate from the
+existing `--world` entry and do not yet meter Amsterdam's stateful opcodes.
+
 ## Check passes during compilation
 
 From the repository root:

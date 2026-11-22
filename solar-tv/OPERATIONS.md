@@ -97,8 +97,10 @@ difficulty/randomness, block history, fees, blob hashes, chain ID and SLOTNUM.
 EXTCODECOPY reads account bytes with padding and memory/access gas. From Prague,
 EIP-7702 designators resolve once for execution; their target access costs/warmth
 and call contexts are replayed independently. Authorization processing precedes
-the entry model. Amsterdam admits environment/scalar/memory execution only;
-state/account/call gas remains unsupported. A zero `Missing` count does not make
+the explicit-world entry model. A separate transaction checker handles decoded
+set-code envelopes and signed authorizations through Osaka. Amsterdam admits
+environment/scalar/memory execution and separate reservoir certificates.
+State/account/call gas is still outside the Amsterdam interpreter. A zero `Missing` count does not make
 every EVM operation valid in arbitrary windows, forks or worlds.
 
 [MIR/State/](SolarTV/MIR/State/) executes typed SSA directly, with scalar memory
@@ -246,8 +248,8 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
    Derive general MIR message budgets from priced execution rather than supplied
    boundary inputs; model root reentry through MIR entry semantics.
-2. Add transaction admission and EIP-7702 authorization processing, beyond
-   execution of already-delegated account state.
+2. Extend decoded set-code transaction admission to the other envelope types
+   and prove full fee settlement and block accumulation.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
 4. Extend the per-import correspondence certificates beyond acyclic EVM regions
@@ -257,8 +259,9 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
    explicit initialization and non-vacuity. Establishing that condition at
    every caller remains open. Direct MIR semantics and independent replay do
    not by themselves prove backend decisions correct.
-5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
-   Amsterdam's two-resource state gas. Expand differential boundary coverage.
+5. Integrate Amsterdam's reservoir initialization, debits and rollback with
+   stateful opcode execution, nested frames and transaction settlement. Expand
+   differential boundary coverage.
 
 Unsupported semantics remain explicit. A local proof does not establish
 whole-contract equivalence or an all-input correspondence theorem for the Rust

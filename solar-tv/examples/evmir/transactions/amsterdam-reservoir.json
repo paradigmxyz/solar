@@ -1,0 +1,12 @@
+{
+  "kind": "reservoir",
+  "limit": 16777366,
+  "intrinsic": 21000,
+  "charges": [
+    { "state": 100 },
+    { "execution": 3 },
+    { "state": 54 },
+    { "execution": 5 },
+    { "rollback": null }
+  ]
+}

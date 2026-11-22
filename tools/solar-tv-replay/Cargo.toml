@@ -31,7 +31,7 @@ solar-evmir.workspace = true
 solar-data-structures.workspace = true
 strum.workspace = true
 evm2.workspace = true
-alloy-consensus.workspace = true
+alloy-consensus = { workspace = true, features = ["serde"] }
 tempfile.workspace = true
 
 [dev-dependencies]
