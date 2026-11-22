@@ -145,7 +145,7 @@ def check(paths, solar, replay, version, timeout, entry):
         for row in models[0]["nodes"]
     )
     if models[0] != models[1] or dynamic_exit:
-        from . import stack_layout
+        from . import cfg_flow, stack_layout
 
         expressions = [
             render(model, catalog, version, entry, dynamic_exit=True)
@@ -155,11 +155,10 @@ def check(paths, solar, replay, version, timeout, entry):
             return stack_layout.check_data(
                 texts, models, expressions, entry, catalog, version, timeout
             )
-        except Unsupported as error:
-            raise Unsupported(
-                "reachable source graphs differ; an instruction/CFG proof is required\n"
-                + str(error)
-            ) from None
+        except Unsupported:
+            return cfg_flow.check(
+                texts, models, expressions, entry, catalog, version, timeout
+            )
     expressions = [render(model, catalog, version, entry) for model in models]
     code = (
         PRELUDE

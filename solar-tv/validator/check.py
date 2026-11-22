@@ -908,7 +908,15 @@ def main() -> int:
                     and args.region
                     and not args.world
                     and not args.gas
-                    and isinstance(error, evm_region.UnmodeledInstruction)
+                    and (
+                        isinstance(error, evm_region.UnmodeledInstruction)
+                        or str(error)
+                        in {
+                            "region entry stack cannot execute its instructions",
+                            "cyclic EVM regions require loop invariants",
+                            "region expansion budget exceeded",
+                        }
+                    )
                 ):
                     from . import source_identity
 

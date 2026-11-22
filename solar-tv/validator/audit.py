@@ -282,6 +282,15 @@ def record(
                     "transfers are unpriced; source normalizer, raw constructor and schema binding remain trusted; no physical gas, opcode-implementation or backend-layout certificate; code-image observers and calls excluded",
                 ]
             )
+        elif program and program.scope == "cfg-flow":
+            assumptions.extend(
+                [
+                    "independently exported EVM graphs; matched finite chains of unconditional transfers preserve the strongest temporary stack requirement",
+                    "every incoming stack height, arbitrary live state and logical execution bound under shared position-independent handlers; changed growth requirements are proved safe on reachable paths",
+                    "raw transfer costs and physical return PCs are outside this projection; dynamic JUMP is a terminal observation, and code-image observers, escaping labels and calls are excluded",
+                    "compiler parser/schema and constructor bindings are trusted",
+                ]
+            )
         elif program and program.scope == "source-identity":
             assumptions.extend(
                 [
@@ -569,6 +578,7 @@ def record(
                 "interior-window",
                 "source-identity",
                 "stack-layout",
+                "cfg-flow",
             }
             and program.symbolic_mir is None
         ):
@@ -626,6 +636,7 @@ def record(
                 "allocation-prefix",
                 "source-identity",
                 "stack-layout",
+                "cfg-flow",
                 "return-path",
             }
             else program.gas
@@ -793,11 +804,14 @@ def record(
                     "name": program.selector,
                     "proof": "kernel-checked-schema-stack-layout"
                     if program.scope == "stack-layout"
+                    else "kernel-checked-jump-chain-projection"
+                    if program.scope == "cfg-flow"
                     else "universal-source-graph-identity",
                     "stack_height": None,
                 },
             }
-            if program and program.scope in {"source-identity", "stack-layout"}
+            if program
+            and program.scope in {"source-identity", "stack-layout", "cfg-flow"}
             else {}
         ),
         **(

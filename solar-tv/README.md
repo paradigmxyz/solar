@@ -1959,6 +1959,14 @@ corpus; a pass that never changes that corpus needs other inputs.
 Selected records for the same dispatch pair share the module-level proof
 report. The evaluator retains each capture ID in the coverage totals.
 
+EVM IR regions can verify after block coalescing or jump threading when both
+source graphs retain the same actions and branches. The checker contracts
+finite chains of unconditional jumps and carries forward their strongest
+temporary stack-growth check. Lean checks the projection against both
+graphs and proves the matched actions preserve all incoming stack heights
+and ordered effects. The certificate counts logical work and leaves gas
+and physical return addresses outside its comparison.
+
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or
 errors. Selected check IDs and all three output fingerprints are unchanged.
