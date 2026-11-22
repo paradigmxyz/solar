@@ -103,11 +103,6 @@ theorem Agreement.step_eq {changed left right} (pair : Agreement changed left ri
           | error _ => rfl
           | ok args =>
             simp only [pair.start_eq callee args frame]
-            exact signature_bind (α := Transition) pair callee fun sig => do
-              if !(sameTypes sig.returns body.returns) then .error "MIR tail call result mismatch" else
-                let child ← start right callee args frame
-                next {function := callee,returnOwner := some (cursor.returnOwner.getD cursor.function)}
-                  stack child
         case returned operands =>
           simp only []
           cases operands.mapM (readValue frame) with
@@ -118,11 +113,18 @@ theorem Agreement.step_eq {changed left right} (pair : Agreement changed left ri
             | error _ => rfl
             | ok _ =>
               simp only []
-              cases stack with
-              | nil => rfl
-              | cons caller rest =>
-                exact signature_bind (α := Transition) pair (cursor.returnOwner.getD cursor.function)
-                  fun sig => do
+              cases cursor.returnOwner with
+              | none => rfl
+              | some id =>
+                exact signature_bind (α := Transition) pair id fun sig => do
+                  let sig ← if !(sameTypes sig.returns body.returns) then
+                      .error "MIR tail call result mismatch"
+                    else pure sig
+                  match stack with
+                  | [] =>
+                    let words ← (body.returns.zip values).mapM (fun (ty,value) => value.flatten 34 ty)
+                    stop (.returned words.flatten) frame
+                  | caller :: rest =>
                     let frame ← publishReturns cfg sig values frame
                     let parent := {caller.frame with
                       world := frame.world, memory := frame.memory, returnData := frame.returnData,

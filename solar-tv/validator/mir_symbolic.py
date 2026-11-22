@@ -213,8 +213,6 @@ def declaration(name, program):
 
 
 def check(a, b, timeout, *, replay_command, replay_executable, verbose):
-    from .check import PRELUDE, ROOT, build_model, run
-
     programs = []
     for program in (a, b):
         # Reconstruct from the original independently parsed source. A cached
@@ -269,6 +267,30 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
             return mir_effects.check(a, b, timeout, replay_executable)
         except Unsupported:
             pass
+    result = prove_direct(a, b, timeout)
+    if proved(result):
+        return audit.Result("verified", stdout="verified\n", program=a, pair=(a, b))
+    if len(a.symbolic_mir["model"]["functions"]) > 1:
+        try:
+            return mir_effects.check(a, b, timeout, replay_executable)
+        except Unsupported:
+            pass
+    witness = counterexample(a, b, timeout, replay_command, replay_executable, verbose)
+    if witness is not None:
+        return witness
+    raise Unsupported(
+        "universal typed MIR proof did not close; unsupported execution is not equivalence\n"
+        + result.stdout
+        + result.stderr
+    )
+
+
+def prove_direct(a, b, timeout, *, preserve_memory_terms=False):
+    """Prove complete direct MIR observations for an already matched interface."""
+    from .check import PRELUDE, ROOT, build_model, run
+
+    if a.input_widths != b.input_widths or a.inputs != b.inputs:
+        raise Unsupported("direct MIR proofs require the same scalar live-ins")
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stdout + build.stderr)
@@ -286,6 +308,25 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
         + declaration("before", a)
         + declaration("after", b)
     )
+    simplify = "simp"
+    if preserve_memory_terms:
+        # A representation change can preserve a long chain of memory
+        # effects exactly. Compare those expressions before opening them.
+        declarations += (
+            "attribute [local irreducible] Execution.readWord Execution.readBytes "
+            "Execution.writeBytes Execution.wordBytes Execution.expand\n"
+        )
+        unfold = unfold.replace(
+            "Execution.expand, Execution.requiredWords, Execution.memoryWords, ",
+            "",
+        ) + (
+            ", MIR.PhaseShaping.expand_after_write, MIR.ContinuedCounter.expandAligned"
+            ", MIR.PhaseShaping.read_padded_write, MIR.RoutedDispatch.expand_zero"
+            ", ↓MIR.State.reduceOpcode"
+        )
+        unfold = unfold.replace("↓MIR.State.reduceRun,", "↓MIR.State.reduceShapedRun,")
+        unfold = unfold.replace("MIR.State.Value.flatten,", "↓MIR.State.reduceFlatten,")
+        simplify = "simp (disch := omega)"
     # Normalize bounds in the reached path before another split. Observation
     # stays behind a completed-run guard, so pending continuations do not expand
     # into a product of duplicated result projections.
@@ -298,8 +339,8 @@ theorem pair_correct (environment : World.Environment) (context : Execution.Bloc
   rcases valid with ⟨bounded, aligned⟩
   have alignment : 32 * (frame.memory.length / 32) = frame.memory.length := by omega
   unfold before after
-  conv => arg 1; simp [{unfold}]
-  conv => arg 2; simp [{unfold}]
+  conv => arg 1; {simplify} [{unfold}]
+  conv => arg 2; {simplify} [{unfold}]
   repeat (split_mir_guard <;>
     (try simp_all [{unfold}, Nat.add_comm]) <;>
     (try simp (disch := omega) [*, {unfold}, Decidable.imp_iff_not_or,
@@ -310,27 +351,16 @@ theorem pair_correct (environment : World.Environment) (context : Execution.Bloc
     with tempfile.TemporaryDirectory(prefix="solar-tv-symbolic-mir-") as folder:
         path = Path(folder) / "Pair.lean"
         path.write_text(declarations + theorem)
-        result = run(["lake", "env", "lean", path], ROOT, timeout)
+        return run(["lake", "env", "lean", path], ROOT, timeout)
+
+
+def proved(result):
     axioms = re.search(r"'pair_correct' depends on axioms: \[(.*?)\]", result.stdout)
-    if not result.returncode and (
+    return not result.returncode and (
         "'pair_correct' does not depend on any axioms" in result.stdout
         or axioms
         and not set(axioms[1].split(", "))
         - {"propext", "Quot.sound", "Classical.choice"}
-    ):
-        return audit.Result("verified", stdout="verified\n", program=a, pair=(a, b))
-    if len(a.symbolic_mir["model"]["functions"]) > 1:
-        try:
-            return mir_effects.check(a, b, timeout, replay_executable)
-        except Unsupported:
-            pass
-    witness = counterexample(a, b, timeout, replay_command, replay_executable, verbose)
-    if witness is not None:
-        return witness
-    raise Unsupported(
-        "universal typed MIR proof did not close; unsupported execution is not equivalence\n"
-        + result.stdout
-        + result.stderr
     )
 
 

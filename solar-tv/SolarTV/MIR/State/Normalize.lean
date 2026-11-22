@@ -32,15 +32,33 @@ dsimproc_decl reduceFits (Value.fits _ _ _) := fun expression => do
   -- Its arguments become known after the list combinator reduces.
   return .visit (← withTransparency .default (whnf expression))
 
+dsimproc_decl reduceFlatten (Value.flatten _ _ _) := fun expression => do
+  let args := expression.getAppArgs
+  unless args.size == 3 do return .continue
+  let ty ← whnf args[1]!
+  let value ← whnf args[2]!
+  unless ty.isAppOf ``ValueType.word || ty.isAppOf ``ValueType.pointer do return .continue
+  unless value.isAppOf ``Value.scalar || value.isAppOf ``Value.undefined do return .continue
+  let head ← withTransparency .default (whnf expression)
+  return if head == expression then .continue else .visit head
+
 -- Keep the source program shared instead of copying its function table into
 -- every symbolic branch. A concrete lookup still reduces by kernel equality.
 dsimproc_decl reduceFunction (function _ _) := fun expression => do
   let args := expression.getAppArgs
   unless args.size == 2 do return .continue
-  unless (← getNatValue? args[1]!).isSome do return .continue
+  unless (← getNatValue? (← whnf args[1]!)).isSome do return .continue
   let head ← withTransparency .default (whnf expression)
   unless head.isAppOf ``Except.ok || head.isAppOf ``Except.error do return .continue
   return .visit head
+
+-- Reduce membership in a concrete opcode table without generating a chain of
+-- propositional disjunctions. Unknown tables or opcodes stay symbolic.
+dsimproc_decl reduceOpcode (List.contains (_ : List Nat) _) := fun expression => do
+  unless (← getNatValue? (← whnf expression.appArg!)).isSome do return .continue
+  let head ← withTransparency .default (whnf expression)
+  unless head.isConstOf ``Bool.true || head.isConstOf ``Bool.false do return .continue
+  return .done head
 
 -- Observation is a terminal boundary, not a symbolic-execution step. Expanding
 -- its projections under an unresolved run duplicates every pending branch.
@@ -76,7 +94,7 @@ dsimproc_decl reduceConclude (conclude _ _ _) := fun expression => do
 /-- Normalize either a plain or an instrumented interpreter run using its own
 equations for the same kernel-checked transition. -/
 def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Name)
-    (prefixCount : Nat := 0) : SimpM Simp.Step := do
+    (prefixCount : Nat := 0) (evaluateTransition : Bool := false) : SimpM Simp.Step := do
   let leading := expression.getAppArgs.extract 0 prefixCount
   let args := expression.getAppArgs.extract prefixCount expression.getAppArgs.size
   unless args.size == 4 do return .continue
@@ -90,7 +108,16 @@ def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Nam
   unless (← getNatValue? (← withTransparency .default (whnf position[0]!))).isSome do return .continue
   unless (← getNatValue? (← withTransparency .default (whnf position[1]!))).isSome do return .continue
   unless (← getNatValue? (← withTransparency .default (whnf position[2]!))).isSome do return .continue
-  let step ← mkAppM ``transition #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
+  let parameters := leading ++ #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
+  -- The contextual proof tactics expose one transition and simplify its
+  -- surroundings first. Late shaping uses a separate eager stepper with
+  -- locally opaque memory operations and matching range lemmas.
+  unless evaluateTransition do
+    let equation ← mkAppM onUnknown parameters
+    return .done {expr := (← inferType equation).appArg!, proof? := some equation}
+  -- Meta applications do not insert the transition's default hash argument.
+  -- Use the same fully applied transition as the direct interpreter's run.
+  let step ← mkAppM ``transition #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!,mkConst ``Keccak.hash]
   -- A known constructor needs only definitional equality. This avoids unfolding
   -- instruction/type matches under the transition's unapplied continuations.
   let head ← withTransparency .default (whnf step)
@@ -99,7 +126,6 @@ def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Nam
     else simp step
   let reduced ← whnf reduction.expr
   let proof ← reduction.getProof
-  let parameters := leading ++ #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
   let mut resolved := true
   let equation ← if reduced.isAppOf ``Except.error then
       pure (mkAppN (mkConst onError) (parameters ++ #[reduced.appArg!,proof]))
@@ -123,6 +149,9 @@ def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Nam
 
 simproc_decl reduceRun (run _ _ _ _) := fun expression =>
   reduceRunStep expression ``run_error ``run_next ``run_finished ``run_one
+
+simproc_decl reduceShapedRun (run _ _ _ _) := fun expression =>
+  reduceRunStep expression ``run_error ``run_next ``run_finished ``run_one (evaluateTransition := true)
 
 open Lean.Elab.Tactic in
 elab "split_mir_guard" : tactic => do

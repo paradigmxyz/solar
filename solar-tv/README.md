@@ -1746,7 +1746,7 @@ Live audits automatically try module certificates after a shared-declaration
 change. Capture-only records retain their original selection so the frozen
 corpus denominator stays unchanged.
 
-### MIR phase-only advances
+### MIR phase advances and final shaping
 
 `lower-evm-shaped` can advance a module from semantic to lowered MIR after
 the earlier passes have already made every function legal in the lowered phase.
@@ -1759,9 +1759,26 @@ execution for every entry, initial state and work bound.
 solar-tv/solar-tv mir before.mir after.mir --prune
 ```
 
-Live pass audits use the same check automatically. Reports use
-`resolved-phase-advance` and `unpriced-structural`. Pointer erasure, call
-shaping, phi-edge rewrites and backend gas or layout require separate evidence.
+The pass can also erase pointer casts, turn a call that never returns into a
+tail call, and split an edge that needs a separate phi copy. The
+`phase-shaping` example exercises all three with the real pass. Use a fresh
+capture directory for each run.
+
+```sh
+target/debug/solar solar-tv/examples/mir/phase-shaping/input.mir \
+  -j1 --evm-version=cancun -Zmir-pipeline=lower-evm-shaped -Zvalidate-ir=true \
+  -Zsolar-tv=target/tv-shaping -Zsolar-tv-capture
+solar-tv/solar-tv mir target/tv-shaping/captures/*/{before,after}.mir \
+  --evm-version=cancun --prune
+```
+
+The direct proof checks typed execution over symbolic inputs and byte memory for
+admitted acyclic call graphs. A separate certificate checks that inserted
+forwarding blocks preserve the taken edge and the simultaneous phi reads on
+each traversal, including loop backedges. Reports identify the evidence per
+function. The compiler validates both declared phases before checking either
+certificate. The live audit uses the same proofs. Physical gas and stack
+placement are outside these MIR certificates.
 
 ### Materializing a runtime dispatcher
 

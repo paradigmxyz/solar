@@ -111,19 +111,24 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
       next (branch cursor target) stack frame
     | .tailCall callee operands =>
       let args ← operands.mapM (readValue frame)
-      let target ← function functions callee
-      if !(sameTypes target.returns body.returns) then .error "MIR tail call result mismatch" else
-        let child ← start functions callee args frame
-        next {function := callee,returnOwner := some (cursor.returnOwner.getD cursor.function)} stack child
+      let child ← start functions callee args frame
+      next {function := callee,returnOwner := some (cursor.returnOwner.getD cursor.function)} stack child
     | .returned operands =>
       let values ← operands.mapM (readValue frame)
       typedWords body.returns values
+      -- A tail-called body that halts the EVM frame never delivers results.
+      -- Check the originating function's signature only when results return.
+      let owner ← match cursor.returnOwner with
+        | none => pure body
+        | some id => do
+          let owner ← function functions id
+          if !(sameTypes owner.returns body.returns) then .error "MIR tail call result mismatch"
+          else pure owner
       match stack with
       | [] =>
         let words ← (body.returns.zip values).mapM (fun (ty,value) => value.flatten 34 ty)
         stop (.returned words.flatten) frame
       | caller :: rest =>
-        let owner ← function functions (cursor.returnOwner.getD cursor.function)
         let frame ← publishReturns cfg owner values frame
         let parent := {caller.frame with
           world := frame.world

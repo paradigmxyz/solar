@@ -11,6 +11,7 @@ import SolarTV.MIR.Transforms.CheckElim
 import SolarTV.MIR.Transforms.AbiValidation
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
 import SolarTV.MIR.Transforms.RenamePhiPredecessors
+import SolarTV.MIR.Transforms.PhiEdges
 import SolarTV.MIR.Transforms.LowerAlloc
 import SolarTV.MIR.Transforms.LowerAllocPrefix
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
@@ -63,6 +64,7 @@ import SolarTV.MIR.Transforms.LowerPacked
 import SolarTV.MIR.Transforms.LowerStaticWord
 import SolarTV.MIR.Transforms.CalldataInduction
 import SolarTV.MIR.Transforms.ContinuedCounter
+import SolarTV.MIR.Transforms.PhaseShaping
 import SolarTV.MIR.Transforms.StorageInduction
 import SolarTV.MIR.Transforms.BoundedFill
 import SolarTV.MIR.State.LoopStep

@@ -195,6 +195,15 @@ def record(
                     "trusted compiler parser/schema export and typed constructor renderer; backend layout and physical gas remain outside direct MIR execution",
                 ]
             )
+        elif program and program.scope == "phase-rewrite":
+            assumptions.extend(
+                [
+                    "same module declarations and function interfaces after pointer-to-word representation erasure",
+                    "all changed bodies and their callers have a checked certificate; direct execution quantifies defined scalar inputs and arbitrary aligned byte memory up to 64 KiB",
+                    "phi-edge certificates check that empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges, with no physical gas claim",
+                    "trusted compiler parser/schema export and typed constructor renderer; no physical gas or backend layout claim",
+                ]
+            )
         elif program and program.scope == "empty-dispatch":
             assumptions.extend(
                 [
@@ -493,6 +502,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
+                "phase-rewrite",
                 "empty-dispatch",
                 "routed-dispatch",
                 "allocation-prefix",
@@ -525,6 +535,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
+                "phase-rewrite",
                 "empty-dispatch",
                 "routed-dispatch",
                 "calldata-induction",
@@ -584,6 +595,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
+                "phase-rewrite",
                 "empty-dispatch",
                 "routed-dispatch",
                 "calldata-induction",
@@ -671,6 +683,19 @@ def record(
                 },
             }
             if program and program.scope == "phase-advance"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "resolved-phase-rewrites",
+                    "functions": program.import_evidence["functions"],
+                    "certificates": program.import_evidence["certificates"],
+                },
+            }
+            if program and program.scope == "phase-rewrite"
             else {}
         ),
         **(

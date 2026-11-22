@@ -1,4 +1,4 @@
-"""Check a real lower-evm-shaped phase advance and enforce its boundary."""
+"""Check real lower-evm-shaped captures and independently replay broken edits."""
 
 import json
 import os
@@ -11,7 +11,8 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate
+from validator import evaluate, native, world
+from validator.common import Program
 
 
 class PhaseAdvanceTests(unittest.TestCase):
@@ -136,3 +137,144 @@ fn @f(arg0: i8) -> i8 {
         record = self.check_pair([before, after], 2)
         self.assertEqual(record["status"], "unsupported")
         self.assertIn("non-word type", record["diagnostic"])
+
+    def test_solidity_nonreturning_call_and_bytecode_neutrality(self):
+        folder = self.directory / "solidity-shape"
+        folder.mkdir()
+        source = {
+            **self.source,
+            "sources": {
+                "C.sol": {
+                    "content": """contract C {
+    function fail(uint256 x) internal pure {
+        assembly {
+            mstore(0, x)
+            revert(0, 32)
+        }
+    }
+
+    function go(uint256 x) external pure {
+        fail(x);
+    }
+}"""
+                }
+            },
+            "settings": {
+                **self.source["settings"],
+                "optimizer": {"enabled": False},
+                "evmVersion": "cancun",
+            },
+        }
+        baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+        captured, _ = evaluate.compile_input(SOLAR, source, folder, capture=True)
+        self.assertEqual(baseline, captured)
+        (phase,) = (
+            row
+            for row in evaluate.captures(folder)
+            if row["pass"] == "lower-evm-shaped"
+        )
+        before, after = phase["paths"]
+        self.assertIn("icall @fail", before.read_text())
+        self.assertIn("tail_call @fail", after.read_text())
+        report = self.check_pair([before, after], 0)
+        self.assertEqual(report["region"]["proof"], "resolved-phase-rewrites")
+        self.assertEqual(
+            report["region"]["certificates"]["entry"], {"kind": "direct-execution"}
+        )
+
+    def test_real_pointer_call_and_phi_rewrites(self):
+        folder = self.directory / "shape-audit"
+        example = ROOT / "examples/mir/phase-shaping/input.mir"
+        args = [
+            SOLAR,
+            example,
+            "-j1",
+            "--evm-version=cancun",
+            "-Zmir-pipeline=lower-evm-shaped",
+            "-Zvalidate-ir=true",
+        ]
+        baseline = subprocess.check_output(args, text=True, timeout=10)
+        captured = subprocess.check_output(
+            [*args, f"-Zsolar-tv={folder}", "-Zsolar-tv-capture"], text=True, timeout=10
+        )
+        self.assertEqual(baseline, captured)
+        (capture,) = evaluate.captures(folder)
+        before, after = capture["paths"]
+        record = self.check_pair([before, after], 0)
+        self.assertEqual(record["evidence"], "kernel-proof")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        self.assertEqual(record["region"]["proof"], "resolved-phase-rewrites")
+        certificates = record["region"]["certificates"]
+        self.assertEqual(
+            certificates,
+            {
+                "entry": {"kind": "direct-execution"},
+                "caller": {"kind": "direct-execution"},
+                "alias": {"kind": "direct-execution"},
+                "widen": {"kind": "direct-execution"},
+                "count": {"kind": "phi-edges", "edges": [[2, 1]]},
+                "choose": {"kind": "phi-edges", "edges": [[2, 1]]},
+            },
+        )
+
+        fixture = folder / "world.json"
+        fixture.write_text('{"version": 1}')
+        initial = world.read(fixture, SOLAR, None, kind="mir")
+        lowered = after.read_text()
+
+        def replay(text, function, values):
+            pair = [
+                Program(
+                    ("world-entry", "mir"),
+                    [f"arg{i}" for i in range(len(values))],
+                    "",
+                    "",
+                    replay_ir=body,
+                    selector=function,
+                    evm_version="cancun",
+                    world=initial,
+                )
+                for body in (before.read_text(), text)
+            ]
+            data = native.replay(
+                *pair, values, executable=native.default(SOLAR), timeout=10
+            )
+            return tuple(map(json.loads, data["observations"]))
+
+        for function, args, old, new, outcome, field, original, broken in (
+            (
+                "entry",
+                [],
+                "tail_call @terminate, 37",
+                "tail_call @terminate, 38",
+                "revert",
+                "data",
+                [0] * 31 + [37],
+                [0] * 31 + [38],
+            ),
+            (
+                "alias",
+                [41],
+                "mstore 32, arg0",
+                "mstore 64, arg0",
+                "return",
+                "values",
+                ["41"],
+                ["0"],
+            ),
+            ("count", [2], "[bb4: v1]", "[bb4: 9]", "return", "values", ["2"], ["9"]),
+        ):
+            with self.subTest(rewrite=function):
+                self.assertIn(old, lowered)
+                good, candidate = replay(lowered, function, args)
+                self.assertEqual(good, candidate)
+                self.assertEqual((good["outcome"], good[field]), (outcome, original))
+                mutated = lowered.replace(old, new, 1)
+                path = folder / f"broken-{function}.mir"
+                path.write_text(mutated)
+                self.assertEqual(
+                    self.check_pair([before, path], 2)["status"], "unsupported"
+                )
+                good, wrong = replay(mutated, function, args)
+                self.assertEqual((good["outcome"], good[field]), (outcome, original))
+                self.assertEqual((wrong["outcome"], wrong[field]), (outcome, broken))

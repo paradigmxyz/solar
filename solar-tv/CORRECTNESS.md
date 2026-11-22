@@ -629,14 +629,27 @@ that division by `2^224` gives the same selector for arbitrary calldata.
 The legacy regression checks the actual `lower-shifts` capture for that
 divisor. The runtime phase still requires legal opcodes.
 
-The phase-only form of `lower-evm-shaped` is covered by a module certificate.
+The phase-only form of `lower-evm-shaped` has a module identity certificate.
 Both original modules pass phase validation and retain the same canonical
 MIR after removal of the lowered phase marker. The kernel checks equality of
 the independently exported function tables and their direct MIR executions
 for every configuration, entry, frame and fuel bound. This uses the same
-trusted parser/schema exporter and constructor renderer as type-table
-erasure. Rewrites of pointer types, calls or phi edges and the correspondence
-to the physical gas and layout of later bytecode remain open.
+trusted parser/schema exporter and constructor renderer as type-table erasure.
+
+For executable changes, the checker preserves module declarations, entry
+bindings, and function interfaces under the pointer-to-word representation.
+The kernel compares direct MIR outcomes over symbolic arguments and arbitrary
+aligned byte memory for the admitted acyclic functions and their callers.
+This checks cast erasure through memory accesses and validates a nonreturning
+call reshaped into a tail call even when the result interfaces differ. The
+interpreter checks the return owner's type when values actually return.
+A separate local proof handles empty phi-edge forwarders. The kernel compares
+the full resolved bodies to the split graph and proves that ordered switch
+selection and simultaneous phi assignment preserve the original edge's frame
+for every traversal, including backedges. Independent replay exercises a wrong
+memory address, tail-call argument and phi input. Recursive direct execution,
+bodies that mix unsupported rewrites and cycles, and physical gas and stack
+layout remain open.
 
 After rebasing onto `main`, the new frozen sample has a different selection of
 24 obligations: its baseline verifies 15, with 9 unsupported and no timeouts or

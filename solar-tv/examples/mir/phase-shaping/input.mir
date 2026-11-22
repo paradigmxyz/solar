@@ -1,0 +1,61 @@
+@module Shaping
+
+fn @entry() [entry] {
+  bb0:
+    tail_call @caller
+}
+
+fn @caller() {
+  bb0:
+    v0 = icall @terminate, 37
+    sstore 0, v0
+    stop
+}
+
+fn @terminate(arg0: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    revert 0, 32
+}
+
+fn @alias(arg0: i256) -> i256 {
+  bb0:
+    v0 = inttoptr i256 32 to ptr<memory>
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, arg0
+    v2 = mload 32
+    ret v2
+}
+
+fn @widen(arg0: i1) -> ptr<memory> {
+  bb0:
+    v0 = inttoptr i1 arg0 to ptr<memory>
+    ret v0
+}
+
+fn @count(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v1]
+    v1 = add v0, 1
+    jump bb2
+  bb2:
+    v2 = lt v0, arg0
+    jumpi v2, bb1, bb3
+  bb3:
+    ret v0
+}
+
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v1]
+    v1 = add v0, 1
+    jump bb2
+  bb2:
+    switch arg0, default bb1, [1 => bb1, 2 => bb3]
+  bb3:
+    ret v0
+}
