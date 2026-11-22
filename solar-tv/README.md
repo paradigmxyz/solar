@@ -1516,6 +1516,47 @@ needle 3. Lean and the independent Rust interpreter agree on the first
 differing write and the return values, 12450 and 13450. The report gives the
 write's ordinal, slot and value on each side.
 
+### Proving runtime-bounded and diverging loops
+
+`WrappingBounds.fillWords` exercises a variable-length memory fill. The
+captured fast loop exits on a pointer sentinel and the slow loop retains its
+index and live header check.
+
+```sh
+out=$(mktemp -d)
+target/debug/solar tests/ui/codegen/mir/indvar-simplify/wrapping_bounds.sol \
+  -j1 -Ogas --evm-version=osaka --emit=bin-runtime --allow=2264 \
+  -Zsolar-tv="$out" -Zsolar-tv-capture
+stream=$(rg -l '"pass":"indvar-simplify".*"name":"fillWords"' "$out"/captures/*/regions.jsonl)
+pair=${stream%/regions.jsonl}
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir" \
+  --function fillWords --evm-version osaka
+```
+
+The checker matches the complete typed pair from ABI entry through return.
+The allocation checks and fast-edge guard prove that the sentinel's count
+clamp leaves the count unchanged. Both loops preserve ordered stores and
+the first failure for every iteration prefix. The rank bounds termination
+by `min(length, count) + 1` header visits. The proof shares the decoded
+calldata, supplied heap placement and effect handlers. It trusts the typed
+CFG projection and compares unpriced MIR semantics. Doubling the slow
+loop's stride produces a replayed witness with the first differing store
+and returned array element.
+
+For a new proof, define the invariant over the two states at matching
+cutpoints. Prove each side's `Segment` from the typed MIR transition, then
+use `Simulation` to relate the effects and either the next cutpoints or
+the exit. The kernel checks that each segment makes progress, so it also
+preserves divergence when the sides take different numbers of instructions.
+The example below models a loop that repeatedly writes memory, with an
+extra jump on one side.
+
+```sh
+cd solar-tv
+lake build SolarTV.MIR.State.LoopStep SolarTV.MIR.State.StoreTrace
+lake env lean -j1 examples/mir/loop-simulation/Proof.lean
+```
+
 ### Checking builtin lowering
 
 For the exact storage-byte write and address-call shapes, `--function` checks

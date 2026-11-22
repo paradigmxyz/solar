@@ -12,12 +12,15 @@ from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
 from validator import (
+    bounded_fill,
     builtin_lowering,
+    entry_proof,
     evaluate,
     memory_induction,
     mir_state,
     native,
     storage_induction,
+    traced_replay,
     world,
     world_check,
 )
@@ -391,4 +394,116 @@ class StorageInductionTests(InductionFixture):
         self.assertEqual(
             [(slot, value) for op, slot, value in traces[0][13:] if op == 0x55],
             [("0", "4"), ("1", "4"), ("2", "5"), ("3", "5"), ("4", "0"), ("5", "0")],
+        )
+
+
+class BoundedFillTests(InductionFixture):
+    source = "wrapping_bounds.sol"
+    function = "fillWords"
+
+    @staticmethod
+    def array(observation):
+        return MemoryInductionTests.array(observation)[2:]
+
+    def test_runtime_bounded_fill(self):
+        result, record = self.check_pair(self.after, self.directory / "bounded.json")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(record["status"], "verified")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-runtime-bounded-loop"
+        )
+        self.assertFalse(record["whole_pass"])
+
+    def test_fill_certificate_matches_a_renamed_function(self):
+        pair = tuple(
+            self.directory / f"renamed-{name}.mir" for name in ("before", "after")
+        )
+        for source, target in zip((self.before, self.after), pair, strict=True):
+            target.write_text(source.read_text().replace("@fillWords", "@writeWords"))
+        result = bounded_fill.check(
+            pair,
+            SOLAR,
+            self.replay,
+            VERSION,
+            60,
+            "writeWords",
+            replay="",
+            verbose=False,
+        )
+        self.assertEqual(result.status, "verified")
+
+    def test_wrong_stride_replays_first_different_store(self):
+        prefix, sep, tail = self.after.read_text().partition("fn @fillWords() {")
+        body, end, suffix = tail.partition("\n}")
+        body, changes = re.subn(
+            r"( = add v\d+, 1\n +v\d+ = add v\d+, )32(?=\n +jump)",
+            r"\g<1>64",
+            body,
+        )
+        self.assertEqual(changes, 1)
+        broken = self.directory / "wrong-stride.mir"
+        broken.write_text(prefix + sep + body + end + suffix)
+        result, record = self.check_pair(broken, self.directory / "wrong-stride.json")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        witness = record["witness"]
+        self.assertEqual(witness["observations"], witness["native_observations"])
+        self.assertEqual(
+            list(map(self.array, witness["observations"])), [[7, 7, 7], [7, 0, 7]]
+        )
+        self.assertEqual(
+            witness["first_different_write"],
+            {"index": 2, "before": ["192", "7"], "after": ["224", "7"]},
+        )
+
+    def test_runtime_edges_in_direct_interpreters(self):
+        texts = [path.read_text() for path in (self.before, self.after)]
+        panic = bytes.fromhex("4e487b71") + (0x41).to_bytes(32, "big")
+        scenarios = [
+            ({"count": 0}, [0, 0, 0]),
+            ({"count": 2}, [7, 7, 0]),
+            ({"count": 2**256 - 1}, [7, 7, 7]),
+            ({"length": 0}, []),
+            ({"length": 2**256 - 1}, panic),
+            ({"length": 2**251 - 1}, panic),
+            ({"base": 2**64 - 128}, panic),
+            ({"calldata": "0xa534f1f0"}, b""),
+        ]
+        for arguments, expected in scenarios:
+            with self.subTest(arguments=arguments):
+                fixture = bounded_fill.witness_world(self.directory, SOLAR, **arguments)
+                _, observations, _, traces = traced_replay.trace_pair(
+                    self.directory,
+                    texts,
+                    fixture,
+                    SOLAR,
+                    self.replay,
+                    VERSION,
+                    60,
+                    self.function,
+                    stores=True,
+                )
+                self.assertEqual(observations[0], observations[1])
+                self.assertEqual(traces[0], traces[1])
+                if isinstance(expected, bytes):
+                    self.assertEqual(observations[0]["outcome"], "revert")
+                    self.assertEqual(bytes(observations[0]["data"]), expected)
+                else:
+                    self.assertEqual(observations[0]["outcome"], "success")
+                    self.assertEqual(self.array(observations[0]), expected)
+
+
+class CutpointProofTests(unittest.TestCase):
+    def test_typed_mir_backedge_with_different_step_counts(self):
+        from validator.check import build_model
+
+        module = "SolarTV.MIR.State.LoopStep"
+        entry_proof.success(build_model(45, module), module)
+        store = "SolarTV.MIR.State.StoreTrace"
+        entry_proof.success(build_model(45, store), store)
+        source = (ROOT / "examples/mir/loop-simulation/Proof.lean").read_text()
+        with tempfile.TemporaryDirectory() as folder:
+            proof = entry_proof.lean(Path(folder), "Loop", source, 45)
+        entry_proof.check_axioms(
+            entry_proof.success(proof, "typed cutpoints").splitlines(), 2
         )

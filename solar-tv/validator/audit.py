@@ -311,6 +311,17 @@ def record(
                     "terminates within 128 logical work units; physical gas and backend placement outside scope",
                 ]
             )
+        elif program and program.scope == "bounded-fill":
+            assumptions.extend(
+                [
+                    "complete typed CFG matched through ABI dispatch, allocation and return",
+                    "common heap placement and arbitrary shared state and memory",
+                    "allocation guards derive the sentinel bound for arbitrary runtime counts",
+                    "ordered effects, first failure and exit preserved at every logical iteration",
+                    "trusted compiler parser/schema export and typed CFG projection",
+                    "unpriced source MIR",
+                ]
+            )
         elif program and program.scope == "storage-induction":
             assumptions.extend(
                 [
@@ -415,6 +426,7 @@ def record(
                 "allocation-prefix",
                 "calldata-induction",
                 "memory-induction",
+                "bounded-fill",
                 "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
@@ -442,6 +454,7 @@ def record(
                 "unused-type-erasure",
                 "calldata-induction",
                 "memory-induction",
+                "bounded-fill",
                 "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
@@ -493,6 +506,7 @@ def record(
                 "unused-type-erasure",
                 "calldata-induction",
                 "memory-induction",
+                "bounded-fill",
                 "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
@@ -621,6 +635,7 @@ def record(
                 "builtin-lowering",
                 "calldata-induction",
                 "memory-induction",
+                "bounded-fill",
                 "storage-induction",
             }
             else {}

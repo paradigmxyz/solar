@@ -224,6 +224,11 @@ pub trait Host {
         let _ = (opcode, slot, value);
     }
 
+    /// Observes a completed explicit whole-word memory store.
+    fn observe_mstore(&mut self, address: U256, word: U256) {
+        let _ = (address, word);
+    }
+
     /// Returns the host's current transient value, overlaid by unpublished writes.
     /// Without messages this is its value when the run starts: zero for a transaction.
     fn transient(&mut self, slot: U256) -> U256 {
@@ -1453,6 +1458,9 @@ impl<'a> Run<'_, 'a, '_> {
             (op::MLOAD, &[offset]) => Some(limit(self.memory.load(offset))?),
             (op::MSTORE, &[offset, value]) => {
                 limit(self.memory.store(offset, value))?;
+                if let Some(world) = &mut self.world {
+                    world.host.observe_mstore(offset, value);
+                }
                 None
             }
             (op::MSTORE8, &[offset, value]) => {

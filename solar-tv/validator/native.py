@@ -20,6 +20,7 @@ def replay(
     probe_pc: int | None = None,
     raw_runtime: bool = False,
     trace_storage: bool = False,
+    trace_stores: bool = False,
 ) -> dict:
     binary = shutil.which(executable)
     if binary is None:
@@ -54,6 +55,8 @@ def replay(
             request["world"]["raw_runtime"] = True
         if trace_storage:
             request["world"]["trace_storage"] = True
+        if trace_stores:
+            request["world"]["trace_stores"] = True
     try:
         result = subprocess.run(
             [binary],

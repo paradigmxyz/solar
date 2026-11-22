@@ -141,6 +141,26 @@ overwrites the second array element. Independent Rust replay checks that
 counterexample. The compiler parser, schema export and constructor renderer
 remain trusted. The theorem prices no MIR instructions.
 
+The runtime-bounded `WrappingBounds.fillWords` certificate binds both full
+typed CFGs, including checked allocation, the fast and slow loops, and
+ABI publication. Its proof derives the pointer sentinel bound from the
+allocation and fast-edge guards. The affine invariant preserves the two
+loop forms for arbitrary shared effects, including live header reads,
+ordered stores and the first failure. A rank proves that a valid logical
+execution finishes within the runtime bound of `min(length, count) + 1`
+header visits. The compiler parser, typed SSA export and CFG projection
+remain trusted. Direct Lean and Rust replay checks a corrupted stride
+against the real IR.
+
+`MIR/Transforms/LoopSimulation.lean` also supports user-proved cutpoint
+invariants over two typed MIR machines. Positive segments connect each
+logical step to primitive transitions. This permits different numbers of
+primitive steps while preserving ordered effect prefixes, terminal
+observations and divergence. The typed example
+`examples/mir/loop-simulation/Proof.lean` verifies a memory-writing loop
+with a jump on one backedge. New CFG shapes need a checked invariant and
+either a direct segment proof or a reported projection boundary.
+
 Complete unused named-type table erasure has a separate resolved-data theorem
 in `MIR/Transforms/TypeDCE.lean`. Each source module is independently parsed and
 validated. All functions are exported, including unreachable bodies, with
@@ -982,7 +1002,7 @@ token revert and a false result.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |
-| General loops | Acyclic expansion, structural cyclic checks, calldata pointer induction and direct ordered-store proofs for a fixed-length fill | Inductive simulation for more changed CFGs, arbitrary stateful loop bounds, divergence and failures. |
+| General loop proof support | Cutpoint invariants over typed MIR preserve ordered effects, exits and divergence. Real certificates cover calldata, memory and storage loops, including a runtime-bounded fill. | Apply the framework to more changed CFGs. Automatic recognition currently covers supported shapes. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results and acyclic calls | ABI entry, allocation/layout preconditions, recursive call invariants and broader defined memory domains. |
 | EVM entry stacks and indirect transfers | Fixed entry heights, universally quantified effect-free prefixes, or complete terminal-region proofs over every stack | Stateful context/window correspondence, call/return stack relations and verified indirect targets; never assume an unknown height or destination. |

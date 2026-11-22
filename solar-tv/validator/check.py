@@ -861,6 +861,7 @@ def main() -> int:
                     }
                 ):
                     from . import (
+                        bounded_fill,
                         builtin_lowering,
                         coalesce,
                         dead_ssa,
@@ -879,6 +880,9 @@ def main() -> int:
                                 memory_induction.check,
                                 replay=replay,
                                 verbose=args.verbose,
+                            ),
+                            partial(
+                                bounded_fill.check, replay=replay, verbose=args.verbose
                             ),
                             builtin_lowering.check,
                         )

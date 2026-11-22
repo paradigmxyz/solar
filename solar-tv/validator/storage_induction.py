@@ -3,7 +3,6 @@
 import hashlib
 import json
 import tempfile
-from dataclasses import replace
 from pathlib import Path
 
 from . import audit, builtin_lowering, dead_ssa, entry_proof, mir_state, native, world
@@ -270,55 +269,19 @@ def call_world(folder, cuts, solar, needle):
 
 
 def trace_pair(folder, texts, fixture, solar, executable, version, timeout):
-    from .check import definition
+    from . import traced_replay
 
-    programs = tuple(
-        mir_state.translate(
-            text, solar, version, fixture, timeout, "remove", replay=executable
-        )
-        for text in texts
+    return traced_replay.trace_pair(
+        folder,
+        texts,
+        fixture,
+        solar,
+        executable,
+        version,
+        timeout,
+        "remove",
+        stores=False,
     )
-    result = native.replay(
-        *programs, [], executable=executable, timeout=timeout, trace_storage=True
-    )
-    observations = [json.loads(item) for item in result["observations"]]
-    traces = [item.pop("storage_trace") for item in observations]
-    source = f"""import {MODULE}
-open SolarTV EvmRules
-set_option maxRecDepth 16384
-set_option maxHeartbeats 4000000
-{programs[0].world["configuration"]}
-"""
-    for name, program, trace in zip(("before", "after"), programs, traces, strict=True):
-        traced = replace(
-            program,
-            body=program.body.replace(
-                "MIR.State.execute ", "MIR.State.executeStorage "
-            ),
-            result_type="Except String (List MIR.State.StorageAccess × MIR.State.Result)",
-        )
-        events = ",".join(f"({op},{slot},{value})" for op, slot, value in trace)
-        source += definition(name, traced)
-        source += f"""theorem {name}Trace :
-    ({name}).toOption.map Prod.fst = some ([{events}] : List MIR.State.StorageAccess) := by
-  decide +kernel
-#print axioms {name}Trace
-#eval IO.println (MIR.State.describe (({name}).map Prod.snd))
-"""
-    different = observations[0] != observations[1]
-    if different:
-        source += """theorem different :
-    ¬ MIR.State.equivalent (before.map Prod.snd) (after.map Prod.snd) := by
-  decide +kernel
-#print axioms different
-"""
-    proof = entry_proof.lean(folder, "Replay", source, timeout)
-    lines = entry_proof.success(proof, "storage replay").splitlines()
-    entry_proof.check_axioms(lines[::2], 3 if different else 2)
-    lean_observations = [json.loads(item) for item in lines[1::2]]
-    if lean_observations != observations:
-        raise Unsupported("native and Lean storage replay observations differ")
-    return programs, lean_observations, observations, traces
 
 
 def replay_handoff(

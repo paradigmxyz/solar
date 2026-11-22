@@ -55,6 +55,33 @@ theorem runStores_result (fuel : Nat) (cfg : Config) (functions : Functions) (ma
             cases result : runStores (fuel-extra) cfg functions nextMachine <;>
               simp [result,Except.map,Pure.pure,Except.pure] at same ⊢ <;> exact same
 
+def executeStores (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat)
+    (frame : Frame) : Except String (List Store × Result) := do
+  if cfg.callDepth = 0 then .error "MIR internal call depth limit" else
+  let initial ← start functions entry frame.arguments frame
+  let (trace,result) ← runStores fuel cfg functions ⟨{function := entry},[],initial⟩
+  return (trace,← conclude cfg frame (.ok result))
+
+theorem executeStores_result (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat)
+    (frame : Frame) :
+    (executeStores fuel cfg functions entry frame).map Prod.snd =
+      execute fuel cfg functions entry frame := by
+  unfold executeStores execute
+  split
+  · rfl
+  simp only [Bind.bind,Except.bind]
+  cases start functions entry frame.arguments frame
+  · rfl
+  rename_i initial
+  dsimp only
+  rw [← runStores_result fuel cfg functions]
+  cases runStores fuel cfg functions ⟨{function := entry},[],initial⟩
+  · rfl
+  rename_i traced
+  obtain ⟨trace,result⟩ := traced
+  simp only [Except.map]
+  cases conclude cfg frame (.ok result) <;> rfl
+
 theorem runStores_next (fuel : Nat) {cfg functions machine extra nextMachine}
     (step : transition fuel cfg functions machine = .ok (.next extra nextMachine)) :
     runStores (fuel+1) cfg functions machine =

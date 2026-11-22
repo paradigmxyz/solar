@@ -63,6 +63,9 @@ pub(super) struct Input {
     /// Include the ordered completed persistent-storage opcodes in MIR replay.
     #[serde(default)]
     trace_storage: bool,
+    /// Include the ordered completed whole-word memory stores in MIR replay.
+    #[serde(default)]
+    trace_stores: bool,
 }
 
 #[derive(Deserialize)]
