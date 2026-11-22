@@ -576,6 +576,15 @@ unsafe-growth and bytecode-neutrality tests are in
 
 ## Remaining obligations
 
+The phase-only form of `lower-evm-shaped` is covered by a module certificate.
+Both original modules pass phase validation and retain the same canonical
+MIR after removal of the lowered phase marker. The kernel checks equality of
+the independently exported function tables and their direct MIR executions
+for every configuration, entry, frame and fuel bound. This uses the same
+trusted parser/schema exporter and constructor renderer as type-table
+erasure. Rewrites of pointer types, calls or phi edges and the correspondence
+to the physical gas and layout of later bytecode remain open.
+
 After rebasing onto `main`, the new frozen sample has a different selection of
 24 obligations: its baseline verifies 15, with 9 unsupported and no timeouts or
 counterexamples. This is a new compiler/capture fingerprint, not a regression

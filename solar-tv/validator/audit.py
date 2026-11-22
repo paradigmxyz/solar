@@ -186,6 +186,15 @@ def record(
                     "structural resolved-module identity, not primitive instruction implementations, physical gas or backend layout; normal GAS execution restrictions remain unchanged",
                 ]
             )
+        elif program and program.scope == "phase-advance":
+            assumptions.extend(
+                [
+                    "complete canonical MIR retained after removing the lowered phase marker",
+                    "compiler validates both original modules at their declared phases",
+                    "kernel-checked equality of independently resolved function tables preserves direct MIR execution for every entry, state and work bound",
+                    "trusted compiler parser/schema export and typed constructor renderer; backend layout and physical gas remain outside direct MIR execution",
+                ]
+            )
         elif program and program.scope == "fresh-heap-function":
             assumptions.extend(
                 [
@@ -443,6 +452,7 @@ def record(
             not in {
                 "function-pruning",
                 "unused-type-erasure",
+                "phase-advance",
                 "allocation-prefix",
                 "calldata-induction",
                 "memory-induction",
@@ -472,6 +482,7 @@ def record(
                 "shared-prefix-suffix",
                 "function-pruning",
                 "unused-type-erasure",
+                "phase-advance",
                 "calldata-induction",
                 "memory-induction",
                 "bounded-fill",
@@ -528,6 +539,7 @@ def record(
             in {
                 "function-pruning",
                 "unused-type-erasure",
+                "phase-advance",
                 "calldata-induction",
                 "memory-induction",
                 "bounded-fill",
@@ -600,6 +612,19 @@ def record(
                 },
             }
             if program and program.scope == "unused-type-erasure"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "resolved-phase-advance",
+                    "phases": program.import_evidence["phases"],
+                    "functions": program.import_evidence["functions"],
+                },
+            }
+            if program and program.scope == "phase-advance"
             else {}
         ),
         **(

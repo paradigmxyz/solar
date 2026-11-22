@@ -91,8 +91,8 @@ impl<'a> Snapshot<'a> {
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
         // Deleted functions require rooted function-table correspondence, and unused type
-        // declarations require a module-level erasure proof. The checker must reject every
-        // other shared declaration or phase edit; no missing body becomes an executable entry.
+        // declarations and phase-only advances require resolved module identity. Other shared
+        // declaration and phase edits need a separate proof.
         // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()

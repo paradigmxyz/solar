@@ -705,7 +705,7 @@ def main() -> int:
     selection.add_argument(
         "--prune",
         action="store_true",
-        help="prove unreachable-function or unused-type erasure in MIR modules",
+        help="prove MIR function or type pruning, or a phase-only advance",
     )
     parser.add_argument(
         "--stack-height",

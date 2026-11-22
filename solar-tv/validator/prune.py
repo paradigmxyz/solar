@@ -1,4 +1,4 @@
-"""Rooted function-table correspondence for deletion-only MIR changes.
+"""Rooted function-table correspondence and resolved module identity proofs.
 
 The compiler reparses both complete modules. Keep every retained declaration,
 including attributes and instruction text, and extract all named references
@@ -106,15 +106,17 @@ def check(paths, solar, version, timeout, *, executable=None):
         tables.append(declarations(result.stdout))
     (old_header, before), (new_header, after) = tables
     if old_header != new_header:
+        from . import native, phase_advance, type_prune
+
+        replay = executable or native.default(solar)
+        if "@phase lowered" in new_header and "@phase lowered" not in old_header:
+            return phase_advance.check(texts, tables, version, timeout, replay)
         if "@types" not in old_header:
             raise Unsupported("function pruning changed shared declarations or phase")
-        from . import native, type_prune
 
         # A different module declaration table needs a separate proof. Never
         # drop an arbitrary header, phase change or changed executable body.
-        return type_prune.check(
-            texts, version, timeout, executable or native.default(solar)
-        )
+        return type_prune.check(texts, version, timeout, replay)
     removed = sorted(before.keys() - after.keys())
     if not removed or after.keys() - before.keys():
         raise Unsupported("function pruning requires deletion-only table changes")

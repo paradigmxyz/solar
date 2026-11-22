@@ -1740,10 +1740,26 @@ primitive instruction implementations, physical gas and backend layout are
 not certified. Limits are 128 functions, 512 blocks, 4,096 instructions, 65,536
 type nodes and 64 KiB of exported constant data.
 
-Live audits automatically try this module certificate after a shared-declaration
-change. Unsupported edits still fail the checker; the adapter never drops an
-arbitrary header or phase change. Capture-only records retain their original
-rejection and selection, so the frozen corpus denominator stays unchanged.
+Live audits automatically try module certificates after a shared-declaration
+change. Capture-only records retain their original selection so the frozen
+corpus denominator stays unchanged.
+
+### MIR phase-only advances
+
+`lower-evm-shaped` can advance a module from semantic to lowered MIR after
+the earlier passes have already made every function legal in the lowered phase.
+The phase-only certificate checks both modules at their declared phases and
+requires identical canonical MIR apart from the phase marker. Lean checks
+that the independently resolved function tables produce the same direct MIR
+execution for every entry, initial state and work bound.
+
+```sh
+solar-tv/solar-tv mir before.mir after.mir --prune
+```
+
+Live pass audits use the same check automatically. Reports use
+`resolved-phase-advance` and `unpriced-structural`. Pointer erasure, call
+shaping, phi-edge rewrites and backend gas or layout require separate evidence.
 
 ### Allocation prefixes before unchanged cyclic callees
 

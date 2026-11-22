@@ -73,14 +73,30 @@ def export(text, executable, timeout):
 
 
 def check(texts, version, timeout, executable):
-    from .check import PRELUDE, ROOT, build_model, run
-
     views = [split(text) for text in texts]
     before, after = views
     if not before["types"] or after["types"]:
         raise Unsupported("type pruning requires erasing a complete type table")
     if before["code"] != after["code"]:
         raise Unsupported("type pruning changed executable or shared declarations")
+    programs = prove_identity(
+        texts,
+        views,
+        version,
+        timeout,
+        executable,
+        scope="unused-type-erasure",
+        evidence={"removed_types": [name for name, _ in before["types"]]},
+    )
+    return audit.Result(
+        "verified", stdout="verified\n", program=programs[0], pair=programs
+    )
+
+
+def prove_identity(texts, views, version, timeout, executable, *, scope, evidence):
+    """Prove equality of the retained source and independently resolved bodies."""
+    from .check import PRELUDE, ROOT, build_model, run
+
     models = [export(text, executable, timeout) for text in texts]
     definitions = {
         row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
@@ -105,36 +121,43 @@ theorem contextual {State Observation : Type}
  (interpret : MIR.TypeDCE.Interpreter State Observation) (fuel : Nat) (state : State) :
  MIR.TypeDCE.execute before interpret fuel state = MIR.TypeDCE.execute after interpret fuel state :=
  MIR.TypeDCE.certificate before after same interpret fuel state
+theorem typed_execution (cfg : MIR.State.Config) (fuel entry : Nat)
+    (frame : MIR.State.Frame) :
+    MIR.State.execute fuel cfg before.functions entry frame =
+      MIR.State.execute fuel cfg after.functions entry frame := by
+  rw [same]
 #print axioms contextual
+#print axioms typed_execution
 """
     built = build_model(timeout)
     if built.returncode:
         raise Unsupported(built.stdout + built.stderr)
-    with tempfile.TemporaryDirectory(prefix="solar-tv-type-prune-") as folder:
+    with tempfile.TemporaryDirectory(prefix="solar-tv-module-identity-") as folder:
         path = Path(folder) / "Pair.lean"
         path.write_text(code)
         result = run(["lake", "env", "lean", path], ROOT, timeout)
-    axioms = re.search(r"'contextual' depends on axioms: \[(.*?)\]", result.stdout)
-    if result.returncode or not (
-        "'contextual' does not depend on any axioms" in result.stdout
-        or axioms
-        and not set(axioms[1].split(", "))
-        - {"propext", "Quot.sound", "Classical.choice"}
-    ):
-        raise Unsupported(
-            "resolved module identity proof did not close\n"
-            + result.stdout
-            + result.stderr
-        )
-    programs = tuple(
+    for theorem in ("contextual", "typed_execution"):
+        axioms = re.search(rf"'{theorem}' depends on axioms: \[(.*?)\]", result.stdout)
+        if result.returncode or not (
+            f"'{theorem}' does not depend on any axioms" in result.stdout
+            or axioms
+            and set(axioms[1].split(", "))
+            <= {"propext", "Quot.sound", "Classical.choice"}
+        ):
+            raise Unsupported(
+                "resolved module identity proof did not close\n"
+                + result.stdout
+                + result.stderr
+            )
+    return tuple(
         Program(
-            ("mir-unused-type-erasure",),
+            (f"mir-{scope}",),
             [],
             "",
             "",
             canonical_ir=text,
             replay_ir=text,
-            scope="unused-type-erasure",
+            scope=scope,
             evm_version=version,
             import_evidence={
                 "kind": "kernel-checked-resolved-module-identity",
@@ -142,13 +165,10 @@ theorem contextual {State Observation : Type}
                 "resolved_sha256": hashlib.sha256(
                     json.dumps(model["functions"], sort_keys=True).encode()
                 ).hexdigest(),
-                "removed_types": [name for name, _ in before["types"]],
+                **evidence,
                 "functions": view["functions"],
                 "boundary": "trusted independent compiler parser/schema export and typed constructor renderer; kernel-checked resolved graphs and complete retained text; no instruction-implementation, physical gas or backend layout certificate",
             },
         )
         for text, model, view in zip(texts, models, views, strict=True)
-    )
-    return audit.Result(
-        "verified", stdout="verified\n", program=programs[0], pair=programs
     )
