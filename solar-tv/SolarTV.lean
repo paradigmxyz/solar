@@ -49,6 +49,7 @@ import SolarTV.EVMIR.Effects
 import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
 import SolarTV.EVMIR.ControlFlow
+import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.MIR.Transforms.FreshHeap
 import SolarTV.MIR.Transforms.TypeDCE
 import SolarTV.MIR.Transforms.LowerDispatch

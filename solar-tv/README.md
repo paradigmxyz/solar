@@ -1919,6 +1919,22 @@ include dirty heaps at several cursors, changed suffixes and returns, missing
 and disagreeing bindings, independent counterexample replay and unchanged
 compiler bytecode.
 
+For an emitted entry that begins with two `PUSH1` instructions and an
+`MSTORE` to `0x40`, prove that the real entry establishes the cursor
+condition and charge the exact 18 gas including memory expansion from an
+empty frame:
+
+```sh
+solar-tv/solar-tv heap-entry constructor.hex --floor 0xc0 --extent 96
+```
+
+Pass the creation or runtime image as hex. The report binds the image hash,
+entry PC and expected floor. The kernel checks the emitted prefix and proves
+the paid continuation and out-of-gas rollback for every initial gas balance.
+Independent execution checks the boundary at 17 and 18 gas. The proof ends
+at that entry's FMP write. A later call site still needs a proof that the
+cursor and placement binding reach it.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic

@@ -623,6 +623,10 @@ def check(
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "heap-entry":
+        from . import heap_entry
+
+        return heap_entry.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "call-budget":
         from . import call_budget
 
