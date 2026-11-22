@@ -88,6 +88,17 @@ theorem cut_agreement (cuts : List Nat) (functions : Functions) :
 theorem callvalue (cfg : Config) (frame : Frame) :
     contextOperation cfg frame 0x34 [] = value frame cfg.environment.value := rfl
 
+/-- The selector shift is a semantic MIR operation before `lower-shifts`,
+including on forks that have no SHR opcode. Keep other opcode availability. -/
+def withSelectorShift (cfg : Config) : Config := {cfg with available := 0x1c :: cfg.available}
+
+theorem selector_div (input : List Byte) :
+    Evm.div (readWord input 0) (BitVec.ofNat 256 (2 ^ 224)) =
+      TransferFromDispatch.selector input := by
+  rw [← TransferFromDispatch.selector_word]
+  apply BitVec.eq_of_toNat_eq
+  simp [Evm.div, BitVec.toNat_udiv, Nat.shiftRight_eq_div_pow]
+
 /-- The empty-revert block introduces no memory expansion in the modeled domain. -/
 theorem expand_zero (memory : List Byte) (bounded : memory.length ≤ 65536) :
     expand memory 0 0 = .ok memory := by

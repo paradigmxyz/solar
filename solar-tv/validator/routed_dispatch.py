@@ -132,11 +132,17 @@ def proof(
     available = sorted(
         definitions[op]["opcode"] for op in operations if op in definitions
     )
-    if any(
-        not definitions[op]["forks"][version]["available"]
+    unavailable = {
+        op
         for op in operations
-        if op in definitions
-    ):
+        if op in definitions and not definitions[op]["forks"][version]["available"]
+    }
+    legacy_shift = unavailable == {"shr"} and all(
+        op["args"][0]["kind"] == "constant" and int(op["args"][0]["value"], 0) == 224
+        for op in instructions
+        if op.get("name") == "shr"
+    )
+    if unavailable and not legacy_shift:
         raise Unsupported("dispatcher uses an unavailable opcode")
     opcode_hypotheses = "".join(
         f"    (op{opcode} : {opcode} ∈ cfg.available)\n" for opcode in available
@@ -223,7 +229,8 @@ def proof(
         input_cases.append("by_cases empty : cfg.environment.input = []")
     input_cases.append("by_cases short : cfg.environment.input.length < 4")
     expected = original
-    prefix_theorem = "dispatch"
+    theorem = "dispatch_semantic" if legacy_shift else "dispatch"
+    prefix_theorem = theorem
     retained_proof = "theorem retained : after = reference := by rfl\n"
     route_simp = ""
     if minimum is not None:
@@ -290,7 +297,7 @@ theorem {prefix_theorem} (cfg : MIR.State.Config) (frame : MIR.State.Frame)
         evidence["debug_reverts"] = True
     if minimum is not None:
         code += f"""
-theorem dispatch (cfg : MIR.State.Config) (frame : MIR.State.Frame)
+theorem {theorem} (cfg : MIR.State.Config) (frame : MIR.State.Frame)
 {library_hypotheses}{opcode_hypotheses}    (bounded : frame.memory.length ≤ 65536)
     (inputBound : cfg.environment.input.length < 2^256) :
     MIR.DispatchGuardHoist.Agrees cfg reference after entry frame
@@ -301,4 +308,37 @@ theorem dispatch (cfg : MIR.State.Config) (frame : MIR.State.Frame)
     (fun id selected => wrappers id ({selected_member})) op54 op16 inputBound (by decide) bounded
 """
         evidence["minimum_calldata"] = minimum
+    if legacy_shift:
+        shift = definitions["shr"]["opcode"]
+        target_hypotheses = "".join(
+            f"    (op{opcode} : {opcode} ∈ cfg.available)\n"
+            for opcode in available
+            if opcode != shift
+        )
+        shift_config = "(MIR.RoutedDispatch.withSelectorShift cfg)"
+        lifted = " ".join(
+            "(by simp [MIR.RoutedDispatch.withSelectorShift])"
+            if opcode == shift
+            else f"(List.mem_cons_of_mem {shift} op{opcode})"
+            for opcode in available
+        )
+        boundary = (
+            f"MIR.DispatchGuardHoist.Agrees {shift_config} reference after entry frame"
+            if minimum is not None
+            else f"{relation} entry frame"
+        )
+        code += f"""
+theorem dispatch (cfg : MIR.State.Config) (frame : MIR.State.Frame)
+{library_hypotheses}{target_hypotheses}    (bounded : frame.memory.length ≤ 65536)
+    (inputBound : cfg.environment.input.length < 2^256) :
+    {boundary}
+      ({original})
+      (MIR.CallContext.runTo cuts {fuel} {shift_config} after (MIR.RoutedDispatch.initial entry frame)) :=
+  dispatch_semantic {shift_config} frame {library_arguments}{lifted} bounded inputBound
+theorem selector_arithmetic (input : List World.Byte) :
+    Evm.div (Execution.readWord input 0) (BitVec.ofNat 256 (2^224)) =
+      MIR.TransferFromDispatch.selector input := MIR.RoutedDispatch.selector_div input
+#print axioms selector_arithmetic
+"""
+        evidence["legacy_selector_shift"] = True
     return code + "#print axioms dispatch\n", evidence

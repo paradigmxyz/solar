@@ -533,3 +533,37 @@ library C {
         self.assertEqual(candidate["outcome"], "revert")
         self.assertEqual(bytes(original["data"]), expected)
         self.assertEqual(bytes(candidate["data"]), expected[:68] + b"M" + expected[69:])
+
+    def test_legacy_selector_shift_is_proved_before_arithmetic_lowering(self):
+        folder = self.folder / "legacy-selector"
+        folder.mkdir()
+        source = evaluate.inputs(self.case)
+        source["sources"]["C.sol"]["content"] = (
+            "contract C { function f(uint256 x) external pure returns (uint256) { return x; } }"
+        )
+        source["settings"]["evmVersion"] = "byzantium"
+        baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+        captured, _ = evaluate.compile_input(SOLAR, source, folder, capture=True)
+        self.assertEqual(baseline, captured)
+        captures = evaluate.captures(folder)
+        before, after = next(
+            row["paths"] for row in captures if row["pass"] == "lower-dispatch"
+        )
+        target = ("--evm-version", "byzantium")
+        proof = self.check_pair(before, after, 0, *target)
+        self.assertEqual(proof["evidence"], "kernel-proof")
+        self.assertTrue(proof["region"]["legacy_selector_shift"])
+
+        text = after.read_text()
+        mutated, count = re.subn(r"( = shr v\d+, )224\b", r"\g<1>225", text)
+        self.assertEqual(count, 1)
+        broken = folder / "wrong-selector-shift.mir"
+        broken.write_text(mutated)
+        report = self.check_pair(before, broken, 2, *target)
+        self.assertIn("unavailable opcode", report["diagnostic"])
+
+        _, lowered = next(
+            row["paths"] for row in captures if row["pass"] == "lower-shifts"
+        )
+        self.assertIn(f", {2**224:#x}", lowered.read_text())
+        self.assertRegex(lowered.read_text(), r"= div v\d+, 0x1[0-9a-f]+")

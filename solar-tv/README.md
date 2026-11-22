@@ -1803,6 +1803,9 @@ and captured evaluations carry that setting automatically. The
 byte memory and `Error(string)` payload against an independent encoder.
 It covers empty and routed contracts as well as library guards. These
 certificates cover unpriced MIR through the wrapper entry or continuation.
+On pre-Constantinople targets, the selector shift is still semantic MIR at
+this pass boundary. The proof checks the selector against division by
+`2^224`, which is the arithmetic form used by later lowering.
 
 ### Allocation prefixes before unchanged cyclic callees
 

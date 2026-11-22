@@ -623,6 +623,12 @@ retains the wrapper head checks and their own messages, so the certificate
 checks the retained wrappers at entry. Backend placement beyond the supplied
 runtime immutable binding and physical gas remain open.
 
+On targets without EVM shift opcodes, the routing proof runs the constant
+selector shift in the semantic phase model. The certificate also proves
+that division by `2^224` gives the same selector for arbitrary calldata.
+The legacy regression checks the actual `lower-shifts` capture for that
+divisor. The runtime phase still requires legal opcodes.
+
 The phase-only form of `lower-evm-shaped` is covered by a module certificate.
 Both original modules pass phase validation and retain the same canonical
 MIR after removal of the lowered phase marker. The kernel checks equality of

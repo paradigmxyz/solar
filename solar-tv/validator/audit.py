@@ -213,7 +213,10 @@ def record(
                     "explicit selector wrappers differ only in the first guard branch"
                     if hoisted
                     else "explicit ABI wrappers with unchanged executable bodies",
-                    "initial memory at most 64 KiB and calldata length representable as a word; routing opcode availability checked against the target",
+                    "initial memory at most 64 KiB and calldata length representable as a word",
+                    "routing opcode availability checked against the target, with semantic MIR's constant selector shift admitted before lower-shifts"
+                    if program.import_evidence.get("legacy_selector_shift")
+                    else "routing opcode availability checked against the target",
                     "symbolic calldata and call value; short selected inputs match the original empty revert; valid inputs reach the same wrapper cursor and complete frame"
                     if hoisted
                     else "symbolic calldata and call value; exact wrapper entry frame or the configured Error(string) reason proved by direct MIR execution"
@@ -225,6 +228,10 @@ def record(
             if library:
                 assumptions.append(
                     "library routing admits call value and compares the executing address with a symbolic deployed address bound to the runtime immutable"
+                )
+            if program.import_evidence.get("legacy_selector_shift"):
+                assumptions.append(
+                    "pre-Constantinople selector shifts use semantic MIR; the selector expression equals division by 2^224"
                 )
         elif program and program.scope == "fresh-heap-function":
             assumptions.extend(
@@ -704,6 +711,7 @@ def record(
                             "minimum_calldata",
                             "library_guarded_routes",
                             "debug_reverts",
+                            "legacy_selector_shift",
                         )
                         if key in program.import_evidence
                     },

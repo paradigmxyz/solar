@@ -125,7 +125,10 @@ theorem dispatch (cfg : MIR.State.Config) (fuel : Nat) (frame : MIR.State.Frame)
         certificate.write_text(code)
         result = run(["lake", "env", "lean", certificate], ROOT, timeout)
     allowed = {"propext", "Quot.sound", "Classical.choice"}
-    for theorem in ("retained", "dispatch"):
+    theorems = ["retained", "dispatch"]
+    if evidence.get("legacy_selector_shift"):
+        theorems.append("selector_arithmetic")
+    for theorem in theorems:
         axioms = re.search(rf"'{theorem}' depends on axioms: \[(.*?)\]", result.stdout)
         if result.returncode or not (
             f"'{theorem}' does not depend on any axioms" in result.stdout
