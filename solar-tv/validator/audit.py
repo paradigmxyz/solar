@@ -97,7 +97,18 @@ def record(
                 "scenario proof; no arbitrary-world or whole-pass claim",
             ]
         )
-        if fixture.get("direct_mir"):
+        if program.scope == "return-path":
+            assumptions.extend(
+                [
+                    "concrete funded entry-to-exit paths start at runtime PC zero and independently execute each physical JUMP",
+                    "live stack, memory, returndata and persistent effects are compared; no claim for other branches or equal physical gas",
+                ]
+            )
+            if result.status == "verified":
+                assumptions.append(
+                    "conditional unpriced path correspondence for shared calldata and live state following the checked guards; the encoded return address is consumed only by its physical return"
+                )
+        elif fixture.get("direct_mir"):
             assumptions.extend(
                 [
                     "direct typed MIR SSA execution; no backend lowering or implicit frame/FMP setup",
@@ -513,6 +524,7 @@ def record(
                 "allocation-prefix",
                 "source-identity",
                 "stack-layout",
+                "return-path",
             }
             else program.gas
             if program
@@ -611,6 +623,20 @@ def record(
                 },
             }
             if program and program.scope in {"source-identity", "stack-layout"}
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "return-path",
+                    "name": program.selector,
+                    "proof": "kernel-checked-bytecode-return"
+                    if result.status == "verified"
+                    else "kernel-checked-bytecode-witness",
+                },
+            }
+            if program and program.scope == "return-path"
             else {}
         ),
         **(

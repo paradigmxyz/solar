@@ -65,6 +65,10 @@ def success(result, name):
 
 
 def image_source(image):
+    return f"import {MODULE}\n{HEADER}\n" + image_definitions(image)
+
+
+def image_definitions(image):
     leaves = []
     start = stop = 0
     while start < len(image):
@@ -86,7 +90,7 @@ def image_source(image):
         left = count // 2
         return f"(.append {tree(first, left)} {tree(first + left, count - left)})"
 
-    source = f"import {MODULE}\n{HEADER}\n"
+    source = ""
     for index, (data, used, jumps) in enumerate(leaves):
         source += f"""def imageBlock{index} : EVM.State.CodeChunks :=
   .leaf ⟨{data}, {len(data)}, by decide, {used}, {jumps}, by decide +kernel⟩

@@ -1246,6 +1246,31 @@ full-payload exit under a shared logical continuation, not a resolved target or
 a proved physical return address. Code-image observers and calls remain
 excluded. Changed operations or unsafe transfer growth remain unsupported.
 
+### Relocated internal returns
+
+For the captured ERC20Mock runtime `block-layout` pair, validate the
+`mint(address,uint256)` path from ABI dispatch through the indirect return:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --return-path=0x40c10f19 --world mint-world.json --report mint-return.json
+```
+
+Use a Cancun world fixture whose calldata starts with `0x40c10f19`, followed
+by the ABI-encoded recipient and amount. The tool assembles both versions
+with passes disabled and reads each continuation from its caller's encoded
+PUSH. Lean checks that the address is an instruction-boundary JUMPDEST,
+follows its stack uses and checks the path with the actual bytecode semantics.
+The report identifies both caller pushes, indirect jumps and continuation PCs.
+
+The path comparison preserves the ordinary stack and state effects under
+shared inputs that follow the checked branch decisions. For the supplied world,
+Lean and Rust replay from ABI entry and agree on the live stack, memory and
+returndata, and the final receipt. Lean also checks the full journal at the
+continuation after erasing the root code being compared. The proof covers this
+funded route. A different path or an exact gas comparison requires a separate
+check.
+
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
 A checker launch or protocol failure is a compiler error. Each unsuccessful

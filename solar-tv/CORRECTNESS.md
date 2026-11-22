@@ -644,9 +644,20 @@ ERC20Mock's `block-layout` region keeps every source operation and edge but
 reorders node IDs and changes three temporary transfer checks. Their checked
 source-height bounds are each 1021, so neither version can overflow at those
 transfers. The kernel verifies the node mapping, local bound obligations and
-simulation for every execution bound. Its dynamic return is an explicit
-full-payload exit under a shared logical continuation. This does not resolve
-that target, prove physical return addresses or price the changed jumps.
+simulation for every execution bound. Its region certificate ends at the
+dynamic return with the full live payload.
+
+The separate `--return-path=0x40c10f19` check extends the captured layout pair
+from the ABI entry through the return of ERC20Mock's `mint`. Lean decodes the
+caller PUSH and physical successors from both emitted byte images, checks
+return-address stack roles and equates their funded path projections. A
+segmented kernel trace and independent Rust replay agree on the live stack,
+memory, returndata and final receipt for the explicit Cancun world. Lean also
+equates the live journals at the continuation, with the two root code images
+erased. Redirecting the caller's PUSH to the boolean return stub produces
+32 bytes ending in `01` instead of empty returndata, while preserving the
+mint's writes and log. The result is path-local. Alternate branches and
+physical gas equivalence remain outside this certificate.
 
 WETH's `name.body` now verifies through complete direct typed SSA execution,
 including its initialized bytes, final FMP and returned pointer. The supplied

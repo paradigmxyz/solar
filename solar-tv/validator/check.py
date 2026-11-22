@@ -684,6 +684,11 @@ def main() -> int:
         "--prefix", help="prove a block prefix for every incoming stack"
     )
     selection.add_argument(
+        "--return-path",
+        metavar="SELECTOR",
+        help="check a relocated EVM ABI return path",
+    )
+    selection.add_argument(
         "--prune",
         action="store_true",
         help="prove unreachable-function or unused-type erasure in MIR modules",
@@ -716,6 +721,7 @@ def main() -> int:
         stack_height=args.stack_height,
         world=args.world,
         prefix=args.prefix,
+        return_path=args.return_path,
         prune=args.prune,
     )
     programs: list[Program] = []
@@ -745,6 +751,7 @@ def main() -> int:
             stack_height=args.stack_height,
             world=args.world,
             prefix=args.prefix,
+            return_path=args.return_path,
             prune=args.prune,
         )
         if args.prune:
@@ -788,6 +795,29 @@ def main() -> int:
                 args.storage_loop,
                 replay=replay,
                 verbose=args.verbose,
+            )
+            programs = list(result.pair)
+        elif args.return_path:
+            if (
+                args.ir != "evmir"
+                or not args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--return-path requires EVM IR and a concrete world without a gas comparison or fixed height"
+                )
+            from . import relocated_return
+
+            result = relocated_return.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.return_path,
+                args.world,
+                replay,
             )
             programs = list(result.pair)
         elif args.prefix:
