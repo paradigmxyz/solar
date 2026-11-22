@@ -1084,7 +1084,7 @@ target version and remaining gas.
 Run the kernel and independent `evm2` transaction handler on decoded EIP-7702
 fixtures through Osaka. The fixture supplies the outer sender and signed
 authorization tuples. The kernel checks each signature recovery and then
-compares admission, receipt gas and refund, output, and the selected account
+compares admission, pre-refund gas and capped refund, output, and selected account
 nonces and code. The revert example checks that authorization changes survive
 failure of the execution message.
 

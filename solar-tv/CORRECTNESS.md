@@ -445,6 +445,27 @@ measurement, not a whole-program soundness result or a broad
 comparison with other validators. CI uses four checks per contract and retains
 its own fingerprints, denominators, timings, reports and full input pairs.
 
+### Exhaustive capture audit
+
+A serial `evaluate --all --timeout 3` run at `6ce76b1bf6` on the pinned
+Cancun inputs checked every captured region using compiler build `7828580d`.
+The normal and capture builds produced identical ABI, creation bytecode and
+runtime bytecode for each contract.
+
+| Contract | Captured | Verified | Unsupported | Timeout |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 330 | 113 | 152 | 65 |
+| OpenZeppelin ERC20Mock | 372 | 120 | 124 | 128 |
+| Morpho Blue | 1,526 | 422 | 875 | 229 |
+| Total | 2,228 | 655 | 1,151 | 422 |
+
+There were no counterexamples, inconclusive results or tool errors. The
+jump-chain certificates verified 57 EVM IR regions and 25 MIR functions.
+EVM IR `cfg-simplify-early` and `compact-pushes` had the most unsupported
+regions, with 175 and 103 respectively. MIR `lower-dispatch` and
+`cfg-simplify` had the most timeouts, with 73 and 71 respectively. A timeout
+reflects the three-second prover budget for this run.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct
