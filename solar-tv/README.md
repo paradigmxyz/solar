@@ -1450,6 +1450,31 @@ All six previously cycle-rejected DCE pairs in the broader capture set now
 verify. They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and
 three Morpho `extSloads` captures.
 
+### Checking a calldata pointer recurrence
+
+Capture the real `indvar-simplify` rewrite of `CalldataPointerExit.stopAt` and
+check the selected function.
+
+```sh
+out=$(mktemp -d)
+target/debug/solar tests/ui/codegen/mir/indvar-simplify/calldata_pointer_exit.sol \
+  -j1 -Ogas --evm-version=osaka --emit=bin-runtime --allow=2264 \
+  -Zsolar-tv="$out" -Zsolar-tv-capture
+stream=$(rg -l '"pass":"indvar-simplify"' "$out"/captures/*/regions.jsonl)
+pair=${stream%/regions.jsonl}
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir" \
+  --function stopAt --evm-version osaka
+```
+
+The kernel checks the complete typed SSA against the indexed and pointer
+templates. Their unpriced loop projection uses induction to preserve each
+calldata read and the returned index for any admitted length. The ABI guard
+bounds the distance walked, including when the base address wraps. The
+certificate covers an empty array, a matching element, and reaching the end.
+The parser and typed CFG projection are trusted. A 64-byte stride in place
+of 32 returns 2 instead of 1 for `[4, 5]` searched for `5`. The direct Lean
+interpreter and the independent Rust interpreter confirm the counterexample.
+
 ### Checking builtin lowering
 
 For the exact storage-byte write and address-call shapes, `--function` checks

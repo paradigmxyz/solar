@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from functools import partial
 from pathlib import Path
 
 from . import (
@@ -831,16 +832,23 @@ def main() -> int:
                         "MIR source: GAS requires an isolated opcode window",
                     }
                 ):
-                    from . import builtin_lowering, coalesce, dead_ssa
+                    from . import builtin_lowering, coalesce, dead_ssa, induction
 
                     validators = (
-                        (coalesce, dead_ssa, builtin_lowering)
+                        (
+                            coalesce.check,
+                            dead_ssa.check,
+                            partial(
+                                induction.check, replay=replay, verbose=args.verbose
+                            ),
+                            builtin_lowering.check,
+                        )
                         if str(error) == "symbolic MIR cycles require an invariant"
-                        else (builtin_lowering,)
+                        else (builtin_lowering.check,)
                     )
-                    for validator in validators:
+                    for validate in validators:
                         try:
-                            result = validator.check(
+                            result = validate(
                                 (args.before, args.after),
                                 solar,
                                 rust_replay,

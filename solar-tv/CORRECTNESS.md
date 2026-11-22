@@ -114,6 +114,20 @@ EIP-2200 sentry are not certified. A corrupt generated program, changed phi
 backedge, live operand, effect or supplied callee is rejected. The broken-store
 and checked-underflow regressions have independent runtime counterexamples.
 
+The calldata scan certificate takes the next step beyond deletion-only loops.
+It matches the complete exported `stopAt` CFGs against typed templates in
+`MIR/Transforms/CalldataInduction.lean`, including the unchanged ABI and revert
+blocks, both phi predecessors, the early exit and the scratch-memory return.
+Its logical loop projection relates the cursor to `base + (index << 5)` in
+256-bit arithmetic. A successful ABI length guard implies a length below
+`2^251`, so word offsets stay injective even if the cursor wraps around the
+base. Induction preserves the guard, calldata read and recovered index on every
+visit. A separate termination theorem bounds visits by the input length plus
+one. The typed CFG projection and the parser/schema export remain trusted.
+The real pass capture has direct Lean and Rust execution checks for empty,
+matching, exhausted and malformed inputs. A doubled stride produces matching
+counterexamples from both interpreters.
+
 Complete unused named-type table erasure has a separate resolved-data theorem
 in `MIR/Transforms/TypeDCE.lean`. Each source module is independently parsed and
 validated. All functions are exported, including unreachable bodies, with
@@ -955,7 +969,7 @@ token revert and a false result.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |
-| General loops | Acyclic expansion, equal pure cyclic interpreter graphs, or exact structural EVM source-graph identity | Inductive simulation/invariants, including phis, state, divergence and failures; real loop-pass pairs and broken invariants. |
+| General loops | Acyclic expansion, structural cyclic checks and specific invariants such as the calldata pointer recurrence | Inductive simulation for additional changed CFGs, stateful loop bodies, divergence and failures. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results and acyclic calls | ABI entry, allocation/layout preconditions, recursive call invariants and broader defined memory domains. |
 | EVM entry stacks and indirect transfers | Fixed entry heights, universally quantified effect-free prefixes, or complete terminal-region proofs over every stack | Stateful context/window correspondence, call/return stack relations and verified indirect targets; never assume an unknown height or destination. |

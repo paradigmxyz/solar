@@ -292,6 +292,16 @@ def record(
                         "enough MIR internal call depth for the introduced nonrecursive clear helper; physical SSTORE gas and sentry outside this certificate",
                     ]
                 )
+        elif program and program.scope == "calldata-induction":
+            assumptions.extend(
+                [
+                    "complete typed SSA matched to the index and pointer templates",
+                    "arbitrary calldata and shared initial frame under the unpriced typed CFG projection",
+                    "loop-header induction and termination bound derived from the ABI guard",
+                    "trusted compiler parser/schema export, SSA normalization and CFG projection",
+                    "function-local proof; physical gas, stack scheduling and whole-pass correctness outside scope",
+                ]
+            )
         elif program and program.scope == "dead-ssa":
             assumptions.extend(
                 [
@@ -384,6 +394,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "allocation-prefix",
+                "calldata-induction",
                 "dead-ssa",
                 "builtin-lowering",
             }
@@ -408,6 +419,7 @@ def record(
                 "shared-prefix-suffix",
                 "function-pruning",
                 "unused-type-erasure",
+                "calldata-induction",
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
@@ -456,6 +468,7 @@ def record(
             in {
                 "function-pruning",
                 "unused-type-erasure",
+                "calldata-induction",
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
@@ -575,7 +588,7 @@ def record(
                     "proof": program.import_evidence["kind"],
                 },
             }
-            if program and program.scope == "builtin-lowering"
+            if program and program.scope in {"builtin-lowering", "calldata-induction"}
             else {}
         ),
         **(
