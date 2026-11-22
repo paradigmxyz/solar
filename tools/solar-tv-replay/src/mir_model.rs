@@ -211,6 +211,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
                 "id": id.index(),
                 "payable": func.attributes.state_mutability.to_str() == "payable",
                 "wrapper": func.attributes.is_abi_wrapper,
+                "mutability": func.attributes.state_mutability.to_str(),
             })
         };
         let selectors = module
@@ -235,6 +236,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
             "receive_route": module.receive().map(route),
             "fallback_route": module.fallback().map(route),
             "library": module.is_library,
+            "library_immutable": module.library_deploy_address().map(|id| id.index()),
             "functions": functions,
         }));
     };

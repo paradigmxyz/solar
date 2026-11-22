@@ -206,11 +206,12 @@ def record(
             )
         elif program and program.scope == "routed-dispatch":
             hoisted = "minimum_calldata" in program.import_evidence
+            library = "library_guarded_routes" in program.import_evidence
             assumptions.extend(
                 [
-                    "explicit non-library selector wrappers differ only in the first guard branch"
+                    "explicit selector wrappers differ only in the first guard branch"
                     if hoisted
-                    else "explicit non-library ABI wrappers with unchanged executable bodies",
+                    else "explicit ABI wrappers with unchanged executable bodies",
                     "initial memory at most 64 KiB and calldata length representable as a word; routing opcode availability checked against the target",
                     "symbolic calldata and call value; short selected inputs match the original empty revert; valid inputs reach the same wrapper cursor and complete frame"
                     if hoisted
@@ -218,6 +219,10 @@ def record(
                     "execution beyond the checked wrapper cut, backend placement and physical gas are outside the routing certificate",
                 ]
             )
+            if library:
+                assumptions.append(
+                    "library routing admits call value and compares the executing address with a symbolic deployed address bound to the runtime immutable"
+                )
         elif program and program.scope == "fresh-heap-function":
             assumptions.extend(
                 [
@@ -679,6 +684,8 @@ def record(
                     "kind": "module",
                     "proof": "calldata-guard-hoist"
                     if "minimum_calldata" in program.import_evidence
+                    else "library-runtime-dispatch"
+                    if "library_guarded_routes" in program.import_evidence
                     else "routed-runtime-dispatch",
                     **{
                         key: program.import_evidence[key]
@@ -690,6 +697,7 @@ def record(
                             "receive",
                             "fallback",
                             "minimum_calldata",
+                            "library_guarded_routes",
                         )
                         if key in program.import_evidence
                     },

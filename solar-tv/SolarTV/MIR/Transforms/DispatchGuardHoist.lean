@@ -214,52 +214,25 @@ private theorem Agrees.of_routes (cfg : Config) (source target : Functions) (ent
           refine ⟨?_, resume wrapper rfl (Nat.le_of_not_gt short)⟩
           simpa only [wrapperInitial, Machine.mk.injEq] using And.intro cursor (And.intro stack localFrame)
 
-private theorem lookup_target (key : Word) (routes : List (Word × Nat)) (wrapper : Nat)
-    (selected : RoutedDispatch.lookup key routes = some wrapper) : wrapper ∈ routes.map Prod.snd := by
-  induction routes with
-  | nil => simp [RoutedDispatch.lookup] at selected
-  | cons route rest ih =>
-    by_cases equal : route.1 = key
-    · simp [RoutedDispatch.lookup, equal] at selected
-      simp [← selected]
-    · simp [RoutedDispatch.lookup, equal] at selected
-      exact List.mem_cons_of_mem _ (ih selected)
-
 /-- The runtime dispatch cut and the source guard proofs share the same
 calldata and frame. The source or target never invents a value for a local. -/
 theorem certificate (cfg : Config) (source target : Functions) (entry minimum : Nat)
-    (frame : Frame) (routes : List (Word × Nat)) (rejectValue : Bool) (actual : Except String Cut)
+    (frame : Frame) (original : Option Nat) (actual : Except String Cut)
     (routing : RoutedDispatch.Agrees entry frame
-      (if cfg.environment.input.length < minimum then none else
-        RoutedDispatch.select ⟨routes, none, none, rejectValue⟩ cfg.environment.input cfg.environment.value) actual)
-    (wrappers : ∀ id ∈ routes.map Prod.snd,
+      (if cfg.environment.input.length < minimum then none else original) actual)
+    (wrappers : ∀ id, original = some id →
       ∃ guard, guard.wrapper = id ∧ Matches source target minimum guard)
     (sizeOp : 0x36 ∈ cfg.available) (ltOp : 0x10 ∈ cfg.available)
     (inputBound : cfg.environment.input.length < 2^256) (minimumBound : minimum < 2^256)
     (bounded : frame.memory.length ≤ 65536) :
-    Agrees cfg source target entry frame
-      (RoutedDispatch.select ⟨routes, none, none, rejectValue⟩ cfg.environment.input cfg.environment.value)
-      actual := by
-  have route (wrapper : Nat)
-      (selected : RoutedDispatch.select ⟨routes, none, none, rejectValue⟩
-        cfg.environment.input cfg.environment.value = some wrapper) : wrapper ∈ routes.map Prod.snd := by
-    simp only [RoutedDispatch.select, Option.isSome_none, Bool.and_false, Bool.false_eq_true,
-      ite_false, Option.bind_none] at selected
-    split at selected
-    · contradiction
-    split at selected
-    · contradiction
-    apply lookup_target (TransferFromDispatch.selector cfg.environment.input)
-    cases found : RoutedDispatch.lookup (TransferFromDispatch.selector cfg.environment.input) routes
-    · simp [found, Option.orElse] at selected
-    · simpa [found, Option.orElse] using selected
-  refine Agrees.of_routes cfg source target entry minimum frame _ actual routing ?_ ?_
+    Agrees cfg source target entry frame original actual := by
+  refine Agrees.of_routes cfg source target entry minimum frame original actual routing ?_ ?_
   · intro wrapper selected short fuel
-    obtain ⟨guard, rfl, old, _, found, _, head, reject, _⟩ := wrappers wrapper (route wrapper selected)
+    obtain ⟨guard, rfl, old, _, found, _, head, reject, _⟩ := wrappers wrapper selected
     exact rejects cfg source entry fuel minimum guard frame old found head reject
       sizeOp ltOp inputBound minimumBound short bounded
   · intro wrapper selected long fuel
-    obtain ⟨guard, rfl, old, new, left, right, before, _, after⟩ := wrappers wrapper (route wrapper selected)
+    obtain ⟨guard, rfl, old, new, left, right, before, _, after⟩ := wrappers wrapper selected
     refine ⟨atSuccessor entry guard.wrapper guard.accept (withTest cfg guard frame false), ?_, ?_⟩
     · simpa [Nat.not_lt_of_ge long] using source_path cfg source entry fuel minimum guard frame
         old left before sizeOp ltOp inputBound minimumBound

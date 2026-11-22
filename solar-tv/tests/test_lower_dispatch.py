@@ -174,7 +174,7 @@ class LowerDispatchTests(unittest.TestCase):
         )
         report = self.check_pair(routed, self.after, 2)
         self.assertEqual(report["status"], "unsupported")
-        self.assertIn("explicit non-library ABI wrappers", report["diagnostic"])
+        self.assertIn("explicit ABI wrappers", report["diagnostic"])
 
     def test_selector_receive_and_nonpayable_fallback(self):
         folder = self.folder / "routed"
@@ -319,3 +319,80 @@ contract C {
                     self.assertEqual(
                         (old["outcome"], old["data"]), ("success", [0] * 31 + [1])
                     )
+
+    def test_library_delegatecall_guard_with_hoisted_calldata(self):
+        folder = self.folder / "library"
+        folder.mkdir()
+        source = evaluate.inputs(self.case)
+        source["sources"]["C.sol"]["content"] = """
+library C {
+    function touch(uint256 value) external returns (uint256) { return value + 1; }
+    function probe(uint256 value) external pure returns (uint256) { return value; }
+}
+"""
+        baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+        captured, _ = evaluate.compile_input(SOLAR, source, folder, capture=True)
+        self.assertEqual(baseline, captured)
+        before, after = next(
+            row["paths"]
+            for row in evaluate.captures(folder)
+            if row["pass"] == "lower-dispatch"
+        )
+        proof = self.check_pair(before, after, 0)
+        self.assertEqual(proof["region"]["library_guarded_routes"], 1)
+        self.assertEqual(proof["region"]["minimum_calldata"], 36)
+
+        text = after.read_text()
+        broken_text, changes = re.subn(
+            r"(    v\d+ = )eq (v\d+, v\d+\n    jumpi)",
+            r"\1ne \2",
+            text,
+            count=1,
+        )
+        self.assertEqual(changes, 1)
+        broken = folder / "inverted-library-guard.mir"
+        broken.write_text(broken_text)
+        report = self.check_pair(before, broken, 2)
+        self.assertIn("dispatch proof did not close", report["diagnostic"])
+
+        fixture = folder / "world.json"
+        for selector, address, outcome, inverted in (
+            ("edaa0c1d", 65536, "revert", "success"),
+            ("edaa0c1d", 65537, "success", "revert"),
+            ("db082440", 65536, "success", "success"),
+        ):
+            with self.subTest(selector=selector, address=address):
+                fixture.write_text(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "address": address,
+                            "calldata": "0x" + selector + "00" * 32,
+                            "mir_layout": {"immutable_values": {"0": 65536}},
+                        }
+                    )
+                )
+                initial = world.read(fixture, SOLAR, None, kind="mir")
+                original, candidate = [
+                    Program(
+                        ("world-entry", "mir"),
+                        [],
+                        "",
+                        "",
+                        replay_ir=body,
+                        selector="entry",
+                        evm_version="cancun",
+                        world=initial,
+                    )
+                    for body in (text, broken_text)
+                ]
+                result = native.replay(
+                    original,
+                    candidate,
+                    [],
+                    executable=native.default(SOLAR),
+                    timeout=30,
+                )
+                good, bad = map(json.loads, result["observations"])
+                self.assertEqual(good["outcome"], outcome)
+                self.assertEqual(bad["outcome"], inverted)

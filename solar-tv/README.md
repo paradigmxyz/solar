@@ -1792,8 +1792,10 @@ dispatcher against the common minimum and executes the original and lowered
 wrapper prefixes. A short selected call must produce the same empty revert.
 An accepted call reaches the same wrapper block with the same locals and
 frame. The complete typed tables must agree after replacing only the wrapper
-guard branches. Library delegatecall guards, debug revert payloads, and
-physical gas need separate proofs.
+guard branches. For libraries, the checker also validates the non-view
+delegatecall guard against the deployed address bound to the runtime
+immutable. This composes with hoisted head-size checks. Debug revert
+payloads and physical gas need separate proofs.
 
 ### Allocation prefixes before unchanged cyclic callees
 

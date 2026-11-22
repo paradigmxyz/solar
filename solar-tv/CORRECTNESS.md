@@ -607,7 +607,12 @@ On an accepted call both wrappers reach the same continuation after four
 steps, with equal memory, journal, locals, stack and return owner. These
 paths hold for arbitrary extra MIR work fuel and symbolic calldata and call
 value in the routing domain. The certificate ends at that continuation.
-Library delegatecall guards, debug payloads and EVM gas remain open.
+Library routing uses the independently exported route mutability and
+deployment-address immutable. The kernel checks direct and delegated calls
+for arbitrary 160-bit deployment and execution addresses. The runtime
+binding supplies the deployment address without a constructor staging slot.
+View routes retain the original frame, and library routes accept call value.
+Debug payloads and EVM gas remain open.
 
 The phase-only form of `lower-evm-shaped` is covered by a module certificate.
 Both original modules pass phase validation and retain the same canonical

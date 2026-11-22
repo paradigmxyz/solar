@@ -31,6 +31,32 @@ def select (routes : Routes) (input : List Byte) (value : Word) : Option Nat :=
     selected.orElse fun _ => routes.fallback.bind fun (id,payable) =>
       if payable || value == 0 then some id else none
 
+private theorem lookup_target (key : Word) (routes : List (Word × Nat)) (wrapper : Nat)
+    (selected : lookup key routes = some wrapper) : wrapper ∈ routes.map Prod.snd := by
+  induction routes with
+  | nil => simp [lookup] at selected
+  | cons route rest ih =>
+    by_cases equal : route.1 = key
+    · simp [lookup, equal] at selected
+      simp [← selected]
+    · simp [lookup, equal] at selected
+      exact List.mem_cons_of_mem _ (ih selected)
+
+theorem selector_target (selectors : List (Word × Nat)) (rejectValue : Bool)
+    (input : List Byte) (value : Word) (wrapper : Nat)
+    (selected : select ⟨selectors, none, none, rejectValue⟩ input value = some wrapper) :
+    wrapper ∈ selectors.map Prod.snd := by
+  simp only [select, Option.isSome_none, Bool.and_false, Bool.false_eq_true,
+    ite_false, Option.bind_none] at selected
+  split at selected
+  · contradiction
+  split at selected
+  · contradiction
+  apply lookup_target (TransferFromDispatch.selector input)
+  cases found : lookup (TransferFromDispatch.selector input) selectors
+  · simp [found, Option.orElse] at selected
+  · simpa [found, Option.orElse] using selected
+
 def initial (entry : Nat) (frame : Frame) : Machine :=
   ⟨{function := entry}, [], {frame with arguments := [], locals := []}⟩
 
