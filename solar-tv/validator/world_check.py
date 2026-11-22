@@ -139,7 +139,7 @@ def check(
         # Splitting a guard can expose a continuation, so normalize again there.
         # Normalize completed word observations if the existing solvers cannot
         # close equality, including operand order after closed memory reads.
-        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm])\n"
+        finish = f"  repeat (split_mir_guard <;> simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe, Nat.add_comm] <;> try omega)\n  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm, Nat.add_comm])\n"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"
