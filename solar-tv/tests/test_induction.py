@@ -11,9 +11,9 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate, mir_state, native, world, world_check
+from validator import evaluate, memory_induction, mir_state, native, world, world_check
 
-FIXTURE = ROOT.parent / "tests/ui/codegen/mir/indvar-simplify/calldata_pointer_exit.sol"
+FIXTURES = ROOT.parent / "tests/ui/codegen/mir/indvar-simplify"
 VERSION = "osaka"
 
 
@@ -24,7 +24,7 @@ def call_data(elements, needle):
     )
 
 
-class CalldataInductionTests(unittest.TestCase):
+class InductionFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         work = tempfile.TemporaryDirectory()
@@ -32,7 +32,7 @@ class CalldataInductionTests(unittest.TestCase):
         cls.directory = Path(work.name)
         compiler = [
             SOLAR,
-            str(FIXTURE),
+            str(FIXTURES / cls.source),
             "-Ogas",
             "-j1",
             f"--evm-version={VERSION}",
@@ -48,7 +48,8 @@ class CalldataInductionTests(unittest.TestCase):
         [row] = [
             item
             for item in evaluate.captures(cls.directory)
-            if item["pass"] == "indvar-simplify" and item["region"]["name"] == "stopAt"
+            if item["pass"] == "indvar-simplify"
+            and item["region"]["name"] == cls.function
         ]
         cls.before, cls.after = row["paths"]
         cls.replay = native.default(SOLAR)
@@ -61,7 +62,7 @@ class CalldataInductionTests(unittest.TestCase):
                 self.before,
                 after,
                 "--function",
-                "stopAt",
+                self.function,
                 "--evm-version",
                 VERSION,
                 "--solar",
@@ -76,6 +77,11 @@ class CalldataInductionTests(unittest.TestCase):
             check=False,
         )
         return result, json.loads(report.read_text())
+
+
+class CalldataInductionTests(InductionFixture):
+    source = "calldata_pointer_exit.sol"
+    function = "stopAt"
 
     def test_real_induction_rewrite(self):
         result, record = self.check_pair(self.after, self.directory / "valid.json")
@@ -164,3 +170,72 @@ class CalldataInductionTests(unittest.TestCase):
                     observed[0]["data"],
                     [] if value is None else list(value.to_bytes(32, "big")),
                 )
+
+
+class MemoryInductionTests(InductionFixture):
+    source = "continued_counter.sol"
+    function = "fill"
+
+    @staticmethod
+    def array(observation):
+        data = bytes(observation["data"])
+        return [
+            int.from_bytes(data[i : i + 32], "big") for i in range(0, len(data), 32)
+        ]
+
+    def test_real_memory_fill(self):
+        result, record = self.check_pair(self.after, self.directory / "valid.json")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(record["status"], "verified")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        self.assertEqual(record["region"]["proof"], "kernel-checked-memory-fill")
+        self.assertFalse(record["whole_pass"])
+
+    def test_corrupted_counter_handoff_has_independent_witness(self):
+        prefix, body = self.after.read_text().rsplit("fn @fill() {", 1)
+        head, end, suffix = body.partition("\n}")
+        mutated, changes = re.subn(
+            r"( = shr v\d+, )5(?=\n\s+jump bb\d+\n)", r"\g<1>6", head
+        )
+        self.assertEqual(changes, 1)
+        after = self.directory / "wrong-handoff.mir"
+        after.write_text(prefix + "fn @fill() {" + mutated + end + suffix)
+        result, record = self.check_pair(after, self.directory / "wrong-handoff.json")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        self.assertEqual(record["status"], "counterexample")
+        witness = record["witness"]
+        self.assertEqual(witness["observations"], witness["native_observations"])
+        self.assertEqual(
+            list(map(self.array, witness["observations"])),
+            [[32, 6, 8, 8, 9, 9, 9, 7], [32, 6, 8, 9, 9, 9, 9, 7]],
+        )
+
+    def test_replay_with_expanded_and_unexpanded_memory(self):
+        for base, dirty in ((448, True), (65312, False)):
+            with self.subTest(heap_floor=base, dirty=dirty):
+                path = self.directory / f"heap-{base}.json"
+                path.write_text(
+                    json.dumps(
+                        memory_induction.witness_world("fill", base, dirty=dirty)
+                    )
+                )
+                fixture = world.read(path, SOLAR, None, kind="mir")
+                programs = [
+                    mir_state.translate(
+                        source.read_text(),
+                        SOLAR,
+                        VERSION,
+                        fixture,
+                        45,
+                        "fill",
+                        replay=self.replay,
+                    )
+                    for source in (self.before, self.after)
+                ]
+                result = native.replay(
+                    *programs, [], executable=self.replay, timeout=30
+                )
+                observed = list(map(json.loads, result["observations"]))
+                self.assertEqual(observed[0], observed[1])
+                self.assertEqual(observed[0]["outcome"], "success")
+                self.assertEqual(self.array(observed[0]), [32, 6, 8, 8, 9, 9, 9, 7])

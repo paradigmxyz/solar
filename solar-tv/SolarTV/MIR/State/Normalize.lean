@@ -73,7 +73,9 @@ dsimproc_decl reduceConclude (conclude _ _ _) := fun expression => do
   unless execution.isAppOf ``Except.ok || execution.isAppOf ``Except.error do return .continue
   return .visit (← withTransparency .default (whnf expression))
 
-simproc_decl reduceRun (run _ _ _ _) := fun expression => do
+/-- Normalize either a plain or an instrumented interpreter run using its own
+equations for the same kernel-checked transition. -/
+def reduceRunStep (expression : Expr) (onError onNext onFinished onUnknown : Name) : SimpM Simp.Step := do
   let args := expression.getAppArgs
   unless args.size == 4 do return .continue
   let some fuel ← getNatValue? args[0]! | return .continue
@@ -98,24 +100,27 @@ simproc_decl reduceRun (run _ _ _ _) := fun expression => do
   let parameters := #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
   let mut resolved := true
   let equation ← if reduced.isAppOf ``Except.error then
-      pure (mkAppN (mkConst ``run_error) (parameters ++ #[reduced.appArg!,proof]))
+      pure (mkAppN (mkConst onError) (parameters ++ #[reduced.appArg!,proof]))
     else if reduced.isAppOf ``Except.ok then
       let signal ← whnf reduced.appArg!
       if signal.isAppOf ``Transition.next then
-        pure (mkAppN (mkConst ``run_next) (parameters ++ signal.getAppArgs ++ #[proof]))
+        pure (mkAppN (mkConst onNext) (parameters ++ signal.getAppArgs ++ #[proof]))
       else if signal.isAppOf ``Transition.finished then
-        pure (mkAppN (mkConst ``run_finished) (parameters ++ #[signal.appArg!,proof]))
+        pure (mkAppN (mkConst onFinished) (parameters ++ #[signal.appArg!,proof]))
       else do
         resolved := false
-        mkAppM ``run_one parameters
+        mkAppM onUnknown parameters
     else do
       resolved := false
-      mkAppM ``run_one parameters
+      mkAppM onUnknown parameters
   let rhs := (← inferType equation).appArg!
   let result := {expr := rhs,proof? := some equation : Simp.Result}
   -- Expose one unresolved step without normalizing both continuations. A later
   -- path split supplies its guard before execution resumes.
   return if resolved then .visit result else .done result
+
+simproc_decl reduceRun (run _ _ _ _) := fun expression =>
+  reduceRunStep expression ``run_error ``run_next ``run_finished ``run_one
 
 open Lean.Elab.Tactic in
 elab "split_mir_guard" : tactic => do

@@ -128,6 +128,19 @@ The real pass capture has direct Lean and Rust execution checks for empty,
 matching, exhausted and malformed inputs. A doubled stride produces matching
 counterexamples from both interpreters.
 
+The stateful `ContinuedCounter.fill` certificate executes both captured
+functions via `MIR.State.runStores`. Its kernel theorem projects the traced
+execution to the ordinary MIR interpreter. Each run completes within 128
+work units and produces the same eight ordered MSTOREs, final memory,
+journal and ABI return. This covers arbitrary aligned memory up to 64 KiB,
+including expansion, and any aligned heap floor at least 128 with 224
+bytes of room in that model. The kernel derives the first pointer loop's
+exit displacement of 64 bytes and its recovered index of 2, then executes
+the receiving phi and both later loops. The changed handoff recovers 1 and
+overwrites the second array element. Independent Rust replay checks that
+counterexample. The compiler parser, schema export and constructor renderer
+remain trusted. The theorem prices no MIR instructions.
+
 Complete unused named-type table erasure has a separate resolved-data theorem
 in `MIR/Transforms/TypeDCE.lean`. Each source module is independently parsed and
 validated. All functions are exported, including unreachable bodies, with
@@ -969,7 +982,7 @@ token revert and a false result.
 
 | Gap | Current boundary | Evidence needed to close it |
 | --- | --- | --- |
-| General loops | Acyclic expansion, structural cyclic checks and specific invariants such as the calldata pointer recurrence | Inductive simulation for additional changed CFGs, stateful loop bodies, divergence and failures. |
+| General loops | Acyclic expansion, structural cyclic checks, calldata pointer induction and direct ordered-store proofs for a fixed-length fill | Inductive simulation for more changed CFGs, arbitrary stateful loop bounds, divergence and failures. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results and acyclic calls | ABI entry, allocation/layout preconditions, recursive call invariants and broader defined memory domains. |
 | EVM entry stacks and indirect transfers | Fixed entry heights, universally quantified effect-free prefixes, or complete terminal-region proofs over every stack | Stateful context/window correspondence, call/return stack relations and verified indirect targets; never assume an unknown height or destination. |

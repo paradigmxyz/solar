@@ -1475,6 +1475,14 @@ The parser and typed CFG projection are trusted. A 64-byte stride in place
 of 32 returns 2 instead of 1 for `[4, 5]` searched for `5`. The direct Lean
 interpreter and the independent Rust interpreter confirm the counterexample.
 
+The same check supports `ContinuedCounter.fill` from `continued_counter.sol`.
+Select the `indvar-simplify` capture whose region is `fill`, then use
+`--function fill`. Lean runs both full MIR bodies, records their whole-word
+stores in order, and compares final memory and ABI return bytes. The proof
+covers aligned heap floors from 128 with room for the array in 64 KiB, and
+both already active memory and memory that expands. Changing the recovered
+index changes the second returned element from 8 to 9 in Lean and Rust.
+
 ### Checking builtin lowering
 
 For the exact storage-byte write and address-call shapes, `--function` checks

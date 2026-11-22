@@ -302,6 +302,15 @@ def record(
                     "function-local proof; physical gas, stack scheduling and whole-pass correctness outside scope",
                 ]
             )
+        elif program and program.scope == "memory-induction":
+            assumptions.extend(
+                [
+                    "complete typed SSA executed by the direct MIR interpreter",
+                    "shared aligned heap floor at least 128 with room for 224 bytes in 64 KiB",
+                    "arbitrary aligned initial byte memory within 64 KiB; expansion, ordered word stores, full memory and ABI output compared",
+                    "terminates within 128 logical work units; physical gas and backend placement outside scope",
+                ]
+            )
         elif program and program.scope == "dead-ssa":
             assumptions.extend(
                 [
@@ -395,6 +404,7 @@ def record(
                 "unused-type-erasure",
                 "allocation-prefix",
                 "calldata-induction",
+                "memory-induction",
                 "dead-ssa",
                 "builtin-lowering",
             }
@@ -420,6 +430,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "calldata-induction",
+                "memory-induction",
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
@@ -469,6 +480,7 @@ def record(
                 "function-pruning",
                 "unused-type-erasure",
                 "calldata-induction",
+                "memory-induction",
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
@@ -588,7 +600,9 @@ def record(
                     "proof": program.import_evidence["kind"],
                 },
             }
-            if program and program.scope in {"builtin-lowering", "calldata-induction"}
+            if program
+            and program.scope
+            in {"builtin-lowering", "calldata-induction", "memory-induction"}
             else {}
         ),
         **(

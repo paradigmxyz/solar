@@ -832,7 +832,13 @@ def main() -> int:
                         "MIR source: GAS requires an isolated opcode window",
                     }
                 ):
-                    from . import builtin_lowering, coalesce, dead_ssa, induction
+                    from . import (
+                        builtin_lowering,
+                        coalesce,
+                        dead_ssa,
+                        induction,
+                        memory_induction,
+                    )
 
                     validators = (
                         (
@@ -840,6 +846,11 @@ def main() -> int:
                             dead_ssa.check,
                             partial(
                                 induction.check, replay=replay, verbose=args.verbose
+                            ),
+                            partial(
+                                memory_induction.check,
+                                replay=replay,
+                                verbose=args.verbose,
                             ),
                             builtin_lowering.check,
                         )
