@@ -9,7 +9,6 @@ and FMP relation, not proof that every caller or backend establishes it.
 
 import hashlib
 import json
-import re
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -127,8 +126,26 @@ def {side} (cfg : MIR.State.Config) (frame : MIR.State.Frame) : MIR.State.Run :=
     unfold = mir_symbolic.step_definitions()
     for term in ("MIR.State.allocate", "MIR.State.placementBinding"):
         unfold = unfold.replace(term + ", ", "")
-    unfold += ", config, MIR.State.conclude, BitVec.ofNat_add, reserve, query, slot"
+    # Preserve byte-memory expressions across the two executions. The range
+    # laws prove that expansion succeeds without unfolding the memory bytes.
+    unfold = unfold.replace(
+        "Execution.expand, Execution.requiredWords, Execution.memoryWords, ", ""
+    ).replace("↓MIR.State.reduceRun,", "↓MIR.State.reduceShapedRun,")
+    unfold += (
+        ", config, MIR.State.conclude, BitVec.ofNat_add, reserve, query, slot, floorOffset, floorMod"
+        ", MIR.ContinuedCounter.expandAligned"
+        ", ↓MIR.State.reduceOpcode"
+    )
+    # Failed side-condition proofs leave the operation opaque for later splits.
+    discharge = (
+        "try (first | omega | (simp (disch := try omega) only "
+        "[Execution.writeBytes_length, MIR.ContinuedCounter.padLength,"
+        " MIR.ContinuedCounter.maxAligned, Nat.max_le] <;> omega))"
+    )
     code += f"""
+attribute [local irreducible] Execution.readWord Execution.readBytes
+  Execution.writeBytes Execution.wordBytes Execution.expand
+
 theorem pair_correct (cfg : MIR.State.Config) (frame : MIR.State.Frame) (floor : Word)
  (valid : MIR.FreshHeap.Contract frame floor {size})
  (binding : MIR.FreshHeap.Binding cfg.layout {name} floor) :
@@ -137,14 +154,25 @@ theorem pair_correct (cfg : MIR.State.Config) (frame : MIR.State.Frame) (floor :
    .ok (.returned (some floor,{{frame with arguments := args,locals := locals,memory := Execution.writeBytes frame.memory 64 (Execution.wordBytes (floor+{size}))}})) :=
    MIR.FreshHeap.reservation _ floor {size} valid
  have query (other : MIR.State.Frame) := MIR.FreshHeap.query (config cfg) other {name} floor binding
+ simp only [config] at query
  have slot := MIR.FreshHeap.active_slot frame.memory valid.1.1 valid.1.2 valid.2.1
  rcases valid with ⟨⟨bounded,aligned⟩,active,cursor,lower,alignment,range⟩
- have memoryAlignment : 32 * (frame.memory.length / 32) = frame.memory.length := by omega
+ have floorOffset (offset : Word) (small : offset.toNat ≤ 65536) :
+     (floor + offset).toNat = floor.toNat + offset.toNat := by
+   simp [BitVec.toNat_add, Nat.mod_eq_of_lt (show floor.toNat + offset.toNat < 2^256 by omega)]
+ have floorMod (offset : Nat) (small : offset ≤ 65536) :
+     (floor.toNat + offset) % 2^256 = floor.toNat + offset :=
+   Nat.mod_eq_of_lt (by omega)
+ have reservedBounded : (Execution.writeBytes frame.memory 64 (Execution.wordBytes (floor+{size}))).length ≤ 65536 := by
+   simpa using bounded
+ have reservedAligned : (Execution.writeBytes frame.memory 64 (Execution.wordBytes (floor+{size}))).length % 32 = 0 := by
+   simpa using aligned
  unfold before after
- simp [{unfold}]
+ conv => arg 1; simp (disch := {discharge}) [{unfold}]
+ conv => arg 2; simp (disch := {discharge}) [{unfold}]
  repeat (split_mir_guard <;>
-   (try simp_all [{unfold}, memoryAlignment, Nat.add_comm]) <;>
-   (try simp (disch := omega) [*, {unfold}, memoryAlignment, Nat.add_comm]) <;> try omega)
+   (try simp_all [{unfold}, Nat.add_comm]) <;>
+   (try simp (disch := {discharge}) [*, {unfold}, Nat.add_comm]) <;> try omega)
  all_goals first | rfl | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.ofNat_add])
 #print axioms pair_correct
 """
@@ -155,13 +183,7 @@ theorem pair_correct (cfg : MIR.State.Config) (frame : MIR.State.Frame) (floor :
         path = Path(folder) / "Pair.lean"
         path.write_text(code)
         result = run(["lake", "env", "lean", path], ROOT, timeout)
-    axioms = re.search(r"'pair_correct' depends on axioms: \[(.*?)\]", result.stdout)
-    if result.returncode or not (
-        "'pair_correct' does not depend on any axioms" in result.stdout
-        or axioms
-        and not set(axioms[1].split(", "))
-        - {"propext", "Classical.choice", "Quot.sound"}
-    ):
+    if not mir_symbolic.proved(result):
         raise Unsupported(
             "fresh-heap SSA proof did not close\n" + result.stdout + result.stderr
         )
