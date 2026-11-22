@@ -595,9 +595,19 @@ empty revert data. Kernel-checked signature agreement preserves the prefix
 when the prover sets aside bodies beyond the cut. The retained-function
 proof also checks direct and tail-call targets after function ID renumbering.
 This covers selector routing, short calldata, receive and fallback, and
-nonpayable value guards for unmodified non-library wrappers. Calldata guard
-hoisting that changes wrapper bodies, library delegatecall guards, debug
-payloads and EVM gas remain open.
+nonpayable value guards for unmodified non-library wrappers.
+
+For a hoisted ABI head-size check, selector-only routing is composed with
+the original wrapper's actual guard. The source table is renumbered so both
+wrapper runs use the same logical runtime return owner. Lean checks that
+every source route has the same minimum and an empty reject block, and that
+the resolved tables differ only in the first wrapper terminators. On a
+short call the original wrapper reaches an empty revert in six MIR steps.
+On an accepted call both wrappers reach the same continuation after four
+steps, with equal memory, journal, locals, stack and return owner. These
+paths hold for arbitrary extra MIR work fuel and symbolic calldata and call
+value in the routing domain. The certificate ends at that continuation.
+Library delegatecall guards, debug payloads and EVM gas remain open.
 
 The phase-only form of `lower-evm-shaped` is covered by a module certificate.
 Both original modules pass phase validation and retain the same canonical

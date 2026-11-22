@@ -14,7 +14,8 @@ from unittest.mock import patch
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate
+from validator import evaluate, native, world
+from validator.common import Program
 
 
 class LowerDispatchTests(unittest.TestCase):
@@ -243,3 +244,78 @@ contract C {
         report = self.check_pair(before, broken, 2)
         self.assertEqual(report["status"], "unsupported")
         self.assertIn("dispatch proof did not close", report["diagnostic"])
+
+    def test_hoisted_calldata_guard_and_independent_boundary_replay(self):
+        folder = self.folder / "hoisted"
+        folder.mkdir()
+        source = evaluate.inputs(self.case)
+        source["sources"]["C.sol"]["content"] = (
+            (ROOT / "examples/solidity/functions.sol")
+            .read_text()
+            .replace("contract FunctionRegions", "contract C")
+        )
+        baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+        captured, _ = evaluate.compile_input(SOLAR, source, folder, capture=True)
+        self.assertEqual(baseline, captured)
+        row = next(
+            r for r in evaluate.captures(folder) if r["pass"] == "lower-dispatch"
+        )
+        before, after = row["paths"]
+        proof = self.check_pair(before, after, 0)
+        self.assertEqual(proof["evidence"], "kernel-proof")
+        self.assertFalse(proof["whole_pass"])
+        self.assertEqual(proof["region"]["proof"], "calldata-guard-hoist")
+        self.assertEqual(proof["region"]["minimum_calldata"], 36)
+        self.assertEqual(proof["region"]["selectors"], 2)
+        self.check_audit(source, baseline, folder / "audit", "calldata-guard-hoist")
+
+        entry, wrappers = after.read_text().split("fn @first(", 1)
+        self.assertEqual(entry.count(", 36\n"), 1)
+        broken = folder / "broken-minimum.mir"
+        broken.write_text(entry.replace(", 36\n", ", 35\n") + "fn @first(" + wrappers)
+        report = self.check_pair(before, broken, 2)
+        self.assertIn("dispatch proof did not close", report["diagnostic"])
+
+        def program(path, selector, initial):
+            return Program(
+                ("world-entry", "mir"),
+                [],
+                "",
+                "",
+                replay_ir=path.read_text(),
+                selector=selector,
+                evm_version="cancun",
+                world=initial,
+            )
+
+        fixture = folder / "world.json"
+        request = {"executable": native.default(SOLAR), "timeout": 30}
+        for size in (35, 36):
+            with self.subTest(size=size):
+                fixture.write_text(
+                    json.dumps(
+                        {"version": 1, "calldata": "0x0b3f62f5" + "00" * (size - 4)}
+                    )
+                )
+                initial = world.read(fixture, SOLAR, None, kind="mir")
+                original = program(before, "first", initial)
+                source_results = native.replay(original, original, [], **request)
+                target_results = native.replay(
+                    program(after, "entry", initial),
+                    program(broken, "entry", initial),
+                    [],
+                    **request,
+                )
+                old = json.loads(source_results["observations"][0])
+                good, bad = map(json.loads, target_results["observations"])
+                self.assertEqual(old, good)
+                if size == 35:
+                    self.assertEqual((old["outcome"], old["data"]), ("revert", []))
+                    self.assertEqual(
+                        (bad["outcome"], bad["data"]), ("success", [0] * 31 + [1])
+                    )
+                else:
+                    self.assertEqual(old, bad)
+                    self.assertEqual(
+                        (old["outcome"], old["data"]), ("success", [0] * 31 + [1])
+                    )

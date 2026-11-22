@@ -51,6 +51,7 @@ import SolarTV.MIR.Transforms.FreshHeap
 import SolarTV.MIR.Transforms.TypeDCE
 import SolarTV.MIR.Transforms.LowerDispatch
 import SolarTV.MIR.Transforms.RoutedDispatch
+import SolarTV.MIR.Transforms.DispatchGuardHoist
 import SolarTV.MIR.Transforms.LowerAddressCall
 import SolarTV.MIR.Transforms.LowerReturndata
 import SolarTV.MIR.Transforms.LowerStorageHeader

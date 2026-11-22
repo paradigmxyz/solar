@@ -2,11 +2,20 @@
 
 import re
 
-from . import mir_state, mir_symbolic
+from . import dispatch_guard_hoist, mir_state, mir_symbolic
 from .common import Unsupported
 
 ENTRY_ONLY = {"abi_wrapper", "external", "public", "payable", "pure", "view"}
-ROUTING_OPS = {"callvalue", "calldataload", "calldatasize", "lt", "ne", "shr", "or"}
+ROUTING_OPS = {
+    "callvalue",
+    "calldataload",
+    "calldatasize",
+    "lt",
+    "ne",
+    "shr",
+    "or",
+    "word",
+}
 ROUTING_TERMS = {"jump", "branch", "switch", "tail_call", "revert"}
 
 
@@ -41,10 +50,13 @@ def proof(source, target, entry, definitions, version, before, retained):
     for role, route in (("receive", receive), ("fallback", fallback)):
         if target[role] != (remap(route["id"]) if route else None):
             raise Unsupported(f"dispatcher changed the {role} root")
-    if [(name, retained_declaration(body)) for name, body in before.items()] != [
-        (name, body["text"]) for name, body in retained
-    ]:
-        raise Unsupported("dispatch materialization changed retained wrapper code")
+    declarations = {name: retained_declaration(body) for name, body in before.items()}
+    retained_text = {name: body["text"] for name, body in retained}
+    minimum, guards = None, []
+    if list(declarations.items()) != list(retained_text.items()):
+        minimum, guards = dispatch_guard_hoist.guards(
+            source, entry, selectors, declarations, retained_text
+        )
 
     dispatcher = target["functions"][entry]
     # The interpreter's cut must only follow a finite, read-only routing prefix.
@@ -74,6 +86,8 @@ def proof(source, target, entry, definitions, version, before, retained):
         else "none"
     )
     rejects_value = str(all(not row["payable"] for row in wrappers)).lower()
+    if minimum is not None:
+        operations.update(("calldatasize", "lt"))
     available = sorted(
         definitions[op]["opcode"] for op in operations if op in definitions
     )
@@ -87,6 +101,7 @@ def proof(source, target, entry, definitions, version, before, retained):
         f"    (op{opcode} : {opcode} ∈ cfg.available)\n" for opcode in available
     )
     op_simp = "".join(f"op{opcode}, " for opcode in available)
+    opcode_arguments = " ".join(f"op{opcode}" for opcode in available)
     cuts = [row["id"] for row in target["functions"] if row["id"] != entry]
     table = ",".join(
         mir_state.function_body(
@@ -127,10 +142,27 @@ def proof(source, target, entry, definitions, version, before, retained):
     if receive:
         input_cases.append("by_cases empty : cfg.environment.input = []")
     input_cases.append("by_cases short : cfg.environment.input.length < 4")
+    expected = (
+        "MIR.RoutedDispatch.select routes cfg.environment.input cfg.environment.value"
+    )
+    prefix_theorem = "dispatch"
+    retained_proof = "theorem retained : after = reference := by rfl\n"
+    route_simp = ""
+    if minimum is not None:
+        input_cases.append(
+            f"by_cases shortHead : cfg.environment.input.length < {minimum}"
+        )
+        expected = (
+            f"if cfg.environment.input.length < {minimum} then none else {expected}"
+        )
+        prefix_theorem = "dispatch_prefix"
+        retained_proof = dispatch_guard_hoist.retained_proof(minimum, guards)
+        route_simp = "BitVec.ult_eq_decide, BitVec.or_eq_zero_iff, "
     partition = " <;>\n    ".join(input_cases)
     code = f"""
 open MIR.RoutedDispatch in
 def routes : Routes := ⟨[{routes}], {receiving}, {default}, {rejects_value}⟩
+{retained_proof}
 def cuts : List Nat := {cuts}
 def routingBodies : MIR.State.Functions := [{table}]
 theorem signatures : MIR.RoutedDispatch.cutBodies cuts after = routingBodies := rfl
@@ -138,7 +170,7 @@ theorem routing (cfg : MIR.State.Config) (frame : MIR.State.Frame)
 {opcode_hypotheses}    (bounded : frame.memory.length ≤ 65536)
     (inputBound : cfg.environment.input.length < 2^256) :
     MIR.RoutedDispatch.Agrees entry frame
-      (MIR.RoutedDispatch.select routes cfg.environment.input cfg.environment.value)
+      ({expected})
       (MIR.CallContext.runTo {cuts} {fuel} cfg routingBodies
         (MIR.RoutedDispatch.initial entry frame)) := by
 {short_misses}
@@ -148,28 +180,43 @@ theorem routing (cfg : MIR.State.Config) (frame : MIR.State.Frame)
     simp [BitVec.toNat_ofNat, Nat.mod_eq_of_lt inputBound, List.length_eq_zero_iff]
   {partition}
   all_goals
+    try omega
+  all_goals
     simp [{unfold}, ↓MIR.RoutedDispatch.reduceRunTo, MIR.RoutedDispatch.initial,
       MIR.RoutedDispatch.select, MIR.RoutedDispatch.lookup, MIR.RoutedDispatch.Agrees,
       MIR.RoutedDispatch.callvalue,
       MIR.RoutedDispatch.expand_zero _ bounded, MIR.TransferFromDispatch.selector_word,
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt inputBound, List.isEmpty_iff,
-      List.length_eq_zero_iff, entry, routes, {op_simp}*]
+      List.length_eq_zero_iff, entry, routes, {route_simp}{op_simp}*]
 {split_selectors}
   all_goals {normalize}
   all_goals omega
-theorem dispatch (cfg : MIR.State.Config) (frame : MIR.State.Frame)
+theorem {prefix_theorem} (cfg : MIR.State.Config) (frame : MIR.State.Frame)
 {opcode_hypotheses}    (bounded : frame.memory.length ≤ 65536)
     (inputBound : cfg.environment.input.length < 2^256) :
     MIR.RoutedDispatch.Agrees entry frame
-      (MIR.RoutedDispatch.select routes cfg.environment.input cfg.environment.value)
+      ({expected})
       (MIR.CallContext.runTo cuts {fuel} cfg after (MIR.RoutedDispatch.initial entry frame)) := by
   rw [(MIR.RoutedDispatch.cut_agreement cuts after).prefix_eq, signatures]
-  exact routing cfg frame {" ".join(f"op{opcode}" for opcode in available)} bounded inputBound
-#print axioms dispatch
+  exact routing cfg frame {opcode_arguments} bounded inputBound
 """
-    return code, {
+    evidence = {
         "work_steps": fuel,
         "selectors": len(selectors),
         "receive": bool(receive),
         "fallback": bool(fallback),
     }
+    if minimum is not None:
+        code += f"""
+theorem dispatch (cfg : MIR.State.Config) (frame : MIR.State.Frame)
+{opcode_hypotheses}    (bounded : frame.memory.length ≤ 65536)
+    (inputBound : cfg.environment.input.length < 2^256) :
+    MIR.DispatchGuardHoist.Agrees cfg reference after entry frame
+      (MIR.RoutedDispatch.select routes cfg.environment.input cfg.environment.value)
+      (MIR.CallContext.runTo cuts {fuel} cfg after (MIR.RoutedDispatch.initial entry frame)) :=
+  MIR.DispatchGuardHoist.certificate cfg reference after entry {minimum} frame routes.selectors
+    routes.rejectValue _ (dispatch_prefix cfg frame {opcode_arguments} bounded inputBound)
+    wrappers op54 op16 inputBound (by decide) bounded
+"""
+        evidence["minimum_calldata"] = minimum
+    return code + "#print axioms dispatch\n", evidence

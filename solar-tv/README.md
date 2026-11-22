@@ -1763,7 +1763,7 @@ Live pass audits use the same check automatically. Reports use
 `resolved-phase-advance` and `unpriced-structural`. Pointer erasure, call
 shaping, phi-edge rewrites and backend gas or layout require separate evidence.
 
-### Materializing an empty runtime dispatcher
+### Materializing a runtime dispatcher
 
 For a module with no selector, receive or fallback routes, `lower-dispatch`
 adds a runtime entry that rejects every call. Use
@@ -1784,9 +1784,16 @@ and fallback routing against the actual typed MIR execution. It checks the
 full frame at the selected wrapper entry, or the empty revert, for symbolic
 calldata and call value. This covers short selector prefixes and the
 dispatcher-wide nonpayable guard. The report records the wrapper counts and
-the MIR work bound. Hoisted calldata checks that edit wrapper bodies, library
-delegatecall guards, debug revert payloads, and physical gas need separate
-proofs.
+the MIR work bound.
+
+The `calldata-guard-hoist` certificate covers selector-only dispatch when
+the wrappers share a plain ABI head-size check. Lean checks the actual
+dispatcher against the common minimum and executes the original and lowered
+wrapper prefixes. A short selected call must produce the same empty revert.
+An accepted call reaches the same wrapper block with the same locals and
+frame. The complete typed tables must agree after replacing only the wrapper
+guard branches. Library delegatecall guards, debug revert payloads, and
+physical gas need separate proofs.
 
 ### Allocation prefixes before unchanged cyclic callees
 

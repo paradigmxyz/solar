@@ -238,6 +238,14 @@ theorem Segment.resume {cfg functions fuel initial remaining reached}
   | more h paid _ ih =>
     simpa only [run_next _ h, Nat.not_lt_of_ge paid, ite_false] using ih
 
+theorem Segment.append {cfg functions fuel initial remaining reached finalFuel final}
+    (first : Segment cfg functions fuel initial remaining reached)
+    (last : Segment cfg functions remaining reached finalFuel final) :
+    Segment cfg functions fuel initial finalFuel final := by
+  induction first with
+  | here => exact last
+  | more step paid _ ih => exact .more step paid (ih last)
+
 /-- Bind a replacement to the real interpreter on both sides. The caller may
 use another context proof for the reached continuations at their own budgets. -/
 theorem join_segments {cfg left right leftFuel rightFuel leftStart rightStart

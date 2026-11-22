@@ -205,12 +205,17 @@ def record(
                 ]
             )
         elif program and program.scope == "routed-dispatch":
+            hoisted = "minimum_calldata" in program.import_evidence
             assumptions.extend(
                 [
-                    "explicit non-library ABI wrappers with unchanged executable bodies",
+                    "explicit non-library selector wrappers differ only in the first guard branch"
+                    if hoisted
+                    else "explicit non-library ABI wrappers with unchanged executable bodies",
                     "initial memory at most 64 KiB and calldata length representable as a word; routing opcode availability checked against the target",
-                    "symbolic calldata and call value; exact wrapper entry frame or empty revert proved using direct MIR transitions",
-                    "wrapper execution, backend placement and physical gas outside the routing certificate",
+                    "symbolic calldata and call value; short selected inputs match the original empty revert; valid inputs reach the same wrapper cursor and complete frame"
+                    if hoisted
+                    else "symbolic calldata and call value; exact wrapper entry frame or empty revert proved using direct MIR transitions",
+                    "execution beyond the checked wrapper cut, backend placement and physical gas are outside the routing certificate",
                 ]
             )
         elif program and program.scope == "fresh-heap-function":
@@ -672,7 +677,9 @@ def record(
                 "whole_pass": False,
                 "region": {
                     "kind": "module",
-                    "proof": "routed-runtime-dispatch",
+                    "proof": "calldata-guard-hoist"
+                    if "minimum_calldata" in program.import_evidence
+                    else "routed-runtime-dispatch",
                     **{
                         key: program.import_evidence[key]
                         for key in (
@@ -682,7 +689,9 @@ def record(
                             "selectors",
                             "receive",
                             "fallback",
+                            "minimum_calldata",
                         )
+                        if key in program.import_evidence
                     },
                 },
             }

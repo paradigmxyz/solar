@@ -76,8 +76,7 @@ def check(texts, before, after, version, timeout, executable):
     code += f"""
 def entry : Nat := {entry}
 def dispatcher : MIR.State.Function := (after[entry]'(by decide)).2
-theorem retained : after = MIR.LowerDispatch.insertDispatcher before entry dispatcher := by rfl
-#print axioms retained
+def reference : MIR.State.Functions := MIR.LowerDispatch.insertDispatcher before entry dispatcher
 """
     if source["runtime_entries"]:
         body, evidence = routed_dispatch.proof(
@@ -98,6 +97,7 @@ theorem retained : after = MIR.LowerDispatch.insertDispatcher before entry dispa
         scope = "empty-dispatch"
         evidence = {"work_steps": steps}
         code += f"""
+theorem retained : after = reference := by rfl
 def sourceRoutes : List Nat := []
 theorem path : MIR.LowerDispatch.RejectPath dispatcher 0 {steps} := {path}
 theorem dispatch (cfg : MIR.State.Config) (fuel : Nat) (frame : MIR.State.Frame)
@@ -109,6 +109,7 @@ theorem dispatch (cfg : MIR.State.Config) (fuel : Nat) (frame : MIR.State.Frame)
     {steps} path cfg fuel frame depth args bounded
 #print axioms dispatch
 """
+    code += "\n#print axioms retained\n"
     built = build_model(timeout)
     if built.returncode:
         raise Unsupported(built.stderr or built.stdout)
