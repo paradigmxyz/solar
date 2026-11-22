@@ -74,7 +74,7 @@ def operation(line, catalog, version):
     if not definition or not (
         definition["pure"]
         or name.startswith(("push", "dup", "swap"))
-        or name in {"pop", "calldatasize", "returndatasize", "caller", "calldataload"}
+        or name in evmir.CONTEXT_READS | {"pop", "calldatasize", "returndatasize"}
     ):
         return None
     price = definition["forks"][version]

@@ -19,18 +19,19 @@ inductive Op where
   | calldatasize | returndatasize | push (value : Word)
   | pop | dup (index : Fin 256) | swap (index : Fin 256)
   | exchange (first second : Fin 32)
-  | caller | calldataload
+  | caller | callvalue | calldataload
 
 structure Context where
   calldataSize : Word
   returndataSize : Word
   caller : BitVec 160 := 0
   calldata : List (BitVec 8) := []
+  value : Word := 0
 
 /-- A concrete frame supplies consistent calldata size, contents and caller. -/
 def Context.ofEnvironment (environment : World.Environment) (returnData : List World.Byte) : Context :=
   ⟨BitVec.ofNat 256 environment.input.length, BitVec.ofNat 256 returnData.length,
-    environment.caller, environment.input⟩
+    environment.caller, environment.input, environment.value⟩
 
 abbrev Stack := List Word
 
@@ -72,6 +73,7 @@ def step (ctx : Context) : Op → Stack → Option Stack
   | .returndatasize, rest => some (ctx.returndataSize :: rest)
   | .push value, rest => some (value :: rest)
   | .caller, rest => some (ctx.caller.setWidth 256 :: rest)
+  | .callvalue, rest => some (ctx.value :: rest)
   | .calldataload, offset :: rest =>
     some (Execution.readWord ctx.calldata offset.toNat :: rest)
   | _, _ => none

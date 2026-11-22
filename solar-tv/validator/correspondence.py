@@ -196,7 +196,7 @@ theorem __IMPORT___entry_checked (ctx : EVM.Context) (stack : EVM.Stack) (memory
     )
     program.import_obligation = f"""
 theorem __IMPORT___entry_checked {binders} :
-  Correspondence.evalGraph (__IMPORT___graph ⟨calldatasize,returndatasize,0,[]⟩) {fuel} {entry}
+  Correspondence.evalGraph (__IMPORT___graph ⟨calldatasize,returndatasize,0,[], 0⟩) {fuel} {entry}
     ([{",".join(stack)}],({memory.INITIAL})) = some (__IMPORT__ {" ".join(inputs)}) := by
   rw [__IMPORT___source_correct]
   rfl

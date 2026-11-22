@@ -117,11 +117,11 @@ theorem shared_sufficient (ctx : Context) (fork : Fork) (prologue : List Memory.
     all_goals simp only [forgetGas, old, new, Option.map_some, Option.map_none] at contextual ⊢
     all_goals exact contextual
 
-example : charged ⟨0,0,0,[]⟩ .cancun
+example : charged ⟨0,0,0,[], 0⟩ .cancun
     [.stack (.push 160), .stack (.push 64), .store] [] 11
     (SolarTV.Memory.initial [] 0) = none := by decide +kernel
 
-example : charged ⟨0,0,0,[]⟩ .cancun
+example : charged ⟨0,0,0,[], 0⟩ .cancun
     [.stack (.push 160), .stack (.push 64), .store] [] 18
     (SolarTV.Memory.initial [] 0) =
       some ([],0,SolarTV.Memory.store (SolarTV.Memory.initial [] 0) 64 160) := by decide +kernel

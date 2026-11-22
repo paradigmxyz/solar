@@ -272,7 +272,7 @@ theorem resource (handler : Handler World) (before after : Tree)
 
 example : ¬ Refines (.done 4 (.continuation [])) (.done 3 (.continuation [])) := by simp [Refines]
 
-example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[]⟩ .cancun
+example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[], 0⟩ .cancun
     [.scalar (.push 1)] [] 2 0 = none := by decide
 
 example : execute (fun _ (world : Nat) => some (0,10,world+1))
@@ -281,7 +281,7 @@ example : execute (fun _ (world : Nat) => some (0,10,world+1))
 example : guardCharged 0 2 10 [1,9] 12 = some (.jump 0 [9],0) := by decide
 example : guardCharged 7 3 10 [0,9] 13 = some (.continuation [9],0) := by decide
 example : guardCharged 7 3 10 [1] 12 = none := by decide
-example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[]⟩ .cancun
+example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[], 0⟩ .cancun
     [.guard 7 3 10,.scalar .pop] [1] 13 0 = some (.jump 7 [],0,0) := by decide
 
 example (stack : Stack) (full : stack.length = 1024) (gas pushCharge jumpCharge : Nat) :

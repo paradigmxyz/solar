@@ -902,20 +902,45 @@ def main() -> int:
                 ):
                     from . import source_identity
 
-                    # Identical independently parsed source graphs admit a
-                    # separate structural proof. Never replace a failed import
-                    # certificate or an actual counterexample with this route.
-                    try:
-                        result = source_identity.check(
-                            (args.before, args.after),
-                            solar,
-                            rust_replay,
-                            version,
-                            args.timeout,
-                            args.region,
-                        )
-                    except Unsupported:
-                        raise error from None
+                    result = None
+                    if (
+                        args.stack_height is not None
+                        and str(error).removeprefix("unmodeled EVM IR instruction: ")
+                        in evmir.CONTEXT_READS
+                    ):
+                        # A fixed scalar entry lacks these frame inputs. Retry
+                        # with the stronger all-stacks, arbitrary-context proof.
+                        try:
+                            contextual = [
+                                load(
+                                    "evmir",
+                                    path,
+                                    solar,
+                                    args.timeout,
+                                    evm_version=version,
+                                    region=args.region,
+                                    replay_executable=rust_replay,
+                                )
+                                for path in (args.before, args.after)
+                            ]
+                            result = evm_region.check_universal(
+                                *contextual, args.timeout
+                            )
+                        except Unsupported:
+                            pass
+                    if result is None:
+                        # Equal resolved graphs still admit structural identity.
+                        try:
+                            result = source_identity.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.region,
+                            )
+                        except Unsupported:
+                            raise error from None
                     programs = list(result.pair)
                 elif (
                     args.ir == "mir"
@@ -983,6 +1008,7 @@ def main() -> int:
                     or str(error)
                     not in {
                         "unmodeled EVM IR instruction: caller",
+                        "unmodeled EVM IR instruction: callvalue",
                         "unmodeled EVM IR instruction: calldataload",
                         "unmodeled EVM IR instruction: gas",
                         "unmodeled EVM IR instruction: staticcall",

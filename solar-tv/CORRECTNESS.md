@@ -268,12 +268,14 @@ Unknown-height complete terminal regions now have a second route. The checked
 CFG expansion and actual entry obligation quantify every incoming stack and
 projected memory state, including underflow, overflow and a transfer's temporary
 label push. No height, incoming constant or zero-initialized heap is assumed.
-Caller addresses and calldata bytes are also arbitrary. `CALLDATALOAD` uses the
-same zero-extending byte reader as direct frame execution, and `CALLER` widens
-the frame's 160-bit address. Frame construction is covered by kernel-checked
-correspondence lemmas. Size words are independently quantified, a conservative
-superset of consistent frame contexts. Fixed scalar-window inputs still reject
-these reads rather than defaulting their missing inputs to zero.
+Caller addresses, call values, and calldata bytes are also arbitrary.
+`CALLDATALOAD` uses the same zero-extending byte reader as direct frame
+execution, `CALLER` widens the frame's 160-bit address, and `CALLVALUE` keeps
+all 256 bits. Kernel-checked correspondence lemmas cover frame construction.
+Size words are independently quantified, a conservative superset of
+consistent frame contexts. A terminal region with a declared stack height
+can use this certificate when its fixed-height projection cannot read the
+frame context.
 An iterative analysis of the independent source graph and reflected stack
 effects guides finite underflow/overflow proof splits. These are tactic hints,
 not assumptions: the theorem still quantifies every stack and live memory.

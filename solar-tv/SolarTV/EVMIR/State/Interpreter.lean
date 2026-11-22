@@ -81,7 +81,7 @@ def instructionWithImage (cfg : Config) (world : Journal) (frame : Frame)
     let op := if opcode < 0x90 then EVM.Op.dup ⟨opcode - 0x80, by omega⟩
       else EVM.Op.swap ⟨opcode - 0x90, by omega⟩
     if frame.gas < info.base then stepExhausted world else
-      match EVM.step ⟨0, 0, 0, []⟩ op frame.stack with
+      match EVM.step ⟨0, 0, 0, [], 0⟩ op frame.stack with
       | none => stepFailed world
       | some stack => next world {frame with gas := frame.gas - info.base} stack
   else

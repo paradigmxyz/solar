@@ -1402,14 +1402,16 @@ The pass hook and sampler use this route for unknown-height terminal regions;
 capture identities stay unchanged. Failed universal checks stay unsupported,
 because their hypothetical entry states need not be reachable.
 
-These proofs also admit `CALLER` and `CALLDATALOAD` over arbitrary caller
-addresses and calldata bytes. Calldata reads preserve big-endian byte order and
-zero extension, and do not expand memory. The caller is widened from 160 bits.
+These proofs also admit `CALLER`, `CALLVALUE`, and `CALLDATALOAD` over arbitrary
+caller addresses, 256-bit call values, and calldata bytes. Calldata reads
+preserve big-endian byte order and zero extension, and do not expand memory.
+The caller is widened from 160 bits.
 Size words are independently quantified, so the proof covers a conservative
 superset of real frame contexts. Regions that consume incoming words split out
 short stacks explicitly; underflow and transfer overflow remain observable.
-Fixed scalar-window inputs do not include these context values and still
-reject the operations rather than substituting zero.
+Fixed scalar-window inputs have no values for these context reads. A terminal
+region with a known stack height can retry with the stronger universal proof,
+which quantifies all incoming stacks and frame inputs.
 
 ```sh
 solar-tv/solar-tv evmir solar-tv/examples/evmir/caller-tail/{before,after}.evmir \

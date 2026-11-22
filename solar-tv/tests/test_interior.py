@@ -239,7 +239,7 @@ class InteriorTests(unittest.TestCase):
         proof = self.tmp / "Context.lean"
         proof.write_text("""import SolarTV
 open SolarTV EvmRules EVM
-def ctx : Context := ⟨0,0,0,[]⟩
+def ctx : Context := ⟨0,0,0,[], 0⟩
 def before : List Op := [.push 32,.push 32]
 def after : List Op := [.push 32,.dup 0]
 def tail : Suffix.Tail := ⟨[],"stop",none⟩
