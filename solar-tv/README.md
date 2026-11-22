@@ -1483,6 +1483,39 @@ covers aligned heap floors from 128 with room for the array in 64 KiB, and
 both already active memory and memory that expands. Changing the recovered
 index changes the second returned element from 8 to 9 in Lean and Rust.
 
+### Checking the storage search-to-shift handoff
+
+Capture the lowered `indvar-simplify` rewrite of `ContinuedCounter.remove`.
+
+```sh
+out=$(mktemp -d)
+target/debug/solar tests/ui/codegen/mir/indvar-simplify/continued_counter.sol \
+  -j1 -Ogas --evm-version=osaka --emit=bin-runtime --allow=2264 \
+  -Zsolar-tv="$out" -Zsolar-tv-capture
+stream=$(rg -l '"pass":"indvar-simplify".*"name":"remove"' "$out"/captures/*/regions.jsonl |
+  while IFS= read -r path; do
+    if rg -q '^fn @remove\(\) \{' "${path%/*}/after.mir"; then
+      printf '%s\n' "$path"
+    fi
+  done)
+pair=${stream%/regions.jsonl}
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir" \
+  --storage-loop remove --evm-version osaka
+```
+
+The kernel matches the typed CFG at the search preheader and proves that its
+unpriced projection issues the same storage reads and writes in order. The
+base slot, needle and storage replies are arbitrary. This covers a missing
+match, a match in the last record, and wrapping slot arithmetic. The proof
+ends at the common packing continuation or a shared failure. It assumes
+equal live-ins and placement for the clear-edge allocation and trusts the
+typed CFG projection.
+
+Changing the recovery shift from one to two gives a counterexample for
+needle 3. Lean and the independent Rust interpreter agree on the first
+differing write and the return values, 12450 and 13450. The report gives the
+write's ordinal, slot and value on each side.
+
 ### Checking builtin lowering
 
 For the exact storage-byte write and address-call shapes, `--function` checks

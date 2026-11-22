@@ -15,6 +15,8 @@ use std::{collections::BTreeMap, str::FromStr};
 mod layout;
 mod messages;
 
+const STORAGE_TRACE_LIMIT: usize = 4096;
+
 struct Context<'a> {
     layout: layout::Layout,
     native: messages::Native<'a>,
@@ -23,6 +25,7 @@ struct Context<'a> {
     blobs: Vec<U256>,
     static_permission: bool,
     debug_reverts: bool,
+    storage_trace: Option<Vec<(u8, U256, U256)>>,
 }
 
 impl Host for Context<'_> {
@@ -37,6 +40,13 @@ impl Host for Context<'_> {
     }
     fn storage(&mut self, slot: U256) -> U256 {
         self.native.storage(slot)
+    }
+    fn observe_storage(&mut self, opcode: u8, slot: U256, value: U256) {
+        if let Some(trace) = &mut self.storage_trace
+            && trace.len() <= STORAGE_TRACE_LIMIT
+        {
+            trace.push((opcode, slot, value));
+        }
     }
     fn transient(&mut self, slot: U256) -> U256 {
         self.native.transient(slot)
@@ -176,6 +186,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             blobs: blobs.clone(),
             static_permission: input.is_static,
             debug_reverts: input.debug_reverts,
+            storage_trace: input.trace_storage.then(Vec::new),
         };
         let execution = run_state(
             text,
@@ -214,6 +225,17 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         observation["memory"] = json!(memory);
         observation["returndata"] =
             json!(if keep_transient { execution.return_data } else { Vec::new() });
+        if let Some(trace) = host.storage_trace {
+            if trace.len() > STORAGE_TRACE_LIMIT {
+                return Err("MIR storage trace exceeds the replay limit".into());
+            }
+            observation["storage_trace"] = json!(
+                trace
+                    .into_iter()
+                    .map(|(opcode, slot, value)| (opcode, slot.to_string(), value.to_string()))
+                    .collect::<Vec<_>>()
+            );
+        }
         Ok(observation.to_string())
     };
     Ok([execute(&request.before)?, execute(&request.after)?])

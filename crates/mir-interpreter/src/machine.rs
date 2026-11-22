@@ -218,6 +218,12 @@ pub trait Host {
     /// changes committed by that child. Without messages this is the initial value.
     fn storage(&mut self, slot: U256) -> U256;
 
+    /// Observes a completed persistent storage opcode in execution order.
+    /// Reads report the current value, including unpublished writes.
+    fn observe_storage(&mut self, opcode: u8, slot: U256, value: U256) {
+        let _ = (opcode, slot, value);
+    }
+
     /// Returns the host's current transient value, overlaid by unpublished writes.
     /// Without messages this is its value when the run starts: zero for a transaction.
     fn transient(&mut self, slot: U256) -> U256 {
@@ -1581,10 +1587,12 @@ impl<'a> Run<'_, 'a, '_> {
             (op::SLOAD, &[slot]) => {
                 let original = world.host.storage(slot);
                 let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
+                world.host.observe_storage(opcode, slot, current);
                 Some(current)
             }
             (op::SSTORE, &[slot, value]) => {
                 world.effects.storage.insert(slot, value);
+                world.host.observe_storage(opcode, slot, value);
                 None
             }
             (op::TLOAD, &[slot]) => Some(match world.effects.transient.get(&slot) {

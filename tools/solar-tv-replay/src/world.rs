@@ -60,6 +60,9 @@ pub(super) struct Input {
     /// Execute the fixture's captured root bytecode directly.
     #[serde(default)]
     raw_runtime: bool,
+    /// Include the ordered completed persistent-storage opcodes in MIR replay.
+    #[serde(default)]
+    trace_storage: bool,
 }
 
 #[derive(Deserialize)]

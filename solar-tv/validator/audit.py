@@ -311,6 +311,16 @@ def record(
                     "terminates within 128 logical work units; physical gas and backend placement outside scope",
                 ]
             )
+        elif program and program.scope == "storage-induction":
+            assumptions.extend(
+                [
+                    "search preheader to the common packing continuation or the shared failure path",
+                    "equal base, needle, initial state and placement of the clear-edge allocation",
+                    "ordered storage reads and writes for arbitrary replies and wrapping slots",
+                    "trusted compiler parser/schema export, SSA normalization and typed CFG projection",
+                    "unpriced region proof scoped to the search and shift loops",
+                ]
+            )
         elif program and program.scope == "dead-ssa":
             assumptions.extend(
                 [
@@ -405,6 +415,7 @@ def record(
                 "allocation-prefix",
                 "calldata-induction",
                 "memory-induction",
+                "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
             }
@@ -431,6 +442,7 @@ def record(
                 "unused-type-erasure",
                 "calldata-induction",
                 "memory-induction",
+                "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
@@ -481,6 +493,7 @@ def record(
                 "unused-type-erasure",
                 "calldata-induction",
                 "memory-induction",
+                "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
                 "allocation-prefix",
@@ -595,14 +608,21 @@ def record(
             {
                 "whole_pass": False,
                 "region": {
-                    "kind": "function",
+                    "kind": "loop-region"
+                    if program.scope == "storage-induction"
+                    else "function",
                     "name": program.selector,
                     "proof": program.import_evidence["kind"],
                 },
             }
             if program
             and program.scope
-            in {"builtin-lowering", "calldata-induction", "memory-induction"}
+            in {
+                "builtin-lowering",
+                "calldata-induction",
+                "memory-induction",
+                "storage-induction",
+            }
             else {}
         ),
         **(

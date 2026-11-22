@@ -672,6 +672,9 @@ def main() -> int:
         "--function", help="check one function in the full MIR module"
     )
     selection.add_argument(
+        "--storage-loop", help="check a supported MIR storage search-to-shift region"
+    )
+    selection.add_argument(
         "--window", help="check one complete EVM block by stable label"
     )
     selection.add_argument(
@@ -707,6 +710,7 @@ def main() -> int:
         evm_version=version,
         replay=args.replay,
         function=args.function,
+        storage_loop=args.storage_loop,
         window=args.window,
         region=args.region,
         stack_height=args.stack_height,
@@ -735,6 +739,7 @@ def main() -> int:
             evm_version=version,
             replay=rust_replay,
             function=args.function,
+            storage_loop=args.storage_loop,
             window=args.window,
             region=args.region,
             stack_height=args.stack_height,
@@ -760,6 +765,29 @@ def main() -> int:
                 version,
                 args.timeout,
                 executable=rust_replay,
+            )
+            programs = list(result.pair)
+        elif args.storage_loop:
+            if (
+                args.ir != "mir"
+                or args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--storage-loop requires unpriced MIR without a world fixture or stack height"
+                )
+            from . import storage_induction
+
+            result = storage_induction.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.storage_loop,
+                replay=replay,
+                verbose=args.verbose,
             )
             programs = list(result.pair)
         elif args.prefix:
@@ -948,6 +976,13 @@ def main() -> int:
             after=args.after,
             model=model,
         )
+        if args.storage_loop:
+            record["whole_pass"] = False
+            record["region"] = {
+                **record.get("region", {}),
+                "kind": "loop-region",
+                "name": args.storage_loop,
+            }
         if args.function or args.window or args.region or args.prefix:
             record["region"] = {
                 **record.get("region", {}),

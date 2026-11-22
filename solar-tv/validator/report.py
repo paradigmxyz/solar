@@ -199,6 +199,7 @@ def replay_command(
     evm_version: str | None = None,
     replay: str | None = None,
     function: str | None = None,
+    storage_loop: str | None = None,
     window: str | None = None,
     region: str | None = None,
     stack_height: int | None = None,
@@ -231,6 +232,8 @@ def replay_command(
         argv.extend(["--replay", replay])
     if function is not None:
         argv.extend(["--function", function])
+    if storage_loop is not None:
+        argv.extend(["--storage-loop", storage_loop])
     if window is not None:
         argv.extend(["--window", window])
     if region is not None:
