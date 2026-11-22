@@ -39,7 +39,7 @@ def rejecting_path(body):
     )
 
 
-def check(texts, before, after, version, timeout, executable):
+def check(texts, before, after, version, timeout, executable, *, debug_reverts=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     if len(after) != len(before) + 1:
@@ -78,9 +78,16 @@ def entry : Nat := {entry}
 def dispatcher : MIR.State.Function := (after[entry]'(by decide)).2
 def reference : MIR.State.Functions := MIR.LowerDispatch.insertDispatcher before entry dispatcher
 """
-    if source["runtime_entries"]:
+    if source["runtime_entries"] or debug_reverts:
         body, evidence = routed_dispatch.proof(
-            source, target, entry, definitions, version, before, retained
+            source,
+            target,
+            entry,
+            definitions,
+            version,
+            before,
+            retained,
+            debug_reverts=debug_reverts,
         )
         scope = "routed-dispatch"
         code += body

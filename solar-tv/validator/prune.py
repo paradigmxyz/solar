@@ -82,7 +82,7 @@ def declarations(text, *, allow_empty=False):
     return header, functions
 
 
-def check(paths, solar, version, timeout, *, executable=None):
+def check(paths, solar, version, timeout, *, executable=None, debug_reverts=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     texts, tables = [], []
@@ -113,8 +113,16 @@ def check(paths, solar, version, timeout, *, executable=None):
         from . import lower_dispatch, native
 
         return lower_dispatch.check(
-            texts, before, after, version, timeout, executable or native.default(solar)
+            texts,
+            before,
+            after,
+            version,
+            timeout,
+            executable or native.default(solar),
+            debug_reverts=debug_reverts,
         )
+    if debug_reverts:
+        raise Unsupported("--debug-reverts requires a dispatch materialization pair")
     if old_header != new_header:
         from . import native, phase_advance, type_prune
 

@@ -612,7 +612,16 @@ deployment-address immutable. The kernel checks direct and delegated calls
 for arbitrary 160-bit deployment and execution addresses. The runtime
 binding supplies the deployment address without a constructor staging slot.
 View routes retain the original frame, and library routes accept call value.
-Debug payloads and EVM gas remain open.
+
+The debug certificate uses the revert-string mode from the compiler
+invocation, or the explicit standalone `--debug-reverts` flag. It chooses
+the failure reason from the original routes and checks the actual
+dispatcher transitions, including the scratch writes. A separate byte
+memory theorem proves that those reference writes produce the exact
+`Error(string)` bytes for every initial scratch image. Debug ABI lowering
+retains the wrapper head checks and their own messages, so the certificate
+checks the retained wrappers at entry. Backend placement beyond the supplied
+runtime immutable binding and physical gas remain open.
 
 The phase-only form of `lower-evm-shaped` is covered by a module certificate.
 Both original modules pass phase validation and retain the same canonical

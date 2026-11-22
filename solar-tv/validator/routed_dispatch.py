@@ -32,7 +32,9 @@ def retained_declaration(body):
     return [head, *rest]
 
 
-def proof(source, target, entry, definitions, version, before, retained):
+def proof(
+    source, target, entry, definitions, version, before, retained, *, debug_reverts
+):
     def remap(id_):
         return id_ + (id_ >= entry)
 
@@ -44,13 +46,18 @@ def proof(source, target, entry, definitions, version, before, retained):
     library = source["library"]
     if library and (receive or fallback):
         raise Unsupported("library runtime dispatch requires selector-only routes")
+    if library and any(
+        row.get("mutability") not in {"payable", "nonpayable", "view", "pure"}
+        for row in selectors
+    ):
+        raise Unsupported("library runtime dispatch needs source route mutability")
     guarded = [
         remap(row["id"])
         for row in selectors
         if library and row["mutability"] in {"payable", "nonpayable"}
     ]
-    immutable = source["library_immutable"] if guarded else None
-    if guarded and (immutable is None or target["library_immutable"] != immutable):
+    immutable = source.get("library_immutable") if guarded else None
+    if guarded and (immutable is None or target.get("library_immutable") != immutable):
         raise Unsupported(
             "library dispatch needs the retained deployment-address immutable"
         )
@@ -70,6 +77,10 @@ def proof(source, target, entry, definitions, version, before, retained):
         minimum, guards = dispatch_guard_hoist.guards(
             source, entry, selectors, declarations, retained_text
         )
+    if debug_reverts and minimum is not None:
+        raise Unsupported(
+            "debug dispatch requires wrappers whose guard blocks are unchanged"
+        )
 
     dispatcher = target["functions"][entry]
     # The interpreter's cut must only follow a finite, read-only routing prefix.
@@ -78,6 +89,8 @@ def proof(source, target, entry, definitions, version, before, retained):
     instructions = [i["operation"] for block in blocks for i in block["instructions"]]
     operations = {op.get("name", op["kind"]) for op in instructions}
     allowed = ROUTING_OPS
+    if debug_reverts:
+        allowed = allowed | {"mstore"}
     if guarded:
         allowed = allowed | {"address", "eq"}
         if all(
@@ -112,7 +125,7 @@ def proof(source, target, entry, definitions, version, before, retained):
         else "none"
     )
     rejects_value = str(
-        not library and all(not row["payable"] for row in wrappers)
+        not library and bool(wrappers) and all(not row["payable"] for row in wrappers)
     ).lower()
     if minimum is not None:
         operations.update(("calldatasize", "lt"))
@@ -143,8 +156,10 @@ def proof(source, target, entry, definitions, version, before, retained):
     original = (
         "MIR.RoutedDispatch.select routes cfg.environment.input cfg.environment.value"
     )
+    relation = "MIR.RoutedDispatch.Agrees"
     selected_member = "MIR.RoutedDispatch.selector_target _ _ _ _ id selected"
     library_hypotheses = library_arguments = library_simp = ""
+    library_denied = "(fun _ => false)"
     if guarded:
         library_hypotheses = f"""    (deployment : World.Address)
     (binding : MIR.LibraryDispatch.Binding cfg {immutable} deployment)
@@ -155,14 +170,30 @@ def proof(source, target, entry, definitions, version, before, retained):
             "cfg.environment.address cfg.environment.input"
         )
         selected_member = "MIR.LibraryDispatch.selector_target _ _ _ _ _ id selected"
+        library_denied = f"(fun id => deployment == cfg.environment.address && ({guarded} : List Nat).contains id)"
         library_simp = (
             "MIR.LibraryDispatch.select, MIR.LibraryDispatch.address, "
             f"MIR.LibraryDispatch.immutable _ _ {immutable} deployment binding, Option.filter, "
         )
+    diagnostics_simp = ""
+    if debug_reverts:
+        relation = "MIR.DispatchDiagnostics.Agrees"
+        original = (
+            "MIR.DispatchDiagnostics.select routes cfg.environment.input cfg.environment.value "
+            + library_denied
+        )
+        diagnostics_simp = (
+            "MIR.DispatchDiagnostics.select, MIR.DispatchDiagnostics.Agrees, "
+            "MIR.DispatchDiagnostics.expected, MIR.DispatchDiagnostics.Failure.message, "
+            "MIR.DispatchDiagnostics.Failure.size, MIR.DispatchDiagnostics.messageBytes, "
+            "MIR.DispatchDiagnostics.encodeMemory, "
+            "MIR.DispatchDiagnostics.writeWord, MIR.DispatchDiagnostics.expand_small, "
+            "MIR.DispatchDiagnostics.grown_bounded, Execution.writeBytes_length, "
+        )
     normalize = f"""simp_all [{unfold}, ↓MIR.RoutedDispatch.reduceRunTo,
       MIR.RoutedDispatch.Agrees, MIR.RoutedDispatch.expand_zero _ bounded,
       MIR.TransferFromDispatch.selector_word, MIR.RoutedDispatch.callvalue,
-      MIR.RoutedDispatch.lookup, Nat.mod_eq_of_lt inputBound, BitVec.toNat_ofNat, {library_simp}]"""
+      MIR.RoutedDispatch.lookup, Nat.mod_eq_of_lt inputBound, BitVec.toNat_ofNat, {library_simp}{diagnostics_simp}]"""
     short_misses = "\n".join(
         f"""  have s{n} : cfg.environment.input.length < 4 →
       MIR.TransferFromDispatch.selector cfg.environment.input ≠ {row["selector"]} := by
@@ -216,7 +247,7 @@ theorem signatures : MIR.RoutedDispatch.cutBodies cuts after = routingBodies := 
 theorem routing (cfg : MIR.State.Config) (frame : MIR.State.Frame)
 {library_hypotheses}{opcode_hypotheses}    (bounded : frame.memory.length ≤ 65536)
     (inputBound : cfg.environment.input.length < 2^256) :
-    MIR.RoutedDispatch.Agrees entry frame
+    {relation} entry frame
       ({expected})
       (MIR.CallContext.runTo {cuts} {fuel} cfg routingBodies
         (MIR.RoutedDispatch.initial entry frame)) := by
@@ -234,14 +265,14 @@ theorem routing (cfg : MIR.State.Config) (frame : MIR.State.Frame)
       MIR.RoutedDispatch.callvalue,
       MIR.RoutedDispatch.expand_zero _ bounded, MIR.TransferFromDispatch.selector_word,
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt inputBound, List.isEmpty_iff,
-      List.length_eq_zero_iff, entry, routes, {library_simp}{route_simp}{op_simp}*]
+      List.length_eq_zero_iff, entry, routes, {library_simp}{route_simp}{diagnostics_simp}{op_simp}*]
 {split_selectors}
   all_goals {normalize}
   all_goals omega
 theorem {prefix_theorem} (cfg : MIR.State.Config) (frame : MIR.State.Frame)
 {library_hypotheses}{opcode_hypotheses}    (bounded : frame.memory.length ≤ 65536)
     (inputBound : cfg.environment.input.length < 2^256) :
-    MIR.RoutedDispatch.Agrees entry frame
+    {relation} entry frame
       ({expected})
       (MIR.CallContext.runTo cuts {fuel} cfg after (MIR.RoutedDispatch.initial entry frame)) := by
   rw [(MIR.RoutedDispatch.cut_agreement cuts after).prefix_eq, signatures]
@@ -255,6 +286,8 @@ theorem {prefix_theorem} (cfg : MIR.State.Config) (frame : MIR.State.Frame)
     }
     if library:
         evidence["library_guarded_routes"] = len(guarded)
+    if debug_reverts:
+        evidence["debug_reverts"] = True
     if minimum is not None:
         code += f"""
 theorem dispatch (cfg : MIR.State.Config) (frame : MIR.State.Frame)

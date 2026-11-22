@@ -1794,8 +1794,15 @@ An accepted call reaches the same wrapper block with the same locals and
 frame. The complete typed tables must agree after replacing only the wrapper
 guard branches. For libraries, the checker also validates the non-view
 delegatecall guard against the deployed address bound to the runtime
-immutable. This composes with hoisted head-size checks. Debug revert
-payloads and physical gas need separate proofs.
+immutable. This composes with hoisted head-size checks.
+
+For pairs built with compiler-generated revert strings, add
+`--debug-reverts` to the standalone `--prune` command. Compiler pass audits
+and captured evaluations carry that setting automatically. The
+`debug-runtime-dispatch` proof checks which route rejects, and compares its
+byte memory and `Error(string)` payload against an independent encoder.
+It covers empty and routed contracts as well as library guards. These
+certificates cover unpriced MIR through the wrapper entry or continuation.
 
 ### Allocation prefixes before unchanged cyclic callees
 

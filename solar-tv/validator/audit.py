@@ -207,6 +207,7 @@ def record(
         elif program and program.scope == "routed-dispatch":
             hoisted = "minimum_calldata" in program.import_evidence
             library = "library_guarded_routes" in program.import_evidence
+            debug = program.import_evidence.get("debug_reverts", False)
             assumptions.extend(
                 [
                     "explicit selector wrappers differ only in the first guard branch"
@@ -215,6 +216,8 @@ def record(
                     "initial memory at most 64 KiB and calldata length representable as a word; routing opcode availability checked against the target",
                     "symbolic calldata and call value; short selected inputs match the original empty revert; valid inputs reach the same wrapper cursor and complete frame"
                     if hoisted
+                    else "symbolic calldata and call value; exact wrapper entry frame or the configured Error(string) reason proved by direct MIR execution"
+                    if debug
                     else "symbolic calldata and call value; exact wrapper entry frame or empty revert proved using direct MIR transitions",
                     "execution beyond the checked wrapper cut, backend placement and physical gas are outside the routing certificate",
                 ]
@@ -682,7 +685,9 @@ def record(
                 "whole_pass": False,
                 "region": {
                     "kind": "module",
-                    "proof": "calldata-guard-hoist"
+                    "proof": "debug-runtime-dispatch"
+                    if program.import_evidence.get("debug_reverts")
+                    else "calldata-guard-hoist"
                     if "minimum_calldata" in program.import_evidence
                     else "library-runtime-dispatch"
                     if "library_guarded_routes" in program.import_evidence
@@ -698,6 +703,7 @@ def record(
                             "fallback",
                             "minimum_calldata",
                             "library_guarded_routes",
+                            "debug_reverts",
                         )
                         if key in program.import_evidence
                     },

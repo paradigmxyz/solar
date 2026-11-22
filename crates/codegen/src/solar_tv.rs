@@ -76,8 +76,9 @@ impl<'a> Snapshot<'a> {
                 .emit()
         };
         fs::create_dir_all(self.directory).map_err(io_error)?;
+        let debug_dispatch = pass == "lower-dispatch" && gcx.sess.opts.revert_strings.is_debug();
         if gcx.sess.opts.unstable.solar_tv_capture {
-            let record = serde_json::json!({
+            let mut record = serde_json::json!({
                 "version": 1, "status": "captured", "layer": layer,
                 "pass": pass, "module": module.to_string(), "target": gcx.sess.opts.evm_version.to_string(),
                 "rejection": rejection,
@@ -86,6 +87,9 @@ impl<'a> Snapshot<'a> {
                 })),
                 "whole_pass": false,
             });
+            if debug_dispatch {
+                record["debug_reverts"] = true.into();
+            }
             return self.capture_pair(layer, &after, &record).map_err(io_error);
         }
         // Capture keeps the original selection and rejection for stable corpus sampling.
@@ -134,6 +138,9 @@ impl<'a> Snapshot<'a> {
                     command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
                     if prune {
                         command.arg("--prune");
+                        if debug_dispatch {
+                            command.arg("--debug-reverts");
+                        }
                     } else if let Some(region) = region {
                         command
                             .arg(if prefix {

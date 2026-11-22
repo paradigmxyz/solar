@@ -53,7 +53,7 @@ class LowerDispatchTests(unittest.TestCase):
             )
         )
 
-    def check_pair(self, before, after, status):
+    def check_pair(self, before, after, status, *flags):
         report = self.folder / "dispatch-report.json"
         run = subprocess.run(
             [
@@ -66,6 +66,7 @@ class LowerDispatchTests(unittest.TestCase):
                 SOLAR,
                 "--report",
                 report,
+                *flags,
             ],
             capture_output=True,
             text=True,
@@ -396,3 +397,139 @@ library C {
                 good, bad = map(json.loads, result["observations"])
                 self.assertEqual(good["outcome"], outcome)
                 self.assertEqual(bad["outcome"], inverted)
+
+    def test_debug_dispatch_reverts_match_configured_payload(self):
+        variants = {
+            "empty": "contract C {}",
+            "value": "contract C { function f(uint256 x) external pure returns (uint256) { return x; } }",
+            "receive": "contract C { receive() external payable {} }",
+            "fallback": "contract C { function f() external payable {} receive() external payable {} fallback() external {} }",
+            "library": """
+library C {
+    function touch(uint256 value) external returns (uint256) { return value + 1; }
+    function probe(uint256 value) external pure returns (uint256) { return value; }
+}
+""",
+        }
+        for name, content in variants.items():
+            with self.subTest(name=name):
+                folder = self.folder / f"debug-{name}"
+                folder.mkdir()
+                source = evaluate.inputs(self.case)
+                source["sources"]["C.sol"]["content"] = content
+                source["settings"]["debug"] = {"revertStrings": "debug"}
+                baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+                captured, _ = evaluate.compile_input(
+                    SOLAR, source, folder, capture=True
+                )
+                self.assertEqual(baseline, captured)
+                dispatch = [
+                    row
+                    for row in evaluate.captures(folder)
+                    if row["pass"] == "lower-dispatch"
+                ]
+                self.assertTrue(dispatch)
+                self.assertTrue(all(row["debug_reverts"] for row in dispatch))
+                before, after = dispatch[0]["paths"]
+                proof = self.check_pair(before, after, 0, "--debug-reverts")
+                self.assertEqual(proof["region"]["proof"], "debug-runtime-dispatch")
+                self.assertTrue(proof["region"]["debug_reverts"])
+                if name == "library":
+                    self.check_debug_audit(before, folder / "audit")
+                    self.check_pair(before, after, 2)
+                    self.check_broken_debug_library(before, after, folder)
+                if name == "empty":
+                    with (
+                        patch.object(evaluate, "inputs", return_value=source),
+                        patch.object(
+                            evaluate,
+                            "select",
+                            side_effect=lambda rows, *_: [
+                                r for r in rows if r["pass"] == "lower-dispatch"
+                            ],
+                        ),
+                    ):
+                        report = evaluate.evaluate_case(
+                            self.case, SOLAR, folder / "evaluation", None, "0", 30
+                        )
+                    (check,) = report["checks"]
+                    self.assertEqual(check["status"], "verified")
+                    self.assertEqual(check["proof_mode"], "debug-runtime-dispatch")
+
+    def check_debug_audit(self, before, audit):
+        command = [
+            SOLAR,
+            before,
+            "-j1",
+            "--evm-version=cancun",
+            "--revert-strings",
+            "debug",
+            "-Zmir-pipeline=lower-dispatch",
+        ]
+        baseline = subprocess.check_output(command, text=True, timeout=30)
+        checked = subprocess.run(
+            [*command, f"-Zsolar-tv={audit}"],
+            env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        self.assertEqual(baseline, checked.stdout)
+        (record,) = [
+            json.loads(path.read_text()) for path in (audit / "audits").glob("*.json")
+        ]
+        self.assertEqual(record["status"], "verified")
+        self.assertEqual(record["region"]["proof"], "debug-runtime-dispatch")
+
+    def check_broken_debug_library(self, before, after, folder):
+        text = after.read_text()
+        self.assertEqual(text.count("0x4e6f6e2d"), 1)
+        altered = text.replace("0x4e6f6e2d", "0x4d6f6e2d")
+        broken = folder / "wrong-library-error.mir"
+        broken.write_text(altered)
+        proof = self.check_pair(before, broken, 2, "--debug-reverts")
+        self.assertIn("dispatch proof did not close", proof["diagnostic"])
+
+        fixture = folder / "world.json"
+        fixture.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "address": 65536,
+                    "calldata": "0xedaa0c1d" + "00" * 32,
+                    "mir_layout": {"immutable_values": {"0": 65536}},
+                    "memory": {"data": "0x" + "ef" * 192},
+                }
+            )
+        )
+        initial = world.read(fixture, SOLAR, None, kind="mir")
+        original, candidate = [
+            Program(
+                ("world-entry", "mir"),
+                [],
+                "",
+                "",
+                replay_ir=body,
+                selector="entry",
+                evm_version="cancun",
+                world=initial,
+            )
+            for body in (text, altered)
+        ]
+        result = native.replay(
+            original, candidate, [], executable=native.default(SOLAR), timeout=30
+        )
+        original, candidate = map(json.loads, result["observations"])
+        reason = b"Non-view function of library called without DELEGATECALL"
+        expected = (
+            bytes.fromhex("08c379a0")
+            + (32).to_bytes(32)
+            + len(reason).to_bytes(32)
+            + reason.ljust(64, b"\0")
+        )
+        self.assertEqual(original["outcome"], "revert")
+        self.assertEqual(candidate["outcome"], "revert")
+        self.assertEqual(bytes(original["data"]), expected)
+        self.assertEqual(bytes(candidate["data"]), expected[:68] + b"M" + expected[69:])

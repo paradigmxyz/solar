@@ -211,7 +211,8 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             and row["rejection"] == "incoming EVM stack height is unknown"
         )
         dispatch = row["layer"] == "mir" and row["pass"] == "lower-dispatch"
-        dispatch_key = (*row["paths"], row["target"])
+        debug_reverts = dispatch and row.get("debug_reverts", False)
+        dispatch_key = (*row["paths"], row["target"], debug_reverts)
         prune = row["layer"] == "mir" and (
             dispatch
             or row["rejection"]
@@ -251,6 +252,8 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             ]
             if prune:
                 command.append("--prune")
+                if debug_reverts:
+                    command.append("--debug-reverts")
             elif region := row["region"]:
                 command += [
                     "--prefix" if prefix else f"--{region['kind']}",

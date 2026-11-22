@@ -667,6 +667,11 @@ def main() -> int:
     parser.add_argument(
         "--report", type=Path, help="write a versioned JSON audit record"
     )
+    parser.add_argument(
+        "--debug-reverts",
+        action="store_true",
+        help="validate dispatch with compiler-generated Error(string) payloads",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--function", help="check one function in the full MIR module"
@@ -738,11 +743,14 @@ def main() -> int:
         return_path=args.return_path,
         erc20_layout=args.erc20_layout,
         prune=args.prune,
+        debug_reverts=args.debug_reverts,
     )
     programs: list[Program] = []
     model = audit.semantics()
     try:
         gas.validate(args.gas, version or "cancun")
+        if args.debug_reverts and not args.prune:
+            raise Unsupported("--debug-reverts requires --prune")
         solar = shutil.which(args.solar)
         if not solar or args.timeout <= 0:
             raise Unsupported(
@@ -769,6 +777,7 @@ def main() -> int:
             return_path=args.return_path,
             erc20_layout=args.erc20_layout,
             prune=args.prune,
+            debug_reverts=args.debug_reverts,
         )
         if args.prune:
             if (
@@ -788,6 +797,7 @@ def main() -> int:
                 version,
                 args.timeout,
                 executable=rust_replay,
+                debug_reverts=args.debug_reverts,
             )
             programs = list(result.pair)
         elif args.storage_loop:
