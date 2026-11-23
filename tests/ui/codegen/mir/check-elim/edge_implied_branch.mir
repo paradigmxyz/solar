@@ -204,6 +204,33 @@ fn @entered_join(arg0: i256) -> i256 {
     ret 0
 }
 
+// The join's branch on `arg0` is decided on every path, so the pass folds it to a jump first.
+// Threading its edges then saves that jump, not a branch, which no build repays: the edges
+// stay, and CFG cleanup forwards them for free.
+// CHECK-LABEL: {{^[ +].*}}fn @folded_join{{[( ]}}
+// CHECK-NOT: + jump bb6
+// CHECK: bb4:
+// CHECK-NEXT: - jumpi arg0, bb6, bb5
+// CHECK: + jump bb6
+fn @folded_join(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb5
+  bb1:
+    jumpi arg1, bb2, bb3
+  bb2:
+    sstore 0, 1
+    jump bb4
+  bb3:
+    sstore 1, 1
+    jump bb4
+  bb4:
+    jumpi arg0, bb6, bb5
+  bb5:
+    ret 0
+  bb6:
+    ret 1
+}
+
 // The true edge of `bb1` decides that `bb2` goes to `bb3`, which the other arm
 // of `bb1` enters already: the edge stays.
 // CHECK-LABEL: {{^[ +].*}}fn @other_arm{{[( ]}}

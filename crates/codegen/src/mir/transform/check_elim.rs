@@ -3995,7 +3995,12 @@ fn priced_threads(
     let cyclic = cfg.cyclic_blocks();
     let mut priced = SmallVec::new();
     for (join, edges) in by_join {
-        let skipped = target.block_instructions_estimate(func, join) + target.branch();
+        // A join this pass already folded ends in a jump, not a branch.
+        let exit = match func.blocks[join].terminator {
+            Some(Terminator::Jump(_)) => jump,
+            _ => target.branch(),
+        };
+        let skipped = target.block_instructions_estimate(func, join) + exit;
         let in_loop = |pred| cyclic.contains(pred) && cyclic.contains(join);
         let cold = |pred: BlockId| func.blocks[pred].hotness.is_cold();
         if edges.len() == func.blocks[join].predecessors.len() && !entered.contains(&join) {
